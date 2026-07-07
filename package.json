@@ -1,0 +1,28 @@
+{
+  "name": "mechili",
+  "version": "0.1.0",
+  "description": "MECHILI — a 2D auto-battler. Coming soon.",
+  "type": "module",
+  "license": "GPL-3.0",
+  "steamElectronBuild": {
+    "productName": "MECHILI",
+    "appId": "com.feuerware.mechili",
+    "steamAppId": 480,
+    "executableName": "mechili"
+  },
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "start": "steam-electron-build dev",
+    "build:mac": "steam-electron-build build mac",
+    "build:win": "steam-electron-build build win",
+    "build:linux": "steam-electron-build build linux"
+  },
+  "dependencies": {
+    "pixi.js": "^8.19.0"
+  },
+  "devDependencies": {
+    "steam-electron-build": "github:alexanderthurn/steam-electron-build",
+    "vite": "^8.1.3"
+  }
+}

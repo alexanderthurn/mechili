@@ -1,0 +1,11 @@
+name: Steam
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  steam:
+    uses: alexanderthurn/steam-electron-build/.github/workflows/steam.yml@main
+    secrets: inherit
