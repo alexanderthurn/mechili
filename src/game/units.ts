@@ -28,6 +28,8 @@ export interface UnitType {
     meshScale: number;
     /** structures don't bob and never rotate to face anything (but are valid facing targets) */
     structure?: boolean;
+    /** ground-plane collision circle per mech, in world units — nothing walks through it */
+    collisionRadius: number;
     /** combat stats, per individual mech */
     hp: number;
     damage: number;
@@ -156,6 +158,7 @@ export const TOWER_TYPE: UnitType = {
     formation: { cols: 1, rows: 1 },
     meshScale: 2.4,
     structure: true,
+    collisionRadius: 4.5,
     hp: 800,
     damage: 0,
     range: 0,
@@ -172,6 +175,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a swarm of 24 bugs
         meshScale: 1,
+        collisionRadius: 0.5,
         hp: 40,
         damage: 8,
         range: 2,
@@ -186,6 +190,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
+        collisionRadius: 1.0,
         hp: 130,
         damage: 65,
         range: 45,
@@ -200,6 +205,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
+        collisionRadius: 2.8,
         hp: 900,
         damage: 130,
         range: 28,
