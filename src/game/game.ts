@@ -109,9 +109,9 @@ export class Game {
             });
         };
 
-        // round 0: the persistent board state both players know about
+        // round 0: only the towers are known — every enemy unit arrives
+        // through hidden build-phase placements, revealed at battle start
         this.spawnTowers();
-        this.spawnEnemyArmy();
         this.startBuildPhase();
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
@@ -131,32 +131,6 @@ export class Game {
         }
     }
 
-    /** static dummy opposition so the far zone isn't empty */
-    private spawnEnemyArmy(): void {
-        const [crawler, marksman, fortress] = UNIT_TYPES as [
-            (typeof UNIT_TYPES)[number],
-            (typeof UNIT_TYPES)[number],
-            (typeof UNIT_TYPES)[number],
-        ];
-        const { flankCols, zoneRows } = this.map.size;
-        const { cols, rows } = this.map;
-        const zoneStart = rows - zoneRows; // first row of the enemy territory
-        for (let col = flankCols + 6; col <= cols - flankCols - 10; col += 16) {
-            this.placement.spawn(fortress, { col, row: zoneStart + 18 }, 'enemy'); // 4x4, behind the towers
-        }
-        for (let col = flankCols + 3; col <= cols - flankCols - 5; col += 6) {
-            this.placement.spawn(marksman, { col, row: zoneStart + 8 }, 'enemy'); // 2x2
-        }
-        for (let col = flankCols + 2; col <= cols - flankCols - 7; col += 8) {
-            this.placement.spawn(crawler, { col, row: zoneStart + 4 }, 'enemy'); // 5x2 swarm, front line
-        }
-        // crawler swarms on the enemy's flanks, beside the player's half
-        for (const col of [0, cols - 5]) {
-            this.placement.spawn(crawler, { col, row: 4 }, 'enemy');
-            this.placement.spawn(crawler, { col, row: 10 }, 'enemy');
-        }
-    }
-
     /** A new round: place freely, hidden from the opponent, until timer or button. */
     private startBuildPhase(): void {
         this.round++;
@@ -166,7 +140,7 @@ export class Game {
         this.placement.hiddenPlacements = true;
         this.gridOverlay.visible = true;
         // the enemy also deploys this round — invisible to the player until battle
-        const count = 2 + Math.min(this.round, 3);
+        const count = Math.min(3 + this.round, 8);
         for (let i = 0; i < count; i++) {
             const type = UNIT_TYPES[Math.floor(Math.random() * UNIT_TYPES.length)]!;
             this.placement.spawnEnemyRandom(type);
