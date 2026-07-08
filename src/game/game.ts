@@ -87,19 +87,19 @@ export class Game {
         ];
         const { flankCols } = this.map.size;
         const { cols, rows } = this.map;
-        for (let col = flankCols + 8; col < cols - flankCols - 4; col += 15) {
-            this.placement.spawn(fortress, { col, row: rows - 3 }, 'enemy');
+        for (let col = flankCols + 6; col <= cols - flankCols - 10; col += 16) {
+            this.placement.spawn(fortress, { col, row: rows - 8 }, 'enemy'); // 4x4
         }
-        for (let col = flankCols + 2; col < cols - flankCols - 1; col += 7) {
-            this.placement.spawn(marksman, { col, row: rows - 5 }, 'enemy');
+        for (let col = flankCols + 3; col <= cols - flankCols - 5; col += 6) {
+            this.placement.spawn(marksman, { col, row: rows - 12 }, 'enemy'); // 2x2
         }
-        for (let col = flankCols + 1; col < cols - flankCols - 1; col += 5) {
-            this.placement.spawn(crawler, { col, row: rows - 7 }, 'enemy');
+        for (let col = flankCols + 2; col <= cols - flankCols - 7; col += 8) {
+            this.placement.spawn(crawler, { col, row: rows - 16 }, 'enemy'); // 5x2 swarm
         }
-        // a few crawlers on the enemy's flanks, beside the player's half
-        for (const col of [2, cols - 3]) {
+        // crawler swarms on the enemy's flanks, beside the player's half
+        for (const col of [0, cols - 5]) {
             this.placement.spawn(crawler, { col, row: 4 }, 'enemy');
-            this.placement.spawn(crawler, { col, row: 8 }, 'enemy');
+            this.placement.spawn(crawler, { col, row: 10 }, 'enemy');
         }
     }
 

@@ -13,9 +13,10 @@ const VALID_COLOR = 0x35e0ff;
 const INVALID_COLOR = 0xff4040;
 
 /**
- * Hover highlight + click-to-place. Placement is only valid on free cells
- * inside the player deployment zone. Input listens on the top-most surface
- * (the UI overlay canvas) so HUD buttons can swallow their own clicks.
+ * Hover highlight + click-to-place. A unit's footprint (cols x rows tiles,
+ * centered on the hovered cell) must lie entirely on free cells inside the
+ * player deployment zones. Input listens on the top-most surface (the UI
+ * overlay canvas) so HUD buttons can swallow their own clicks.
  */
 export class PlacementController {
     selectedType: UnitType | null = null;
@@ -40,7 +41,7 @@ export class PlacementController {
             side: DoubleSide,
             depthWrite: false,
         });
-        const geo = new PlaneGeometry(CELL * 0.96, CELL * 0.96);
+        const geo = new PlaneGeometry(1, 1); // scaled per footprint each frame
         geo.rotateX(-Math.PI / 2);
         this.hoverMesh = new Mesh(geo, this.hoverMaterial);
         this.hoverMesh.position.y = 0.03;
@@ -59,9 +60,9 @@ export class PlacementController {
             const moved = Math.hypot(up.x - this.downAt.x, up.y - this.downAt.y);
             this.downAt = null;
             if (moved > 6) return; // it was a drag, not a click
-            const cell = this.cellAt(up.x, up.y);
-            if (cell && this.canPlace(cell)) {
-                this.spawn(this.selectedType!, cell, 'player');
+            const anchor = this.anchorAt(up.x, up.y);
+            if (anchor && this.selectedType && this.canPlace(this.selectedType, anchor)) {
+                this.spawn(this.selectedType, anchor, 'player');
             }
         });
     }
@@ -70,10 +71,17 @@ export class PlacementController {
         return this.units.length;
     }
 
-    spawn(type: UnitType, cell: Cell, team: Team): Unit | null {
-        if (this.occupied.has(cellKey(cell))) return null;
-        const unit = new Unit(type, cell, team, this.map.cellCenter(cell.col, cell.row));
-        this.occupied.set(cellKey(cell), unit);
+    /** Places a unit with its footprint anchored at `anchor` (no zone validation — callers validate). */
+    spawn(type: UnitType, anchor: Cell, team: Team): Unit | null {
+        const cells = this.coveredCells(type, anchor);
+        if (!cells || cells.some((c) => this.occupied.has(cellKey(c)))) return null;
+        const unit = new Unit(
+            type,
+            anchor,
+            team,
+            this.map.areaCenter(anchor, type.footprint.cols, type.footprint.rows),
+        );
+        for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.units.push(unit);
         this.scene.add(unit.view);
         return unit;
@@ -89,26 +97,48 @@ export class PlacementController {
         return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     }
 
-    private cellAt(x: number, y: number): Cell | null {
+    /** anchor cell so the selected type's footprint is centered on the hovered cell */
+    private anchorAt(x: number, y: number): Cell | null {
         const rect = this.surface.getBoundingClientRect();
         const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
-        return ground ? this.map.worldToCell(ground) : null;
+        const cell = ground ? this.map.worldToCell(ground) : null;
+        if (!cell) return null;
+        const fp = this.selectedType?.footprint ?? { cols: 1, rows: 1 };
+        return {
+            col: cell.col - Math.floor((fp.cols - 1) / 2),
+            row: cell.row - Math.floor((fp.rows - 1) / 2),
+        };
     }
 
-    private canPlace(cell: Cell): boolean {
+    /** all tiles under the footprint, or null when part of it is off the map */
+    private coveredCells(type: UnitType, anchor: Cell): Cell[] | null {
+        const cells: Cell[] = [];
+        for (let c = 0; c < type.footprint.cols; c++) {
+            for (let r = 0; r < type.footprint.rows; r++) {
+                const cell = { col: anchor.col + c, row: anchor.row + r };
+                if (!this.map.inBounds(cell)) return null;
+                cells.push(cell);
+            }
+        }
+        return cells;
+    }
+
+    private canPlace(type: UnitType, anchor: Cell): boolean {
+        const cells = this.coveredCells(type, anchor);
         return (
-            this.selectedType !== null &&
-            this.map.isPlayerCell(cell) &&
-            !this.occupied.has(cellKey(cell))
+            cells !== null &&
+            cells.every((c) => this.map.isPlayerCell(c) && !this.occupied.has(cellKey(c)))
         );
     }
 
     private updateHover(): void {
-        const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
-        this.hoverMesh.visible = cell !== null;
-        if (!cell) return;
-        const center = this.map.cellCenter(cell.col, cell.row);
+        const type = this.selectedType;
+        const anchor = this.pointer && type ? this.anchorAt(this.pointer.x, this.pointer.y) : null;
+        this.hoverMesh.visible = anchor !== null;
+        if (!anchor || !type) return;
+        const center = this.map.areaCenter(anchor, type.footprint.cols, type.footprint.rows);
         this.hoverMesh.position.set(center.x, 0.03, center.z);
-        this.hoverMaterial.color.setHex(this.canPlace(cell) ? VALID_COLOR : INVALID_COLOR);
+        this.hoverMesh.scale.set(type.footprint.cols * CELL * 0.98, 1, type.footprint.rows * CELL * 0.98);
+        this.hoverMaterial.color.setHex(this.canPlace(type, anchor) ? VALID_COLOR : INVALID_COLOR);
     }
 }

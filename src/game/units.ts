@@ -7,15 +7,26 @@ import {
     SphereGeometry,
     type Vector3,
 } from 'three';
-import type { Cell } from './map';
+import { CELL, type Cell } from './map';
 
 export type Team = 'player' | 'enemy';
+
+export interface GridExtent {
+    cols: number;
+    rows: number;
+}
 
 export interface UnitType {
     id: string;
     name: string;
     cost: number;
-    /** builds the unit's meshes around the origin in world units, facing -z (toward the enemy) */
+    /** tiles this unit occupies on the grid (width x depth) */
+    footprint: GridExtent;
+    /** how many individual mechs stand inside the footprint (width x depth) */
+    formation: GridExtent;
+    /** uniform scale applied to each mech mesh */
+    meshScale: number;
+    /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;
 }
 
@@ -89,17 +100,10 @@ class PartFactory {
 }
 
 function buildCrawler(parts: PartFactory): void {
-    // a small squad of three bugs
-    const spots: [number, number][] = [
-        [-0.9, 0.5],
-        [0.9, 0.35],
-        [0, -0.75],
-    ];
-    for (const [x, z] of spots) {
-        parts.sphere(0.42, x, 0.35, z, 'hull');
-        parts.sphere(0.16, x, 0.62, z - 0.25, 'accent');
-        parts.box(1.0, 0.12, 0.5, x, 0.12, z, 'dark'); // leg plate
-    }
+    // one small bug of the swarm
+    parts.sphere(0.42, 0, 0.35, 0, 'hull');
+    parts.sphere(0.16, 0, 0.62, -0.25, 'accent');
+    parts.box(1.0, 0.12, 0.5, 0, 0.12, 0, 'dark'); // leg plate
 }
 
 function buildMarksman(parts: PartFactory): void {
@@ -127,15 +131,43 @@ function buildFortress(parts: PartFactory): void {
 }
 
 export const UNIT_TYPES: UnitType[] = [
-    { id: 'crawler', name: 'Crawler', cost: 100, build: buildCrawler },
-    { id: 'marksman', name: 'Marksman', cost: 200, build: buildMarksman },
-    { id: 'fortress', name: 'Fortress', cost: 400, build: buildFortress },
+    {
+        id: 'crawler',
+        name: 'Crawler',
+        cost: 100,
+        footprint: { cols: 5, rows: 2 },
+        formation: { cols: 8, rows: 3 }, // a swarm of 24 bugs
+        meshScale: 1,
+        build: buildCrawler,
+    },
+    {
+        id: 'marksman',
+        name: 'Marksman',
+        cost: 200,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 2.2,
+        build: buildMarksman,
+    },
+    {
+        id: 'fortress',
+        name: 'Fortress',
+        cost: 400,
+        footprint: { cols: 4, rows: 4 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 3.2,
+        build: buildFortress,
+    },
 ];
 
-/** A placed unit: a real 3D mesh group standing on the battlefield. */
+/**
+ * A placed unit: one or more real 3D mech meshes standing in formation
+ * across the unit's footprint. `cell` is the top-left anchor tile and
+ * `world` the center of the footprint rectangle.
+ */
 export class Unit {
     readonly view = new Group();
-    private readonly bobPhase = Math.random() * Math.PI * 2;
+    private readonly members: { mesh: Group; phase: number }[] = [];
 
     constructor(
         readonly type: UnitType,
@@ -143,13 +175,31 @@ export class Unit {
         readonly team: Team,
         readonly world: Vector3,
     ) {
-        this.type.build(new PartFactory(this.view, team));
+        const { footprint, formation } = type;
+        const spacingX = (footprint.cols * CELL) / formation.cols;
+        const spacingZ = (footprint.rows * CELL) / formation.rows;
+        for (let i = 0; i < formation.cols; i++) {
+            for (let j = 0; j < formation.rows; j++) {
+                const mesh = new Group();
+                type.build(new PartFactory(mesh, team));
+                mesh.scale.setScalar(type.meshScale);
+                mesh.position.set(
+                    (i - (formation.cols - 1) / 2) * spacingX,
+                    0,
+                    (j - (formation.rows - 1) / 2) * spacingZ,
+                );
+                this.view.add(mesh);
+                this.members.push({ mesh, phase: Math.random() * Math.PI * 2 });
+            }
+        }
         if (team === 'enemy') this.view.rotation.y = Math.PI; // face the player
         this.view.position.copy(this.world);
     }
 
     update(timeSeconds: number): void {
-        // subtle idle bob
-        this.view.position.y = 0.05 + Math.sin(timeSeconds * 2 + this.bobPhase) * 0.04;
+        // subtle idle bob, per mech
+        for (const m of this.members) {
+            m.mesh.position.y = 0.05 + Math.sin(timeSeconds * 2 + m.phase) * 0.04;
+        }
     }
 }

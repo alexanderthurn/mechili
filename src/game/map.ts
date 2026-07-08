@@ -78,6 +78,19 @@ export class BattleMap {
         return new Vector3(-this.halfW + (col + 0.5) * CELL, 0, this.halfH - (row + 0.5) * CELL);
     }
 
+    /** center of a cols x rows tile rectangle anchored at `cell` (its top-left, enemy-most tile) */
+    areaCenter(cell: Cell, cols: number, rows: number): Vector3 {
+        return new Vector3(
+            -this.halfW + (cell.col + cols / 2) * CELL,
+            0,
+            this.halfH - (cell.row + rows / 2) * CELL,
+        );
+    }
+
+    inBounds(cell: Cell): boolean {
+        return cell.col >= 0 && cell.col < this.cols && cell.row >= 0 && cell.row < this.rows;
+    }
+
     worldToCell(p: Vector3): Cell | null {
         const col = Math.floor((p.x + this.halfW) / CELL);
         const row = Math.floor((this.halfH - p.z) / CELL);
