@@ -1,7 +1,7 @@
 {
   "name": "mechili",
   "version": "0.1.0",
-  "description": "MECHILI — a 2D auto-battler. Coming soon.",
+  "description": "MECHILI — an auto-battler in projected 3D.",
   "type": "module",
   "license": "GPL-3.0",
   "steamElectronBuild": {
@@ -12,17 +12,20 @@
   },
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build",
+    "build": "tsc --noEmit && vite build",
     "start": "steam-electron-build dev",
     "build:mac": "steam-electron-build mac",
     "build:win": "steam-electron-build win",
     "build:linux": "steam-electron-build linux"
   },
   "dependencies": {
-    "pixi.js": "^8.19.0"
+    "pixi.js": "^8.19.0",
+    "three": "^0.185.1"
   },
   "devDependencies": {
+    "@types/three": "^0.185.0",
     "steam-electron-build": "github:alexanderthurn/steam-electron-build",
+    "typescript": "^6.0.3",
     "vite": "^8.1.3"
   }
 }
