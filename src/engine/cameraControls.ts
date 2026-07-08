@@ -20,9 +20,12 @@ export class CameraControls {
     edgeScroll = true;
     /** fired on a middle CLICK (press without drag) — orbit only starts once the mouse moves */
     onMiddleClick: (() => void) | null = null;
+    /** fired on a right CLICK (press without drag) — pan only counts once the mouse moves */
+    onRightClick: (() => void) | null = null;
 
     private readonly pressed = new Set<string>();
     private dragGround: Vector3 | null = null;
+    private dragStart: { x: number; y: number } | null = null;
     private orbitLast: { x: number; y: number } | null = null;
     private orbitStart: { x: number; y: number } | null = null;
     private pointer: { x: number; y: number } | null = null;
@@ -72,6 +75,7 @@ export class CameraControls {
                 this.surface.setPointerCapture(e.pointerId);
             } else if (e.button === 2) {
                 this.dragGround = this.pick(e);
+                this.dragStart = { x: e.clientX, y: e.clientY };
                 this.surface.setPointerCapture(e.pointerId);
             }
         });
@@ -98,12 +102,18 @@ export class CameraControls {
                 const moved = Math.hypot(e.clientX - this.orbitStart.x, e.clientY - this.orbitStart.y);
                 if (moved <= 5) this.onMiddleClick?.();
             }
+            if (e.button === 2 && this.dragStart) {
+                const moved = Math.hypot(e.clientX - this.dragStart.x, e.clientY - this.dragStart.y);
+                if (moved <= 5) this.onRightClick?.();
+            }
             this.dragGround = null;
+            this.dragStart = null;
             this.orbitLast = null;
             this.orbitStart = null;
         });
         listen(surface, 'pointercancel', () => {
             this.dragGround = null;
+            this.dragStart = null;
             this.orbitLast = null;
             this.orbitStart = null;
         });

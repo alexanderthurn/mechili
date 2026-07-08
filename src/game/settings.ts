@@ -14,6 +14,20 @@ export interface GameSettings {
     /** each player's hit points; surviving enemy units bite into these after every battle */
     startingHp: number;
     economy: EconomySettings;
+    towers: TowerSettings;
+}
+
+export interface TowerSettings {
+    /**
+     * Towers are buffs, not score: each destroyed OWN tower applies these
+     * multipliers to all of that side's units, stacking multiplicatively.
+     * Destruction is permanent for the match.
+     */
+    debuffPerLostTower: {
+        speedMult: number;
+        attackMult: number;
+        damageTakenMult: number;
+    };
 }
 
 export interface EconomySettings {
@@ -37,6 +51,13 @@ export const DEFAULT_SETTINGS: GameSettings = {
             crawler: 100,
             marksman: 100,
             fortress: 400,
+        },
+    },
+    towers: {
+        debuffPerLostTower: {
+            speedMult: 0.6,
+            attackMult: 0.7,
+            damageTakenMult: 1.3,
         },
     },
 };

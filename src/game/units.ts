@@ -220,6 +220,10 @@ export class Unit {
      * unit yet, and it is ignored when other units pick a facing target.
      */
     revealed = true;
+    /** permanent for the match (towers): no longer a target, debuffs its owner's side */
+    destroyed = false;
+    /** round this unit was deployed in — only units from the current round may be moved */
+    deployedRound = 0;
     /** rotation around y the unit currently faces (0 = toward -z / the enemy edge) */
     facing: number;
     /** individual mechs; `home` is each one's formation slot (local offset from the unit center) */
@@ -227,11 +231,12 @@ export class Unit {
 
     constructor(
         readonly type: UnitType,
-        readonly cell: Cell,
+        /** top-left anchor tile of the footprint */
+        public cell: Cell,
         readonly team: Team,
         readonly world: Vector3,
         /** placement rotated 90°: footprint and formation use swapped cols/rows */
-        readonly rotated = false,
+        public rotated = false,
     ) {
         const footprint = rotated ? swapExtent(type.footprint) : type.footprint;
         const formation = rotated ? swapExtent(type.formation) : type.formation;
@@ -257,6 +262,43 @@ export class Unit {
             for (const m of this.members) m.mesh.rotation.y = this.facing;
         }
         this.view.position.copy(this.world);
+    }
+
+    /** Repositions the whole pack (build phase only — occupancy is the caller's job). */
+    moveTo(cell: Cell, world: Vector3): void {
+        this.cell = cell;
+        this.world.copy(world);
+        this.view.position.copy(world);
+    }
+
+    /** Re-arranges the formation for the new orientation, in place. */
+    setRotated(rotated: boolean): void {
+        this.rotated = rotated;
+        const footprint = rotated ? swapExtent(this.type.footprint) : this.type.footprint;
+        const formation = rotated ? swapExtent(this.type.formation) : this.type.formation;
+        const spacingX = (footprint.cols * CELL) / formation.cols;
+        const spacingZ = (footprint.rows * CELL) / formation.rows;
+        let k = 0;
+        for (let i = 0; i < formation.cols; i++) {
+            for (let j = 0; j < formation.rows; j++) {
+                const m = this.members[k++]!;
+                m.home.set(
+                    (i - (formation.cols - 1) / 2) * spacingX,
+                    0,
+                    (j - (formation.rows - 1) / 2) * spacingZ,
+                );
+                m.mesh.position.copy(m.home);
+            }
+        }
+    }
+
+    /** Collapses the meshes into rubble and takes the unit out of play for good. */
+    markDestroyed(): void {
+        this.destroyed = true;
+        for (const m of this.members) {
+            m.mesh.scale.y *= 0.3;
+            m.mesh.rotation.z = 0.12;
+        }
     }
 
     /**

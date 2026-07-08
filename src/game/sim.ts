@@ -1,7 +1,8 @@
 import type { Group } from 'three';
+import type { TowerSettings } from './settings';
 import type { Team, Unit } from './units';
 
-interface Actor {
+export interface Actor {
     unit: Unit;
     mesh: Group;
     x: number;
@@ -23,11 +24,20 @@ interface Actor {
 export class BattleSim {
     private static readonly STEP = 1 / 30;
 
-    private readonly actors: Actor[] = [];
+    readonly actors: Actor[] = [];
     private accumulator = 0;
+    /** destroyed towers per side (pre-battle + during battle) drive the debuffs */
+    private readonly lostTowers: Record<Team, number> = { player: 0, enemy: 0 };
 
-    constructor(units: readonly Unit[]) {
+    constructor(
+        units: readonly Unit[],
+        private readonly towers: TowerSettings,
+    ) {
         for (const unit of units) {
+            if (unit.destroyed) {
+                this.lostTowers[unit.team]++;
+                continue; // rubble is not a target
+            }
             unit.members.forEach((m, i) => {
                 this.actors.push({
                     unit,
@@ -43,9 +53,13 @@ export class BattleSim {
         }
     }
 
-    /** true when one side has no mechs left to fight with */
+    /**
+     * Over when one side has nothing left alive (towers included), or when
+     * neither side can act anymore (only towers facing towers).
+     */
     get isOver(): boolean {
-        return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');
+        if (!this.hasMobileMechs('player') && !this.hasMobileMechs('enemy')) return true;
+        return !this.hasLiving('player') || !this.hasLiving('enemy');
     }
 
     /** living/total mechs per unit (structures excluded) — the end-of-battle scoring input */
@@ -76,7 +90,28 @@ export class BattleSim {
         return this.actors.some((a) => a.alive && a.unit.team === team && !a.unit.type.structure);
     }
 
+    private hasLiving(team: Team): boolean {
+        return this.actors.some((a) => a.alive && a.unit.team === team);
+    }
+
+    /** stacking multiplier from a side's lost towers */
+    private debuff(team: Team, mult: number): number {
+        return mult ** this.lostTowers[team];
+    }
+
+    private kill(target: Actor): void {
+        target.alive = false;
+        if (target.unit.type.structure) {
+            // a fallen tower stays fallen for the whole match and weakens its side
+            target.unit.markDestroyed();
+            this.lostTowers[target.unit.team]++;
+        } else {
+            target.mesh.visible = false;
+        }
+    }
+
     private step(dt: number): void {
+        const d = this.towers.debuffPerLostTower;
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
             const target = this.closestEnemy(a);
@@ -88,18 +123,18 @@ export class BattleSim {
             const stats = a.unit.type;
 
             if (dist > stats.range) {
-                const move = Math.min(stats.speed * dt, dist - stats.range);
+                const move = Math.min(stats.speed * this.debuff(a.unit.team, d.speedMult) * dt, dist - stats.range);
                 a.x += (dx / dist) * move;
                 a.z += (dz / dist) * move;
             } else {
                 a.cooldown -= dt;
                 if (a.cooldown <= 0) {
                     a.cooldown += stats.attackInterval;
-                    target.hp -= stats.damage;
-                    if (target.hp <= 0) {
-                        target.alive = false;
-                        target.mesh.visible = false;
-                    }
+                    target.hp -=
+                        stats.damage *
+                        this.debuff(a.unit.team, d.attackMult) *
+                        this.debuff(target.unit.team, d.damageTakenMult);
+                    if (target.hp <= 0) this.kill(target);
                 }
             }
 
@@ -109,25 +144,18 @@ export class BattleSim {
         }
     }
 
-    /** closest living enemy mech; enemy structures only as a fallback */
+    /** the closest living enemy, tower or mech — towers are units like any other */
     private closestEnemy(from: Actor): Actor | null {
-        let bestMech: Actor | null = null;
-        let bestMechD = Infinity;
-        let bestStructure: Actor | null = null;
-        let bestStructureD = Infinity;
+        let best: Actor | null = null;
+        let bestD = Infinity;
         for (const a of this.actors) {
             if (!a.alive || a.unit.team === from.unit.team) continue;
             const d = (a.x - from.x) ** 2 + (a.z - from.z) ** 2;
-            if (a.unit.type.structure) {
-                if (d < bestStructureD) {
-                    bestStructureD = d;
-                    bestStructure = a;
-                }
-            } else if (d < bestMechD) {
-                bestMechD = d;
-                bestMech = a;
+            if (d < bestD) {
+                bestD = d;
+                best = a;
             }
         }
-        return bestMech ?? bestStructure;
+        return best;
     }
 }

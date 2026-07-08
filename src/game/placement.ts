@@ -156,7 +156,7 @@ export class PlacementController {
     private opponentMechPositions(team: Team, exclude: Unit): Vector3[] {
         const positions: Vector3[] = [];
         for (const u of this.units) {
-            if (u === exclude || u.team === team || !u.revealed) continue;
+            if (u === exclude || u.team === team || !u.revealed || u.destroyed) continue;
             positions.push(...u.memberWorldPositions());
         }
         return positions;

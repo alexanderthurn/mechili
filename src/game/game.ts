@@ -175,7 +175,7 @@ export class Game {
         this.placement.hiddenPlacements = false;
         this.gridOverlay.visible = false;
         this.placement.revealAll();
-        this.sim = new BattleSim(this.placement.allUnits());
+        this.sim = new BattleSim(this.placement.allUnits(), this.settings.towers);
     }
 
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
