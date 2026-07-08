@@ -10,8 +10,9 @@ import {
 } from 'three';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
-import { BattleMap, STANDARD_MAP, type Cell } from './map';
+import { BattleMap, type Cell } from './map';
 import { PlacementController } from './placement';
+import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim } from './sim';
 import { TOWER_TYPE, UNIT_TYPES } from './units';
 import { DebugOverlay } from '../ui/debug';
@@ -31,11 +32,8 @@ interface DeploymentRecord {
  * unit meshes) rendered below the transparent Pixi UI overlay.
  */
 export class Game {
-    /** phase lengths in seconds — tune freely, they will change */
-    buildTime = 90;
-    battleTime = 90;
-
-    private readonly map = new BattleMap(STANDARD_MAP);
+    private readonly map: BattleMap;
+    private readonly economy: Economy;
     private readonly scene = new Scene();
     private readonly renderer: WebGLRenderer;
     private readonly rig = new CameraRig();
@@ -57,7 +55,10 @@ export class Game {
         private readonly pixiApp: Application,
         threeCanvas: HTMLCanvasElement,
         wrapper: HTMLElement,
+        private readonly settings: GameSettings = DEFAULT_SETTINGS,
     ) {
+        this.map = new BattleMap(settings.map);
+        this.economy = new Economy(settings.economy);
         this.renderer = new WebGLRenderer({ canvas: threeCanvas, antialias: true });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
@@ -88,11 +89,16 @@ export class Game {
         // keep the camera target well inside the field so the view never leaves the map
         this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
         this.controls = new CameraControls(this.rig, surface);
-        this.placement = new PlacementController(this.rig, this.map, this.scene, surface);
+        this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.controls.onMiddleClick = () => this.placement.toggleRotation();
-        this.hud = new Hud(pixiApp, wrapper, (type) => {
-            this.placement.selectedType = type;
-        });
+        this.hud = new Hud(
+            pixiApp,
+            wrapper,
+            (type) => this.economy.costOf(type),
+            (type) => {
+                this.placement.selectedType = type;
+            },
+        );
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') this.startBattlePhase();
         };
@@ -135,22 +141,25 @@ export class Game {
     private startBuildPhase(): void {
         this.round++;
         this.phase = 'build';
-        this.phaseRemaining = this.buildTime;
+        this.phaseRemaining = this.settings.buildTimeSeconds;
         this.placement.enabled = true;
         this.placement.hiddenPlacements = true;
         this.gridOverlay.visible = true;
-        // the enemy also deploys this round — invisible to the player until battle
-        const count = Math.min(3 + this.round, 8);
-        for (let i = 0; i < count; i++) {
-            const type = UNIT_TYPES[Math.floor(Math.random() * UNIT_TYPES.length)]!;
-            this.placement.spawnEnemyRandom(type);
+        this.economy.grantRoundIncome(this.round);
+        // the enemy also deploys this round — invisible to the player until
+        // battle, spending its own supply on random affordable units
+        for (let guard = 0; guard < 30; guard++) {
+            const affordable = UNIT_TYPES.filter((t) => this.economy.canAfford('enemy', t));
+            if (affordable.length === 0) break;
+            const type = affordable[Math.floor(Math.random() * affordable.length)]!;
+            if (!this.placement.spawnEnemyRandom(type)) break; // no space left
         }
     }
 
     /** Everything is revealed and the sim takes over; the player can only watch. */
     private startBattlePhase(): void {
         this.phase = 'battle';
-        this.phaseRemaining = this.battleTime;
+        this.phaseRemaining = this.settings.battleTimeSeconds;
         this.placement.enabled = false;
         this.placement.hiddenPlacements = false;
         this.gridOverlay.visible = false;
@@ -186,6 +195,7 @@ export class Game {
         this.rig.update(dtSeconds);
         this.placement.update(this.time);
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
+        this.hud.setSupply(this.economy.balance('player'));
         this.hud.layout();
         this.debug.update(this.pixiApp, this.rig, this.placement.unitCount, dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);

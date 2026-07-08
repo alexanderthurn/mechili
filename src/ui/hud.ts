@@ -34,6 +34,7 @@ const STYLES = `
     border: 3px solid #35e0ff;
     padding: 6.5px 2.5px;
 }
+.mechili-hud button.unaffordable { opacity: 0.35; }
 .mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
 .mechili-hud .icon { width: 26px; height: 26px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #35e0ff, #10161a 70%); }
@@ -58,6 +59,8 @@ const STYLES = `
 .mechili-topbar .round { font-size: 15px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .phase { font-size: 13px; color: #9db4c8; letter-spacing: 1px; text-transform: uppercase; }
 .mechili-topbar .timer { font-size: 18px; font-weight: bold; font-variant-numeric: tabular-nums; color: #d8c66a; }
+.mechili-topbar .supply { font-size: 16px; font-weight: bold; font-variant-numeric: tabular-nums; color: #ffd766; }
+.mechili-topbar .supply::before { content: '⬢ '; color: #8a7635; }
 .mechili-topbar .end-deploy {
     padding: 7px 14px;
     background: #123a44;
@@ -91,13 +94,19 @@ export class Hud {
     private readonly roundEl: HTMLSpanElement;
     private readonly phaseEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
-    private readonly buttons: HTMLButtonElement[] = [];
+    private readonly supplyEl: HTMLSpanElement;
+    private readonly buttons: { el: HTMLButtonElement; cost: number }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
     private readonly pixiCanvas: HTMLCanvasElement;
     private readonly app: Application;
     private readonly overlayParent: HTMLElement;
 
-    constructor(app: Application, overlayParent: HTMLElement, onSelect: (type: UnitType) => void) {
+    constructor(
+        app: Application,
+        overlayParent: HTMLElement,
+        costOf: (type: UnitType) => number,
+        onSelect: (type: UnitType) => void,
+    ) {
         this.app = app;
         this.pixiCanvas = app.canvas;
         this.overlayParent = overlayParent;
@@ -116,16 +125,16 @@ export class Hud {
             button.innerHTML =
                 `<span class="name">${type.name}</span>` +
                 `<span class="icon"></span>` +
-                `<span class="cost">${type.cost}</span>`;
+                `<span class="cost">${costOf(type)}</span>`;
             button.addEventListener('click', () => {
-                this.buttons.forEach((b) => b.classList.remove('selected'));
+                this.buttons.forEach((b) => b.el.classList.remove('selected'));
                 button.classList.add('selected');
                 onSelect(UNIT_TYPES[i]!);
             });
-            this.buttons.push(button);
+            this.buttons.push({ el: button, cost: costOf(type) });
             this.unitBar.appendChild(button);
         });
-        this.buttons[0]!.classList.add('selected');
+        this.buttons[0]!.el.classList.add('selected');
         onSelect(UNIT_TYPES[0]!);
 
         // round / phase / timer (top center)
@@ -137,11 +146,13 @@ export class Hud {
         this.phaseEl.className = 'phase';
         this.timerEl = document.createElement('span');
         this.timerEl.className = 'timer';
+        this.supplyEl = document.createElement('span');
+        this.supplyEl.className = 'supply';
         const endButton = document.createElement('button');
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
         endButton.addEventListener('click', () => this.onEndDeployment?.());
-        this.topBar.append(this.roundEl, this.phaseEl, this.timerEl, endButton);
+        this.topBar.append(this.roundEl, this.phaseEl, this.timerEl, this.supplyEl, endButton);
 
         this.mount(this.unitBar);
         this.mount(this.topBar);
@@ -154,6 +165,13 @@ export class Hud {
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle');
         this.unitBar.classList.toggle('disabled', phase !== 'build');
+    }
+
+    setSupply(amount: number): void {
+        this.supplyEl.textContent = String(amount);
+        for (const { el, cost } of this.buttons) {
+            el.classList.toggle('unaffordable', cost > amount);
+        }
     }
 
     /** Keeps the mirrored sprites aligned with each element's layout box. */

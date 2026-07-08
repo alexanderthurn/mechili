@@ -8,6 +8,7 @@ import {
 } from 'three';
 import type { CameraRig } from '../engine/cameraRig';
 import { CELL, cellKey, type BattleMap, type Cell } from './map';
+import type { Economy } from './settings';
 import { Unit, type GridExtent, type Team, type UnitType } from './units';
 
 const VALID_COLOR = 0x35e0ff;
@@ -43,6 +44,7 @@ export class PlacementController {
     constructor(
         private readonly rig: CameraRig,
         private readonly map: BattleMap,
+        private readonly economy: Economy,
         private readonly scene: Scene,
         private readonly surface: HTMLElement,
     ) {
@@ -96,6 +98,7 @@ export class PlacementController {
         const fp = this.footprintOf(type, rotated);
         const cells = this.coveredCells(fp, anchor);
         if (!cells || cells.some((c) => this.occupied.has(cellKey(c)))) return null;
+        if (!this.economy.charge(team, type)) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
         if (this.hiddenPlacements) {
             unit.revealed = false;
@@ -207,6 +210,7 @@ export class PlacementController {
         const cells = this.coveredCells(this.footprintOf(type, this.rotated), anchor);
         return (
             cells !== null &&
+            this.economy.canAfford('player', type) &&
             cells.every((c) => this.map.isPlayerCell(c) && !this.occupied.has(cellKey(c)))
         );
     }
