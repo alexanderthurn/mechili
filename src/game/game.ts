@@ -13,10 +13,11 @@ import { CameraControls } from '../engine/cameraControls';
 import { BattleMap, type Cell } from './map';
 import { PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
-import { BattleSim } from './sim';
-import { TOWER_TYPE, UNIT_TYPES } from './units';
+import { BattleSim, type Actor } from './sim';
+import { TOWER_TYPE, UNIT_TYPES, type Unit } from './units';
 import { DebugOverlay } from '../ui/debug';
-import { Hud, type Phase } from '../ui/hud';
+import { HpBars } from '../ui/hpBars';
+import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
 
 /** one deployment, as the future replay system will need it */
 interface DeploymentRecord {
@@ -41,8 +42,11 @@ export class Game {
     private readonly placement: PlacementController;
     private readonly hud: Hud;
     private readonly debug: DebugOverlay;
-    private readonly gridOverlay;
+    private readonly hpBars = new HpBars();
+    private gridOverlay;
     private time = 0;
+    /** battle-phase selection: one individual mech (own or enemy) */
+    private selectedActor: Actor | null = null;
 
     private static readonly SPEED_STEPS = [1, 2, 4, 0.5];
 
@@ -97,14 +101,16 @@ export class Game {
         this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
-        this.controls.onMiddleClick = () => this.placement.toggleRotation();
+        this.controls.onMiddleClick = () => this.placement.rotateSelected();
+        this.controls.onRightClick = () => {
+            this.placement.deselect();
+            this.selectedActor = null;
+        };
         this.hud = new Hud(
             pixiApp,
             wrapper,
             (type) => this.economy.costOf(type),
-            (type) => {
-                this.placement.selectedType = type;
-            },
+            (type) => this.placement.buy(type),
         );
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') this.startBattlePhase();
@@ -114,17 +120,20 @@ export class Game {
             this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
         };
         this.debug = new DebugOverlay(this.hud.mode);
-        pixiApp.stage.addChild(this.debug.view);
+        pixiApp.stage.addChild(this.hpBars.view, this.debug.view);
 
-        this.placement.onSpawn = (unit) => {
-            this.deploymentLog.push({
-                round: this.round,
-                team: unit.team,
-                typeId: unit.type.id,
-                anchor: unit.cell,
-                rotated: unit.rotated,
-            });
-        };
+        // battle phase: left click selects a single mech, own or enemy
+        let battleDown: { x: number; y: number } | null = null;
+        surface.addEventListener('pointerdown', (e: PointerEvent) => {
+            if (e.button === 0) battleDown = { x: e.clientX, y: e.clientY };
+        });
+        surface.addEventListener('pointerup', (e: PointerEvent) => {
+            if (e.button !== 0 || this.phase !== 'battle' || !battleDown) return;
+            const moved = Math.hypot(e.clientX - battleDown.x, e.clientY - battleDown.y);
+            battleDown = null;
+            if (moved > 6) return;
+            this.selectedActor = this.pickActor(e);
+        });
 
         // round 0: only the towers are known — every enemy unit arrives
         // through hidden build-phase placements, revealed at battle start
@@ -155,6 +164,16 @@ export class Game {
         this.phaseRemaining = this.settings.buildTimeSeconds;
         this.placement.enabled = true;
         this.placement.hiddenPlacements = true;
+        this.placement.currentRound = this.round; // earlier deployments are locked now
+        this.selectedActor = null;
+        this.hpBars.clear();
+        // flanks and the neutral strip open up after the first round
+        const unlocked = this.round >= 2;
+        if (unlocked !== this.map.flanksUnlocked) {
+            this.map.flanksUnlocked = unlocked;
+            this.map.neutralUnlocked = unlocked;
+            this.refreshOverlay();
+        }
         this.gridOverlay.visible = true;
         this.economy.grantRoundIncome(this.round);
         // the enemy also deploys this round — invisible to the player until
@@ -173,8 +192,21 @@ export class Game {
         this.phaseRemaining = this.settings.battleTimeSeconds;
         this.placement.enabled = false;
         this.placement.hiddenPlacements = false;
+        this.placement.deselect();
         this.gridOverlay.visible = false;
         this.placement.revealAll();
+        // snapshot this round's deployments with their FINAL positions (they
+        // may have been moved around) — the seed data for the replay system
+        for (const u of this.placement.allUnits()) {
+            if (u.deployedRound !== this.round) continue;
+            this.deploymentLog.push({
+                round: this.round,
+                team: u.team,
+                typeId: u.type.id,
+                anchor: { ...u.cell },
+                rotated: u.rotated,
+            });
+        }
         this.sim = new BattleSim(this.placement.allUnits(), this.settings.towers);
     }
 
@@ -182,6 +214,7 @@ export class Game {
     private endBattlePhase(): void {
         if (this.sim) this.applyBattleResult(this.sim);
         this.sim = null;
+        this.selectedActor = null;
         for (const unit of this.placement.allUnits()) unit.resetFormation();
         this.placement.refaceAll();
         this.startBuildPhase();
@@ -203,6 +236,17 @@ export class Game {
         }
         this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
         this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
+    }
+
+    /** swaps the build-phase overlay for one matching the current zone rules */
+    private refreshOverlay(): void {
+        this.scene.remove(this.gridOverlay);
+        const material = this.gridOverlay.material as import('three').MeshBasicMaterial;
+        material.map?.dispose();
+        material.dispose();
+        this.gridOverlay.geometry.dispose();
+        this.gridOverlay = this.map.createOverlayMesh();
+        this.scene.add(this.gridOverlay);
     }
 
     private resize(width: number, height: number): void {
@@ -227,11 +271,83 @@ export class Game {
         this.controls.update(dtSeconds);
         this.rig.update(dtSeconds);
         this.placement.update(this.time);
+        this.updateSelectionUi();
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
         this.debug.update(this.pixiApp, this.rig, this.placement.unitCount, dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);
+    }
+
+    /** the living mech closest to the clicked ground point, within a pick radius */
+    private pickActor(e: PointerEvent): Actor | null {
+        if (!this.sim) return null;
+        const rect = this.pixiApp.canvas.getBoundingClientRect();
+        const ground = this.rig.screenToGround(
+            e.clientX - rect.left,
+            e.clientY - rect.top,
+            rect.width,
+            rect.height,
+        );
+        if (!ground) return null;
+        let best: Actor | null = null;
+        let bestD = Infinity;
+        for (const a of this.sim.actors) {
+            if (!a.alive) continue;
+            const d = (a.x - ground.x) ** 2 + (a.z - ground.z) ** 2;
+            const radius = Math.max(2.5, a.unit.type.meshScale * 1.5);
+            if (d < radius * radius && d < bestD) {
+                bestD = d;
+                best = a;
+            }
+        }
+        return best;
+    }
+
+    private updateSelectionUi(): void {
+        if (this.phase === 'battle' && this.sim) {
+            if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
+            this.hpBars.update(
+                this.selectedActor,
+                this.rig.camera,
+                this.pixiApp.screen.width,
+                this.pixiApp.screen.height,
+            );
+            this.hud.setSelection(this.selectedActor ? this.actorInfo(this.selectedActor) : null);
+        } else {
+            const unit = this.placement.selectedUnit;
+            this.hud.setSelection(unit ? this.unitInfo(unit) : null);
+        }
+    }
+
+    private actorInfo(a: Actor): SelectionInfo {
+        const t = a.unit.type;
+        return {
+            name: t.name,
+            team: a.unit.team,
+            hp: a.hp,
+            maxHp: t.hp,
+            damage: t.damage,
+            range: t.range,
+            speed: t.speed,
+            alive: 1,
+            total: 1,
+        };
+    }
+
+    private unitInfo(u: Unit): SelectionInfo {
+        const t = u.type;
+        return {
+            name: t.name,
+            team: u.team,
+            hp: t.hp,
+            maxHp: t.hp,
+            damage: t.damage,
+            range: t.range,
+            speed: t.speed,
+            alive: u.members.length,
+            total: u.members.length,
+        };
     }
 }

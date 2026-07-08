@@ -66,6 +66,11 @@ export class BattleMap {
     readonly halfW: number;
     readonly halfH: number;
 
+    /** round 1 restricts deployment to the main zones; the game unlocks these from round 2 */
+    flanksUnlocked = false;
+    /** when unlocked, the neutral strip is split between the players (half each) */
+    neutralUnlocked = false;
+
     constructor(readonly size: MapSize = STANDARD_MAP) {
         this.cols = size.zoneCols + 2 * size.flankCols;
         this.rows = 2 * size.zoneRows + size.neutralRows;
@@ -103,17 +108,26 @@ export class BattleMap {
         return col < this.size.flankCols || col >= this.cols - this.size.flankCols;
     }
 
-    /** own half minus the opponent's flanks, plus own flanks beside the opponent's half */
+    /** rows of a side's territory, measured from its own edge (grows into the neutral strip once unlocked) */
+    private ownRows(): number {
+        return this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0);
+    }
+
+    /** own half minus the opponent's flanks, plus (once unlocked) own flanks beside the opponent's half */
     isPlayerCell(cell: Cell): boolean {
-        const inPlayerHalf = cell.row < this.size.zoneRows;
-        const inEnemyHalf = cell.row >= this.rows - this.size.zoneRows;
-        return (inPlayerHalf && !this.inFlankCols(cell.col)) || (inEnemyHalf && this.inFlankCols(cell.col));
+        const zr = this.ownRows();
+        const inPlayerHalf = cell.row < zr;
+        const inEnemyHalf = cell.row >= this.rows - zr;
+        if (!this.inFlankCols(cell.col)) return inPlayerHalf;
+        return this.flanksUnlocked && inEnemyHalf;
     }
 
     isEnemyCell(cell: Cell): boolean {
-        const inPlayerHalf = cell.row < this.size.zoneRows;
-        const inEnemyHalf = cell.row >= this.rows - this.size.zoneRows;
-        return (inEnemyHalf && !this.inFlankCols(cell.col)) || (inPlayerHalf && this.inFlankCols(cell.col));
+        const zr = this.ownRows();
+        const inPlayerHalf = cell.row < zr;
+        const inEnemyHalf = cell.row >= this.rows - zr;
+        if (!this.inFlankCols(cell.col)) return inEnemyHalf;
+        return this.flanksUnlocked && inPlayerHalf;
     }
 
     /** The ground plane: a code-generated texture on a real 3D plane mesh. */
@@ -216,8 +230,9 @@ export class BattleMap {
         const ctx = canvas.getContext('2d')!;
 
         // deployment zone tints: each half has the owner's color in the
-        // center and the opponent's flank strips outside
-        const zonePx = this.size.zoneRows * cellPx;
+        // center; the flank strips belong to the opponent once unlocked.
+        // the zones grow into the neutral strip once that is unlocked
+        const zonePx = (this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0)) * cellPx;
         const flankPx = this.size.flankCols * cellPx;
         const paintZone = (x: number, y: number, zw: number, zh: number, tint: string) => {
             ctx.fillStyle = `${tint} 0.12)`;
@@ -226,14 +241,21 @@ export class BattleMap {
             ctx.lineWidth = 3;
             ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
         };
-        // enemy half (top): enemy center, player flanks
+        // enemy half (top) and player half (bottom)
         paintZone(flankPx, 0, w - 2 * flankPx, zonePx, ENEMY_TINT);
-        paintZone(0, 0, flankPx, zonePx, PLAYER_TINT);
-        paintZone(w - flankPx, 0, flankPx, zonePx, PLAYER_TINT);
-        // player half (bottom): player center, enemy flanks
         paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, PLAYER_TINT);
-        paintZone(0, h - zonePx, flankPx, zonePx, ENEMY_TINT);
-        paintZone(w - flankPx, h - zonePx, flankPx, zonePx, ENEMY_TINT);
+        if (this.flanksUnlocked) {
+            // flanks beside the opponent's half belong to you
+            paintZone(0, 0, flankPx, zonePx, PLAYER_TINT);
+            paintZone(w - flankPx, 0, flankPx, zonePx, PLAYER_TINT);
+            paintZone(0, h - zonePx, flankPx, zonePx, ENEMY_TINT);
+            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, ENEMY_TINT);
+        } else {
+            // locked in round 1: neutral grey
+            ctx.fillStyle = 'rgba(128, 136, 140, 0.07)';
+            ctx.fillRect(0, 0, flankPx, h);
+            ctx.fillRect(w - flankPx, 0, flankPx, h);
+        }
 
         // tile grid
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';

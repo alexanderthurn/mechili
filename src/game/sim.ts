@@ -53,13 +53,9 @@ export class BattleSim {
         }
     }
 
-    /**
-     * Over when one side has nothing left alive (towers included), or when
-     * neither side can act anymore (only towers facing towers).
-     */
+    /** the round ends as soon as one side has no units left besides its towers */
     get isOver(): boolean {
-        if (!this.hasMobileMechs('player') && !this.hasMobileMechs('enemy')) return true;
-        return !this.hasLiving('player') || !this.hasLiving('enemy');
+        return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');
     }
 
     /** living/total mechs per unit (structures excluded) — the end-of-battle scoring input */
@@ -88,10 +84,6 @@ export class BattleSim {
 
     private hasMobileMechs(team: Team): boolean {
         return this.actors.some((a) => a.alive && a.unit.team === team && !a.unit.type.structure);
-    }
-
-    private hasLiving(team: Team): boolean {
-        return this.actors.some((a) => a.alive && a.unit.team === team);
     }
 
     /** stacking multiplier from a side's lost towers */

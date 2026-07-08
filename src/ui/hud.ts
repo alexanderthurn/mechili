@@ -4,6 +4,20 @@ import { UNIT_TYPES, type UnitType } from '../game/units';
 
 export type Phase = 'build' | 'battle';
 
+/** what the stats panel shows for a selected pack or single mech */
+export interface SelectionInfo {
+    name: string;
+    team: string;
+    hp: number;
+    maxHp: number;
+    damage: number;
+    range: number;
+    speed: number;
+    /** living/total mechs of the pack (1/1 for single mechs and towers) */
+    alive: number;
+    total: number;
+}
+
 const STYLES = `
 .mechili-hud {
     position: absolute;
@@ -30,11 +44,31 @@ const STYLES = `
     color: #d8e6ea;
     cursor: pointer;
 }
-.mechili-hud button.selected {
-    border: 3px solid #35e0ff;
-    padding: 6.5px 2.5px;
+.mechili-hud button:hover { border-color: #35e0ff; }
+.mechili-hud button:active { transform: scale(0.94); }
+.mechili-hud button.unaffordable { opacity: 0.35; pointer-events: none; }
+
+.mechili-panel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    min-width: 180px;
+    padding: 12px 14px;
+    background: rgba(16, 22, 26, 0.88);
+    border: 1.5px solid #3d4a52;
+    border-radius: 10px;
+    font-family: system-ui, sans-serif;
+    color: #d8e6ea;
+    user-select: none;
 }
-.mechili-hud button.unaffordable { opacity: 0.35; }
+.mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
+.mechili-panel .team { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.mechili-panel .team.player { color: #35e0ff; }
+.mechili-panel .team.enemy { color: #ff5f45; }
+.mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
+.mechili-panel .row .v { color: #ffd766; font-variant-numeric: tabular-nums; }
+.mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: #10161a; border-radius: 3px; overflow: hidden; }
+.mechili-panel .hpbar div { height: 100%; background: #5ade6c; }
 .mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
 .mechili-hud .icon { width: 26px; height: 26px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #35e0ff, #10161a 70%); }
@@ -111,6 +145,7 @@ export class Hud {
 
     private readonly unitBar: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
+    private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
     private readonly phaseEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
@@ -128,7 +163,7 @@ export class Hud {
         app: Application,
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
-        onSelect: (type: UnitType) => void,
+        onBuy: (type: UnitType) => void,
     ) {
         this.app = app;
         this.pixiCanvas = app.canvas;
@@ -149,16 +184,15 @@ export class Hud {
                 `<span class="name">${type.name}</span>` +
                 `<span class="icon"></span>` +
                 `<span class="cost">${costOf(type)}</span>`;
-            button.addEventListener('click', () => {
-                this.buttons.forEach((b) => b.el.classList.remove('selected'));
-                button.classList.add('selected');
-                onSelect(UNIT_TYPES[i]!);
-            });
+            button.addEventListener('click', () => onBuy(UNIT_TYPES[i]!));
             this.buttons.push({ el: button, cost: costOf(type) });
             this.unitBar.appendChild(button);
         });
-        this.buttons[0]!.el.classList.add('selected');
-        onSelect(UNIT_TYPES[0]!);
+
+        // selection stats panel (bottom left)
+        this.panel = document.createElement('div');
+        this.panel.className = 'mechili-panel';
+        this.panel.style.display = 'none';
 
         // round / phase / timer (top center)
         this.topBar = document.createElement('div');
@@ -196,6 +230,25 @@ export class Hud {
 
         this.mount(this.unitBar);
         this.mount(this.topBar);
+        this.mount(this.panel);
+    }
+
+    setSelection(info: SelectionInfo | null): void {
+        if (!info) {
+            this.panel.style.display = 'none';
+            return;
+        }
+        this.panel.style.display = 'block';
+        const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
+        this.panel.innerHTML =
+            `<div class="title">${info.name}</div>` +
+            `<div class="team ${info.team}">${info.team}</div>` +
+            `<div class="hpbar"><div style="width:${Math.max(0, (info.hp / info.maxHp) * 100)}%"></div></div>` +
+            row('HP', `${Math.max(0, Math.round(info.hp))} / ${info.maxHp}`) +
+            (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
+            row('Damage', String(info.damage)) +
+            row('Range', String(info.range)) +
+            row('Speed', String(info.speed));
     }
 
     setPhase(round: number, phase: Phase, remainingSeconds: number): void {
@@ -229,6 +282,7 @@ export class Hud {
         const canvasRect = this.pixiCanvas.getBoundingClientRect();
         for (const { el, sprite } of this.sprites) {
             const r = el.getBoundingClientRect();
+            sprite.visible = r.width > 0 && r.height > 0; // hidden elements have no box
             sprite.position.set(r.left - canvasRect.left, r.top - canvasRect.top);
         }
     }
