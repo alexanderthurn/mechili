@@ -48,6 +48,22 @@ export class BattleSim {
         return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');
     }
 
+    /** living/total mechs per unit (structures excluded) — the end-of-battle scoring input */
+    unitSurvivors(): Map<Unit, { alive: number; total: number }> {
+        const map = new Map<Unit, { alive: number; total: number }>();
+        for (const a of this.actors) {
+            if (a.unit.type.structure) continue;
+            let entry = map.get(a.unit);
+            if (!entry) {
+                entry = { alive: 0, total: 0 };
+                map.set(a.unit, entry);
+            }
+            entry.total++;
+            if (a.alive) entry.alive++;
+        }
+        return map;
+    }
+
     update(dtSeconds: number): void {
         this.accumulator += Math.min(dtSeconds, 0.25);
         while (this.accumulator >= BattleSim.STEP) {

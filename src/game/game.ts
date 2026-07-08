@@ -44,9 +44,14 @@ export class Game {
     private readonly gridOverlay;
     private time = 0;
 
+    private static readonly SPEED_STEPS = [1, 2, 4, 0.5];
+
     private phase: Phase = 'build';
     private round = 0;
     private phaseRemaining = 0;
+    private speedIndex = 0;
+    private playerHp: number;
+    private enemyHp: number;
     private sim: BattleSim | null = null;
     /** every placement ever made, in order — the seed data for the replay system */
     private readonly deploymentLog: DeploymentRecord[] = [];
@@ -59,6 +64,8 @@ export class Game {
     ) {
         this.map = new BattleMap(settings.map);
         this.economy = new Economy(settings.economy);
+        this.playerHp = settings.startingHp;
+        this.enemyHp = settings.startingHp;
         this.renderer = new WebGLRenderer({ canvas: threeCanvas, antialias: true });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
@@ -101,6 +108,10 @@ export class Game {
         );
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') this.startBattlePhase();
+        };
+        this.hud.onToggleSpeed = () => {
+            this.speedIndex = (this.speedIndex + 1) % Game.SPEED_STEPS.length;
+            this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
         };
         this.debug = new DebugOverlay(this.hud.mode);
         pixiApp.stage.addChild(this.debug.view);
@@ -167,12 +178,31 @@ export class Game {
         this.sim = new BattleSim(this.placement.allUnits());
     }
 
-    /** Battle is over: the persistent deployments return, next round begins. */
+    /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
     private endBattlePhase(): void {
+        if (this.sim) this.applyBattleResult(this.sim);
         this.sim = null;
         for (const unit of this.placement.allUnits()) unit.resetFormation();
         this.placement.refaceAll();
         this.startBuildPhase();
+    }
+
+    /**
+     * Every surviving unit deals its value as player damage: the unit's base
+     * price scaled by how much of it survived (half the crawler pack alive =
+     * half its cost), always a whole number. A wiped side has no survivors,
+     * so only the losing player takes damage; on a timeout both usually do.
+     */
+    private applyBattleResult(sim: BattleSim): void {
+        let damageToPlayer = 0;
+        let damageToEnemy = 0;
+        for (const [unit, s] of sim.unitSurvivors()) {
+            const value = Math.round(this.economy.costOf(unit.type) * (s.alive / s.total));
+            if (unit.team === 'player') damageToEnemy += value;
+            else damageToPlayer += value;
+        }
+        this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
+        this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
     }
 
     private resize(width: number, height: number): void {
@@ -181,13 +211,16 @@ export class Game {
     }
 
     private tick(dtSeconds: number): void {
-        this.time += dtSeconds;
-        this.phaseRemaining -= dtSeconds;
+        // battle can be fast-forwarded (or slowed); build always runs at 1x
+        const gameDt =
+            this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;
+        this.time += gameDt;
+        this.phaseRemaining -= gameDt;
 
         if (this.phase === 'build') {
             if (this.phaseRemaining <= 0) this.startBattlePhase();
         } else if (this.sim) {
-            this.sim.update(dtSeconds);
+            this.sim.update(gameDt);
             if (this.phaseRemaining <= 0 || this.sim.isOver) this.endBattlePhase();
         }
 
@@ -196,6 +229,7 @@ export class Game {
         this.placement.update(this.time);
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
         this.hud.setSupply(this.economy.balance('player'));
+        this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
         this.debug.update(this.pixiApp, this.rig, this.placement.unitCount, dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);

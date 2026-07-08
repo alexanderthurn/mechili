@@ -61,6 +61,10 @@ const STYLES = `
 .mechili-topbar .timer { font-size: 18px; font-weight: bold; font-variant-numeric: tabular-nums; color: #d8c66a; }
 .mechili-topbar .supply { font-size: 16px; font-weight: bold; font-variant-numeric: tabular-nums; color: #ffd766; }
 .mechili-topbar .supply::before { content: '⬢ '; color: #8a7635; }
+.mechili-topbar .hp { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; }
+.mechili-topbar .hp.player { color: #35e0ff; }
+.mechili-topbar .hp.enemy { color: #ff5f45; }
+.mechili-topbar .hp::before { content: '♥ '; opacity: 0.6; }
 .mechili-topbar .end-deploy {
     padding: 7px 14px;
     background: #123a44;
@@ -75,6 +79,21 @@ const STYLES = `
 .mechili-topbar .end-deploy:hover { background: #17505e; }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.battle .timer { color: #ff5f45; }
+.mechili-topbar .speed {
+    display: none;
+    min-width: 52px;
+    padding: 7px 10px;
+    background: #3a2c12;
+    border: 1.5px solid #ffd766;
+    border-radius: 8px;
+    color: #ffd766;
+    font-size: 13px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+.mechili-topbar .speed:hover { background: #55401c; }
+.mechili-topbar.battle .speed { display: inline-block; }
 `;
 
 /**
@@ -88,6 +107,7 @@ export class Hud {
     /** 'html-in-canvas' when mirrored via HTMLSource, 'dom-overlay' otherwise */
     readonly mode: 'html-in-canvas' | 'dom-overlay';
     onEndDeployment: (() => void) | null = null;
+    onToggleSpeed: (() => void) | null = null;
 
     private readonly unitBar: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
@@ -95,6 +115,9 @@ export class Hud {
     private readonly phaseEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
     private readonly supplyEl: HTMLSpanElement;
+    private readonly playerHpEl: HTMLSpanElement;
+    private readonly enemyHpEl: HTMLSpanElement;
+    private readonly speedEl: HTMLButtonElement;
     private readonly buttons: { el: HTMLButtonElement; cost: number }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
     private readonly pixiCanvas: HTMLCanvasElement;
@@ -152,7 +175,24 @@ export class Hud {
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
         endButton.addEventListener('click', () => this.onEndDeployment?.());
-        this.topBar.append(this.roundEl, this.phaseEl, this.timerEl, this.supplyEl, endButton);
+        this.speedEl = document.createElement('button');
+        this.speedEl.className = 'speed';
+        this.speedEl.textContent = '1×';
+        this.speedEl.addEventListener('click', () => this.onToggleSpeed?.());
+        this.playerHpEl = document.createElement('span');
+        this.playerHpEl.className = 'hp player';
+        this.enemyHpEl = document.createElement('span');
+        this.enemyHpEl.className = 'hp enemy';
+        this.topBar.append(
+            this.playerHpEl,
+            this.roundEl,
+            this.phaseEl,
+            this.timerEl,
+            this.supplyEl,
+            endButton,
+            this.speedEl,
+            this.enemyHpEl,
+        );
 
         this.mount(this.unitBar);
         this.mount(this.topBar);
@@ -165,6 +205,15 @@ export class Hud {
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle');
         this.unitBar.classList.toggle('disabled', phase !== 'build');
+    }
+
+    setSpeed(multiplier: number): void {
+        this.speedEl.textContent = `${multiplier}×`;
+    }
+
+    setHp(player: number, enemy: number): void {
+        this.playerHpEl.textContent = String(player);
+        this.enemyHpEl.textContent = String(enemy);
     }
 
     setSupply(amount: number): void {
