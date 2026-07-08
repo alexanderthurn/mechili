@@ -4,10 +4,11 @@ import {
     MeshBasicMaterial,
     PlaneGeometry,
     type Scene,
+    type Vector3,
 } from 'three';
 import type { CameraRig } from '../engine/cameraRig';
 import { CELL, cellKey, type BattleMap, type Cell } from './map';
-import { Unit, type Team, type UnitType } from './units';
+import { Unit, type GridExtent, type Team, type UnitType } from './units';
 
 const VALID_COLOR = 0x35e0ff;
 const INVALID_COLOR = 0xff4040;
@@ -20,6 +21,8 @@ const INVALID_COLOR = 0xff4040;
  */
 export class PlacementController {
     selectedType: UnitType | null = null;
+    /** placement orientation, toggled with middle click: swaps footprint cols/rows */
+    rotated = false;
 
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
@@ -62,7 +65,7 @@ export class PlacementController {
             if (moved > 6) return; // it was a drag, not a click
             const anchor = this.anchorAt(up.x, up.y);
             if (anchor && this.selectedType && this.canPlace(this.selectedType, anchor)) {
-                this.spawn(this.selectedType, anchor, 'player');
+                this.spawn(this.selectedType, anchor, 'player', this.rotated);
             }
         });
     }
@@ -71,20 +74,37 @@ export class PlacementController {
         return this.units.length;
     }
 
+    toggleRotation(): void {
+        this.rotated = !this.rotated;
+    }
+
     /** Places a unit with its footprint anchored at `anchor` (no zone validation — callers validate). */
-    spawn(type: UnitType, anchor: Cell, team: Team): Unit | null {
-        const cells = this.coveredCells(type, anchor);
+    spawn(type: UnitType, anchor: Cell, team: Team, rotated = false): Unit | null {
+        const fp = this.footprintOf(type, rotated);
+        const cells = this.coveredCells(fp, anchor);
         if (!cells || cells.some((c) => this.occupied.has(cellKey(c)))) return null;
-        const unit = new Unit(
-            type,
-            anchor,
-            team,
-            this.map.areaCenter(anchor, type.footprint.cols, type.footprint.rows),
-        );
+        const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
         for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.units.push(unit);
         this.scene.add(unit.view);
+        // core rule: every mech faces the closest individual enemy mech it
+        // could be aware of — from revealed enemy units, or the enemy's
+        // command towers when nothing else is visible
+        unit.faceClosestOf(this.opponentMechPositions(team, unit));
         return unit;
+    }
+
+    /**
+     * Positions of every individual opposing mech (not squad centers) that is
+     * revealed — hidden build-phase placements are ignored.
+     */
+    private opponentMechPositions(team: Team, exclude: Unit): Vector3[] {
+        const positions: Vector3[] = [];
+        for (const u of this.units) {
+            if (u === exclude || u.team === team || !u.revealed) continue;
+            positions.push(...u.memberWorldPositions());
+        }
+        return positions;
     }
 
     update(timeSeconds: number): void {
@@ -97,13 +117,21 @@ export class PlacementController {
         return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     }
 
+    private footprintOf(type: UnitType, rotated: boolean): GridExtent {
+        return rotated
+            ? { cols: type.footprint.rows, rows: type.footprint.cols }
+            : type.footprint;
+    }
+
     /** anchor cell so the selected type's footprint is centered on the hovered cell */
     private anchorAt(x: number, y: number): Cell | null {
         const rect = this.surface.getBoundingClientRect();
         const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
         const cell = ground ? this.map.worldToCell(ground) : null;
         if (!cell) return null;
-        const fp = this.selectedType?.footprint ?? { cols: 1, rows: 1 };
+        const fp = this.selectedType
+            ? this.footprintOf(this.selectedType, this.rotated)
+            : { cols: 1, rows: 1 };
         return {
             col: cell.col - Math.floor((fp.cols - 1) / 2),
             row: cell.row - Math.floor((fp.rows - 1) / 2),
@@ -111,10 +139,10 @@ export class PlacementController {
     }
 
     /** all tiles under the footprint, or null when part of it is off the map */
-    private coveredCells(type: UnitType, anchor: Cell): Cell[] | null {
+    private coveredCells(fp: GridExtent, anchor: Cell): Cell[] | null {
         const cells: Cell[] = [];
-        for (let c = 0; c < type.footprint.cols; c++) {
-            for (let r = 0; r < type.footprint.rows; r++) {
+        for (let c = 0; c < fp.cols; c++) {
+            for (let r = 0; r < fp.rows; r++) {
                 const cell = { col: anchor.col + c, row: anchor.row + r };
                 if (!this.map.inBounds(cell)) return null;
                 cells.push(cell);
@@ -124,7 +152,7 @@ export class PlacementController {
     }
 
     private canPlace(type: UnitType, anchor: Cell): boolean {
-        const cells = this.coveredCells(type, anchor);
+        const cells = this.coveredCells(this.footprintOf(type, this.rotated), anchor);
         return (
             cells !== null &&
             cells.every((c) => this.map.isPlayerCell(c) && !this.occupied.has(cellKey(c)))
@@ -136,9 +164,10 @@ export class PlacementController {
         const anchor = this.pointer && type ? this.anchorAt(this.pointer.x, this.pointer.y) : null;
         this.hoverMesh.visible = anchor !== null;
         if (!anchor || !type) return;
-        const center = this.map.areaCenter(anchor, type.footprint.cols, type.footprint.rows);
+        const fp = this.footprintOf(type, this.rotated);
+        const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
         this.hoverMesh.position.set(center.x, 0.03, center.z);
-        this.hoverMesh.scale.set(type.footprint.cols * CELL * 0.98, 1, type.footprint.rows * CELL * 0.98);
+        this.hoverMesh.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
         this.hoverMaterial.color.setHex(this.canPlace(type, anchor) ? VALID_COLOR : INVALID_COLOR);
     }
 }

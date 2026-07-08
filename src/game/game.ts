@@ -12,7 +12,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { BattleMap, STANDARD_MAP } from './map';
 import { PlacementController } from './placement';
-import { UNIT_TYPES } from './units';
+import { TOWER_TYPE, UNIT_TYPES } from './units';
 import { DebugOverlay } from '../ui/debug';
 import { Hud } from '../ui/hud';
 
@@ -65,17 +65,31 @@ export class Game {
         this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.scene, surface);
+        this.controls.onMiddleClick = () => this.placement.toggleRotation();
         this.hud = new Hud(pixiApp, wrapper, (type) => {
             this.placement.selectedType = type;
         });
         this.debug = new DebugOverlay(this.hud.mode);
         pixiApp.stage.addChild(this.debug.view);
 
+        this.spawnTowers();
         this.spawnEnemyArmy();
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', () => this.resize(wrapper.clientWidth, wrapper.clientHeight));
         pixiApp.ticker.add((ticker) => this.tick(ticker.deltaMS / 1000));
+    }
+
+    /** each side's two command towers, centered in its territory's depth */
+    private spawnTowers(): void {
+        const { flankCols, zoneCols, zoneRows } = this.map.size;
+        const fp = TOWER_TYPE.footprint;
+        const centerRow = Math.round((zoneRows - fp.rows) / 2);
+        for (const frac of [0.25, 0.75]) {
+            const col = flankCols + Math.round(zoneCols * frac) - Math.floor(fp.cols / 2);
+            this.placement.spawn(TOWER_TYPE, { col, row: centerRow }, 'player');
+            this.placement.spawn(TOWER_TYPE, { col, row: this.map.rows - centerRow - fp.rows }, 'enemy');
+        }
     }
 
     /** static dummy opposition so the far zone isn't empty */
@@ -85,16 +99,17 @@ export class Game {
             (typeof UNIT_TYPES)[number],
             (typeof UNIT_TYPES)[number],
         ];
-        const { flankCols } = this.map.size;
+        const { flankCols, zoneRows } = this.map.size;
         const { cols, rows } = this.map;
+        const zoneStart = rows - zoneRows; // first row of the enemy territory
         for (let col = flankCols + 6; col <= cols - flankCols - 10; col += 16) {
-            this.placement.spawn(fortress, { col, row: rows - 8 }, 'enemy'); // 4x4
+            this.placement.spawn(fortress, { col, row: zoneStart + 18 }, 'enemy'); // 4x4, behind the towers
         }
         for (let col = flankCols + 3; col <= cols - flankCols - 5; col += 6) {
-            this.placement.spawn(marksman, { col, row: rows - 12 }, 'enemy'); // 2x2
+            this.placement.spawn(marksman, { col, row: zoneStart + 8 }, 'enemy'); // 2x2
         }
         for (let col = flankCols + 2; col <= cols - flankCols - 7; col += 8) {
-            this.placement.spawn(crawler, { col, row: rows - 16 }, 'enemy'); // 5x2 swarm
+            this.placement.spawn(crawler, { col, row: zoneStart + 4 }, 'enemy'); // 5x2 swarm, front line
         }
         // crawler swarms on the enemy's flanks, beside the player's half
         for (const col of [0, cols - 5]) {

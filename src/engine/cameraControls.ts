@@ -18,10 +18,13 @@ const ORBIT_PITCH_PER_PX = 0.004;
 export class CameraControls {
     /** set to false to disable edge scrolling (e.g. in windowed dev) */
     edgeScroll = true;
+    /** fired on a middle CLICK (press without drag) — orbit only starts once the mouse moves */
+    onMiddleClick: (() => void) | null = null;
 
     private readonly pressed = new Set<string>();
     private dragGround: Vector3 | null = null;
     private orbitLast: { x: number; y: number } | null = null;
+    private orbitStart: { x: number; y: number } | null = null;
     private pointer: { x: number; y: number } | null = null;
     private readonly disposers: (() => void)[] = [];
 
@@ -65,6 +68,7 @@ export class CameraControls {
             if (e.button === 1) {
                 e.preventDefault(); // no middle-click autoscroll
                 this.orbitLast = { x: e.clientX, y: e.clientY };
+                this.orbitStart = { x: e.clientX, y: e.clientY };
                 this.surface.setPointerCapture(e.pointerId);
             } else if (e.button === 2) {
                 this.dragGround = this.pick(e);
@@ -89,12 +93,20 @@ export class CameraControls {
         listen(surface, 'pointerleave', () => {
             this.pointer = null;
         });
-        const endDrag = () => {
+        listen(surface, 'pointerup', (e: PointerEvent) => {
+            if (e.button === 1 && this.orbitStart) {
+                const moved = Math.hypot(e.clientX - this.orbitStart.x, e.clientY - this.orbitStart.y);
+                if (moved <= 5) this.onMiddleClick?.();
+            }
             this.dragGround = null;
             this.orbitLast = null;
-        };
-        listen(surface, 'pointerup', endDrag);
-        listen(surface, 'pointercancel', endDrag);
+            this.orbitStart = null;
+        });
+        listen(surface, 'pointercancel', () => {
+            this.dragGround = null;
+            this.orbitLast = null;
+            this.orbitStart = null;
+        });
     }
 
     update(dtSeconds: number): void {

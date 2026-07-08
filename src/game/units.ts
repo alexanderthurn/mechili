@@ -26,6 +26,8 @@ export interface UnitType {
     formation: GridExtent;
     /** uniform scale applied to each mech mesh */
     meshScale: number;
+    /** structures don't bob and never rotate to face anything (but are valid facing targets) */
+    structure?: boolean;
     /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;
 }
@@ -130,6 +132,26 @@ function buildFortress(parts: PartFactory): void {
     parts.box(2.0, 0.18, 0.2, 0, 0.55, 1.25, 'accent'); // rear glow strip
 }
 
+function buildTower(parts: PartFactory): void {
+    parts.cylinder(1.5, 1.8, 0.8, 0, 0.4, 0, 'dark'); // base
+    parts.box(1.6, 2.2, 1.6, 0, 1.9, 0, 'hull'); // core
+    parts.cylinder(0.9, 1.1, 0.7, 0, 3.35, 0, 'dark'); // cap
+    parts.sphere(0.55, 0, 4.0, 0, 'accent'); // beacon
+    parts.cylinder(0.06, 0.06, 2.0, 0.9, 4.0, 0.9, 'dark'); // antenna
+}
+
+/** each side's two command towers — not buyable, so not part of UNIT_TYPES */
+export const TOWER_TYPE: UnitType = {
+    id: 'tower',
+    name: 'Command Tower',
+    cost: 0,
+    footprint: { cols: 4, rows: 4 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 3,
+    structure: true,
+    build: buildTower,
+};
+
 export const UNIT_TYPES: UnitType[] = [
     {
         id: 'crawler',
@@ -167,6 +189,13 @@ export const UNIT_TYPES: UnitType[] = [
  */
 export class Unit {
     readonly view = new Group();
+    /**
+     * false while the owner is still in a build phase: opponents can't see the
+     * unit yet, and it is ignored when other units pick a facing target.
+     */
+    revealed = true;
+    /** rotation around y the unit currently faces (0 = toward -z / the enemy edge) */
+    facing: number;
     private readonly members: { mesh: Group; phase: number }[] = [];
 
     constructor(
@@ -174,8 +203,11 @@ export class Unit {
         readonly cell: Cell,
         readonly team: Team,
         readonly world: Vector3,
+        /** placement rotated 90°: footprint and formation use swapped cols/rows */
+        readonly rotated = false,
     ) {
-        const { footprint, formation } = type;
+        const footprint = rotated ? swapExtent(type.footprint) : type.footprint;
+        const formation = rotated ? swapExtent(type.formation) : type.formation;
         const spacingX = (footprint.cols * CELL) / formation.cols;
         const spacingZ = (footprint.rows * CELL) / formation.rows;
         for (let i = 0; i < formation.cols; i++) {
@@ -192,14 +224,60 @@ export class Unit {
                 this.members.push({ mesh, phase: Math.random() * Math.PI * 2 });
             }
         }
-        if (team === 'enemy') this.view.rotation.y = Math.PI; // face the player
+        // default facing until a target is known: straight at the opposing edge
+        this.facing = team === 'enemy' ? Math.PI : 0;
+        if (!type.structure) {
+            for (const m of this.members) m.mesh.rotation.y = this.facing;
+        }
         this.view.position.copy(this.world);
     }
 
+    /** ground positions of each individual mech (targeting works per mech, not per squad) */
+    memberWorldPositions(): Vector3[] {
+        return this.members.map(
+            (m) => this.world.clone().setY(0).add(m.mesh.position).setY(0),
+        );
+    }
+
+    /**
+     * Each mech pivots in place toward whichever target point is closest to
+     * that mech — the formation's area on the grid stays put (structures
+     * never turn). `targets` are individual enemy mech positions.
+     */
+    faceClosestOf(targets: readonly Vector3[]): void {
+        if (this.type.structure || targets.length === 0) return;
+        let squadBest = targets[0]!;
+        let squadBestD = Infinity;
+        for (const m of this.members) {
+            const mx = this.world.x + m.mesh.position.x;
+            const mz = this.world.z + m.mesh.position.z;
+            let best = targets[0]!;
+            let bestD = Infinity;
+            for (const t of targets) {
+                const d = (t.x - mx) ** 2 + (t.z - mz) ** 2;
+                if (d < bestD) {
+                    bestD = d;
+                    best = t;
+                }
+            }
+            m.mesh.rotation.y = Math.atan2(-(best.x - mx), -(best.z - mz));
+            if (bestD < squadBestD) {
+                squadBestD = bestD;
+                squadBest = best;
+            }
+        }
+        this.facing = Math.atan2(-(squadBest.x - this.world.x), -(squadBest.z - this.world.z));
+    }
+
     update(timeSeconds: number): void {
+        if (this.type.structure) return;
         // subtle idle bob, per mech
         for (const m of this.members) {
             m.mesh.position.y = 0.05 + Math.sin(timeSeconds * 2 + m.phase) * 0.04;
         }
     }
+}
+
+function swapExtent(e: GridExtent): GridExtent {
+    return { cols: e.rows, rows: e.cols };
 }
