@@ -23,6 +23,15 @@ export class PlacementController {
     selectedType: UnitType | null = null;
     /** placement orientation, toggled with middle click: swaps footprint cols/rows */
     rotated = false;
+    /** false during the battle phase: no hover, no placing */
+    enabled = true;
+    /**
+     * true while a build phase runs: new placements spawn unrevealed — the
+     * opponent can't see them (or face them) until the battle starts.
+     */
+    hiddenPlacements = false;
+    /** fired for every successful spawn — the game logs these for the future replay system */
+    onSpawn: ((unit: Unit) => void) | null = null;
 
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
@@ -58,7 +67,7 @@ export class PlacementController {
             if (e.button === 0) this.downAt = this.toLocal(e);
         });
         surface.addEventListener('pointerup', (e: PointerEvent) => {
-            if (e.button !== 0 || !this.downAt) return;
+            if (!this.enabled || e.button !== 0 || !this.downAt) return;
             const up = this.toLocal(e);
             const moved = Math.hypot(up.x - this.downAt.x, up.y - this.downAt.y);
             this.downAt = null;
@@ -74,6 +83,10 @@ export class PlacementController {
         return this.units.length;
     }
 
+    allUnits(): readonly Unit[] {
+        return this.units;
+    }
+
     toggleRotation(): void {
         this.rotated = !this.rotated;
     }
@@ -84,6 +97,11 @@ export class PlacementController {
         const cells = this.coveredCells(fp, anchor);
         if (!cells || cells.some((c) => this.occupied.has(cellKey(c)))) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
+        if (this.hiddenPlacements) {
+            unit.revealed = false;
+            // your own hidden units are still visible to you; the enemy's are not
+            unit.view.visible = team === 'player';
+        }
         for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.units.push(unit);
         this.scene.add(unit.view);
@@ -91,7 +109,41 @@ export class PlacementController {
         // could be aware of — from revealed enemy units, or the enemy's
         // command towers when nothing else is visible
         unit.faceClosestOf(this.opponentMechPositions(team, unit));
+        this.onSpawn?.(unit);
         return unit;
+    }
+
+    /** Tries a few random anchors to place an enemy unit inside its own zones. */
+    spawnEnemyRandom(type: UnitType): Unit | null {
+        for (let attempt = 0; attempt < 60; attempt++) {
+            const rotated = Math.random() < 0.5;
+            const fp = this.footprintOf(type, rotated);
+            const anchor = {
+                col: Math.floor(Math.random() * (this.map.cols - fp.cols + 1)),
+                row: Math.floor(Math.random() * (this.map.rows - fp.rows + 1)),
+            };
+            const cells = this.coveredCells(fp, anchor);
+            if (!cells) continue;
+            if (!cells.every((c) => this.map.isEnemyCell(c) && !this.occupied.has(cellKey(c)))) continue;
+            return this.spawn(type, anchor, 'enemy', rotated);
+        }
+        return null;
+    }
+
+    /** Reveals everything (battle is about to start — all placements become visible). */
+    revealAll(): void {
+        for (const u of this.units) {
+            u.revealed = true;
+            u.view.visible = true;
+        }
+    }
+
+    /** Re-runs the facing rule for every unit (used after the board resets between rounds). */
+    refaceAll(): void {
+        for (const u of this.units) {
+            if (u.type.structure) continue;
+            u.faceClosestOf(this.opponentMechPositions(u.team, u));
+        }
     }
 
     /**
@@ -160,6 +212,10 @@ export class PlacementController {
     }
 
     private updateHover(): void {
+        if (!this.enabled) {
+            this.hoverMesh.visible = false;
+            return;
+        }
         const type = this.selectedType;
         const anchor = this.pointer && type ? this.anchorAt(this.pointer.x, this.pointer.y) : null;
         this.hoverMesh.visible = anchor !== null;

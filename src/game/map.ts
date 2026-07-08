@@ -1,6 +1,7 @@
 import {
     CanvasTexture,
     Mesh,
+    MeshBasicMaterial,
     MeshStandardMaterial,
     PlaneGeometry,
     SRGBColorSpace,
@@ -188,15 +189,40 @@ export class BattleMap {
             ctx.fill();
         }
 
-        // deployment zone tints (texture top = enemy/far edge at z = -halfH).
-        // each half: owner's color in the center, the opponent's flank strips outside
-        ctx.globalAlpha = 1;
+        // field border
+        ctx.strokeStyle = 'rgba(86, 93, 82, 0.9)';
+        ctx.lineWidth = 5;
+        ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
+
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        texture.anisotropy = 8;
+        return texture;
+    }
+
+    /**
+     * The placement helper overlay: tile grid + deployment zone tints. Only
+     * shown during the build phase — the war phase plays on clean terrain.
+     */
+    createOverlayMesh(): Mesh {
+        const TEX_SCALE = 8;
+        const w = this.width * TEX_SCALE;
+        const h = this.height * TEX_SCALE;
+        const cellPx = CELL * TEX_SCALE;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+
+        // deployment zone tints: each half has the owner's color in the
+        // center and the opponent's flank strips outside
         const zonePx = this.size.zoneRows * cellPx;
         const flankPx = this.size.flankCols * cellPx;
         const paintZone = (x: number, y: number, zw: number, zh: number, tint: string) => {
-            ctx.fillStyle = `${tint} 0.1)`;
+            ctx.fillStyle = `${tint} 0.12)`;
             ctx.fillRect(x, y, zw, zh);
-            ctx.strokeStyle = `${tint} 0.5)`;
+            ctx.strokeStyle = `${tint} 0.55)`;
             ctx.lineWidth = 3;
             ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
         };
@@ -209,8 +235,8 @@ export class BattleMap {
         paintZone(0, h - zonePx, flankPx, zonePx, ENEMY_TINT);
         paintZone(w - flankPx, h - zonePx, flankPx, zonePx, ENEMY_TINT);
 
-        // grid
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        // tile grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
         ctx.lineWidth = 2;
         ctx.beginPath();
         for (let c = 1; c < this.cols; c++) {
@@ -224,21 +250,24 @@ export class BattleMap {
         ctx.stroke();
 
         // center line through the neutral strip
-        ctx.strokeStyle = 'rgba(216, 198, 106, 0.35)';
+        ctx.strokeStyle = 'rgba(216, 198, 106, 0.4)';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(0, h / 2);
         ctx.lineTo(w, h / 2);
         ctx.stroke();
 
-        // field border
-        ctx.strokeStyle = 'rgba(86, 93, 82, 0.9)';
-        ctx.lineWidth = 5;
-        ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
-
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         texture.anisotropy = 8;
-        return texture;
+
+        const geometry = new PlaneGeometry(this.width, this.height);
+        geometry.rotateX(-Math.PI / 2);
+        const mesh = new Mesh(
+            geometry,
+            new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
+        );
+        mesh.position.y = 0.02;
+        return mesh;
     }
 }

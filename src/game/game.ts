@@ -10,17 +10,31 @@ import {
 } from 'three';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
-import { BattleMap, STANDARD_MAP } from './map';
+import { BattleMap, STANDARD_MAP, type Cell } from './map';
 import { PlacementController } from './placement';
+import { BattleSim } from './sim';
 import { TOWER_TYPE, UNIT_TYPES } from './units';
 import { DebugOverlay } from '../ui/debug';
-import { Hud } from '../ui/hud';
+import { Hud, type Phase } from '../ui/hud';
+
+/** one deployment, as the future replay system will need it */
+interface DeploymentRecord {
+    round: number;
+    team: string;
+    typeId: string;
+    anchor: Cell;
+    rotated: boolean;
+}
 
 /**
  * The battlefield scene: a real three.js world (ground, lights, shadows,
  * unit meshes) rendered below the transparent Pixi UI overlay.
  */
 export class Game {
+    /** phase lengths in seconds — tune freely, they will change */
+    buildTime = 90;
+    battleTime = 90;
+
     private readonly map = new BattleMap(STANDARD_MAP);
     private readonly scene = new Scene();
     private readonly renderer: WebGLRenderer;
@@ -29,7 +43,15 @@ export class Game {
     private readonly placement: PlacementController;
     private readonly hud: Hud;
     private readonly debug: DebugOverlay;
+    private readonly gridOverlay;
     private time = 0;
+
+    private phase: Phase = 'build';
+    private round = 0;
+    private phaseRemaining = 0;
+    private sim: BattleSim | null = null;
+    /** every placement ever made, in order — the seed data for the replay system */
+    private readonly deploymentLog: DeploymentRecord[] = [];
 
     constructor(
         private readonly pixiApp: Application,
@@ -58,6 +80,8 @@ export class Game {
         this.scene.add(sun);
 
         this.scene.add(this.map.createMesh());
+        this.gridOverlay = this.map.createOverlayMesh();
+        this.scene.add(this.gridOverlay);
 
         // input listens on the Pixi canvas — it's the top-most surface
         const surface = pixiApp.canvas;
@@ -69,11 +93,26 @@ export class Game {
         this.hud = new Hud(pixiApp, wrapper, (type) => {
             this.placement.selectedType = type;
         });
+        this.hud.onEndDeployment = () => {
+            if (this.phase === 'build') this.startBattlePhase();
+        };
         this.debug = new DebugOverlay(this.hud.mode);
         pixiApp.stage.addChild(this.debug.view);
 
+        this.placement.onSpawn = (unit) => {
+            this.deploymentLog.push({
+                round: this.round,
+                team: unit.team,
+                typeId: unit.type.id,
+                anchor: unit.cell,
+                rotated: unit.rotated,
+            });
+        };
+
+        // round 0: the persistent board state both players know about
         this.spawnTowers();
         this.spawnEnemyArmy();
+        this.startBuildPhase();
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', () => this.resize(wrapper.clientWidth, wrapper.clientHeight));
@@ -118,6 +157,41 @@ export class Game {
         }
     }
 
+    /** A new round: place freely, hidden from the opponent, until timer or button. */
+    private startBuildPhase(): void {
+        this.round++;
+        this.phase = 'build';
+        this.phaseRemaining = this.buildTime;
+        this.placement.enabled = true;
+        this.placement.hiddenPlacements = true;
+        this.gridOverlay.visible = true;
+        // the enemy also deploys this round — invisible to the player until battle
+        const count = 2 + Math.min(this.round, 3);
+        for (let i = 0; i < count; i++) {
+            const type = UNIT_TYPES[Math.floor(Math.random() * UNIT_TYPES.length)]!;
+            this.placement.spawnEnemyRandom(type);
+        }
+    }
+
+    /** Everything is revealed and the sim takes over; the player can only watch. */
+    private startBattlePhase(): void {
+        this.phase = 'battle';
+        this.phaseRemaining = this.battleTime;
+        this.placement.enabled = false;
+        this.placement.hiddenPlacements = false;
+        this.gridOverlay.visible = false;
+        this.placement.revealAll();
+        this.sim = new BattleSim(this.placement.allUnits());
+    }
+
+    /** Battle is over: the persistent deployments return, next round begins. */
+    private endBattlePhase(): void {
+        this.sim = null;
+        for (const unit of this.placement.allUnits()) unit.resetFormation();
+        this.placement.refaceAll();
+        this.startBuildPhase();
+    }
+
     private resize(width: number, height: number): void {
         this.renderer.setSize(width, height, false);
         this.rig.resize(width, height);
@@ -125,9 +199,19 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         this.time += dtSeconds;
+        this.phaseRemaining -= dtSeconds;
+
+        if (this.phase === 'build') {
+            if (this.phaseRemaining <= 0) this.startBattlePhase();
+        } else if (this.sim) {
+            this.sim.update(dtSeconds);
+            if (this.phaseRemaining <= 0 || this.sim.isOver) this.endBattlePhase();
+        }
+
         this.controls.update(dtSeconds);
         this.rig.update(dtSeconds);
         this.placement.update(this.time);
+        this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
         this.hud.layout();
         this.debug.update(this.pixiApp, this.rig, this.placement.unitCount, dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);

@@ -28,6 +28,12 @@ export interface UnitType {
     meshScale: number;
     /** structures don't bob and never rotate to face anything (but are valid facing targets) */
     structure?: boolean;
+    /** combat stats, per individual mech */
+    hp: number;
+    damage: number;
+    range: number;
+    attackInterval: number;
+    speed: number;
     /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;
 }
@@ -149,6 +155,11 @@ export const TOWER_TYPE: UnitType = {
     formation: { cols: 1, rows: 1 },
     meshScale: 3,
     structure: true,
+    hp: 2500,
+    damage: 0,
+    range: 0,
+    attackInterval: 1,
+    speed: 0,
     build: buildTower,
 };
 
@@ -160,6 +171,11 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a swarm of 24 bugs
         meshScale: 1,
+        hp: 40,
+        damage: 8,
+        range: 2,
+        attackInterval: 0.7,
+        speed: 9,
         build: buildCrawler,
     },
     {
@@ -169,6 +185,11 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
+        hp: 130,
+        damage: 65,
+        range: 45,
+        attackInterval: 2.2,
+        speed: 3.5,
         build: buildMarksman,
     },
     {
@@ -178,6 +199,11 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
+        hp: 900,
+        damage: 130,
+        range: 28,
+        attackInterval: 2.8,
+        speed: 2.2,
         build: buildFortress,
     },
 ];
@@ -196,7 +222,8 @@ export class Unit {
     revealed = true;
     /** rotation around y the unit currently faces (0 = toward -z / the enemy edge) */
     facing: number;
-    private readonly members: { mesh: Group; phase: number }[] = [];
+    /** individual mechs; `home` is each one's formation slot (local offset from the unit center) */
+    readonly members: { mesh: Group; phase: number; home: Vector3 }[] = [];
 
     constructor(
         readonly type: UnitType,
@@ -221,7 +248,7 @@ export class Unit {
                     (j - (formation.rows - 1) / 2) * spacingZ,
                 );
                 this.view.add(mesh);
-                this.members.push({ mesh, phase: Math.random() * Math.PI * 2 });
+                this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: mesh.position.clone() });
             }
         }
         // default facing until a target is known: straight at the opposing edge
@@ -230,6 +257,18 @@ export class Unit {
             for (const m of this.members) m.mesh.rotation.y = this.facing;
         }
         this.view.position.copy(this.world);
+    }
+
+    /**
+     * Puts every mech back on its formation slot, alive and visible — the
+     * battle phase is a simulation; deployments persist between rounds.
+     */
+    resetFormation(): void {
+        for (const m of this.members) {
+            m.mesh.position.copy(m.home);
+            m.mesh.visible = true;
+            m.mesh.rotation.y = this.facing;
+        }
     }
 
     /** ground positions of each individual mech (targeting works per mech, not per squad) */
