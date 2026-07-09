@@ -28,6 +28,7 @@ export const THEME = {
     valid: 0x8ec858,
     invalid: 0xe83828,
     select: 0xffd040,
+    movable: 0xffffff,
 
     // combat effects
     muzzle: 0xffe8a0,

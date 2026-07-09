@@ -61,14 +61,10 @@ export class HpBars {
         }
 
         if (selected) {
+            // the ground shows the 3D attack-range ring instead of a marker here
             this.view
                 .rect(sx - w / 2 - 1.5, sy - h - 1.5, w + 3, h + 3)
                 .stroke({ width: 1.5, color: THEME.selection, alpha: 0.8 });
-            // ground ring under the selected mech
-            this.tmp.set(a.x, 0.05, a.z).project(camera);
-            const gx = (this.tmp.x + 1) * 0.5 * width;
-            const gy = (1 - this.tmp.y) * 0.5 * height;
-            this.view.ellipse(gx, gy, 18, 9).stroke({ width: 2, color: THEME.selection, alpha: 0.9 });
         }
         this.view.rect(sx - w / 2, sy - h, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
         if (ratio > 0) this.view.rect(sx - w / 2, sy - h, w * ratio, h).fill({ color, alpha });

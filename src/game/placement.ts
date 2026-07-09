@@ -18,6 +18,29 @@ const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
 
 /**
+ * The attack-range ring visual, shared by deployment selection and the
+ * battle-phase mech selection. Unit scale = range in world units.
+ */
+export function createRangeRing(scene: Scene): Mesh {
+    const ringGeo = new RingGeometry(0.985, 1, 96);
+    ringGeo.rotateX(-Math.PI / 2);
+    const mesh = new Mesh(
+        ringGeo,
+        new MeshBasicMaterial({
+            color: VALID_COLOR,
+            transparent: true,
+            opacity: 0.4,
+            side: DoubleSide,
+            depthWrite: false,
+        }),
+    );
+    mesh.position.y = 0.05;
+    mesh.visible = false;
+    scene.add(mesh);
+    return mesh;
+}
+
+/**
  * Deployment-phase interaction: buying drops a pack at the first free spot
  * near the center of the player zone; the player selects packs (left click)
  * and moves the ones bought THIS round by clicking a destination. Right
@@ -43,6 +66,10 @@ export class PlacementController {
     private readonly hoverMaterial: MeshBasicMaterial;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
+    /** whitish ground plates marking the packs that may still be repositioned */
+    private readonly movablePlates: Mesh[] = [];
+    private readonly plateGeometry: PlaneGeometry;
+    private readonly plateMaterial: MeshBasicMaterial;
     private pointer: { x: number; y: number } | null = null;
     private downAt: { x: number; y: number } | null = null;
 
@@ -75,21 +102,17 @@ export class PlacementController {
         this.selectMesh.position.y = 0.03;
 
         // attack range ring for the selected own pack (unit radius, scaled per unit)
-        const ringGeo = new RingGeometry(0.985, 1, 96);
-        ringGeo.rotateX(-Math.PI / 2);
-        this.rangeMesh = new Mesh(
-            ringGeo,
-            new MeshBasicMaterial({
-                color: VALID_COLOR,
-                transparent: true,
-                opacity: 0.4,
-                side: DoubleSide,
-                depthWrite: false,
-            }),
-        );
-        this.rangeMesh.position.y = 0.05;
-        this.rangeMesh.visible = false;
-        scene.add(this.rangeMesh);
+        this.rangeMesh = createRangeRing(scene);
+
+        this.plateGeometry = new PlaneGeometry(1, 1);
+        this.plateGeometry.rotateX(-Math.PI / 2);
+        this.plateMaterial = new MeshBasicMaterial({
+            color: THEME.movable,
+            transparent: true,
+            opacity: 0.16,
+            side: DoubleSide,
+            depthWrite: false,
+        });
 
         surface.addEventListener('pointermove', (e: PointerEvent) => {
             this.pointer = this.toLocal(e);
@@ -256,7 +279,34 @@ export class PlacementController {
 
     update(timeSeconds: number): void {
         for (const unit of this.units) unit.update(timeSeconds);
+        this.updateMovablePlates();
         this.updateMarkers();
+    }
+
+    /**
+     * Build phase: every pack that may still be repositioned stands on a
+     * whitish plate — locked packs (earlier rounds, structures) have none.
+     */
+    private updateMovablePlates(): void {
+        let used = 0;
+        if (this.enabled) {
+            for (const unit of this.units) {
+                if (!this.isMovable(unit)) continue;
+                let plate = this.movablePlates[used];
+                if (!plate) {
+                    plate = new Mesh(this.plateGeometry, this.plateMaterial);
+                    this.scene.add(plate);
+                    this.movablePlates.push(plate);
+                }
+                const fp = this.footprintOf(unit.type, unit.rotated);
+                const center = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
+                plate.position.set(center.x, 0.025, center.z);
+                plate.scale.set(fp.cols * CELL * 0.94, 1, fp.rows * CELL * 0.94);
+                plate.visible = true;
+                used++;
+            }
+        }
+        for (let i = used; i < this.movablePlates.length; i++) this.movablePlates[i]!.visible = false;
     }
 
     /**

@@ -14,7 +14,7 @@ import { CameraControls } from '../engine/cameraControls';
 import { BattleMap, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
-import { PlacementController } from './placement';
+import { createRangeRing, PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim, type Actor } from './sim';
 import { TechTree } from './tech';
@@ -55,6 +55,8 @@ export class Game {
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
     private selectedActor: Actor | null = null;
+    /** attack-range ring under the selected battle mech */
+    private readonly battleRangeMesh;
 
     private static readonly SPEED_STEPS = [1, 2, 4, 0.5];
 
@@ -108,6 +110,7 @@ export class Game {
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
+        this.battleRangeMesh = createRangeRing(this.scene);
 
         // input listens on the Pixi canvas — it's the top-most surface
         const surface = pixiApp.canvas;
@@ -369,7 +372,21 @@ export class Game {
         return best;
     }
 
+    /** the range ring follows the selected battle mech, tinted by its team */
+    private updateBattleRangeRing(): void {
+        const a = this.phase === 'battle' ? this.selectedActor : null;
+        this.battleRangeMesh.visible = a !== null;
+        if (!a) return;
+        const radius =
+            this.techTree.statsFor(a.unit.team, a.unit.type).range + a.unit.type.collisionRadius;
+        this.battleRangeMesh.position.set(a.x, 0.05, a.z);
+        this.battleRangeMesh.scale.set(radius, 1, radius);
+        const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
+        material.color.setHex(a.unit.team === 'player' ? THEME.valid : THEME.enemy);
+    }
+
     private updateSelectionUi(): void {
+        this.updateBattleRangeRing();
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
             this.hpBars.update(

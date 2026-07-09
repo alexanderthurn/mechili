@@ -246,7 +246,14 @@ export class BattleSim {
 
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            const target = this.closestEnemy(a);
+            // out of attackable targets (e.g. crawlers vs a lone wasp): walk
+            // up to the closest enemy anyway and wait there, weapons silent
+            let canAttack = true;
+            let target = this.closestEnemy(a);
+            if (!target) {
+                canAttack = false;
+                target = this.closestEnemy(a, true);
+            }
             if (!target) continue;
 
             const dx = target.x - a.x;
@@ -259,8 +266,8 @@ export class BattleSim {
 
             if (dist <= reach) {
                 // in range: stand and fire (still gets jostled by the crowd)
-                a.cooldown -= dt;
-                if (a.cooldown <= 0) {
+                if (canAttack) a.cooldown -= dt;
+                if (canAttack && a.cooldown <= 0) {
                     a.cooldown += stats.attackInterval;
                     const damage =
                         stats.damage * this.levelMult(a.unit) * this.debuff(a.unit.team, d.attackMult);
@@ -534,14 +541,16 @@ export class BattleSim {
     /**
      * The closest living enemy THIS unit can attack (towers are units like
      * any other). The can-attack matrix rules: e.g. crawlers can't reach air.
+     * With `anyLayer` the matrix is ignored — used to pick something to walk
+     * to and wait at when no attackable enemy is left.
      */
-    private closestEnemy(from: Actor): Actor | null {
+    private closestEnemy(from: Actor, anyLayer = false): Actor | null {
         const targets = from.unit.type.targets;
         let best: Actor | null = null;
         let bestD = Infinity;
         for (const a of this.actors) {
             if (!a.alive || a.unit.team === from.unit.team) continue;
-            if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
+            if (!anyLayer && (a.altitude > 0 ? !targets.air : !targets.ground)) continue;
             const d = (a.x - from.x) ** 2 + (a.z - from.z) ** 2;
             if (d < bestD) {
                 bestD = d;
