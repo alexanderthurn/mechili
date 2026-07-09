@@ -137,7 +137,14 @@ export class PlacementController {
             if (this.rectActive || moved > 6) this.updateRect(this.downAt, this.pointer);
         });
         surface.addEventListener('pointerdown', (e: PointerEvent) => {
-            if (e.button === 0) this.downAt = this.toLocal(e);
+            if (e.button !== 0) return;
+            this.downAt = this.toLocal(e);
+            // the rubber-band keeps tracking (and reliably ends) outside the canvas
+            surface.setPointerCapture(e.pointerId);
+        });
+        surface.addEventListener('pointercancel', () => {
+            this.downAt = null;
+            this.hideRect();
         });
         surface.addEventListener('pointerup', (e: PointerEvent) => {
             if (e.button !== 0) return;
