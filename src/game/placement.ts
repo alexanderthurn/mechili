@@ -43,7 +43,10 @@ export function createRangeRing(scene: Scene): Mesh {
 /**
  * Deployment-phase interaction: buying drops a pack at the first free spot
  * near the center of the player zone; the player selects packs (left click)
- * and moves the ones bought THIS round by clicking a destination. Right
+ * and moves the ones bought THIS round by clicking a destination. A left
+ * DRAG on the ground rubber-bands a rectangle that selects every movable
+ * pack inside it — the group then rides the cursor as a rigid formation and
+ * a click drops all of it (all packs must fit, or nothing moves). Right
  * click (handled by the camera controls) deselects via {@link deselect}.
  */
 export class PlacementController {
@@ -70,6 +73,14 @@ export class PlacementController {
     private readonly movablePlates: Mesh[] = [];
     private readonly plateGeometry: PlaneGeometry;
     private readonly plateMaterial: MeshBasicMaterial;
+    /** rect-selected movable packs (2+); a single selection uses selectedUnit */
+    private selectedGroup: Unit[] = [];
+    /** movable packs currently inside the rubber-band, live while dragging */
+    private rectPreview: Unit[] = [];
+    /** per-member marker plates (own material each — validity color differs per pack) */
+    private readonly groupPlates: Mesh[] = [];
+    private readonly rectEl: HTMLDivElement;
+    private rectActive = false;
     private pointer: { x: number; y: number } | null = null;
     private downAt: { x: number; y: number } | null = null;
 
@@ -114,18 +125,33 @@ export class PlacementController {
             depthWrite: false,
         });
 
+        // rubber-band rectangle, drawn as a plain overlay div on the wrapper
+        this.rectEl = document.createElement('div');
+        this.rectEl.style.cssText = `position:absolute; display:none; pointer-events:none; z-index:10; border:1.5px solid ${THEME.ui.hover}; background:rgba(255, 208, 64, 0.08);`;
+        (surface.parentElement ?? document.body).appendChild(this.rectEl);
+
         surface.addEventListener('pointermove', (e: PointerEvent) => {
             this.pointer = this.toLocal(e);
+            if (!this.downAt || !this.enabled) return;
+            const moved = Math.hypot(this.pointer.x - this.downAt.x, this.pointer.y - this.downAt.y);
+            if (this.rectActive || moved > 6) this.updateRect(this.downAt, this.pointer);
         });
         surface.addEventListener('pointerdown', (e: PointerEvent) => {
             if (e.button === 0) this.downAt = this.toLocal(e);
         });
         surface.addEventListener('pointerup', (e: PointerEvent) => {
-            if (!this.enabled || e.button !== 0 || !this.downAt) return;
-            const up = this.toLocal(e);
-            const moved = Math.hypot(up.x - this.downAt.x, up.y - this.downAt.y);
+            if (e.button !== 0) return;
+            const down = this.downAt;
             this.downAt = null;
-            if (moved > 6) return; // it was a drag, not a click
+            const wasRect = this.rectActive;
+            this.hideRect();
+            if (!this.enabled || !down) return;
+            const up = this.toLocal(e);
+            if (wasRect) {
+                this.finishRectSelect(down, up);
+                return;
+            }
+            if (Math.hypot(up.x - down.x, up.y - down.y) > 6) return; // drag, not a click
             this.handleClick(up.x, up.y);
         });
     }
@@ -141,11 +167,13 @@ export class PlacementController {
     deselect(): void {
         this.restoreSelectedView();
         this.selectedUnit = null;
+        this.selectedGroup = [];
     }
 
-    /** a carried pack goes back to its committed spot */
+    /** carried packs go back to their committed spots */
     private restoreSelectedView(): void {
         this.selectedUnit?.view.position.copy(this.selectedUnit.world);
+        for (const u of this.selectedGroup) u.view.position.copy(u.world);
     }
 
     /** a pack may be repositioned only in the round it was bought */
@@ -186,6 +214,7 @@ export class PlacementController {
 
     /** Rotates the selected (movable) pack in place when its rotated footprint fits. */
     rotateSelected(): void {
+        if (this.selectedGroup.length > 1) return; // formations don't rotate
         const unit = this.selectedUnit;
         if (!unit || !this.enabled || !this.isMovable(unit)) return;
         const rotated = !unit.rotated;
@@ -255,6 +284,7 @@ export class PlacementController {
     /** Removes a unit from the board entirely (build-phase undo). */
     removeUnit(unit: Unit): void {
         if (this.selectedUnit === unit) this.selectedUnit = null;
+        this.selectedGroup = this.selectedGroup.filter((u) => u !== unit);
         this.release(unit);
         this.scene.remove(unit.view);
         const i = this.units.indexOf(unit);
@@ -328,10 +358,16 @@ export class PlacementController {
         const clicked = this.occupied.get(cellKey(cell));
         // selecting: any own pack, or a revealed enemy pack (hidden stays hidden)
         if (clicked && !clicked.destroyed && (clicked.team === 'player' || clicked.revealed)) {
-            if (clicked !== this.selectedUnit) {
+            if (clicked !== this.selectedUnit || this.selectedGroup.length > 1) {
                 this.restoreSelectedView();
                 this.selectedUnit = clicked;
+                this.selectedGroup = [];
             }
+            return;
+        }
+        // empty ground: drop the carried formation there — all packs or none
+        if (this.selectedGroup.length > 1) {
+            if (this.tryMoveGroup(cell)) this.deselect();
             return;
         }
         // empty ground: drop the carried pack there — a successful drop releases it
@@ -341,6 +377,110 @@ export class PlacementController {
         } else {
             this.deselect();
         }
+    }
+
+    // --- rectangle multi-select ---
+
+    private updateRect(a: { x: number; y: number }, b: { x: number; y: number }): void {
+        this.rectActive = true;
+        this.rectEl.style.display = 'block';
+        this.rectEl.style.left = `${Math.min(a.x, b.x)}px`;
+        this.rectEl.style.top = `${Math.min(a.y, b.y)}px`;
+        this.rectEl.style.width = `${Math.abs(a.x - b.x)}px`;
+        this.rectEl.style.height = `${Math.abs(a.y - b.y)}px`;
+        this.rectPreview = this.movableUnitsInRect(a, b);
+    }
+
+    private hideRect(): void {
+        this.rectActive = false;
+        this.rectEl.style.display = 'none';
+        this.rectPreview = [];
+    }
+
+    private finishRectSelect(a: { x: number; y: number }, b: { x: number; y: number }): void {
+        const units = this.movableUnitsInRect(a, b);
+        this.restoreSelectedView();
+        if (units.length === 0) {
+            this.deselect();
+            return;
+        }
+        this.selectedUnit = units[0]!;
+        this.selectedGroup = units.length > 1 ? units : [];
+    }
+
+    /** only packs that can actually be repositioned are rect-selectable */
+    private movableUnitsInRect(
+        a: { x: number; y: number },
+        b: { x: number; y: number },
+    ): Unit[] {
+        const rect = this.surface.getBoundingClientRect();
+        const minX = Math.min(a.x, b.x);
+        const maxX = Math.max(a.x, b.x);
+        const minY = Math.min(a.y, b.y);
+        const maxY = Math.max(a.y, b.y);
+        const result: Unit[] = [];
+        for (const u of this.units) {
+            if (!this.isMovable(u)) continue;
+            const s = this.rig.worldToScreen(u.world.x, 0, u.world.z, rect.width, rect.height);
+            if (!s) continue;
+            if (s.x >= minX && s.x <= maxX && s.y >= minY && s.y <= maxY) result.push(u);
+        }
+        return result;
+    }
+
+    /** cell at the center of the group's committed bounding box — the drag handle */
+    private groupCenterCell(): Cell {
+        let minCol = Infinity;
+        let maxCol = -Infinity;
+        let minRow = Infinity;
+        let maxRow = -Infinity;
+        for (const u of this.selectedGroup) {
+            const fp = this.footprintOf(u.type, u.rotated);
+            minCol = Math.min(minCol, u.cell.col);
+            maxCol = Math.max(maxCol, u.cell.col + fp.cols - 1);
+            minRow = Math.min(minRow, u.cell.row);
+            maxRow = Math.max(maxRow, u.cell.row + fp.rows - 1);
+        }
+        return { col: Math.round((minCol + maxCol) / 2), row: Math.round((minRow + maxRow) / 2) };
+    }
+
+    /** a group target spot may reuse cells the group itself is vacating */
+    private groupSpotValid(unit: Unit, anchor: Cell): boolean {
+        const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), anchor);
+        return (
+            cells !== null &&
+            cells.every((c) => {
+                if (!this.map.isPlayerCell(c)) return false;
+                const holder = this.occupied.get(cellKey(c));
+                return holder === undefined || holder === unit || this.selectedGroup.includes(holder);
+            })
+        );
+    }
+
+    /**
+     * Translates the whole formation by the same cell delta (shape preserved,
+     * so members can't collide with each other). All spots must be valid.
+     */
+    private tryMoveGroup(cell: Cell): boolean {
+        const center = this.groupCenterCell();
+        const dc = cell.col - center.col;
+        const dr = cell.row - center.row;
+        const anchors = this.selectedGroup.map((u) => ({
+            col: u.cell.col + dc,
+            row: u.cell.row + dr,
+        }));
+        if (!this.selectedGroup.every((u, i) => this.groupSpotValid(u, anchors[i]!))) return false;
+        for (const u of this.selectedGroup) this.release(u);
+        this.selectedGroup.forEach((u, i) => {
+            const fp = this.footprintOf(u.type, u.rotated);
+            const anchor = anchors[i]!;
+            u.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
+            for (const c of this.coveredCells(fp, anchor)!) this.occupied.set(cellKey(c), u);
+        });
+        for (const u of this.selectedGroup) {
+            u.faceClosestOf(this.opponentMechPositions(u.team, u));
+        }
+        return true;
     }
 
     private tryMove(unit: Unit, anchor: Cell): boolean {
@@ -417,6 +557,21 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+
+        // while rubber-banding: highlight what the rect would select
+        if (this.rectActive) {
+            this.showGroupPlates(this.rectPreview, null);
+            return;
+        }
+        // a formation is carried as one rigid shape, each pack showing its own validity
+        if (this.selectedGroup.length > 1 && this.enabled) {
+            const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
+            const center = this.groupCenterCell();
+            const delta = cell ? { dc: cell.col - center.col, dr: cell.row - center.row } : null;
+            this.showGroupPlates(this.selectedGroup, delta);
+            return;
+        }
+        this.showGroupPlates([], null);
         if (!sel || !this.enabled) return;
 
         const fp = this.footprintOf(sel.type, sel.rotated);
@@ -455,5 +610,44 @@ export class PlacementController {
             this.rangeMesh.scale.set(radius, 1, radius);
             this.rangeMesh.visible = true;
         }
+    }
+
+    /**
+     * One plate per group member. Without a delta the packs sit at their
+     * committed spots under yellow plates; with a delta (cursor on the map)
+     * their views ride the cursor and each plate turns green/red for its own
+     * target spot.
+     */
+    private showGroupPlates(units: readonly Unit[], delta: { dc: number; dr: number } | null): void {
+        for (let i = 0; i < units.length; i++) {
+            const unit = units[i]!;
+            let plate = this.groupPlates[i];
+            if (!plate) {
+                plate = new Mesh(
+                    this.plateGeometry,
+                    new MeshBasicMaterial({
+                        transparent: true,
+                        opacity: 0.24,
+                        side: DoubleSide,
+                        depthWrite: false,
+                    }),
+                );
+                this.scene.add(plate);
+                this.groupPlates.push(plate);
+            }
+            const fp = this.footprintOf(unit.type, unit.rotated);
+            const anchor = delta
+                ? { col: unit.cell.col + delta.dc, row: unit.cell.row + delta.dr }
+                : unit.cell;
+            const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
+            unit.view.position.set(center.x, 0, center.z);
+            plate.position.set(center.x, 0.035, center.z);
+            plate.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
+            (plate.material as MeshBasicMaterial).color.setHex(
+                delta ? (this.groupSpotValid(unit, anchor) ? VALID_COLOR : INVALID_COLOR) : SELECT_COLOR,
+            );
+            plate.visible = true;
+        }
+        for (let i = units.length; i < this.groupPlates.length; i++) this.groupPlates[i]!.visible = false;
     }
 }
