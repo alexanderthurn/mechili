@@ -30,6 +30,13 @@ export interface UnitType {
     structure?: boolean;
     /** ground-plane collision circle per mech, in world units — nothing walks through it */
     collisionRadius: number;
+    /**
+     * simplified 3D hit volumes for bullets: spheres on the mech's local y
+     * axis (rotation-proof), offsets and radii scaled by meshScale at use
+     */
+    colliders: { y: number; r: number }[];
+    /** ranged mechs fire visible projectiles at this speed (world units/s); melee when absent */
+    projectileSpeed?: number;
     /** combat stats, per individual mech */
     hp: number;
     damage: number;
@@ -159,6 +166,11 @@ export const TOWER_TYPE: UnitType = {
     meshScale: 2.4,
     structure: true,
     collisionRadius: 4.5,
+    colliders: [
+        { y: 0.5, r: 1.6 },
+        { y: 1.9, r: 1.1 },
+        { y: 3.5, r: 0.8 },
+    ],
     hp: 800,
     damage: 0,
     range: 0,
@@ -176,6 +188,7 @@ export const UNIT_TYPES: UnitType[] = [
         formation: { cols: 8, rows: 3 }, // a swarm of 24 bugs
         meshScale: 1,
         collisionRadius: 0.5,
+        colliders: [{ y: 0.35, r: 0.55 }],
         hp: 40,
         damage: 8,
         range: 2,
@@ -191,6 +204,8 @@ export const UNIT_TYPES: UnitType[] = [
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
         collisionRadius: 1.0,
+        colliders: [{ y: 1.1, r: 0.75 }],
+        projectileSpeed: 80,
         hp: 130,
         damage: 65,
         range: 45,
@@ -206,6 +221,8 @@ export const UNIT_TYPES: UnitType[] = [
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
         collisionRadius: 2.8,
+        colliders: [{ y: 0.9, r: 1.1 }],
+        projectileSpeed: 50,
         hp: 900,
         damage: 130,
         range: 28,

@@ -16,6 +16,28 @@ export interface Actor {
     index: number;
 }
 
+/** a bullet in flight — hits the first enemy hit-volume it crosses */
+export interface Projectile {
+    x: number;
+    y: number;
+    z: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    damage: number;
+    team: Team;
+    ttl: number;
+}
+
+/** visual happenings the renderer turns into particles (drained per frame) */
+export type SimEvent =
+    | { kind: 'muzzle'; x: number; y: number; z: number }
+    | { kind: 'impact'; x: number; y: number; z: number }
+    | { kind: 'death'; x: number; y: number; z: number; big: boolean };
+
+const PROJECTILE_RADIUS = 0.25;
+const PROJECTILE_TTL = 3;
+
 // movement tuning
 const AVOID_LOOKAHEAD = 16; // how far ahead a mech watches for big blockers
 const AVOID_MARGIN = 0.6; // extra clearance kept around obstacles
@@ -40,6 +62,8 @@ export class BattleSim {
     private static readonly STEP = 1 / 30;
 
     readonly actors: Actor[] = [];
+    readonly projectiles: Projectile[] = [];
+    private events: SimEvent[] = [];
     private accumulator = 0;
     /** destroyed towers per side (pre-battle + during battle) drive the debuffs */
     private readonly lostTowers: Record<Team, number> = { player: 0, enemy: 0 };
@@ -74,6 +98,13 @@ export class BattleSim {
     /** the round ends as soon as one side has no units left besides its towers */
     get isOver(): boolean {
         return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');
+    }
+
+    /** hands the accumulated visual events to the renderer and forgets them */
+    consumeEvents(): SimEvent[] {
+        const drained = this.events;
+        this.events = [];
+        return drained;
     }
 
     /** living/total mechs per unit (structures excluded) — the end-of-battle scoring input */
@@ -111,7 +142,15 @@ export class BattleSim {
 
     private kill(target: Actor): void {
         target.alive = false;
-        if (target.unit.type.structure) {
+        const t = target.unit.type;
+        this.events.push({
+            kind: 'death',
+            x: target.x,
+            y: t.meshScale * 0.8,
+            z: target.z,
+            big: target.radius >= 2 || !!t.structure,
+        });
+        if (t.structure) {
             // a fallen tower stays fallen for the whole match and weakens its side
             target.unit.markDestroyed();
             this.lostTowers[target.unit.team]++;
@@ -140,11 +179,15 @@ export class BattleSim {
                 a.cooldown -= dt;
                 if (a.cooldown <= 0) {
                     a.cooldown += stats.attackInterval;
-                    target.hp -=
-                        stats.damage *
-                        this.debuff(a.unit.team, d.attackMult) *
-                        this.debuff(target.unit.team, d.damageTakenMult);
-                    if (target.hp <= 0) this.kill(target);
+                    const damage = stats.damage * this.debuff(a.unit.team, d.attackMult);
+                    if (stats.projectileSpeed) {
+                        this.fire(a, target, damage, stats.projectileSpeed);
+                    } else {
+                        // melee: instant hit
+                        target.hp -= damage * this.debuff(target.unit.team, d.damageTakenMult);
+                        this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                        if (target.hp <= 0) this.kill(target);
+                    }
                 }
                 a.mesh.rotation.y = Math.atan2(-dx, -dz);
                 continue;
@@ -213,6 +256,103 @@ export class BattleSim {
 
         this.resolveOverlaps();
         this.syncMeshes();
+        this.stepProjectiles(dt);
+    }
+
+    /** spawns a bullet from the shooter's muzzle toward the target's primary hit volume */
+    private fire(a: Actor, target: Actor, damage: number, speed: number): void {
+        const at = a.unit.type;
+        const tt = target.unit.type;
+        const dirX = target.x - a.x;
+        const dirZ = target.z - a.z;
+        const flat = Math.hypot(dirX, dirZ) || 1e-6;
+        const muzzleY = (at.colliders[0]?.y ?? 0.5) * at.meshScale + 0.4;
+        const mx = a.x + (dirX / flat) * (a.radius + 0.5);
+        const mz = a.z + (dirZ / flat) * (a.radius + 0.5);
+        const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
+        const dx = target.x - mx;
+        const dy = aim.y * tt.meshScale - muzzleY;
+        const dz = target.z - mz;
+        const len = Math.hypot(dx, dy, dz) || 1e-6;
+        this.projectiles.push({
+            x: mx,
+            y: muzzleY,
+            z: mz,
+            vx: (dx / len) * speed,
+            vy: (dy / len) * speed,
+            vz: (dz / len) * speed,
+            damage,
+            team: a.unit.team,
+            ttl: PROJECTILE_TTL,
+        });
+        this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
+    }
+
+    /**
+     * Advances bullets and applies damage to whatever they actually hit: the
+     * FIRST enemy hit volume crossed by this step's flight segment — which
+     * may be a different mech standing in the way — or the ground.
+     */
+    private stepProjectiles(dt: number): void {
+        const d = this.towers.debuffPerLostTower;
+        let write = 0;
+        for (const p of this.projectiles) {
+            const nx = p.x + p.vx * dt;
+            const ny = p.y + p.vy * dt;
+            const nz = p.z + p.vz * dt;
+            const sx = nx - p.x;
+            const sy = ny - p.y;
+            const sz = nz - p.z;
+            const segLen2 = sx * sx + sy * sy + sz * sz || 1e-9;
+            const reach = Math.sqrt(segLen2) + 5; // broadphase: seg length + max collider size
+
+            let hit: Actor | null = null;
+            let hitT = Infinity;
+            for (const a of this.actors) {
+                if (!a.alive || a.unit.team === p.team) continue;
+                const bx = a.x - p.x;
+                const bz = a.z - p.z;
+                if (bx * bx + bz * bz > reach * reach) continue;
+                const mt = a.unit.type;
+                for (const c of mt.colliders) {
+                    const cy = c.y * mt.meshScale;
+                    const cr = c.r * mt.meshScale + PROJECTILE_RADIUS;
+                    // closest approach of the flight segment to the sphere center
+                    let t = (bx * sx + (cy - p.y) * sy + bz * sz) / segLen2;
+                    t = Math.max(0, Math.min(1, t));
+                    const qx = p.x + sx * t - a.x;
+                    const qy = p.y + sy * t - cy;
+                    const qz = p.z + sz * t - a.z;
+                    if (qx * qx + qy * qy + qz * qz <= cr * cr && t < hitT) {
+                        hitT = t;
+                        hit = a;
+                    }
+                }
+            }
+
+            if (hit) {
+                hit.hp -= p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
+                this.events.push({
+                    kind: 'impact',
+                    x: p.x + sx * hitT,
+                    y: p.y + sy * hitT,
+                    z: p.z + sz * hitT,
+                });
+                if (hit.hp <= 0) this.kill(hit);
+                continue; // bullet consumed
+            }
+            if (ny <= 0) {
+                this.events.push({ kind: 'impact', x: nx, y: 0.15, z: nz });
+                continue;
+            }
+            p.x = nx;
+            p.y = ny;
+            p.z = nz;
+            p.ttl -= dt;
+            if (p.ttl <= 0) continue;
+            this.projectiles[write++] = p;
+        }
+        this.projectiles.length = write;
     }
 
     /** mass-based push-out: heavy units shove light ones aside, structures never move */
