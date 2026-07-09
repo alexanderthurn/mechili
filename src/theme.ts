@@ -4,7 +4,8 @@
  */
 export const THEME = {
     // atmosphere (three.js hex) — warm sunny day, not murky dusk
-    sky: 0x88b898,
+    // `sky` is the fog color and must match the sky dome's horizon band
+    sky: 0xb8d4c8,
     fogNear: 520,
     fogFar: 1300,
     hemiSky: 0xd0e8b8,
@@ -75,6 +76,25 @@ export const THEME = {
         sunWashTop: 'rgba(255, 248, 200, 0.18)',
         sunWashBottom: 'rgba(255, 248, 200, 0)',
         groundRoughness: 0.88,
+    },
+
+    scenery: {
+        // sky dome gradient, zenith to horizon (horizon must equal `sky` above)
+        skyZenith: '#5aa8dc',
+        skyMid: '#8cc4e4',
+        skyHorizon: '#b8d4c8',
+        sunGlow: 'rgba(255, 244, 200, 1)',
+        // the world beyond the battlefield
+        outerGround: 0x4e9040,
+        trunk: 0x6a4a32,
+        pine: 0x2e6e34,
+        pineLight: 0x48904a,
+        leaf: 0x4c9a3e,
+        leafLight: 0x74bc52,
+        rock: 0x8a8d82,
+        // drifting clouds + their shadows on the field
+        cloudOpacity: 0.85,
+        cloudShadowOpacity: 0.1,
     },
 
     ui: {

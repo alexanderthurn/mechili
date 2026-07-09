@@ -13,6 +13,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { BattleMap, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
+import { Scenery } from './scenery';
 import { PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim, type Actor } from './sim';
@@ -49,6 +50,7 @@ export class Game {
     private readonly hpBars = new HpBars();
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
+    private readonly scenery: Scenery;
     private gridOverlay;
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
@@ -90,15 +92,18 @@ export class Game {
         sun.position.set(120, 160, 80);
         sun.castShadow = true;
         sun.shadow.mapSize.set(4096, 4096);
-        sun.shadow.camera.left = -this.map.halfW - 10;
-        sun.shadow.camera.right = this.map.halfW + 10;
-        sun.shadow.camera.top = this.map.halfH + 10;
-        sun.shadow.camera.bottom = -this.map.halfH - 10;
+        // frustum reaches past the field so the tree ring casts onto its edges
+        sun.shadow.camera.left = -this.map.halfW - 40;
+        sun.shadow.camera.right = this.map.halfW + 40;
+        sun.shadow.camera.top = this.map.halfH + 40;
+        sun.shadow.camera.bottom = -this.map.halfH - 40;
         sun.shadow.camera.near = 10;
         sun.shadow.camera.far = 500;
         this.scene.add(sun);
 
         this.scene.add(this.map.createMesh());
+        this.scenery = new Scenery(this.map);
+        this.scene.add(this.scenery.group);
         this.gridOverlay = this.map.createOverlayMesh();
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
@@ -327,6 +332,8 @@ export class Game {
 
         this.controls.update(dtSeconds);
         this.rig.update(dtSeconds);
+        // ambient motion runs on real time, unaffected by battle fast-forward
+        this.scenery.update(dtSeconds, this.rig.camera.position);
         this.placement.update(this.time);
         this.updateSelectionUi();
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
