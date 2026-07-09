@@ -7,6 +7,7 @@ import {
     SphereGeometry,
     type Vector3,
 } from 'three';
+import { THEME } from '../theme';
 import { CELL, type Cell } from './map';
 
 export type Team = 'player' | 'enemy';
@@ -63,8 +64,8 @@ export interface UnitType {
 }
 
 const TEAM_ACCENT: Record<Team, number> = {
-    player: 0x35e0ff,
-    enemy: 0xff5f45,
+    player: THEME.player,
+    enemy: THEME.enemy,
 };
 
 /** Shared materials per team so all units batch nicely. */
@@ -80,15 +81,15 @@ function material(key: string, make: () => MeshStandardMaterial): MeshStandardMa
 }
 
 function hullMaterial(): MeshStandardMaterial {
-    return material('hull', () => new MeshStandardMaterial({ color: 0x8b9296, roughness: 0.6, metalness: 0.35 }));
+    return material('hull', () => new MeshStandardMaterial({ color: THEME.hull, roughness: 0.65, metalness: 0.3 }));
 }
 
 function darkMaterial(): MeshStandardMaterial {
-    return material('dark', () => new MeshStandardMaterial({ color: 0x40464a, roughness: 0.8, metalness: 0.25 }));
+    return material('dark', () => new MeshStandardMaterial({ color: THEME.dark, roughness: 0.85, metalness: 0.2 }));
 }
 
 function lightMaterial(): MeshStandardMaterial {
-    return material('light', () => new MeshStandardMaterial({ color: 0xf2f6f9, roughness: 0.4, metalness: 0.15 }));
+    return material('light', () => new MeshStandardMaterial({ color: THEME.light, roughness: 0.5, metalness: 0.12 }));
 }
 
 function accentMaterial(team: Team): MeshStandardMaterial {

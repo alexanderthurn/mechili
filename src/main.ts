@@ -1,6 +1,7 @@
 import { Application, Container, Text } from 'pixi.js';
 import { Game } from './game/game';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
+import { THEME } from './theme';
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20
 function settingsFromUrl(): GameSettings {
@@ -36,7 +37,7 @@ const title = new Container();
 const heading = new Text({
     text: 'MECHILI',
     style: {
-        fill: 0x00ffff,
+        fill: THEME.title,
         fontSize: 96,
         fontWeight: 'bold',
         letterSpacing: 12,
@@ -48,7 +49,7 @@ title.addChild(heading);
 const subtitle = new Text({
     text: 'click to deploy',
     style: {
-        fill: 0xaa00ff,
+        fill: THEME.subtitle,
         fontSize: 32,
         letterSpacing: 6,
     },

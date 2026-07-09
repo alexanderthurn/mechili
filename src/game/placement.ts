@@ -8,13 +8,14 @@ import {
     type Vector3,
 } from 'three';
 import type { CameraRig } from '../engine/cameraRig';
+import { THEME } from '../theme';
 import { CELL, cellKey, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import { Unit, type GridExtent, type Team, type UnitType } from './units';
 
-const VALID_COLOR = 0x35e0ff;
-const INVALID_COLOR = 0xff4040;
-const SELECT_COLOR = 0xffe066;
+const VALID_COLOR = THEME.valid;
+const INVALID_COLOR = THEME.invalid;
+const SELECT_COLOR = THEME.select;
 
 /**
  * Deployment-phase interaction: buying drops a pack at the first free spot

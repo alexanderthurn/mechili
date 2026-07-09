@@ -13,6 +13,7 @@ import {
     type Scene,
 } from 'three';
 import type { Projectile, SimEvent } from './sim';
+import { THEME } from '../theme';
 
 const MAX_PROJECTILES = 512;
 const MAX_PARTICLES = 2048;
@@ -111,21 +112,21 @@ export class Particles {
         for (const e of events) {
             switch (e.kind) {
                 case 'muzzle':
-                    this.burst(e.x, e.y, e.z, { count: 3, color: 0xffe9a0, speed: 5, life: 0.15, up: 1 });
+                    this.burst(e.x, e.y, e.z, { count: 3, color: THEME.muzzle, speed: 5, life: 0.15, up: 1 });
                     break;
                 case 'impact':
-                    this.burst(e.x, e.y, e.z, { count: 6, color: 0xffb35c, speed: 9, life: 0.35 });
+                    this.burst(e.x, e.y, e.z, { count: 6, color: THEME.impact, speed: 9, life: 0.35 });
                     break;
                 case 'death':
                     if (e.big) {
-                        this.burst(e.x, e.y, e.z, { count: 44, color: 0xff6a3d, speed: 17, life: 0.9, up: 6 });
-                        this.burst(e.x, e.y + 1, e.z, { count: 20, color: 0xffd27a, speed: 9, life: 0.6, up: 8 });
+                        this.burst(e.x, e.y, e.z, { count: 44, color: THEME.death, speed: 17, life: 0.9, up: 6 });
+                        this.burst(e.x, e.y + 1, e.z, { count: 20, color: THEME.deathSecondary, speed: 9, life: 0.6, up: 8 });
                     } else {
-                        this.burst(e.x, e.y, e.z, { count: 12, color: 0xff8a50, speed: 11, life: 0.5, up: 4 });
+                        this.burst(e.x, e.y, e.z, { count: 12, color: THEME.deathSmall, speed: 11, life: 0.5, up: 4 });
                     }
                     break;
                 case 'levelup':
-                    this.burst(e.x, e.y, e.z, { count: 10, color: 0x8affc9, speed: 4, life: 0.6, up: 9 });
+                    this.burst(e.x, e.y, e.z, { count: 10, color: THEME.levelup, speed: 4, life: 0.6, up: 9 });
                     break;
             }
         }
@@ -140,7 +141,7 @@ export class ProjectileRenderer {
     constructor(scene: Scene) {
         this.mesh = new InstancedMesh(
             new SphereGeometry(0.28, 6, 5),
-            new MeshBasicMaterial({ color: 0xffd980 }),
+            new MeshBasicMaterial({ color: THEME.projectile }),
             MAX_PROJECTILES,
         );
         this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);

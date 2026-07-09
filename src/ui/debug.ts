@@ -1,11 +1,12 @@
 import { Text, type Application } from 'pixi.js';
 import type { CameraRig } from '../engine/cameraRig';
+import { THEME } from '../theme';
 
 /** Top-left FPS / camera readout, refreshed a few times per second. */
 export class DebugOverlay {
     readonly view = new Text({
         text: '',
-        style: { fill: 0x7fd8a0, fontSize: 13, fontFamily: 'monospace' },
+        style: { fill: THEME.ui.debug, fontSize: 13, fontFamily: 'monospace' },
     });
     private accumulator = 0;
 

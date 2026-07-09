@@ -11,8 +11,7 @@ import {
 /** world units per grid tile */
 export const CELL = 4;
 
-const PLAYER_TINT = 'rgba(47, 184, 212,';
-const ENEMY_TINT = 'rgba(212, 72, 47,';
+import { THEME } from '../theme';
 
 export interface Cell {
     col: number;
@@ -136,7 +135,7 @@ export class BattleMap {
         geometry.rotateX(-Math.PI / 2); // lie flat; texture top edge faces -z (enemy side)
         const material = new MeshStandardMaterial({
             map: this.createGroundTexture(seed),
-            roughness: 0.95,
+            roughness: THEME.terrain.groundRoughness,
             metalness: 0,
         });
         const mesh = new Mesh(geometry, material);
@@ -157,7 +156,8 @@ export class BattleMap {
         canvas.height = h;
         const ctx = canvas.getContext('2d')!;
 
-        ctx.fillStyle = '#272b26';
+        const t = THEME.terrain;
+        ctx.fillStyle = t.base;
         ctx.fillRect(0, 0, w, h);
 
         const circle = (x: number, y: number, r: number) => {
@@ -168,43 +168,58 @@ export class BattleMap {
         // decoration counts scale with the field area
         const density = (this.width * this.height) / 9000;
 
-        // large soft tonal patches
-        const patchTones = ['#2e332c', '#22261f', '#2b2d33', '#30322a'];
-        for (let i = 0; i < 260 * density; i++) {
-            ctx.globalAlpha = 0.07 + rng() * 0.06;
+        // large soft tonal patches — vivid grass variation
+        const patchTones = t.patches;
+        for (let i = 0; i < 320 * density; i++) {
+            ctx.globalAlpha = 0.1 + rng() * 0.12;
             ctx.fillStyle = patchTones[Math.floor(rng() * patchTones.length)]!;
-            circle(rng() * w, rng() * h, 12 + rng() * 90);
+            circle(rng() * w, rng() * h, 16 + rng() * 100);
             ctx.fill();
         }
-        // small debris speckles
-        ctx.globalAlpha = 0.25;
-        for (let i = 0; i < 500 * density; i++) {
-            ctx.fillStyle = rng() > 0.5 ? '#4a4f45' : '#15181a';
-            circle(rng() * w, rng() * h, 1 + rng() * 3);
+        // bright grass tufts
+        ctx.globalAlpha = 0.18;
+        for (let i = 0; i < 400 * density; i++) {
+            ctx.fillStyle = t.grassBright;
+            circle(rng() * w, rng() * h, 2 + rng() * 6);
             ctx.fill();
         }
-        // craters: dark bowl + lighter rim
-        for (let i = 0; i < 14 * density; i++) {
+        // small debris speckles — mostly lighter greens, fewer dark spots
+        ctx.globalAlpha = 0.3;
+        for (let i = 0; i < 350 * density; i++) {
+            ctx.fillStyle = rng() > 0.35 ? t.debrisLight : t.debrisDark;
+            circle(rng() * w, rng() * h, 1 + rng() * 2.5);
+            ctx.fill();
+        }
+        // craters: subtle scorch marks, not moon-grey bowls
+        for (let i = 0; i < 7 * density; i++) {
             const cx = rng() * w;
             const cy = rng() * h;
             const r = 14 + rng() * 40;
-            ctx.globalAlpha = 0.45;
-            ctx.fillStyle = '#101312';
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = t.craterFill;
             circle(cx, cy, r);
             ctx.fill();
-            ctx.globalAlpha = 0.5;
-            ctx.strokeStyle = '#3d4038';
-            ctx.lineWidth = r * 0.22;
+            ctx.globalAlpha = 0.4;
+            ctx.strokeStyle = t.craterRim;
+            ctx.lineWidth = r * 0.18;
             circle(cx, cy, r);
             ctx.stroke();
-            ctx.globalAlpha = 0.35;
-            ctx.fillStyle = '#0a0c0c';
-            circle(cx - r * 0.25, cy - r * 0.25, r * 0.45);
+            ctx.globalAlpha = 0.22;
+            ctx.fillStyle = t.craterShadow;
+            circle(cx - r * 0.25, cy - r * 0.25, r * 0.4);
             ctx.fill();
         }
 
+        // warm sunny wash across the field
+        const sunGrad = ctx.createLinearGradient(0, 0, 0, h);
+        sunGrad.addColorStop(0, t.sunWashTop);
+        sunGrad.addColorStop(1, t.sunWashBottom);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = sunGrad;
+        ctx.fillRect(0, 0, w, h);
+
         // field border
-        ctx.strokeStyle = 'rgba(86, 93, 82, 0.9)';
+        ctx.strokeStyle = t.border;
         ctx.lineWidth = 5;
         ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
 
@@ -228,6 +243,7 @@ export class BattleMap {
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d')!;
+        const t = THEME.terrain;
 
         // deployment zone tints: each half has the owner's color in the
         // center; the flank strips belong to the opponent once unlocked.
@@ -242,23 +258,23 @@ export class BattleMap {
             ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
         };
         // enemy half (top) and player half (bottom)
-        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, ENEMY_TINT);
-        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, PLAYER_TINT);
+        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, THEME.enemyTint);
+        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, THEME.playerTint);
         if (this.flanksUnlocked) {
             // flanks beside the opponent's half belong to you
-            paintZone(0, 0, flankPx, zonePx, PLAYER_TINT);
-            paintZone(w - flankPx, 0, flankPx, zonePx, PLAYER_TINT);
-            paintZone(0, h - zonePx, flankPx, zonePx, ENEMY_TINT);
-            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, ENEMY_TINT);
+            paintZone(0, 0, flankPx, zonePx, THEME.playerTint);
+            paintZone(w - flankPx, 0, flankPx, zonePx, THEME.playerTint);
+            paintZone(0, h - zonePx, flankPx, zonePx, THEME.enemyTint);
+            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, THEME.enemyTint);
         } else {
             // locked in round 1: neutral grey
-            ctx.fillStyle = 'rgba(128, 136, 140, 0.07)';
+            ctx.fillStyle = t.flankLocked;
             ctx.fillRect(0, 0, flankPx, h);
             ctx.fillRect(w - flankPx, 0, flankPx, h);
         }
 
         // tile grid
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+        ctx.strokeStyle = t.grid;
         ctx.lineWidth = 2;
         ctx.beginPath();
         for (let c = 1; c < this.cols; c++) {
@@ -272,7 +288,7 @@ export class BattleMap {
         ctx.stroke();
 
         // center line through the neutral strip
-        ctx.strokeStyle = 'rgba(216, 198, 106, 0.4)';
+        ctx.strokeStyle = t.centerLine;
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(0, h / 2);

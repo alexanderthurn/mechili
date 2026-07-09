@@ -1,6 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { Vector3, type PerspectiveCamera } from 'three';
 import { HURT_BAR_SECONDS, type Actor } from '../game/sim';
+import { THEME } from '../theme';
 
 /**
  * Battle-phase HP bars, drawn into one Pixi Graphics by projecting world
@@ -53,23 +54,23 @@ export class HpBars {
         const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp));
         const w = t.structure ? 42 : selected ? 26 : 18;
         const h = selected ? 5 : 3;
-        const color = ratio > 0.5 ? 0x5ade6c : ratio > 0.25 ? 0xd8c66a : 0xff5f45;
+        const color = ratio > 0.5 ? THEME.hpHigh : ratio > 0.25 ? THEME.hpMid : THEME.hpLow;
         // veterancy pips above the bar
         for (let i = 0; i < a.unit.level - 1; i++) {
-            this.view.circle(sx - ((a.unit.level - 2) * 5) / 2 + i * 5, sy - h - 5, 1.8).fill({ color: 0x8affc9, alpha });
+            this.view.circle(sx - ((a.unit.level - 2) * 5) / 2 + i * 5, sy - h - 5, 1.8).fill({ color: THEME.veteran, alpha });
         }
 
         if (selected) {
             this.view
                 .rect(sx - w / 2 - 1.5, sy - h - 1.5, w + 3, h + 3)
-                .stroke({ width: 1.5, color: 0xffffff, alpha: 0.8 });
+                .stroke({ width: 1.5, color: THEME.selection, alpha: 0.8 });
             // ground ring under the selected mech
             this.tmp.set(a.x, 0.05, a.z).project(camera);
             const gx = (this.tmp.x + 1) * 0.5 * width;
             const gy = (1 - this.tmp.y) * 0.5 * height;
-            this.view.ellipse(gx, gy, 18, 9).stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
+            this.view.ellipse(gx, gy, 18, 9).stroke({ width: 2, color: THEME.selection, alpha: 0.9 });
         }
-        this.view.rect(sx - w / 2, sy - h, w, h).fill({ color: 0x10161a, alpha: 0.85 * alpha });
+        this.view.rect(sx - w / 2, sy - h, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
         if (ratio > 0) this.view.rect(sx - w / 2, sy - h, w * ratio, h).fill({ color, alpha });
     }
 }

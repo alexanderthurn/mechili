@@ -1,6 +1,7 @@
 import { Sprite, type Application } from 'pixi.js';
 import { HTMLSource } from 'pixi.js/html-source';
 import { UNIT_TYPES, type UnitType } from '../game/units';
+import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
 
@@ -23,211 +24,6 @@ export interface SelectionInfo {
     /** buyable techs (own packs, build phase only) */
     techs?: { id: string; name: string; cost: number; owned: boolean; affordable: boolean }[];
 }
-
-const STYLES = `
-.mechili-hud {
-    position: absolute;
-    left: 50%;
-    bottom: 16px;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 12px;
-    font-family: system-ui, sans-serif;
-    user-select: none;
-}
-.mechili-hud.disabled { opacity: 0.35; pointer-events: none; }
-.mechili-hud button {
-    width: 86px;
-    height: 86px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 4px;
-    background: rgba(16, 22, 26, 0.85);
-    border: 1.5px solid #3d4a52;
-    border-radius: 10px;
-    color: #d8e6ea;
-    cursor: pointer;
-}
-.mechili-hud button:hover { border-color: #35e0ff; }
-.mechili-hud button:active { transform: scale(0.94); }
-.mechili-hud button.unaffordable { opacity: 0.35; pointer-events: none; }
-
-.mechili-panel {
-    position: absolute;
-    left: 16px;
-    bottom: 16px;
-    min-width: 180px;
-    padding: 12px 14px;
-    background: rgba(16, 22, 26, 0.88);
-    border: 1.5px solid #3d4a52;
-    border-radius: 10px;
-    font-family: system-ui, sans-serif;
-    color: #d8e6ea;
-    user-select: none;
-}
-.mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
-.mechili-panel .team { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-.mechili-panel .team.player { color: #35e0ff; }
-.mechili-panel .team.enemy { color: #ff5f45; }
-.mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
-.mechili-panel .row .v { color: #ffd766; font-variant-numeric: tabular-nums; }
-.mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: #10161a; border-radius: 3px; overflow: hidden; }
-.mechili-panel .hpbar div { height: 100%; background: #5ade6c; }
-.mechili-panel .techs { margin-top: 10px; border-top: 1px solid #2a343b; padding-top: 8px; }
-.mechili-panel .tech-buy {
-    display: flex; justify-content: space-between; gap: 12px; width: 100%;
-    margin: 3px 0; padding: 5px 8px;
-    background: #14202a; border: 1px solid #3d4a52; border-radius: 6px;
-    color: #d8e6ea; font-size: 11.5px; cursor: pointer;
-}
-.mechili-panel .tech-buy:hover { border-color: #35e0ff; }
-.mechili-panel .tech-buy .c { color: #ffd766; }
-.mechili-panel .tech-buy:disabled { opacity: 0.4; pointer-events: none; }
-.mechili-panel .tech-owned {
-    display: flex; justify-content: space-between; gap: 12px;
-    margin: 3px 0; padding: 5px 8px; font-size: 11.5px; color: #8affc9;
-}
-
-.mechili-gameover {
-    position: absolute;
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 18px;
-    padding: 36px 64px;
-    background: rgba(10, 14, 17, 0.92);
-    border: 2px solid #3d4a52;
-    border-radius: 16px;
-    font-family: system-ui, sans-serif;
-    user-select: none;
-}
-.mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
-.mechili-gameover.victory .go-title { color: #35e0ff; }
-.mechili-gameover.defeat .go-title { color: #ff5f45; }
-.mechili-gameover.draw .go-title { color: #d8c66a; }
-.mechili-gameover .go-restart {
-    padding: 10px 26px;
-    background: #123a44;
-    border: 1.5px solid #35e0ff;
-    border-radius: 10px;
-    color: #35e0ff;
-    font-size: 15px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    cursor: pointer;
-}
-.mechili-gameover .go-restart:hover { background: #17505e; }
-
-.mechili-report {
-    position: absolute;
-    right: 14px;
-    top: 64px;
-    min-width: 200px;
-    padding: 12px 14px;
-    background: rgba(16, 22, 26, 0.9);
-    border: 1.5px solid #3d4a52;
-    border-radius: 10px;
-    font-family: system-ui, sans-serif;
-    color: #d8e6ea;
-    user-select: none;
-}
-.mechili-report .r-title { font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
-.mechili-report .r-close { background: none; border: none; color: #7d919c; cursor: pointer; font-size: 14px; padding: 0; }
-.mechili-report .r-row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
-.mechili-report .r-row .n.player { color: #35e0ff; }
-.mechili-report .r-row .n.enemy { color: #ff5f45; }
-.mechili-report .r-row .d { color: #ffd766; font-variant-numeric: tabular-nums; }
-.mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
-.mechili-hud .icon { width: 24px; height: 24px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #35e0ff, #10161a 70%); }
-.mechili-hud .cost { font-size: 12px; color: #d8c66a; }
-.mechili-hud .size { font-size: 10px; color: #7d919c; }
-
-.mechili-help {
-    position: absolute;
-    right: 14px;
-    bottom: 12px;
-    font-family: system-ui, sans-serif;
-    font-size: 11px;
-    line-height: 1.7;
-    color: #7d919c;
-    text-align: right;
-    user-select: none;
-    pointer-events: none;
-}
-.mechili-help b { color: #a9bcc6; font-weight: 600; }
-
-.mechili-topbar {
-    position: absolute;
-    left: 50%;
-    top: 12px;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 8px 18px;
-    background: rgba(16, 22, 26, 0.85);
-    border: 1.5px solid #3d4a52;
-    border-radius: 10px;
-    font-family: system-ui, sans-serif;
-    color: #d8e6ea;
-    user-select: none;
-}
-.mechili-topbar .round { font-size: 15px; font-weight: bold; letter-spacing: 1px; }
-.mechili-topbar .phase { font-size: 13px; color: #9db4c8; letter-spacing: 1px; text-transform: uppercase; }
-.mechili-topbar .timer { font-size: 18px; font-weight: bold; font-variant-numeric: tabular-nums; color: #d8c66a; }
-.mechili-topbar .supply { font-size: 16px; font-weight: bold; font-variant-numeric: tabular-nums; color: #ffd766; }
-.mechili-topbar .supply::before { content: '⬢ '; color: #8a7635; }
-.mechili-topbar .hp { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; }
-.mechili-topbar .hp.player { color: #35e0ff; }
-.mechili-topbar .hp.enemy { color: #ff5f45; }
-.mechili-topbar .hp::before { content: '♥ '; opacity: 0.6; }
-.mechili-topbar .end-deploy {
-    padding: 7px 14px;
-    background: #123a44;
-    border: 1.5px solid #35e0ff;
-    border-radius: 8px;
-    color: #35e0ff;
-    font-size: 13px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    cursor: pointer;
-}
-.mechili-topbar .end-deploy:hover { background: #17505e; }
-.mechili-topbar .undo {
-    padding: 7px 12px;
-    background: #2a2230;
-    border: 1.5px solid #b48ae0;
-    border-radius: 8px;
-    color: #b48ae0;
-    font-size: 13px;
-    font-weight: bold;
-    cursor: pointer;
-}
-.mechili-topbar .undo:hover { background: #3a2f44; }
-.mechili-topbar.battle .end-deploy, .mechili-topbar.battle .undo { display: none; }
-.mechili-topbar.battle .timer { color: #ff5f45; }
-.mechili-topbar .speed {
-    display: none;
-    min-width: 52px;
-    padding: 7px 10px;
-    background: #3a2c12;
-    border: 1.5px solid #ffd766;
-    border-radius: 8px;
-    color: #ffd766;
-    font-size: 13px;
-    font-weight: bold;
-    font-variant-numeric: tabular-nums;
-    cursor: pointer;
-}
-.mechili-topbar .speed:hover { background: #55401c; }
-.mechili-topbar.battle .speed { display: inline-block; }
-`;
 
 /**
  * HUD built from real HTML: the unit selector bar and the round/phase top
@@ -275,7 +71,7 @@ export class Hud {
             typeof (app.canvas as any).requestPaint === 'function' ? 'html-in-canvas' : 'dom-overlay';
 
         const style = document.createElement('style');
-        style.textContent = STYLES;
+        style.textContent = hudStyles();
         document.head.appendChild(style);
 
         // unit selector (bottom center)
@@ -376,7 +172,7 @@ export class Hud {
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
-        const stars = info.level > 1 ? ` <span style="color:#8affc9">${'★'.repeat(info.level - 1)}</span>` : '';
+        const stars = info.level > 1 ? ` <span style="color:${THEME.ui.veteranStar}">${'★'.repeat(info.level - 1)}</span>` : '';
         const techs = info.techs?.length
             ? `<div class="techs">` +
               info.techs

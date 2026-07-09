@@ -8,6 +8,7 @@ import {
     Scene,
     WebGLRenderer,
 } from 'three';
+import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { BattleMap, type Cell } from './map';
@@ -81,11 +82,11 @@ export class Game {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = PCFSoftShadowMap;
 
-        this.scene.background = new Color(0x0d1016);
-        this.scene.fog = new Fog(0x0d1016, 380, 1050);
+        this.scene.background = new Color(THEME.sky);
+        this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
 
-        this.scene.add(new HemisphereLight(0x9db4c8, 0x2a2620, 0.9));
-        const sun = new DirectionalLight(0xfff2dd, 1.6);
+        this.scene.add(new HemisphereLight(THEME.hemiSky, THEME.hemiGround, THEME.hemiIntensity));
+        const sun = new DirectionalLight(THEME.sun, THEME.sunIntensity);
         sun.position.set(120, 160, 80);
         sun.castShadow = true;
         sun.shadow.mapSize.set(4096, 4096);
