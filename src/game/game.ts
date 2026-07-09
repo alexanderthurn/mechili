@@ -336,24 +336,24 @@ export class Game {
         this.renderer.render(this.scene, this.rig.camera);
     }
 
-    /** the living mech closest to the clicked ground point, within a pick radius */
+    /** the living mech whose on-screen position is closest to the click */
     private pickActor(e: PointerEvent): Actor | null {
         if (!this.sim) return null;
         const rect = this.pixiApp.canvas.getBoundingClientRect();
-        const ground = this.rig.screenToGround(
-            e.clientX - rect.left,
-            e.clientY - rect.top,
-            rect.width,
-            rect.height,
-        );
-        if (!ground) return null;
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const w = rect.width;
+        const h = rect.height;
         let best: Actor | null = null;
         let bestD = Infinity;
         for (const a of this.sim.actors) {
             if (!a.alive) continue;
-            const d = (a.x - ground.x) ** 2 + (a.z - ground.z) ** 2;
-            const radius = Math.max(2.5, a.unit.type.meshScale * 1.5);
-            if (d < radius * radius && d < bestD) {
+            const t = a.unit.type;
+            const screen = this.rig.worldToScreen(a.x, a.altitude + t.meshScale * 0.55, a.z, w, h);
+            if (!screen) continue;
+            const d = Math.hypot(screen.x - sx, screen.y - sy);
+            const pickRadius = Math.max(20, t.meshScale * 16);
+            if (d < pickRadius && d < bestD) {
                 bestD = d;
                 best = a;
             }

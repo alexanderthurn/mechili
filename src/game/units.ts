@@ -87,6 +87,10 @@ function darkMaterial(): MeshStandardMaterial {
     return material('dark', () => new MeshStandardMaterial({ color: 0x40464a, roughness: 0.8, metalness: 0.25 }));
 }
 
+function lightMaterial(): MeshStandardMaterial {
+    return material('light', () => new MeshStandardMaterial({ color: 0xf2f6f9, roughness: 0.4, metalness: 0.15 }));
+}
+
 function accentMaterial(team: Team): MeshStandardMaterial {
     return material(`accent-${team}`, () => {
         const c = TEAM_ACCENT[team];
@@ -107,26 +111,27 @@ class PartFactory {
         return mesh;
     }
 
-    box(w: number, h: number, d: number, x: number, y: number, z: number, kind: 'hull' | 'dark' | 'accent' = 'hull'): Mesh {
+    box(w: number, h: number, d: number, x: number, y: number, z: number, kind: 'hull' | 'dark' | 'light' | 'accent' = 'hull'): Mesh {
         const mesh = new Mesh(new BoxGeometry(w, h, d), this.pick(kind));
         mesh.position.set(x, y, z);
         return this.add(mesh);
     }
 
-    cylinder(rTop: number, rBottom: number, h: number, x: number, y: number, z: number, kind: 'hull' | 'dark' | 'accent' = 'hull'): Mesh {
+    cylinder(rTop: number, rBottom: number, h: number, x: number, y: number, z: number, kind: 'hull' | 'dark' | 'light' | 'accent' = 'hull'): Mesh {
         const mesh = new Mesh(new CylinderGeometry(rTop, rBottom, h, 12), this.pick(kind));
         mesh.position.set(x, y, z);
         return this.add(mesh);
     }
 
-    sphere(r: number, x: number, y: number, z: number, kind: 'hull' | 'dark' | 'accent' = 'hull'): Mesh {
+    sphere(r: number, x: number, y: number, z: number, kind: 'hull' | 'dark' | 'light' | 'accent' = 'hull'): Mesh {
         const mesh = new Mesh(new SphereGeometry(r, 12, 10), this.pick(kind));
         mesh.position.set(x, y, z);
         return this.add(mesh);
     }
 
-    private pick(kind: 'hull' | 'dark' | 'accent'): MeshStandardMaterial {
+    private pick(kind: 'hull' | 'dark' | 'light' | 'accent'): MeshStandardMaterial {
         if (kind === 'accent') return accentMaterial(this.team);
+        if (kind === 'light') return lightMaterial();
         return kind === 'dark' ? darkMaterial() : hullMaterial();
     }
 }
@@ -163,12 +168,12 @@ function buildFortress(parts: PartFactory): void {
 }
 
 function buildWasp(parts: PartFactory): void {
-    parts.sphere(0.5, 0, 0, 0, 'hull'); // hull
-    parts.box(0.3, 0.2, 0.9, 0, 0.05, -0.5, 'dark'); // nose boom
+    parts.sphere(0.5, 0, 0, 0, 'light'); // hull
+    parts.box(0.3, 0.2, 0.9, 0, 0.05, -0.5, 'light'); // nose boom
     parts.sphere(0.16, 0, 0.1, -0.85, 'accent'); // sensor tip
-    const rotor = parts.cylinder(0.7, 0.7, 0.06, 0, 0.5, 0, 'dark'); // rotor disc
+    const rotor = parts.cylinder(0.7, 0.7, 0.06, 0, 0.5, 0, 'light'); // rotor disc
     rotor.scale.y = 0.6;
-    parts.box(0.12, 0.35, 0.12, 0, 0.35, 0, 'dark'); // rotor mast
+    parts.box(0.12, 0.35, 0.12, 0, 0.35, 0, 'light'); // rotor mast
     parts.box(0.9, 0.1, 0.25, 0, -0.25, 0.15, 'accent'); // belly glow strip
 }
 

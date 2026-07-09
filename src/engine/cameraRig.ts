@@ -162,6 +162,17 @@ export class CameraRig {
         return hit ? hit.clone() : null;
     }
 
+    /** Projects a world point to canvas pixel coordinates (null when behind the camera). */
+    worldToScreen(worldX: number, worldY: number, worldZ: number, viewW: number, viewH: number): { x: number; y: number } | null {
+        this.camera.updateMatrixWorld();
+        this.hit.set(worldX, worldY, worldZ).project(this.camera);
+        if (this.hit.z > 1) return null;
+        return {
+            x: (this.hit.x * 0.5 + 0.5) * viewW,
+            y: (1 - (this.hit.y * 0.5 + 0.5)) * viewH,
+        };
+    }
+
     private clampDesired(): void {
         this.desired.x = MathUtils.clamp(this.desired.x, -this.boundsHalfW, this.boundsHalfW);
         this.desired.z = MathUtils.clamp(this.desired.z, -this.boundsHalfH, this.boundsHalfH);
