@@ -14,7 +14,12 @@ export interface Actor {
     radius: number;
     /** stable index for deterministic tie-breaks */
     index: number;
+    /** seconds the unit still counts as "under attack" (shows its HP bar) */
+    hurtTimer: number;
 }
+
+/** how long a hit keeps the HP bar visible */
+export const HURT_BAR_SECONDS = 1.5;
 
 /** a bullet in flight — hits the first enemy hit-volume it crosses */
 export interface Projectile {
@@ -90,6 +95,7 @@ export class BattleSim {
                     alive: true,
                     radius: unit.type.collisionRadius,
                     index: this.actors.length,
+                    hurtTimer: 0,
                 });
             });
         }
@@ -167,6 +173,9 @@ export class BattleSim {
         const d = this.towers.debuffPerLostTower;
         this.rebuildHash();
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
+        for (const a of this.actors) {
+            if (a.hurtTimer > 0) a.hurtTimer -= dt;
+        }
 
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
@@ -192,6 +201,7 @@ export class BattleSim {
                     } else {
                         // melee: instant hit
                         target.hp -= damage * this.debuff(target.unit.team, d.damageTakenMult);
+                        target.hurtTimer = HURT_BAR_SECONDS;
                         this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
                         if (target.hp <= 0) this.kill(target);
                     }
@@ -339,6 +349,7 @@ export class BattleSim {
 
             if (hit) {
                 hit.hp -= p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
+                hit.hurtTimer = HURT_BAR_SECONDS;
                 this.events.push({
                     kind: 'impact',
                     x: p.x + sx * hitT,

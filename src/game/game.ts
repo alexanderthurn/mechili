@@ -342,10 +342,11 @@ export class Game {
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
             this.hpBars.update(
-                this.selectedActor,
+                this.sim.actors,
                 this.rig.camera,
                 this.pixiApp.screen.width,
                 this.pixiApp.screen.height,
+                this.selectedActor,
             );
             this.hud.setSelection(this.selectedActor ? this.actorInfo(this.selectedActor) : null);
         } else {
