@@ -151,7 +151,8 @@ export class BattleSim {
             big: target.radius >= 2 || !!t.structure,
         });
         if (t.structure) {
-            // a fallen tower stays fallen for the whole match and weakens its side
+            // a fallen tower weakens its side for the REST OF THIS BATTLE;
+            // the round reset rebuilds it like any other unit
             target.unit.markDestroyed();
             this.lostTowers[target.unit.team]++;
         } else {
@@ -176,8 +177,11 @@ export class BattleSim {
             const dz = target.z - a.z;
             const dist = Math.hypot(dx, dz) || 1e-6;
             const stats = a.unit.type;
+            // range is surface-to-surface: collision circles must not keep
+            // melee mechs from ever "reaching" wide targets like towers
+            const reach = stats.range + a.radius + target.radius;
 
-            if (dist <= stats.range) {
+            if (dist <= reach) {
                 // in range: stand and fire (still gets jostled by the crowd)
                 a.cooldown -= dt;
                 if (a.cooldown <= 0) {
@@ -250,7 +254,7 @@ export class BattleSim {
                 steerX /= steerLen;
                 steerZ /= steerLen;
                 const speed = stats.speed * this.debuff(a.unit.team, d.speedMult);
-                const move = Math.min(speed * dt, Math.max(0, dist - stats.range * 0.9));
+                const move = Math.min(speed * dt, Math.max(0, dist - reach * 0.95));
                 a.x += steerX * move;
                 a.z += steerZ * move;
                 a.mesh.rotation.y = Math.atan2(-steerX, -steerZ);

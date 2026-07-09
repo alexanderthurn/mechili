@@ -244,7 +244,7 @@ export class Unit {
      * unit yet, and it is ignored when other units pick a facing target.
      */
     revealed = true;
-    /** permanent for the match (towers): no longer a target, debuffs its owner's side */
+    /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;
@@ -316,7 +316,7 @@ export class Unit {
         }
     }
 
-    /** Collapses the meshes into rubble and takes the unit out of play for good. */
+    /** Collapses the meshes into rubble until the next round reset. */
     markDestroyed(): void {
         this.destroyed = true;
         for (const m of this.members) {
@@ -328,15 +328,18 @@ export class Unit {
     /**
      * Puts every mech back on its formation slot, alive and visible — the
      * battle phase is a simulation; deployments persist between rounds.
+     * Destroyed towers are rebuilt too: rubble stands back up.
      */
     resetFormation(): void {
         for (const m of this.members) {
             m.mesh.position.copy(m.home);
             m.mesh.visible = true;
-            m.mesh.rotation.y = this.facing;
+            if (!this.type.structure) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
+            m.mesh.scale.setScalar(this.type.meshScale); // un-squash tower rubble
             m.mesh.userData.dead = false;
         }
+        this.destroyed = false;
     }
 
     /** ground positions of each individual mech (targeting works per mech, not per squad) */

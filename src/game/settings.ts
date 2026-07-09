@@ -20,8 +20,8 @@ export interface GameSettings {
 export interface TowerSettings {
     /**
      * Towers are buffs, not score: each destroyed OWN tower applies these
-     * multipliers to all of that side's units, stacking multiplicatively.
-     * Destruction is permanent for the match.
+     * multipliers to all of that side's units, stacking multiplicatively,
+     * for the rest of the battle it fell in (towers rebuild between rounds).
      */
     debuffPerLostTower: {
         speedMult: number;
