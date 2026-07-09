@@ -143,12 +143,15 @@ export class BattleMap {
         return mesh;
     }
 
-    /** Battlefield ground drawn entirely in code: scorched soil, craters, grid, deployment zones. */
+    /**
+     * Battlefield ground drawn entirely in code: a well-kept lawn. Big soft
+     * shapes carry the variation; fine detail stays low-contrast so unit
+     * silhouettes read clearly against it.
+     */
     private createGroundTexture(seed: number): CanvasTexture {
         const TEX_SCALE = 8; // texture pixels per world unit
         const w = this.width * TEX_SCALE;
         const h = this.height * TEX_SCALE;
-        const cellPx = CELL * TEX_SCALE;
         const rng = mulberry32(seed);
 
         const canvas = document.createElement('canvas');
@@ -168,54 +171,96 @@ export class BattleMap {
         // decoration counts scale with the field area
         const density = (this.width * this.height) / 9000;
 
-        // large soft tonal patches — vivid grass variation
-        const patchTones = t.patches;
-        for (let i = 0; i < 320 * density; i++) {
-            ctx.globalAlpha = 0.1 + rng() * 0.12;
-            ctx.fillStyle = patchTones[Math.floor(rng() * patchTones.length)]!;
-            circle(rng() * w, rng() * h, 16 + rng() * 100);
-            ctx.fill();
-        }
-        // bright grass tufts
-        ctx.globalAlpha = 0.18;
-        for (let i = 0; i < 400 * density; i++) {
-            ctx.fillStyle = t.grassBright;
-            circle(rng() * w, rng() * h, 2 + rng() * 6);
-            ctx.fill();
-        }
-        // small debris speckles — mostly lighter greens, fewer dark spots
-        ctx.globalAlpha = 0.3;
-        for (let i = 0; i < 350 * density; i++) {
-            ctx.fillStyle = rng() > 0.35 ? t.debrisLight : t.debrisDark;
-            circle(rng() * w, rng() * h, 1 + rng() * 2.5);
-            ctx.fill();
-        }
-        // craters: subtle scorch marks, not moon-grey bowls
-        for (let i = 0; i < 7 * density; i++) {
+        // very large soft meadow patches — low-frequency color drift
+        for (let i = 0; i < 140 * density; i++) {
+            const tone = t.meadow[Math.floor(rng() * t.meadow.length)]!;
+            const r = 60 + rng() * 220;
             const cx = rng() * w;
             const cy = rng() * h;
-            const r = 14 + rng() * 40;
-            ctx.globalAlpha = 0.3;
-            ctx.fillStyle = t.craterFill;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            grad.addColorStop(0, tone);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalAlpha = 0.08 + rng() * 0.1;
+            ctx.fillStyle = grad;
             circle(cx, cy, r);
-            ctx.fill();
-            ctx.globalAlpha = 0.4;
-            ctx.strokeStyle = t.craterRim;
-            ctx.lineWidth = r * 0.18;
-            circle(cx, cy, r);
-            ctx.stroke();
-            ctx.globalAlpha = 0.22;
-            ctx.fillStyle = t.craterShadow;
-            circle(cx - r * 0.25, cy - r * 0.25, r * 0.4);
             ctx.fill();
         }
 
-        // warm sunny wash across the field
+        // mown-lawn stripes: gentle diagonal light bands
+        {
+            const stripePx = 4 * CELL * TEX_SCALE;
+            const diag = Math.hypot(w, h);
+            ctx.save();
+            ctx.translate(w / 2, h / 2);
+            ctx.rotate(-0.32);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = t.stripe;
+            for (let x = -diag / 2; x < diag / 2; x += stripePx * 2) {
+                ctx.fillRect(x, -diag / 2, stripePx, diag);
+            }
+            ctx.restore();
+        }
+
+        // faint worn-earth patches — a lived-on field, kept very subtle
+        for (let i = 0; i < 6 * density; i++) {
+            const cx = rng() * w;
+            const cy = rng() * h;
+            const r = 24 + rng() * 60;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            grad.addColorStop(0, t.dirt);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalAlpha = 0.16;
+            ctx.fillStyle = grad;
+            circle(cx, cy, r);
+            ctx.fill();
+        }
+
+        // grass blades: short strokes instead of dot noise — dark first, bright on top
+        const blades = (color: string, count: number, alpha: number) => {
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = alpha;
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            for (let i = 0; i < count; i++) {
+                const x = rng() * w;
+                const y = rng() * h;
+                const len = 3 + rng() * 6;
+                const lean = (rng() - 0.5) * 4;
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + lean, y - len);
+            }
+            ctx.stroke();
+        };
+        blades(t.bladeDark, 700 * density, 0.14);
+        blades(t.bladeBright, 900 * density, 0.16);
+
+        // rare wildflowers, growing in small clusters
+        for (let i = 0; i < 14 * density; i++) {
+            const cx = rng() * w;
+            const cy = rng() * h;
+            const color = t.flowers[Math.floor(rng() * t.flowers.length)]!;
+            const dots = 3 + Math.floor(rng() * 5);
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.75;
+            for (let d = 0; d < dots; d++) {
+                circle(cx + (rng() - 0.5) * 30, cy + (rng() - 0.5) * 30, 1.2 + rng() * 1.2);
+                ctx.fill();
+            }
+        }
+
+        // warm sunny wash toward the far (enemy) edge
         const sunGrad = ctx.createLinearGradient(0, 0, 0, h);
         sunGrad.addColorStop(0, t.sunWashTop);
         sunGrad.addColorStop(1, t.sunWashBottom);
         ctx.globalAlpha = 1;
         ctx.fillStyle = sunGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        // soft vignette — darker rim frames the battlefield
+        const vin = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.hypot(w, h) * 0.55);
+        vin.addColorStop(0, 'rgba(0,0,0,0)');
+        vin.addColorStop(1, t.vignette);
+        ctx.fillStyle = vin;
         ctx.fillRect(0, 0, w, h);
 
         // field border

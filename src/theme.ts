@@ -17,10 +17,11 @@ export const THEME = {
     player: 0x3d8cd4,
     enemy: 0xe83828,
 
-    // unit materials
-    hull: 0x7a8268,
-    dark: 0x4a5240,
-    light: 0xe8e0c8,
+    // unit materials — light warm tones, deliberately off the grass hue so silhouettes read
+    hull: 0xb4b8a4,
+    dark: 0x585048,
+    light: 0xf0ecd8,
+    accentEmissive: 0.85,
 
     // placement markers
     valid: 0x8ec858,
@@ -53,21 +54,27 @@ export const THEME = {
     enemyTint: 'rgba(232, 56, 40,',
 
     terrain: {
-        base: '#5a9e42',
-        patches: ['#6cb850', '#4a9038', '#80d058', '#98b848', '#c8a848'],
-        grassBright: '#9ee868',
-        debrisLight: '#88c858',
-        debrisDark: '#3a7830',
-        craterFill: '#3a6028',
-        craterRim: '#6a9850',
-        craterShadow: '#2a5020',
+        base: '#55a244',
+        // large soft meadow variation — same hue family, gentle contrast
+        meadow: ['#63b44e', '#478e38', '#5ba84f', '#6dbe56'],
+        // mown-lawn stripes
+        stripe: 'rgba(210, 245, 170, 0.06)',
+        // grass blade strokes
+        bladeDark: '#3c7c30',
+        bladeBright: '#8ad85e',
+        // rare wildflower dots
+        flowers: ['#fff8f0', '#ffd84d', '#ffa8b8'],
+        // faint worn-earth patches
+        dirt: 'rgba(138, 122, 78, 0.5)',
+        // edge darkening that pushes the eye to the field center
+        vignette: 'rgba(18, 42, 14, 0.22)',
         border: 'rgba(100, 140, 70, 0.75)',
         grid: 'rgba(255, 255, 255, 0.2)',
         centerLine: 'rgba(255, 220, 80, 0.6)',
         flankLocked: 'rgba(140, 170, 100, 0.14)',
-        sunWashTop: 'rgba(255, 248, 200, 0.22)',
+        sunWashTop: 'rgba(255, 248, 200, 0.18)',
         sunWashBottom: 'rgba(255, 248, 200, 0)',
-        groundRoughness: 0.82,
+        groundRoughness: 0.88,
     },
 
     ui: {

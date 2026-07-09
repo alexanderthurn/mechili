@@ -95,7 +95,7 @@ function lightMaterial(): MeshStandardMaterial {
 function accentMaterial(team: Team): MeshStandardMaterial {
     return material(`accent-${team}`, () => {
         const c = TEAM_ACCENT[team];
-        return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.6, roughness: 0.4 });
+        return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: THEME.accentEmissive, roughness: 0.4 });
     });
 }
 
