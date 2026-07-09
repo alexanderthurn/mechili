@@ -155,7 +155,10 @@ export class BattleSim {
             target.unit.markDestroyed();
             this.lostTowers[target.unit.team]++;
         } else {
-            target.mesh.visible = false;
+            // tip over and stay as a battlefield wreck until the round resets
+            target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
+            target.mesh.position.y = 0.05;
+            target.mesh.userData.dead = true;
         }
     }
 

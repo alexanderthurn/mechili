@@ -334,6 +334,8 @@ export class Unit {
             m.mesh.position.copy(m.home);
             m.mesh.visible = true;
             m.mesh.rotation.y = this.facing;
+            m.mesh.rotation.z = 0; // stand wrecks back up
+            m.mesh.userData.dead = false;
         }
     }
 
@@ -376,8 +378,9 @@ export class Unit {
 
     update(timeSeconds: number): void {
         if (this.type.structure) return;
-        // subtle idle bob, per mech
+        // subtle idle bob, per mech (wrecks lie still)
         for (const m of this.members) {
+            if (m.mesh.userData.dead) continue;
             m.mesh.position.y = 0.05 + Math.sin(timeSeconds * 2 + m.phase) * 0.04;
         }
     }
