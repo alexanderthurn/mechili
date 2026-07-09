@@ -103,9 +103,24 @@ const STYLES = `
 }
 .mechili-gameover .go-restart:hover { background: #17505e; }
 .mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
-.mechili-hud .icon { width: 26px; height: 26px; border-radius: 50%;
+.mechili-hud .icon { width: 24px; height: 24px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #35e0ff, #10161a 70%); }
 .mechili-hud .cost { font-size: 12px; color: #d8c66a; }
+.mechili-hud .size { font-size: 10px; color: #7d919c; }
+
+.mechili-help {
+    position: absolute;
+    right: 14px;
+    bottom: 12px;
+    font-family: system-ui, sans-serif;
+    font-size: 11px;
+    line-height: 1.7;
+    color: #7d919c;
+    text-align: right;
+    user-select: none;
+    pointer-events: none;
+}
+.mechili-help b { color: #a9bcc6; font-weight: 600; }
 
 .mechili-topbar {
     position: absolute;
@@ -213,14 +228,29 @@ export class Hud {
         this.unitBar.className = 'mechili-hud';
         UNIT_TYPES.forEach((type, i) => {
             const button = document.createElement('button');
+            const mechs = type.formation.cols * type.formation.rows;
             button.innerHTML =
                 `<span class="name">${type.name}</span>` +
                 `<span class="icon"></span>` +
+                `<span class="size">${type.footprint.cols}×${type.footprint.rows}${mechs > 1 ? ` · ${mechs}` : ''}</span>` +
                 `<span class="cost">${costOf(type)}</span>`;
+            button.title =
+                `${type.name} — ${costOf(type)} supply\n` +
+                `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each\n` +
+                `damage ${type.damage} · range ${type.range} · speed ${type.speed}`;
             button.addEventListener('click', () => onBuy(UNIT_TYPES[i]!));
             this.buttons.push({ el: button, cost: costOf(type) });
             this.unitBar.appendChild(button);
         });
+
+        // controls hint (bottom right, non-interactive)
+        const help = document.createElement('div');
+        help.className = 'mechili-help';
+        help.innerHTML =
+            '<b>Click</b> buy/select/place · <b>Right</b> deselect / drag pan<br>' +
+            '<b>Middle</b> rotate pack / drag orbit · <b>Wheel</b> zoom<br>' +
+            '<b>WASD</b> pan · <b>Q/E</b> rotate · <b>Home</b> reset camera';
+        this.mount(help);
 
         // selection stats panel (bottom left)
         this.panel = document.createElement('div');
