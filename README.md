@@ -1,8 +1,35 @@
 # MECHILI
 
-A 2D auto-battler. Coming soon.
+A 3D auto-battler in the spirit of Mechabellum: deploy mech packs in secret,
+watch the round play out, adapt, repeat — until one commander runs out of HP.
 
-Built with [PixiJS](https://pixijs.com) and shipped to Steam via [steam-electron-build](https://github.com/alexanderthurn/steam-electron-build).
+Built with [three.js](https://threejs.org) for the battlefield, [PixiJS](https://pixijs.com)
+for the UI overlay (HTML-in-canvas), and shipped to Steam via
+[steam-electron-build](https://github.com/alexanderthurn/steam-electron-build).
+
+## How it plays
+
+- **Deployment phase** — buy packs, position them on your side of the grid
+  (flanks and the center strip unlock after round 1), all hidden from the
+  enemy until the fight starts. Ends via button or timer.
+- **Battle phase** — fully automatic: every mech walks at the closest enemy
+  it can attack, packs split around obstacles, bullets fly and hit whatever
+  is actually in the way. Watch at 0.5×–4×.
+- Survivors damage the enemy commander by their remaining value; losing a
+  command tower permanently weakens your army. First to 0 HP loses.
+
+All match rules (map layout, timers, economy, tower debuffs) live in one
+JSON-serializable settings object — see `src/game/settings.ts`.
+
+## Controls
+
+| Input | Action |
+| --- | --- |
+| Left click | buy / select / place |
+| Right click · drag | deselect · pan |
+| Middle click · drag | rotate pack · orbit camera |
+| Wheel | zoom to cursor |
+| WASD / edges | pan · Q/E rotate · Home reset |
 
 ## Development
 
@@ -12,6 +39,8 @@ npm run dev          # browser with hot reload
 npm start            # the real thing: Electron + Steam
 npm run build:mac    # depot-ready build (mac | win | linux)
 ```
+
+Dev URL params: `?hp=100&build=20` overrides starting HP / build timer.
 
 ## License
 

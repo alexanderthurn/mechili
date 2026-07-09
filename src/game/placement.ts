@@ -177,9 +177,16 @@ export class PlacementController {
         return unit;
     }
 
-    /** Tries a few random anchors to place an enemy unit inside its own zones. */
+    /**
+     * Places an enemy unit at a random valid spot in its zones, with a
+     * formation instinct: melee prefers the front line (low rows, toward the
+     * player), ranged prefers the back.
+     */
     spawnEnemyRandom(type: UnitType): Unit | null {
-        for (let attempt = 0; attempt < 60; attempt++) {
+        const preferFront = type.range < 10;
+        let best: { anchor: Cell; rotated: boolean } | null = null;
+        let found = 0;
+        for (let attempt = 0; attempt < 80 && found < 4; attempt++) {
             const rotated = Math.random() < 0.5;
             const fp = this.footprintOf(type, rotated);
             const anchor = {
@@ -189,9 +196,15 @@ export class PlacementController {
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
             if (!cells.every((c) => this.map.isEnemyCell(c) && !this.occupied.has(cellKey(c)))) continue;
-            return this.spawn(type, anchor, 'enemy', rotated);
+            found++;
+            if (
+                !best ||
+                (preferFront ? anchor.row < best.anchor.row : anchor.row > best.anchor.row)
+            ) {
+                best = { anchor, rotated };
+            }
         }
-        return null;
+        return best ? this.spawn(type, best.anchor, 'enemy', best.rotated) : null;
     }
 
     /** Reveals everything (battle is about to start — all placements become visible). */
