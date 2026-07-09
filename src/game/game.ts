@@ -105,6 +105,7 @@ export class Game {
         const surface = pixiApp.canvas;
         // keep the camera target well inside the field so the view never leaves the map
         this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
+        this.rig.fitMap(this.map.width, this.map.height);
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.controls.onMiddleClick = () => this.placement.rotateSelected();

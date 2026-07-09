@@ -22,7 +22,8 @@ interface RigState {
 export class CameraRig {
     readonly camera = new PerspectiveCamera(50, 1, 1, 1100);
     readonly minZoom = 18;
-    readonly maxZoom = 280;
+    /** derived from the map dimensions via {@link fitMap} */
+    maxZoom = 280;
     readonly minPitch = (20 * Math.PI) / 180;
     readonly maxPitch = (85 * Math.PI) / 180;
     readonly defaultPitch = (55 * Math.PI) / 180;
@@ -73,6 +74,14 @@ export class CameraRig {
         this.boundsHalfW = halfW;
         this.boundsHalfH = halfH;
         this.clampDesired();
+    }
+
+    /** allows zooming out just far enough to frame a map of the given size */
+    fitMap(width: number, height: number): void {
+        this.maxZoom = Math.max(120, width * 0.95, height * 1.1);
+        // keep the far plane and fog-friendly range beyond the widest view
+        this.camera.far = this.maxZoom * 4;
+        this.camera.updateProjectionMatrix();
     }
 
     /**
