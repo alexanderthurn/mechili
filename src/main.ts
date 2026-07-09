@@ -1,5 +1,17 @@
 import { Application, Container, Text } from 'pixi.js';
 import { Game } from './game/game';
+import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
+
+// dev override: tweak match settings from the URL, e.g. ?hp=100&build=20
+function settingsFromUrl(): GameSettings {
+    const params = new URLSearchParams(location.search);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    const hp = Number(params.get('hp'));
+    if (hp > 0) settings.startingHp = hp;
+    const build = Number(params.get('build'));
+    if (build > 0) settings.buildTimeSeconds = build;
+    return settings;
+}
 
 // layered setup: three.js world canvas below, transparent Pixi UI canvas on top
 const wrapper = document.createElement('div');
@@ -68,7 +80,7 @@ function start() {
     app.renderer.off('resize', layoutTitle);
     app.ticker.remove(pulse);
     title.destroy({ children: true });
-    new Game(app, threeCanvas, wrapper);
+    new Game(app, threeCanvas, wrapper, settingsFromUrl());
 }
 
 function onKey(e: KeyboardEvent) {

@@ -59,6 +59,7 @@ export class Game {
     private speedIndex = 0;
     private playerHp: number;
     private enemyHp: number;
+    private matchOver = false;
     private sim: BattleSim | null = null;
     /** every placement ever made, in order — the seed data for the replay system */
     private readonly deploymentLog: DeploymentRecord[] = [];
@@ -221,9 +222,29 @@ export class Game {
         this.sim = null;
         this.selectedActor = null;
         this.projectileRenderer.clear();
+        if (this.playerHp <= 0 || this.enemyHp <= 0) {
+            this.finishMatch();
+            return;
+        }
         for (const unit of this.placement.allUnits()) unit.resetFormation();
         this.placement.refaceAll();
         this.startBuildPhase();
+    }
+
+    /** someone hit 0 HP — freeze the game and show the result */
+    private finishMatch(): void {
+        this.matchOver = true;
+        this.placement.enabled = false;
+        this.placement.deselect();
+        this.gridOverlay.visible = false;
+        this.hpBars.clear();
+        const result =
+            this.playerHp <= 0 && this.enemyHp <= 0
+                ? 'draw'
+                : this.enemyHp <= 0
+                  ? 'victory'
+                  : 'defeat';
+        this.hud.showGameOver(result);
     }
 
     /**
@@ -265,15 +286,17 @@ export class Game {
         const gameDt =
             this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;
         this.time += gameDt;
-        this.phaseRemaining -= gameDt;
 
-        if (this.phase === 'build') {
-            if (this.phaseRemaining <= 0) this.startBattlePhase();
-        } else if (this.sim) {
-            this.sim.update(gameDt);
-            this.particles.spawnFromEvents(this.sim.consumeEvents());
-            this.projectileRenderer.update(this.sim.projectiles);
-            if (this.phaseRemaining <= 0 || this.sim.isOver) this.endBattlePhase();
+        if (!this.matchOver) {
+            this.phaseRemaining -= gameDt;
+            if (this.phase === 'build') {
+                if (this.phaseRemaining <= 0) this.startBattlePhase();
+            } else if (this.sim) {
+                this.sim.update(gameDt);
+                this.particles.spawnFromEvents(this.sim.consumeEvents());
+                this.projectileRenderer.update(this.sim.projectiles);
+                if (this.phaseRemaining <= 0 || this.sim.isOver) this.endBattlePhase();
+            }
         }
         this.particles.update(gameDt);
 

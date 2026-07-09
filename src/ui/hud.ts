@@ -69,6 +69,39 @@ const STYLES = `
 .mechili-panel .row .v { color: #ffd766; font-variant-numeric: tabular-nums; }
 .mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: #10161a; border-radius: 3px; overflow: hidden; }
 .mechili-panel .hpbar div { height: 100%; background: #5ade6c; }
+
+.mechili-gameover {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 36px 64px;
+    background: rgba(10, 14, 17, 0.92);
+    border: 2px solid #3d4a52;
+    border-radius: 16px;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+}
+.mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
+.mechili-gameover.victory .go-title { color: #35e0ff; }
+.mechili-gameover.defeat .go-title { color: #ff5f45; }
+.mechili-gameover.draw .go-title { color: #d8c66a; }
+.mechili-gameover .go-restart {
+    padding: 10px 26px;
+    background: #123a44;
+    border: 1.5px solid #35e0ff;
+    border-radius: 10px;
+    color: #35e0ff;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+.mechili-gameover .go-restart:hover { background: #17505e; }
 .mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
 .mechili-hud .icon { width: 26px; height: 26px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #35e0ff, #10161a 70%); }
@@ -267,6 +300,15 @@ export class Hud {
     setHp(player: number, enemy: number): void {
         this.playerHpEl.textContent = String(player);
         this.enemyHpEl.textContent = String(enemy);
+    }
+
+    showGameOver(result: 'victory' | 'defeat' | 'draw'): void {
+        const el = document.createElement('div');
+        el.className = `mechili-gameover ${result}`;
+        const title = result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW';
+        el.innerHTML = `<div class="go-title">${title}</div><button class="go-restart">Play Again</button>`;
+        el.querySelector('.go-restart')!.addEventListener('click', () => location.reload());
+        this.mount(el);
     }
 
     setSupply(amount: number): void {
