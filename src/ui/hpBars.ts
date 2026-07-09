@@ -43,7 +43,7 @@ export class HpBars {
         selected: boolean,
     ): void {
         const t = a.unit.type;
-        const barY = t.structure ? t.meshScale * 4.2 : t.meshScale * 2.2 + 1;
+        const barY = a.altitude + (t.structure ? t.meshScale * 4.2 : t.meshScale * 2.2 + 1);
         this.tmp.set(a.x, barY, a.z).project(camera);
         if (this.tmp.z > 1 || this.tmp.z < -1) return;
         const sx = (this.tmp.x + 1) * 0.5 * width;

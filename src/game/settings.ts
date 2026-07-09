@@ -50,6 +50,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
         unitCosts: {
             crawler: 100,
             marksman: 100,
+            wasp: 100,
             fortress: 400,
         },
     },

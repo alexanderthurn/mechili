@@ -16,6 +16,8 @@ export interface Actor {
     index: number;
     /** seconds the unit still counts as "under attack" (shows its HP bar) */
     hurtTimer: number;
+    /** flight altitude (0 for ground units) — air collides with nothing on the ground */
+    altitude: number;
 }
 
 /** how long a hit keeps the HP bar visible */
@@ -96,6 +98,7 @@ export class BattleSim {
                     radius: unit.type.collisionRadius,
                     index: this.actors.length,
                     hurtTimer: 0,
+                    altitude: unit.type.flying ?? 0,
                 });
             });
         }
@@ -152,7 +155,7 @@ export class BattleSim {
         this.events.push({
             kind: 'death',
             x: target.x,
-            y: t.meshScale * 0.8,
+            y: target.altitude + t.meshScale * 0.8,
             z: target.z,
             big: target.radius >= 2 || !!t.structure,
         });
@@ -163,6 +166,7 @@ export class BattleSim {
             this.lostTowers[target.unit.team]++;
         } else {
             // tip over and stay as a battlefield wreck until the round resets
+            // (air units crash to the ground)
             target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
             target.mesh.position.y = 0.05;
             target.mesh.userData.dead = true;
@@ -216,11 +220,12 @@ export class BattleSim {
             let steerX = seekX;
             let steerZ = seekZ;
 
-            // nearest big actor blocking the path ahead (never the target itself)
+            // nearest big actor blocking the path ahead (never the target
+            // itself) — air units fly over everything on the ground
             let blocker: Actor | null = null;
             let blockerDist = Infinity;
-            for (const o of bigs) {
-                if (o === a || o === target || !o.alive) continue;
+            for (const o of a.altitude > 0 ? [] : bigs) {
+                if (o === a || o === target || !o.alive || o.altitude > 0) continue;
                 const ox = o.x - a.x;
                 const oz = o.z - a.z;
                 const ahead = ox * seekX + oz * seekZ;
@@ -246,9 +251,9 @@ export class BattleSim {
                 steerZ += (-side * (ox / oLen)) * w;
             }
 
-            // soft separation from nearby mechs of any team
+            // soft separation from nearby mechs of any team, same layer only
             for (const b of this.nearby(a)) {
-                if (b === a || !b.alive) continue;
+                if (b === a || !b.alive || (b.altitude > 0) !== (a.altitude > 0)) continue;
                 const sx = a.x - b.x;
                 const sz = a.z - b.z;
                 const sd = Math.hypot(sx, sz);
@@ -283,12 +288,12 @@ export class BattleSim {
         const dirX = target.x - a.x;
         const dirZ = target.z - a.z;
         const flat = Math.hypot(dirX, dirZ) || 1e-6;
-        const muzzleY = (at.colliders[0]?.y ?? 0.5) * at.meshScale + 0.4;
+        const muzzleY = a.altitude + (at.colliders[0]?.y ?? 0.5) * at.meshScale + 0.4;
         const mx = a.x + (dirX / flat) * (a.radius + 0.5);
         const mz = a.z + (dirZ / flat) * (a.radius + 0.5);
         const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
         const dx = target.x - mx;
-        const dy = aim.y * tt.meshScale - muzzleY;
+        const dy = target.altitude + aim.y * tt.meshScale - muzzleY;
         const dz = target.z - mz;
         const len = Math.hypot(dx, dy, dz) || 1e-6;
         this.projectiles.push({
@@ -332,7 +337,7 @@ export class BattleSim {
                 if (bx * bx + bz * bz > reach * reach) continue;
                 const mt = a.unit.type;
                 for (const c of mt.colliders) {
-                    const cy = c.y * mt.meshScale;
+                    const cy = a.altitude + c.y * mt.meshScale;
                     const cr = c.r * mt.meshScale + PROJECTILE_RADIUS;
                     // closest approach of the flight segment to the sphere center
                     let t = (bx * sx + (cy - p.y) * sy + bz * sz) / segLen2;
@@ -380,8 +385,10 @@ export class BattleSim {
                 if (!a.alive || a.unit.type.structure) continue;
                 for (const b of this.nearby(a)) {
                     if (b.index <= a.index || !b.alive || b.unit.type.structure) continue;
+                    if ((b.altitude > 0) !== (a.altitude > 0)) continue; // air passes over ground
                     this.pushApart(a, b);
                 }
+                if (a.altitude > 0) continue; // air units ignore structures entirely
                 // towers and rubble-free structures are immovable walls
                 for (const s of this.actors) {
                     if (!s.alive || !s.unit.type.structure) continue;
@@ -455,12 +462,17 @@ export class BattleSim {
         return result;
     }
 
-    /** the closest living enemy, tower or mech — towers are units like any other */
+    /**
+     * The closest living enemy THIS unit can attack (towers are units like
+     * any other). The can-attack matrix rules: e.g. crawlers can't reach air.
+     */
     private closestEnemy(from: Actor): Actor | null {
+        const targets = from.unit.type.targets;
         let best: Actor | null = null;
         let bestD = Infinity;
         for (const a of this.actors) {
             if (!a.alive || a.unit.team === from.unit.team) continue;
+            if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
             const d = (a.x - from.x) ** 2 + (a.z - from.z) ** 2;
             if (d < bestD) {
                 bestD = d;

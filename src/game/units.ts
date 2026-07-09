@@ -28,6 +28,10 @@ export interface UnitType {
     meshScale: number;
     /** structures don't bob and never rotate to face anything (but are valid facing targets) */
     structure?: boolean;
+    /** flight altitude in world units — air units collide with nothing on the ground */
+    flying?: number;
+    /** the can-attack matrix: which layers this unit's weapon can hit */
+    targets: { ground: boolean; air: boolean };
     /** ground-plane collision circle per mech, in world units — nothing walks through it */
     collisionRadius: number;
     /**
@@ -147,6 +151,16 @@ function buildFortress(parts: PartFactory): void {
     parts.box(2.0, 0.18, 0.2, 0, 0.55, 1.25, 'accent'); // rear glow strip
 }
 
+function buildWasp(parts: PartFactory): void {
+    parts.sphere(0.5, 0, 0, 0, 'hull'); // hull
+    parts.box(0.3, 0.2, 0.9, 0, 0.05, -0.5, 'dark'); // nose boom
+    parts.sphere(0.16, 0, 0.1, -0.85, 'accent'); // sensor tip
+    const rotor = parts.cylinder(0.7, 0.7, 0.06, 0, 0.5, 0, 'dark'); // rotor disc
+    rotor.scale.y = 0.6;
+    parts.box(0.12, 0.35, 0.12, 0, 0.35, 0, 'dark'); // rotor mast
+    parts.box(0.9, 0.1, 0.25, 0, -0.25, 0.15, 'accent'); // belly glow strip
+}
+
 function buildTower(parts: PartFactory): void {
     parts.cylinder(1.5, 1.8, 0.8, 0, 0.4, 0, 'dark'); // base
     parts.box(1.6, 2.2, 1.6, 0, 1.9, 0, 'hull'); // core
@@ -165,6 +179,7 @@ export const TOWER_TYPE: UnitType = {
     formation: { cols: 1, rows: 1 },
     meshScale: 2.4,
     structure: true,
+    targets: { ground: false, air: false }, // towers don't shoot
     collisionRadius: 4.5,
     colliders: [
         { y: 0.5, r: 1.6 },
@@ -187,6 +202,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a swarm of 24 bugs
         meshScale: 1,
+        targets: { ground: true, air: false }, // can't reach the sky
         collisionRadius: 0.5,
         colliders: [{ y: 0.35, r: 0.55 }],
         hp: 40,
@@ -203,6 +219,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
+        targets: { ground: true, air: true }, // snipes anything
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
         projectileSpeed: 80,
@@ -214,12 +231,32 @@ export const UNIT_TYPES: UnitType[] = [
         build: buildMarksman,
     },
     {
+        id: 'wasp',
+        name: 'Wasp',
+        cost: 100,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 2, rows: 2 }, // a flight of 4 drones
+        meshScale: 1.6,
+        flying: 9,
+        targets: { ground: true, air: true },
+        collisionRadius: 0.9,
+        colliders: [{ y: 0.1, r: 0.75 }],
+        projectileSpeed: 70,
+        hp: 90,
+        damage: 18,
+        range: 12,
+        attackInterval: 1.1,
+        speed: 8,
+        build: buildWasp,
+    },
+    {
         id: 'fortress',
         name: 'Fortress',
         cost: 400,
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
+        targets: { ground: true, air: false }, // cannon can't elevate
         collisionRadius: 2.8,
         colliders: [{ y: 0.9, r: 1.1 }],
         projectileSpeed: 50,
@@ -333,6 +370,7 @@ export class Unit {
     resetFormation(): void {
         for (const m of this.members) {
             m.mesh.position.copy(m.home);
+            m.mesh.position.y = this.type.flying ?? 0;
             m.mesh.visible = true;
             if (!this.type.structure) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
@@ -381,10 +419,12 @@ export class Unit {
 
     update(timeSeconds: number): void {
         if (this.type.structure) return;
-        // subtle idle bob, per mech (wrecks lie still)
+        // idle bob per mech (wrecks lie still); flyers hover at altitude
+        const base = this.type.flying ?? 0.05;
+        const amplitude = this.type.flying ? 0.35 : 0.04;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
-            m.mesh.position.y = 0.05 + Math.sin(timeSeconds * 2 + m.phase) * 0.04;
+            m.mesh.position.y = base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;
         }
     }
 }

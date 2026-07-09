@@ -234,9 +234,12 @@ export class Hud {
                 `<span class="icon"></span>` +
                 `<span class="size">${type.footprint.cols}×${type.footprint.rows}${mechs > 1 ? ` · ${mechs}` : ''}</span>` +
                 `<span class="cost">${costOf(type)}</span>`;
+            const hits = [type.targets.ground && 'ground', type.targets.air && 'air']
+                .filter(Boolean)
+                .join(' + ');
             button.title =
-                `${type.name} — ${costOf(type)} supply\n` +
-                `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each\n` +
+                `${type.name} — ${costOf(type)} supply${type.flying ? ' · FLYING' : ''}\n` +
+                `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each · hits ${hits}\n` +
                 `damage ${type.damage} · range ${type.range} · speed ${type.speed}`;
             button.addEventListener('click', () => onBuy(UNIT_TYPES[i]!));
             this.buttons.push({ el: button, cost: costOf(type) });
