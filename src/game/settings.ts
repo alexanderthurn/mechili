@@ -15,6 +15,15 @@ export interface GameSettings {
     startingHp: number;
     economy: EconomySettings;
     towers: TowerSettings;
+    leveling: LevelingSettings;
+}
+
+export interface LevelingSettings {
+    /** hp and damage multiply by this for every level above 1 */
+    statMultiplierPerLevel: number;
+    /** xp needed for the next level = pack cost × this × current level */
+    xpThresholdFactor: number;
+    maxLevel: number;
 }
 
 export interface TowerSettings {
@@ -60,6 +69,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
             attackMult: 0.7,
             damageTakenMult: 1.3,
         },
+    },
+    leveling: {
+        statMultiplierPerLevel: 2,
+        xpThresholdFactor: 1,
+        maxLevel: 5,
     },
 };
 

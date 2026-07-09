@@ -214,7 +214,11 @@ export class Game {
                 rotated: u.rotated,
             });
         }
-        this.sim = new BattleSim(this.placement.allUnits(), this.settings.towers);
+        this.sim = new BattleSim(this.placement.allUnits(), {
+            towers: this.settings.towers,
+            leveling: this.settings.leveling,
+            costOf: (type) => this.economy.costOf(type),
+        });
     }
 
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
@@ -355,33 +359,49 @@ export class Game {
         }
     }
 
+    /** veterancy display values for a pack, from the leveling settings */
+    private levelInfo(u: Unit): { level: number; xp: number; xpNext: number; statMult: number } {
+        const { statMultiplierPerLevel, xpThresholdFactor, maxLevel } = this.settings.leveling;
+        const xpNext =
+            u.level >= maxLevel ? -1 : this.economy.costOf(u.type) * xpThresholdFactor * u.level;
+        return { level: u.level, xp: u.xp, xpNext, statMult: statMultiplierPerLevel ** (u.level - 1) };
+    }
+
     private actorInfo(a: Actor): SelectionInfo {
         const t = a.unit.type;
+        const lv = this.levelInfo(a.unit);
         return {
             name: t.name,
             team: a.unit.team,
             hp: a.hp,
-            maxHp: t.hp,
-            damage: t.damage,
+            maxHp: t.hp * lv.statMult,
+            damage: t.damage * lv.statMult,
             range: t.range,
             speed: t.speed,
             alive: 1,
             total: 1,
+            level: lv.level,
+            xp: lv.xp,
+            xpNext: lv.xpNext,
         };
     }
 
     private unitInfo(u: Unit): SelectionInfo {
         const t = u.type;
+        const lv = this.levelInfo(u);
         return {
             name: t.name,
             team: u.team,
-            hp: t.hp,
-            maxHp: t.hp,
-            damage: t.damage,
+            hp: t.hp * lv.statMult,
+            maxHp: t.hp * lv.statMult,
+            damage: t.damage * lv.statMult,
             range: t.range,
             speed: t.speed,
             alive: u.members.length,
             total: u.members.length,
+            level: lv.level,
+            xp: lv.xp,
+            xpNext: lv.xpNext,
         };
     }
 }

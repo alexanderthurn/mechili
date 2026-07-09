@@ -285,6 +285,9 @@ export class Unit {
     destroyed = false;
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;
+    /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */
+    level = 1;
+    xp = 0;
     /** rotation around y the unit currently faces (0 = toward -z / the enemy edge) */
     facing: number;
     /** individual mechs; `home` is each one's formation slot (local offset from the unit center) */

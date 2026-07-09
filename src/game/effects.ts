@@ -124,6 +124,9 @@ export class Particles {
                         this.burst(e.x, e.y, e.z, { count: 12, color: 0xff8a50, speed: 11, life: 0.5, up: 4 });
                     }
                     break;
+                case 'levelup':
+                    this.burst(e.x, e.y, e.z, { count: 10, color: 0x8affc9, speed: 4, life: 0.6, up: 9 });
+                    break;
             }
         }
     }

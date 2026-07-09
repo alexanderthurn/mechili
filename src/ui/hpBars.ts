@@ -50,10 +50,14 @@ export class HpBars {
         const sy = (1 - this.tmp.y) * 0.5 * height;
         if (sx < -40 || sx > width + 40 || sy < -20 || sy > height + 20) return;
 
-        const ratio = Math.max(0, Math.min(1, a.hp / t.hp));
+        const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp));
         const w = t.structure ? 42 : selected ? 26 : 18;
         const h = selected ? 5 : 3;
         const color = ratio > 0.5 ? 0x5ade6c : ratio > 0.25 ? 0xd8c66a : 0xff5f45;
+        // veterancy pips above the bar
+        for (let i = 0; i < a.unit.level - 1; i++) {
+            this.view.circle(sx - ((a.unit.level - 2) * 5) / 2 + i * 5, sy - h - 5, 1.8).fill({ color: 0x8affc9, alpha });
+        }
 
         if (selected) {
             this.view

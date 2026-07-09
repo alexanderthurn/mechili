@@ -16,6 +16,10 @@ export interface SelectionInfo {
     /** living/total mechs of the pack (1/1 for single mechs and towers) */
     alive: number;
     total: number;
+    /** veterancy of the pack; xpNext < 0 means max level */
+    level: number;
+    xp: number;
+    xpNext: number;
 }
 
 const STYLES = `
@@ -306,13 +310,15 @@ export class Hud {
         }
         this.panel.style.display = 'block';
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
+        const stars = info.level > 1 ? ` <span style="color:#8affc9">${'★'.repeat(info.level - 1)}</span>` : '';
         this.panel.innerHTML =
-            `<div class="title">${info.name}</div>` +
+            `<div class="title">${info.name}${stars}</div>` +
             `<div class="team ${info.team}">${info.team}</div>` +
             `<div class="hpbar"><div style="width:${Math.max(0, (info.hp / info.maxHp) * 100)}%"></div></div>` +
-            row('HP', `${Math.max(0, Math.round(info.hp))} / ${info.maxHp}`) +
+            row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
-            row('Damage', String(info.damage)) +
+            row('Level', info.xpNext < 0 ? `${info.level} (max)` : `${info.level} · ${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`) +
+            row('Damage', String(Math.round(info.damage))) +
             row('Range', String(info.range)) +
             row('Speed', String(info.speed));
     }

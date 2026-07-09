@@ -1,6 +1,13 @@
 import type { Group } from 'three';
-import type { TowerSettings } from './settings';
-import type { Team, Unit } from './units';
+import type { LevelingSettings, TowerSettings } from './settings';
+import type { Team, Unit, UnitType } from './units';
+
+export interface SimConfig {
+    towers: TowerSettings;
+    leveling: LevelingSettings;
+    /** effective supply cost of a unit type (drives kill XP values) */
+    costOf: (type: UnitType) => number;
+}
 
 export interface Actor {
     unit: Unit;
@@ -8,6 +15,8 @@ export interface Actor {
     x: number;
     z: number;
     hp: number;
+    /** leveled max hp (grows on mid-battle level-ups) */
+    maxHp: number;
     cooldown: number;
     alive: boolean;
     /** ground collision circle */
@@ -33,6 +42,8 @@ export interface Projectile {
     vz: number;
     damage: number;
     team: Team;
+    /** the pack that fired it (kill XP goes there) */
+    source: Unit;
     ttl: number;
 }
 
@@ -40,7 +51,8 @@ export interface Projectile {
 export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     | { kind: 'impact'; x: number; y: number; z: number }
-    | { kind: 'death'; x: number; y: number; z: number; big: boolean };
+    | { kind: 'death'; x: number; y: number; z: number; big: boolean }
+    | { kind: 'levelup'; x: number; y: number; z: number };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
@@ -78,7 +90,7 @@ export class BattleSim {
 
     constructor(
         units: readonly Unit[],
-        private readonly towers: TowerSettings,
+        private readonly config: SimConfig,
     ) {
         for (const unit of units) {
             if (unit.destroyed) {
@@ -91,7 +103,8 @@ export class BattleSim {
                     mesh: m.mesh,
                     x: unit.world.x + m.home.x,
                     z: unit.world.z + m.home.z,
-                    hp: unit.type.hp,
+                    hp: unit.type.hp * this.levelMult(unit),
+                    maxHp: unit.type.hp * this.levelMult(unit),
                     // deterministic stagger so squads don't fire in one frame
                     cooldown: (i % 5) * (unit.type.attackInterval / 5),
                     alive: true,
@@ -149,7 +162,43 @@ export class BattleSim {
         return mult ** this.lostTowers[team];
     }
 
-    private kill(target: Actor): void {
+    /** hp/damage multiplier from a pack's veterancy level */
+    private levelMult(unit: Unit): number {
+        return this.config.leveling.statMultiplierPerLevel ** (unit.level - 1);
+    }
+
+    /**
+     * Kill XP: the victim's supply value goes to the killer's pack. Level-ups
+     * apply mid-battle — every living mech of the pack scales up on the spot.
+     */
+    private grantXp(killer: Unit, victim: Actor): void {
+        const { leveling, costOf } = this.config;
+        const value = costOf(victim.unit.type) / victim.unit.members.length;
+        if (value <= 0) return;
+        killer.xp += value;
+        const packCost = costOf(killer.type);
+        while (
+            killer.level < leveling.maxLevel &&
+            killer.xp >= packCost * leveling.xpThresholdFactor * killer.level
+        ) {
+            killer.xp -= packCost * leveling.xpThresholdFactor * killer.level;
+            killer.level++;
+            for (const a of this.actors) {
+                if (a.unit !== killer || !a.alive) continue;
+                a.hp *= leveling.statMultiplierPerLevel;
+                a.maxHp *= leveling.statMultiplierPerLevel;
+                this.events.push({
+                    kind: 'levelup',
+                    x: a.x,
+                    y: a.altitude + killer.type.meshScale,
+                    z: a.z,
+                });
+            }
+        }
+    }
+
+    private kill(target: Actor, killer: Unit | null): void {
+        if (killer && !target.unit.type.structure) this.grantXp(killer, target);
         target.alive = false;
         const t = target.unit.type;
         this.events.push({
@@ -174,7 +223,7 @@ export class BattleSim {
     }
 
     private step(dt: number): void {
-        const d = this.towers.debuffPerLostTower;
+        const d = this.config.towers.debuffPerLostTower;
         this.rebuildHash();
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
         for (const a of this.actors) {
@@ -199,7 +248,8 @@ export class BattleSim {
                 a.cooldown -= dt;
                 if (a.cooldown <= 0) {
                     a.cooldown += stats.attackInterval;
-                    const damage = stats.damage * this.debuff(a.unit.team, d.attackMult);
+                    const damage =
+                        stats.damage * this.levelMult(a.unit) * this.debuff(a.unit.team, d.attackMult);
                     if (stats.projectileSpeed) {
                         this.fire(a, target, damage, stats.projectileSpeed);
                     } else {
@@ -207,7 +257,7 @@ export class BattleSim {
                         target.hp -= damage * this.debuff(target.unit.team, d.damageTakenMult);
                         target.hurtTimer = HURT_BAR_SECONDS;
                         this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
-                        if (target.hp <= 0) this.kill(target);
+                        if (target.hp <= 0) this.kill(target, a.unit);
                     }
                 }
                 a.mesh.rotation.y = Math.atan2(-dx, -dz);
@@ -305,6 +355,7 @@ export class BattleSim {
             vz: (dz / len) * speed,
             damage,
             team: a.unit.team,
+            source: a.unit,
             ttl: PROJECTILE_TTL,
         });
         this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
@@ -316,7 +367,7 @@ export class BattleSim {
      * may be a different mech standing in the way — or the ground.
      */
     private stepProjectiles(dt: number): void {
-        const d = this.towers.debuffPerLostTower;
+        const d = this.config.towers.debuffPerLostTower;
         let write = 0;
         for (const p of this.projectiles) {
             const nx = p.x + p.vx * dt;
@@ -361,7 +412,7 @@ export class BattleSim {
                     y: p.y + sy * hitT,
                     z: p.z + sz * hitT,
                 });
-                if (hit.hp <= 0) this.kill(hit);
+                if (hit.hp <= 0) this.kill(hit, p.source);
                 continue; // bullet consumed
             }
             if (ny <= 0) {
