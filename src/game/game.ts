@@ -11,7 +11,7 @@ import {
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { BattleMap, type Cell } from './map';
-import { ProjectileRenderer } from './effects';
+import { Particles, ProjectileRenderer } from './effects';
 import { PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim, type Actor } from './sim';
@@ -45,6 +45,7 @@ export class Game {
     private readonly debug: DebugOverlay;
     private readonly hpBars = new HpBars();
     private readonly projectileRenderer: ProjectileRenderer;
+    private readonly particles: Particles;
     private gridOverlay;
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
@@ -97,6 +98,7 @@ export class Game {
         this.gridOverlay = this.map.createOverlayMesh();
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
+        this.particles = new Particles(this.scene);
 
         // input listens on the Pixi canvas — it's the top-most surface
         const surface = pixiApp.canvas;
@@ -269,10 +271,11 @@ export class Game {
             if (this.phaseRemaining <= 0) this.startBattlePhase();
         } else if (this.sim) {
             this.sim.update(gameDt);
-            this.sim.consumeEvents(); // particles hook up here next
+            this.particles.spawnFromEvents(this.sim.consumeEvents());
             this.projectileRenderer.update(this.sim.projectiles);
             if (this.phaseRemaining <= 0 || this.sim.isOver) this.endBattlePhase();
         }
+        this.particles.update(gameDt);
 
         this.controls.update(dtSeconds);
         this.rig.update(dtSeconds);
