@@ -15,6 +15,7 @@ import { Particles, ProjectileRenderer } from './effects';
 import { PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim, type Actor } from './sim';
+import { TechTree } from './tech';
 import { TOWER_TYPE, UNIT_TYPES, type Unit } from './units';
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
@@ -36,6 +37,7 @@ interface DeploymentRecord {
 export class Game {
     private readonly map: BattleMap;
     private readonly economy: Economy;
+    private readonly techTree = new TechTree();
     private readonly scene = new Scene();
     private readonly renderer: WebGLRenderer;
     private readonly rig = new CameraRig();
@@ -109,6 +111,7 @@ export class Game {
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.controls.onMiddleClick = () => this.placement.rotateSelected();
+        this.placement.rangeOf = (unit) => this.techTree.statsFor(unit.team, unit.type).range;
         this.controls.onRightClick = () => {
             this.placement.deselect();
             this.selectedActor = null;
@@ -125,6 +128,12 @@ export class Game {
         this.hud.onToggleSpeed = () => {
             this.speedIndex = (this.speedIndex + 1) % Game.SPEED_STEPS.length;
             this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
+        };
+        this.hud.onBuyTech = (techId) => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
+            const tech = unit.type.techs.find((t) => t.id === techId);
+            if (tech) this.techTree.buy('player', unit.type, tech, this.economy);
         };
         this.debug = new DebugOverlay(this.hud.mode);
         pixiApp.stage.addChild(this.hpBars.view, this.debug.view);
@@ -183,6 +192,15 @@ export class Game {
         }
         this.gridOverlay.visible = true;
         this.economy.grantRoundIncome(this.round);
+        // the enemy sometimes techs up before spending the rest on units
+        if (this.round >= 2 && Math.random() < 0.6) {
+            const type = UNIT_TYPES[Math.floor(Math.random() * UNIT_TYPES.length)]!;
+            const unowned = type.techs.filter((t) => !this.techTree.has('enemy', type.id, t.id));
+            const tech = unowned[Math.floor(Math.random() * unowned.length)];
+            if (tech && this.economy.balance('enemy') >= tech.cost + 200) {
+                this.techTree.buy('enemy', type, tech, this.economy);
+            }
+        }
         // the enemy also deploys this round — invisible to the player until
         // battle, spending its own supply on random affordable units
         for (let guard = 0; guard < 30; guard++) {
@@ -218,6 +236,7 @@ export class Game {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
             costOf: (type) => this.economy.costOf(type),
+            statsOf: (unit) => this.techTree.statsFor(unit.team, unit.type),
         });
     }
 
@@ -368,16 +387,16 @@ export class Game {
     }
 
     private actorInfo(a: Actor): SelectionInfo {
-        const t = a.unit.type;
+        const rs = this.techTree.statsFor(a.unit.team, a.unit.type);
         const lv = this.levelInfo(a.unit);
         return {
-            name: t.name,
+            name: a.unit.type.name,
             team: a.unit.team,
             hp: a.hp,
-            maxHp: t.hp * lv.statMult,
-            damage: t.damage * lv.statMult,
-            range: t.range,
-            speed: t.speed,
+            maxHp: a.maxHp,
+            damage: rs.damage * lv.statMult,
+            range: Math.round(rs.range),
+            speed: Math.round(rs.speed * 10) / 10,
             alive: 1,
             total: 1,
             level: lv.level,
@@ -387,21 +406,32 @@ export class Game {
     }
 
     private unitInfo(u: Unit): SelectionInfo {
-        const t = u.type;
+        const rs = this.techTree.statsFor(u.team, u.type);
         const lv = this.levelInfo(u);
         return {
-            name: t.name,
+            name: u.type.name,
             team: u.team,
-            hp: t.hp * lv.statMult,
-            maxHp: t.hp * lv.statMult,
-            damage: t.damage * lv.statMult,
-            range: t.range,
-            speed: t.speed,
+            hp: rs.hp * lv.statMult,
+            maxHp: rs.hp * lv.statMult,
+            damage: rs.damage * lv.statMult,
+            range: Math.round(rs.range),
+            speed: Math.round(rs.speed * 10) / 10,
             alive: u.members.length,
             total: u.members.length,
             level: lv.level,
             xp: lv.xp,
             xpNext: lv.xpNext,
+            // techs are buyable on your own packs during deployment
+            techs:
+                u.team === 'player' && this.phase === 'build' && !u.type.structure
+                    ? u.type.techs.map((t) => ({
+                          id: t.id,
+                          name: t.name,
+                          cost: t.cost,
+                          owned: this.techTree.has('player', u.type.id, t.id),
+                          affordable: this.economy.balance('player') >= t.cost,
+                      }))
+                    : undefined,
         };
     }
 }

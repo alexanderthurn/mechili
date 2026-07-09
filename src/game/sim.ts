@@ -1,5 +1,6 @@
 import type { Group } from 'three';
 import type { LevelingSettings, TowerSettings } from './settings';
+import type { ResolvedStats } from './tech';
 import type { Team, Unit, UnitType } from './units';
 
 export interface SimConfig {
@@ -7,6 +8,8 @@ export interface SimConfig {
     leveling: LevelingSettings;
     /** effective supply cost of a unit type (drives kill XP values) */
     costOf: (type: UnitType) => number;
+    /** a pack's tech-resolved base stats (level scaling happens in the sim) */
+    statsOf: (unit: Unit) => ResolvedStats;
 }
 
 export interface Actor {
@@ -87,6 +90,10 @@ export class BattleSim {
     /** destroyed towers per side (pre-battle + during battle) drive the debuffs */
     private readonly lostTowers: Record<Team, number> = { player: 0, enemy: 0 };
     private readonly hash = new Map<number, Actor[]>();
+    /** tech-resolved base stats per pack, fixed at battle start */
+    private readonly resolved = new Map<Unit, ResolvedStats>();
+    /** damage dealt per `${team}:${typeId}` — the post-battle report data */
+    readonly damageByType = new Map<string, number>();
 
     constructor(
         units: readonly Unit[],
@@ -97,16 +104,18 @@ export class BattleSim {
                 this.lostTowers[unit.team]++;
                 continue; // rubble is not a target
             }
+            const stats = config.statsOf(unit);
+            this.resolved.set(unit, stats);
             unit.members.forEach((m, i) => {
                 this.actors.push({
                     unit,
                     mesh: m.mesh,
                     x: unit.world.x + m.home.x,
                     z: unit.world.z + m.home.z,
-                    hp: unit.type.hp * this.levelMult(unit),
-                    maxHp: unit.type.hp * this.levelMult(unit),
+                    hp: stats.hp * this.levelMult(unit),
+                    maxHp: stats.hp * this.levelMult(unit),
                     // deterministic stagger so squads don't fire in one frame
-                    cooldown: (i % 5) * (unit.type.attackInterval / 5),
+                    cooldown: (i % 5) * (stats.attackInterval / 5),
                     alive: true,
                     radius: unit.type.collisionRadius,
                     index: this.actors.length,
@@ -120,6 +129,11 @@ export class BattleSim {
     /** the round ends as soon as one side has no units left besides its towers */
     get isOver(): boolean {
         return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');
+    }
+
+    private recordDamage(attacker: Unit, amount: number): void {
+        const key = `${attacker.team}:${attacker.type.id}`;
+        this.damageByType.set(key, (this.damageByType.get(key) ?? 0) + amount);
     }
 
     /** hands the accumulated visual events to the renderer and forgets them */
@@ -238,7 +252,7 @@ export class BattleSim {
             const dx = target.x - a.x;
             const dz = target.z - a.z;
             const dist = Math.hypot(dx, dz) || 1e-6;
-            const stats = a.unit.type;
+            const stats = this.resolved.get(a.unit)!;
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
             const reach = stats.range + a.radius + target.radius;
@@ -250,11 +264,13 @@ export class BattleSim {
                     a.cooldown += stats.attackInterval;
                     const damage =
                         stats.damage * this.levelMult(a.unit) * this.debuff(a.unit.team, d.attackMult);
-                    if (stats.projectileSpeed) {
-                        this.fire(a, target, damage, stats.projectileSpeed);
+                    if (a.unit.type.projectileSpeed) {
+                        this.fire(a, target, damage, a.unit.type.projectileSpeed);
                     } else {
                         // melee: instant hit
-                        target.hp -= damage * this.debuff(target.unit.team, d.damageTakenMult);
+                        const dealt = damage * this.debuff(target.unit.team, d.damageTakenMult);
+                        target.hp -= dealt;
+                        this.recordDamage(a.unit, dealt);
                         target.hurtTimer = HURT_BAR_SECONDS;
                         this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
                         if (target.hp <= 0) this.kill(target, a.unit);
@@ -404,7 +420,9 @@ export class BattleSim {
             }
 
             if (hit) {
-                hit.hp -= p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
+                const dealt = p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
+                hit.hp -= dealt;
+                this.recordDamage(p.source, dealt);
                 hit.hurtTimer = HURT_BAR_SECONDS;
                 this.events.push({
                     kind: 'impact',

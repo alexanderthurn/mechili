@@ -16,6 +16,15 @@ export interface GridExtent {
     rows: number;
 }
 
+/** a purchasable upgrade for a unit type — pure stat multipliers */
+export interface TechDef {
+    id: string;
+    name: string;
+    cost: number;
+    /** multipliers applied to the base stats (attackInterval < 1 = faster) */
+    mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -47,6 +56,8 @@ export interface UnitType {
     range: number;
     attackInterval: number;
     speed: number;
+    /** purchasable upgrades, applying to ALL packs of this type of the buyer */
+    techs: TechDef[];
     /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;
 }
@@ -191,6 +202,7 @@ export const TOWER_TYPE: UnitType = {
     range: 0,
     attackInterval: 1,
     speed: 0,
+    techs: [],
     build: buildTower,
 };
 
@@ -210,6 +222,10 @@ export const UNIT_TYPES: UnitType[] = [
         range: 2,
         attackInterval: 0.7,
         speed: 9,
+        techs: [
+            { id: 'legs', name: 'Overclocked Legs', cost: 150, mods: { speed: 1.35 } },
+            { id: 'carapace', name: 'Carapace', cost: 200, mods: { hp: 1.5 } },
+        ],
         build: buildCrawler,
     },
     {
@@ -228,6 +244,10 @@ export const UNIT_TYPES: UnitType[] = [
         range: 45,
         attackInterval: 2.2,
         speed: 3.5,
+        techs: [
+            { id: 'barrel', name: 'Long Barrel', cost: 200, mods: { range: 1.3 } },
+            { id: 'ap', name: 'AP Rounds', cost: 250, mods: { damage: 1.4 } },
+        ],
         build: buildMarksman,
     },
     {
@@ -247,6 +267,10 @@ export const UNIT_TYPES: UnitType[] = [
         range: 12,
         attackInterval: 1.1,
         speed: 8,
+        techs: [
+            { id: 'engines', name: 'Swarm Engines', cost: 150, mods: { speed: 1.3 } },
+            { id: 'stingers', name: 'Stingers', cost: 200, mods: { damage: 1.4 } },
+        ],
         build: buildWasp,
     },
     {
@@ -265,6 +289,10 @@ export const UNIT_TYPES: UnitType[] = [
         range: 28,
         attackInterval: 2.8,
         speed: 2.2,
+        techs: [
+            { id: 'armor', name: 'Reactive Armor', cost: 300, mods: { hp: 1.5 } },
+            { id: 'autoloader', name: 'Autoloader', cost: 300, mods: { attackInterval: 0.7 } },
+        ],
         build: buildFortress,
     },
 ];

@@ -105,9 +105,18 @@ export class Economy {
 
     /** deducts the cost; returns false (and deducts nothing) when unaffordable */
     charge(team: Team, type: UnitType): boolean {
-        const cost = this.costOf(type);
-        if (this.balances[team] < cost) return false;
-        this.balances[team] -= cost;
+        return this.spend(team, this.costOf(type));
+    }
+
+    /** deducts an arbitrary amount (tech, items, ...) if affordable */
+    spend(team: Team, amount: number): boolean {
+        if (this.balances[team] < amount) return false;
+        this.balances[team] -= amount;
         return true;
+    }
+
+    /** direct balance write — used by build-phase undo */
+    setBalance(team: Team, amount: number): void {
+        this.balances[team] = amount;
     }
 }

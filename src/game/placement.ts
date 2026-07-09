@@ -3,6 +3,7 @@ import {
     Mesh,
     MeshBasicMaterial,
     PlaneGeometry,
+    RingGeometry,
     type Scene,
     type Vector3,
 } from 'three';
@@ -32,12 +33,15 @@ export class PlacementController {
     /** the running round; units deployed in earlier rounds are locked in place */
     currentRound = 0;
     selectedUnit: Unit | null = null;
+    /** effective attack range of a pack (tech-resolved), for the range circle */
+    rangeOf: ((unit: Unit) => number) | null = null;
 
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
     private readonly hoverMesh: Mesh;
     private readonly hoverMaterial: MeshBasicMaterial;
     private readonly selectMesh: Mesh;
+    private readonly rangeMesh: Mesh;
     private pointer: { x: number; y: number } | null = null;
     private downAt: { x: number; y: number } | null = null;
 
@@ -68,6 +72,23 @@ export class PlacementController {
         this.hoverMaterial = this.hoverMesh.material as MeshBasicMaterial;
         this.selectMesh = makeMarker(SELECT_COLOR, 0.22);
         this.selectMesh.position.y = 0.03;
+
+        // attack range ring for the selected own pack (unit radius, scaled per unit)
+        const ringGeo = new RingGeometry(0.985, 1, 96);
+        ringGeo.rotateX(-Math.PI / 2);
+        this.rangeMesh = new Mesh(
+            ringGeo,
+            new MeshBasicMaterial({
+                color: VALID_COLOR,
+                transparent: true,
+                opacity: 0.4,
+                side: DoubleSide,
+                depthWrite: false,
+            }),
+        );
+        this.rangeMesh.position.y = 0.05;
+        this.rangeMesh.visible = false;
+        scene.add(this.rangeMesh);
 
         surface.addEventListener('pointermove', (e: PointerEvent) => {
             this.pointer = this.toLocal(e);
@@ -207,6 +228,15 @@ export class PlacementController {
         return best ? this.spawn(type, best.anchor, 'enemy', best.rotated) : null;
     }
 
+    /** Removes a unit from the board entirely (build-phase undo). */
+    removeUnit(unit: Unit): void {
+        if (this.selectedUnit === unit) this.selectedUnit = null;
+        this.release(unit);
+        this.scene.remove(unit.view);
+        const i = this.units.indexOf(unit);
+        if (i >= 0) this.units.splice(i, 1);
+    }
+
     /** Reveals everything (battle is about to start — all placements become visible). */
     revealAll(): void {
         for (const u of this.units) {
@@ -335,6 +365,7 @@ export class PlacementController {
         const sel = this.selectedUnit;
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
+        this.rangeMesh.visible = false;
         if (!sel || !this.enabled) return;
 
         const fp = this.footprintOf(sel.type, sel.rotated);
@@ -342,6 +373,7 @@ export class PlacementController {
 
         // a movable pack is CARRIED: it rides the cursor with the preview
         // until a click drops it (or deselecting puts it back)
+        let markerCenter: Vector3;
         if (this.isMovable(sel) && cell) {
             const anchor = this.centeredAnchor(sel.type, sel.rotated, cell);
             const cells = this.coveredCells(fp, anchor);
@@ -354,14 +386,23 @@ export class PlacementController {
             this.hoverMesh.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
             this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
             this.hoverMesh.visible = true;
-            return;
+            markerCenter = center;
+        } else {
+            // the pack sits at its committed spot with the selection marker
+            sel.view.position.copy(sel.world);
+            const center = this.map.areaCenter(sel.cell, fp.cols, fp.rows);
+            this.selectMesh.position.set(center.x, 0.03, center.z);
+            this.selectMesh.scale.set(fp.cols * CELL * 1.02, 1, fp.rows * CELL * 1.02);
+            this.selectMesh.visible = true;
+            markerCenter = center;
         }
 
-        // otherwise the pack sits at its committed spot with the selection marker
-        sel.view.position.copy(sel.world);
-        const center = this.map.areaCenter(sel.cell, fp.cols, fp.rows);
-        this.selectMesh.position.set(center.x, 0.03, center.z);
-        this.selectMesh.scale.set(fp.cols * CELL * 1.02, 1, fp.rows * CELL * 1.02);
-        this.selectMesh.visible = true;
+        // attack range ring for own packs (follows the carried position)
+        if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
+            const radius = this.rangeOf(sel) + sel.type.collisionRadius;
+            this.rangeMesh.position.set(markerCenter.x, 0.05, markerCenter.z);
+            this.rangeMesh.scale.set(radius, 1, radius);
+            this.rangeMesh.visible = true;
+        }
     }
 }

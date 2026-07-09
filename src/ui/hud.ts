@@ -20,6 +20,8 @@ export interface SelectionInfo {
     level: number;
     xp: number;
     xpNext: number;
+    /** buyable techs (own packs, build phase only) */
+    techs?: { id: string; name: string; cost: number; owned: boolean; affordable: boolean }[];
 }
 
 const STYLES = `
@@ -73,6 +75,20 @@ const STYLES = `
 .mechili-panel .row .v { color: #ffd766; font-variant-numeric: tabular-nums; }
 .mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: #10161a; border-radius: 3px; overflow: hidden; }
 .mechili-panel .hpbar div { height: 100%; background: #5ade6c; }
+.mechili-panel .techs { margin-top: 10px; border-top: 1px solid #2a343b; padding-top: 8px; }
+.mechili-panel .tech-buy {
+    display: flex; justify-content: space-between; gap: 12px; width: 100%;
+    margin: 3px 0; padding: 5px 8px;
+    background: #14202a; border: 1px solid #3d4a52; border-radius: 6px;
+    color: #d8e6ea; font-size: 11.5px; cursor: pointer;
+}
+.mechili-panel .tech-buy:hover { border-color: #35e0ff; }
+.mechili-panel .tech-buy .c { color: #ffd766; }
+.mechili-panel .tech-buy:disabled { opacity: 0.4; pointer-events: none; }
+.mechili-panel .tech-owned {
+    display: flex; justify-content: space-between; gap: 12px;
+    margin: 3px 0; padding: 5px 8px; font-size: 11.5px; color: #8affc9;
+}
 
 .mechili-gameover {
     position: absolute;
@@ -106,6 +122,26 @@ const STYLES = `
     cursor: pointer;
 }
 .mechili-gameover .go-restart:hover { background: #17505e; }
+
+.mechili-report {
+    position: absolute;
+    right: 14px;
+    top: 64px;
+    min-width: 200px;
+    padding: 12px 14px;
+    background: rgba(16, 22, 26, 0.9);
+    border: 1.5px solid #3d4a52;
+    border-radius: 10px;
+    font-family: system-ui, sans-serif;
+    color: #d8e6ea;
+    user-select: none;
+}
+.mechili-report .r-title { font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
+.mechili-report .r-close { background: none; border: none; color: #7d919c; cursor: pointer; font-size: 14px; padding: 0; }
+.mechili-report .r-row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
+.mechili-report .r-row .n.player { color: #35e0ff; }
+.mechili-report .r-row .n.enemy { color: #ff5f45; }
+.mechili-report .r-row .d { color: #ffd766; font-variant-numeric: tabular-nums; }
 .mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
 .mechili-hud .icon { width: 24px; height: 24px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #35e0ff, #10161a 70%); }
@@ -163,7 +199,18 @@ const STYLES = `
     cursor: pointer;
 }
 .mechili-topbar .end-deploy:hover { background: #17505e; }
-.mechili-topbar.battle .end-deploy { display: none; }
+.mechili-topbar .undo {
+    padding: 7px 12px;
+    background: #2a2230;
+    border: 1.5px solid #b48ae0;
+    border-radius: 8px;
+    color: #b48ae0;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.mechili-topbar .undo:hover { background: #3a2f44; }
+.mechili-topbar.battle .end-deploy, .mechili-topbar.battle .undo { display: none; }
 .mechili-topbar.battle .timer { color: #ff5f45; }
 .mechili-topbar .speed {
     display: none;
@@ -194,6 +241,10 @@ export class Hud {
     readonly mode: 'html-in-canvas' | 'dom-overlay';
     onEndDeployment: (() => void) | null = null;
     onToggleSpeed: (() => void) | null = null;
+    onBuyTech: ((techId: string) => void) | null = null;
+    onUndo: (() => void) | null = null;
+    private lastPanelKey = '';
+    private report: HTMLDivElement | null = null;
 
     private readonly unitBar: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
@@ -259,10 +310,15 @@ export class Hud {
             '<b>WASD</b> pan · <b>Q/E</b> rotate · <b>Home</b> reset camera';
         this.mount(help);
 
-        // selection stats panel (bottom left)
+        // selection stats panel (bottom left); tech buys via delegation so
+        // the per-frame innerHTML refresh can't eat clicks
         this.panel = document.createElement('div');
         this.panel.className = 'mechili-panel';
         this.panel.style.display = 'none';
+        this.panel.addEventListener('click', (e) => {
+            const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.tech-buy');
+            if (button?.dataset.tech) this.onBuyTech?.(button.dataset.tech);
+        });
 
         // round / phase / timer (top center)
         this.topBar = document.createElement('div');
@@ -279,6 +335,11 @@ export class Hud {
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
         endButton.addEventListener('click', () => this.onEndDeployment?.());
+        const undoButton = document.createElement('button');
+        undoButton.className = 'undo';
+        undoButton.textContent = '↩ Undo';
+        undoButton.title = 'Revert everything placed and bought this round';
+        undoButton.addEventListener('click', () => this.onUndo?.());
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
@@ -293,6 +354,7 @@ export class Hud {
             this.phaseEl,
             this.timerEl,
             this.supplyEl,
+            undoButton,
             endButton,
             this.speedEl,
             this.enemyHpEl,
@@ -306,11 +368,26 @@ export class Hud {
     setSelection(info: SelectionInfo | null): void {
         if (!info) {
             this.panel.style.display = 'none';
+            this.lastPanelKey = '';
             return;
         }
         this.panel.style.display = 'block';
+        const key = JSON.stringify(info);
+        if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
+        this.lastPanelKey = key;
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
         const stars = info.level > 1 ? ` <span style="color:#8affc9">${'★'.repeat(info.level - 1)}</span>` : '';
+        const techs = info.techs?.length
+            ? `<div class="techs">` +
+              info.techs
+                  .map((t) =>
+                      t.owned
+                          ? `<div class="tech-owned"><span>✓ ${t.name}</span></div>`
+                          : `<button class="tech-buy" data-tech="${t.id}" ${t.affordable ? '' : 'disabled'}><span>${t.name}</span><span class="c">${t.cost}</span></button>`,
+                  )
+                  .join('') +
+              `</div>`
+            : '';
         this.panel.innerHTML =
             `<div class="title">${info.name}${stars}</div>` +
             `<div class="team ${info.team}">${info.team}</div>` +
@@ -320,7 +397,8 @@ export class Hud {
             row('Level', info.xpNext < 0 ? `${info.level} (max)` : `${info.level} · ${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`) +
             row('Damage', String(Math.round(info.damage))) +
             row('Range', String(info.range)) +
-            row('Speed', String(info.speed));
+            row('Speed', String(info.speed)) +
+            techs;
     }
 
     setPhase(round: number, phase: Phase, remainingSeconds: number): void {
@@ -339,6 +417,32 @@ export class Hud {
     setHp(player: number, enemy: number): void {
         this.playerHpEl.textContent = String(player);
         this.enemyHpEl.textContent = String(enemy);
+    }
+
+    /** post-battle damage report; replaces the previous one, dismissible */
+    showBattleReport(round: number, rows: { name: string; team: string; damage: number }[]): void {
+        this.report?.remove();
+        const el = document.createElement('div');
+        el.className = 'mechili-report';
+        el.innerHTML =
+            `<div class="r-title"><span>Round ${round} — damage</span><button class="r-close">✕</button></div>` +
+            rows
+                .map(
+                    (r) =>
+                        `<div class="r-row"><span class="n ${r.team}">${r.name}</span><span class="d">${Math.round(r.damage)}</span></div>`,
+                )
+                .join('');
+        el.querySelector('.r-close')!.addEventListener('click', () => {
+            el.remove();
+            if (this.report === el) this.report = null;
+        });
+        this.report = el;
+        this.mount(el);
+    }
+
+    hideBattleReport(): void {
+        this.report?.remove();
+        this.report = null;
     }
 
     showGameOver(result: 'victory' | 'defeat' | 'draw'): void {
