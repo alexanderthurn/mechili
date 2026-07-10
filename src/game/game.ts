@@ -19,7 +19,10 @@ import {
     ELITE_ROUND1_BONUS,
     FREE_MARKSMAN_LEVEL,
     FREE_MARKSMAN_ROUND,
+    ROUND_CARDS,
+    SKIP_CARD_REWARD,
     START_CARDS,
+    type RoundCard,
     type SpecialityId,
 } from './cards';
 import { ITEMS } from './items';
@@ -109,6 +112,8 @@ export class Game {
     private readonly itemInventory: Record<Team, string[]> = { player: [], enemy: [] };
     /** the inventory item currently armed for placement onto a pack */
     private armedItem: string | null = null;
+    /** whether each side already took/skipped this round's card */
+    private readonly roundCardTaken: Record<Team, boolean> = { player: false, enemy: false };
     /** the game idles behind the card overlay until the loadout is picked */
     private awaitingCards = true;
 
@@ -182,6 +187,7 @@ export class Game {
             boostState: this.boostState,
             speciality: this.speciality,
             items: this.itemInventory,
+            roundCardTaken: this.roundCardTaken,
             hp: {
                 get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
                 set: (team, hp) => {
@@ -311,7 +317,8 @@ export class Game {
         // armies — the first build phase begins after the pick
         this.spawnTowers();
         this.placement.enabled = false;
-        this.hud.showStartCards(START_CARDS, (cardId) => {
+        // the specialist pick is always 4 cards, drawn from the full pool
+        this.hud.showStartCards(this.draw(START_CARDS, 4), (cardId) => {
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'player', cardId });
             // the enemy drafts its own loadout (seeded, so replays agree)
             const enemyCard = START_CARDS[Math.floor(this.rng() * START_CARDS.length)]!;
@@ -449,6 +456,64 @@ export class Game {
                 anchor: spot.anchor,
             });
         }
+
+        // from round 2 on, both sides get a card offer at the round's start
+        if (this.round >= 2) this.offerRoundCards();
+    }
+
+    /** draws n distinct cards from a pool with the seeded match RNG */
+    private draw<T>(pool: readonly T[], n: number): T[] {
+        const deck = [...pool];
+        for (let i = deck.length - 1; i > 0; i--) {
+            const j = Math.floor(this.rng() * (i + 1));
+            [deck[i], deck[j]] = [deck[j]!, deck[i]!];
+        }
+        return deck.slice(0, n);
+    }
+
+    /**
+     * The between-round card offer: the enemy quietly picks from its own
+     * draw, the player gets the overlay (the round clock waits). Skipping
+     * pays a small consolation instead.
+     */
+    private offerRoundCards(): void {
+        this.roundCardTaken.player = false;
+        this.roundCardTaken.enemy = false;
+
+        // the AI takes an affordable UNIT card most of the time, else skips
+        // (it has no use for items yet)
+        const enemyDraw = this.draw(ROUND_CARDS, 4).filter(
+            (c) => c.units && this.economy.balance('enemy') >= c.cost,
+        );
+        const enemyPick = enemyDraw.length > 0 && this.rng() < 0.75 ? enemyDraw[0]! : null;
+        this.dispatcher.dispatch({ kind: 'roundCard', team: 'enemy', cardId: enemyPick?.id ?? null });
+
+        const offer = this.draw(ROUND_CARDS, 4);
+        this.awaitingCards = true;
+        this.hud.showRoundCards(
+            offer.map((c) => this.roundCardView(c)),
+            SKIP_CARD_REWARD,
+            (cardId) => {
+                this.dispatcher.dispatch({ kind: 'roundCard', team: 'player', cardId });
+                this.awaitingCards = false;
+            },
+        );
+    }
+
+    private roundCardView(c: RoundCard): {
+        id: string;
+        title: string;
+        body: string;
+        cost: number;
+        affordable: boolean;
+    } {
+        return {
+            id: c.id,
+            title: c.title,
+            body: (c.unitsLabel ? `${c.unitsLabel} — ` : '') + c.description,
+            cost: c.cost,
+            affordable: this.economy.balance('player') >= c.cost,
+        };
     }
 
     /** tech-resolved stats plus army boosts, card speciality, and the pack's items */

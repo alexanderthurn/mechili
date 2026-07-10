@@ -15,6 +15,86 @@ export const FREE_MARKSMAN_ROUND = 2; // the marksman specialist's gift arrives 
 export const FREE_MARKSMAN_LEVEL = 3;
 export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
 
+/** skipping the between-round card pays this instead */
+export const SKIP_CARD_REWARD = 50;
+
+/** a between-round card: picked from a random 4 at each round start (round 2+) */
+export interface RoundCard {
+    id: string;
+    title: string;
+    /** supply price (0 = free) */
+    cost: number;
+    /** free units spawned on pick (movable that round) */
+    units?: string[];
+    unitsLabel?: string;
+    /** items granted into the inventory */
+    items?: string[];
+    description: string;
+}
+
+export const ROUND_CARDS: RoundCard[] = [
+    {
+        id: 'crawlers4',
+        title: 'Crawler Swarm',
+        cost: 150,
+        units: ['crawler', 'crawler', 'crawler', 'crawler'],
+        unitsLabel: '4× Crawlers',
+        description: 'Four Crawler packs join your army.',
+    },
+    {
+        id: 'marksmen4',
+        title: 'Sniper Company',
+        cost: 150,
+        units: ['marksman', 'marksman', 'marksman', 'marksman'],
+        unitsLabel: '4× Marksman',
+        description: 'Four Marksmen join your army.',
+    },
+    {
+        id: 'wasps2',
+        title: 'Air Wing',
+        cost: 150,
+        units: ['wasp', 'wasp'],
+        unitsLabel: '2× Wasps',
+        description: 'Two Wasp swarms join your army.',
+    },
+    {
+        id: 'fortress1',
+        title: 'Heavy Armor',
+        cost: 150,
+        units: ['fortress'],
+        unitsLabel: '1× Fortress',
+        description: 'A Fortress joins your army.',
+    },
+    {
+        id: 'power',
+        title: 'Power Module',
+        cost: 0,
+        items: ['power'],
+        description: 'Item: +75% attack damage for one pack.',
+    },
+    {
+        id: 'vigor',
+        title: 'Vigor Core',
+        cost: 50,
+        items: ['vigor'],
+        description: 'Item: +100% HP for one pack.',
+    },
+    {
+        id: 'colossus',
+        title: 'Colossus Plating',
+        cost: 250,
+        items: ['colossus'],
+        description: 'Item: +250% HP for one pack.',
+    },
+    {
+        id: 'wrath',
+        title: 'Wrath Engine',
+        cost: 300,
+        items: ['wrath'],
+        description: 'Item: +300% attack damage for one pack.',
+    },
+];
+
 export interface StartCard {
     id: string;
     title: string;

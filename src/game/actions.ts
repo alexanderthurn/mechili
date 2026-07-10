@@ -1,4 +1,4 @@
-import { START_CARDS, type SpecialityId } from './cards';
+import { ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, type SpecialityId } from './cards';
 import { ITEMS } from './items';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
@@ -106,6 +106,12 @@ export interface ApplyItemAction {
     unitId: number;
     itemId: string;
 }
+/** the between-round card pick; cardId null = skip (paid the skip reward). NOT undoable. */
+export interface RoundCardAction {
+    kind: 'roundCard';
+    team: Team;
+    cardId: string | null;
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -126,6 +132,7 @@ export type Action =
     | BuyBoostAction
     | ChooseCardAction
     | ApplyItemAction
+    | RoundCardAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -177,6 +184,8 @@ export interface ActionContext {
     speciality: Record<Team, SpecialityId | null>;
     /** each side's UNEQUIPPED pack items (item ids; duplicates stack) */
     items: Record<Team, string[]>;
+    /** whether each side already took (or skipped) this round's card */
+    roundCardTaken: Record<Team, boolean>;
     /** player HP pools (cards set the starting value) */
     hp: { get: (team: Team) => number; set: (team: Team, hp: number) => void };
     /** current round + seconds into its build phase, stamped onto log entries */
@@ -219,14 +228,17 @@ export class ActionDispatcher {
 
     /** true when `team` has revertible actions in `round` (drives the undo button) */
     canUndo(round: number, team: Team): boolean {
-        return this.log.some((e) => e.round === round && e.action.team === team);
+        return this.log.some(
+            (e) => e.round === round && e.action.team === team && e.action.kind !== 'roundCard',
+        );
     }
 
-    /** reverts and forgets one side's MOST RECENT action of the given round */
+    /** reverts and forgets one side's MOST RECENT undoable action of the given round */
     undoLast(round: number, team: Team): boolean {
         for (let i = this.log.length - 1; i >= 0; i--) {
             const e = this.log[i]!;
             if (e.round !== round || e.action.team !== team) continue;
+            if (e.action.kind === 'roundCard') continue; // final — the offer is gone
             this.revert(e);
             this.log.splice(i, 1);
             return true;
@@ -424,6 +436,35 @@ export class ActionDispatcher {
                 unit.items.push(action.itemId);
                 return true;
             }
+            case 'roundCard': {
+                if (this.ctx.roundCardTaken[action.team]) return false; // one per round
+                if (action.cardId === null) {
+                    // skip: take the consolation supply instead
+                    economy.credit(action.team, SKIP_CARD_REWARD);
+                    entry.paid = -SKIP_CARD_REWARD;
+                    this.ctx.roundCardTaken[action.team] = true;
+                    return true;
+                }
+                const card = ROUND_CARDS.find((c) => c.id === action.cardId);
+                if (!card) return false;
+                if (!economy.spend(action.team, card.cost)) return false;
+                entry.paid = card.cost;
+                entry.units = [];
+                for (const typeId of card.units ?? []) {
+                    const type = unitTypeById(typeId);
+                    if (!type) continue;
+                    const anchor = placement.findStartSpot(action.team, type);
+                    if (!anchor) continue;
+                    const unit = placement.spawn(type, anchor, action.team, false, true);
+                    if (unit) entry.units.push(unit); // movable: deployedRound = this round
+                }
+                if (card.items) {
+                    this.ctx.items[action.team].push(...card.items);
+                    entry.grantedItems = [...card.items];
+                }
+                this.ctx.roundCardTaken[action.team] = true;
+                return true;
+            }
             case 'endDeployment': {
                 this.ctx.onEndDeployment(action.team);
                 return true;
@@ -512,6 +553,8 @@ export class ActionDispatcher {
                 this.ctx.items[action.team].push(action.itemId);
                 break;
             }
+            case 'roundCard':
+                break; // excluded from undo — the offer can't be re-shown
             case 'endDeployment':
                 break; // closes a round — never sits in an undoable tail
         }

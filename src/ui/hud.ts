@@ -486,6 +486,43 @@ export class Hud {
         this.mount(overlay);
     }
 
+    /** the between-round card offer: pick one (paying its cost) or skip for supply */
+    showRoundCards(
+        cards: readonly { id: string; title: string; body: string; cost: number; affordable: boolean }[],
+        skipReward: number,
+        onPick: (cardId: string | null) => void,
+    ): void {
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards';
+        overlay.innerHTML =
+            `<div class="cards-title">Choose a card</div><div class="cards-row">` +
+            cards
+                .map(
+                    (c) =>
+                        `<button class="card" data-card="${c.id}" ${c.affordable ? '' : 'disabled'}>` +
+                        `<div class="c-title">${c.title}</div>` +
+                        `<div class="c-desc">${c.body}</div>` +
+                        `<div class="c-cost">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>` +
+                        `</button>`,
+                )
+                .join('') +
+            `</div>` +
+            `<button class="cards-skip">Skip — take ⬢ ${skipReward}</button>`;
+        overlay.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('.cards-skip')) {
+                overlay.remove();
+                onPick(null);
+                return;
+            }
+            const button = target.closest<HTMLButtonElement>('.card');
+            if (!button?.dataset.card || button.disabled) return;
+            overlay.remove();
+            onPick(button.dataset.card);
+        });
+        this.mount(overlay);
+    }
+
     showGameOver(result: 'victory' | 'defeat' | 'draw'): void {
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;

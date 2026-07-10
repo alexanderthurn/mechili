@@ -301,10 +301,23 @@ export function hudStyles(): string {
     transition: transform 0.12s, border-color 0.12s;
 }
 .mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
+.mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
 .mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.brassLight}; }
 .mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
 .mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
 .mechili-cards .c-desc { font-size: 12.5px; color: ${u.phase}; line-height: 1.55; }
+.mechili-cards .c-cost { margin-top: auto; font-size: 15px; font-weight: bold; color: ${u.brass}; }
+.mechili-cards .cards-skip {
+    padding: 9px 24px;
+    background: ${u.undoBg};
+    border: 1.5px solid ${u.undoBorder};
+    border-radius: 10px;
+    color: ${u.undoText};
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.mechili-cards .cards-skip:hover { background: ${u.undoHover}; }
 
 .mechili-gameover {
     position: absolute;
