@@ -12,6 +12,15 @@ import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type LoggedAction } from './actions';
+import {
+    AIR_BONUS,
+    COST_CONTROL_INCOME,
+    COST_CONTROL_PENALTY,
+    FREE_MARKSMAN_LEVEL,
+    FREE_MARKSMAN_ROUND,
+    START_CARDS,
+    type SpecialityId,
+} from './cards';
 import { BattleMap, mulberry32 } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
@@ -19,7 +28,15 @@ import { createRangeRing, PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent } from './sim';
 import { TechTree } from './tech';
-import { COMMAND_TOWER, RESEARCH_CENTER, UNIT_TYPES, type Team, type Unit, type UnitType } from './units';
+import {
+    COMMAND_TOWER,
+    RESEARCH_CENTER,
+    UNIT_TYPES,
+    unitTypeById,
+    type Team,
+    type Unit,
+    type UnitType,
+} from './units';
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
@@ -84,6 +101,10 @@ export class Game {
         attack: { player: 0, enemy: 0 },
         hp: { player: 0, enemy: 0 },
     };
+    /** each side's chosen starting-card speciality (null until picked) */
+    private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
+    /** the game idles behind the card overlay until the loadout is picked */
+    private awaitingCards = true;
 
     constructor(
         private readonly pixiApp: Application,
@@ -153,6 +174,14 @@ export class Game {
             sellState: this.sellState,
             deployState: this.deployState,
             boostState: this.boostState,
+            speciality: this.speciality,
+            hp: {
+                get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
+                set: (team, hp) => {
+                    if (team === 'player') this.playerHp = hp;
+                    else this.enemyHp = hp;
+                },
+            },
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
@@ -260,10 +289,17 @@ export class Game {
             this.selectedActor = this.pickActor(e);
         });
 
-        // round 0: only the towers are known — every enemy unit arrives
-        // through hidden build-phase placements, revealed at battle start
+        // round 0: towers stand, then the loadout cards decide the starting
+        // armies — the first build phase begins after the pick
         this.spawnTowers();
-        this.startBuildPhase();
+        this.placement.enabled = false;
+        this.hud.showStartCards(START_CARDS, (cardId) => {
+            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'player', cardId });
+            // for now the bot mirrors the player's loadout
+            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId });
+            this.awaitingCards = false;
+            this.startBuildPhase();
+        });
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', () => this.resize(wrapper.clientWidth, wrapper.clientHeight));
@@ -307,8 +343,9 @@ export class Game {
             this.refreshOverlay();
         }
         this.gridOverlay.visible = true;
-        this.recruitLevel.player = 1;
-        this.recruitLevel.enemy = 1;
+        // elite specialists recruit at level 2 permanently (and free of premium)
+        this.recruitLevel.player = this.speciality.player === 'elite' ? 2 : 1;
+        this.recruitLevel.enemy = this.speciality.enemy === 'elite' ? 2 : 1;
         this.sellState.used.player = 0;
         this.sellState.used.enemy = 0;
         this.deployState.extra.player = 0;
@@ -317,6 +354,21 @@ export class Game {
         this.deployState.used.enemy = 0;
         this.hud.refreshCosts();
         this.economy.grantRoundIncome(this.round);
+        // card speciality income and gifts
+        for (const team of ['player', 'enemy'] as const) {
+            if (this.speciality[team] === 'costControl') {
+                this.economy.credit(team, COST_CONTROL_INCOME);
+            }
+            if (this.speciality[team] === 'marksman' && this.round === FREE_MARKSMAN_ROUND) {
+                const type = unitTypeById('marksman')!;
+                const anchor = this.placement.findStartSpot(team, type);
+                const unit = anchor ? this.placement.spawn(type, anchor, team, false, true) : null;
+                if (unit) {
+                    unit.level = FREE_MARKSMAN_LEVEL;
+                    unit.refreshLevelBadge();
+                }
+            }
+        }
         // the enemy AI acts through the same action system as the player,
         // with all randomness drawn from the seeded match RNG — so its whole
         // round is deterministic AND recorded
@@ -356,7 +408,7 @@ export class Game {
         }
     }
 
-    /** tech-resolved stats plus the team's permanent army-wide boosts */
+    /** tech-resolved stats plus the team's permanent army boosts and card speciality */
     private resolvedStats(team: Team, type: UnitType) {
         const stats = this.techTree.statsFor(team, type);
         const b = this.settings.boosts;
@@ -364,6 +416,15 @@ export class Game {
         const hpTier = this.boostState.hp[team];
         if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
         if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
+        const spec = this.speciality[team];
+        if (spec === 'air' && type.flying) {
+            stats.damage *= 1 + AIR_BONUS;
+            stats.hp *= 1 + AIR_BONUS;
+        }
+        if (spec === 'costControl' && !type.structure) {
+            stats.damage *= 1 - COST_CONTROL_PENALTY;
+            stats.hp *= 1 - COST_CONTROL_PENALTY;
+        }
         return stats;
     }
 
@@ -432,6 +493,7 @@ export class Game {
 
     /** what the player pays right now, including an active recruit-level premium */
     private effectiveCost(type: UnitType): number {
+        if (this.speciality.player === 'elite') return this.economy.costOf(type); // level 2 is free
         const extra = this.recruitLevel.player - 1;
         return (
             this.economy.costOf(type) +
@@ -568,7 +630,7 @@ export class Game {
             this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;
         this.time += gameDt;
 
-        if (!this.matchOver) {
+        if (!this.matchOver && !this.awaitingCards) {
             this.phaseRemaining -= gameDt;
             if (this.phase === 'build') {
                 // the timer ends the round like the button would — as an action

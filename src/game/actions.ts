@@ -1,3 +1,4 @@
+import { START_CARDS, type SpecialityId } from './cards';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
 import type {
@@ -91,6 +92,12 @@ export interface BuyBoostAction {
     team: Team;
     boost: 'attack' | 'hp';
 }
+/** the pre-round-1 loadout pick: starting army + HP + permanent speciality */
+export interface ChooseCardAction {
+    kind: 'chooseCard';
+    team: Team;
+    cardId: string;
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -109,6 +116,7 @@ export type Action =
     | SellUnitAction
     | BuyDeploySlotAction
     | BuyBoostAction
+    | ChooseCardAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -130,6 +138,9 @@ interface LogEntry extends LoggedAction {
     from?: Cell;
     /** buyLevel: banked XP before the purchase */
     xpBefore?: number;
+    /** chooseCard: the spawned starting army + the HP it replaced */
+    units?: Unit[];
+    prevHp?: number;
 }
 
 export interface ActionContext {
@@ -152,6 +163,10 @@ export interface ActionContext {
     deployState: { limit: Record<Team, number>; extra: Record<Team, number>; used: Record<Team, number> };
     /** per-team tier (0 = none) of each permanent army boost */
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
+    /** each side's chosen card speciality (null until the pick) */
+    speciality: Record<Team, SpecialityId | null>;
+    /** player HP pools (cards set the starting value) */
+    hp: { get: (team: Team) => number; set: (team: Team, hp: number) => void };
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -227,9 +242,12 @@ export class ActionDispatcher {
                 if (deploy.used[action.team] >= deploy.limit[action.team] + deploy.extra[action.team]) {
                     return false;
                 }
-                // an active recruit level adds one level's premium on top
+                // an active recruit level adds one level's premium on top —
+                // free for the elite specialist, whose recruits are always level 2
                 const level = recruitLevel[action.team];
-                const premium = level > 1 ? levelCost(type, economy, leveling) * (level - 1) : 0;
+                const elite = this.ctx.speciality[action.team] === 'elite';
+                const premium =
+                    level > 1 && !elite ? levelCost(type, economy, leveling) * (level - 1) : 0;
                 if (economy.balance(action.team) < economy.costOf(type) + premium) return false;
                 const unit = placement.placeUnit(action.team, type, action.anchor, action.rotated);
                 if (!unit) return false;
@@ -291,6 +309,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'recruitLevel': {
+                if (this.ctx.speciality[action.team] === 'elite') return false; // already permanent
                 if (recruitLevel[action.team] > 1) return false; // once per round
                 if (!economy.spend(action.team, leveling.recruitLevel2Cost)) return false;
                 entry.paid = leveling.recruitLevel2Cost;
@@ -346,6 +365,29 @@ export class ActionDispatcher {
                 if (!economy.spend(action.team, cost)) return false;
                 entry.paid = cost;
                 state[action.team]++;
+                return true;
+            }
+            case 'chooseCard': {
+                if (this.ctx.speciality[action.team] !== null) return false; // one card per match
+                const card = START_CARDS.find((c) => c.id === action.cardId);
+                if (!card) return false;
+                this.ctx.speciality[action.team] = card.speciality;
+                entry.prevHp = this.ctx.hp.get(action.team);
+                this.ctx.hp.set(action.team, card.startingHp);
+                // the starting army — free, placed ring-wise from the zone center
+                entry.units = [];
+                for (const typeId of card.units) {
+                    const type = unitTypeById(typeId);
+                    if (!type) continue;
+                    const anchor = placement.findStartSpot(action.team, type);
+                    if (!anchor) continue;
+                    const unit = placement.spawn(type, anchor, action.team, false, true);
+                    if (!unit) continue;
+                    // the starting army counts as a round-1 deployment, so the
+                    // player can still arrange it freely in the first round
+                    unit.deployedRound = 1;
+                    entry.units.push(unit);
+                }
                 return true;
             }
             case 'endDeployment': {
@@ -417,6 +459,11 @@ export class ActionDispatcher {
             case 'buyBoost':
                 this.ctx.boostState[action.boost][action.team]--;
                 economy.credit(action.team, e.paid!);
+                break;
+            case 'chooseCard':
+                for (const unit of e.units!) placement.removeUnit(unit);
+                this.ctx.hp.set(action.team, e.prevHp!);
+                this.ctx.speciality[action.team] = null;
                 break;
             case 'endDeployment':
                 break; // closes a round — never sits in an undoable tail

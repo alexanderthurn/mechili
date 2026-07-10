@@ -223,8 +223,14 @@ export class PlacementController {
      * the buy action is created, so the action carries a concrete anchor.
      */
     findBuySpot(type: UnitType): Cell | null {
+        return this.findStartSpot('player', type);
+    }
+
+    /** the same ring search from either side's zone center (deterministic, rng-free) */
+    findStartSpot(team: Team, type: UnitType): Cell | null {
         const centerCol = Math.floor(this.map.cols / 2);
-        const centerRow = Math.floor(this.map.size.zoneRows / 2);
+        const ownRow = Math.floor(this.map.size.zoneRows / 2);
+        const centerRow = team === 'player' ? ownRow : this.map.rows - 1 - ownRow;
         const maxRadius = Math.max(this.map.cols, this.map.rows);
         for (let radius = 0; radius < maxRadius; radius++) {
             for (let dc = -radius; dc <= radius; dc++) {
@@ -234,7 +240,11 @@ export class PlacementController {
                         col: centerCol + dc,
                         row: centerRow + dr,
                     });
-                    if (this.canPlaceNew(type, false, anchor)) return anchor;
+                    const cells = this.coveredCells(this.footprintOf(type, false), anchor);
+                    const ok =
+                        cells !== null &&
+                        cells.every((c) => this.zoneCell(team, c) && !this.occupied.has(cellKey(c)));
+                    if (ok) return anchor;
                 }
             }
         }
@@ -283,11 +293,11 @@ export class PlacementController {
     }
 
     /** Places a unit with its footprint anchored at `anchor` (no zone validation — callers validate). */
-    spawn(type: UnitType, anchor: Cell, team: Team, rotated = false): Unit | null {
+    spawn(type: UnitType, anchor: Cell, team: Team, rotated = false, free = false): Unit | null {
         const fp = this.footprintOf(type, rotated);
         const cells = this.coveredCells(fp, anchor);
         if (!cells || cells.some((c) => this.occupied.has(cellKey(c)))) return null;
-        if (!this.economy.charge(team, type)) return null;
+        if (!free && !this.economy.charge(team, type)) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
         unit.id = this.nextUnitId++;
         unit.deployedRound = this.currentRound;
@@ -647,14 +657,6 @@ export class PlacementController {
             }
         }
         return cells;
-    }
-
-    private canPlaceNew(type: UnitType, rotated: boolean, anchor: Cell): boolean {
-        const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
-        return (
-            cells !== null &&
-            cells.every((c) => this.map.isPlayerCell(c) && !this.occupied.has(cellKey(c)))
-        );
     }
 
     private updateMarkers(): void {

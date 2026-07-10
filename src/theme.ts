@@ -202,6 +202,47 @@ export function hudStyles(): string {
     margin: 3px 0; padding: 5px 8px; font-size: 11.5px; color: ${u.techOwned};
 }
 
+.mechili-cards {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    background: rgba(12, 20, 8, 0.55);
+    font-family: system-ui, sans-serif;
+    user-select: none;
+}
+.mechili-cards .cards-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: ${u.text};
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+.mechili-cards .cards-row { display: flex; gap: 18px; }
+.mechili-cards .card {
+    width: 215px;
+    min-height: 240px;
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: ${u.panelBgDark};
+    border: 2px solid ${u.border};
+    border-radius: 14px;
+    color: ${u.text};
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.12s;
+}
+.mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
+.mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.brassLight}; }
+.mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
+.mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
+.mechili-cards .c-desc { font-size: 12.5px; color: ${u.phase}; line-height: 1.55; }
+
 .mechili-gameover {
     position: absolute;
     left: 50%;

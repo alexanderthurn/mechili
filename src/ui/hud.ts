@@ -1,5 +1,6 @@
 import { Sprite, type Application } from 'pixi.js';
 import { HTMLSource } from 'pixi.js/html-source';
+import type { StartCard } from '../game/cards';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { THEME, hudStyles } from '../theme';
 
@@ -388,6 +389,33 @@ export class Hud {
     hideBattleReport(): void {
         this.report?.remove();
         this.report = null;
+    }
+
+    /** the pre-round-1 loadout pick: four cards, click one, the game begins */
+    showStartCards(cards: readonly StartCard[], onPick: (cardId: string) => void): void {
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards';
+        overlay.innerHTML =
+            `<div class="cards-title">Choose your loadout</div><div class="cards-row">` +
+            cards
+                .map(
+                    (c) =>
+                        `<button class="card" data-card="${c.id}">` +
+                        `<div class="c-title">${c.title}</div>` +
+                        `<div class="c-units">${c.unitsLabel}</div>` +
+                        `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
+                        `<div class="c-desc">${c.description}</div>` +
+                        `</button>`,
+                )
+                .join('') +
+            `</div>`;
+        overlay.addEventListener('click', (e) => {
+            const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.card');
+            if (!button?.dataset.card) return;
+            overlay.remove();
+            onPick(button.dataset.card);
+        });
+        this.mount(overlay);
     }
 
     showGameOver(result: 'victory' | 'defeat' | 'draw'): void {
