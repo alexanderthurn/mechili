@@ -25,11 +25,18 @@ export interface GameSettings {
 }
 
 export interface LevelingSettings {
-    /** hp and damage multiply by this for every level above 1 */
-    statMultiplierPerLevel: number;
+    /**
+     * Each level ADDS this fraction of the base hp/damage: 1 means a
+     * 40 hp / 8 dmg unit has 80/16 at level 2, 120/24 at level 3, ...
+     */
+    statBonusPerLevel: number;
     /** xp needed for the next level = pack cost × this × current level */
     xpThresholdFactor: number;
     maxLevel: number;
+    /** buying one level costs pack base cost × this (leveling is a purchase, never automatic) */
+    levelCostFactor: number;
+    /** price of the once-per-round "recruits arrive at level 2" switch */
+    recruitLevel2Cost: number;
 }
 
 export interface TowerSettings {
@@ -77,9 +84,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
         },
     },
     leveling: {
-        statMultiplierPerLevel: 2,
+        statBonusPerLevel: 1,
         xpThresholdFactor: 1,
-        maxLevel: 5,
+        maxLevel: 9,
+        levelCostFactor: 0.5,
+        recruitLevel2Cost: 100,
     },
 };
 

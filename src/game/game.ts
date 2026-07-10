@@ -11,15 +11,15 @@ import {
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
-import { ActionDispatcher, type LoggedAction } from './actions';
+import { ActionDispatcher, levelCost, xpForNextLevel, type LoggedAction } from './actions';
 import { BattleMap, mulberry32 } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import { createRangeRing, PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
-import { BattleSim, type Actor } from './sim';
+import { BattleSim, type Actor, type SimEvent } from './sim';
 import { TechTree } from './tech';
-import { TOWER_TYPE, UNIT_TYPES, type Unit, type UnitType } from './units';
+import { TOWER_TYPE, UNIT_TYPES, type Team, type Unit, type UnitType } from './units';
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
@@ -66,6 +66,8 @@ export class Game {
     /** seeds all match randomness (AI decisions); part of the replay header */
     private readonly seed: number;
     private readonly rng: () => number;
+    /** per-team recruit level for the running round (the once-per-round level-2 switch) */
+    private readonly recruitLevel: Record<Team, number> = { player: 1, enemy: 1 };
 
     constructor(
         private readonly pixiApp: Application,
@@ -121,6 +123,8 @@ export class Game {
             placement: this.placement,
             economy: this.economy,
             techTree: this.techTree,
+            leveling: settings.leveling,
+            recruitLevel: this.recruitLevel,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
@@ -130,6 +134,12 @@ export class Game {
             },
         });
         this.placement.dispatch = (action) => this.dispatcher.dispatch(action);
+        // gold pulse under packs whose next level is buyable right now
+        this.placement.levelReady = (unit) =>
+            this.phase === 'build' &&
+            !unit.type.structure &&
+            unit.level < settings.leveling.maxLevel &&
+            unit.xp >= xpForNextLevel(unit, this.economy, settings.leveling);
         this.controls.onMiddleClick = () => this.placement.rotateSelected();
         this.placement.rangeOf = (unit) => this.techTree.statsFor(unit.team, unit.type).range;
         this.controls.onRightClick = () => {
@@ -145,7 +155,7 @@ export class Game {
         this.hud = new Hud(
             pixiApp,
             wrapper,
-            (type) => this.economy.costOf(type),
+            (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
         );
         this.hud.onEndDeployment = () => {
@@ -156,6 +166,25 @@ export class Game {
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
         this.hud.onUndo = () => this.undoLast();
+        this.hud.onRecruitLevel = () => {
+            if (this.phase !== 'build') return;
+            if (this.dispatcher.dispatch({ kind: 'recruitLevel', team: 'player' })) {
+                this.hud.refreshCosts(); // unit buttons now show the level-2 price
+            }
+        };
+        this.hud.onBuyLevel = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
+            if (this.dispatcher.dispatch({ kind: 'buyLevel', team: 'player', unitId: unit.id })) {
+                const bursts: SimEvent[] = unit.members.map((m) => ({
+                    kind: 'levelup',
+                    x: unit.world.x + m.home.x,
+                    y: unit.type.meshScale * 1.5,
+                    z: unit.world.z + m.home.z,
+                }));
+                this.particles.spawnFromEvents(bursts);
+            }
+        };
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
@@ -222,6 +251,9 @@ export class Game {
             this.refreshOverlay();
         }
         this.gridOverlay.visible = true;
+        this.recruitLevel.player = 1;
+        this.recruitLevel.enemy = 1;
+        this.hud.refreshCosts();
         this.economy.grantRoundIncome(this.round);
         // the enemy AI acts through the same action system as the player,
         // with all randomness drawn from the seeded match RNG — so its whole
@@ -265,10 +297,19 @@ export class Game {
         this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
     }
 
+    /** what the player pays right now, including an active recruit-level premium */
+    private effectiveCost(type: UnitType): number {
+        const extra = this.recruitLevel.player - 1;
+        return (
+            this.economy.costOf(type) +
+            extra * levelCost(type, this.economy, this.settings.leveling)
+        );
+    }
+
     /** HUD buy button: resolve a spawn spot, then run it through the action system */
     private buyUnit(type: UnitType): void {
         if (this.phase !== 'build' || this.matchOver) return;
-        if (!this.economy.canAfford('player', type)) return;
+        if (this.economy.balance('player') < this.effectiveCost(type)) return;
         const anchor = this.placement.findBuySpot(type);
         if (!anchor) return;
         this.dispatcher.dispatch({
@@ -289,6 +330,7 @@ export class Game {
         if (!this.canUndo()) return;
         this.placement.deselect();
         this.dispatcher.undoLast(this.round, 'player');
+        this.hud.refreshCosts(); // the undone action may have been the recruit switch
     }
 
     private canUndo(): boolean {
@@ -421,6 +463,11 @@ export class Game {
         this.updateSelectionUi();
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
         this.hud.setUndoVisible(this.canUndo());
+        this.hud.setRecruitState(
+            this.recruitLevel.player > 1,
+            this.settings.leveling.recruitLevel2Cost,
+            this.economy.balance('player') >= this.settings.leveling.recruitLevel2Cost,
+        );
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
@@ -486,10 +533,10 @@ export class Game {
 
     /** veterancy display values for a pack, from the leveling settings */
     private levelInfo(u: Unit): { level: number; xp: number; xpNext: number; statMult: number } {
-        const { statMultiplierPerLevel, xpThresholdFactor, maxLevel } = this.settings.leveling;
+        const { statBonusPerLevel, maxLevel } = this.settings.leveling;
         const xpNext =
-            u.level >= maxLevel ? -1 : this.economy.costOf(u.type) * xpThresholdFactor * u.level;
-        return { level: u.level, xp: u.xp, xpNext, statMult: statMultiplierPerLevel ** (u.level - 1) };
+            u.level >= maxLevel ? -1 : xpForNextLevel(u, this.economy, this.settings.leveling);
+        return { level: u.level, xp: u.xp, xpNext, statMult: 1 + (u.level - 1) * statBonusPerLevel };
     }
 
     private actorInfo(a: Actor): SelectionInfo {
@@ -527,6 +574,17 @@ export class Game {
             level: lv.level,
             xp: lv.xp,
             xpNext: lv.xpNext,
+            // the next level is a purchase: needs banked XP and supply
+            levelUp:
+                u.team === 'player' && this.phase === 'build' && !u.type.structure && lv.xpNext >= 0
+                    ? {
+                          cost: levelCost(u.type, this.economy, this.settings.leveling),
+                          ready: lv.xp >= lv.xpNext,
+                          affordable:
+                              this.economy.balance('player') >=
+                              levelCost(u.type, this.economy, this.settings.leveling),
+                      }
+                    : undefined,
             // techs are buyable on your own packs during deployment
             techs:
                 u.team === 'player' && this.phase === 'build' && !u.type.structure

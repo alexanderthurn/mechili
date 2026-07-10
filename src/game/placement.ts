@@ -68,6 +68,8 @@ export class PlacementController {
      * the controller itself never mutates the board directly
      */
     dispatch: ((action: Action) => boolean) | null = null;
+    /** set by the game: which packs can buy their next level right now */
+    levelReady: ((unit: Unit) => boolean) | null = null;
 
     private nextUnitId = 1;
     private readonly units: Unit[] = [];
@@ -86,6 +88,9 @@ export class PlacementController {
     private rectPreview: Unit[] = [];
     /** per-member marker plates (own material each — validity color differs per pack) */
     private readonly groupPlates: Mesh[] = [];
+    /** pulsing gold rings under packs with a buyable level */
+    private readonly readyRings: Mesh[] = [];
+    private readonly readyRingMaterial: MeshBasicMaterial;
     private readonly rectEl: HTMLDivElement;
     private rectActive = false;
     private pointer: { x: number; y: number } | null = null;
@@ -121,6 +126,14 @@ export class PlacementController {
 
         // attack range ring for the selected own pack (unit radius, scaled per unit)
         this.rangeMesh = createRangeRing(scene);
+
+        this.readyRingMaterial = new MeshBasicMaterial({
+            color: SELECT_COLOR,
+            transparent: true,
+            opacity: 0.5,
+            side: DoubleSide,
+            depthWrite: false,
+        });
 
         this.plateGeometry = new PlaneGeometry(1, 1);
         this.plateGeometry.rotateX(-Math.PI / 2);
@@ -353,7 +366,36 @@ export class PlacementController {
     update(timeSeconds: number): void {
         for (const unit of this.units) unit.update(timeSeconds);
         this.updateMovablePlates();
+        this.updateReadyRings(timeSeconds);
         this.updateMarkers();
+    }
+
+    /** pulsing gold ring under every own pack whose next level is buyable */
+    private updateReadyRings(timeSeconds: number): void {
+        let used = 0;
+        if (this.enabled && this.levelReady) {
+            for (const unit of this.units) {
+                if (unit.team !== 'player' || !this.levelReady(unit)) continue;
+                let ring = this.readyRings[used];
+                if (!ring) {
+                    const geo = new RingGeometry(0.94, 1, 48);
+                    geo.rotateX(-Math.PI / 2);
+                    ring = new Mesh(geo, this.readyRingMaterial);
+                    ring.position.y = 0.07;
+                    this.scene.add(ring);
+                    this.readyRings.push(ring);
+                }
+                const fp = this.footprintOf(unit.type, unit.rotated);
+                const center = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
+                const radius = (Math.hypot(fp.cols, fp.rows) * CELL) / 2 + 0.6;
+                ring.position.set(center.x, 0.07, center.z);
+                ring.scale.set(radius, 1, radius);
+                ring.visible = true;
+                used++;
+            }
+            this.readyRingMaterial.opacity = 0.4 + 0.25 * Math.sin(timeSeconds * 4);
+        }
+        for (let i = used; i < this.readyRings.length; i++) this.readyRings[i]!.visible = false;
     }
 
     /**

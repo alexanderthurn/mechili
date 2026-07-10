@@ -406,6 +406,28 @@ export class Unit {
      * battle phase is a simulation; deployments persist between rounds.
      * Destroyed towers are rebuilt too: rubble stands back up.
      */
+    /**
+     * Rebuilds the rank insignia on every mech of the pack: a small totem of
+     * glowing studs above the hull, one per level above 1 (up to 8). Call
+     * after every level change.
+     */
+    refreshLevelBadge(): void {
+        const topY = Math.max(...this.type.colliders.map((c) => c.y + c.r), 1) + 0.35;
+        for (const m of this.members) {
+            const old = m.mesh.getObjectByName('level-badge');
+            if (old) m.mesh.remove(old);
+            if (this.level <= 1) continue;
+            const badge = new Group();
+            badge.name = 'level-badge';
+            for (let i = 0; i < this.level - 1; i++) {
+                const stud = new Mesh(levelStudGeometry(), levelStudMaterial(i));
+                stud.position.y = topY + i * 0.16;
+                badge.add(stud);
+            }
+            m.mesh.add(badge);
+        }
+    }
+
     resetFormation(): void {
         for (const m of this.members) {
             m.mesh.position.copy(m.home);
@@ -470,6 +492,21 @@ export class Unit {
 
 function swapExtent(e: GridExtent): GridExtent {
     return { cols: e.rows, rows: e.cols };
+}
+
+let studGeometry: BoxGeometry | null = null;
+function levelStudGeometry(): BoxGeometry {
+    if (!studGeometry) studGeometry = new BoxGeometry(0.4, 0.09, 0.4);
+    return studGeometry;
+}
+
+/** rank studs: gold for the first tier, white-hot from level 6 up */
+function levelStudMaterial(index: number): MeshStandardMaterial {
+    const tier = index < 4 ? 'gold' : 'elite';
+    return material(`level-stud-${tier}`, () => {
+        const c = tier === 'gold' ? THEME.veteran : 0xfff8f0;
+        return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.4 });
+    });
 }
 
 /** type lookup by id — actions and replays store unit types as strings */

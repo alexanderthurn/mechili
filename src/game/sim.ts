@@ -194,39 +194,23 @@ export class BattleSim {
         return mult ** this.lostTowers[team];
     }
 
-    /** hp/damage multiplier from a pack's veterancy level */
+    /** hp/damage multiplier from a pack's veterancy level (linear: level N = N × base at bonus 1) */
     private levelMult(unit: Unit): number {
-        return this.config.leveling.statMultiplierPerLevel ** (unit.level - 1);
+        return 1 + (unit.level - 1) * this.config.leveling.statBonusPerLevel;
     }
 
     /**
-     * Kill XP: the victim's supply value goes to the killer's pack. Level-ups
-     * apply mid-battle — every living mech of the pack scales up on the spot.
+     * Kill XP: the victim's supply value goes to the killer's pack. Leveling
+     * itself is a deployment-phase PURCHASE, never automatic — banked XP is
+     * capped at exactly one pending level.
      */
     private grantXp(killer: Unit, victim: Actor): void {
         const { leveling, costOf } = this.config;
+        if (killer.level >= leveling.maxLevel) return;
         const value = costOf(victim.unit.type) / victim.unit.members.length;
         if (value <= 0) return;
-        killer.xp += value;
-        const packCost = costOf(killer.type);
-        while (
-            killer.level < leveling.maxLevel &&
-            killer.xp >= packCost * leveling.xpThresholdFactor * killer.level
-        ) {
-            killer.xp -= packCost * leveling.xpThresholdFactor * killer.level;
-            killer.level++;
-            for (const a of this.actors) {
-                if (a.unit !== killer || !a.alive) continue;
-                a.hp *= leveling.statMultiplierPerLevel;
-                a.maxHp *= leveling.statMultiplierPerLevel;
-                this.events.push({
-                    kind: 'levelup',
-                    x: a.x,
-                    y: a.altitude + killer.type.meshScale,
-                    z: a.z,
-                });
-            }
-        }
+        const threshold = costOf(killer.type) * leveling.xpThresholdFactor * killer.level;
+        killer.xp = Math.min(killer.xp + value, threshold);
     }
 
     private kill(target: Actor, killer: Unit | null): void {

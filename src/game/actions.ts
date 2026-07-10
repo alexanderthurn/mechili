@@ -1,8 +1,8 @@
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
-import type { Economy } from './settings';
+import type { Economy, LevelingSettings } from './settings';
 import type { TechTree } from './tech';
-import { unitTypeById, type Team, type Unit } from './units';
+import { unitTypeById, type Team, type Unit, type UnitType } from './units';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -45,6 +45,17 @@ export interface BuyTechAction {
     typeId: string;
     techId: string;
 }
+/** spends banked XP + supply to raise a pack exactly one level */
+export interface BuyLevelAction {
+    kind: 'buyLevel';
+    team: Team;
+    unitId: number;
+}
+/** once per round: every later buy this round arrives at level 2 (paying the premium) */
+export interface RecruitLevelAction {
+    kind: 'recruitLevel';
+    team: Team;
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -56,6 +67,8 @@ export type Action =
     | MoveGroupAction
     | RotateAction
     | BuyTechAction
+    | BuyLevelAction
+    | RecruitLevelAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -71,20 +84,35 @@ export interface LoggedAction {
 interface LogEntry extends LoggedAction {
     /** buy: the spawned pack */
     unit?: Unit;
-    /** buy / buyTech: supply actually charged */
+    /** buy / buyTech / buyLevel / recruitLevel: supply actually charged */
     paid?: number;
     /** move: the anchor the pack came from */
     from?: Cell;
+    /** buyLevel: banked XP before the purchase */
+    xpBefore?: number;
 }
 
 export interface ActionContext {
     placement: PlacementController;
     economy: Economy;
     techTree: TechTree;
+    leveling: LevelingSettings;
+    /** per-team recruit level for the running round (reset to 1 each round) */
+    recruitLevel: Record<Team, number>;
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
     onEndDeployment: (team: Team) => void;
+}
+
+/** supply price of raising a pack of this type by one level */
+export function levelCost(type: UnitType, economy: Economy, leveling: LevelingSettings): number {
+    return Math.round(economy.costOf(type) * leveling.levelCostFactor);
+}
+
+/** banked XP a pack needs before its next level can be bought */
+export function xpForNextLevel(unit: Unit, economy: Economy, leveling: LevelingSettings): number {
+    return economy.costOf(unit.type) * leveling.xpThresholdFactor * unit.level;
 }
 
 /**
@@ -131,14 +159,23 @@ export class ActionDispatcher {
     }
 
     private apply(action: Action, entry: LogEntry): boolean {
-        const { placement, economy, techTree } = this.ctx;
+        const { placement, economy, techTree, leveling, recruitLevel } = this.ctx;
         switch (action.kind) {
             case 'buy': {
                 const type = unitTypeById(action.typeId);
                 if (!type || type.structure) return false;
-                entry.paid = economy.costOf(type);
+                // an active recruit level adds one level's premium on top
+                const level = recruitLevel[action.team];
+                const premium = level > 1 ? levelCost(type, economy, leveling) * (level - 1) : 0;
+                if (economy.balance(action.team) < economy.costOf(type) + premium) return false;
                 const unit = placement.placeUnit(action.team, type, action.anchor, action.rotated);
                 if (!unit) return false;
+                if (premium > 0) {
+                    economy.spend(action.team, premium);
+                    unit.level = level;
+                    unit.refreshLevelBadge();
+                }
+                entry.paid = economy.costOf(type) + premium;
                 entry.unit = unit;
                 return true;
             }
@@ -167,6 +204,28 @@ export class ActionDispatcher {
                 if (!type || !tech) return false;
                 entry.paid = tech.cost;
                 return techTree.buy(action.team, type, tech, economy);
+            }
+            case 'buyLevel': {
+                const unit = placement.unitById(action.unitId);
+                if (!unit || unit.team !== action.team || unit.type.structure) return false;
+                if (unit.level >= leveling.maxLevel) return false;
+                const threshold = xpForNextLevel(unit, economy, leveling);
+                if (unit.xp < threshold) return false;
+                const cost = levelCost(unit.type, economy, leveling);
+                if (!economy.spend(action.team, cost)) return false;
+                entry.paid = cost;
+                entry.xpBefore = unit.xp;
+                unit.xp = Math.max(0, unit.xp - threshold);
+                unit.level++;
+                unit.refreshLevelBadge();
+                return true;
+            }
+            case 'recruitLevel': {
+                if (recruitLevel[action.team] > 1) return false; // once per round
+                if (!economy.spend(action.team, leveling.recruitLevel2Cost)) return false;
+                entry.paid = leveling.recruitLevel2Cost;
+                recruitLevel[action.team] = 2;
+                return true;
             }
             case 'endDeployment': {
                 this.ctx.onEndDeployment(action.team);
@@ -199,6 +258,18 @@ export class ActionDispatcher {
                 break;
             case 'buyTech':
                 techTree.remove(action.team, action.typeId, action.techId);
+                economy.credit(action.team, e.paid!);
+                break;
+            case 'buyLevel': {
+                const unit = placement.unitById(action.unitId)!;
+                unit.level--;
+                unit.xp = e.xpBefore!;
+                unit.refreshLevelBadge();
+                economy.credit(action.team, e.paid!);
+                break;
+            }
+            case 'recruitLevel':
+                this.ctx.recruitLevel[action.team] = 1;
                 economy.credit(action.team, e.paid!);
                 break;
             case 'endDeployment':

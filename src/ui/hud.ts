@@ -21,6 +21,8 @@ export interface SelectionInfo {
     level: number;
     xp: number;
     xpNext: number;
+    /** the buyable next level (own packs, build phase, below max level) */
+    levelUp?: { cost: number; ready: boolean; affordable: boolean };
     /** buyable techs (own packs, build phase only) */
     techs?: { id: string; name: string; cost: number; owned: boolean; affordable: boolean }[];
 }
@@ -39,6 +41,8 @@ export class Hud {
     onSpeedUp: (() => void) | null = null;
     onSpeedDown: (() => void) | null = null;
     onBuyTech: ((techId: string) => void) | null = null;
+    onBuyLevel: (() => void) | null = null;
+    onRecruitLevel: (() => void) | null = null;
     onUndo: (() => void) | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
@@ -54,7 +58,9 @@ export class Hud {
     private readonly enemyHpEl: HTMLSpanElement;
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
-    private readonly buttons: { el: HTMLButtonElement; cost: number }[] = [];
+    private readonly recruitEl: HTMLButtonElement;
+    private readonly costOf: (type: UnitType) => number;
+    private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
     private readonly pixiCanvas: HTMLCanvasElement;
     private readonly app: Application;
@@ -69,6 +75,7 @@ export class Hud {
         this.app = app;
         this.pixiCanvas = app.canvas;
         this.overlayParent = overlayParent;
+        this.costOf = costOf;
         this.mode =
             typeof (app.canvas as any).requestPaint === 'function' ? 'html-in-canvas' : 'dom-overlay';
 
@@ -95,7 +102,7 @@ export class Hud {
                 `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each · hits ${hits}\n` +
                 `damage ${type.damage} · range ${type.range} · speed ${type.speed}`;
             button.addEventListener('click', () => onBuy(UNIT_TYPES[i]!));
-            this.buttons.push({ el: button, cost: costOf(type) });
+            this.buttons.push({ el: button, type });
             this.unitBar.appendChild(button);
         });
 
@@ -115,7 +122,9 @@ export class Hud {
         this.panel.style.display = 'none';
         this.panel.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.tech-buy');
-            if (button?.dataset.tech) this.onBuyTech?.(button.dataset.tech);
+            if (!button) return;
+            if (button.dataset.levelup) this.onBuyLevel?.();
+            else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
 
         // round / phase / timer (top center)
@@ -138,6 +147,11 @@ export class Hud {
         this.undoEl.textContent = '↩ Undo';
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
+        this.recruitEl = document.createElement('button');
+        this.recruitEl.className = 'recruit';
+        this.recruitEl.title =
+            'Every unit bought after this arrives at level 2 (one level premium on its price).\nOnce per deployment phase.';
+        this.recruitEl.addEventListener('click', () => this.onRecruitLevel?.());
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
@@ -158,6 +172,7 @@ export class Hud {
             this.timerEl,
             this.supplyEl,
             this.undoEl,
+            this.recruitEl,
             endButton,
             this.speedEl,
             this.enemyHpEl,
@@ -174,6 +189,21 @@ export class Hud {
         this.undoEl.style.display = visible ? '' : 'none';
     }
 
+    /** the once-per-round level-2 recruit switch in the top bar */
+    setRecruitState(active: boolean, cost: number, affordable: boolean): void {
+        const label = active ? '★★ recruiting at level 2' : `★★ Recruits (${cost})`;
+        if (this.recruitEl.textContent !== label) this.recruitEl.textContent = label;
+        this.recruitEl.disabled = active || !affordable;
+        this.recruitEl.classList.toggle('active', active);
+    }
+
+    /** re-reads unit prices (they change while the recruit switch is active) */
+    refreshCosts(): void {
+        for (const { el, type } of this.buttons) {
+            el.querySelector('.cost')!.textContent = String(this.costOf(type));
+        }
+    }
+
     setSelection(info: SelectionInfo | null): void {
         if (!info) {
             this.panel.style.display = 'none';
@@ -186,6 +216,11 @@ export class Hud {
         this.lastPanelKey = key;
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
         const stars = info.level > 1 ? ` <span style="color:${THEME.ui.veteranStar}">${'★'.repeat(info.level - 1)}</span>` : '';
+        const levelUp = info.levelUp
+            ? `<div class="techs"><button class="tech-buy" data-levelup="1" ${
+                  info.levelUp.ready && info.levelUp.affordable ? '' : 'disabled'
+              }><span>★ Level up${info.levelUp.ready ? '' : ' — needs XP'}</span><span class="c">${info.levelUp.cost}</span></button></div>`
+            : '';
         const techs = info.techs?.length
             ? `<div class="techs">` +
               info.techs
@@ -207,6 +242,7 @@ export class Hud {
             row('Damage', String(Math.round(info.damage))) +
             row('Range', String(info.range)) +
             row('Speed', String(info.speed)) +
+            levelUp +
             techs;
     }
 
@@ -265,8 +301,8 @@ export class Hud {
 
     setSupply(amount: number): void {
         this.supplyEl.textContent = String(amount);
-        for (const { el, cost } of this.buttons) {
-            el.classList.toggle('unaffordable', cost > amount);
+        for (const { el, type } of this.buttons) {
+            el.classList.toggle('unaffordable', this.costOf(type) > amount);
         }
     }
 
