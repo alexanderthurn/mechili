@@ -296,6 +296,7 @@ export class PlacementController {
         unit.setRotated(rotated);
         unit.moveTo(unit.cell, this.map.areaCenter(unit.cell, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
+        this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
         return true;
     }
@@ -303,6 +304,17 @@ export class PlacementController {
     /** a tile a team may deploy on */
     private zoneCell(team: Team, cell: Cell): boolean {
         return team === 'player' ? this.map.isPlayerCell(cell) : this.map.isEnemyCell(cell);
+    }
+
+    /**
+     * Build-phase intel rule: the opponent may see WHICH units you start
+     * with (their spawn spots), but not where you move them — repositioning
+     * a revealed unit conceals it until the battle reveals everything.
+     */
+    private concealAfterMove(unit: Unit): void {
+        if (!this.hiddenPlacements || !unit.revealed) return;
+        unit.revealed = false;
+        unit.view.visible = unit.team === 'player'; // own units stay visible to yourself
     }
 
     /**
@@ -647,6 +659,7 @@ export class PlacementController {
             const fp = this.footprintOf(u.type, u.rotated);
             const anchor = anchors[i]!;
             u.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
+            this.concealAfterMove(u);
             if (u.type.extra) return;
             for (const c of this.coveredCells(fp, anchor)!) this.occupied.set(cellKey(c), u);
         });
@@ -666,6 +679,7 @@ export class PlacementController {
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
+        this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
         return true;
     }

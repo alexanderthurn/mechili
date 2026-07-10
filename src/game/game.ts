@@ -409,6 +409,23 @@ export class Game {
             });
             if (!done) break;
         }
+        // it then rearranges its fresh deployments (starting army included in
+        // round 1) — every move conceals that unit from the player until battle
+        for (const unit of this.placement.allUnits()) {
+            if (unit.team !== 'enemy' || !this.placement.canReposition(unit)) continue;
+            if (this.rng() < 0.3) continue; // some stay where they are
+            const spot = this.placement.findEnemySpot(unit.type, this.rng);
+            if (!spot) continue;
+            if (spot.rotated !== unit.rotated) {
+                this.dispatcher.dispatch({ kind: 'rotate', team: 'enemy', unitId: unit.id });
+            }
+            this.dispatcher.dispatch({
+                kind: 'move',
+                team: 'enemy',
+                unitId: unit.id,
+                anchor: spot.anchor,
+            });
+        }
     }
 
     /** tech-resolved stats plus the team's permanent army boosts and card speciality */
