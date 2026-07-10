@@ -12,6 +12,7 @@ import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type LoggedAction } from './actions';
+import { AiOpponent, type Opponent } from './ai';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -36,7 +37,6 @@ import { TechTree } from './tech';
 import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
-    UNIT_TYPES,
     unitTypeById,
     type Team,
     type Unit,
@@ -45,6 +45,15 @@ import {
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
+
+/** derives an independent, label-specific seed for a named rng stream */
+function seedFrom(seed: number, label: string): number {
+    let h = seed >>> 0;
+    for (let i = 0; i < label.length; i++) {
+        h = Math.imul(h ^ label.charCodeAt(i), 0x9e3779b1);
+    }
+    return h >>> 0;
+}
 
 /**
  * The battlefield scene: a real three.js world (ground, lights, shadows,
@@ -85,9 +94,18 @@ export class Game {
     private sim: BattleSim | null = null;
     /** everything the player and the AI do goes through here — undo & replay source */
     private readonly dispatcher: ActionDispatcher;
-    /** seeds all match randomness (AI decisions); part of the replay header */
+    /** seeds all match randomness; part of the replay header */
     private readonly seed: number;
-    private readonly rng: () => number;
+    /**
+     * independent named rng streams — consumption of one can never desync
+     * another, so peers can compute card offers regardless of code order
+     */
+    private readonly rngAi: () => number;
+    private readonly rngCards: Record<Team, () => number>;
+    /** the other side's decision maker (AI now, network peer later) */
+    private readonly opponent: Opponent;
+    /** which sides locked in the current deployment — battle starts at both */
+    private readonly deployReady: Record<Team, boolean> = { player: false, enemy: false };
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
     private readonly recruitLevel: Record<Team, number> = { player: 1, enemy: 1 };
     /** the sell ability: `owned` is a permanent match unlock, `used` resets per round */
@@ -171,7 +189,11 @@ export class Game {
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-        this.rng = mulberry32(this.seed);
+        this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
+        this.rngCards = {
+            player: mulberry32(seedFrom(this.seed, 'cards-player')),
+            enemy: mulberry32(seedFrom(this.seed, 'cards-enemy')),
+        };
         this.deployState = {
             limit: { player: settings.deploy.unitsPerRound, enemy: settings.deploy.unitsPerRound },
             extra: { player: 0, enemy: 0 },
@@ -194,6 +216,7 @@ export class Game {
             speciality: this.speciality,
             items: this.itemInventory,
             roundCardTaken: this.roundCardTaken,
+            deployReady: this.deployReady,
             hp: {
                 get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
                 set: (team, hp) => {
@@ -206,8 +229,17 @@ export class Game {
                 t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
             }),
             onEndDeployment: () => {
-                if (this.phase === 'build' && !this.matchOver) this.startBattlePhase();
+                // the battle waits until BOTH sides have locked in
+                if (this.phase !== 'build' || this.matchOver) return;
+                if (this.deployReady.player && this.deployReady.enemy) this.startBattlePhase();
             },
+        });
+        this.opponent = new AiOpponent('enemy', {
+            dispatch: (action) => this.dispatcher.dispatch(action),
+            placement: this.placement,
+            economy: this.economy,
+            techTree: this.techTree,
+            rng: this.rngAi,
         });
         this.placement.dispatch = (action) => this.dispatcher.dispatch(action);
         // gold pulse under packs whose next level is buyable right now
@@ -323,12 +355,10 @@ export class Game {
         // armies — the first build phase begins after the pick
         this.spawnTowers();
         this.placement.enabled = false;
-        // the specialist pick is always 4 cards, drawn from the full pool
-        this.hud.showStartCards(this.draw(START_CARDS, 4), (cardId) => {
+        // the specialist pick is always 4 cards, drawn from each side's own stream
+        this.hud.showStartCards(this.draw(START_CARDS, 4, this.rngCards.player), (cardId) => {
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'player', cardId });
-            // the enemy drafts its own loadout (seeded, so replays agree)
-            const enemyCard = START_CARDS[Math.floor(this.rng() * START_CARDS.length)]!;
-            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: enemyCard.id });
+            this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
             this.awaitingCards = false;
             this.startBuildPhase();
         });
@@ -386,6 +416,8 @@ export class Game {
         this.deployState.used.enemy = 0;
         this.deployState.extrasSpent.player = 0;
         this.deployState.extrasSpent.enemy = 0;
+        this.deployReady.player = false;
+        this.deployReady.enemy = false;
         this.hud.refreshCosts();
         this.economy.grantRoundIncome(this.round);
         // card speciality income and gifts
@@ -407,73 +439,19 @@ export class Game {
                 }
             }
         }
-        // the enemy AI acts through the same action system as the player,
-        // with all randomness drawn from the seeded match RNG — so its whole
-        // round is deterministic AND recorded
-        // it sometimes techs up before spending the rest on units
-        if (this.round >= 2 && this.rng() < 0.6) {
-            const type = UNIT_TYPES[Math.floor(this.rng() * UNIT_TYPES.length)]!;
-            const unowned = type.techs.filter((t) => !this.techTree.has('enemy', type.id, t.id));
-            const tech = unowned[Math.floor(this.rng() * unowned.length)];
-            const techCost = tech
-                ? this.economy.techCostOf(tech, this.techTree.ownedFor('enemy', type.id).size)
-                : 0;
-            if (tech && this.economy.balance('enemy') >= techCost + 200) {
-                this.dispatcher.dispatch({
-                    kind: 'buyTech',
-                    team: 'enemy',
-                    typeId: type.id,
-                    techId: tech.id,
-                });
-            }
-        }
-        // it also deploys this round — invisible to the player until battle,
-        // spending its own supply on random affordable units
-        for (let guard = 0; guard < 30; guard++) {
-            // the AI doesn't use board extras yet
-            const affordable = UNIT_TYPES.filter(
-                (t) => !t.extra && this.economy.canAfford('enemy', t),
-            );
-            if (affordable.length === 0) break;
-            const type = affordable[Math.floor(this.rng() * affordable.length)]!;
-            const spot = this.placement.findEnemySpot(type, this.rng);
-            if (!spot) break; // no space left
-            const done = this.dispatcher.dispatch({
-                kind: 'buy',
-                team: 'enemy',
-                typeId: type.id,
-                anchor: spot.anchor,
-                rotated: spot.rotated,
-            });
-            if (!done) break;
-        }
-        // it then rearranges its fresh deployments (starting army included in
-        // round 1) — every move conceals that unit from the player until battle
-        for (const unit of this.placement.allUnits()) {
-            if (unit.team !== 'enemy' || !this.placement.canReposition(unit)) continue;
-            if (this.rng() < 0.3) continue; // some stay where they are
-            const spot = this.placement.findEnemySpot(unit.type, this.rng);
-            if (!spot) continue;
-            if (spot.rotated !== unit.rotated) {
-                this.dispatcher.dispatch({ kind: 'rotate', team: 'enemy', unitId: unit.id });
-            }
-            this.dispatcher.dispatch({
-                kind: 'move',
-                team: 'enemy',
-                unitId: unit.id,
-                anchor: spot.anchor,
-            });
-        }
+        // the opponent (AI today, network peer later) plays its whole round
+        // through the same action system, then locks in
+        this.opponent.onBuildPhase(this.round);
 
         // from round 2 on, both sides get a card offer at the round's start
         if (this.round >= 2) this.offerRoundCards();
     }
 
-    /** draws n distinct cards from a pool with the seeded match RNG */
-    private draw<T>(pool: readonly T[], n: number): T[] {
+    /** draws n distinct cards from a pool with the given seeded stream */
+    private draw<T>(pool: readonly T[], n: number, rng: () => number): T[] {
         const deck = [...pool];
         for (let i = deck.length - 1; i > 0; i--) {
-            const j = Math.floor(this.rng() * (i + 1));
+            const j = Math.floor(rng() * (i + 1));
             [deck[i], deck[j]] = [deck[j]!, deck[i]!];
         }
         return deck.slice(0, n);
@@ -488,15 +466,11 @@ export class Game {
         this.roundCardTaken.player = false;
         this.roundCardTaken.enemy = false;
 
-        // the AI takes an affordable UNIT card most of the time, else skips
-        // (it has no use for items yet)
-        const enemyDraw = this.draw(ROUND_CARDS, 4).filter(
-            (c) => c.units && this.economy.balance('enemy') >= c.cost,
-        );
-        const enemyPick = enemyDraw.length > 0 && this.rng() < 0.75 ? enemyDraw[0]! : null;
-        this.dispatcher.dispatch({ kind: 'roundCard', team: 'enemy', cardId: enemyPick?.id ?? null });
+        // each side's offer comes from its OWN card stream — reproducible on
+        // any peer regardless of when either client computes it
+        this.opponent.onRoundCards(this.draw(ROUND_CARDS, 4, this.rngCards.enemy));
 
-        const offer = this.draw(ROUND_CARDS, 4);
+        const offer = this.draw(ROUND_CARDS, 4, this.rngCards.player);
         this.awaitingCards = true;
         this.hud.showRoundCards(
             offer.map((c) => this.roundCardView(c)),

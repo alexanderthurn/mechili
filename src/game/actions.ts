@@ -192,6 +192,8 @@ export interface ActionContext {
     items: Record<Team, string[]>;
     /** whether each side already took (or skipped) this round's card */
     roundCardTaken: Record<Team, boolean>;
+    /** which sides have locked in this deployment — battle needs BOTH */
+    deployReady: Record<Team, boolean>;
     /** player HP pools (cards set the starting value) */
     hp: { get: (team: Team) => number; set: (team: Team, hp: number) => void };
     /** current round + seconds into its build phase, stamped onto log entries */
@@ -232,10 +234,16 @@ export class ActionDispatcher {
         return true;
     }
 
+    /** card picks are final (the offer is gone) and a lock-in can't be taken back */
+    private static isUndoable(action: Action): boolean {
+        return action.kind !== 'roundCard' && action.kind !== 'endDeployment';
+    }
+
     /** true when `team` has revertible actions in `round` (drives the undo button) */
     canUndo(round: number, team: Team): boolean {
         return this.log.some(
-            (e) => e.round === round && e.action.team === team && e.action.kind !== 'roundCard',
+            (e) =>
+                e.round === round && e.action.team === team && ActionDispatcher.isUndoable(e.action),
         );
     }
 
@@ -244,7 +252,7 @@ export class ActionDispatcher {
         for (let i = this.log.length - 1; i >= 0; i--) {
             const e = this.log[i]!;
             if (e.round !== round || e.action.team !== team) continue;
-            if (e.action.kind === 'roundCard') continue; // final — the offer is gone
+            if (!ActionDispatcher.isUndoable(e.action)) continue;
             this.revert(e);
             this.log.splice(i, 1);
             return true;
@@ -480,6 +488,8 @@ export class ActionDispatcher {
                 return true;
             }
             case 'endDeployment': {
+                if (this.ctx.deployReady[action.team]) return false; // already locked in
+                this.ctx.deployReady[action.team] = true;
                 this.ctx.onEndDeployment(action.team);
                 return true;
             }
@@ -572,9 +582,8 @@ export class ActionDispatcher {
                 break;
             }
             case 'roundCard':
-                break; // excluded from undo — the offer can't be re-shown
             case 'endDeployment':
-                break; // closes a round — never sits in an undoable tail
+                break; // excluded from undo (see isUndoable)
         }
     }
 }

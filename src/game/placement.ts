@@ -78,7 +78,12 @@ export class PlacementController {
     /** fires on every click that lands on a unit (used for item application) */
     onSelect: ((unit: Unit) => void) | null = null;
 
-    private nextUnitId = 1;
+    /**
+     * per-team id counters: a side's ids depend only on its OWN spawn
+     * sequence, so peers applying each other's actions in any interleaving
+     * still agree (player ids even, enemy ids odd)
+     */
+    private readonly nextUnitId: Record<Team, number> = { player: 0, enemy: 0 };
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
     private readonly hoverMesh: Mesh;
@@ -355,7 +360,7 @@ export class PlacementController {
         if (!type.extra && cells.some((c) => this.occupied.has(cellKey(c)))) return null;
         if (!free && !this.economy.charge(team, type)) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
-        unit.id = this.nextUnitId++;
+        unit.id = ++this.nextUnitId[team] * 2 + (team === 'player' ? 0 : 1);
         unit.deployedRound = this.currentRound;
         if (this.hiddenPlacements) {
             unit.revealed = false;

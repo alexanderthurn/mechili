@@ -75,6 +75,15 @@ export type SimEvent =
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
 
+/**
+ * Deterministic replacement for Math.hypot: sqrt IS correctly rounded per
+ * IEEE-754 in every engine, Math.hypot is NOT — a lockstep-multiplayer
+ * hazard across browsers.
+ */
+function hypot(x: number, y: number, z = 0): number {
+    return Math.sqrt(x * x + y * y + z * z);
+}
+
 // movement tuning
 const AVOID_LOOKAHEAD = 16; // how far ahead a mech watches for big blockers
 const AVOID_MARGIN = 0.6; // extra clearance kept around obstacles
@@ -290,7 +299,7 @@ export class BattleSim {
 
             const dx = target.x - a.x;
             const dz = target.z - a.z;
-            const dist = Math.hypot(dx, dz) || 1e-6;
+            const dist = hypot(dx, dz) || 1e-6;
             const stats = this.resolved.get(a.unit)!;
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
@@ -334,7 +343,7 @@ export class BattleSim {
                 if (ahead <= 0 || ahead > AVOID_LOOKAHEAD + o.radius) continue;
                 const lateral = seekX * oz - seekZ * ox; // signed side offset of the obstacle
                 if (Math.abs(lateral) >= o.radius + a.radius + AVOID_MARGIN) continue;
-                const oDist = Math.hypot(ox, oz);
+                const oDist = hypot(ox, oz);
                 if (oDist < blockerDist) {
                     blockerDist = oDist;
                     blocker = o;
@@ -343,7 +352,7 @@ export class BattleSim {
             if (blocker) {
                 const ox = blocker.x - a.x;
                 const oz = blocker.z - a.z;
-                const oLen = Math.hypot(ox, oz) || 1e-6;
+                const oLen = hypot(ox, oz) || 1e-6;
                 const lateral = seekX * oz - seekZ * ox;
                 // steer to the side the mech already favors -> a pack naturally
                 // splits: its left half flows left, its right half flows right
@@ -358,7 +367,7 @@ export class BattleSim {
                 if (b === a || !b.alive || (b.altitude > 0) !== (a.altitude > 0)) continue;
                 const sx = a.x - b.x;
                 const sz = a.z - b.z;
-                const sd = Math.hypot(sx, sz);
+                const sd = hypot(sx, sz);
                 const minD = a.radius + b.radius + SEPARATION_GAP;
                 if (sd >= minD || sd < 1e-4) continue;
                 const w = ((minD - sd) / minD) * SEPARATION_STRENGTH;
@@ -366,7 +375,7 @@ export class BattleSim {
                 steerZ += (sz / sd) * w;
             }
 
-            const steerLen = Math.hypot(steerX, steerZ);
+            const steerLen = hypot(steerX, steerZ);
             if (steerLen > 1e-4) {
                 steerX /= steerLen;
                 steerZ /= steerLen;
@@ -395,7 +404,7 @@ export class BattleSim {
             if (!a.rocketTarget) {
                 const target = this.closestEnemy(a);
                 if (!target) continue;
-                const dist = Math.hypot(target.x - a.x, target.z - a.z);
+                const dist = hypot(target.x - a.x, target.z - a.z);
                 if (dist <= spec.range) a.rocketTarget = target;
                 continue;
             }
@@ -412,14 +421,14 @@ export class BattleSim {
             const dx = t.x - a.x;
             const dy = t.altitude + 0.5 - a.altitude;
             const dz = t.z - a.z;
-            const dist = Math.hypot(dx, dy, dz) || 1e-6;
+            const dist = hypot(dx, dy, dz) || 1e-6;
             const move = Math.min(spec.speed * dt, dist);
             a.x += (dx / dist) * move;
             a.altitude += (dy / dist) * move;
             a.z += (dz / dist) * move;
             a.mesh.position.set(a.x - a.unit.world.x, a.altitude, a.z - a.unit.world.z);
             // nose along the flight path
-            const pitch = Math.atan2(dy, Math.hypot(dx, dz) || 1e-6);
+            const pitch = Math.atan2(dy, hypot(dx, dz) || 1e-6);
             a.mesh.rotation.set(pitch, Math.atan2(-dx, -dz), 0, 'YXZ');
             if (dist - move < 1.5) this.detonateRocket(a, spec);
         }
@@ -500,7 +509,7 @@ export class BattleSim {
         const tt = target.unit.type;
         const dirX = target.x - a.x;
         const dirZ = target.z - a.z;
-        const flat = Math.hypot(dirX, dirZ) || 1e-6;
+        const flat = hypot(dirX, dirZ) || 1e-6;
         const muzzleY = a.altitude + (at.colliders[0]?.y ?? 0.5) * at.meshScale + 0.4;
         const mx = a.x + (dirX / flat) * (a.radius + 0.5);
         const mz = a.z + (dirZ / flat) * (a.radius + 0.5);
@@ -508,7 +517,7 @@ export class BattleSim {
         const dx = target.x - mx;
         const dy = target.altitude + aim.y * tt.meshScale - muzzleY;
         const dz = target.z - mz;
-        const len = Math.hypot(dx, dy, dz) || 1e-6;
+        const len = hypot(dx, dy, dz) || 1e-6;
         this.projectiles.push({
             x: mx,
             y: muzzleY,
@@ -544,8 +553,8 @@ export class BattleSim {
                 const dx = p.target.x - p.x;
                 const dy = p.target.altitude + aim.y * tt.meshScale - p.y;
                 const dz = p.target.z - p.z;
-                const len = Math.hypot(dx, dy, dz) || 1e-6;
-                const speed = Math.hypot(p.vx, p.vy, p.vz);
+                const len = hypot(dx, dy, dz) || 1e-6;
+                const speed = hypot(p.vx, p.vy, p.vz);
                 p.vx = (dx / len) * speed;
                 p.vy = (dy / len) * speed;
                 p.vz = (dz / len) * speed;
@@ -653,7 +662,7 @@ export class BattleSim {
             if (!a.alive || a.unit.team === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
             if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
-            if (Math.hypot(a.x - x, a.z - z) > radius + a.radius) continue;
+            if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.debuff(a.unit.team, d.damageTakenMult);
             this.applyDamage(p.source, a, dealt);
         }
@@ -683,7 +692,7 @@ export class BattleSim {
     private pushApart(a: Actor, b: Actor): void {
         const dx = a.x - b.x;
         const dz = a.z - b.z;
-        const dist = Math.hypot(dx, dz);
+        const dist = hypot(dx, dz);
         const minD = a.radius + b.radius;
         if (dist >= minD || dist < 1e-6) return;
         const overlap = minD - dist;
