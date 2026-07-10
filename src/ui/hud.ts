@@ -22,6 +22,8 @@ export interface SelectionInfo {
     /** living/total mechs of the pack (1/1 for single mechs and towers) */
     alive: number;
     total: number;
+    /** equipped pack items, as squares in the panel */
+    items?: { icon: string; name: string }[];
     /** veterancy of the pack; xpNext < 0 means max level */
     level: number;
     xp: number;
@@ -74,6 +76,7 @@ export class Hud {
     onSellUnit: (() => void) | null = null;
     onBuyDeploySlot: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
+    onArmItem: ((itemId: string) => void) | null = null;
     onUndo: (() => void) | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
@@ -90,6 +93,9 @@ export class Hud {
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
+    private readonly inventoryEl: HTMLDivElement;
+    private itemGhost: HTMLDivElement | null = null;
+    private lastInventoryKey = '';
     private deploysLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
@@ -167,6 +173,27 @@ export class Hud {
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
 
+        // unequipped pack items (left edge): click to pick up, click a pack to place
+        this.inventoryEl = document.createElement('div');
+        this.inventoryEl.className = 'mechili-inv';
+        this.inventoryEl.style.display = 'none';
+        this.inventoryEl.addEventListener('click', (e) => {
+            const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item');
+            if (button?.dataset.item) this.onArmItem?.(button.dataset.item);
+        });
+        // the picked-up item rides the cursor (capture phase: HUD elements
+        // stop pointer events from bubbling to window)
+        window.addEventListener(
+            'pointermove',
+            (e) => {
+                if (!this.itemGhost) return;
+                this.itemGhost.style.left = `${e.clientX - 20}px`;
+                this.itemGhost.style.top = `${e.clientY - 20}px`;
+            },
+            true,
+        );
+        this.mount(this.inventoryEl);
+
         // round / phase / timer (top center)
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
@@ -225,6 +252,41 @@ export class Hud {
     setUndoVisible(visible: boolean): void {
         // '' lets the battle-phase CSS rule keep hiding it during battles
         this.undoEl.style.display = visible ? '' : 'none';
+    }
+
+    /** the left-edge strip of unequipped items (one square each); empty list hides it */
+    setInventory(
+        items: readonly { id: string; icon: string; name: string; armed: boolean }[],
+    ): void {
+        const key = JSON.stringify(items);
+        if (key === this.lastInventoryKey) return;
+        this.lastInventoryKey = key;
+        this.inventoryEl.style.display = items.length ? '' : 'none';
+        this.inventoryEl.innerHTML =
+            `<div class="inv-title">Items</div>` +
+            items
+                .map(
+                    (i) =>
+                        `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
+                        `<span class="i">${i.icon}</span></button>`,
+                )
+                .join('');
+        // the picked-up item's ghost rides the cursor until placed or cancelled
+        const picked = items.find((i) => i.armed);
+        if (picked && !this.itemGhost) {
+            this.itemGhost = document.createElement('div');
+            this.itemGhost.className = 'inv-drag';
+            this.itemGhost.style.left = '-100px';
+            document.body.appendChild(this.itemGhost);
+        }
+        if (this.itemGhost) {
+            if (!picked) {
+                this.itemGhost.remove();
+                this.itemGhost = null;
+            } else {
+                this.itemGhost.textContent = picked.icon;
+            }
+        }
     }
 
     /** purchases used / allowed this round; buy buttons grey out at the limit */
@@ -323,9 +385,15 @@ export class Hud {
                   .join('') +
               `</div>`
             : '';
+        const itemSquares = info.items?.length
+            ? `<div class="item-row">${info.items
+                  .map((i) => `<span class="item-sq" title="${i.name}">${i.icon}</span>`)
+                  .join('')}</div>`
+            : '';
         this.panel.innerHTML =
             `<div class="title">${info.name}${stars}</div>` +
             `<div class="team ${info.team}">${info.team}</div>` +
+            itemSquares +
             `<div class="hpbar"><div style="width:${Math.max(0, (info.hp / info.maxHp) * 100)}%"></div></div>` +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
@@ -396,7 +464,7 @@ export class Hud {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose your loadout</div><div class="cards-row">` +
+            `<div class="cards-title">Choose your specialist</div><div class="cards-row">` +
             cards
                 .map(
                     (c) =>

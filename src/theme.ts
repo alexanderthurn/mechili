@@ -202,6 +202,69 @@ export function hudStyles(): string {
     margin: 3px 0; padding: 5px 8px; font-size: 11.5px; color: ${u.techOwned};
 }
 
+.mechili-inv {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 8px;
+    background: ${u.panelBg};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+}
+.mechili-inv .inv-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: ${u.textMuted}; }
+.mechili-inv .inv-item {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: ${u.techBuyBg};
+    border: 1.5px solid ${u.border};
+    border-radius: 9px;
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-inv .inv-item:hover { border-color: ${u.hover}; }
+.mechili-inv .inv-item.armed { border-color: ${u.brass}; box-shadow: 0 0 10px ${u.brass}; }
+.inv-drag {
+    position: fixed;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    background: ${u.techBuyBg};
+    border: 1.5px solid ${u.brass};
+    border-radius: 9px;
+    color: ${u.text};
+    pointer-events: none;
+    z-index: 50;
+    font-family: system-ui, sans-serif;
+}
+
+.mechili-panel .item-row { display: flex; gap: 4px; margin: 2px 0 6px; }
+.mechili-panel .item-sq {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    background: ${u.techBuyBg};
+    border: 1px solid ${u.brassDark};
+    border-radius: 5px;
+}
+
 .mechili-cards {
     position: absolute;
     inset: 0;

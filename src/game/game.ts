@@ -22,6 +22,7 @@ import {
     START_CARDS,
     type SpecialityId,
 } from './cards';
+import { ITEMS } from './items';
 import { BattleMap, mulberry32 } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
@@ -104,6 +105,10 @@ export class Game {
     };
     /** each side's chosen starting-card speciality (null until picked) */
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
+    /** each side's unequipped pack items */
+    private readonly itemInventory: Record<Team, string[]> = { player: [], enemy: [] };
+    /** the inventory item currently armed for placement onto a pack */
+    private armedItem: string | null = null;
     /** the game idles behind the card overlay until the loadout is picked */
     private awaitingCards = true;
 
@@ -176,6 +181,7 @@ export class Game {
             deployState: this.deployState,
             boostState: this.boostState,
             speciality: this.speciality,
+            items: this.itemInventory,
             hp: {
                 get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
                 set: (team, hp) => {
@@ -194,17 +200,24 @@ export class Game {
         this.placement.dispatch = (action) => this.dispatcher.dispatch(action);
         // gold pulse under packs whose next level is buyable right now
         this.placement.levelReady = (unit) => this.canLevel(unit);
+        // an armed inventory item lands on the next own pack that gets clicked
+        this.placement.onSelect = (unit) => {
+            if (!this.armedItem) return;
+            if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
+        };
         this.controls.onMiddleClick = () => this.placement.rotateSelected();
-        this.placement.rangeOf = (unit) => this.resolvedStats(unit.team, unit.type).range;
+        this.placement.rangeOf = (unit) => this.resolvedStats(unit).range;
         this.controls.onRightClick = () => {
             this.placement.deselect();
             this.selectedActor = null;
+            this.armedItem = null;
         };
         // Escape deselects, exactly like a right click
         window.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.code !== 'Escape') return;
             this.placement.deselect();
             this.selectedActor = null;
+            this.armedItem = null;
         });
         this.hud = new Hud(
             pixiApp,
@@ -220,6 +233,10 @@ export class Game {
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
         this.hud.onUndo = () => this.undoLast();
+        this.hud.onArmItem = (itemId) => {
+            if (this.phase !== 'build') return;
+            this.armedItem = this.armedItem === itemId ? null : itemId; // click again to disarm
+        };
         this.hud.onRecruitLevel = () => {
             // offered in the Research Center's menu
             const unit = this.placement.selectedUnit;
@@ -434,8 +451,9 @@ export class Game {
         }
     }
 
-    /** tech-resolved stats plus the team's permanent army boosts and card speciality */
-    private resolvedStats(team: Team, type: UnitType) {
+    /** tech-resolved stats plus army boosts, card speciality, and the pack's items */
+    private resolvedStats(unit: Unit) {
+        const { team, type } = unit;
         const stats = this.techTree.statsFor(team, type);
         const b = this.settings.boosts;
         const attackTier = this.boostState.attack[team];
@@ -451,7 +469,46 @@ export class Game {
             stats.damage *= 1 - COST_CONTROL_PENALTY;
             stats.hp *= 1 - COST_CONTROL_PENALTY;
         }
+        for (const id of unit.items) {
+            const mods = ITEMS[id]?.mods;
+            if (!mods) continue;
+            stats.hp *= mods.hp ?? 1;
+            stats.damage *= mods.damage ?? 1;
+            stats.range *= mods.range ?? 1;
+            stats.speed *= mods.speed ?? 1;
+            stats.attackInterval *= mods.attackInterval ?? 1;
+        }
         return stats;
+    }
+
+    /** the left-side item strip: one square per item instance, hidden outside build */
+    private inventoryView(): { id: string; icon: string; name: string; armed: boolean }[] {
+        if (this.phase !== 'build') return [];
+        return this.itemInventory.player.map((id) => {
+            const item = ITEMS[id];
+            return {
+                id,
+                icon: item?.icon ?? '?',
+                name: item ? `${item.name} — ${item.description}` : id,
+                armed: this.armedItem === id,
+            };
+        });
+    }
+
+    /** equips an inventory item onto a pack (dispatch + feedback burst) */
+    private applyItemTo(unit: Unit, itemId: string): boolean {
+        if (this.phase !== 'build' || unit.team !== 'player' || unit.type.structure) return false;
+        if (!this.dispatcher.dispatch({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
+            return false;
+        }
+        const bursts: SimEvent[] = unit.members.map((m) => ({
+            kind: 'levelup',
+            x: unit.world.x + m.home.x,
+            y: unit.type.meshScale * 1.5,
+            z: unit.world.z + m.home.z,
+        }));
+        this.particles.spawnFromEvents(bursts);
+        return true;
     }
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
@@ -580,13 +637,14 @@ export class Game {
         this.placement.enabled = false;
         this.placement.hiddenPlacements = false;
         this.placement.deselect();
+        this.armedItem = null;
         this.gridOverlay.visible = false;
         this.placement.revealAll();
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
             costOf: (type) => this.economy.costOf(type),
-            statsOf: (unit) => this.resolvedStats(unit.team, unit.type),
+            statsOf: (unit) => this.resolvedStats(unit),
         });
     }
 
@@ -697,6 +755,7 @@ export class Game {
             this.deployState.used.player,
             this.deployState.limit.player + this.deployState.extra.player,
         );
+        this.hud.setInventory(this.inventoryView());
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
@@ -735,7 +794,7 @@ export class Game {
         this.battleRangeMesh.visible = a !== null;
         if (!a) return;
         const radius =
-            this.resolvedStats(a.unit.team, a.unit.type).range + a.unit.type.collisionRadius;
+            this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
         this.battleRangeMesh.position.set(a.rx, 0.05, a.rz);
         this.battleRangeMesh.scale.set(radius, 1, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
@@ -769,7 +828,7 @@ export class Game {
     }
 
     private actorInfo(a: Actor): SelectionInfo {
-        const rs = this.resolvedStats(a.unit.team, a.unit.type);
+        const rs = this.resolvedStats(a.unit);
         const lv = this.levelInfo(a.unit);
         return {
             name: a.unit.type.name,
@@ -782,6 +841,9 @@ export class Game {
             attackInterval: rs.attackInterval,
             splash: a.unit.type.splashRadius,
             structure: !!a.unit.type.structure,
+            items: a.unit.items.length
+                ? a.unit.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id }))
+                : undefined,
             alive: 1,
             total: 1,
             level: lv.level,
@@ -791,7 +853,7 @@ export class Game {
     }
 
     private unitInfo(u: Unit): SelectionInfo {
-        const rs = this.resolvedStats(u.team, u.type);
+        const rs = this.resolvedStats(u);
         const lv = this.levelInfo(u);
         return {
             name: u.type.name,
@@ -809,6 +871,9 @@ export class Game {
             xp: lv.xp,
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
+            items: u.items.length
+                ? u.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id }))
+                : undefined,
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
                 u.team === 'player' && this.phase === 'build' && u.type.structure && !u.type.extra

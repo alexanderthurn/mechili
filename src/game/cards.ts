@@ -1,11 +1,11 @@
 /**
- * The card system: before round 1 each player picks one of four loadout
- * cards — a starting army (equal total value), a starting HP pool, and a
- * permanent speciality. The same UI will later serve between-round cards
- * with different content.
+ * The specialist system: before round 1 each player picks a SPECIALIST card
+ * — a starting army (equal total value), a starting HP pool, a permanent
+ * speciality, and possibly pack items. The same card UI will later serve
+ * between-round cards with different content.
  */
 
-export type SpecialityId = 'air' | 'costControl' | 'elite' | 'marksman';
+export type SpecialityId = 'air' | 'costControl' | 'elite' | 'marksman' | 'addi';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
@@ -24,6 +24,8 @@ export interface StartCard {
     unitsLabel: string;
     startingHp: number;
     speciality: SpecialityId;
+    /** pack items granted into the player's inventory */
+    items?: string[];
     description: string;
 }
 
@@ -64,5 +66,15 @@ export const START_CARDS: StartCard[] = [
         startingHp: 2000,
         speciality: 'marksman',
         description: 'A free level-3 Marksman arrives in round 2.',
+    },
+    {
+        id: 'addi',
+        title: 'Addi Specialist',
+        units: ['wasp', 'crawler', 'crawler', 'crawler'],
+        unitsLabel: '1× Wasps · 3× Crawlers',
+        startingHp: 2000,
+        speciality: 'addi',
+        items: ['addi', 'addi', 'addi'],
+        description: '3× Addi item: +15% attack and HP for one pack each.',
     },
 ];

@@ -439,6 +439,8 @@ export class Unit {
     destroyed = false;
     /** board extras: used up this battle (shield broken, rocket fired) — removed at the round reset */
     consumed = false;
+    /** the pack's equipped item (at most ONE) — permanent once its deployment ended */
+    readonly items: string[] = [];
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;
     /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */

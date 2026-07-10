@@ -1,15 +1,20 @@
 import {
+    CanvasTexture,
     DoubleSide,
     Mesh,
     MeshBasicMaterial,
     PlaneGeometry,
     RingGeometry,
+    Sprite,
+    SpriteMaterial,
+    SRGBColorSpace,
     Vector3,
     type Scene,
 } from 'three';
 import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
+import { ITEMS } from './items';
 import { CELL, cellKey, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import { Unit, type GridExtent, type Team, type UnitType } from './units';
@@ -70,6 +75,8 @@ export class PlacementController {
     dispatch: ((action: Action) => boolean) | null = null;
     /** set by the game: which packs can buy their next level right now */
     levelReady: ((unit: Unit) => boolean) | null = null;
+    /** fires on every click that lands on a unit (used for item application) */
+    onSelect: ((unit: Unit) => void) | null = null;
 
     private nextUnitId = 1;
     private readonly units: Unit[] = [];
@@ -94,6 +101,9 @@ export class PlacementController {
     /** pulsing gold rings under packs with a buyable level */
     private readonly readyRings: Mesh[] = [];
     private readonly readyRingMaterial: MeshBasicMaterial;
+    /** floating item symbols over equipped packs (build phase only) */
+    private readonly itemBadges: Sprite[] = [];
+    private readonly itemBadgeMaterials = new Map<string, SpriteMaterial>();
     private readonly rectEl: HTMLDivElement;
     private rectActive = false;
     private pointer: { x: number; y: number } | null = null;
@@ -425,7 +435,63 @@ export class PlacementController {
         for (const unit of this.units) unit.update(timeSeconds);
         this.updateMovablePlates();
         this.updateReadyRings(timeSeconds);
+        this.updateItemBadges();
         this.updateMarkers();
+    }
+
+    /** small floating icon over every pack that carries an item */
+    private updateItemBadges(): void {
+        let used = 0;
+        if (this.enabled) {
+            for (const unit of this.units) {
+                if (unit.items.length === 0) continue;
+                if (unit.team !== 'player' && !unit.revealed) continue;
+                const icon = ITEMS[unit.items[0]!]?.icon ?? '?';
+                let sprite = this.itemBadges[used];
+                if (!sprite) {
+                    sprite = new Sprite();
+                    sprite.scale.set(2.6, 2.6, 1);
+                    this.scene.add(sprite);
+                    this.itemBadges.push(sprite);
+                }
+                sprite.material = this.itemBadgeMaterial(icon);
+                sprite.position.set(
+                    unit.world.x,
+                    unit.type.meshScale * 2.6 + 2.2 + (unit.type.flying ?? 0),
+                    unit.world.z,
+                );
+                sprite.visible = true;
+                used++;
+            }
+        }
+        for (let i = used; i < this.itemBadges.length; i++) this.itemBadges[i]!.visible = false;
+    }
+
+    private itemBadgeMaterial(icon: string): SpriteMaterial {
+        let material = this.itemBadgeMaterials.get(icon);
+        if (!material) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d')!;
+            ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
+            ctx.beginPath();
+            ctx.roundRect(4, 4, 56, 56, 12);
+            ctx.fill();
+            ctx.strokeStyle = '#b89020';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.fillStyle = '#ffe878';
+            ctx.font = '36px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(icon, 32, 34);
+            const texture = new CanvasTexture(canvas);
+            texture.colorSpace = SRGBColorSpace;
+            material = new SpriteMaterial({ map: texture, depthWrite: false, transparent: true });
+            this.itemBadgeMaterials.set(icon, material);
+        }
+        return material;
     }
 
     /** pulsing gold ring under every own pack whose next level is buyable */
@@ -537,6 +603,7 @@ export class PlacementController {
                 this.selectedUnit = clicked;
                 this.selectedGroup = [];
             }
+            this.onSelect?.(clicked);
             return;
         }
         // empty ground: drop the carried formation there — all packs or none

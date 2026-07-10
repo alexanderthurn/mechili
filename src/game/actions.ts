@@ -1,4 +1,5 @@
 import { START_CARDS, type SpecialityId } from './cards';
+import { ITEMS } from './items';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
 import type {
@@ -92,11 +93,18 @@ export interface BuyBoostAction {
     team: Team;
     boost: 'attack' | 'hp';
 }
-/** the pre-round-1 loadout pick: starting army + HP + permanent speciality */
+/** the pre-round-1 specialist pick: starting army + HP + speciality + items */
 export interface ChooseCardAction {
     kind: 'chooseCard';
     team: Team;
     cardId: string;
+}
+/** equips an inventory item onto a pack — permanent once the deployment ends */
+export interface ApplyItemAction {
+    kind: 'applyItem';
+    team: Team;
+    unitId: number;
+    itemId: string;
 }
 export interface EndDeploymentAction {
     kind: 'endDeployment';
@@ -117,6 +125,7 @@ export type Action =
     | BuyDeploySlotAction
     | BuyBoostAction
     | ChooseCardAction
+    | ApplyItemAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -138,9 +147,10 @@ interface LogEntry extends LoggedAction {
     from?: Cell;
     /** buyLevel: banked XP before the purchase */
     xpBefore?: number;
-    /** chooseCard: the spawned starting army + the HP it replaced */
+    /** chooseCard: the spawned starting army + the HP it replaced + granted items */
     units?: Unit[];
     prevHp?: number;
+    grantedItems?: string[];
 }
 
 export interface ActionContext {
@@ -165,6 +175,8 @@ export interface ActionContext {
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
     /** each side's chosen card speciality (null until the pick) */
     speciality: Record<Team, SpecialityId | null>;
+    /** each side's UNEQUIPPED pack items (item ids; duplicates stack) */
+    items: Record<Team, string[]>;
     /** player HP pools (cards set the starting value) */
     hp: { get: (team: Team) => number; set: (team: Team, hp: number) => void };
     /** current round + seconds into its build phase, stamped onto log entries */
@@ -394,6 +406,22 @@ export class ActionDispatcher {
                     unit.deployedRound = 1;
                     entry.units.push(unit);
                 }
+                if (card.items) {
+                    this.ctx.items[action.team].push(...card.items);
+                    entry.grantedItems = [...card.items];
+                }
+                return true;
+            }
+            case 'applyItem': {
+                const unit = placement.unitById(action.unitId);
+                if (!unit || unit.team !== action.team || unit.type.structure) return false;
+                if (unit.items.length > 0) return false; // exactly ONE item per pack
+                if (!ITEMS[action.itemId]) return false;
+                const inventory = this.ctx.items[action.team];
+                const held = inventory.indexOf(action.itemId);
+                if (held < 0) return false;
+                inventory.splice(held, 1);
+                unit.items.push(action.itemId);
                 return true;
             }
             case 'endDeployment': {
@@ -466,11 +494,24 @@ export class ActionDispatcher {
                 this.ctx.boostState[action.boost][action.team]--;
                 economy.credit(action.team, e.paid!);
                 break;
-            case 'chooseCard':
+            case 'chooseCard': {
                 for (const unit of e.units!) placement.removeUnit(unit);
+                const inventory = this.ctx.items[action.team];
+                for (const id of e.grantedItems ?? []) {
+                    const held = inventory.indexOf(id);
+                    if (held >= 0) inventory.splice(held, 1);
+                }
                 this.ctx.hp.set(action.team, e.prevHp!);
                 this.ctx.speciality[action.team] = null;
                 break;
+            }
+            case 'applyItem': {
+                const unit = placement.unitById(action.unitId)!;
+                const worn = unit.items.lastIndexOf(action.itemId);
+                if (worn >= 0) unit.items.splice(worn, 1);
+                this.ctx.items[action.team].push(action.itemId);
+                break;
+            }
             case 'endDeployment':
                 break; // closes a round — never sits in an undoable tail
         }
