@@ -16,6 +16,12 @@ export interface GameSettings {
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
+    /**
+     * Seeds all match randomness (enemy AI decisions). A replay of the same
+     * actions with the same seed reproduces the game exactly. Unset = the
+     * game rolls one at startup.
+     */
+    seed?: number;
 }
 
 export interface LevelingSettings {
@@ -115,8 +121,8 @@ export class Economy {
         return true;
     }
 
-    /** direct balance write — used by build-phase undo */
-    setBalance(team: Team, amount: number): void {
-        this.balances[team] = amount;
+    /** pays an amount back (action undo refunds) */
+    credit(team: Team, amount: number): void {
+        this.balances[team] += amount;
     }
 }

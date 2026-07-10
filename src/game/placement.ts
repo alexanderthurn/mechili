@@ -9,6 +9,7 @@ import {
 } from 'three';
 import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
+import type { Action } from './actions';
 import { CELL, cellKey, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import { Unit, type GridExtent, type Team, type UnitType } from './units';
@@ -62,7 +63,13 @@ export class PlacementController {
     selectedUnit: Unit | null = null;
     /** effective attack range of a pack (tech-resolved), for the range circle */
     rangeOf: ((unit: Unit) => number) | null = null;
+    /**
+     * every user commit (move, group move, rotate) leaves as an action here —
+     * the controller itself never mutates the board directly
+     */
+    dispatch: ((action: Action) => boolean) | null = null;
 
+    private nextUnitId = 1;
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
     private readonly hoverMesh: Mesh;
@@ -183,22 +190,26 @@ export class PlacementController {
         for (const u of this.selectedGroup) u.view.position.copy(u.world);
     }
 
-    /** a pack may be repositioned only in the round it was bought */
+    /** repositioning is allowed only in the round the pack was deployed */
+    canReposition(unit: Unit): boolean {
+        return !unit.type.structure && unit.deployedRound === this.currentRound;
+    }
+
+    /** what the local player may pick up and carry */
     isMovable(unit: Unit): boolean {
-        return (
-            unit.team === 'player' &&
-            !unit.type.structure &&
-            unit.deployedRound === this.currentRound
-        );
+        return unit.team === 'player' && this.canReposition(unit);
+    }
+
+    unitById(id: number): Unit | null {
+        return this.units.find((u) => u.id === id) ?? null;
     }
 
     /**
-     * Buys a unit and drops it at the first free valid spot, searching in
-     * rings outward from the center of the player's main zone. It arrives
-     * deselected — click it to pick it up and move it.
+     * First free valid spot for a new player pack, searching in rings
+     * outward from the center of the player's main zone — resolved BEFORE
+     * the buy action is created, so the action carries a concrete anchor.
      */
-    buy(type: UnitType): Unit | null {
-        if (!this.enabled || !this.economy.canAfford('player', type)) return null;
+    findBuySpot(type: UnitType): Cell | null {
         const centerCol = Math.floor(this.map.cols / 2);
         const centerRow = Math.floor(this.map.size.zoneRows / 2);
         const maxRadius = Math.max(this.map.cols, this.map.rows);
@@ -210,29 +221,52 @@ export class PlacementController {
                         col: centerCol + dc,
                         row: centerRow + dr,
                     });
-                    if (!this.canPlaceNew(type, false, anchor)) continue;
-                    const unit = this.spawn(type, anchor, 'player', false);
-                    if (unit) return unit;
+                    if (this.canPlaceNew(type, false, anchor)) return anchor;
                 }
             }
         }
         return null;
     }
 
-    /** Rotates the selected (movable) pack in place when its rotated footprint fits. */
+    /** Middle click: leaves as a rotate action for the selected movable pack. */
     rotateSelected(): void {
         if (this.selectedGroup.length > 1) return; // formations don't rotate
         const unit = this.selectedUnit;
         if (!unit || !this.enabled || !this.isMovable(unit)) return;
+        this.dispatch?.({ kind: 'rotate', team: unit.team, unitId: unit.id });
+    }
+
+    /** Rotates a pack in place when its rotated footprint fits (dispatcher-only). */
+    rotateUnit(unit: Unit): boolean {
         const rotated = !unit.rotated;
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, unit.cell);
-        if (!cells || !cells.every((c) => this.map.isPlayerCell(c) && this.freeFor(c, unit))) return;
+        if (!cells || !cells.every((c) => this.zoneCell(unit.team, c) && this.freeFor(c, unit))) {
+            return false;
+        }
         this.release(unit);
         unit.setRotated(rotated);
         unit.moveTo(unit.cell, this.map.areaCenter(unit.cell, fp.cols, fp.rows));
         for (const c of cells) this.occupied.set(cellKey(c), unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
+        return true;
+    }
+
+    /** a tile a team may deploy on */
+    private zoneCell(team: Team, cell: Cell): boolean {
+        return team === 'player' ? this.map.isPlayerCell(cell) : this.map.isEnemyCell(cell);
+    }
+
+    /**
+     * Zone-validated placement for a buy action: the anchor must lie fully
+     * in the buyer's territory and be free; spawning charges the cost.
+     */
+    placeUnit(team: Team, type: UnitType, anchor: Cell, rotated: boolean): Unit | null {
+        const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
+        const valid =
+            cells !== null &&
+            cells.every((c) => this.zoneCell(team, c) && !this.occupied.has(cellKey(c)));
+        return valid ? this.spawn(type, anchor, team, rotated) : null;
     }
 
     /** Places a unit with its footprint anchored at `anchor` (no zone validation — callers validate). */
@@ -242,6 +276,7 @@ export class PlacementController {
         if (!cells || cells.some((c) => this.occupied.has(cellKey(c)))) return null;
         if (!this.economy.charge(team, type)) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
+        unit.id = this.nextUnitId++;
         unit.deployedRound = this.currentRound;
         if (this.hiddenPlacements) {
             unit.revealed = false;
@@ -259,20 +294,21 @@ export class PlacementController {
     }
 
     /**
-     * Places an enemy unit at a random valid spot in its zones, with a
-     * formation instinct: melee prefers the front line (low rows, toward the
-     * player), ranged prefers the back.
+     * A valid spot for an enemy unit in its zones, with a formation
+     * instinct: melee prefers the front line (low rows, toward the player),
+     * ranged prefers the back. Search only — the AI dispatches a buy action
+     * with the result. Randomness comes from the match RNG for determinism.
      */
-    spawnEnemyRandom(type: UnitType): Unit | null {
+    findEnemySpot(type: UnitType, rng: () => number): { anchor: Cell; rotated: boolean } | null {
         const preferFront = type.range < 10;
         let best: { anchor: Cell; rotated: boolean } | null = null;
         let found = 0;
         for (let attempt = 0; attempt < 80 && found < 4; attempt++) {
-            const rotated = Math.random() < 0.5;
+            const rotated = rng() < 0.5;
             const fp = this.footprintOf(type, rotated);
             const anchor = {
-                col: Math.floor(Math.random() * (this.map.cols - fp.cols + 1)),
-                row: Math.floor(Math.random() * (this.map.rows - fp.rows + 1)),
+                col: Math.floor(rng() * (this.map.cols - fp.cols + 1)),
+                row: Math.floor(rng() * (this.map.rows - fp.rows + 1)),
             };
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
@@ -285,36 +321,10 @@ export class PlacementController {
                 best = { anchor, rotated };
             }
         }
-        return best ? this.spawn(type, best.anchor, 'enemy', best.rotated) : null;
+        return best;
     }
 
-    /** every mobile player pack's committed placement — the undo baseline */
-    snapshotPositions(): { unit: Unit; cell: Cell; rotated: boolean }[] {
-        return this.units
-            .filter((u) => u.team === 'player' && !u.type.structure)
-            .map((u) => ({ unit: u, cell: { ...u.cell }, rotated: u.rotated }));
-    }
-
-    /**
-     * Puts every still-fielded pack of the snapshot back on its recorded
-     * spot. The snapshot was a valid board state, so releasing all of them
-     * first makes the restore always succeed.
-     */
-    restorePositions(snapshot: readonly { unit: Unit; cell: Cell; rotated: boolean }[]): void {
-        const live = snapshot.filter((s) => this.units.includes(s.unit));
-        for (const s of live) this.release(s.unit);
-        for (const s of live) {
-            s.unit.setRotated(s.rotated);
-            const fp = this.footprintOf(s.unit.type, s.rotated);
-            s.unit.moveTo(s.cell, this.map.areaCenter(s.cell, fp.cols, fp.rows));
-            for (const c of this.coveredCells(fp, s.cell)!) this.occupied.set(cellKey(c), s.unit);
-        }
-        for (const s of live) {
-            s.unit.faceClosestOf(this.opponentMechPositions(s.unit.team, s.unit));
-        }
-    }
-
-    /** Removes a unit from the board entirely (build-phase undo). */
+    /** Removes a unit from the board entirely (buy-action undo). */
     removeUnit(unit: Unit): void {
         if (this.selectedUnit === unit) this.selectedUnit = null;
         this.selectedGroup = this.selectedGroup.filter((u) => u !== unit);
@@ -400,13 +410,27 @@ export class PlacementController {
         }
         // empty ground: drop the carried formation there — all packs or none
         if (this.selectedGroup.length > 1) {
-            if (this.tryMoveGroup(cell)) this.deselect();
+            const center = this.groupCenterCell();
+            const done = this.dispatch?.({
+                kind: 'moveGroup',
+                team: 'player',
+                unitIds: this.selectedGroup.map((u) => u.id),
+                dc: cell.col - center.col,
+                dr: cell.row - center.row,
+            });
+            if (done) this.deselect();
             return;
         }
         // empty ground: drop the carried pack there — a successful drop releases it
         if (this.selectedUnit && this.isMovable(this.selectedUnit)) {
             const anchor = this.centeredAnchor(this.selectedUnit.type, this.selectedUnit.rotated, cell);
-            if (this.tryMove(this.selectedUnit, anchor)) this.deselect();
+            const done = this.dispatch?.({
+                kind: 'move',
+                team: 'player',
+                unitId: this.selectedUnit.id,
+                anchor,
+            });
+            if (done) this.deselect();
         } else {
             this.deselect();
         }
@@ -478,48 +502,46 @@ export class PlacementController {
     }
 
     /** a group target spot may reuse cells the group itself is vacating */
-    private groupSpotValid(unit: Unit, anchor: Cell): boolean {
+    private groupSpotValid(unit: Unit, anchor: Cell, group: readonly Unit[]): boolean {
         const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), anchor);
         return (
             cells !== null &&
             cells.every((c) => {
-                if (!this.map.isPlayerCell(c)) return false;
+                if (!this.zoneCell(unit.team, c)) return false;
                 const holder = this.occupied.get(cellKey(c));
-                return holder === undefined || holder === unit || this.selectedGroup.includes(holder);
+                return holder === undefined || holder === unit || group.includes(holder);
             })
         );
     }
 
     /**
-     * Translates the whole formation by the same cell delta (shape preserved,
-     * so members can't collide with each other). All spots must be valid.
+     * Translates a formation by one cell delta (shape preserved, so members
+     * can't collide with each other). All spots must be valid, or nothing
+     * moves (dispatcher-only).
      */
-    private tryMoveGroup(cell: Cell): boolean {
-        const center = this.groupCenterCell();
-        const dc = cell.col - center.col;
-        const dr = cell.row - center.row;
-        const anchors = this.selectedGroup.map((u) => ({
-            col: u.cell.col + dc,
-            row: u.cell.row + dr,
-        }));
-        if (!this.selectedGroup.every((u, i) => this.groupSpotValid(u, anchors[i]!))) return false;
-        for (const u of this.selectedGroup) this.release(u);
-        this.selectedGroup.forEach((u, i) => {
+    moveUnits(units: readonly Unit[], dc: number, dr: number): boolean {
+        const anchors = units.map((u) => ({ col: u.cell.col + dc, row: u.cell.row + dr }));
+        if (!units.every((u, i) => this.groupSpotValid(u, anchors[i]!, units))) return false;
+        for (const u of units) this.release(u);
+        units.forEach((u, i) => {
             const fp = this.footprintOf(u.type, u.rotated);
             const anchor = anchors[i]!;
             u.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
             for (const c of this.coveredCells(fp, anchor)!) this.occupied.set(cellKey(c), u);
         });
-        for (const u of this.selectedGroup) {
+        for (const u of units) {
             u.faceClosestOf(this.opponentMechPositions(u.team, u));
         }
         return true;
     }
 
-    private tryMove(unit: Unit, anchor: Cell): boolean {
+    /** Repositions one pack when the target fits its team's zones (dispatcher-only). */
+    moveUnit(unit: Unit, anchor: Cell): boolean {
         const fp = this.footprintOf(unit.type, unit.rotated);
         const cells = this.coveredCells(fp, anchor);
-        if (!cells || !cells.every((c) => this.map.isPlayerCell(c) && this.freeFor(c, unit))) return false;
+        if (!cells || !cells.every((c) => this.zoneCell(unit.team, c) && this.freeFor(c, unit))) {
+            return false;
+        }
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         for (const c of cells) this.occupied.set(cellKey(c), unit);
@@ -677,7 +699,11 @@ export class PlacementController {
             plate.position.set(center.x, 0.035, center.z);
             plate.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
             (plate.material as MeshBasicMaterial).color.setHex(
-                delta ? (this.groupSpotValid(unit, anchor) ? VALID_COLOR : INVALID_COLOR) : SELECT_COLOR,
+                delta
+                    ? this.groupSpotValid(unit, anchor, units)
+                        ? VALID_COLOR
+                        : INVALID_COLOR
+                    : SELECT_COLOR,
             );
             plate.visible = true;
         }

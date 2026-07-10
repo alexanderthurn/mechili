@@ -11,26 +11,18 @@ import {
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
-import { BattleMap, type Cell } from './map';
+import { ActionDispatcher, type LoggedAction } from './actions';
+import { BattleMap, mulberry32 } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import { createRangeRing, PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim, type Actor } from './sim';
 import { TechTree } from './tech';
-import { TOWER_TYPE, UNIT_TYPES, type Unit } from './units';
+import { TOWER_TYPE, UNIT_TYPES, type Unit, type UnitType } from './units';
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
-
-/** one deployment, as the future replay system will need it */
-interface DeploymentRecord {
-    round: number;
-    team: string;
-    typeId: string;
-    anchor: Cell;
-    rotated: boolean;
-}
 
 /**
  * The battlefield scene: a real three.js world (ground, lights, shadows,
@@ -68,14 +60,11 @@ export class Game {
     private enemyHp: number;
     private matchOver = false;
     private sim: BattleSim | null = null;
-    /** player supply, techs and pack positions at build-phase start — what undo restores */
-    private roundSnapshot: {
-        supply: number;
-        techs: Map<string, Set<string>>;
-        positions: ReturnType<PlacementController['snapshotPositions']>;
-    } | null = null;
-    /** every placement ever made, in order — the seed data for the replay system */
-    private readonly deploymentLog: DeploymentRecord[] = [];
+    /** everything the player and the AI do goes through here — undo & replay source */
+    private readonly dispatcher: ActionDispatcher;
+    /** seeds all match randomness (AI decisions); part of the replay header */
+    private readonly seed: number;
+    private readonly rng: () => number;
 
     constructor(
         private readonly pixiApp: Application,
@@ -125,6 +114,21 @@ export class Game {
         this.rig.fitMap(this.map.width, this.map.height);
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
+        this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+        this.rng = mulberry32(this.seed);
+        this.dispatcher = new ActionDispatcher({
+            placement: this.placement,
+            economy: this.economy,
+            techTree: this.techTree,
+            clock: () => ({
+                round: this.round,
+                t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
+            }),
+            onEndDeployment: () => {
+                if (this.phase === 'build' && !this.matchOver) this.startBattlePhase();
+            },
+        });
+        this.placement.dispatch = (action) => this.dispatcher.dispatch(action);
         this.controls.onMiddleClick = () => this.placement.rotateSelected();
         this.placement.rangeOf = (unit) => this.techTree.statsFor(unit.team, unit.type).range;
         this.controls.onRightClick = () => {
@@ -141,21 +145,27 @@ export class Game {
             pixiApp,
             wrapper,
             (type) => this.economy.costOf(type),
-            (type) => this.placement.buy(type),
+            (type) => this.buyUnit(type),
         );
         this.hud.onEndDeployment = () => {
-            if (this.phase === 'build') this.startBattlePhase();
+            if (this.phase === 'build') {
+                this.dispatcher.dispatch({ kind: 'endDeployment', team: 'player' });
+            }
         };
         this.hud.onToggleSpeed = () => {
             this.speedIndex = (this.speedIndex + 1) % Game.SPEED_STEPS.length;
             this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
         };
-        this.hud.onUndo = () => this.undoRound();
+        this.hud.onUndo = () => this.undoLast();
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
-            const tech = unit.type.techs.find((t) => t.id === techId);
-            if (tech) this.techTree.buy('player', unit.type, tech, this.economy);
+            this.dispatcher.dispatch({
+                kind: 'buyTech',
+                team: 'player',
+                typeId: unit.type.id,
+                techId,
+            });
         };
         this.debug = new DebugOverlay(this.hud.mode);
         pixiApp.stage.addChild(this.hpBars.view, this.debug.view);
@@ -214,62 +224,80 @@ export class Game {
         }
         this.gridOverlay.visible = true;
         this.economy.grantRoundIncome(this.round);
-        // undo restores to right after income, before any spending or moving
-        this.roundSnapshot = {
-            supply: this.economy.balance('player'),
-            techs: this.techTree.snapshot('player'),
-            positions: this.placement.snapshotPositions(),
-        };
-        // the enemy sometimes techs up before spending the rest on units
-        if (this.round >= 2 && Math.random() < 0.6) {
-            const type = UNIT_TYPES[Math.floor(Math.random() * UNIT_TYPES.length)]!;
+        // the enemy AI acts through the same action system as the player,
+        // with all randomness drawn from the seeded match RNG — so its whole
+        // round is deterministic AND recorded
+        // it sometimes techs up before spending the rest on units
+        if (this.round >= 2 && this.rng() < 0.6) {
+            const type = UNIT_TYPES[Math.floor(this.rng() * UNIT_TYPES.length)]!;
             const unowned = type.techs.filter((t) => !this.techTree.has('enemy', type.id, t.id));
-            const tech = unowned[Math.floor(Math.random() * unowned.length)];
+            const tech = unowned[Math.floor(this.rng() * unowned.length)];
             if (tech && this.economy.balance('enemy') >= tech.cost + 200) {
-                this.techTree.buy('enemy', type, tech, this.economy);
+                this.dispatcher.dispatch({
+                    kind: 'buyTech',
+                    team: 'enemy',
+                    typeId: type.id,
+                    techId: tech.id,
+                });
             }
         }
-        // the enemy also deploys this round — invisible to the player until
-        // battle, spending its own supply on random affordable units
+        // it also deploys this round — invisible to the player until battle,
+        // spending its own supply on random affordable units
         for (let guard = 0; guard < 30; guard++) {
             const affordable = UNIT_TYPES.filter((t) => this.economy.canAfford('enemy', t));
             if (affordable.length === 0) break;
-            const type = affordable[Math.floor(Math.random() * affordable.length)]!;
-            if (!this.placement.spawnEnemyRandom(type)) break; // no space left
+            const type = affordable[Math.floor(this.rng() * affordable.length)]!;
+            const spot = this.placement.findEnemySpot(type, this.rng);
+            if (!spot) break; // no space left
+            const done = this.dispatcher.dispatch({
+                kind: 'buy',
+                team: 'enemy',
+                typeId: type.id,
+                anchor: spot.anchor,
+                rotated: spot.rotated,
+            });
+            if (!done) break;
         }
+    }
+
+    /** HUD buy button: resolve a spawn spot, then run it through the action system */
+    private buyUnit(type: UnitType): void {
+        if (this.phase !== 'build' || this.matchOver) return;
+        if (!this.economy.canAfford('player', type)) return;
+        const anchor = this.placement.findBuySpot(type);
+        if (!anchor) return;
+        this.dispatcher.dispatch({
+            kind: 'buy',
+            team: 'player',
+            typeId: type.id,
+            anchor,
+            rotated: false,
+        });
     }
 
     /**
-     * The undo button: reverts every player action of the running build
-     * phase — units bought this round vanish, everything else returns to its
-     * round-start spot, supply and techs return to their post-income state.
-     * Earlier rounds are never touched.
+     * The undo button: reverts the player's most recent action of the
+     * running build phase — click repeatedly to peel back further. Enemy
+     * actions and earlier rounds are never touched.
      */
-    private undoRound(): void {
-        if (this.phase !== 'build' || this.matchOver || !this.roundSnapshot) return;
+    private undoLast(): void {
+        if (!this.canUndo()) return;
         this.placement.deselect();
-        for (const u of [...this.placement.allUnits()]) {
-            if (u.team === 'player' && u.deployedRound === this.round) this.placement.removeUnit(u);
-        }
-        this.placement.restorePositions(this.roundSnapshot.positions);
-        this.economy.setBalance('player', this.roundSnapshot.supply);
-        this.techTree.restore('player', this.roundSnapshot.techs);
+        this.dispatcher.undoLast(this.round, 'player');
     }
 
-    /** true when the running build phase differs from its snapshot in any way */
     private canUndo(): boolean {
-        const snap = this.roundSnapshot;
-        if (this.phase !== 'build' || this.matchOver || !snap) return false;
-        if (this.economy.balance('player') !== snap.supply) return true; // bought units or techs
-        for (const u of this.placement.allUnits()) {
-            if (u.team === 'player' && u.deployedRound === this.round) return true;
-        }
-        return snap.positions.some(
-            (s) =>
-                s.unit.cell.col !== s.cell.col ||
-                s.unit.cell.row !== s.cell.row ||
-                s.unit.rotated !== s.rotated,
-        );
+        return this.phase === 'build' && !this.matchOver && this.dispatcher.canUndo(this.round, 'player');
+    }
+
+    /** the whole match as data: the same seed + actions reproduce it exactly */
+    exportReplay(): { version: number; seed: number; settings: GameSettings; actions: LoggedAction[] } {
+        return {
+            version: 1,
+            seed: this.seed,
+            settings: this.settings,
+            actions: this.dispatcher.serializable(),
+        };
     }
 
     /** Everything is revealed and the sim takes over; the player can only watch. */
@@ -281,18 +309,6 @@ export class Game {
         this.placement.deselect();
         this.gridOverlay.visible = false;
         this.placement.revealAll();
-        // snapshot this round's deployments with their FINAL positions (they
-        // may have been moved around) — the seed data for the replay system
-        for (const u of this.placement.allUnits()) {
-            if (u.deployedRound !== this.round) continue;
-            this.deploymentLog.push({
-                round: this.round,
-                team: u.team,
-                typeId: u.type.id,
-                anchor: { ...u.cell },
-                rotated: u.rotated,
-            });
-        }
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
@@ -375,11 +391,17 @@ export class Game {
         if (!this.matchOver) {
             this.phaseRemaining -= gameDt;
             if (this.phase === 'build') {
-                if (this.phaseRemaining <= 0) this.startBattlePhase();
+                // the timer ends the round like the button would — as an action
+                if (this.phaseRemaining <= 0) {
+                    this.dispatcher.dispatch({ kind: 'endDeployment', team: 'player' });
+                }
             } else if (this.sim) {
                 this.sim.update(gameDt);
                 this.particles.spawnFromEvents(this.sim.consumeEvents());
                 this.projectileRenderer.update(this.sim.projectiles);
+                // the battle clock is the sim's own fixed-step time, so the
+                // timeout cutoff is deterministic and replay-exact
+                this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
                 if (this.phaseRemaining <= 0 || this.sim.isOver) this.endBattlePhase();
             }
         }

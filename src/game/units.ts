@@ -309,6 +309,8 @@ export const UNIT_TYPES: UnitType[] = [
  * `world` the center of the footprint rectangle.
  */
 export class Unit {
+    /** stable per-match id, assigned at spawn — actions reference units by this */
+    id = 0;
     readonly view = new Group();
     /**
      * false while the owner is still in a build phase: opponents can't see the
@@ -468,4 +470,10 @@ export class Unit {
 
 function swapExtent(e: GridExtent): GridExtent {
     return { cols: e.rows, rows: e.cols };
+}
+
+/** type lookup by id — actions and replays store unit types as strings */
+export function unitTypeById(id: string): UnitType | null {
+    if (id === TOWER_TYPE.id) return TOWER_TYPE;
+    return UNIT_TYPES.find((t) => t.id === id) ?? null;
 }

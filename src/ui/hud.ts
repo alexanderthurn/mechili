@@ -135,7 +135,7 @@ export class Hud {
         this.undoEl = document.createElement('button');
         this.undoEl.className = 'undo';
         this.undoEl.textContent = '↩ Undo';
-        this.undoEl.title = 'Revert everything placed, moved and bought this round';
+        this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';

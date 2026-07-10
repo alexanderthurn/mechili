@@ -85,6 +85,8 @@ export class BattleSim {
 
     readonly actors: Actor[] = [];
     readonly projectiles: Projectile[] = [];
+    /** fixed-step time simulated so far — the deterministic battle clock */
+    elapsed = 0;
     private events: SimEvent[] = [];
     private accumulator = 0;
     /** destroyed towers per side (pre-battle + during battle) drive the debuffs */
@@ -237,6 +239,7 @@ export class BattleSim {
     }
 
     private step(dt: number): void {
+        this.elapsed += dt;
         const d = this.config.towers.debuffPerLostTower;
         this.rebuildHash();
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);

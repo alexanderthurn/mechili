@@ -11,6 +11,8 @@ function settingsFromUrl(): GameSettings {
     if (hp > 0) settings.startingHp = hp;
     const build = Number(params.get('build'));
     if (build > 0) settings.buildTimeSeconds = build;
+    const seed = Number(params.get('seed'));
+    if (seed > 0) settings.seed = seed; // reproducible match (AI plays identically)
     return settings;
 }
 

@@ -60,15 +60,8 @@ export class TechTree {
         return stats;
     }
 
-    /** snapshot of a side's owned techs (for build-phase undo) */
-    snapshot(team: Team): Map<string, Set<string>> {
-        const copy = new Map<string, Set<string>>();
-        for (const [typeId, set] of this.owned[team]) copy.set(typeId, new Set(set));
-        return copy;
-    }
-
-    restore(team: Team, snapshot: Map<string, Set<string>>): void {
-        this.owned[team].clear();
-        for (const [typeId, set] of snapshot) this.owned[team].set(typeId, new Set(set));
+    /** forgets an owned tech (action undo) — refunding is the caller's job */
+    remove(team: Team, typeId: string, techId: string): void {
+        this.ownedFor(team, typeId).delete(techId);
     }
 }
