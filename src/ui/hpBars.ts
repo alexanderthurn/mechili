@@ -45,7 +45,8 @@ export class HpBars {
     ): void {
         const t = a.unit.type;
         const barY = a.altitude + (t.structure ? t.meshScale * 4.2 : t.meshScale * 2.2 + 1);
-        this.tmp.set(a.x, barY, a.z).project(camera);
+        // rx/rz = interpolated render position, so bars stay glued to meshes
+        this.tmp.set(a.rx, barY, a.rz).project(camera);
         if (this.tmp.z > 1 || this.tmp.z < -1) return;
         const sx = (this.tmp.x + 1) * 0.5 * width;
         const sy = (1 - this.tmp.y) * 0.5 * height;

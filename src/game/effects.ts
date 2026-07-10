@@ -150,11 +150,16 @@ export class ProjectileRenderer {
         scene.add(this.mesh);
     }
 
-    update(projectiles: readonly Projectile[]): void {
+    /** `alpha` interpolates between the last two sim steps for smooth flight */
+    update(projectiles: readonly Projectile[], alpha = 1): void {
         const count = Math.min(projectiles.length, MAX_PROJECTILES);
         for (let i = 0; i < count; i++) {
             const p = projectiles[i]!;
-            this.matrix.makeTranslation(p.x, p.y, p.z);
+            this.matrix.makeTranslation(
+                p.px + (p.x - p.px) * alpha,
+                p.py + (p.y - p.py) * alpha,
+                p.pz + (p.z - p.pz) * alpha,
+            );
             this.mesh.setMatrixAt(i, this.matrix);
         }
         this.mesh.count = count;

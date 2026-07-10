@@ -17,6 +17,12 @@ export interface Actor {
     mesh: Group;
     x: number;
     z: number;
+    /** position one sim step ago — the render interpolation baseline */
+    prevX: number;
+    prevZ: number;
+    /** interpolated render position (updated in syncMeshes) — use for anything on screen */
+    rx: number;
+    rz: number;
     hp: number;
     /** leveled max hp (grows on mid-battle level-ups) */
     maxHp: number;
@@ -40,6 +46,10 @@ export interface Projectile {
     x: number;
     y: number;
     z: number;
+    /** position one sim step ago, for render interpolation */
+    px: number;
+    py: number;
+    pz: number;
     vx: number;
     vy: number;
     vz: number;
@@ -109,11 +119,17 @@ export class BattleSim {
             const stats = config.statsOf(unit);
             this.resolved.set(unit, stats);
             unit.members.forEach((m, i) => {
+                const x = unit.world.x + m.home.x;
+                const z = unit.world.z + m.home.z;
                 this.actors.push({
                     unit,
                     mesh: m.mesh,
-                    x: unit.world.x + m.home.x,
-                    z: unit.world.z + m.home.z,
+                    x,
+                    z,
+                    prevX: x,
+                    prevZ: z,
+                    rx: x,
+                    rz: z,
                     hp: stats.hp * this.levelMult(unit),
                     maxHp: stats.hp * this.levelMult(unit),
                     // deterministic stagger so squads don't fire in one frame
@@ -240,6 +256,16 @@ export class BattleSim {
 
     private step(dt: number): void {
         this.elapsed += dt;
+        // remember where everything stood — rendering interpolates prev -> current
+        for (const a of this.actors) {
+            a.prevX = a.x;
+            a.prevZ = a.z;
+        }
+        for (const p of this.projectiles) {
+            p.px = p.x;
+            p.py = p.y;
+            p.pz = p.z;
+        }
         const d = this.config.towers.debuffPerLostTower;
         this.rebuildHash();
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
@@ -353,7 +379,6 @@ export class BattleSim {
         }
 
         this.resolveOverlaps();
-        this.syncMeshes();
         this.stepProjectiles(dt);
     }
 
@@ -376,6 +401,9 @@ export class BattleSim {
             x: mx,
             y: muzzleY,
             z: mz,
+            px: mx,
+            py: muzzleY,
+            pz: mz,
             vx: (dx / len) * speed,
             vy: (dy / len) * speed,
             vz: (dz / len) * speed,
@@ -500,11 +528,24 @@ export class BattleSim {
         b.z -= nz * overlap * (1 - shareA);
     }
 
-    private syncMeshes(): void {
+    /** leftover fraction of a step not yet simulated — the interpolation weight */
+    get alpha(): number {
+        return this.accumulator / BattleSim.STEP;
+    }
+
+    /**
+     * Called once per RENDERED frame (not per step): places meshes at
+     * positions interpolated between the last two sim steps, so 30 Hz
+     * simulation renders smoothly at any display rate and any game speed.
+     */
+    syncMeshes(): void {
+        const alpha = this.alpha;
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            a.mesh.position.x = a.x - a.unit.world.x;
-            a.mesh.position.z = a.z - a.unit.world.z;
+            a.rx = a.prevX + (a.x - a.prevX) * alpha;
+            a.rz = a.prevZ + (a.z - a.prevZ) * alpha;
+            a.mesh.position.x = a.rx - a.unit.world.x;
+            a.mesh.position.z = a.rz - a.unit.world.z;
         }
     }
 

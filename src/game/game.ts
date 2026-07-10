@@ -398,7 +398,8 @@ export class Game {
             } else if (this.sim) {
                 this.sim.update(gameDt);
                 this.particles.spawnFromEvents(this.sim.consumeEvents());
-                this.projectileRenderer.update(this.sim.projectiles);
+                this.sim.syncMeshes(); // per-frame interpolated positions
+                this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 // the battle clock is the sim's own fixed-step time, so the
                 // timeout cutoff is deterministic and replay-exact
                 this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
@@ -435,7 +436,7 @@ export class Game {
         for (const a of this.sim.actors) {
             if (!a.alive) continue;
             const t = a.unit.type;
-            const screen = this.rig.worldToScreen(a.x, a.altitude + t.meshScale * 0.55, a.z, w, h);
+            const screen = this.rig.worldToScreen(a.rx, a.altitude + t.meshScale * 0.55, a.rz, w, h);
             if (!screen) continue;
             const d = Math.hypot(screen.x - sx, screen.y - sy);
             const pickRadius = Math.max(20, t.meshScale * 16);
@@ -454,7 +455,7 @@ export class Game {
         if (!a) return;
         const radius =
             this.techTree.statsFor(a.unit.team, a.unit.type).range + a.unit.type.collisionRadius;
-        this.battleRangeMesh.position.set(a.x, 0.05, a.z);
+        this.battleRangeMesh.position.set(a.rx, 0.05, a.rz);
         this.battleRangeMesh.scale.set(radius, 1, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
         material.color.setHex(a.unit.team === 'player' ? THEME.valid : THEME.enemy);
