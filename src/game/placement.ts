@@ -92,6 +92,12 @@ export class PlacementController {
     /** a board extra being click-placed: rides the cursor, bought on click */
     private pendingType: UnitType | null = null;
     private pendingUnit: Unit | null = null;
+    /**
+     * Mechabellum-style pickup: the first click on a movable pack only
+     * SELECTS it (info, range); a second click on it picks it up so it rides
+     * the cursor. Clicking ground moves the selection either way.
+     */
+    private carryingSelected = false;
     /** rect-selected movable packs (2+); a single selection uses selectedUnit */
     private selectedGroup: Unit[] = [];
     /** movable packs currently inside the rubber-band, live while dragging */
@@ -209,6 +215,7 @@ export class PlacementController {
         this.restoreSelectedView();
         this.selectedUnit = null;
         this.selectedGroup = [];
+        this.carryingSelected = false;
     }
 
     /**
@@ -594,14 +601,33 @@ export class PlacementController {
         // while carrying, a click on an extra's tiles means "drop here", not "select it"
         const carrying =
             this.selectedGroup.length > 1 ||
-            (this.selectedUnit !== null && this.isMovable(this.selectedUnit));
+            (this.selectedUnit !== null &&
+                this.carryingSelected &&
+                this.isMovable(this.selectedUnit));
         const clicked = this.occupied.get(cellKey(cell)) ?? (carrying ? undefined : this.extraAt(cell));
         // selecting: any own pack, or a revealed enemy pack (hidden stays hidden)
         if (clicked && !clicked.destroyed && (clicked.team === 'player' || clicked.revealed)) {
-            if (clicked !== this.selectedUnit || this.selectedGroup.length > 1) {
+            if (clicked === this.selectedUnit && this.selectedGroup.length <= 1) {
+                if (this.isMovable(clicked)) {
+                    if (!this.carryingSelected) {
+                        this.carryingSelected = true; // second click picks it up
+                    } else {
+                        // carrying and clicked its own tiles: drop it right here
+                        const anchor = this.centeredAnchor(clicked.type, clicked.rotated, cell);
+                        const done = this.dispatch?.({
+                            kind: 'move',
+                            team: 'player',
+                            unitId: clicked.id,
+                            anchor,
+                        });
+                        if (done) this.carryingSelected = false; // dropped, still selected
+                    }
+                }
+            } else {
                 this.restoreSelectedView();
                 this.selectedUnit = clicked;
                 this.selectedGroup = [];
+                this.carryingSelected = false; // first click only selects
             }
             this.onSelect?.(clicked);
             return;
@@ -619,7 +645,9 @@ export class PlacementController {
             if (done) this.deselect();
             return;
         }
-        // empty ground: drop the carried pack there — a successful drop releases it
+        // empty ground, selection stays either way:
+        //  - merely selected: move there AND pick it up (rides the cursor from here)
+        //  - carrying: drop it there
         if (this.selectedUnit && this.isMovable(this.selectedUnit)) {
             const anchor = this.centeredAnchor(this.selectedUnit.type, this.selectedUnit.rotated, cell);
             const done = this.dispatch?.({
@@ -628,7 +656,7 @@ export class PlacementController {
                 unitId: this.selectedUnit.id,
                 anchor,
             });
-            if (done) this.deselect();
+            if (done) this.carryingSelected = !this.carryingSelected;
         } else {
             this.deselect();
         }
@@ -661,6 +689,7 @@ export class PlacementController {
         }
         this.selectedUnit = units[0]!;
         this.selectedGroup = units.length > 1 ? units : [];
+        this.carryingSelected = false; // rect select never picks up directly
     }
 
     /** only packs that can actually be repositioned are rect-selectable */
@@ -855,10 +884,10 @@ export class PlacementController {
         const fp = this.footprintOf(sel.type, sel.rotated);
         const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
 
-        // a movable pack is CARRIED: it rides the cursor with the preview
-        // until a click drops it (or deselecting puts it back)
+        // a PICKED-UP movable pack is carried: it rides the cursor with the
+        // preview until a click drops it (or deselecting puts it back)
         let markerCenter: Vector3;
-        if (this.isMovable(sel) && cell) {
+        if (this.carryingSelected && this.isMovable(sel) && cell) {
             const anchor = this.centeredAnchor(sel.type, sel.rotated, cell);
             const cells = this.coveredCells(fp, anchor);
             const valid =
