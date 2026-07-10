@@ -50,7 +50,7 @@ export class Game {
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
 
-    private static readonly SPEED_STEPS = [1, 2, 4, 0.5];
+    private static readonly SPEED_STEPS = [1, 2, 4, 8, 0.25, 0.5];
 
     private phase: Phase = 'build';
     private round = 0;
