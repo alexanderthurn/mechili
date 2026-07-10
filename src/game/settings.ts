@@ -50,6 +50,15 @@ export interface TowerSettings {
         attackMult: number;
         damageTakenMult: number;
     };
+    /**
+     * Towers level like units (+base hp per level) but need no XP — just
+     * supply, on a rising ladder: baseCost, +costStep per level taken.
+     */
+    upgrade: {
+        baseCost: number;
+        costStep: number;
+        maxLevel: number;
+    };
 }
 
 export interface EconomySettings {
@@ -81,6 +90,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
             speedMult: 0.6,
             attackMult: 0.7,
             damageTakenMult: 1.3,
+        },
+        upgrade: {
+            baseCost: 100, // level 2 costs 100, then 150, 200, 250
+            costStep: 50,
+            maxLevel: 5,
         },
     },
     leveling: {

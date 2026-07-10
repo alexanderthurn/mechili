@@ -193,30 +193,40 @@ function buildTower(parts: PartFactory): void {
 }
 
 /** each side's two command towers — not buyable, so not part of UNIT_TYPES */
-export const TOWER_TYPE: UnitType = {
-    id: 'tower',
-    name: 'Command Tower',
-    cost: 0,
-    // collision on the grid is 2x2; the mesh is a bit bigger and overlaps it visually
-    footprint: { cols: 2, rows: 2 },
-    formation: { cols: 1, rows: 1 },
-    meshScale: 2.4,
-    structure: true,
-    targets: { ground: false, air: false }, // towers don't shoot
-    collisionRadius: 4.5,
-    colliders: [
-        { y: 0.5, r: 1.6 },
-        { y: 1.9, r: 1.1 },
-        { y: 3.5, r: 0.8 },
-    ],
-    hp: 800,
-    damage: 0,
-    range: 0,
-    attackInterval: 1,
-    speed: 0,
-    techs: [],
-    build: buildTower,
-};
+/**
+ * The two base buildings share stats and mesh but are independent types:
+ * each carries its own role (and upgrade level). The Command Tower hosts the
+ * recruit-level switch; the Research Center's role is still open.
+ */
+function makeTower(id: string, name: string): UnitType {
+    return {
+        id,
+        name,
+        cost: 0,
+        // collision on the grid is 2x2; the mesh is a bit bigger and overlaps it visually
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 2.4,
+        structure: true,
+        targets: { ground: false, air: false }, // towers don't shoot
+        collisionRadius: 4.5,
+        colliders: [
+            { y: 0.5, r: 1.6 },
+            { y: 1.9, r: 1.1 },
+            { y: 3.5, r: 0.8 },
+        ],
+        hp: 800,
+        damage: 0,
+        range: 0,
+        attackInterval: 1,
+        speed: 0,
+        techs: [],
+        build: buildTower,
+    };
+}
+
+export const COMMAND_TOWER = makeTower('command-tower', 'Command Tower');
+export const RESEARCH_CENTER = makeTower('research-center', 'Research Center');
 
 export const UNIT_TYPES: UnitType[] = [
     {
@@ -518,6 +528,7 @@ function levelStudMaterial(index: number): MeshStandardMaterial {
 
 /** type lookup by id — actions and replays store unit types as strings */
 export function unitTypeById(id: string): UnitType | null {
-    if (id === TOWER_TYPE.id) return TOWER_TYPE;
+    if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
+    if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
 }

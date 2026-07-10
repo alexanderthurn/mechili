@@ -11,7 +11,7 @@ import {
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
-import { ActionDispatcher, levelCost, xpForNextLevel, type LoggedAction } from './actions';
+import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type LoggedAction } from './actions';
 import { BattleMap, mulberry32 } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
@@ -19,7 +19,7 @@ import { createRangeRing, PlacementController } from './placement';
 import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent } from './sim';
 import { TechTree } from './tech';
-import { TOWER_TYPE, UNIT_TYPES, type Team, type Unit, type UnitType } from './units';
+import { COMMAND_TOWER, RESEARCH_CENTER, UNIT_TYPES, type Team, type Unit, type UnitType } from './units';
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
@@ -124,6 +124,7 @@ export class Game {
             economy: this.economy,
             techTree: this.techTree,
             leveling: settings.leveling,
+            towers: settings.towers,
             recruitLevel: this.recruitLevel,
             clock: () => ({
                 round: this.round,
@@ -167,10 +168,17 @@ export class Game {
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
         this.hud.onUndo = () => this.undoLast();
         this.hud.onRecruitLevel = () => {
-            if (this.phase !== 'build') return;
+            // offered in the Command Tower's menu
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
             if (this.dispatcher.dispatch({ kind: 'recruitLevel', team: 'player' })) {
                 this.hud.refreshCosts(); // unit buttons now show the level-2 price
             }
+        };
+        this.hud.onUpgradeTower = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.structure) return;
+            this.dispatcher.dispatch({ kind: 'upgradeTower', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
@@ -221,15 +229,22 @@ export class Game {
         pixiApp.ticker.add((ticker) => this.tick(ticker.deltaMS / 1000));
     }
 
-    /** each side's two command towers, centered in its territory's depth */
+    /**
+     * Each side's two base buildings, centered in its territory's depth:
+     * the Research Center on the left, the Command Tower on the right.
+     */
     private spawnTowers(): void {
         const { flankCols, zoneCols, zoneRows } = this.map.size;
-        const fp = TOWER_TYPE.footprint;
-        const centerRow = Math.round((zoneRows - fp.rows) / 2);
-        for (const frac of [0.25, 0.75]) {
+        const buildings = [
+            { frac: 0.25, type: RESEARCH_CENTER },
+            { frac: 0.75, type: COMMAND_TOWER },
+        ];
+        for (const { frac, type } of buildings) {
+            const fp = type.footprint;
+            const centerRow = Math.round((zoneRows - fp.rows) / 2);
             const col = flankCols + Math.round(zoneCols * frac) - Math.floor(fp.cols / 2);
-            this.placement.spawn(TOWER_TYPE, { col, row: centerRow }, 'player');
-            this.placement.spawn(TOWER_TYPE, { col, row: this.map.rows - centerRow - fp.rows }, 'enemy');
+            this.placement.spawn(type, { col, row: centerRow }, 'player');
+            this.placement.spawn(type, { col, row: this.map.rows - centerRow - fp.rows }, 'enemy');
         }
     }
 
@@ -463,11 +478,6 @@ export class Game {
         this.updateSelectionUi();
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
         this.hud.setUndoVisible(this.canUndo());
-        this.hud.setRecruitState(
-            this.recruitLevel.player > 1,
-            this.settings.leveling.recruitLevel2Cost,
-            this.economy.balance('player') >= this.settings.leveling.recruitLevel2Cost,
-        );
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
@@ -552,6 +562,7 @@ export class Game {
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
             splash: a.unit.type.splashRadius,
+            structure: !!a.unit.type.structure,
             alive: 1,
             total: 1,
             level: lv.level,
@@ -578,6 +589,30 @@ export class Game {
             level: lv.level,
             xp: lv.xp,
             xpNext: lv.xpNext,
+            structure: !!u.type.structure,
+            // base buildings level for supply alone, on a rising price ladder
+            towerUpgrade:
+                u.team === 'player' && this.phase === 'build' && u.type.structure
+                    ? {
+                          cost: towerUpgradeCost(u.level, this.settings.towers),
+                          affordable:
+                              this.economy.balance('player') >=
+                              towerUpgradeCost(u.level, this.settings.towers),
+                          maxed: u.level >= this.settings.towers.upgrade.maxLevel,
+                          maxLevel: this.settings.towers.upgrade.maxLevel,
+                      }
+                    : undefined,
+            // the once-per-round level-2 recruit switch lives in the Command Tower
+            recruit:
+                u.team === 'player' && this.phase === 'build' && u.type === COMMAND_TOWER
+                    ? {
+                          cost: this.settings.leveling.recruitLevel2Cost,
+                          active: this.recruitLevel.player > 1,
+                          affordable:
+                              this.economy.balance('player') >=
+                              this.settings.leveling.recruitLevel2Cost,
+                      }
+                    : undefined,
             // the next level is a purchase: needs banked XP and supply
             levelUp:
                 u.team === 'player' && this.phase === 'build' && !u.type.structure && lv.xpNext >= 0

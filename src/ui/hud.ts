@@ -29,6 +29,12 @@ export interface SelectionInfo {
     levelUp?: { cost: number; ready: boolean; affordable: boolean };
     /** buyable techs (own packs, build phase only) */
     techs?: { id: string; name: string; cost: number; owned: boolean; affordable: boolean }[];
+    /** base buildings render their level as N / maxLevel and hide XP */
+    structure?: boolean;
+    /** a base building's supply-only level upgrade (own, build phase) */
+    towerUpgrade?: { cost: number; affordable: boolean; maxed: boolean; maxLevel: number };
+    /** the once-per-round level-2 recruit switch (Command Tower only) */
+    recruit?: { cost: number; active: boolean; affordable: boolean };
 }
 
 /**
@@ -47,6 +53,7 @@ export class Hud {
     onBuyTech: ((techId: string) => void) | null = null;
     onBuyLevel: (() => void) | null = null;
     onRecruitLevel: (() => void) | null = null;
+    onUpgradeTower: (() => void) | null = null;
     onUndo: (() => void) | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
@@ -62,7 +69,6 @@ export class Hud {
     private readonly enemyHpEl: HTMLSpanElement;
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
-    private readonly recruitEl: HTMLButtonElement;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
@@ -129,6 +135,8 @@ export class Hud {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.tech-buy');
             if (!button) return;
             if (button.dataset.levelup) this.onBuyLevel?.();
+            else if (button.dataset.recruit) this.onRecruitLevel?.();
+            else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
 
@@ -152,11 +160,6 @@ export class Hud {
         this.undoEl.textContent = '↩ Undo';
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
-        this.recruitEl = document.createElement('button');
-        this.recruitEl.className = 'recruit';
-        this.recruitEl.title =
-            'Every unit bought after this arrives at level 2 (one level premium on its price).\nOnce per deployment phase.';
-        this.recruitEl.addEventListener('click', () => this.onRecruitLevel?.());
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
@@ -177,7 +180,6 @@ export class Hud {
             this.timerEl,
             this.supplyEl,
             this.undoEl,
-            this.recruitEl,
             endButton,
             this.speedEl,
             this.enemyHpEl,
@@ -192,14 +194,6 @@ export class Hud {
     setUndoVisible(visible: boolean): void {
         // '' lets the battle-phase CSS rule keep hiding it during battles
         this.undoEl.style.display = visible ? '' : 'none';
-    }
-
-    /** the once-per-round level-2 recruit switch in the top bar */
-    setRecruitState(active: boolean, cost: number, affordable: boolean): void {
-        const label = active ? '★★ recruiting at level 2' : `★★ Recruits (${cost})`;
-        if (this.recruitEl.textContent !== label) this.recruitEl.textContent = label;
-        this.recruitEl.disabled = active || !affordable;
-        this.recruitEl.classList.toggle('active', active);
     }
 
     /** re-reads unit prices (they change while the recruit switch is active) */
@@ -226,6 +220,24 @@ export class Hud {
                   info.levelUp.ready && info.levelUp.affordable ? '' : 'disabled'
               }><span>★ Level up${info.levelUp.ready ? '' : ' — needs XP'}</span><span class="c">${info.levelUp.cost}</span></button></div>`
             : '';
+        // base building actions: the supply-only upgrade, and (Command Tower) the recruit switch
+        const building =
+            info.towerUpgrade || info.recruit
+                ? `<div class="techs">` +
+                  (info.towerUpgrade && !info.towerUpgrade.maxed
+                      ? `<button class="tech-buy" data-towerupgrade="1" ${
+                            info.towerUpgrade.affordable ? '' : 'disabled'
+                        }><span>⬆ Upgrade to level ${info.level + 1}</span><span class="c">${info.towerUpgrade.cost}</span></button>`
+                      : '') +
+                  (info.recruit
+                      ? info.recruit.active
+                          ? `<div class="tech-owned"><span>✓ Recruiting at level 2</span></div>`
+                          : `<button class="tech-buy" data-recruit="1" ${
+                                info.recruit.affordable ? '' : 'disabled'
+                            }><span>★★ Recruits at level 2</span><span class="c">${info.recruit.cost}</span></button>`
+                      : '') +
+                  `</div>`
+                : '';
         const techs = info.techs?.length
             ? `<div class="techs">` +
               info.techs
@@ -243,13 +255,21 @@ export class Hud {
             `<div class="hpbar"><div style="width:${Math.max(0, (info.hp / info.maxHp) * 100)}%"></div></div>` +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
-            row('Level', info.xpNext < 0 ? `${info.level} (max)` : `${info.level} · ${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`) +
+            row(
+                'Level',
+                info.structure
+                    ? `${info.level}${info.towerUpgrade ? ` / ${info.towerUpgrade.maxLevel}` : ''}`
+                    : info.xpNext < 0
+                      ? `${info.level} (max)`
+                      : `${info.level} · ${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`,
+            ) +
             row('Damage', String(Math.round(info.damage))) +
             row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
             (info.splash ? row('Splash', String(info.splash)) : '') +
             row('Range', String(info.range)) +
             row('Speed', String(info.speed)) +
             levelUp +
+            building +
             techs;
     }
 

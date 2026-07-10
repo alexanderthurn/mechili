@@ -1,6 +1,6 @@
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
-import type { Economy, LevelingSettings } from './settings';
+import type { Economy, LevelingSettings, TowerSettings } from './settings';
 import type { TechTree } from './tech';
 import { unitTypeById, type Team, type Unit, type UnitType } from './units';
 
@@ -56,6 +56,12 @@ export interface RecruitLevelAction {
     kind: 'recruitLevel';
     team: Team;
 }
+/** raises a base building one level (no XP needed, rising supply cost) */
+export interface UpgradeTowerAction {
+    kind: 'upgradeTower';
+    team: Team;
+    unitId: number;
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -69,6 +75,7 @@ export type Action =
     | BuyTechAction
     | BuyLevelAction
     | RecruitLevelAction
+    | UpgradeTowerAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -97,6 +104,7 @@ export interface ActionContext {
     economy: Economy;
     techTree: TechTree;
     leveling: LevelingSettings;
+    towers: TowerSettings;
     /** per-team recruit level for the running round (reset to 1 each round) */
     recruitLevel: Record<Team, number>;
     /** current round + seconds into its build phase, stamped onto log entries */
@@ -113,6 +121,11 @@ export function levelCost(type: UnitType, economy: Economy, leveling: LevelingSe
 /** banked XP a pack needs before its next level can be bought */
 export function xpForNextLevel(unit: Unit, economy: Economy, leveling: LevelingSettings): number {
     return economy.costOf(unit.type) * leveling.xpThresholdFactor * unit.level;
+}
+
+/** supply price of a base building's next level: baseCost, then +costStep per level taken */
+export function towerUpgradeCost(currentLevel: number, towers: TowerSettings): number {
+    return towers.upgrade.baseCost + (currentLevel - 1) * towers.upgrade.costStep;
 }
 
 /**
@@ -227,6 +240,17 @@ export class ActionDispatcher {
                 recruitLevel[action.team] = 2;
                 return true;
             }
+            case 'upgradeTower': {
+                const unit = placement.unitById(action.unitId);
+                if (!unit || unit.team !== action.team || !unit.type.structure) return false;
+                if (unit.level >= this.ctx.towers.upgrade.maxLevel) return false;
+                const cost = towerUpgradeCost(unit.level, this.ctx.towers);
+                if (!economy.spend(action.team, cost)) return false;
+                entry.paid = cost;
+                unit.level++;
+                unit.refreshLevelBadge();
+                return true;
+            }
             case 'endDeployment': {
                 this.ctx.onEndDeployment(action.team);
                 return true;
@@ -272,6 +296,13 @@ export class ActionDispatcher {
                 this.ctx.recruitLevel[action.team] = 1;
                 economy.credit(action.team, e.paid!);
                 break;
+            case 'upgradeTower': {
+                const unit = placement.unitById(action.unitId)!;
+                unit.level--;
+                unit.refreshLevelBadge();
+                economy.credit(action.team, e.paid!);
+                break;
+            }
             case 'endDeployment':
                 break; // closes a round — never sits in an undoable tail
         }

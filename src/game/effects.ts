@@ -117,6 +117,14 @@ export class Particles {
                 case 'impact':
                     this.burst(e.x, e.y, e.z, { count: 6, color: THEME.impact, speed: 9, life: 0.35 });
                     break;
+                case 'explosion': {
+                    // artillery blast, scaled to the splash radius (tuned at r = 3)
+                    const s = e.radius / 3;
+                    this.burst(e.x, e.y, e.z, { count: Math.round(32 * s), color: THEME.impact, speed: 15 * s, life: 0.5, up: 5 });
+                    this.burst(e.x, e.y + 0.6, e.z, { count: Math.round(18 * s), color: THEME.death, speed: 9 * s, life: 0.7, up: 7 });
+                    this.burst(e.x, e.y, e.z, { count: 10, color: THEME.deathSecondary, speed: 4, life: 0.4, up: 3 });
+                    break;
+                }
                 case 'death':
                     if (e.big) {
                         this.burst(e.x, e.y, e.z, { count: 44, color: THEME.death, speed: 17, life: 0.9, up: 6 });

@@ -64,6 +64,7 @@ export interface Projectile {
 export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     | { kind: 'impact'; x: number; y: number; z: number }
+    | { kind: 'explosion'; x: number; y: number; z: number; radius: number }
     | { kind: 'death'; x: number; y: number; z: number; big: boolean }
     | { kind: 'levelup'; x: number; y: number; z: number };
 
@@ -448,20 +449,25 @@ export class BattleSim {
                 const iz = p.z + sz * hitT;
                 if (splash > 0) {
                     this.explode(p, ix, iz, splash);
+                    this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
                 } else {
                     const dealt = p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
                     hit.hp -= dealt;
                     this.recordDamage(p.source, dealt);
                     hit.hurtTimer = HURT_BAR_SECONDS;
                     if (hit.hp <= 0) this.kill(hit, p.source);
+                    this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
                 }
-                this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
                 continue; // bullet consumed
             }
             if (ny <= 0) {
                 // splash shells detonate on the ground too — a miss still hurts
-                if (splash > 0) this.explode(p, nx, nz, splash);
-                this.events.push({ kind: 'impact', x: nx, y: 0.15, z: nz });
+                if (splash > 0) {
+                    this.explode(p, nx, nz, splash);
+                    this.events.push({ kind: 'explosion', x: nx, y: 0.15, z: nz, radius: splash });
+                } else {
+                    this.events.push({ kind: 'impact', x: nx, y: 0.15, z: nz });
+                }
                 continue;
             }
             p.x = nx;

@@ -322,20 +322,7 @@ export function hudStyles(): string {
     cursor: pointer;
 }
 .mechili-topbar .undo:hover { background: ${u.undoHover}; }
-.mechili-topbar .recruit {
-    padding: 7px 12px;
-    background: ${u.speedBg};
-    border: 1.5px solid ${u.brassDark};
-    border-radius: 8px;
-    color: ${u.brassLight};
-    font-size: 13px;
-    font-weight: bold;
-    cursor: pointer;
-}
-.mechili-topbar .recruit:hover { background: ${u.speedHover}; }
-.mechili-topbar .recruit:disabled { opacity: 0.45; pointer-events: none; }
-.mechili-topbar .recruit.active { opacity: 1; border-color: ${u.brass}; color: ${u.brass}; }
-.mechili-topbar.battle .end-deploy, .mechili-topbar.battle .undo, .mechili-topbar.battle .recruit { display: none; }
+.mechili-topbar.battle .end-deploy, .mechili-topbar.battle .undo { display: none; }
 .mechili-topbar.battle .timer { color: ${u.enemy}; }
 .mechili-topbar .speed {
     display: none;
