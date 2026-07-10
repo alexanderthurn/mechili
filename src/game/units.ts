@@ -1,6 +1,7 @@
 import {
     BoxGeometry,
     CylinderGeometry,
+    DoubleSide,
     Group,
     Mesh,
     MeshStandardMaterial,
@@ -38,6 +39,15 @@ export interface UnitType {
     meshScale: number;
     /** structures don't bob and never rotate to face anything (but are valid facing targets) */
     structure?: boolean;
+    /**
+     * board extras (shield, rocket): bought like units but never targeted or
+     * damaged by ordinary fire, exempt from the deploy limit and recruiting
+     */
+    extra?: boolean;
+    /** shield extra: a dome that absorbs enemy projectiles crossing INTO it */
+    shield?: { radius: number; height: number };
+    /** rocket extra: waits armed, then homes onto the first enemy in range */
+    rocket?: { range: number; speed: number; damage: number; splash: number };
     /** flight altitude in world units — air units collide with nothing on the ground */
     flying?: number;
     /** the can-attack matrix: which layers this unit's weapon can hit */
@@ -136,6 +146,28 @@ class PartFactory {
         return this.add(mesh);
     }
 
+    /** translucent energy dome (shield extra) — casts no shadow */
+    dome(r: number, heightScale: number): Mesh {
+        const mesh = new Mesh(
+            new SphereGeometry(r, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+            material('shield-dome', () =>
+                new MeshStandardMaterial({
+                    color: 0x58c8ff,
+                    emissive: 0x2888cc,
+                    emissiveIntensity: 0.35,
+                    transparent: true,
+                    opacity: 0.16,
+                    roughness: 0.3,
+                    side: DoubleSide,
+                    depthWrite: false,
+                }),
+            ),
+        );
+        mesh.scale.y = heightScale;
+        this.group.add(mesh);
+        return mesh;
+    }
+
     private pick(kind: 'hull' | 'dark' | 'light' | 'accent'): MeshStandardMaterial {
         if (kind === 'accent') return accentMaterial(this.team);
         if (kind === 'light') return lightMaterial();
@@ -184,6 +216,24 @@ function buildWasp(parts: PartFactory): void {
     parts.box(0.9, 0.1, 0.25, 0, -0.25, 0.15, 'accent'); // belly glow strip
 }
 
+function buildShield(parts: PartFactory): void {
+    parts.cylinder(1.0, 1.3, 0.5, 0, 0.25, 0, 'dark'); // emitter base
+    parts.cylinder(0.35, 0.5, 1.6, 0, 1.3, 0, 'hull'); // pylon
+    parts.sphere(0.55, 0, 2.4, 0, 'accent'); // projector orb
+    parts.dome(SHIELD_RADIUS, SHIELD_HEIGHT / SHIELD_RADIUS);
+}
+
+function buildRocket(parts: PartFactory): void {
+    // a small missile hovering far above the air layer, lying level with its
+    // nose toward -z — the facing rule points it straight at the enemy
+    const lieFlat = (mesh: Mesh) => (mesh.rotation.x = -Math.PI / 2);
+    lieFlat(parts.cylinder(0.28, 0.36, 2.4, 0, 0, 0.2, 'light')); // body
+    lieFlat(parts.cylinder(0.02, 0.28, 0.9, 0, 0, -1.45, 'accent')); // warhead tip
+    lieFlat(parts.cylinder(0.24, 0.16, 0.5, 0, 0, 1.65, 'accent')); // exhaust glow
+    parts.box(1.5, 0.08, 0.7, 0, 0, 1.2, 'hull'); // horizontal tail fins
+    parts.box(0.08, 1.5, 0.7, 0, 0, 1.2, 'hull'); // vertical tail fins
+}
+
 function buildTower(parts: PartFactory): void {
     parts.cylinder(1.5, 1.8, 0.8, 0, 0.4, 0, 'dark'); // base
     parts.box(1.6, 2.2, 1.6, 0, 1.9, 0, 'hull'); // core
@@ -227,6 +277,10 @@ function makeTower(id: string, name: string): UnitType {
 
 export const COMMAND_TOWER = makeTower('command-tower', 'Command Tower');
 export const RESEARCH_CENTER = makeTower('research-center', 'Research Center');
+
+/** shield dome coverage, world units — the top stays below the air layer (18) */
+export const SHIELD_RADIUS = 20;
+export const SHIELD_HEIGHT = 17;
 
 export const UNIT_TYPES: UnitType[] = [
     {
@@ -279,7 +333,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 5, rows: 2 }, // same pack size as crawlers
         formation: { cols: 6, rows: 2 }, // a swarm of 12 drones, two wide rows
         meshScale: 1.35, // slightly smaller so the tighter columns don't touch
-        flying: 9,
+        flying: 18,
         targets: { ground: true, air: true },
         collisionRadius: 0.75,
         colliders: [{ y: 0.1, r: 0.75 }],
@@ -318,6 +372,50 @@ export const UNIT_TYPES: UnitType[] = [
         ],
         build: buildFortress,
     },
+    {
+        id: 'shield',
+        name: 'Shield',
+        cost: 100,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 1,
+        structure: true,
+        extra: true,
+        shield: { radius: SHIELD_RADIUS, height: SHIELD_HEIGHT },
+        targets: { ground: false, air: false },
+        collisionRadius: 1.3, // only the emitter pylon blocks walking
+        colliders: [], // nothing can shoot it — it only absorbs crossings
+        hp: 30000, // the absorb pool; refills between rounds if it survives
+        damage: 0,
+        range: 0,
+        attackInterval: 1,
+        speed: 0,
+        techs: [],
+        build: buildShield,
+    },
+    {
+        id: 'rocket',
+        name: 'Rocket',
+        cost: 200,
+        footprint: { cols: 1, rows: 1 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 1,
+        structure: true,
+        extra: true,
+        flying: 36, // hovers at twice the air layer, waiting
+        rocket: { range: 35, speed: 30, damage: 5000, splash: 8 }, // wipes a close-packed swarm
+        splashRadius: 8, // display only — the blast itself comes from `rocket.splash`
+        targets: { ground: true, air: true }, // what it may home onto / hurt
+        collisionRadius: 0.8,
+        colliders: [],
+        hp: 100,
+        damage: 5000,
+        range: 35,
+        attackInterval: 1,
+        speed: 0,
+        techs: [],
+        build: buildRocket,
+    },
 ];
 
 /**
@@ -336,6 +434,8 @@ export class Unit {
     revealed = true;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
+    /** board extras: used up this battle (shield broken, rocket fired) — removed at the round reset */
+    consumed = false;
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;
     /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */
@@ -366,7 +466,7 @@ export class Unit {
                 mesh.scale.setScalar(type.meshScale);
                 mesh.position.set(
                     (i - (formation.cols - 1) / 2) * spacingX,
-                    0,
+                    type.flying ?? 0, // flyers (and hovering extras) start at altitude
                     (j - (formation.rows - 1) / 2) * spacingZ,
                 );
                 this.view.add(mesh);
@@ -375,7 +475,7 @@ export class Unit {
         }
         // default facing until a target is known: straight at the opposing edge
         this.facing = team === 'enemy' ? Math.PI : 0;
-        if (!type.structure) {
+        if (!type.structure || type.rocket) {
             for (const m of this.members) m.mesh.rotation.y = this.facing;
         }
         this.view.position.copy(this.world);
@@ -471,7 +571,8 @@ export class Unit {
      * never turn). `targets` are individual enemy mech positions.
      */
     faceClosestOf(targets: readonly Vector3[]): void {
-        if (this.type.structure || targets.length === 0) return;
+        // structures never turn — except the hovering rocket, which aims
+        if ((this.type.structure && !this.type.rocket) || targets.length === 0) return;
         let squadBest = targets[0]!;
         let squadBestD = Infinity;
         for (const m of this.members) {

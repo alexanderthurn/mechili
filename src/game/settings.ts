@@ -118,6 +118,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
             marksman: 100,
             wasp: 200,
             fortress: 400,
+            shield: 100,
+            rocket: 200,
         },
         techCostEscalation: 200,
     },

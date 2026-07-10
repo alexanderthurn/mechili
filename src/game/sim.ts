@@ -36,6 +36,8 @@ export interface Actor {
     hurtTimer: number;
     /** flight altitude (0 for ground units) — air collides with nothing on the ground */
     altitude: number;
+    /** rocket extras: the enemy being homed onto once launched */
+    rocketTarget: Actor | null;
 }
 
 /** how long a hit keeps the HP bar visible */
@@ -140,6 +142,7 @@ export class BattleSim {
                     index: this.actors.length,
                     hurtTimer: 0,
                     altitude: unit.type.flying ?? 0,
+                    rocketTarget: null,
                 });
             });
         }
@@ -364,7 +367,119 @@ export class BattleSim {
         }
 
         this.resolveOverlaps();
+        this.stepRockets(dt);
         this.stepProjectiles(dt);
+    }
+
+    /**
+     * Rocket extras: armed on the pad until the first enemy (per the
+     * can-attack matrix) comes into range, then the whole rocket lifts off,
+     * homes onto it, and detonates — once, then it's spent for good.
+     */
+    private stepRockets(dt: number): void {
+        for (const a of this.actors) {
+            const spec = a.unit.type.rocket;
+            if (!spec || !a.alive) continue;
+            if (!a.rocketTarget) {
+                const target = this.closestEnemy(a);
+                if (!target) continue;
+                const dist = Math.hypot(target.x - a.x, target.z - a.z);
+                if (dist <= spec.range) a.rocketTarget = target;
+                continue;
+            }
+            // homing: retarget if the victim died mid-flight, else chase it
+            if (!a.rocketTarget.alive) {
+                a.rocketTarget = this.closestEnemy(a);
+                if (!a.rocketTarget) {
+                    this.detonateRocket(a, spec);
+                    continue;
+                }
+            }
+            // dead-straight beeline from the hover spot onto the target
+            const t = a.rocketTarget;
+            const dx = t.x - a.x;
+            const dy = t.altitude + 0.5 - a.altitude;
+            const dz = t.z - a.z;
+            const dist = Math.hypot(dx, dy, dz) || 1e-6;
+            const move = Math.min(spec.speed * dt, dist);
+            a.x += (dx / dist) * move;
+            a.altitude += (dy / dist) * move;
+            a.z += (dz / dist) * move;
+            a.mesh.position.set(a.x - a.unit.world.x, a.altitude, a.z - a.unit.world.z);
+            // nose along the flight path
+            const pitch = Math.atan2(dy, Math.hypot(dx, dz) || 1e-6);
+            a.mesh.rotation.set(pitch, Math.atan2(-dx, -dz), 0, 'YXZ');
+            if (dist - move < 1.5) this.detonateRocket(a, spec);
+        }
+    }
+
+    private detonateRocket(a: Actor, spec: { damage: number; splash: number }): void {
+        this.explode({ damage: spec.damage, team: a.unit.team, source: a.unit }, a.x, a.z, spec.splash);
+        this.events.push({
+            kind: 'explosion',
+            x: a.x,
+            y: Math.max(0.3, a.altitude),
+            z: a.z,
+            radius: spec.splash,
+        });
+        a.alive = false;
+        a.mesh.visible = false;
+        a.unit.consumed = true; // spent — removed at the round reset
+    }
+
+    /**
+     * Shield extras: a projectile crossing an enemy dome's boundary from the
+     * OUTSIDE below its height is absorbed into the dome's damage pool.
+     * Returns the earliest crossing on this step's flight segment.
+     */
+    private shieldCrossing(
+        p: Projectile,
+        sx: number,
+        sy: number,
+        sz: number,
+    ): { shield: Actor; t: number } | null {
+        let best: { shield: Actor; t: number } | null = null;
+        for (const s of this.actors) {
+            const spec = s.unit.type.shield;
+            if (!spec || !s.alive || s.unit.team === p.team) continue;
+            const cx = p.x - s.x;
+            const cz = p.z - s.z;
+            const r2 = spec.radius * spec.radius;
+            const startInside2d = cx * cx + cz * cz <= r2;
+            if (startInside2d && p.y <= spec.height) continue; // fired from inside: outgoing shots pass
+            // wall entry: first intersection of the 2D segment with the circle
+            if (!startInside2d) {
+                const a2 = sx * sx + sz * sz;
+                if (a2 >= 1e-9) {
+                    const b = 2 * (cx * sx + cz * sz);
+                    const c = cx * cx + cz * cz - r2;
+                    const disc = b * b - 4 * a2 * c;
+                    if (disc >= 0) {
+                        const t = (-b - Math.sqrt(disc)) / (2 * a2);
+                        if (t >= 0 && t <= 1 && p.y + sy * t <= spec.height && (!best || t < best.t)) {
+                            best = { shield: s, t };
+                        }
+                    }
+                }
+            }
+            // roof entry: descending through the dome top from above (air fire)
+            if (p.y > spec.height && sy < 0) {
+                const t = (spec.height - p.y) / sy;
+                if (t >= 0 && t <= 1) {
+                    const qx = p.x + sx * t - s.x;
+                    const qz = p.z + sz * t - s.z;
+                    if (qx * qx + qz * qz <= r2 && (!best || t < best.t)) best = { shield: s, t };
+                }
+            }
+        }
+        return best;
+    }
+
+    private breakShield(s: Actor): void {
+        s.alive = false;
+        s.mesh.visible = false;
+        s.unit.consumed = true; // broken — gone for good at the round reset
+        this.events.push({ kind: 'death', x: s.x, y: 2, z: s.z, big: true });
     }
 
     /** spawns a bullet from the shooter's muzzle toward the target's primary hit volume */
@@ -442,6 +557,22 @@ export class BattleSim {
                 }
             }
 
+            // an enemy shield dome eats the projectile if it crosses in first
+            const crossing = this.shieldCrossing(p, sx, sy, sz);
+            if (crossing && (!hit || crossing.t < hitT)) {
+                const shield = crossing.shield;
+                shield.hp -= p.damage;
+                shield.hurtTimer = HURT_BAR_SECONDS;
+                this.events.push({
+                    kind: 'impact',
+                    x: p.x + sx * crossing.t,
+                    y: p.y + sy * crossing.t,
+                    z: p.z + sz * crossing.t,
+                });
+                if (shield.hp <= 0) this.breakShield(shield);
+                continue; // bullet absorbed
+            }
+
             const splash = p.source.type.splashRadius ?? 0;
             if (hit) {
                 const ix = p.x + sx * hitT;
@@ -485,11 +616,17 @@ export class BattleSim {
      * respecting the shooter's can-attack matrix (a ground-only cannon's
      * blast doesn't reach wasps overhead).
      */
-    private explode(p: Projectile, x: number, z: number, radius: number): void {
+    private explode(
+        p: { damage: number; team: Team; source: Unit },
+        x: number,
+        z: number,
+        radius: number,
+    ): void {
         const d = this.config.towers.debuffPerLostTower;
         const targets = p.source.type.targets;
         for (const a of this.actors) {
             if (!a.alive || a.unit.team === p.team) continue;
+            if (a.unit.type.extra) continue; // extras are immune to blasts too
             if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
             if (Math.hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.debuff(a.unit.team, d.damageTakenMult);
@@ -512,8 +649,9 @@ export class BattleSim {
                 }
                 if (a.altitude > 0) continue; // air units ignore structures entirely
                 // towers and rubble-free structures are immovable walls
+                // (board extras take no space — everything walks through them)
                 for (const s of this.actors) {
-                    if (!s.alive || !s.unit.type.structure) continue;
+                    if (!s.alive || !s.unit.type.structure || s.unit.type.extra) continue;
                     this.pushApart(a, s);
                 }
             }
@@ -609,6 +747,7 @@ export class BattleSim {
         let bestD = Infinity;
         for (const a of this.actors) {
             if (!a.alive || a.unit.team === from.unit.team) continue;
+            if (a.unit.type.extra) continue; // shields/rockets are never targets
             if (!anyLayer && (a.altitude > 0 ? !targets.air : !targets.ground)) continue;
             const d = (a.x - from.x) ** 2 + (a.z - from.z) ** 2;
             if (d < bestD) {

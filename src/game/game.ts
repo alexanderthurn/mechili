@@ -392,7 +392,10 @@ export class Game {
         // it also deploys this round — invisible to the player until battle,
         // spending its own supply on random affordable units
         for (let guard = 0; guard < 30; guard++) {
-            const affordable = UNIT_TYPES.filter((t) => this.economy.canAfford('enemy', t));
+            // the AI doesn't use board extras yet
+            const affordable = UNIT_TYPES.filter(
+                (t) => !t.extra && this.economy.canAfford('enemy', t),
+            );
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(this.rng() * affordable.length)]!;
             const spot = this.placement.findEnemySpot(type, this.rng);
@@ -493,6 +496,7 @@ export class Game {
 
     /** what the player pays right now, including an active recruit-level premium */
     private effectiveCost(type: UnitType): number {
+        if (type.extra) return this.economy.costOf(type); // extras never recruit levels
         if (this.speciality.player === 'elite') return this.economy.costOf(type); // level 2 is free
         const extra = this.recruitLevel.player - 1;
         return (
@@ -505,6 +509,11 @@ export class Game {
     private buyUnit(type: UnitType): void {
         if (this.phase !== 'build' || this.matchOver) return;
         if (this.economy.balance('player') < this.effectiveCost(type)) return;
+        // extras are click-placed: nothing is bought until the placement click
+        if (type.extra) {
+            this.placement.beginPlacing(type);
+            return;
+        }
         const anchor = this.placement.findBuySpot(type);
         if (!anchor) return;
         this.dispatcher.dispatch({
@@ -569,7 +578,11 @@ export class Game {
             this.finishMatch();
             return;
         }
-        for (const unit of this.placement.allUnits()) unit.resetFormation();
+        // spent extras (broken shields, fired rockets) leave the board for good
+        for (const unit of [...this.placement.allUnits()]) {
+            if (unit.consumed) this.placement.removeUnit(unit);
+            else unit.resetFormation();
+        }
         this.placement.refaceAll();
         this.startBuildPhase();
     }
@@ -776,7 +789,7 @@ export class Game {
             structure: !!u.type.structure,
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
-                u.team === 'player' && this.phase === 'build' && u.type.structure
+                u.team === 'player' && this.phase === 'build' && u.type.structure && !u.type.extra
                     ? {
                           cost: towerUpgradeCost(u.level, this.settings.towers),
                           affordable:

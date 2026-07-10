@@ -236,29 +236,34 @@ export class ActionDispatcher {
         switch (action.kind) {
             case 'buy': {
                 const type = unitTypeById(action.typeId);
-                if (!type || type.structure) return false;
-                // per-round buy limit: permanent baseline + this round's extra slots
+                // structures aren't buyable — except the board extras
+                if (!type || (type.structure && !type.extra)) return false;
+                // per-round buy limit: permanent baseline + this round's extra
+                // slots; board extras don't consume a slot
                 const deploy = this.ctx.deployState;
-                if (deploy.used[action.team] >= deploy.limit[action.team] + deploy.extra[action.team]) {
+                if (
+                    !type.extra &&
+                    deploy.used[action.team] >= deploy.limit[action.team] + deploy.extra[action.team]
+                ) {
                     return false;
                 }
                 // an active recruit level adds one level's premium on top —
-                // free for the elite specialist, whose recruits are always level 2
-                const level = recruitLevel[action.team];
+                // free for the elite specialist, and never applied to extras
+                const level = type.extra ? 1 : recruitLevel[action.team];
                 const elite = this.ctx.speciality[action.team] === 'elite';
                 const premium =
                     level > 1 && !elite ? levelCost(type, economy, leveling) * (level - 1) : 0;
                 if (economy.balance(action.team) < economy.costOf(type) + premium) return false;
                 const unit = placement.placeUnit(action.team, type, action.anchor, action.rotated);
                 if (!unit) return false;
-                if (premium > 0) {
+                if (level > 1) {
                     economy.spend(action.team, premium);
                     unit.level = level;
                     unit.refreshLevelBadge();
                 }
                 entry.paid = economy.costOf(type) + premium;
                 entry.unit = unit;
-                deploy.used[action.team]++;
+                if (!type.extra) deploy.used[action.team]++;
                 return true;
             }
             case 'move': {
@@ -318,7 +323,9 @@ export class ActionDispatcher {
             }
             case 'upgradeTower': {
                 const unit = placement.unitById(action.unitId);
-                if (!unit || unit.team !== action.team || !unit.type.structure) return false;
+                if (!unit || unit.team !== action.team || !unit.type.structure || unit.type.extra) {
+                    return false;
+                }
                 if (unit.level >= this.ctx.towers.upgrade.maxLevel) return false;
                 const cost = towerUpgradeCost(unit.level, this.ctx.towers);
                 if (!economy.spend(action.team, cost)) return false;
@@ -405,7 +412,7 @@ export class ActionDispatcher {
             case 'buy':
                 placement.removeUnit(e.unit!);
                 economy.credit(action.team, e.paid!);
-                this.ctx.deployState.used[action.team]--;
+                if (!e.unit!.type.extra) this.ctx.deployState.used[action.team]--;
                 break;
             case 'move':
                 placement.moveUnit(placement.unitById(action.unitId)!, e.from!);

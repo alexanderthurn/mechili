@@ -4,8 +4,8 @@ import {
     MeshBasicMaterial,
     PlaneGeometry,
     RingGeometry,
+    Vector3,
     type Scene,
-    type Vector3,
 } from 'three';
 import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
@@ -82,6 +82,9 @@ export class PlacementController {
     private readonly movablePlates: Mesh[] = [];
     private readonly plateGeometry: PlaneGeometry;
     private readonly plateMaterial: MeshBasicMaterial;
+    /** a board extra being click-placed: rides the cursor, bought on click */
+    private pendingType: UnitType | null = null;
+    private pendingUnit: Unit | null = null;
     /** rect-selected movable packs (2+); a single selection uses selectedUnit */
     private selectedGroup: Unit[] = [];
     /** movable packs currently inside the rubber-band, live while dragging */
@@ -152,7 +155,7 @@ export class PlacementController {
 
         surface.addEventListener('pointermove', (e: PointerEvent) => {
             this.pointer = this.toLocal(e);
-            if (!this.downAt || !this.enabled) return;
+            if (!this.downAt || !this.enabled || this.pendingType) return;
             const moved = Math.hypot(this.pointer.x - this.downAt.x, this.pointer.y - this.downAt.y);
             if (this.rectActive || moved > 6) this.updateRect(this.downAt, this.pointer);
         });
@@ -192,9 +195,28 @@ export class PlacementController {
     }
 
     deselect(): void {
+        this.cancelPlacing();
         this.restoreSelectedView();
         this.selectedUnit = null;
         this.selectedGroup = [];
+    }
+
+    /**
+     * Board extras are click-placed: the buy button puts a ghost on the
+     * cursor, a left click buys AND places it there, deselect (right click /
+     * Esc) aborts without spending anything.
+     */
+    beginPlacing(type: UnitType): void {
+        this.deselect();
+        this.pendingType = type;
+        this.pendingUnit = new Unit(type, { col: 0, row: 0 }, 'player', new Vector3(0, -9999, 0));
+        this.scene.add(this.pendingUnit.view);
+    }
+
+    private cancelPlacing(): void {
+        if (this.pendingUnit) this.scene.remove(this.pendingUnit.view);
+        this.pendingType = null;
+        this.pendingUnit = null;
     }
 
     /** carried packs go back to their committed spots */
@@ -203,9 +225,12 @@ export class PlacementController {
         for (const u of this.selectedGroup) u.view.position.copy(u.world);
     }
 
-    /** repositioning is allowed only in the round the pack was deployed */
+    /** repositioning is allowed only in the round the pack was deployed (extras included) */
     canReposition(unit: Unit): boolean {
-        return !unit.type.structure && unit.deployedRound === this.currentRound;
+        return (
+            (!unit.type.structure || !!unit.type.extra) &&
+            unit.deployedRound === this.currentRound
+        );
     }
 
     /** what the local player may pick up and carry */
@@ -264,13 +289,13 @@ export class PlacementController {
         const rotated = !unit.rotated;
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, unit.cell);
-        if (!cells || !cells.every((c) => this.zoneCell(unit.team, c) && this.freeFor(c, unit))) {
-            return false;
-        }
+        const fits = (c: Cell) =>
+            this.zoneCell(unit.team, c) && (unit.type.extra || this.freeFor(c, unit));
+        if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.setRotated(rotated);
         unit.moveTo(unit.cell, this.map.areaCenter(unit.cell, fp.cols, fp.rows));
-        for (const c of cells) this.occupied.set(cellKey(c), unit);
+        if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
         return true;
     }
@@ -283,12 +308,13 @@ export class PlacementController {
     /**
      * Zone-validated placement for a buy action: the anchor must lie fully
      * in the buyer's territory and be free; spawning charges the cost.
+     * Board extras take no space, so only the zone matters for them.
      */
     placeUnit(team: Team, type: UnitType, anchor: Cell, rotated: boolean): Unit | null {
         const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
         const valid =
             cells !== null &&
-            cells.every((c) => this.zoneCell(team, c) && !this.occupied.has(cellKey(c)));
+            cells.every((c) => this.zoneCell(team, c) && (type.extra || !this.occupied.has(cellKey(c))));
         return valid ? this.spawn(type, anchor, team, rotated) : null;
     }
 
@@ -296,7 +322,8 @@ export class PlacementController {
     spawn(type: UnitType, anchor: Cell, team: Team, rotated = false, free = false): Unit | null {
         const fp = this.footprintOf(type, rotated);
         const cells = this.coveredCells(fp, anchor);
-        if (!cells || cells.some((c) => this.occupied.has(cellKey(c)))) return null;
+        if (!cells) return null;
+        if (!type.extra && cells.some((c) => this.occupied.has(cellKey(c)))) return null;
         if (!free && !this.economy.charge(team, type)) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
         unit.id = this.nextUnitId++;
@@ -306,7 +333,8 @@ export class PlacementController {
             // your own hidden units are still visible to you; the enemy's are not
             unit.view.visible = team === 'player';
         }
-        for (const c of cells) this.occupied.set(cellKey(c), unit);
+        // board extras take no space on the grid
+        if (!type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.units.push(unit);
         this.scene.add(unit.view);
         // core rule: every mech faces the closest individual enemy mech it
@@ -455,10 +483,41 @@ export class PlacementController {
         return positions;
     }
 
+    /** extras aren't in the occupancy map — hit-test their footprints directly */
+    private extraAt(cell: Cell): Unit | undefined {
+        return this.units.find((u) => {
+            if (!u.type.extra) return false;
+            const fp = this.footprintOf(u.type, u.rotated);
+            return (
+                cell.col >= u.cell.col &&
+                cell.col < u.cell.col + fp.cols &&
+                cell.row >= u.cell.row &&
+                cell.row < u.cell.row + fp.rows
+            );
+        });
+    }
+
     private handleClick(x: number, y: number): void {
         const cell = this.cellAt(x, y);
         if (!cell) return;
-        const clicked = this.occupied.get(cellKey(cell));
+        // click-placing an extra: buy it right here (stays pending if invalid)
+        if (this.pendingType) {
+            const anchor = this.centeredAnchor(this.pendingType, false, cell);
+            const done = this.dispatch?.({
+                kind: 'buy',
+                team: 'player',
+                typeId: this.pendingType.id,
+                anchor,
+                rotated: false,
+            });
+            if (done) this.cancelPlacing();
+            return;
+        }
+        // while carrying, a click on an extra's tiles means "drop here", not "select it"
+        const carrying =
+            this.selectedGroup.length > 1 ||
+            (this.selectedUnit !== null && this.isMovable(this.selectedUnit));
+        const clicked = this.occupied.get(cellKey(cell)) ?? (carrying ? undefined : this.extraAt(cell));
         // selecting: any own pack, or a revealed enemy pack (hidden stays hidden)
         if (clicked && !clicked.destroyed && (clicked.team === 'player' || clicked.revealed)) {
             if (clicked !== this.selectedUnit || this.selectedGroup.length > 1) {
@@ -568,6 +627,7 @@ export class PlacementController {
             cells !== null &&
             cells.every((c) => {
                 if (!this.zoneCell(unit.team, c)) return false;
+                if (unit.type.extra) return true; // extras overlap anything
                 const holder = this.occupied.get(cellKey(c));
                 return holder === undefined || holder === unit || group.includes(holder);
             })
@@ -587,6 +647,7 @@ export class PlacementController {
             const fp = this.footprintOf(u.type, u.rotated);
             const anchor = anchors[i]!;
             u.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
+            if (u.type.extra) return;
             for (const c of this.coveredCells(fp, anchor)!) this.occupied.set(cellKey(c), u);
         });
         for (const u of units) {
@@ -599,12 +660,12 @@ export class PlacementController {
     moveUnit(unit: Unit, anchor: Cell): boolean {
         const fp = this.footprintOf(unit.type, unit.rotated);
         const cells = this.coveredCells(fp, anchor);
-        if (!cells || !cells.every((c) => this.zoneCell(unit.team, c) && this.freeFor(c, unit))) {
-            return false;
-        }
+        const fits = (c: Cell) =>
+            this.zoneCell(unit.team, c) && (unit.type.extra || this.freeFor(c, unit));
+        if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
-        for (const c of cells) this.occupied.set(cellKey(c), unit);
+        if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
         return true;
     }
@@ -664,6 +725,35 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+
+        // an extra riding the cursor: ghost mesh + footprint plate + effect ring
+        if (this.pendingType && this.pendingUnit && this.enabled) {
+            this.showGroupPlates([], null);
+            const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
+            if (!cell) {
+                this.pendingUnit.view.position.set(0, -9999, 0);
+                return;
+            }
+            const type = this.pendingType;
+            const fp = this.footprintOf(type, false);
+            const anchor = this.centeredAnchor(type, false, cell);
+            const cells = this.coveredCells(fp, anchor);
+            const valid = cells !== null && cells.every((c) => this.zoneCell('player', c));
+            const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
+            this.pendingUnit.view.position.set(center.x, 0, center.z);
+            this.hoverMesh.position.set(center.x, 0.04, center.z);
+            this.hoverMesh.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
+            this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
+            this.hoverMesh.visible = true;
+            // show what it will cover: dome radius, or the rocket's trigger range
+            const radius = type.shield?.radius ?? type.rocket?.range;
+            if (radius) {
+                this.rangeMesh.position.set(center.x, 0.05, center.z);
+                this.rangeMesh.scale.set(radius, 1, radius);
+                this.rangeMesh.visible = true;
+            }
+            return;
+        }
 
         // while rubber-banding: highlight what the rect would select
         if (this.rectActive) {
