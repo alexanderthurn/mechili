@@ -18,6 +18,7 @@ export interface GameSettings {
     leveling: LevelingSettings;
     sell: SellSettings;
     deploy: DeploySettings;
+    boosts: BoostSettings;
     /**
      * Seeds all match randomness (enemy AI decisions). A replay of the same
      * actions with the same seed reproduces the game exactly. Unset = the
@@ -63,6 +64,19 @@ export interface TowerSettings {
     };
 }
 
+/**
+ * Command Tower: permanent army-wide stat boosts, one tier bought after the
+ * other on the same button. Tier values are TOTALS (tier 2 replaces tier 1).
+ */
+export interface BoostSettings {
+    /** price of tier 1, tier 2, ... (also defines how many tiers exist) */
+    costs: number[];
+    /** total damage bonus at each tier (0.1 = +10%) */
+    attackTiers: number[];
+    /** total hp bonus at each tier */
+    hpTiers: number[];
+}
+
 /** how many unit purchases a deployment phase allows */
 export interface DeploySettings {
     /** each player's STARTING per-round buy limit (specials may raise it permanently later) */
@@ -102,7 +116,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
         unitCosts: {
             crawler: 100,
             marksman: 100,
-            wasp: 100,
+            wasp: 200,
             fortress: 400,
         },
         techCostEscalation: 200,
@@ -127,6 +141,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
     deploy: {
         unitsPerRound: 2,
         extraSlotCost: 50,
+    },
+    boosts: {
+        costs: [100, 300],
+        attackTiers: [0.1, 0.2],
+        hpTiers: [0.15, 0.3],
     },
     leveling: {
         statBonusPerLevel: 1,

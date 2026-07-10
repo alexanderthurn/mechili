@@ -79,6 +79,11 @@ export class Game {
         extra: Record<Team, number>;
         used: Record<Team, number>;
     };
+    /** permanent army-wide boost tiers (0 = none), bought at the Command Tower */
+    private readonly boostState: Record<'attack' | 'hp', Record<Team, number>> = {
+        attack: { player: 0, enemy: 0 },
+        hp: { player: 0, enemy: 0 },
+    };
 
     constructor(
         private readonly pixiApp: Application,
@@ -143,9 +148,11 @@ export class Game {
             towers: settings.towers,
             sellSettings: settings.sell,
             deploySettings: settings.deploy,
+            boostSettings: settings.boosts,
             recruitLevel: this.recruitLevel,
             sellState: this.sellState,
             deployState: this.deployState,
+            boostState: this.boostState,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
@@ -158,7 +165,7 @@ export class Game {
         // gold pulse under packs whose next level is buyable right now
         this.placement.levelReady = (unit) => this.canLevel(unit);
         this.controls.onMiddleClick = () => this.placement.rotateSelected();
-        this.placement.rangeOf = (unit) => this.techTree.statsFor(unit.team, unit.type).range;
+        this.placement.rangeOf = (unit) => this.resolvedStats(unit.team, unit.type).range;
         this.controls.onRightClick = () => {
             this.placement.deselect();
             this.selectedActor = null;
@@ -184,9 +191,9 @@ export class Game {
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
         this.hud.onUndo = () => this.undoLast();
         this.hud.onRecruitLevel = () => {
-            // offered in the Command Tower's menu
+            // offered in the Research Center's menu
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             if (this.dispatcher.dispatch({ kind: 'recruitLevel', team: 'player' })) {
                 this.hud.refreshCosts(); // unit buttons now show the level-2 price
             }
@@ -195,6 +202,11 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.structure) return;
             this.dispatcher.dispatch({ kind: 'upgradeTower', team: 'player', unitId: unit.id });
+        };
+        this.hud.onBuyBoost = (boost) => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            this.dispatcher.dispatch({ kind: 'buyBoost', team: 'player', boost });
         };
         this.hud.onBuySellAbility = () => {
             const unit = this.placement.selectedUnit;
@@ -344,6 +356,17 @@ export class Game {
         }
     }
 
+    /** tech-resolved stats plus the team's permanent army-wide boosts */
+    private resolvedStats(team: Team, type: UnitType) {
+        const stats = this.techTree.statsFor(team, type);
+        const b = this.settings.boosts;
+        const attackTier = this.boostState.attack[team];
+        const hpTier = this.boostState.hp[team];
+        if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
+        if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
+        return stats;
+    }
+
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
     private canLevel(unit: Unit): boolean {
         return (
@@ -470,7 +493,7 @@ export class Game {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
             costOf: (type) => this.economy.costOf(type),
-            statsOf: (unit) => this.techTree.statsFor(unit.team, unit.type),
+            statsOf: (unit) => this.resolvedStats(unit.team, unit.type),
         });
     }
 
@@ -615,7 +638,7 @@ export class Game {
         this.battleRangeMesh.visible = a !== null;
         if (!a) return;
         const radius =
-            this.techTree.statsFor(a.unit.team, a.unit.type).range + a.unit.type.collisionRadius;
+            this.resolvedStats(a.unit.team, a.unit.type).range + a.unit.type.collisionRadius;
         this.battleRangeMesh.position.set(a.rx, 0.05, a.rz);
         this.battleRangeMesh.scale.set(radius, 1, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
@@ -649,7 +672,7 @@ export class Game {
     }
 
     private actorInfo(a: Actor): SelectionInfo {
-        const rs = this.techTree.statsFor(a.unit.team, a.unit.type);
+        const rs = this.resolvedStats(a.unit.team, a.unit.type);
         const lv = this.levelInfo(a.unit);
         return {
             name: a.unit.type.name,
@@ -671,7 +694,7 @@ export class Game {
     }
 
     private unitInfo(u: Unit): SelectionInfo {
-        const rs = this.techTree.statsFor(u.team, u.type);
+        const rs = this.resolvedStats(u.team, u.type);
         const lv = this.levelInfo(u);
         return {
             name: u.type.name,
@@ -701,9 +724,9 @@ export class Game {
                           maxLevel: this.settings.towers.upgrade.maxLevel,
                       }
                     : undefined,
-            // the once-per-round level-2 recruit switch lives in the Command Tower
+            // the once-per-round level-2 recruit switch lives in the Research Center
             recruit:
-                u.team === 'player' && this.phase === 'build' && u.type === COMMAND_TOWER
+                u.team === 'player' && this.phase === 'build' && u.type === RESEARCH_CENTER
                     ? {
                           cost: this.settings.leveling.recruitLevel2Cost,
                           active: this.recruitLevel.player > 1,
@@ -721,6 +744,27 @@ export class Game {
                           affordable:
                               this.economy.balance('player') >= this.settings.deploy.extraSlotCost,
                       }
+                    : undefined,
+            // Command Tower: the two permanent army-wide boost tracks
+            boosts:
+                u.team === 'player' && this.phase === 'build' && u.type === COMMAND_TOWER
+                    ? (['attack', 'hp'] as const).map((id) => {
+                          const tiers =
+                              id === 'attack'
+                                  ? this.settings.boosts.attackTiers
+                                  : this.settings.boosts.hpTiers;
+                          const tier = this.boostState[id].player;
+                          const maxed = tier >= tiers.length;
+                          const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
+                          const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
+                          return {
+                              id,
+                              label: `Army ${id === 'attack' ? 'attack' : 'HP'} +${pct}%`,
+                              cost,
+                              affordable: !maxed && this.economy.balance('player') >= cost,
+                              maxed,
+                          };
+                      })
                     : undefined,
             // so does the permanent sell-ability unlock
             sellAbility:

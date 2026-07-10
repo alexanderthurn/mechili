@@ -275,16 +275,16 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'wasp',
         name: 'Wasp',
-        cost: 100,
-        footprint: { cols: 2, rows: 2 },
-        formation: { cols: 2, rows: 2 }, // a flight of 4 drones
-        meshScale: 1.6,
+        cost: 200,
+        footprint: { cols: 5, rows: 2 }, // same pack size as crawlers
+        formation: { cols: 6, rows: 2 }, // a swarm of 12 drones, two wide rows
+        meshScale: 1.35, // slightly smaller so the tighter columns don't touch
         flying: 9,
         targets: { ground: true, air: true },
-        collisionRadius: 0.9,
+        collisionRadius: 0.75,
         colliders: [{ y: 0.1, r: 0.75 }],
         projectileSpeed: 70,
-        hp: 90,
+        hp: 45,
         damage: 18,
         range: 12,
         attackInterval: 1.1,

@@ -45,6 +45,8 @@ export interface SelectionInfo {
     deploySlot?: { cost: number; active: boolean; affordable: boolean };
     /** the permanent sell-ability unlock (Command Tower only) */
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
+    /** permanent army-wide boost tracks (Command Tower only); label shows the NEXT tier */
+    boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
     /** selling this pack (once the ability is owned; limited per round) */
     sell?: { refund: number; available: boolean };
 }
@@ -70,6 +72,7 @@ export class Hud {
     onBuySellAbility: (() => void) | null = null;
     onSellUnit: (() => void) | null = null;
     onBuyDeploySlot: (() => void) | null = null;
+    onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     onUndo: (() => void) | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
@@ -158,6 +161,7 @@ export class Hud {
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
+            else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
             else if (button.dataset.sell) this.onSellUnit?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
@@ -266,9 +270,19 @@ export class Hud {
                 : '');
         const levelUp = unitButtons ? `<div class="techs">${unitButtons}</div>` : '';
         // base building actions: the supply-only upgrade, and (Command Tower) the recruit switch
+        const boosts = (info.boosts ?? [])
+            .map((b) =>
+                b.maxed
+                    ? `<div class="tech-owned"><span>✓ ${b.label}</span></div>`
+                    : `<button class="tech-buy" data-boost="${b.id}" ${
+                          b.affordable ? '' : 'disabled'
+                      }><span>${b.label}</span><span class="c">${b.cost}</span></button>`,
+            )
+            .join('');
         const building =
-            info.towerUpgrade || info.recruit || info.sellAbility
+            info.towerUpgrade || info.recruit || info.sellAbility || boosts
                 ? `<div class="techs">` +
+                  boosts +
                   (info.towerUpgrade && !info.towerUpgrade.maxed
                       ? `<button class="tech-buy" data-towerupgrade="1" ${
                             info.towerUpgrade.affordable ? '' : 'disabled'

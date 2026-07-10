@@ -1,6 +1,13 @@
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
-import type { DeploySettings, Economy, LevelingSettings, SellSettings, TowerSettings } from './settings';
+import type {
+    BoostSettings,
+    DeploySettings,
+    Economy,
+    LevelingSettings,
+    SellSettings,
+    TowerSettings,
+} from './settings';
 import type { TechTree } from './tech';
 import { unitTypeById, type Team, type Unit, type UnitType } from './units';
 
@@ -78,6 +85,12 @@ export interface BuyDeploySlotAction {
     kind: 'buyDeploySlot';
     team: Team;
 }
+/** Command Tower: the next tier of a permanent army-wide stat boost */
+export interface BuyBoostAction {
+    kind: 'buyBoost';
+    team: Team;
+    boost: 'attack' | 'hp';
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -95,6 +108,7 @@ export type Action =
     | BuySellAbilityAction
     | SellUnitAction
     | BuyDeploySlotAction
+    | BuyBoostAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -126,6 +140,7 @@ export interface ActionContext {
     towers: TowerSettings;
     sellSettings: SellSettings;
     deploySettings: DeploySettings;
+    boostSettings: BoostSettings;
     /** per-team recruit level for the running round (reset to 1 each round) */
     recruitLevel: Record<Team, number>;
     /** per-team sell state: `owned` is permanent, `used` resets each round */
@@ -135,6 +150,8 @@ export interface ActionContext {
      * raise it for good), `extra` and `used` reset every round
      */
     deployState: { limit: Record<Team, number>; extra: Record<Team, number>; used: Record<Team, number> };
+    /** per-team tier (0 = none) of each permanent army boost */
+    boostState: Record<'attack' | 'hp', Record<Team, number>>;
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -321,6 +338,16 @@ export class ActionDispatcher {
                 this.ctx.deployState.extra[action.team]++;
                 return true;
             }
+            case 'buyBoost': {
+                const state = this.ctx.boostState[action.boost];
+                const tier = state[action.team];
+                if (tier >= this.ctx.boostSettings.costs.length) return false; // maxed
+                const cost = this.ctx.boostSettings.costs[tier]!;
+                if (!economy.spend(action.team, cost)) return false;
+                entry.paid = cost;
+                state[action.team]++;
+                return true;
+            }
             case 'endDeployment': {
                 this.ctx.onEndDeployment(action.team);
                 return true;
@@ -385,6 +412,10 @@ export class ActionDispatcher {
                 break;
             case 'buyDeploySlot':
                 this.ctx.deployState.extra[action.team]--;
+                economy.credit(action.team, e.paid!);
+                break;
+            case 'buyBoost':
+                this.ctx.boostState[action.boost][action.team]--;
                 economy.credit(action.team, e.paid!);
                 break;
             case 'endDeployment':
