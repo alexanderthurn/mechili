@@ -177,7 +177,13 @@ export interface ActionContext {
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
      */
-    deployState: { limit: Record<Team, number>; extra: Record<Team, number>; used: Record<Team, number> };
+    deployState: {
+        limit: Record<Team, number>;
+        extra: Record<Team, number>;
+        used: Record<Team, number>;
+        /** supply spent on board extras this round (own budget, resets per round) */
+        extrasSpent: Record<Team, number>;
+    };
     /** per-team tier (0 = none) of each permanent army boost */
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
     /** each side's chosen card speciality (null until the pick) */
@@ -263,11 +269,18 @@ export class ActionDispatcher {
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
                 // per-round buy limit: permanent baseline + this round's extra
-                // slots; board extras don't consume a slot
+                // slots; board extras instead draw from their own supply budget
                 const deploy = this.ctx.deployState;
                 if (
                     !type.extra &&
                     deploy.used[action.team] >= deploy.limit[action.team] + deploy.extra[action.team]
+                ) {
+                    return false;
+                }
+                if (
+                    type.extra &&
+                    deploy.extrasSpent[action.team] + economy.costOf(type) >
+                        this.ctx.deploySettings.extrasBudgetPerRound
                 ) {
                     return false;
                 }
@@ -286,7 +299,8 @@ export class ActionDispatcher {
                 }
                 entry.paid = economy.costOf(type) + premium;
                 entry.unit = unit;
-                if (!type.extra) deploy.used[action.team]++;
+                if (type.extra) deploy.extrasSpent[action.team] += economy.costOf(type);
+                else deploy.used[action.team]++;
                 return true;
             }
             case 'move': {
@@ -480,7 +494,11 @@ export class ActionDispatcher {
             case 'buy':
                 placement.removeUnit(e.unit!);
                 economy.credit(action.team, e.paid!);
-                if (!e.unit!.type.extra) this.ctx.deployState.used[action.team]--;
+                if (e.unit!.type.extra) {
+                    this.ctx.deployState.extrasSpent[action.team] -= e.paid!;
+                } else {
+                    this.ctx.deployState.used[action.team]--;
+                }
                 break;
             case 'move':
                 placement.moveUnit(placement.unitById(action.unitId)!, e.from!);

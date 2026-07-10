@@ -441,6 +441,10 @@ export class Unit {
     consumed = false;
     /** the pack's equipped item (at most ONE) — permanent once its deployment ended */
     readonly items: string[] = [];
+    /** lifetime EFFECTIVE damage dealt (capped at each victim's remaining hp) */
+    damageDealt = 0;
+    /** lifetime individual mechs killed (a wiped 24-crawler pack counts 24) */
+    kills = 0;
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;
     /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */

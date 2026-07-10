@@ -83,6 +83,8 @@ export interface DeploySettings {
     unitsPerRound: number;
     /** Research Center: price of +1 buy for the running round only */
     extraSlotCost: number;
+    /** board extras (shields, rockets) have their own cap: supply spent on them per round */
+    extrasBudgetPerRound: number;
 }
 
 /** the sell ability: bought ONCE at the Command Tower, then permanent */
@@ -143,6 +145,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     deploy: {
         unitsPerRound: 2,
         extraSlotCost: 50,
+        extrasBudgetPerRound: 500,
     },
     boosts: {
         costs: [100, 300],

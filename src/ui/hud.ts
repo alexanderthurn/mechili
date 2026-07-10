@@ -24,6 +24,8 @@ export interface SelectionInfo {
     total: number;
     /** equipped pack items, as squares in the panel */
     items?: { icon: string; name: string }[];
+    /** lifetime combat record (absent for structures/extras) */
+    record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
     level: number;
     xp: number;
@@ -97,6 +99,7 @@ export class Hud {
     private itemGhost: HTMLDivElement | null = null;
     private lastInventoryKey = '';
     private deploysLeft = Infinity;
+    private extrasBudgetLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
@@ -207,7 +210,8 @@ export class Hud {
         this.supplyEl.className = 'supply';
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'deploys';
-        this.deploysEl.title = 'Units bought this round / your current limit';
+        this.deploysEl.title =
+            'Units bought this round / your limit · remaining supply budget for shields & rockets';
         const endButton = document.createElement('button');
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
@@ -289,10 +293,12 @@ export class Hud {
         }
     }
 
-    /** purchases used / allowed this round; buy buttons grey out at the limit */
-    setDeploys(used: number, limit: number): void {
+    /** purchases used / allowed this round; buy buttons grey out at the limit.
+     *  `extrasBudgetLeft` is the separate supply cap for shields/rockets. */
+    setDeploys(used: number, limit: number, extrasBudgetLeft: number): void {
         this.deploysLeft = limit - used;
-        const label = `⚙ ${used}/${limit}`;
+        this.extrasBudgetLeft = extrasBudgetLeft;
+        const label = `⚙ ${used}/${limit} · ◇ ${extrasBudgetLeft}`;
         if (this.deploysEl.textContent !== label) this.deploysEl.textContent = label;
     }
 
@@ -410,6 +416,10 @@ export class Hud {
             (info.splash ? row('Splash', String(info.splash)) : '') +
             row('Range', String(info.range)) +
             row('Speed', String(info.speed)) +
+            (info.record
+                ? row('Total dmg', String(Math.round(info.record.damageDealt))) +
+                  row('Kills', String(info.record.kills))
+                : '') +
             levelUp +
             building +
             techs;
@@ -535,10 +545,9 @@ export class Hud {
     setSupply(amount: number): void {
         this.supplyEl.textContent = String(amount);
         for (const { el, type } of this.buttons) {
-            el.classList.toggle(
-                'unaffordable',
-                this.costOf(type) > amount || this.deploysLeft <= 0,
-            );
+            const cost = this.costOf(type);
+            const blocked = type.extra ? cost > this.extrasBudgetLeft : this.deploysLeft <= 0;
+            el.classList.toggle('unaffordable', cost > amount || blocked);
         }
     }
 

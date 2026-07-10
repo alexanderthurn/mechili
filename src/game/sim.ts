@@ -160,6 +160,18 @@ export class BattleSim {
         this.damageByType.set(key, (this.damageByType.get(key) ?? 0) + amount);
     }
 
+    /**
+     * The one place damage lands: hp, the per-type report, the pack's
+     * lifetime stats (effective damage — overkill doesn't count), and death.
+     */
+    private applyDamage(source: Unit, target: Actor, amount: number): void {
+        source.damageDealt += Math.min(amount, Math.max(0, target.hp));
+        target.hp -= amount;
+        this.recordDamage(source, amount);
+        target.hurtTimer = HURT_BAR_SECONDS;
+        if (target.hp <= 0) this.kill(target, source);
+    }
+
     /** hands the accumulated visual events to the renderer and forgets them */
     consumeEvents(): SimEvent[] {
         const drained = this.events;
@@ -220,6 +232,7 @@ export class BattleSim {
     }
 
     private kill(target: Actor, killer: Unit | null): void {
+        if (killer) killer.kills++;
         if (killer && !target.unit.type.structure) this.grantXp(killer, target);
         target.alive = false;
         const t = target.unit.type;
@@ -295,11 +308,8 @@ export class BattleSim {
                     } else {
                         // melee: instant hit
                         const dealt = damage * this.debuff(target.unit.team, d.damageTakenMult);
-                        target.hp -= dealt;
-                        this.recordDamage(a.unit, dealt);
-                        target.hurtTimer = HURT_BAR_SECONDS;
+                        this.applyDamage(a.unit, target, dealt);
                         this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
-                        if (target.hp <= 0) this.kill(target, a.unit);
                     }
                 }
                 a.mesh.rotation.y = Math.atan2(-dx, -dz);
@@ -601,10 +611,7 @@ export class BattleSim {
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
                 } else {
                     const dealt = p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
-                    hit.hp -= dealt;
-                    this.recordDamage(p.source, dealt);
-                    hit.hurtTimer = HURT_BAR_SECONDS;
-                    if (hit.hp <= 0) this.kill(hit, p.source);
+                    this.applyDamage(p.source, hit, dealt);
                     this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
                 }
                 continue; // bullet consumed
@@ -648,10 +655,7 @@ export class BattleSim {
             if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
             if (Math.hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.debuff(a.unit.team, d.damageTakenMult);
-            a.hp -= dealt;
-            this.recordDamage(p.source, dealt);
-            a.hurtTimer = HURT_BAR_SECONDS;
-            if (a.hp <= 0) this.kill(a, p.source);
+            this.applyDamage(p.source, a, dealt);
         }
     }
 

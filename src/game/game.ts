@@ -100,6 +100,7 @@ export class Game {
         limit: Record<Team, number>;
         extra: Record<Team, number>;
         used: Record<Team, number>;
+        extrasSpent: Record<Team, number>;
     };
     /** permanent army-wide boost tiers (0 = none), bought at the Command Tower */
     private readonly boostState: Record<'attack' | 'hp', Record<Team, number>> = {
@@ -175,6 +176,7 @@ export class Game {
             limit: { player: settings.deploy.unitsPerRound, enemy: settings.deploy.unitsPerRound },
             extra: { player: 0, enemy: 0 },
             used: { player: 0, enemy: 0 },
+            extrasSpent: { player: 0, enemy: 0 },
         };
         this.dispatcher = new ActionDispatcher({
             placement: this.placement,
@@ -382,6 +384,8 @@ export class Game {
         this.deployState.extra.enemy = 0;
         this.deployState.used.player = 0;
         this.deployState.used.enemy = 0;
+        this.deployState.extrasSpent.player = 0;
+        this.deployState.extrasSpent.enemy = 0;
         this.hud.refreshCosts();
         this.economy.grantRoundIncome(this.round);
         // card speciality income and gifts
@@ -659,6 +663,9 @@ export class Game {
         if (this.economy.balance('player') < this.effectiveCost(type)) return;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
+            const left =
+                this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent.player;
+            if (this.economy.costOf(type) > left) return; // extras budget exhausted
             this.placement.beginPlacing(type);
             return;
         }
@@ -823,6 +830,7 @@ export class Game {
         this.hud.setDeploys(
             this.deployState.used.player,
             this.deployState.limit.player + this.deployState.extra.player,
+            this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent.player,
         );
         this.hud.setInventory(this.inventoryView());
         this.hud.setSupply(this.economy.balance('player'));
@@ -913,6 +921,9 @@ export class Game {
             items: a.unit.items.length
                 ? a.unit.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id }))
                 : undefined,
+            record: a.unit.type.structure
+                ? undefined
+                : { damageDealt: a.unit.damageDealt, kills: a.unit.kills },
             alive: 1,
             total: 1,
             level: lv.level,
@@ -943,6 +954,7 @@ export class Game {
             items: u.items.length
                 ? u.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id }))
                 : undefined,
+            record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
                 u.team === 'player' && this.phase === 'build' && u.type.structure && !u.type.extra
