@@ -68,6 +68,12 @@ export class Game {
     private enemyHp: number;
     private matchOver = false;
     private sim: BattleSim | null = null;
+    /** player supply, techs and pack positions at build-phase start — what undo restores */
+    private roundSnapshot: {
+        supply: number;
+        techs: Map<string, Set<string>>;
+        positions: ReturnType<PlacementController['snapshotPositions']>;
+    } | null = null;
     /** every placement ever made, in order — the seed data for the replay system */
     private readonly deploymentLog: DeploymentRecord[] = [];
 
@@ -125,6 +131,12 @@ export class Game {
             this.placement.deselect();
             this.selectedActor = null;
         };
+        // Escape deselects, exactly like a right click
+        window.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.code !== 'Escape') return;
+            this.placement.deselect();
+            this.selectedActor = null;
+        });
         this.hud = new Hud(
             pixiApp,
             wrapper,
@@ -138,6 +150,7 @@ export class Game {
             this.speedIndex = (this.speedIndex + 1) % Game.SPEED_STEPS.length;
             this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
         };
+        this.hud.onUndo = () => this.undoRound();
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
@@ -201,6 +214,12 @@ export class Game {
         }
         this.gridOverlay.visible = true;
         this.economy.grantRoundIncome(this.round);
+        // undo restores to right after income, before any spending or moving
+        this.roundSnapshot = {
+            supply: this.economy.balance('player'),
+            techs: this.techTree.snapshot('player'),
+            positions: this.placement.snapshotPositions(),
+        };
         // the enemy sometimes techs up before spending the rest on units
         if (this.round >= 2 && Math.random() < 0.6) {
             const type = UNIT_TYPES[Math.floor(Math.random() * UNIT_TYPES.length)]!;
@@ -218,6 +237,39 @@ export class Game {
             const type = affordable[Math.floor(Math.random() * affordable.length)]!;
             if (!this.placement.spawnEnemyRandom(type)) break; // no space left
         }
+    }
+
+    /**
+     * The undo button: reverts every player action of the running build
+     * phase — units bought this round vanish, everything else returns to its
+     * round-start spot, supply and techs return to their post-income state.
+     * Earlier rounds are never touched.
+     */
+    private undoRound(): void {
+        if (this.phase !== 'build' || this.matchOver || !this.roundSnapshot) return;
+        this.placement.deselect();
+        for (const u of [...this.placement.allUnits()]) {
+            if (u.team === 'player' && u.deployedRound === this.round) this.placement.removeUnit(u);
+        }
+        this.placement.restorePositions(this.roundSnapshot.positions);
+        this.economy.setBalance('player', this.roundSnapshot.supply);
+        this.techTree.restore('player', this.roundSnapshot.techs);
+    }
+
+    /** true when the running build phase differs from its snapshot in any way */
+    private canUndo(): boolean {
+        const snap = this.roundSnapshot;
+        if (this.phase !== 'build' || this.matchOver || !snap) return false;
+        if (this.economy.balance('player') !== snap.supply) return true; // bought units or techs
+        for (const u of this.placement.allUnits()) {
+            if (u.team === 'player' && u.deployedRound === this.round) return true;
+        }
+        return snap.positions.some(
+            (s) =>
+                s.unit.cell.col !== s.cell.col ||
+                s.unit.cell.row !== s.cell.row ||
+                s.unit.rotated !== s.rotated,
+        );
     }
 
     /** Everything is revealed and the sim takes over; the player can only watch. */
@@ -340,6 +392,7 @@ export class Game {
         this.placement.update(this.time);
         this.updateSelectionUi();
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
+        this.hud.setUndoVisible(this.canUndo());
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();

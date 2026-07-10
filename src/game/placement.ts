@@ -288,6 +288,32 @@ export class PlacementController {
         return best ? this.spawn(type, best.anchor, 'enemy', best.rotated) : null;
     }
 
+    /** every mobile player pack's committed placement — the undo baseline */
+    snapshotPositions(): { unit: Unit; cell: Cell; rotated: boolean }[] {
+        return this.units
+            .filter((u) => u.team === 'player' && !u.type.structure)
+            .map((u) => ({ unit: u, cell: { ...u.cell }, rotated: u.rotated }));
+    }
+
+    /**
+     * Puts every still-fielded pack of the snapshot back on its recorded
+     * spot. The snapshot was a valid board state, so releasing all of them
+     * first makes the restore always succeed.
+     */
+    restorePositions(snapshot: readonly { unit: Unit; cell: Cell; rotated: boolean }[]): void {
+        const live = snapshot.filter((s) => this.units.includes(s.unit));
+        for (const s of live) this.release(s.unit);
+        for (const s of live) {
+            s.unit.setRotated(s.rotated);
+            const fp = this.footprintOf(s.unit.type, s.rotated);
+            s.unit.moveTo(s.cell, this.map.areaCenter(s.cell, fp.cols, fp.rows));
+            for (const c of this.coveredCells(fp, s.cell)!) this.occupied.set(cellKey(c), s.unit);
+        }
+        for (const s of live) {
+            s.unit.faceClosestOf(this.opponentMechPositions(s.unit.team, s.unit));
+        }
+    }
+
     /** Removes a unit from the board entirely (build-phase undo). */
     removeUnit(unit: Unit): void {
         if (this.selectedUnit === unit) this.selectedUnit = null;

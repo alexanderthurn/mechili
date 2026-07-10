@@ -52,6 +52,7 @@ export class Hud {
     private readonly playerHpEl: HTMLSpanElement;
     private readonly enemyHpEl: HTMLSpanElement;
     private readonly speedEl: HTMLButtonElement;
+    private readonly undoEl: HTMLButtonElement;
     private readonly buttons: { el: HTMLButtonElement; cost: number }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
     private readonly pixiCanvas: HTMLCanvasElement;
@@ -131,11 +132,11 @@ export class Hud {
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
         endButton.addEventListener('click', () => this.onEndDeployment?.());
-        const undoButton = document.createElement('button');
-        undoButton.className = 'undo';
-        undoButton.textContent = '↩ Undo';
-        undoButton.title = 'Revert everything placed and bought this round';
-        undoButton.addEventListener('click', () => this.onUndo?.());
+        this.undoEl = document.createElement('button');
+        this.undoEl.className = 'undo';
+        this.undoEl.textContent = '↩ Undo';
+        this.undoEl.title = 'Revert everything placed, moved and bought this round';
+        this.undoEl.addEventListener('click', () => this.onUndo?.());
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
@@ -150,7 +151,7 @@ export class Hud {
             this.phaseEl,
             this.timerEl,
             this.supplyEl,
-            undoButton,
+            this.undoEl,
             endButton,
             this.speedEl,
             this.enemyHpEl,
@@ -159,6 +160,12 @@ export class Hud {
         this.mount(this.unitBar);
         this.mount(this.topBar);
         this.mount(this.panel);
+    }
+
+    /** the undo button only shows while there is something to undo */
+    setUndoVisible(visible: boolean): void {
+        // '' lets the battle-phase CSS rule keep hiding it during battles
+        this.undoEl.style.display = visible ? '' : 'none';
     }
 
     setSelection(info: SelectionInfo | null): void {
