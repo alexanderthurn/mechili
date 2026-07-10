@@ -1,5 +1,4 @@
-import type { Economy } from './settings';
-import type { Team, TechDef, UnitType } from './units';
+import type { Team, UnitType } from './units';
 
 /** a unit type's combat stats after tech multipliers (level scaling is separate) */
 export interface ResolvedStats {
@@ -33,11 +32,9 @@ export class TechTree {
         return this.ownedFor(team, typeId).has(techId);
     }
 
-    buy(team: Team, type: UnitType, tech: TechDef, economy: Economy): boolean {
-        if (this.has(team, type.id, tech.id)) return false;
-        if (!economy.spend(team, tech.cost)) return false;
-        this.ownedFor(team, type.id).add(tech.id);
-        return true;
+    /** the actual purchase (charging, price escalation) lives in the action dispatcher */
+    add(team: Team, typeId: string, techId: string): void {
+        this.ownedFor(team, typeId).add(techId);
     }
 
     statsFor(team: Team, type: UnitType): ResolvedStats {

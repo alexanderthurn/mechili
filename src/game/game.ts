@@ -73,6 +73,12 @@ export class Game {
         owned: { player: false, enemy: false },
         used: { player: 0, enemy: 0 },
     };
+    /** per-round buy limits: `limit` is permanent (specials may raise it), rest resets per round */
+    private readonly deployState: {
+        limit: Record<Team, number>;
+        extra: Record<Team, number>;
+        used: Record<Team, number>;
+    };
 
     constructor(
         private readonly pixiApp: Application,
@@ -124,6 +130,11 @@ export class Game {
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.rng = mulberry32(this.seed);
+        this.deployState = {
+            limit: { player: settings.deploy.unitsPerRound, enemy: settings.deploy.unitsPerRound },
+            extra: { player: 0, enemy: 0 },
+            used: { player: 0, enemy: 0 },
+        };
         this.dispatcher = new ActionDispatcher({
             placement: this.placement,
             economy: this.economy,
@@ -131,8 +142,10 @@ export class Game {
             leveling: settings.leveling,
             towers: settings.towers,
             sellSettings: settings.sell,
+            deploySettings: settings.deploy,
             recruitLevel: this.recruitLevel,
             sellState: this.sellState,
+            deployState: this.deployState,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
@@ -143,11 +156,7 @@ export class Game {
         });
         this.placement.dispatch = (action) => this.dispatcher.dispatch(action);
         // gold pulse under packs whose next level is buyable right now
-        this.placement.levelReady = (unit) =>
-            this.phase === 'build' &&
-            !unit.type.structure &&
-            unit.level < settings.leveling.maxLevel &&
-            unit.xp >= xpForNextLevel(unit, this.economy, settings.leveling);
+        this.placement.levelReady = (unit) => this.canLevel(unit);
         this.controls.onMiddleClick = () => this.placement.rotateSelected();
         this.placement.rangeOf = (unit) => this.techTree.statsFor(unit.team, unit.type).range;
         this.controls.onRightClick = () => {
@@ -192,6 +201,11 @@ export class Game {
             if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
             this.dispatcher.dispatch({ kind: 'buySellAbility', team: 'player' });
         };
+        this.hud.onBuyDeploySlot = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            this.dispatcher.dispatch({ kind: 'buyDeploySlot', team: 'player' });
+        };
         this.hud.onSellUnit = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || unit.type.structure) return;
@@ -200,15 +214,13 @@ export class Game {
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
-            if (this.dispatcher.dispatch({ kind: 'buyLevel', team: 'player', unitId: unit.id })) {
-                const bursts: SimEvent[] = unit.members.map((m) => ({
-                    kind: 'levelup',
-                    x: unit.world.x + m.home.x,
-                    y: unit.type.meshScale * 1.5,
-                    z: unit.world.z + m.home.z,
-                }));
-                this.particles.spawnFromEvents(bursts);
-            }
+            this.buyLevelFor(unit);
+        };
+        this.hud.onLevelAll = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
+            // every ready pack of the same kind, oldest first
+            for (const u of this.levelablePacksOf(unit.type)) this.buyLevelFor(u);
         };
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
@@ -287,6 +299,10 @@ export class Game {
         this.recruitLevel.enemy = 1;
         this.sellState.used.player = 0;
         this.sellState.used.enemy = 0;
+        this.deployState.extra.player = 0;
+        this.deployState.extra.enemy = 0;
+        this.deployState.used.player = 0;
+        this.deployState.used.enemy = 0;
         this.hud.refreshCosts();
         this.economy.grantRoundIncome(this.round);
         // the enemy AI acts through the same action system as the player,
@@ -297,7 +313,10 @@ export class Game {
             const type = UNIT_TYPES[Math.floor(this.rng() * UNIT_TYPES.length)]!;
             const unowned = type.techs.filter((t) => !this.techTree.has('enemy', type.id, t.id));
             const tech = unowned[Math.floor(this.rng() * unowned.length)];
-            if (tech && this.economy.balance('enemy') >= tech.cost + 200) {
+            const techCost = tech
+                ? this.economy.techCostOf(tech, this.techTree.ownedFor('enemy', type.id).size)
+                : 0;
+            if (tech && this.economy.balance('enemy') >= techCost + 200) {
                 this.dispatcher.dispatch({
                     kind: 'buyTech',
                     team: 'enemy',
@@ -323,6 +342,63 @@ export class Game {
             });
             if (!done) break;
         }
+    }
+
+    /** a pack whose next level can be bought (XP banked, below max, build phase) */
+    private canLevel(unit: Unit): boolean {
+        return (
+            this.phase === 'build' &&
+            !unit.type.structure &&
+            unit.level < this.settings.leveling.maxLevel &&
+            unit.xp >= xpForNextLevel(unit, this.economy, this.settings.leveling)
+        );
+    }
+
+    /** the player's ready-to-level packs of one kind, in deterministic id order */
+    private levelablePacksOf(type: UnitType): Unit[] {
+        return this.placement
+            .allUnits()
+            .filter((u) => u.team === 'player' && u.type === type && this.canLevel(u))
+            .sort((a, b) => a.id - b.id);
+    }
+
+    /** the panel's level-up offer, with a "level all" when several packs of the kind are ready */
+    private levelUpInfo(
+        u: Unit,
+        lv: { xp: number; xpNext: number },
+    ): SelectionInfo['levelUp'] {
+        if (u.team !== 'player' || this.phase !== 'build' || u.type.structure || lv.xpNext < 0) {
+            return undefined;
+        }
+        const cost = levelCost(u.type, this.economy, this.settings.leveling);
+        const readyPacks = this.levelablePacksOf(u.type);
+        return {
+            cost,
+            ready: lv.xp >= lv.xpNext,
+            affordable: this.economy.balance('player') >= cost,
+            all:
+                readyPacks.length >= 2
+                    ? {
+                          count: readyPacks.length,
+                          cost: cost * readyPacks.length,
+                          affordable: this.economy.balance('player') >= cost * readyPacks.length,
+                      }
+                    : undefined,
+        };
+    }
+
+    private buyLevelFor(unit: Unit): boolean {
+        if (!this.dispatcher.dispatch({ kind: 'buyLevel', team: 'player', unitId: unit.id })) {
+            return false;
+        }
+        const bursts: SimEvent[] = unit.members.map((m) => ({
+            kind: 'levelup',
+            x: unit.world.x + m.home.x,
+            y: unit.type.meshScale * 1.5,
+            z: unit.world.z + m.home.z,
+        }));
+        this.particles.spawnFromEvents(bursts);
+        return true;
     }
 
     private cycleSpeed(direction: number): void {
@@ -497,6 +573,10 @@ export class Game {
         this.updateSelectionUi();
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
         this.hud.setUndoVisible(this.canUndo());
+        this.hud.setDeploys(
+            this.deployState.used.player,
+            this.deployState.limit.player + this.deployState.extra.player,
+        );
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
@@ -632,6 +712,16 @@ export class Game {
                               this.settings.leveling.recruitLevel2Cost,
                       }
                     : undefined,
+            // the Research Center sells +1 deployment for the running round
+            deploySlot:
+                u.team === 'player' && this.phase === 'build' && u.type === RESEARCH_CENTER
+                    ? {
+                          cost: this.settings.deploy.extraSlotCost,
+                          active: this.deployState.extra.player > 0,
+                          affordable:
+                              this.economy.balance('player') >= this.settings.deploy.extraSlotCost,
+                      }
+                    : undefined,
             // so does the permanent sell-ability unlock
             sellAbility:
                 u.team === 'player' && this.phase === 'build' && u.type === COMMAND_TOWER
@@ -656,26 +746,22 @@ export class Game {
                       }
                     : undefined,
             // the next level is a purchase: needs banked XP and supply
-            levelUp:
-                u.team === 'player' && this.phase === 'build' && !u.type.structure && lv.xpNext >= 0
-                    ? {
-                          cost: levelCost(u.type, this.economy, this.settings.leveling),
-                          ready: lv.xp >= lv.xpNext,
-                          affordable:
-                              this.economy.balance('player') >=
-                              levelCost(u.type, this.economy, this.settings.leveling),
-                      }
-                    : undefined,
+            levelUp: this.levelUpInfo(u, lv),
             // techs are buyable on your own packs during deployment
             techs:
                 u.team === 'player' && this.phase === 'build' && !u.type.structure
-                    ? u.type.techs.map((t) => ({
-                          id: t.id,
-                          name: t.name,
-                          cost: t.cost,
-                          owned: this.techTree.has('player', u.type.id, t.id),
-                          affordable: this.economy.balance('player') >= t.cost,
-                      }))
+                    ? u.type.techs.map((t) => {
+                          // each owned tech of the type raises the others' prices
+                          const owned = this.techTree.ownedFor('player', u.type.id).size;
+                          const cost = this.economy.techCostOf(t, owned);
+                          return {
+                              id: t.id,
+                              name: t.name,
+                              cost,
+                              owned: this.techTree.has('player', u.type.id, t.id),
+                              affordable: this.economy.balance('player') >= cost,
+                          };
+                      })
                     : undefined,
         };
     }

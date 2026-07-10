@@ -17,6 +17,7 @@ export interface GameSettings {
     towers: TowerSettings;
     leveling: LevelingSettings;
     sell: SellSettings;
+    deploy: DeploySettings;
     /**
      * Seeds all match randomness (enemy AI decisions). A replay of the same
      * actions with the same seed reproduces the game exactly. Unset = the
@@ -62,6 +63,14 @@ export interface TowerSettings {
     };
 }
 
+/** how many unit purchases a deployment phase allows */
+export interface DeploySettings {
+    /** each player's STARTING per-round buy limit (specials may raise it permanently later) */
+    unitsPerRound: number;
+    /** Research Center: price of +1 buy for the running round only */
+    extraSlotCost: number;
+}
+
 /** the sell ability: bought ONCE at the Command Tower, then permanent */
 export interface SellSettings {
     abilityCost: number;
@@ -78,6 +87,8 @@ export interface EconomySettings {
     supplyGrowthPerRound: number;
     /** cost per unit type id; a type missing here falls back to its built-in cost */
     unitCosts: Record<string, number>;
+    /** every owned tech of a unit type raises the price of its remaining techs by this */
+    techCostEscalation: number;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -94,6 +105,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
             wasp: 100,
             fortress: 400,
         },
+        techCostEscalation: 200,
     },
     towers: {
         debuffPerLostTower: {
@@ -112,6 +124,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
         maxPerRound: 1,
         refundFactor: 1,
     },
+    deploy: {
+        unitsPerRound: 2,
+        extraSlotCost: 50,
+    },
     leveling: {
         statBonusPerLevel: 1,
         xpThresholdFactor: 1,
@@ -129,6 +145,11 @@ export class Economy {
 
     costOf(type: UnitType): number {
         return this.settings.unitCosts[type.id] ?? type.cost;
+    }
+
+    /** a tech's current price: base + escalation per tech already owned for the type */
+    techCostOf(tech: { cost: number }, ownedCountForType: number): number {
+        return tech.cost + ownedCountForType * this.settings.techCostEscalation;
     }
 
     balance(team: Team): number {

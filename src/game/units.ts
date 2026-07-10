@@ -63,7 +63,7 @@ export interface UnitType {
     /** seconds between shots */
     attackInterval: number;
     speed: number;
-    /** purchasable upgrades, applying to ALL packs of this type of the buyer */
+    /** purchasable upgrades, applying to ALL packs of this type of the buyer — 4 per type at most */
     techs: TechDef[];
     /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;

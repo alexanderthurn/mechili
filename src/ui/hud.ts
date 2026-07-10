@@ -25,8 +25,14 @@ export interface SelectionInfo {
     level: number;
     xp: number;
     xpNext: number;
-    /** the buyable next level (own packs, build phase, below max level) */
-    levelUp?: { cost: number; ready: boolean; affordable: boolean };
+    /** the buyable next level (own packs, build phase, below max level);
+     *  `all` appears when several packs of the kind are ready at once */
+    levelUp?: {
+        cost: number;
+        ready: boolean;
+        affordable: boolean;
+        all?: { count: number; cost: number; affordable: boolean };
+    };
     /** buyable techs (own packs, build phase only) */
     techs?: { id: string; name: string; cost: number; owned: boolean; affordable: boolean }[];
     /** base buildings render their level as N / maxLevel and hide XP */
@@ -35,6 +41,8 @@ export interface SelectionInfo {
     towerUpgrade?: { cost: number; affordable: boolean; maxed: boolean; maxLevel: number };
     /** the once-per-round level-2 recruit switch (Command Tower only) */
     recruit?: { cost: number; active: boolean; affordable: boolean };
+    /** +1 deployment for the running round (Research Center only) */
+    deploySlot?: { cost: number; active: boolean; affordable: boolean };
     /** the permanent sell-ability unlock (Command Tower only) */
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** selling this pack (once the ability is owned; limited per round) */
@@ -56,10 +64,12 @@ export class Hud {
     onSpeedDown: (() => void) | null = null;
     onBuyTech: ((techId: string) => void) | null = null;
     onBuyLevel: (() => void) | null = null;
+    onLevelAll: (() => void) | null = null;
     onRecruitLevel: (() => void) | null = null;
     onUpgradeTower: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
     onSellUnit: (() => void) | null = null;
+    onBuyDeploySlot: (() => void) | null = null;
     onUndo: (() => void) | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
@@ -75,6 +85,8 @@ export class Hud {
     private readonly enemyHpEl: HTMLSpanElement;
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
+    private readonly deploysEl: HTMLSpanElement;
+    private deploysLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
@@ -140,10 +152,12 @@ export class Hud {
         this.panel.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.tech-buy');
             if (!button) return;
-            if (button.dataset.levelup) this.onBuyLevel?.();
+            if (button.dataset.levelall) this.onLevelAll?.();
+            else if (button.dataset.levelup) this.onBuyLevel?.();
             else if (button.dataset.recruit) this.onRecruitLevel?.();
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
+            else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.sell) this.onSellUnit?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
@@ -159,6 +173,9 @@ export class Hud {
         this.timerEl.className = 'timer';
         this.supplyEl = document.createElement('span');
         this.supplyEl.className = 'supply';
+        this.deploysEl = document.createElement('span');
+        this.deploysEl.className = 'deploys';
+        this.deploysEl.title = 'Units bought this round / your current limit';
         const endButton = document.createElement('button');
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
@@ -187,6 +204,7 @@ export class Hud {
             this.phaseEl,
             this.timerEl,
             this.supplyEl,
+            this.deploysEl,
             this.undoEl,
             endButton,
             this.speedEl,
@@ -202,6 +220,13 @@ export class Hud {
     setUndoVisible(visible: boolean): void {
         // '' lets the battle-phase CSS rule keep hiding it during battles
         this.undoEl.style.display = visible ? '' : 'none';
+    }
+
+    /** purchases used / allowed this round; buy buttons grey out at the limit */
+    setDeploys(used: number, limit: number): void {
+        this.deploysLeft = limit - used;
+        const label = `⚙ ${used}/${limit}`;
+        if (this.deploysEl.textContent !== label) this.deploysEl.textContent = label;
     }
 
     /** re-reads unit prices (they change while the recruit switch is active) */
@@ -229,6 +254,11 @@ export class Hud {
                       info.levelUp.ready && info.levelUp.affordable ? '' : 'disabled'
                   }><span>★ Level up${info.levelUp.ready ? '' : ' — needs XP'}</span><span class="c">${info.levelUp.cost}</span></button>`
                 : '') +
+            (info.levelUp?.all
+                ? `<button class="tech-buy" data-levelall="1" ${
+                      info.levelUp.all.affordable ? '' : 'disabled'
+                  }><span>★ Level all (${info.levelUp.all.count})</span><span class="c">${info.levelUp.all.cost}</span></button>`
+                : '') +
             (info.sell
                 ? `<button class="tech-buy" data-sell="1" ${
                       info.sell.available ? '' : 'disabled'
@@ -250,6 +280,13 @@ export class Hud {
                           : `<button class="tech-buy" data-recruit="1" ${
                                 info.recruit.affordable ? '' : 'disabled'
                             }><span>★★ Recruits at level 2</span><span class="c">${info.recruit.cost}</span></button>`
+                      : '') +
+                  (info.deploySlot
+                      ? info.deploySlot.active
+                          ? `<div class="tech-owned"><span>✓ +1 deployment this round</span></div>`
+                          : `<button class="tech-buy" data-deployslot="1" ${
+                                info.deploySlot.affordable ? '' : 'disabled'
+                            }><span>+1 deployment this round</span><span class="c">${info.deploySlot.cost}</span></button>`
                       : '') +
                   (info.sellAbility
                       ? info.sellAbility.owned
@@ -351,7 +388,10 @@ export class Hud {
     setSupply(amount: number): void {
         this.supplyEl.textContent = String(amount);
         for (const { el, type } of this.buttons) {
-            el.classList.toggle('unaffordable', this.costOf(type) > amount);
+            el.classList.toggle(
+                'unaffordable',
+                this.costOf(type) > amount || this.deploysLeft <= 0,
+            );
         }
     }
 

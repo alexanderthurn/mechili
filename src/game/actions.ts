@@ -1,6 +1,6 @@
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
-import type { Economy, LevelingSettings, SellSettings, TowerSettings } from './settings';
+import type { DeploySettings, Economy, LevelingSettings, SellSettings, TowerSettings } from './settings';
 import type { TechTree } from './tech';
 import { unitTypeById, type Team, type Unit, type UnitType } from './units';
 
@@ -73,6 +73,11 @@ export interface SellUnitAction {
     team: Team;
     unitId: number;
 }
+/** Research Center: +1 unit purchase for the RUNNING round only */
+export interface BuyDeploySlotAction {
+    kind: 'buyDeploySlot';
+    team: Team;
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -89,6 +94,7 @@ export type Action =
     | UpgradeTowerAction
     | BuySellAbilityAction
     | SellUnitAction
+    | BuyDeploySlotAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -119,10 +125,16 @@ export interface ActionContext {
     leveling: LevelingSettings;
     towers: TowerSettings;
     sellSettings: SellSettings;
+    deploySettings: DeploySettings;
     /** per-team recruit level for the running round (reset to 1 each round) */
     recruitLevel: Record<Team, number>;
     /** per-team sell state: `owned` is permanent, `used` resets each round */
     sellState: { owned: Record<Team, boolean>; used: Record<Team, number> };
+    /**
+     * per-team buy limits: `limit` is the permanent baseline (specials may
+     * raise it for good), `extra` and `used` reset every round
+     */
+    deployState: { limit: Record<Team, number>; extra: Record<Team, number>; used: Record<Team, number> };
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -193,6 +205,11 @@ export class ActionDispatcher {
             case 'buy': {
                 const type = unitTypeById(action.typeId);
                 if (!type || type.structure) return false;
+                // per-round buy limit: permanent baseline + this round's extra slots
+                const deploy = this.ctx.deployState;
+                if (deploy.used[action.team] >= deploy.limit[action.team] + deploy.extra[action.team]) {
+                    return false;
+                }
                 // an active recruit level adds one level's premium on top
                 const level = recruitLevel[action.team];
                 const premium = level > 1 ? levelCost(type, economy, leveling) * (level - 1) : 0;
@@ -206,6 +223,7 @@ export class ActionDispatcher {
                 }
                 entry.paid = economy.costOf(type) + premium;
                 entry.unit = unit;
+                deploy.used[action.team]++;
                 return true;
             }
             case 'move': {
@@ -231,8 +249,14 @@ export class ActionDispatcher {
                 const type = unitTypeById(action.typeId);
                 const tech = type?.techs.find((t) => t.id === action.techId);
                 if (!type || !tech) return false;
-                entry.paid = tech.cost;
-                return techTree.buy(action.team, type, tech, economy);
+                if (techTree.has(action.team, type.id, tech.id)) return false;
+                // every owned tech of the type makes the remaining ones pricier
+                const owned = techTree.ownedFor(action.team, type.id).size;
+                const cost = economy.techCostOf(tech, owned);
+                if (!economy.spend(action.team, cost)) return false;
+                techTree.add(action.team, type.id, tech.id);
+                entry.paid = cost;
+                return true;
             }
             case 'buyLevel': {
                 const unit = placement.unitById(action.unitId);
@@ -290,6 +314,13 @@ export class ActionDispatcher {
                 sell.used[action.team]++;
                 return true;
             }
+            case 'buyDeploySlot': {
+                if (this.ctx.deployState.extra[action.team] >= 1) return false; // once per round
+                if (!economy.spend(action.team, this.ctx.deploySettings.extraSlotCost)) return false;
+                entry.paid = this.ctx.deploySettings.extraSlotCost;
+                this.ctx.deployState.extra[action.team]++;
+                return true;
+            }
             case 'endDeployment': {
                 this.ctx.onEndDeployment(action.team);
                 return true;
@@ -305,6 +336,7 @@ export class ActionDispatcher {
             case 'buy':
                 placement.removeUnit(e.unit!);
                 economy.credit(action.team, e.paid!);
+                this.ctx.deployState.used[action.team]--;
                 break;
             case 'move':
                 placement.moveUnit(placement.unitById(action.unitId)!, e.from!);
@@ -350,6 +382,10 @@ export class ActionDispatcher {
                 placement.restoreUnit(e.unit!);
                 economy.spend(action.team, e.paid!); // take the refund back
                 this.ctx.sellState.used[action.team]--;
+                break;
+            case 'buyDeploySlot':
+                this.ctx.deployState.extra[action.team]--;
+                economy.credit(action.team, e.paid!);
                 break;
             case 'endDeployment':
                 break; // closes a round — never sits in an undoable tail

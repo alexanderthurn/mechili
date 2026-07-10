@@ -295,6 +295,8 @@ export function hudStyles(): string {
 .mechili-topbar .timer { font-size: 18px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
 .mechili-topbar .supply { font-size: 16px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brass}; }
 .mechili-topbar .supply::before { content: '⬢ '; color: ${u.brassDark}; }
+.mechili-topbar .deploys { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.phase}; }
+.mechili-topbar.battle .deploys { display: none; }
 .mechili-topbar .hp { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; }
 .mechili-topbar .hp.player { color: ${u.player}; }
 .mechili-topbar .hp.enemy { color: ${u.enemy}; }
