@@ -59,6 +59,8 @@ export interface Projectile {
     team: Team;
     /** the pack that fired it (kill XP goes there) */
     source: Unit;
+    /** homing shots chase this actor and hit nothing else */
+    target?: Actor;
     ttl: number;
 }
 
@@ -510,6 +512,7 @@ export class BattleSim {
             damage,
             team: a.unit.team,
             source: a.unit,
+            target: at.homing ? target : undefined,
             ttl: PROJECTILE_TTL,
         });
         this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
@@ -524,6 +527,19 @@ export class BattleSim {
         const d = this.config.towers.debuffPerLostTower;
         let write = 0;
         for (const p of this.projectiles) {
+            // homing shots re-aim at their victim every step — they can't miss
+            if (p.target?.alive) {
+                const tt = p.target.unit.type;
+                const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
+                const dx = p.target.x - p.x;
+                const dy = p.target.altitude + aim.y * tt.meshScale - p.y;
+                const dz = p.target.z - p.z;
+                const len = Math.hypot(dx, dy, dz) || 1e-6;
+                const speed = Math.hypot(p.vx, p.vy, p.vz);
+                p.vx = (dx / len) * speed;
+                p.vy = (dy / len) * speed;
+                p.vz = (dz / len) * speed;
+            }
             const nx = p.x + p.vx * dt;
             const ny = p.y + p.vy * dt;
             const nz = p.z + p.vz * dt;
@@ -535,7 +551,9 @@ export class BattleSim {
 
             let hit: Actor | null = null;
             let hitT = Infinity;
-            for (const a of this.actors) {
+            // a live homing shot connects with its victim and nothing else
+            const candidates = p.target?.alive ? [p.target] : this.actors;
+            for (const a of candidates) {
                 if (!a.alive || a.unit.team === p.team) continue;
                 const bx = a.x - p.x;
                 const bz = a.z - p.z;

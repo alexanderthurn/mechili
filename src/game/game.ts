@@ -16,6 +16,7 @@ import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
     COST_CONTROL_PENALTY,
+    ELITE_ROUND1_BONUS,
     FREE_MARKSMAN_LEVEL,
     FREE_MARKSMAN_ROUND,
     START_CARDS,
@@ -295,8 +296,9 @@ export class Game {
         this.placement.enabled = false;
         this.hud.showStartCards(START_CARDS, (cardId) => {
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'player', cardId });
-            // for now the bot mirrors the player's loadout
-            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId });
+            // the enemy drafts its own loadout (seeded, so replays agree)
+            const enemyCard = START_CARDS[Math.floor(this.rng() * START_CARDS.length)]!;
+            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: enemyCard.id });
             this.awaitingCards = false;
             this.startBuildPhase();
         });
@@ -358,6 +360,10 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             if (this.speciality[team] === 'costControl') {
                 this.economy.credit(team, COST_CONTROL_INCOME);
+            }
+            // the elite's round-1 top-up: exactly two level-2 units at 150
+            if (this.speciality[team] === 'elite' && this.round === 1) {
+                this.economy.credit(team, ELITE_ROUND1_BONUS);
             }
             if (this.speciality[team] === 'marksman' && this.round === FREE_MARKSMAN_ROUND) {
                 const type = unitTypeById('marksman')!;
@@ -514,7 +520,6 @@ export class Game {
     /** what the player pays right now, including an active recruit-level premium */
     private effectiveCost(type: UnitType): number {
         if (type.extra) return this.economy.costOf(type); // extras never recruit levels
-        if (this.speciality.player === 'elite') return this.economy.costOf(type); // level 2 is free
         const extra = this.recruitLevel.player - 1;
         return (
             this.economy.costOf(type) +

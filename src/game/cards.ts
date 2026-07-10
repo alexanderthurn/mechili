@@ -13,6 +13,7 @@ export const COST_CONTROL_PENALTY = 0.12; // all units: −12% attack & hp ...
 export const COST_CONTROL_INCOME = 100; // ... but +100 supply every round
 export const FREE_MARKSMAN_ROUND = 2; // the marksman specialist's gift arrives here
 export const FREE_MARKSMAN_LEVEL = 3;
+export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
 
 export interface StartCard {
     id: string;
@@ -52,7 +53,8 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '1× Fortress · 1× Crawlers',
         startingHp: 1700,
         speciality: 'elite',
-        description: 'Every recruit arrives at level 2, free — no switch needed.',
+        description:
+            'Recruiting at level 2 is permanently on, free of the switch fee (units still pay their level premium). +100 supply in round 1.',
     },
     {
         id: 'marksman',

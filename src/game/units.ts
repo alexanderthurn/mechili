@@ -61,6 +61,8 @@ export interface UnitType {
     colliders: { y: number; r: number }[];
     /** ranged mechs fire visible projectiles at this speed (world units/s); melee when absent */
     projectileSpeed?: number;
+    /** homing shots re-aim mid-flight and hit ONLY their victim — a guaranteed hit (shields still block) */
+    homing?: boolean;
     /**
      * area damage: a projectile impact hurts EVERY valid target within this
      * range (world units), not just what it hit. Absent = single target.
@@ -314,7 +316,8 @@ export const UNIT_TYPES: UnitType[] = [
         targets: { ground: true, air: true }, // snipes anything
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
-        projectileSpeed: 80,
+        projectileSpeed: 160,
+        homing: true, // a marksman does not miss
         hp: 130,
         damage: 65,
         range: 45,

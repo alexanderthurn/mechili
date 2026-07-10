@@ -247,12 +247,11 @@ export class ActionDispatcher {
                 ) {
                     return false;
                 }
-                // an active recruit level adds one level's premium on top —
-                // free for the elite specialist, and never applied to extras
+                // an active recruit level adds one level's premium on top
+                // (the elite specialist pays it too — only the SWITCH is free
+                // for them); extras never recruit levels
                 const level = type.extra ? 1 : recruitLevel[action.team];
-                const elite = this.ctx.speciality[action.team] === 'elite';
-                const premium =
-                    level > 1 && !elite ? levelCost(type, economy, leveling) * (level - 1) : 0;
+                const premium = level > 1 ? levelCost(type, economy, leveling) * (level - 1) : 0;
                 if (economy.balance(action.team) < economy.costOf(type) + premium) return false;
                 const unit = placement.placeUnit(action.team, type, action.anchor, action.rotated);
                 if (!unit) return false;
