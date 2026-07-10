@@ -35,6 +35,10 @@ export interface SelectionInfo {
     towerUpgrade?: { cost: number; affordable: boolean; maxed: boolean; maxLevel: number };
     /** the once-per-round level-2 recruit switch (Command Tower only) */
     recruit?: { cost: number; active: boolean; affordable: boolean };
+    /** the permanent sell-ability unlock (Command Tower only) */
+    sellAbility?: { cost: number; owned: boolean; affordable: boolean };
+    /** selling this pack (once the ability is owned; limited per round) */
+    sell?: { refund: number; available: boolean };
 }
 
 /**
@@ -54,6 +58,8 @@ export class Hud {
     onBuyLevel: (() => void) | null = null;
     onRecruitLevel: (() => void) | null = null;
     onUpgradeTower: (() => void) | null = null;
+    onBuySellAbility: (() => void) | null = null;
+    onSellUnit: (() => void) | null = null;
     onUndo: (() => void) | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
@@ -137,6 +143,8 @@ export class Hud {
             if (button.dataset.levelup) this.onBuyLevel?.();
             else if (button.dataset.recruit) this.onRecruitLevel?.();
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
+            else if (button.dataset.sellability) this.onBuySellAbility?.();
+            else if (button.dataset.sell) this.onSellUnit?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
 
@@ -215,14 +223,21 @@ export class Hud {
         this.lastPanelKey = key;
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
         const stars = info.level > 1 ? ` <span style="color:${THEME.ui.veteranStar}">${'★'.repeat(info.level - 1)}</span>` : '';
-        const levelUp = info.levelUp
-            ? `<div class="techs"><button class="tech-buy" data-levelup="1" ${
-                  info.levelUp.ready && info.levelUp.affordable ? '' : 'disabled'
-              }><span>★ Level up${info.levelUp.ready ? '' : ' — needs XP'}</span><span class="c">${info.levelUp.cost}</span></button></div>`
-            : '';
+        const unitButtons =
+            (info.levelUp
+                ? `<button class="tech-buy" data-levelup="1" ${
+                      info.levelUp.ready && info.levelUp.affordable ? '' : 'disabled'
+                  }><span>★ Level up${info.levelUp.ready ? '' : ' — needs XP'}</span><span class="c">${info.levelUp.cost}</span></button>`
+                : '') +
+            (info.sell
+                ? `<button class="tech-buy" data-sell="1" ${
+                      info.sell.available ? '' : 'disabled'
+                  }><span>Sell${info.sell.available ? '' : ' — used this round'}</span><span class="c">+${info.sell.refund}</span></button>`
+                : '');
+        const levelUp = unitButtons ? `<div class="techs">${unitButtons}</div>` : '';
         // base building actions: the supply-only upgrade, and (Command Tower) the recruit switch
         const building =
-            info.towerUpgrade || info.recruit
+            info.towerUpgrade || info.recruit || info.sellAbility
                 ? `<div class="techs">` +
                   (info.towerUpgrade && !info.towerUpgrade.maxed
                       ? `<button class="tech-buy" data-towerupgrade="1" ${
@@ -235,6 +250,13 @@ export class Hud {
                           : `<button class="tech-buy" data-recruit="1" ${
                                 info.recruit.affordable ? '' : 'disabled'
                             }><span>★★ Recruits at level 2</span><span class="c">${info.recruit.cost}</span></button>`
+                      : '') +
+                  (info.sellAbility
+                      ? info.sellAbility.owned
+                          ? `<div class="tech-owned"><span>✓ Sell ability</span></div>`
+                          : `<button class="tech-buy" data-sellability="1" ${
+                                info.sellAbility.affordable ? '' : 'disabled'
+                            }><span>Unlock selling (1/round)</span><span class="c">${info.sellAbility.cost}</span></button>`
                       : '') +
                   `</div>`
                 : '';

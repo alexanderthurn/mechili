@@ -68,6 +68,11 @@ export class Game {
     private readonly rng: () => number;
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
     private readonly recruitLevel: Record<Team, number> = { player: 1, enemy: 1 };
+    /** the sell ability: `owned` is a permanent match unlock, `used` resets per round */
+    private readonly sellState: { owned: Record<Team, boolean>; used: Record<Team, number> } = {
+        owned: { player: false, enemy: false },
+        used: { player: 0, enemy: 0 },
+    };
 
     constructor(
         private readonly pixiApp: Application,
@@ -125,7 +130,9 @@ export class Game {
             techTree: this.techTree,
             leveling: settings.leveling,
             towers: settings.towers,
+            sellSettings: settings.sell,
             recruitLevel: this.recruitLevel,
+            sellState: this.sellState,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
@@ -179,6 +186,16 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.structure) return;
             this.dispatcher.dispatch({ kind: 'upgradeTower', team: 'player', unitId: unit.id });
+        };
+        this.hud.onBuySellAbility = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            this.dispatcher.dispatch({ kind: 'buySellAbility', team: 'player' });
+        };
+        this.hud.onSellUnit = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player' || unit.type.structure) return;
+            this.dispatcher.dispatch({ kind: 'sellUnit', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
@@ -268,6 +285,8 @@ export class Game {
         this.gridOverlay.visible = true;
         this.recruitLevel.player = 1;
         this.recruitLevel.enemy = 1;
+        this.sellState.used.player = 0;
+        this.sellState.used.enemy = 0;
         this.hud.refreshCosts();
         this.economy.grantRoundIncome(this.round);
         // the enemy AI acts through the same action system as the player,
@@ -611,6 +630,29 @@ export class Game {
                           affordable:
                               this.economy.balance('player') >=
                               this.settings.leveling.recruitLevel2Cost,
+                      }
+                    : undefined,
+            // so does the permanent sell-ability unlock
+            sellAbility:
+                u.team === 'player' && this.phase === 'build' && u.type === COMMAND_TOWER
+                    ? {
+                          cost: this.settings.sell.abilityCost,
+                          owned: this.sellState.owned.player,
+                          affordable:
+                              this.economy.balance('player') >= this.settings.sell.abilityCost,
+                      }
+                    : undefined,
+            // once unlocked, own packs can be sold (limited per round)
+            sell:
+                u.team === 'player' &&
+                this.phase === 'build' &&
+                !u.type.structure &&
+                this.sellState.owned.player
+                    ? {
+                          refund: Math.round(
+                              this.economy.costOf(u.type) * this.settings.sell.refundFactor,
+                          ),
+                          available: this.sellState.used.player < this.settings.sell.maxPerRound,
                       }
                     : undefined,
             // the next level is a purchase: needs banked XP and supply

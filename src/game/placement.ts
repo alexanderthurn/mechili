@@ -337,6 +337,14 @@ export class PlacementController {
         return best;
     }
 
+    /** Puts a removed pack back on its committed spot (sell-action undo). */
+    restoreUnit(unit: Unit): void {
+        this.units.push(unit);
+        const fp = this.footprintOf(unit.type, unit.rotated);
+        for (const c of this.coveredCells(fp, unit.cell)!) this.occupied.set(cellKey(c), unit);
+        this.scene.add(unit.view);
+    }
+
     /** Removes a unit from the board entirely (buy-action undo). */
     removeUnit(unit: Unit): void {
         if (this.selectedUnit === unit) this.selectedUnit = null;

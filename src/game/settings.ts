@@ -16,6 +16,7 @@ export interface GameSettings {
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
+    sell: SellSettings;
     /**
      * Seeds all match randomness (enemy AI decisions). A replay of the same
      * actions with the same seed reproduces the game exactly. Unset = the
@@ -61,6 +62,15 @@ export interface TowerSettings {
     };
 }
 
+/** the sell ability: bought ONCE at the Command Tower, then permanent */
+export interface SellSettings {
+    abilityCost: number;
+    /** units sellable per deployment phase once owned */
+    maxPerRound: number;
+    /** refund = unit base cost × this */
+    refundFactor: number;
+}
+
 export interface EconomySettings {
     /** income granted in round 1 */
     startingSupply: number;
@@ -96,6 +106,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
             costStep: 50,
             maxLevel: 5,
         },
+    },
+    sell: {
+        abilityCost: 100,
+        maxPerRound: 1,
+        refundFactor: 1,
     },
     leveling: {
         statBonusPerLevel: 1,

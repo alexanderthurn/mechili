@@ -1,6 +1,6 @@
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
-import type { Economy, LevelingSettings, TowerSettings } from './settings';
+import type { Economy, LevelingSettings, SellSettings, TowerSettings } from './settings';
 import type { TechTree } from './tech';
 import { unitTypeById, type Team, type Unit, type UnitType } from './units';
 
@@ -62,6 +62,17 @@ export interface UpgradeTowerAction {
     team: Team;
     unitId: number;
 }
+/** unlocks selling PERMANENTLY (Command Tower, once per match) */
+export interface BuySellAbilityAction {
+    kind: 'buySellAbility';
+    team: Team;
+}
+/** sells a pack for its refund — limited per deployment phase */
+export interface SellUnitAction {
+    kind: 'sellUnit';
+    team: Team;
+    unitId: number;
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -76,6 +87,8 @@ export type Action =
     | BuyLevelAction
     | RecruitLevelAction
     | UpgradeTowerAction
+    | BuySellAbilityAction
+    | SellUnitAction
     | EndDeploymentAction;
 
 /** one applied action as stored in a replay */
@@ -105,8 +118,11 @@ export interface ActionContext {
     techTree: TechTree;
     leveling: LevelingSettings;
     towers: TowerSettings;
+    sellSettings: SellSettings;
     /** per-team recruit level for the running round (reset to 1 each round) */
     recruitLevel: Record<Team, number>;
+    /** per-team sell state: `owned` is permanent, `used` resets each round */
+    sellState: { owned: Record<Team, boolean>; used: Record<Team, number> };
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -251,6 +267,29 @@ export class ActionDispatcher {
                 unit.refreshLevelBadge();
                 return true;
             }
+            case 'buySellAbility': {
+                if (this.ctx.sellState.owned[action.team]) return false; // already unlocked
+                if (!economy.spend(action.team, this.ctx.sellSettings.abilityCost)) return false;
+                entry.paid = this.ctx.sellSettings.abilityCost;
+                this.ctx.sellState.owned[action.team] = true;
+                return true;
+            }
+            case 'sellUnit': {
+                const sell = this.ctx.sellState;
+                if (!sell.owned[action.team]) return false;
+                if (sell.used[action.team] >= this.ctx.sellSettings.maxPerRound) return false;
+                const unit = placement.unitById(action.unitId);
+                if (!unit || unit.team !== action.team || unit.type.structure) return false;
+                const refund = Math.round(
+                    economy.costOf(unit.type) * this.ctx.sellSettings.refundFactor,
+                );
+                entry.unit = unit;
+                entry.paid = refund;
+                placement.removeUnit(unit);
+                economy.credit(action.team, refund);
+                sell.used[action.team]++;
+                return true;
+            }
             case 'endDeployment': {
                 this.ctx.onEndDeployment(action.team);
                 return true;
@@ -303,6 +342,15 @@ export class ActionDispatcher {
                 economy.credit(action.team, e.paid!);
                 break;
             }
+            case 'buySellAbility':
+                this.ctx.sellState.owned[action.team] = false;
+                economy.credit(action.team, e.paid!);
+                break;
+            case 'sellUnit':
+                placement.restoreUnit(e.unit!);
+                economy.spend(action.team, e.paid!); // take the refund back
+                this.ctx.sellState.used[action.team]--;
+                break;
             case 'endDeployment':
                 break; // closes a round — never sits in an undoable tail
         }
