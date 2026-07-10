@@ -26,7 +26,7 @@ import {
     type SpecialityId,
 } from './cards';
 import { ITEMS } from './items';
-import { BattleMap, mulberry32 } from './map';
+import { BattleMap, CELL, mulberry32 } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import { createRangeRing, PlacementController } from './placement';
@@ -163,6 +163,10 @@ export class Game {
         // keep the camera target well inside the field so the view never leaves the map
         this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
         this.rig.fitMap(this.map.width, this.map.height);
+        // open centered on the player's own zone (where the starting army
+        // stands), zoomed out enough to see the whole deployment area
+        const ownZoneZ = this.map.halfH - (this.map.size.zoneRows * CELL) / 2;
+        this.rig.startAt(0, ownZoneZ, 110);
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;

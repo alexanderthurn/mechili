@@ -76,6 +76,16 @@ export class CameraRig {
         this.clampDesired();
     }
 
+    /** jumps target and zoom instantly (no easing) — the match's opening framing */
+    startAt(x: number, z: number, zoom: number): void {
+        this.desired.x = x;
+        this.desired.z = z;
+        this.desired.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, zoom));
+        this.clampDesired();
+        Object.assign(this.state, this.desired);
+        this.applyState(this.state);
+    }
+
     /** allows zooming out just far enough to frame a map of the given size */
     fitMap(width: number, height: number): void {
         this.maxZoom = Math.max(120, width * 0.95, height * 1.1);
