@@ -50,12 +50,13 @@ export class Game {
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
 
-    private static readonly SPEED_STEPS = [1, 2, 4, 8, 0.25, 0.5];
+    /** ascending — the speed button steps up (click) or down (right click), wrapping */
+    private static readonly SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8];
 
     private phase: Phase = 'build';
     private round = 0;
     private phaseRemaining = 0;
-    private speedIndex = 0;
+    private speedIndex = Game.SPEED_STEPS.indexOf(1);
     private playerHp: number;
     private enemyHp: number;
     private matchOver = false;
@@ -152,10 +153,8 @@ export class Game {
                 this.dispatcher.dispatch({ kind: 'endDeployment', team: 'player' });
             }
         };
-        this.hud.onToggleSpeed = () => {
-            this.speedIndex = (this.speedIndex + 1) % Game.SPEED_STEPS.length;
-            this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
-        };
+        this.hud.onSpeedUp = () => this.cycleSpeed(1);
+        this.hud.onSpeedDown = () => this.cycleSpeed(-1);
         this.hud.onUndo = () => this.undoLast();
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
@@ -258,6 +257,12 @@ export class Game {
             });
             if (!done) break;
         }
+    }
+
+    private cycleSpeed(direction: number): void {
+        const n = Game.SPEED_STEPS.length;
+        this.speedIndex = (this.speedIndex + direction + n) % n;
+        this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
     }
 
     /** HUD buy button: resolve a spawn spot, then run it through the action system */

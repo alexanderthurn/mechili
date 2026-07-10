@@ -36,7 +36,8 @@ export class Hud {
     /** 'html-in-canvas' when mirrored via HTMLSource, 'dom-overlay' otherwise */
     readonly mode: 'html-in-canvas' | 'dom-overlay';
     onEndDeployment: (() => void) | null = null;
-    onToggleSpeed: (() => void) | null = null;
+    onSpeedUp: (() => void) | null = null;
+    onSpeedDown: (() => void) | null = null;
     onBuyTech: ((techId: string) => void) | null = null;
     onUndo: (() => void) | null = null;
     private lastPanelKey = '';
@@ -140,7 +141,12 @@ export class Hud {
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
-        this.speedEl.addEventListener('click', () => this.onToggleSpeed?.());
+        this.speedEl.title = 'Battle speed — click: faster, right click: slower';
+        this.speedEl.addEventListener('click', () => this.onSpeedUp?.());
+        this.speedEl.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.onSpeedDown?.();
+        });
         this.playerHpEl = document.createElement('span');
         this.playerHpEl.className = 'hp player';
         this.enemyHpEl = document.createElement('span');
