@@ -441,21 +441,26 @@ export class BattleSim {
                 }
             }
 
+            const splash = p.source.type.splashRadius ?? 0;
             if (hit) {
-                const dealt = p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
-                hit.hp -= dealt;
-                this.recordDamage(p.source, dealt);
-                hit.hurtTimer = HURT_BAR_SECONDS;
-                this.events.push({
-                    kind: 'impact',
-                    x: p.x + sx * hitT,
-                    y: p.y + sy * hitT,
-                    z: p.z + sz * hitT,
-                });
-                if (hit.hp <= 0) this.kill(hit, p.source);
+                const ix = p.x + sx * hitT;
+                const iy = p.y + sy * hitT;
+                const iz = p.z + sz * hitT;
+                if (splash > 0) {
+                    this.explode(p, ix, iz, splash);
+                } else {
+                    const dealt = p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
+                    hit.hp -= dealt;
+                    this.recordDamage(p.source, dealt);
+                    hit.hurtTimer = HURT_BAR_SECONDS;
+                    if (hit.hp <= 0) this.kill(hit, p.source);
+                }
+                this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
                 continue; // bullet consumed
             }
             if (ny <= 0) {
+                // splash shells detonate on the ground too — a miss still hurts
+                if (splash > 0) this.explode(p, nx, nz, splash);
                 this.events.push({ kind: 'impact', x: nx, y: 0.15, z: nz });
                 continue;
             }
@@ -467,6 +472,26 @@ export class BattleSim {
             this.projectiles[write++] = p;
         }
         this.projectiles.length = write;
+    }
+
+    /**
+     * Splash: full damage to every enemy within the radius of the impact,
+     * respecting the shooter's can-attack matrix (a ground-only cannon's
+     * blast doesn't reach wasps overhead).
+     */
+    private explode(p: Projectile, x: number, z: number, radius: number): void {
+        const d = this.config.towers.debuffPerLostTower;
+        const targets = p.source.type.targets;
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.team === p.team) continue;
+            if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
+            if (Math.hypot(a.x - x, a.z - z) > radius + a.radius) continue;
+            const dealt = p.damage * this.debuff(a.unit.team, d.damageTakenMult);
+            a.hp -= dealt;
+            this.recordDamage(p.source, dealt);
+            a.hurtTimer = HURT_BAR_SECONDS;
+            if (a.hp <= 0) this.kill(a, p.source);
+        }
     }
 
     /** mass-based push-out: heavy units shove light ones aside, structures never move */

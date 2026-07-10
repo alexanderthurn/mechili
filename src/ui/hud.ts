@@ -14,6 +14,10 @@ export interface SelectionInfo {
     damage: number;
     range: number;
     speed: number;
+    /** seconds between shots (tech-resolved) */
+    attackInterval: number;
+    /** area-damage radius; absent = single target */
+    splash?: number;
     /** living/total mechs of the pack (1/1 for single mechs and towers) */
     alive: number;
     total: number;
@@ -100,7 +104,8 @@ export class Hud {
             button.title =
                 `${type.name} — ${costOf(type)} supply${type.flying ? ' · FLYING' : ''}\n` +
                 `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each · hits ${hits}\n` +
-                `damage ${type.damage} · range ${type.range} · speed ${type.speed}`;
+                `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
+                ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
             button.addEventListener('click', () => onBuy(UNIT_TYPES[i]!));
             this.buttons.push({ el: button, type });
             this.unitBar.appendChild(button);
@@ -240,6 +245,8 @@ export class Hud {
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
             row('Level', info.xpNext < 0 ? `${info.level} (max)` : `${info.level} · ${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`) +
             row('Damage', String(Math.round(info.damage))) +
+            row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
+            (info.splash ? row('Splash', String(info.splash)) : '') +
             row('Range', String(info.range)) +
             row('Speed', String(info.speed)) +
             levelUp +

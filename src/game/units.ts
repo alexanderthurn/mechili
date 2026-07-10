@@ -51,10 +51,16 @@ export interface UnitType {
     colliders: { y: number; r: number }[];
     /** ranged mechs fire visible projectiles at this speed (world units/s); melee when absent */
     projectileSpeed?: number;
+    /**
+     * area damage: a projectile impact hurts EVERY valid target within this
+     * range (world units), not just what it hit. Absent = single target.
+     */
+    splashRadius?: number;
     /** combat stats, per individual mech */
     hp: number;
     damage: number;
     range: number;
+    /** seconds between shots */
     attackInterval: number;
     speed: number;
     /** purchasable upgrades, applying to ALL packs of this type of the buyer */
@@ -248,7 +254,7 @@ export const UNIT_TYPES: UnitType[] = [
         hp: 130,
         damage: 65,
         range: 45,
-        attackInterval: 2.2,
+        attackInterval: 1.4,
         speed: 3.5,
         techs: [
             { id: 'barrel', name: 'Long Barrel', cost: 200, mods: { range: 1.3 } },
@@ -290,6 +296,7 @@ export const UNIT_TYPES: UnitType[] = [
         collisionRadius: 2.8,
         colliders: [{ y: 0.9, r: 1.1 }],
         projectileSpeed: 50,
+        splashRadius: 3, // shells explode — everything near the impact takes the hit
         hp: 900,
         damage: 130,
         range: 28,
