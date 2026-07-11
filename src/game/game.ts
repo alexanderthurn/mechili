@@ -135,6 +135,10 @@ export class Game {
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
     /** each side's unequipped pack items */
     private readonly itemInventory: Record<Team, string[]> = { player: [], enemy: [] };
+    /** unit types buyable in the shop this match */
+    private readonly unlockedUnits: Record<Team, string[]> = { player: [], enemy: [] };
+    /** at most one shop unlock per deployment round */
+    private readonly unlockUsedThisRound: Record<Team, boolean> = { player: false, enemy: false };
     /** the inventory item currently armed for placement onto a pack */
     private armedItem: string | null = null;
     /** whether each side already took/skipped this round's card */
@@ -254,6 +258,8 @@ export class Game {
             items: this.itemInventory,
             roundCardTaken: this.roundCardTaken,
             deployReady: this.deployReady,
+            unlockedUnits: this.unlockedUnits,
+            unlockUsedThisRound: this.unlockUsedThisRound,
             hp: {
                 get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
                 set: (team, hp) => {
@@ -287,6 +293,8 @@ export class Game {
                   placement: this.placement,
                   economy: this.economy,
                   techTree: this.techTree,
+                  unlockedUnits: this.unlockedUnits,
+                  unlockUsedThisRound: this.unlockUsedThisRound,
                   rng: this.rngAi,
               });
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
@@ -318,6 +326,7 @@ export class Game {
             (type) => this.buyUnit(type),
         );
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
@@ -480,7 +489,10 @@ export class Game {
         this.deployState.extrasSpent.enemy = 0;
         this.deployReady.player = false;
         this.deployReady.enemy = false;
+        this.unlockUsedThisRound.player = false;
+        this.unlockUsedThisRound.enemy = false;
         this.hud.refreshCosts();
+        this.refreshShopHud();
         this.economy.grantRoundIncome(this.round);
         // card speciality income and gifts
         for (const team of ['player', 'enemy'] as const) {
@@ -524,6 +536,7 @@ export class Game {
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.net?.send({ type: 'starter', cardId });
             this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
+            this.refreshShopHud();
             this.maybeStartMatch();
         });
     }
@@ -725,6 +738,7 @@ export class Game {
         if (this.matchOver) return;
         if (msg.type === 'starter') {
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId });
+            this.refreshShopHud();
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
             this.remoteQueue.push({ round: msg.round, action: msg.action });
@@ -988,6 +1002,7 @@ export class Game {
     /** HUD buy button: resolve a spawn spot, then run it through the action system */
     private buyUnit(type: UnitType): void {
         if (!this.playerCanAct) return;
+        if (!type.extra && !this.unlockedUnits.player.includes(type.id)) return;
         if (this.economy.balance('player') < this.effectiveCost(type)) return;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
@@ -1020,6 +1035,22 @@ export class Game {
             this.net?.send({ type: 'undo', round: this.round }); // the peer mirrors it
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
+        this.refreshShopHud();
+    }
+
+    private unlockUnit(typeId: string): void {
+        if (!this.playerCanAct) return;
+        if (this.dispatchPlayer({ kind: 'unlockUnit', team: 'player', typeId })) {
+            this.refreshShopHud();
+        }
+    }
+
+    private refreshShopHud(): void {
+        this.hud.updateShop(
+            this.unlockedUnits.player,
+            !this.unlockUsedThisRound.player,
+            this.economy.balance('player'),
+        );
     }
 
     private canUndo(): boolean {
@@ -1186,6 +1217,7 @@ export class Game {
         );
         this.hud.setInventory(this.inventoryView());
         this.hud.setSupply(this.economy.balance('player'));
+        this.refreshShopHud();
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
         this.debug.update(this.pixiApp, this.rig, this.placement.unitCount, dtSeconds);

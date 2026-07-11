@@ -95,6 +95,27 @@ export const ROUND_CARDS: RoundCard[] = [
     },
 ];
 
+/** buyable army types in the deployment shop (not board extras) */
+export const SHOP_UNIT_IDS = ['crawler', 'marksman', 'wasp', 'fortress'] as const;
+export type ShopUnitId = (typeof SHOP_UNIT_IDS)[number];
+
+/** once-per-round unlock fee by unit type */
+export const UNIT_UNLOCK_COST: Record<ShopUnitId, number> = {
+    crawler: 0,
+    marksman: 0,
+    wasp: 50,
+    fortress: 200,
+};
+
+/** the signature unit a specialist can buy even if it is not in the starter army */
+export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
+    air: 'wasp',
+    costControl: 'marksman',
+    elite: 'fortress',
+    marksman: 'marksman',
+    addi: 'wasp',
+};
+
 export interface StartCard {
     id: string;
     title: string;
@@ -107,6 +128,20 @@ export interface StartCard {
     /** pack items granted into the player's inventory */
     items?: string[];
     description: string;
+}
+
+/** starter packs + the specialist's signature unit */
+export function starterUnlockedUnits(card: StartCard): ShopUnitId[] {
+    const ids = new Set<ShopUnitId>();
+    for (const id of card.units) {
+        if ((SHOP_UNIT_IDS as readonly string[]).includes(id)) ids.add(id as ShopUnitId);
+    }
+    ids.add(SPECIALITY_UNLOCK[card.speciality]);
+    return SHOP_UNIT_IDS.filter((id) => ids.has(id));
+}
+
+export function unitUnlockCost(typeId: string): number {
+    return UNIT_UNLOCK_COST[typeId as ShopUnitId] ?? Number.POSITIVE_INFINITY;
 }
 
 export const START_CARDS: StartCard[] = [

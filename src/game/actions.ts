@@ -1,4 +1,4 @@
-import { ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, type SpecialityId } from './cards';
+import { ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
 import { ITEMS } from './items';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
@@ -119,6 +119,12 @@ export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
 }
+/** unlock one new shop unit type for this deployment round */
+export interface UnlockUnitAction {
+    kind: 'unlockUnit';
+    team: Team;
+    typeId: string;
+}
 
 export type Action =
     | BuyAction
@@ -136,7 +142,8 @@ export type Action =
     | ChooseCardAction
     | ApplyItemAction
     | RoundCardAction
-    | EndDeploymentAction;
+    | EndDeploymentAction
+    | UnlockUnitAction;
 
 /** one applied action as stored in a replay */
 export interface LoggedAction {
@@ -197,6 +204,10 @@ export interface ActionContext {
     roundCardTaken: Record<Team, boolean>;
     /** which sides have locked in this deployment — battle needs BOTH */
     deployReady: Record<Team, boolean>;
+    /** unit types currently buyable in the shop (starter + unlocks) */
+    unlockedUnits: Record<Team, string[]>;
+    /** each side may unlock at most one new unit type per deployment round */
+    unlockUsedThisRound: Record<Team, boolean>;
     /** player HP pools (cards set the starting value) */
     hp: { get: (team: Team) => number; set: (team: Team, hp: number) => void };
     /** current round + seconds into its build phase, stamped onto log entries */
@@ -286,6 +297,12 @@ export class ActionDispatcher {
                 const type = unitTypeById(action.typeId);
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
+                if (
+                    !type.extra &&
+                    !this.ctx.unlockedUnits[action.team].includes(action.typeId)
+                ) {
+                    return false;
+                }
                 // per-round buy limit: permanent baseline + this round's extra
                 // slots; board extras instead draw from their own supply budget
                 const deploy = this.ctx.deployState;
@@ -435,6 +452,7 @@ export class ActionDispatcher {
                 const card = START_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
                 this.ctx.speciality[action.team] = card.speciality;
+                this.ctx.unlockedUnits[action.team] = starterUnlockedUnits(card);
                 entry.prevHp = this.ctx.hp.get(action.team);
                 this.ctx.hp.set(action.team, card.startingHp);
                 // the starting army — free, placed ring-wise from the zone center
@@ -502,6 +520,17 @@ export class ActionDispatcher {
                 if (this.ctx.deployReady[action.team]) return false; // already locked in
                 this.ctx.deployReady[action.team] = true;
                 this.ctx.onEndDeployment(action.team);
+                return true;
+            }
+            case 'unlockUnit': {
+                if (this.ctx.unlockUsedThisRound[action.team]) return false;
+                if (this.ctx.unlockedUnits[action.team].includes(action.typeId)) return false;
+                const cost = unitUnlockCost(action.typeId);
+                if (!Number.isFinite(cost)) return false;
+                if (cost > 0 && !economy.spend(action.team, cost)) return false;
+                this.ctx.unlockedUnits[action.team].push(action.typeId);
+                this.ctx.unlockUsedThisRound[action.team] = true;
+                entry.paid = cost;
                 return true;
             }
         }
@@ -583,6 +612,7 @@ export class ActionDispatcher {
                 }
                 this.ctx.hp.set(action.team, e.prevHp!);
                 this.ctx.speciality[action.team] = null;
+                this.ctx.unlockedUnits[action.team] = [];
                 break;
             }
             case 'applyItem': {
@@ -595,6 +625,14 @@ export class ActionDispatcher {
             case 'roundCard':
             case 'endDeployment':
                 break; // excluded from undo (see isUndoable)
+            case 'unlockUnit': {
+                const list = this.ctx.unlockedUnits[action.team];
+                const i = list.lastIndexOf(action.typeId);
+                if (i >= 0) list.splice(i, 1);
+                this.ctx.unlockUsedThisRound[action.team] = false;
+                if (e.paid) economy.credit(action.team, e.paid);
+                break;
+            }
         }
     }
 }

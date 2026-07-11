@@ -1,6 +1,6 @@
 import { Sprite, type Application } from 'pixi.js';
 import { HTMLSource } from 'pixi.js/html-source';
-import type { StartCard } from '../game/cards';
+import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { THEME, hudStyles } from '../theme';
 
@@ -80,6 +80,7 @@ export class Hud {
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     onArmItem: ((itemId: string) => void) | null = null;
     onUndo: (() => void) | null = null;
+    onUnlockPick: ((typeId: string) => void) | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
 
@@ -87,6 +88,14 @@ export class Hud {
     private readonly shopColumn: HTMLDivElement;
     private readonly extrasRow: HTMLDivElement;
     private readonly shopPanel: HTMLDivElement;
+    private readonly shopGrid: HTMLDivElement;
+    private readonly unlockTile: HTMLButtonElement;
+    private readonly shopUnitTiles = new Map<string, HTMLButtonElement>();
+    private shopUnlocked: string[] = [];
+    private shopUnlockAvailable = false;
+    private shopBalance = 0;
+    private unitIcons = new Map<string, string>();
+    private lastShopKey = '';
     private readonly fightBar: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
@@ -199,15 +208,24 @@ export class Hud {
 
         const shopGrid = document.createElement('div');
         shopGrid.className = 'shop-grid';
+        this.shopGrid = shopGrid;
         for (const type of shopUnits) {
             const i = UNIT_TYPES.indexOf(type);
-            shopGrid.appendChild(makeShopTile(type, i));
+            const tile = makeShopTile(type, i);
+            tile.style.display = 'none';
+            this.shopUnitTiles.set(type.id, tile);
+            shopGrid.appendChild(tile);
         }
-        const unlockTile = document.createElement('button');
-        unlockTile.className = 'shop-tile unlock';
-        unlockTile.title = 'Unlock a new unit type each round (coming soon)';
-        unlockTile.innerHTML = '<span class="unlock-icon">+</span><span class="unlock-label">Unlock unit</span>';
-        shopGrid.appendChild(unlockTile);
+        this.unlockTile = document.createElement('button');
+        this.unlockTile.className = 'shop-tile unlock';
+        this.unlockTile.title = 'Unlock one new unit type this round';
+        this.unlockTile.innerHTML =
+            '<span class="title">Unlock</span>' +
+            '<span class="unlock-icon">+</span>' +
+            '<span class="unlock-label">Unit</span>';
+        this.unlockTile.style.display = 'none';
+        this.unlockTile.addEventListener('click', () => this.openUnlockPicker());
+        shopGrid.appendChild(this.unlockTile);
 
         this.shopPanel.append(shopHeader, shopGrid);
         this.shopColumn.append(shopToolbar, this.extrasRow, this.shopPanel);
@@ -419,17 +437,110 @@ export class Hud {
     refreshCosts(): void {
         for (const { el, type } of this.buttons) {
             el.querySelector('.cost')!.textContent = String(this.costOf(type));
+            if (type.extra) continue;
+            const cost = this.costOf(type);
+            const blocked = this.deploysLeft <= 0;
+            const locked = !this.shopUnlocked.includes(type.id);
+            el.classList.toggle(
+                'unaffordable',
+                cost > this.shopBalance || blocked || locked,
+            );
         }
     }
 
     /** 3D-rendered thumbnails for shop tiles (generated once at match start). */
     setUnitIcons(icons: ReadonlyMap<string, string>): void {
+        this.unitIcons = new Map(icons);
         for (const { el, type } of this.buttons) {
             const url = icons.get(type.id);
             const art = el.querySelector<HTMLElement>('.art');
             if (!url || !art) continue;
             art.style.backgroundImage = `url(${url})`;
         }
+    }
+
+    /** shows only unlocked units; the unlock slot appears when a pick is still available */
+    updateShop(unlocked: readonly string[], unlockAvailable: boolean, balance: number): void {
+        const key = `${unlocked.join(',')}|${unlockAvailable}|${balance}`;
+        if (key === this.lastShopKey) return;
+        this.lastShopKey = key;
+        this.shopUnlocked = [...unlocked];
+        this.shopUnlockAvailable = unlockAvailable;
+        this.shopBalance = balance;
+
+        for (const id of SHOP_UNIT_IDS) {
+            const tile = this.shopUnitTiles.get(id);
+            if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
+        }
+        const specialistChosen = unlocked.length > 0;
+        const hasLocked = SHOP_UNIT_IDS.some((id) => !unlocked.includes(id));
+        const showUnlock = specialistChosen && unlockAvailable && hasLocked;
+        this.unlockTile.style.display = showUnlock ? '' : 'none';
+        this.unlockTile.classList.toggle('available', showUnlock);
+        this.refreshCosts();
+        for (const { el, type } of this.buttons) {
+            if (type.extra) continue;
+            const cost = this.costOf(type);
+            const blocked = this.deploysLeft <= 0;
+            const locked = !unlocked.includes(type.id);
+            el.classList.toggle('unaffordable', cost > balance || blocked || locked);
+        }
+    }
+
+    private openUnlockPicker(): void {
+        if (!this.shopUnlockAvailable || this.shopUnlocked.length === 0) return;
+        const locked = SHOP_UNIT_IDS.filter((id) => !this.shopUnlocked.includes(id)).map((id) => {
+            const type = UNIT_TYPES.find((t) => t.id === id)!;
+            const cost = unitUnlockCost(id);
+            return {
+                id,
+                name: type.name,
+                cost,
+                affordable: cost <= this.shopBalance,
+            };
+        });
+        if (locked.length === 0) return;
+        this.showUnlockPicker(locked);
+    }
+
+    /** pick which locked unit type to add to the shop this round */
+    showUnlockPicker(
+        options: readonly { id: string; name: string; cost: number; affordable: boolean }[],
+    ): void {
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards';
+        overlay.innerHTML =
+            `<div class="cards-title">Unlock a unit</div>` +
+            `<div class="cards-row unlock-row">` +
+            options
+                .map((o) => {
+                    const art = this.unitIcons.get(o.id);
+                    const artStyle = art ? ` style="background-image:url(${art})"` : '';
+                    const costLabel = o.cost > 0 ? String(o.cost) : 'Free';
+                    return (
+                        `<button class="shop-tile unlock-pick" data-unit="${o.id}"` +
+                        `${o.affordable ? '' : ' disabled'}>` +
+                        `<span class="title">${o.name}</span>` +
+                        `<span class="art"${artStyle}></span>` +
+                        `<span class="cost">${costLabel}</span>` +
+                        `</button>`
+                    );
+                })
+                .join('') +
+            `</div>` +
+            `<button class="cards-skip">Cancel</button>`;
+        overlay.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('.cards-skip')) {
+                overlay.remove();
+                return;
+            }
+            const button = target.closest<HTMLButtonElement>('.unlock-pick');
+            if (!button?.dataset.unit || button.disabled) return;
+            overlay.remove();
+            this.onUnlockPick?.(button.dataset.unit);
+        });
+        this.mount(overlay);
     }
 
     setSelection(info: SelectionInfo | null): void {
@@ -715,11 +826,19 @@ export class Hud {
 
     setSupply(amount: number): void {
         this.supplyEl.textContent = String(amount);
+        this.shopBalance = amount;
+        this.lastShopKey = '';
         for (const { el, type } of this.buttons) {
             const cost = this.costOf(type);
             const blocked = type.extra ? cost > this.extrasBudgetLeft : this.deploysLeft <= 0;
-            el.classList.toggle('unaffordable', cost > amount || blocked);
+            const locked = !type.extra && !this.shopUnlocked.includes(type.id);
+            el.classList.toggle('unaffordable', cost > amount || blocked || locked);
         }
+        if (this.shopUnlocked.length > 0 || this.shopUnlockAvailable) this.updateShop(
+            this.shopUnlocked,
+            this.shopUnlockAvailable,
+            amount,
+        );
     }
 
     /** Keeps the mirrored sprites aligned with each element's layout box. */

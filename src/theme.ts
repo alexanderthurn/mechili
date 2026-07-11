@@ -488,6 +488,16 @@ export function hudStyles(): string {
     cursor: default;
     background: ${u.panelBgDark};
 }
+.mechili-shop .shop-tile.unlock.available {
+    opacity: 1;
+    pointer-events: auto;
+    cursor: pointer;
+    border-color: ${u.brass};
+}
+.mechili-shop .shop-tile.unlock.available:hover {
+    border-color: ${u.hover};
+    transform: translateY(-2px);
+}
 .mechili-shop .shop-tile.unlock .unlock-icon {
     font-size: 22px;
     line-height: 1;
@@ -640,6 +650,68 @@ export function hudStyles(): string {
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
 .mechili-cards .cards-row { display: flex; gap: 18px; }
+.mechili-cards .cards-row.unlock-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 420px;
+}
+.mechili-cards .unlock-pick {
+    position: relative;
+    overflow: hidden;
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    width: 120px;
+    aspect-ratio: 1;
+    border: 1.5px solid ${u.border};
+    border-radius: 9px;
+    color: ${u.text};
+    background: ${u.panelBgDark};
+    cursor: pointer;
+}
+.mechili-cards .unlock-pick:hover { border-color: ${u.hover}; transform: translateY(-2px); }
+.mechili-cards .unlock-pick:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+.mechili-cards .unlock-pick .title {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 3px 5px;
+    text-align: center;
+    background: rgba(24, 36, 20, 0.88);
+    border-bottom: 1px solid ${u.border};
+    pointer-events: none;
+}
+.mechili-cards .unlock-pick .art {
+    position: absolute;
+    inset: 0;
+    background-color: #f0ecd8;
+    background-size: cover;
+    background-position: center;
+    pointer-events: none;
+}
+.mechili-cards .unlock-pick .cost {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 1;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 6px 3px;
+    color: #fff;
+    background: rgba(180, 32, 24, 0.92);
+    border-radius: 0 6px 0 0;
+    pointer-events: none;
+}
 .mechili-cards .card {
     width: 215px;
     min-height: 240px;

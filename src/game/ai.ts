@@ -1,5 +1,6 @@
 import type { Action } from './actions';
 import type { RoundCard, StartCard } from './cards';
+import { SHOP_UNIT_IDS, unitUnlockCost } from './cards';
 import type { PlacementController } from './placement';
 import type { Economy } from './settings';
 import type { TechTree } from './tech';
@@ -28,6 +29,8 @@ export class AiOpponent implements Opponent {
             placement: PlacementController;
             economy: Economy;
             techTree: TechTree;
+            unlockedUnits: Record<Team, string[]>;
+            unlockUsedThisRound: Record<Team, boolean>;
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
         },
@@ -49,25 +52,42 @@ export class AiOpponent implements Opponent {
     }
 
     onBuildPhase(round: number): void {
-        const { dispatch, placement, economy, techTree, rng } = this.ctx;
+        const { dispatch, placement, economy, techTree, rng, unlockedUnits, unlockUsedThisRound } =
+            this.ctx;
+        const team = this.team;
+        const unlocked = unlockedUnits[team];
+
+        // one unlock per round — pick an affordable locked type when possible
+        if (!unlockUsedThisRound[team]) {
+            const locked = SHOP_UNIT_IDS.filter((id) => !unlocked.includes(id));
+            const affordable = locked.filter((id) => unitUnlockCost(id) <= economy.balance(team));
+            const pool = affordable.length > 0 ? affordable : locked;
+            if (pool.length > 0 && rng() < 0.85) {
+                const typeId = pool[Math.floor(rng() * pool.length)]!;
+                dispatch({ kind: 'unlockUnit', team, typeId });
+            }
+        }
 
         // sometimes tech up before spending the rest on units
         if (round >= 2 && rng() < 0.6) {
             const type = UNIT_TYPES[Math.floor(rng() * UNIT_TYPES.length)]!;
-            const unowned = type.techs.filter((t) => !techTree.has(this.team, type.id, t.id));
+            const unowned = type.techs.filter((t) => !techTree.has(team, type.id, t.id));
             const tech = unowned[Math.floor(rng() * unowned.length)];
             const techCost = tech
-                ? economy.techCostOf(tech, techTree.ownedFor(this.team, type.id).size)
+                ? economy.techCostOf(tech, techTree.ownedFor(team, type.id).size)
                 : 0;
-            if (tech && economy.balance(this.team) >= techCost + 200) {
-                dispatch({ kind: 'buyTech', team: this.team, typeId: type.id, techId: tech.id });
+            if (tech && economy.balance(team) >= techCost + 200) {
+                dispatch({ kind: 'buyTech', team, typeId: type.id, techId: tech.id });
             }
         }
 
         // deploy this round's units — invisible to the player until battle
         for (let guard = 0; guard < 30; guard++) {
             const affordable = UNIT_TYPES.filter(
-                (t) => !t.extra && economy.canAfford(this.team, t),
+                (t) =>
+                    !t.extra &&
+                    unlockedUnits[team].includes(t.id) &&
+                    economy.canAfford(team, t),
             );
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(rng() * affordable.length)]!;
@@ -75,7 +95,7 @@ export class AiOpponent implements Opponent {
             if (!spot) break; // no space left
             const done = dispatch({
                 kind: 'buy',
-                team: this.team,
+                team,
                 typeId: type.id,
                 anchor: spot.anchor,
                 rotated: spot.rotated,
