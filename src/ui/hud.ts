@@ -132,6 +132,12 @@ export class Hud {
     private readonly pixiCanvas: HTMLCanvasElement;
     private readonly app: Application;
     private readonly overlayParent: HTMLElement;
+    private readonly hudStyle: HTMLStyleElement;
+    private readonly onItemGhostMove = (e: PointerEvent) => {
+        if (!this.itemGhost) return;
+        this.itemGhost.style.left = `${e.clientX - 20}px`;
+        this.itemGhost.style.top = `${e.clientY - 20}px`;
+    };
 
     constructor(
         app: Application,
@@ -149,6 +155,7 @@ export class Hud {
         const style = document.createElement('style');
         style.textContent = hudStyles();
         document.head.appendChild(style);
+        this.hudStyle = style;
 
         const shopUnits = UNIT_TYPES.filter((t) => !t.extra);
         const extraTypes = UNIT_TYPES.filter((t) => t.extra);
@@ -269,15 +276,7 @@ export class Hud {
         this.enemyInventoryEl.style.display = 'none';
         // the picked-up item rides the cursor (capture phase: HUD elements
         // stop pointer events from bubbling to window)
-        window.addEventListener(
-            'pointermove',
-            (e) => {
-                if (!this.itemGhost) return;
-                this.itemGhost.style.left = `${e.clientX - 20}px`;
-                this.itemGhost.style.top = `${e.clientY - 20}px`;
-            },
-            true,
-        );
+        window.addEventListener('pointermove', this.onItemGhostMove, true);
         this.mount(this.inventoryEl);
         this.mount(this.enemyInventoryEl);
 
@@ -935,5 +934,7 @@ export class Hud {
             el.remove();
         }
         this.mountedRoots.length = 0;
+        window.removeEventListener('pointermove', this.onItemGhostMove, true);
+        this.hudStyle.remove();
     }
 }

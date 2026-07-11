@@ -11,6 +11,7 @@ import {
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
+import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
@@ -95,6 +96,7 @@ export class Game {
     private playerHp: number;
     private enemyHp: number;
     private matchOver = false;
+    private disposed = false;
     private sim: BattleSim | null = null;
     /** everything the player and the AI do goes through here — undo & replay source */
     private readonly dispatcher: ActionDispatcher;
@@ -457,6 +459,8 @@ export class Game {
 
     /** stop the loop, release GPU/DOM resources — main restores the menu */
     destroy(): void {
+        if (this.disposed) return;
+        this.disposed = true;
         this.onStateCheckpoint = null;
         this.onReturnToMenu = null;
         this.onConnectionLost = null;
@@ -476,6 +480,7 @@ export class Game {
         for (const node of [...this.pixiApp.canvas.children]) {
             if (node instanceof HTMLElement) node.remove();
         }
+        disposeScene(this.scene);
         this.renderer.dispose();
         this.net?.close();
         this.net = null;
@@ -649,6 +654,7 @@ export class Game {
 
     /** pause everything (connection lost / desync) behind a blocking notice */
     suspend(message: string): void {
+        if (this.disposed) return;
         this.suspended = true;
         this.hud.hidePauseMenu();
         this.placement.deselect();
@@ -666,6 +672,7 @@ export class Game {
 
     /** the peer is back on a fresh session — continue exactly where we were */
     resumeWith(session: NetSession): void {
+        if (this.disposed) return;
         this.wireSession(session);
         this.suspended = false;
         this.hud.hideNotice();
@@ -837,7 +844,7 @@ export class Game {
     }
 
     private onNetMessage(msg: NetMessage): void {
-        if (this.matchOver) return;
+        if (this.disposed || this.matchOver) return;
         if (msg.type === 'starter') {
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId });
             this.refreshShopHud();
@@ -1280,6 +1287,7 @@ export class Game {
     }
 
     private tick(dtSeconds: number): void {
+        if (this.disposed) return;
         // battle can be fast-forwarded (or slowed); build always runs at 1x
         const gameDt =
             this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;

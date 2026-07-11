@@ -376,13 +376,16 @@ function wireReconnect(game: Game, initial: NetSession): void {
                 const next = session.remoteId.startsWith('mechili-room-')
                     ? await session.redial()
                     : await session.awaitReconnect();
+                if (activeGame !== game) return;
                 const first = await next.once();
+                if (activeGame !== game) return;
                 if (first.type === 'resume') {
                     next.send({ type: 'state', version: GAME_VERSION, ...game.exportResume() });
                 }
                 session = next;
                 game.resumeWith(next);
             } catch {
+                if (activeGame !== game) return;
                 clearResumeMarker();
                 game.suspend('The opponent did not come back.');
             }
