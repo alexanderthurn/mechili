@@ -6,6 +6,14 @@ import type { Team, Unit, UnitType } from './units';
 export interface SimConfig {
     towers: TowerSettings;
     leveling: LevelingSettings;
+    /** the battle's fixed length — the sim refuses to step past it */
+    battleSeconds: number;
+    /**
+     * which unit-id parity belongs to the HOST side (0 on the host client,
+     * 1 on the guest) — peers hold the identical board but label teams from
+     * their own perspective, so ordering must key off canonical sides
+     */
+    hostParity: 0 | 1;
     /** effective supply cost of a unit type (drives kill XP values) */
     costOf: (type: UnitType) => number;
     /** a pack's tech-resolved base stats (level scaling happens in the sim) */
@@ -132,7 +140,7 @@ export class BattleSim {
             }
             const stats = config.statsOf(unit);
             this.resolved.set(unit, stats);
-            unit.members.forEach((m, i) => {
+            for (const m of unit.members) {
                 const x = unit.world.x + m.home.x;
                 const z = unit.world.z + m.home.z;
                 this.actors.push({
@@ -146,17 +154,41 @@ export class BattleSim {
                     rz: z,
                     hp: stats.hp * this.levelMult(unit),
                     maxHp: stats.hp * this.levelMult(unit),
-                    // deterministic stagger so squads don't fire in one frame
-                    cooldown: (i % 5) * (stats.attackInterval / 5),
+                    cooldown: 0, // assigned canonically below
                     alive: true,
                     radius: unit.type.collisionRadius,
-                    index: this.actors.length,
+                    index: 0,
                     hurtTimer: 0,
                     altitude: unit.type.flying ?? 0,
                     rocketTarget: null,
                 });
-            });
+            }
         }
+
+        // canonical battle order: both peers sort into the SAME sequence
+        // (host units first, each side by spawn counter, members in pack
+        // order via sort stability), so every order-dependent computation —
+        // targeting ties, float accumulation, fire stagger — agrees exactly
+        const rank = (id: number) => (id % 2 === config.hostParity ? 0 : 1);
+        this.actors.sort((a, b) => {
+            const r = rank(a.unit.id) - rank(b.unit.id);
+            if (r !== 0) return r;
+            return (a.unit.id >> 1) - (b.unit.id >> 1);
+        });
+        const perUnit = new Map<Unit, number>();
+        this.actors.forEach((a, i) => {
+            a.index = i;
+            // deterministic per-pack fire stagger, from the canonical order
+            const nth = perUnit.get(a.unit) ?? 0;
+            perUnit.set(a.unit, nth + 1);
+            const stats = this.resolved.get(a.unit)!;
+            a.cooldown = (nth % 5) * (stats.attackInterval / 5);
+        });
+    }
+
+    /** deterministic end: timeout or one side wiped — never step past it */
+    get finished(): boolean {
+        return this.isOver || this.elapsed >= this.config.battleSeconds - 1e-9;
     }
 
     /** the round ends as soon as one side has no units left besides its towers */
@@ -208,6 +240,9 @@ export class BattleSim {
         this.accumulator += Math.min(dtSeconds, 0.25);
         while (this.accumulator >= BattleSim.STEP) {
             this.accumulator -= BattleSim.STEP;
+            // stop EXACTLY at the deciding step — overshooting by a frame's
+            // worth of steps would let peers diverge on the survivors
+            if (this.finished) break;
             this.step(BattleSim.STEP);
         }
     }
@@ -216,9 +251,12 @@ export class BattleSim {
         return this.actors.some((a) => a.alive && a.unit.team === team && !a.unit.type.structure);
     }
 
-    /** stacking multiplier from a side's lost towers */
+    /** stacking multiplier from a side's lost towers (iterative — Math.pow
+     *  isn't correctly rounded in every engine, plain multiplies are) */
     private debuff(team: Team, mult: number): number {
-        return mult ** this.lostTowers[team];
+        let factor = 1;
+        for (let i = 0; i < this.lostTowers[team]; i++) factor *= mult;
+        return factor;
     }
 
     /** hp/damage multiplier from a pack's veterancy level (linear: level N = N × base at bonus 1) */
@@ -752,7 +790,8 @@ export class BattleSim {
         }
     }
 
-    /** mobile mechs in the 3x3 cells around an actor, in deterministic order */
+    /** mobile mechs in the 3x3 cells around an actor, in CANONICAL order —
+     *  bucket enumeration order differs on mirrored boards, so sort */
     private nearby(a: Actor): Actor[] {
         const cx = Math.floor(a.x / HASH_CELL);
         const cz = Math.floor(a.z / HASH_CELL);
@@ -763,6 +802,7 @@ export class BattleSim {
                 if (bucket) result.push(...bucket);
             }
         }
+        result.sort((p, q) => p.index - q.index);
         return result;
     }
 
@@ -780,7 +820,9 @@ export class BattleSim {
             if (!a.alive || a.unit.team === from.unit.team) continue;
             if (a.unit.type.extra) continue; // shields/rockets are never targets
             if (!anyLayer && (a.altitude > 0 ? !targets.air : !targets.ground)) continue;
-            const d = (a.x - from.x) ** 2 + (a.z - from.z) ** 2;
+            const ddx = a.x - from.x;
+            const ddz = a.z - from.z;
+            const d = ddx * ddx + ddz * ddz;
             if (d < bestD) {
                 bestD = d;
                 best = a;

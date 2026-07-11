@@ -4,16 +4,31 @@ import type { Opponent } from './ai';
 import type { GameSettings } from './settings';
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 1;
+export const GAME_VERSION = 2; // v2: shared-board protocol (no mirrored coordinates)
 
 /**
- * The quick-match endpoint (the PHP file in server/). Override per
- * deployment with ?match=<url>.
+ * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
+ * Override per deployment with ?match=<url>.
  */
-const DEFAULT_MATCH_URL = 'https://feuerware.com/mechili/matchmaking.php';
+function isLocalhost(): boolean {
+    const h = location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+}
 
 export function matchUrl(): string {
-    return new URLSearchParams(location.search).get('match') ?? DEFAULT_MATCH_URL;
+    const params = new URLSearchParams(location.search);
+    const override = params.get('match');
+    if (override) return override;
+
+    if (isLocalhost()) {
+        const branch = params.get('branch');
+        if (branch) {
+            return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/matchmaking.php`;
+        }
+        return 'https://mechili.feuerware.com/matchmaking.php';
+    }
+
+    return new URL('./backend/matchmaking.php', location.href).href;
 }
 
 /**

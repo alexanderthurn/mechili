@@ -70,6 +70,11 @@ export class BattleMap {
     flanksUnlocked = false;
     /** when unlocked, the neutral strip is split between the players (half each) */
     neutralUnlocked = false;
+    /**
+     * Network guests own the FAR half: both peers hold the IDENTICAL board
+     * and only the camera differs — no coordinates are ever mirrored.
+     */
+    ownAtFar = false;
 
     constructor(readonly size: MapSize = STANDARD_MAP) {
         this.cols = size.zoneCols + 2 * size.flankCols;
@@ -114,20 +119,28 @@ export class BattleMap {
     }
 
     /** own half minus the opponent's flanks, plus (once unlocked) own flanks beside the opponent's half */
-    isPlayerCell(cell: Cell): boolean {
+    private zoneHalf(cell: Cell, near: boolean): boolean {
         const zr = this.ownRows();
-        const inPlayerHalf = cell.row < zr;
-        const inEnemyHalf = cell.row >= this.rows - zr;
-        if (!this.inFlankCols(cell.col)) return inPlayerHalf;
-        return this.flanksUnlocked && inEnemyHalf;
+        const inNear = cell.row < zr;
+        const inFar = cell.row >= this.rows - zr;
+        const ownHalf = near ? inNear : inFar;
+        const oppHalf = near ? inFar : inNear;
+        if (!this.inFlankCols(cell.col)) return ownHalf;
+        return this.flanksUnlocked && oppHalf;
+    }
+
+    isPlayerCell(cell: Cell): boolean {
+        return this.zoneHalf(cell, !this.ownAtFar);
     }
 
     isEnemyCell(cell: Cell): boolean {
-        const zr = this.ownRows();
-        const inPlayerHalf = cell.row < zr;
-        const inEnemyHalf = cell.row >= this.rows - zr;
-        if (!this.inFlankCols(cell.col)) return inEnemyHalf;
-        return this.flanksUnlocked && inPlayerHalf;
+        return this.zoneHalf(cell, this.ownAtFar);
+    }
+
+    /** center row of a team's main zone (near = row 0 side, the +z edge) */
+    zoneCenterRow(near: boolean): number {
+        const half = Math.floor(this.size.zoneRows / 2);
+        return near ? half : this.rows - 1 - half;
     }
 
     /** The ground plane: a code-generated texture on a real 3D plane mesh. */
@@ -303,15 +316,17 @@ export class BattleMap {
             ctx.lineWidth = 3;
             ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
         };
-        // enemy half (top) and player half (bottom)
-        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, teamColors.enemy.tint);
-        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, teamColors.player.tint);
+        // texture top = far (-z) half; whose that is depends on ownAtFar
+        const nearTint = this.ownAtFar ? teamColors.enemy.tint : teamColors.player.tint;
+        const farTint = this.ownAtFar ? teamColors.player.tint : teamColors.enemy.tint;
+        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, farTint);
+        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, nearTint);
         if (this.flanksUnlocked) {
             // flanks beside the opponent's half belong to you
-            paintZone(0, 0, flankPx, zonePx, teamColors.player.tint);
-            paintZone(w - flankPx, 0, flankPx, zonePx, teamColors.player.tint);
-            paintZone(0, h - zonePx, flankPx, zonePx, teamColors.enemy.tint);
-            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, teamColors.enemy.tint);
+            paintZone(0, 0, flankPx, zonePx, nearTint);
+            paintZone(w - flankPx, 0, flankPx, zonePx, nearTint);
+            paintZone(0, h - zonePx, flankPx, zonePx, farTint);
+            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, farTint);
         } else {
             // locked in round 1: neutral grey
             ctx.fillStyle = t.flankLocked;

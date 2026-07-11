@@ -232,6 +232,8 @@ export class PlacementController {
         this.deselect();
         this.pendingType = type;
         this.pendingUnit = new Unit(type, { col: 0, row: 0 }, 'player', new Vector3(0, -9999, 0));
+        // the ghost previews the facing rule (matters for far-side owners)
+        this.pendingUnit.faceClosestOf(this.opponentMechPositions('player', this.pendingUnit));
         this.scene.add(this.pendingUnit.view);
     }
 
@@ -275,32 +277,23 @@ export class PlacementController {
 
     /**
      * The same ring search from either side's zone center (deterministic,
-     * rng-free). Candidates are enumerated in a canonical own-side frame and
-     * mirrored onto the board for the enemy — so two lockstep peers compute
-     * EXACT 180° mirrors of each other's spawn spots.
+     * rng-free). Both lockstep peers hold the identical board, so this is
+     * trivially identical for either team on both clients.
      */
     findStartSpot(team: Team, type: UnitType): Cell | null {
         const fp = this.footprintOf(type, false);
         const centerCol = Math.floor(this.map.cols / 2);
-        const centerRow = Math.floor(this.map.size.zoneRows / 2);
-        const toBoard = (anchor: Cell): Cell =>
-            team === 'player'
-                ? anchor
-                : {
-                      col: this.map.cols - fp.cols - anchor.col,
-                      row: this.map.rows - fp.rows - anchor.row,
-                  };
+        const near = team === 'player' ? !this.map.ownAtFar : this.map.ownAtFar;
+        const centerRow = this.map.zoneCenterRow(near);
         const maxRadius = Math.max(this.map.cols, this.map.rows);
         for (let radius = 0; radius < maxRadius; radius++) {
             for (let dc = -radius; dc <= radius; dc++) {
                 for (let dr = -radius; dr <= radius; dr++) {
                     if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
-                    const anchor = toBoard(
-                        this.centeredAnchor(type, false, {
-                            col: centerCol + dc,
-                            row: centerRow + dr,
-                        }),
-                    );
+                    const anchor = this.centeredAnchor(type, false, {
+                        col: centerCol + dc,
+                        row: centerRow + dr,
+                    });
                     const cells = this.coveredCells(fp, anchor);
                     const ok =
                         cells !== null &&

@@ -2,8 +2,9 @@
 /**
  * MECHILI quick-match endpoint.
  *
- * Upload next to (or anywhere reachable by) the game and point the client
- * at it via net.ts DEFAULT_MATCH_URL or the ?match=<url> query parameter.
+ * Bundled at backend/matchmaking.php and deployed with the game. The client
+ * resolves the URL in net.ts (relative by default; remote on localhost).
+ * Override with ?match=<url>.
  *
  * Protocol (all GET, JSON responses):
  *   ?action=join&peer=<peerjs-id>

@@ -132,10 +132,20 @@ export class CameraRig {
         this.desired.pitch = MathUtils.clamp(this.desired.pitch + deltaPitch, this.minPitch, this.maxPitch);
     }
 
+    /** the side's home orientation (a network guest views the shared board rotated 180°) */
+    private baseHeading = 0;
+
+    setBaseHeading(heading: number): void {
+        this.baseHeading = heading;
+        this.desired.heading = heading;
+        this.state.heading = heading;
+        this.applyState(this.state);
+    }
+
     resetView(): void {
         // unwind full turns so the reset takes the short way around
         this.desired.heading = this.desired.heading - Math.round(this.desired.heading / (Math.PI * 2)) * Math.PI * 2;
-        this.desired.heading = 0;
+        this.desired.heading = this.baseHeading;
         this.desired.zoom = 75;
         this.desired.pitch = this.defaultPitch;
     }

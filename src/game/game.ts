@@ -147,12 +147,15 @@ export class Game {
         private readonly settings: GameSettings = DEFAULT_SETTINGS,
         /** the peer connection in multiplayer, null against the AI */
         private readonly net: NetSession | null = null,
-        /** canonical side: the host is 'a', the guest 'b' — keys the card streams */
-        side: 'a' | 'b' = 'a',
+        /** canonical side: the host is 'a', the guest 'b' — keys card streams & sim ordering */
+        private readonly side: 'a' | 'b' = 'a',
     ) {
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
         this.map = new BattleMap(settings.map);
+        // one SHARED board for both peers: the guest owns the far half and
+        // only its camera differs — no coordinates are ever mirrored
+        this.map.ownAtFar = side === 'b';
         this.economy = new Economy(settings.economy);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
@@ -193,8 +196,11 @@ export class Game {
         this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
         this.rig.fitMap(this.map.width, this.map.height);
         // open centered on the player's own zone (where the starting army
-        // stands), zoomed out enough to see the whole deployment area
-        const ownZoneZ = this.map.halfH - (this.map.size.zoneRows * CELL) / 2;
+        // stands) — the far-side owner looks at the shared board rotated 180°
+        const nearSide = side === 'a';
+        this.rig.setBaseHeading(nearSide ? 0 : Math.PI);
+        const ownZoneZ =
+            (this.map.halfH - (this.map.size.zoneRows * CELL) / 2) * (nearSide ? 1 : -1);
         this.rig.startAt(0, ownZoneZ, 110);
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
@@ -413,8 +419,16 @@ export class Game {
             const fp = type.footprint;
             const centerRow = Math.round((zoneRows - fp.rows) / 2);
             const col = flankCols + Math.round(zoneCols * frac) - Math.floor(fp.cols / 2);
-            this.placement.spawn(type, { col, row: centerRow }, 'player');
-            this.placement.spawn(type, { col, row: this.map.rows - centerRow - fp.rows }, 'enemy');
+            // the far side's base is the near layout rotated 180°, so each
+            // player sees their own research center left, command tower right
+            const near = { col, row: centerRow };
+            const far = {
+                col: this.map.cols - col - fp.cols,
+                row: this.map.rows - centerRow - fp.rows,
+            };
+            const ownFar = this.map.ownAtFar;
+            this.placement.spawn(type, ownFar ? far : near, 'player');
+            this.placement.spawn(type, ownFar ? near : far, 'enemy');
         }
     }
 
@@ -534,67 +548,22 @@ export class Game {
 
     /**
      * A peer's action arrives in the sender's perspective: their 'player' is
-     * our 'enemy', their unit ids flip parity, and their board is ours
-     * rotated 180° — anchors mirror by footprint rectangle.
+     * our 'enemy' and their unit ids flip parity. Coordinates pass through
+     * untouched — both peers hold the identical board.
      */
     private translateRemote(action: Action): Action | null {
         if (action.team !== 'player') return null; // peers only send their own side
         const flipId = (id: number) => (id % 2 === 0 ? id + 1 : id - 1);
-        const mirror = (anchor: Cell, cols: number, rows: number): Cell => ({
-            col: this.map.cols - cols - anchor.col,
-            row: this.map.rows - rows - anchor.row,
-        });
         switch (action.kind) {
-            case 'buy': {
-                const type = unitTypeById(action.typeId);
-                if (!type) return null;
-                const fp = action.rotated
-                    ? { cols: type.footprint.rows, rows: type.footprint.cols }
-                    : type.footprint;
-                return { ...action, team: 'enemy', anchor: mirror(action.anchor, fp.cols, fp.rows) };
-            }
-            case 'move': {
-                const unit = this.placement.unitById(flipId(action.unitId));
-                if (!unit) return null;
-                const fp = unit.rotated
-                    ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols }
-                    : unit.type.footprint;
-                return {
-                    ...action,
-                    team: 'enemy',
-                    unitId: flipId(action.unitId),
-                    anchor: mirror(action.anchor, fp.cols, fp.rows),
-                };
-            }
-            case 'rotate': {
-                const unit = this.placement.unitById(flipId(action.unitId));
-                if (!unit) return null;
-                // the footprint swaps on rotation, so mirror the POST-rotate rect
-                const fpCur = unit.rotated
-                    ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols }
-                    : unit.type.footprint;
-                const fpAfter = { cols: fpCur.rows, rows: fpCur.cols };
-                const theirAnchor = action.anchor ?? mirror(unit.cell, fpCur.cols, fpCur.rows);
-                return {
-                    kind: 'rotate',
-                    team: 'enemy',
-                    unitId: flipId(action.unitId),
-                    anchor: mirror(theirAnchor, fpAfter.cols, fpAfter.rows),
-                };
-            }
-            case 'moveGroup':
-                return {
-                    ...action,
-                    team: 'enemy',
-                    unitIds: action.unitIds.map(flipId),
-                    dc: -action.dc,
-                    dr: -action.dr,
-                };
+            case 'move':
+            case 'rotate':
             case 'buyLevel':
             case 'sellUnit':
             case 'upgradeTower':
             case 'applyItem':
                 return { ...action, team: 'enemy', unitId: flipId(action.unitId) };
+            case 'moveGroup':
+                return { ...action, team: 'enemy', unitIds: action.unitIds.map(flipId) };
             default:
                 return { ...action, team: 'enemy' };
         }
@@ -853,6 +822,8 @@ export class Game {
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
+            battleSeconds: this.settings.battleTimeSeconds,
+            hostParity: this.side === 'a' ? 0 : 1,
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
         });
@@ -945,10 +916,10 @@ export class Game {
                 this.particles.spawnFromEvents(this.sim.consumeEvents());
                 this.sim.syncMeshes(); // per-frame interpolated positions
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
-                // the battle clock is the sim's own fixed-step time, so the
-                // timeout cutoff is deterministic and replay-exact
+                // the battle clock is the sim's own fixed-step time; the sim
+                // itself stops at the deciding step, identically on any peer
                 this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
-                if (this.phaseRemaining <= 0 || this.sim.isOver) this.endBattlePhase();
+                if (this.sim.finished) this.endBattlePhase();
             }
         }
         this.particles.update(gameDt);
