@@ -4,6 +4,24 @@ import type { Opponent } from './ai';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { GameSettings } from './settings';
 
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+            return;
+        }
+        const timer = setTimeout(resolve, ms);
+        signal?.addEventListener(
+            'abort',
+            () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+            },
+            { once: true },
+        );
+    });
+}
+
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
 export const GAME_VERSION = 4; // v4: mid-battle resume + synced battle speed
 
@@ -206,38 +224,105 @@ export function clearResumeMarker(): void {
     }
 }
 
+// --- single-player resume: full match state in session storage ---
+
+const SINGLE_KEY = 'mechili-single';
+
+export interface SinglePlayerSave {
+    version: number;
+    seed: number;
+    settings: GameSettings;
+    actions: LoggedAction[];
+    battleElapsed: number | null;
+    localName: string;
+}
+
+export function saveSinglePlayer(state: Omit<SinglePlayerSave, 'version'>): void {
+    try {
+        sessionStorage.setItem(SINGLE_KEY, JSON.stringify({ version: GAME_VERSION, ...state }));
+    } catch {
+        /* private browsing / quota */
+    }
+}
+
+export function loadSinglePlayer(): SinglePlayerSave | null {
+    try {
+        const raw = sessionStorage.getItem(SINGLE_KEY);
+        return raw ? (JSON.parse(raw) as SinglePlayerSave) : null;
+    } catch {
+        return null;
+    }
+}
+
+export function clearSinglePlayer(): void {
+    try {
+        sessionStorage.removeItem(SINGLE_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
 /**
  * After a reload: reopen our side of the connection. If we owned a room id
  * we re-host it (the survivor redials it); otherwise we dial the survivor.
  */
-export async function resumeSession(marker: ResumeMarker): Promise<NetSession> {
-    if (marker.ownRoomId) {
-        const peer = await openPeer(marker.ownRoomId);
-        const session = await Promise.race([
-            awaitConnection(peer, marker.names.local),
-            new Promise<NetSession>((_, reject) =>
-                setTimeout(() => reject(new Error('Opponent did not reconnect')), 60_000),
-            ),
-        ]);
-        session.setRemoteName(marker.names.opponent);
-        return session;
-    }
-    const peer = await openPeer();
-    for (let i = 0; i < 15; i++) {
-        try {
-            return await connectTo(peer, marker.remotePeerId, marker.names.local, marker.names.opponent);
-        } catch {
-            await new Promise((r) => setTimeout(r, 3000));
+export async function resumeSession(marker: ResumeMarker, signal?: AbortSignal): Promise<NetSession> {
+    let peer: Peer | null = null;
+    const abort = () => peer?.destroy();
+    signal?.addEventListener('abort', abort, { once: true });
+    try {
+        if (marker.ownRoomId) {
+            peer = await openPeer(marker.ownRoomId, signal);
+            const session = await Promise.race([
+                awaitConnection(peer, marker.names.local, signal),
+                delay(60_000, signal).then(() => {
+                    throw new Error('Opponent did not reconnect');
+                }),
+            ]);
+            session.setRemoteName(marker.names.opponent);
+            return session;
         }
+        peer = await openPeer(undefined, signal);
+        for (let i = 0; i < 15; i++) {
+            try {
+                return await connectTo(
+                    peer,
+                    marker.remotePeerId,
+                    marker.names.local,
+                    marker.names.opponent,
+                    signal,
+                );
+            } catch (e) {
+                if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
+                await delay(3000, signal);
+            }
+        }
+        throw new Error('Could not reach the opponent');
+    } finally {
+        signal?.removeEventListener('abort', abort);
     }
-    throw new Error('Could not reach the opponent');
 }
 
-function openPeer(id?: string): Promise<Peer> {
+function openPeer(id?: string, signal?: AbortSignal): Promise<Peer> {
     return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+            return;
+        }
         const peer = id ? new Peer(id) : new Peer();
-        peer.on('open', () => resolve(peer));
-        peer.on('error', (e) => reject(e));
+        const onAbort = () => {
+            peer.destroy();
+            reject(new DOMException('Aborted', 'AbortError'));
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+        peer.on('open', () => {
+            signal?.removeEventListener('abort', onAbort);
+            resolve(peer);
+        });
+        peer.on('error', (e) => {
+            signal?.removeEventListener('abort', onAbort);
+            reject(e);
+        });
     });
 }
 
@@ -246,32 +331,52 @@ function connectTo(
     remoteId: string,
     localName: string,
     remoteName: string,
+    signal?: AbortSignal,
 ): Promise<NetSession> {
     return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+            return;
+        }
         const timer = setTimeout(
             () => reject(new Error('Room not found or host offline')),
             CONNECT_TIMEOUT_MS,
         );
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(new DOMException('Aborted', 'AbortError'));
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
         const conn = peer.connect(remoteId, { reliable: true });
         conn.on('open', () => {
             clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
             resolve(new NetSession('guest', peer, conn, localName, remoteName));
         });
         conn.on('error', (e) => {
             clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
             reject(e);
         });
         peer.on('error', (e) => {
             clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
             reject(e);
         });
     });
 }
 
-function awaitConnection(peer: Peer, localName: string): Promise<NetSession> {
-    return new Promise((resolve) => {
+function awaitConnection(peer: Peer, localName: string, signal?: AbortSignal): Promise<NetSession> {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+            return;
+        }
+        const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+        signal?.addEventListener('abort', onAbort, { once: true });
         peer.on('connection', (conn) => {
             conn.on('open', () => {
+                signal?.removeEventListener('abort', onAbort);
                 resolve(new NetSession('host', peer, conn, localName, ''));
             });
         });

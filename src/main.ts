@@ -3,18 +3,22 @@ import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
 import {
     clearResumeMarker,
+    clearSinglePlayer,
     fetchLobbyRooms,
     GAME_VERSION,
     handshake,
     hostLobby,
     joinLobby,
     loadResumeMarker,
+    loadSinglePlayer,
     quickMatch,
     resumeSession,
     saveResumeMarker,
+    saveSinglePlayer,
     type NetSession,
     type Pending,
     type ResumeMarker,
+    type SinglePlayerSave,
 } from './game/net';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
@@ -98,6 +102,48 @@ const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 let started = false;
 let pending: Pending | null = null;
 let roomPoll: ReturnType<typeof setInterval> | null = null;
+let resumeOverlay: HTMLDivElement | null = null;
+let resumeAbort: AbortController | null = null;
+
+type MatchResume = { actions: LoggedAction[]; battleElapsed: number | null; local?: boolean };
+
+function hideResumeOverlay(): void {
+    resumeOverlay?.remove();
+    resumeOverlay = null;
+}
+
+function showResumeOverlay(message: string, sub: string, onCancel: () => void): void {
+    hideResumeOverlay();
+    const overlay = document.createElement('div');
+    overlay.className = 'mechili-resume';
+    overlay.innerHTML =
+        `<div class="resume-box">` +
+        `<div class="resume-msg">${message}</div>` +
+        (sub ? `<div class="resume-sub">${sub}</div>` : '') +
+        `<button type="button" class="resume-cancel">Cancel</button>` +
+        `</div>`;
+    overlay.querySelector('.resume-cancel')!.addEventListener('click', onCancel);
+    wrapper.appendChild(overlay);
+    resumeOverlay = overlay;
+}
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (signal.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+            return;
+        }
+        const timer = setTimeout(resolve, ms);
+        signal.addEventListener(
+            'abort',
+            () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+            },
+            { once: true },
+        );
+    });
+}
 
 function refreshUsernameLabel(): void {
     usernameEl.textContent = getPlayerName();
@@ -201,26 +247,51 @@ function startGame(
         local: getPlayerName(),
         opponent: net ? 'Opponent' : 'AI',
     },
-    resume: { actions: LoggedAction[]; battleElapsed: number | null } | null = null,
+    resume: MatchResume | null = null,
 ): void {
     if (started) return;
     started = true;
     stopRoomPoll();
+    hideResumeOverlay();
+    resumeAbort?.abort();
+    resumeAbort = null;
     app.renderer.off('resize', layoutTitle);
     title.destroy({ children: true });
     menu.remove();
     usernameEl.remove();
     if (net) {
-        // enough to find this match again after a reload or crash
+        clearSinglePlayer();
         saveResumeMarker({
             side,
             names,
             remotePeerId: net.remoteId,
             ownRoomId: net.ownId.startsWith('mechili-room-') ? net.ownId : null,
         });
+    } else {
+        clearResumeMarker();
+        if (!resume?.local) clearSinglePlayer();
     }
     const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume);
     if (net) wireReconnect(game, net);
+    else wireSinglePlayerPersist(game);
+}
+
+/** checkpoints the action log so a browser reload can resume solo play */
+function wireSinglePlayerPersist(game: Game): void {
+    const persist = () => {
+        const data = game.exportResume();
+        saveSinglePlayer({
+            seed: data.seed,
+            settings: data.settings,
+            actions: data.actions,
+            battleElapsed: data.battleElapsed,
+            localName: getPlayerName(),
+        });
+    };
+    game.onStateCheckpoint = persist;
+    window.addEventListener('pagehide', persist);
+    window.addEventListener('beforeunload', persist);
+    persist();
 }
 
 /**
@@ -255,32 +326,67 @@ function wireReconnect(game: Game, initial: NetSession): void {
 
 /** After a reload mid-match: rejoin the room and rebuild from the peer's log. */
 async function attemptResume(marker: ResumeMarker): Promise<void> {
+    const ac = new AbortController();
+    resumeAbort = ac;
     setMenuBusy(true);
-    setStatus('Reconnecting to your match…');
+    menu.style.display = 'none';
+    usernameEl.style.display = 'none';
+    showResumeOverlay(
+        'Reconnecting…',
+        'Waiting for your opponent and restoring the match.',
+        () => {
+            ac.abort();
+            hideResumeOverlay();
+            menu.style.display = '';
+            usernameEl.style.display = '';
+            setMenuBusy(false);
+        },
+    );
+    let session: NetSession | null = null;
     try {
-        const session = await resumeSession(marker);
+        session = await resumeSession(marker, ac.signal);
         session.send({ type: 'resume' });
         const msg = await Promise.race([
             session.once(),
-            new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('No answer from the opponent')), 30_000),
-            ),
+            abortableDelay(30_000, ac.signal).then(() => {
+                throw new Error('No answer from the opponent');
+            }),
         ]);
         if (msg.type !== 'state' || msg.version !== GAME_VERSION) {
             throw new Error('Resume rejected (version mismatch?)');
         }
         const settings = msg.settings;
         settings.seed = msg.seed;
-        setStatus('');
+        hideResumeOverlay();
         startGame(settings, session, marker.side, marker.names, {
             actions: msg.actions,
             battleElapsed: msg.battleElapsed,
         });
     } catch (e) {
+        session?.close();
+        hideResumeOverlay();
+        menu.style.display = '';
+        usernameEl.style.display = '';
+        if (e instanceof DOMException && e.name === 'AbortError') {
+            setMenuBusy(false);
+            return;
+        }
         clearResumeMarker();
         setMenuBusy(false);
         setStatus(`Could not rejoin: ${e instanceof Error ? e.message : e}`);
+    } finally {
+        resumeAbort = null;
     }
+}
+
+function resumeSinglePlayer(save: SinglePlayerSave): void {
+    const settings = save.settings;
+    settings.seed = save.seed;
+    startGame(settings, null, 'a', { local: save.localName, opponent: 'AI' }, {
+        actions: save.actions,
+        battleElapsed: save.battleElapsed,
+        local: true,
+    });
 }
 
 async function beginNetGame(session: NetSession): Promise<void> {
@@ -374,10 +480,14 @@ menu.addEventListener('click', (e) => {
     }
 });
 
-// a reload mid-match rejoins automatically and rebuilds from the peer's log
-const resumeMarker = loadResumeMarker();
-if (resumeMarker) {
-    void attemptResume(resumeMarker);
+// reload mid-match: multiplayer reconnects via peer, single-player from local save
+const mpMarker = loadResumeMarker();
+const spSave = loadSinglePlayer();
+if (mpMarker) {
+    void attemptResume(mpMarker);
+} else if (spSave) {
+    if (spSave.version !== GAME_VERSION) clearSinglePlayer();
+    else resumeSinglePlayer(spSave);
 } else {
     // ?room=mangoo — join that host's room directly
     const roomParam = new URLSearchParams(location.search).get('room');

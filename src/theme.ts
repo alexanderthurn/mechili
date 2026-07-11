@@ -267,6 +267,56 @@ export function menuStyles(): string {
     cursor: pointer;
 }
 .mechili-name-edit button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-resume {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.62);
+    z-index: 30;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+}
+.mechili-resume .resume-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 28px 36px;
+    min-width: 280px;
+    background: ${u.panelBg};
+    border: 2px solid ${u.border};
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+.mechili-resume .resume-msg {
+    font-size: 17px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    color: ${u.brassLight};
+    text-align: center;
+    line-height: 1.45;
+}
+.mechili-resume .resume-sub {
+    font-size: 13px;
+    color: ${u.textMuted};
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.5;
+}
+.mechili-resume .resume-cancel {
+    padding: 10px 28px;
+    background: ${u.panelBgDark};
+    border: 2px solid ${u.undoBorder};
+    border-radius: 10px;
+    color: ${u.undoText};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+.mechili-resume .resume-cancel:hover { background: ${u.undoHover}; }
 `;
 }
 

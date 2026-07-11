@@ -13,7 +13,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
-import { clearResumeMarker, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
+import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -156,6 +156,9 @@ export class Game {
     private readonly peerChecks = new Map<number, number>();
     /** set by main: the connection dropped mid-match (reconnect orchestration) */
     onConnectionLost: (() => void) | null = null;
+    /** throttled hook for persisting single-player state to session storage */
+    onStateCheckpoint: (() => void) | null = null;
+    private persistTimer = 0;
 
     constructor(
         private readonly pixiApp: Application,
@@ -170,8 +173,8 @@ export class Game {
             local: 'You',
             opponent: 'AI',
         },
-        /** recorded state (in the SENDER's perspective) to rebuild from — reconnect/resync */
-        resume: { actions: LoggedAction[]; battleElapsed: number | null } | null = null,
+        /** recorded state to rebuild from — reconnect/resync/reload */
+        resume: { actions: LoggedAction[]; battleElapsed: number | null; local?: boolean } | null = null,
     ) {
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
@@ -418,7 +421,7 @@ export class Game {
         this.spawnTowers();
         this.placement.enabled = false;
         if (resume) {
-            this.hydrate(resume.actions, resume.battleElapsed);
+            this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
@@ -564,6 +567,7 @@ export class Game {
         this.armedItem = null;
         this.hud.showNotice(message, 'Give up — back to menu', () => {
             clearResumeMarker();
+            clearSinglePlayer();
             location.reload();
         });
     }
@@ -595,11 +599,16 @@ export class Game {
      * order, battles fast-forward headlessly to their exact deterministic
      * end. Used for reconnects, desync recovery — and replays later.
      */
-    private hydrate(foreignLog: LoggedAction[], liveBattleElapsed: number | null = null): void {
+    private hydrate(
+        sourceLog: LoggedAction[],
+        liveBattleElapsed: number | null = null,
+        swapTeams = true,
+    ): void {
         this.hydrating = true;
-        // the log is in the sender's perspective — swap it into ours; and
-        // consume the starter draws exactly like a live start would
-        const log = foreignLog.map((e) => ({ ...e, action: this.swapPerspective(e.action) }));
+        // foreign logs (peer export) flip teams; our own single-player save does not
+        const log = swapTeams
+            ? sourceLog.map((e) => ({ ...e, action: this.swapPerspective(e.action) }))
+            : sourceLog;
         const starterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
         this.draw(START_CARDS, 4, this.rngCards.enemy);
 
@@ -633,6 +642,7 @@ export class Game {
         }
         this.pendingOffer = null;
         this.hud.refreshCosts();
+        this.refreshShopHud();
     }
 
     /** runs the current battle headlessly — fully, or just up to `toElapsed`
@@ -1122,7 +1132,8 @@ export class Game {
     /** someone hit 0 HP — freeze the game and show the result */
     private finishMatch(): void {
         this.matchOver = true;
-        clearResumeMarker(); // the match ended properly — nothing to rejoin
+        clearResumeMarker();
+        clearSinglePlayer();
         this.placement.enabled = false;
         this.placement.deselect();
         this.gridOverlay.visible = false;
@@ -1222,6 +1233,14 @@ export class Game {
         this.hud.layout();
         this.debug.update(this.pixiApp, this.rig, this.placement.unitCount, dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);
+
+        if (this.onStateCheckpoint && !this.net && !this.matchOver && !this.hydrating) {
+            this.persistTimer += dtSeconds;
+            if (this.persistTimer >= 1) {
+                this.persistTimer = 0;
+                this.onStateCheckpoint();
+            }
+        }
     }
 
     /** the living mech whose on-screen position is closest to the click */
