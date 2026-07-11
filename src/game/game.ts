@@ -165,8 +165,8 @@ export class Game {
             local: 'You',
             opponent: 'AI',
         },
-        /** a recorded log (in the SENDER's perspective) to rebuild from — reconnect/resync */
-        resumeLog: LoggedAction[] | null = null,
+        /** recorded state (in the SENDER's perspective) to rebuild from — reconnect/resync */
+        resume: { actions: LoggedAction[]; battleElapsed: number | null } | null = null,
     ) {
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
@@ -403,8 +403,8 @@ export class Game {
         // armies — the first build phase begins once BOTH sides picked
         this.spawnTowers();
         this.placement.enabled = false;
-        if (resumeLog) {
-            this.hydrate(resumeLog);
+        if (resume) {
+            this.hydrate(resume.actions, resume.battleElapsed);
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
@@ -557,8 +557,18 @@ export class Game {
     }
 
     /** everything a rejoining peer needs to rebuild the match (our perspective) */
-    exportResume(): { seed: number; settings: GameSettings; actions: LoggedAction[] } {
-        return { seed: this.seed, settings: this.settings, actions: this.dispatcher.serializable() };
+    exportResume(): {
+        seed: number;
+        settings: GameSettings;
+        actions: LoggedAction[];
+        battleElapsed: number | null;
+    } {
+        return {
+            seed: this.seed,
+            settings: this.settings,
+            actions: this.dispatcher.serializable(),
+            battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
+        };
     }
 
     /**
@@ -566,7 +576,7 @@ export class Game {
      * order, battles fast-forward headlessly to their exact deterministic
      * end. Used for reconnects, desync recovery — and replays later.
      */
-    private hydrate(foreignLog: LoggedAction[]): void {
+    private hydrate(foreignLog: LoggedAction[], liveBattleElapsed: number | null = null): void {
         this.hydrating = true;
         // the log is in the sender's perspective — swap it into ours; and
         // consume the starter draws exactly like a live start would
@@ -586,8 +596,12 @@ export class Game {
             if (this.awaitingCards || entry.round !== this.round || this.phase !== 'build') break;
             this.dispatcher.dispatch(entry.action);
             i++;
-            // both sides locked in mid-log: run the battle to its exact end
-            if ((this.phase as Phase) === 'battle') this.fastForwardBattle();
+            if ((this.phase as Phase) === 'battle') {
+                // historical battles run to their exact end; the battle the
+                // peer is WATCHING right now only catches up to their clock
+                const isLiveBattle = i >= log.length && liveBattleElapsed !== null;
+                this.fastForwardBattle(isLiveBattle ? liveBattleElapsed : undefined);
+            }
         }
         this.hydrating = false;
 
@@ -602,15 +616,21 @@ export class Game {
         this.hud.refreshCosts();
     }
 
-    /** runs the current battle to its deterministic end without rendering */
-    private fastForwardBattle(): void {
-        while (this.sim && !this.sim.finished) {
+    /** runs the current battle headlessly — fully, or just up to `toElapsed`
+     *  (rejoining a battle the peer is still watching) */
+    private fastForwardBattle(toElapsed?: number): void {
+        const target = toElapsed ?? Infinity;
+        while (this.sim && !this.sim.finished && this.sim.elapsed < target) {
             this.sim.update(0.25);
             this.sim.consumeEvents(); // discard visuals
         }
-        if (this.sim) {
-            this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
+        if (!this.sim) return;
+        this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
+        if (toElapsed === undefined) {
             this.endBattlePhase();
+        } else {
+            // stay in the battle: normal playback continues from here
+            this.sim.syncMeshes();
         }
     }
 
@@ -709,6 +729,12 @@ export class Game {
         } else if (msg.type === 'check') {
             this.peerChecks.set(msg.round, msg.hash);
             this.verifyCheck(msg.round);
+        } else if (msg.type === 'speed') {
+            const index = Game.SPEED_STEPS.indexOf(msg.multiplier);
+            if (index >= 0) {
+                this.speedIndex = index;
+                this.hud.setSpeed(msg.multiplier);
+            }
         } else if (msg.type === 'resume') {
             // the peer reloaded and rebuilt mid-session (rare direct path)
             this.net?.send({ type: 'state', version: GAME_VERSION, ...this.exportResume() });
@@ -937,7 +963,10 @@ export class Game {
     private cycleSpeed(direction: number): void {
         const n = Game.SPEED_STEPS.length;
         this.speedIndex = (this.speedIndex + direction + n) % n;
-        this.hud.setSpeed(Game.SPEED_STEPS[this.speedIndex]!);
+        const multiplier = Game.SPEED_STEPS[this.speedIndex]!;
+        this.hud.setSpeed(multiplier);
+        // both players watch at the same pace and finish together
+        this.net?.send({ type: 'speed', multiplier });
     }
 
     /** what the player pays right now, including an active recruit-level premium */

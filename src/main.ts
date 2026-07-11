@@ -201,7 +201,7 @@ function startGame(
         local: getPlayerName(),
         opponent: net ? 'Opponent' : 'AI',
     },
-    resumeLog: LoggedAction[] | null = null,
+    resume: { actions: LoggedAction[]; battleElapsed: number | null } | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -219,7 +219,7 @@ function startGame(
             ownRoomId: net.ownId.startsWith('mechili-room-') ? net.ownId : null,
         });
     }
-    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resumeLog);
+    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume);
     if (net) wireReconnect(game, net);
 }
 
@@ -272,7 +272,10 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
         const settings = msg.settings;
         settings.seed = msg.seed;
         setStatus('');
-        startGame(settings, session, marker.side, marker.names, msg.actions);
+        startGame(settings, session, marker.side, marker.names, {
+            actions: msg.actions,
+            battleElapsed: msg.battleElapsed,
+        });
     } catch (e) {
         clearResumeMarker();
         setMenuBusy(false);

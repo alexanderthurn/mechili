@@ -5,7 +5,7 @@ import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { GameSettings } from './settings';
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 3; // v3: checksums + resume/state (reconnect & desync recovery)
+export const GAME_VERSION = 4; // v4: mid-battle resume + synced battle speed
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -55,8 +55,18 @@ export type NetMessage =
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
     | { type: 'resume' }
-    /** the survivor's answer: seed + full action log (in the SENDER's perspective) */
-    | { type: 'state'; version: number; seed: number; settings: GameSettings; actions: LoggedAction[] };
+    /** the survivor's answer: seed + full action log (in the SENDER's perspective);
+     *  battleElapsed = how far its currently RUNNING battle has played (null in build) */
+    | {
+          type: 'state';
+          version: number;
+          seed: number;
+          settings: GameSettings;
+          actions: LoggedAction[];
+          battleElapsed: number | null;
+      }
+    /** battle playback speed — kept in sync so both players finish together */
+    | { type: 'speed'; multiplier: number };
 
 /** the remote player as an Opponent: it acts via received messages, so the
  *  local hooks are all no-ops */
