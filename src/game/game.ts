@@ -48,6 +48,7 @@ import {
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
+import { renderAllUnitIcons } from '../ui/unitIcons';
 
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
@@ -316,6 +317,7 @@ export class Game {
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
         );
+        this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
@@ -383,7 +385,10 @@ export class Game {
                 techId,
             });
         };
-        this.debug = new DebugOverlay(this.hud.mode);
+        this.debug = new DebugOverlay(
+            this.hud.mode,
+            new URLSearchParams(location.search).has('debug'),
+        );
         pixiApp.stage.addChild(this.hpBars.view, this.debug.view);
 
         // battle phase: left click selects a single mech, own or enemy

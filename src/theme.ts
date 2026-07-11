@@ -277,44 +277,233 @@ export function hudStyles(): string {
     const pc = teamColors.player.css;
     const ec = teamColors.enemy.css;
     return `
-.mechili-hud {
+.mechili-shop-col {
     position: absolute;
-    left: 50%;
-    bottom: 16px;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 12px;
-    font-family: system-ui, sans-serif;
-    user-select: none;
-}
-.mechili-hud.disabled { opacity: 0.35; pointer-events: none; }
-.mechili-hud button {
-    width: 86px;
-    height: 86px;
+    right: 0;
+    bottom: 0;
     display: flex;
     flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    pointer-events: none;
+}
+.mechili-shop-col.disabled { opacity: 0.35; pointer-events: none; }
+.mechili-shop-col.battle { display: none; }
+.mechili-supply {
+    display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 4px;
+    padding: 8px 14px;
+    background: ${u.panelBgSolid};
+    border: 2px solid ${u.border};
+    border-radius: 8px;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    pointer-events: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    flex-shrink: 0;
+}
+.mechili-supply .supply {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 34px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: ${u.brassLight};
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.mechili-supply .supply::before {
+    content: '⬢';
+    font-size: 28px;
+    line-height: 1;
+    color: ${u.brass};
+}
+.shop-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    width: 100%;
+    padding: 0 0 0 8px;
+    pointer-events: auto;
+}
+.shop-toolbar .undo {
+    margin-right: auto;
+    padding: 5px 10px;
+    background: ${u.undoBg};
+    border: 1.5px solid ${u.undoBorder};
+    border-radius: 7px;
+    color: ${u.undoText};
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    appearance: none;
+    font-family: system-ui, sans-serif;
+}
+.shop-toolbar .undo:hover { background: ${u.undoHover}; }
+.mechili-extras {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: stretch;
+    gap: 8px;
+    padding: 0 0 0 8px;
+    pointer-events: auto;
+}
+.mechili-shop {
+    width: 228px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 10px 10px 12px;
     background: ${u.panelBgSolid};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 10px 0 0 0;
+    pointer-events: auto;
+}
+.mechili-shop .shop-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.mechili-shop .shop-header .unit-cap {
+    font-size: 14px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: ${u.phase};
+}
+.mechili-shop .shop-header .unit-cap::before { content: '⚙ '; opacity: 0.75; }
+.mechili-shop .shop-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+.mechili-shop-col .shop-tile {
+    position: relative;
+    overflow: hidden;
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: system-ui, sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border: 1.5px solid ${u.border};
     color: ${u.text};
     cursor: pointer;
 }
-.mechili-hud button:hover { border-color: ${u.hover}; }
-.mechili-hud button:active { transform: scale(0.94); }
-.mechili-hud button.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-shop-col .shop-tile .title {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 3px 4px;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    text-align: center;
+    line-height: 1.1;
+    color: ${u.text};
+    background: rgba(24, 36, 20, 0.88);
+    border-bottom: 1px solid ${u.border};
+    pointer-events: none;
+    z-index: 2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mechili-shop-col .shop-tile .art {
+    position: absolute;
+    inset: 0;
+    background-color: #f0ecd8;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    pointer-events: none;
+}
+.mechili-shop-col .shop-tile .cost {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    padding: 2px 7px 3px;
+    font-size: 12px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    color: #fff;
+    background: rgba(180, 32, 24, 0.92);
+    border-radius: 0 6px 0 0;
+    pointer-events: none;
+    z-index: 1;
+}
+.mechili-shop-col .shop-tile:hover { border-color: ${u.hover}; }
+.mechili-shop-col .shop-tile:active { transform: scale(0.94); }
+.mechili-shop-col .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-extras .shop-tile {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+}
+.mechili-extras .shop-tile .title {
+    font-size: 8px;
+    padding: 2px 3px;
+    letter-spacing: 0.4px;
+}
+.mechili-extras .shop-tile .cost {
+    font-size: 10px;
+    padding: 1px 5px 2px;
+}
+.mechili-shop .shop-grid .shop-tile {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 9px;
+}
+.mechili-shop .shop-grid .shop-tile .title {
+    font-size: 10px;
+    padding: 3px 5px;
+}
+.mechili-shop .shop-tile.unlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 72px;
+    aspect-ratio: 1;
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: default;
+    background: ${u.panelBgDark};
+}
+.mechili-shop .shop-tile.unlock .unlock-icon {
+    font-size: 22px;
+    line-height: 1;
+    color: ${u.textMuted};
+}
+.mechili-shop .shop-tile.unlock .unlock-label {
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+    text-align: center;
+    padding: 0 4px;
+}
 
 .mechili-panel {
     position: absolute;
-    left: 16px;
-    bottom: 16px;
-    min-width: 180px;
+    left: 0;
+    bottom: 0;
+    min-width: 220px;
+    max-width: 280px;
     padding: 12px 14px;
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-left: none;
+    border-bottom: none;
+    border-radius: 0 10px 0 0;
     font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
@@ -342,24 +531,39 @@ export function hudStyles(): string {
     margin: 3px 0; padding: 5px 8px; font-size: 11.5px; color: ${u.techOwned};
 }
 
-.mechili-inv {
+.mechili-sidebar {
     position: absolute;
-    left: 14px;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 10px 8px;
+    gap: 6px;
+    padding: 8px 6px;
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 0;
     font-family: system-ui, sans-serif;
     user-select: none;
 }
-.mechili-inv .inv-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: ${u.textMuted}; }
-.mechili-inv .inv-item {
+.mechili-sidebar.left {
+    left: 0;
+    border-left: none;
+    border-radius: 0 10px 10px 0;
+}
+.mechili-sidebar.right {
+    right: 0;
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+}
+.mechili-sidebar.battle { display: none; }
+.mechili-sidebar .inv-title {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+}
+.mechili-sidebar .inv-item {
     position: relative;
     width: 48px;
     height: 48px;
@@ -373,8 +577,9 @@ export function hudStyles(): string {
     color: ${u.text};
     cursor: pointer;
 }
-.mechili-inv .inv-item:hover { border-color: ${u.hover}; }
-.mechili-inv .inv-item.armed { border-color: ${u.brass}; box-shadow: 0 0 10px ${u.brass}; }
+.mechili-sidebar .inv-item:hover { border-color: ${u.hover}; }
+.mechili-sidebar .inv-item.armed { border-color: ${u.brass}; box-shadow: 0 0 10px ${u.brass}; }
+.mechili-sidebar .inv-item.readonly { cursor: default; pointer-events: none; }
 .inv-drag {
     position: fixed;
     width: 40px;
@@ -494,8 +699,8 @@ export function hudStyles(): string {
 
 .mechili-report {
     position: absolute;
-    right: 14px;
-    top: 64px;
+    right: 0;
+    top: 56px;
     min-width: 200px;
     padding: 12px 14px;
     background: ${u.panelBg};
@@ -511,74 +716,69 @@ export function hudStyles(): string {
 .mechili-report .r-row .n.player { color: ${pc}; }
 .mechili-report .r-row .n.enemy { color: ${ec}; }
 .mechili-report .r-row .d { color: ${u.brass}; font-variant-numeric: tabular-nums; }
-.mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
-.mechili-hud .icon { width: 24px; height: 24px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, ${u.iconCenter}, ${u.iconEdge} 70%); }
-.mechili-hud .cost { font-size: 12px; color: ${u.brassLight}; }
-.mechili-hud .size { font-size: 10px; color: ${u.textMuted}; }
-
-.mechili-help {
-    position: absolute;
-    right: 14px;
-    bottom: 12px;
-    font-family: system-ui, sans-serif;
-    font-size: 11px;
-    line-height: 1.7;
-    color: ${u.textMuted};
-    text-align: right;
-    user-select: none;
-    pointer-events: none;
-}
-.mechili-help b { color: ${u.helpBold}; font-weight: 600; }
 
 .mechili-topbar {
+    position: absolute;
+    left: 50%;
+    top: 6px;
+    transform: translateX(-50%);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 16px;
-    padding: 8px 18px;
-    background: ${u.panelBgSolid};
-    border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    gap: 4px;
+    padding: 0;
+    background: none;
+    border: none;
     font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
-    flex-shrink: 0;
+    pointer-events: auto;
+    z-index: 1;
+}
+.mechili-topbar .top-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
+}
+.mechili-topbar .timer {
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
 }
 .mechili-fightbar {
     position: absolute;
     left: 0;
     right: 0;
     top: 0;
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-    padding: 10px 12px;
+    overflow: visible;
     font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
 }
-.mechili-fightbar .mechili-topbar { pointer-events: auto; }
 .mechili-fightbar .fighter {
-    flex: 1;
+    position: absolute;
+    top: 0;
     display: flex;
     align-items: center;
     gap: 10px;
-    min-width: 0;
+    width: min(38vw, 340px);
+    min-width: 200px;
     padding: 8px 12px;
     background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
     border: 2px solid ${u.border};
     pointer-events: none;
 }
 .mechili-fightbar .fighter.player {
-    border-radius: 12px 4px 4px 12px;
-    border-right: none;
-    margin-right: -1px;
+    left: 0;
+    border-left: none;
+    border-top: none;
+    border-radius: 0 0 10px 0;
 }
 .mechili-fightbar .fighter.enemy {
-    border-radius: 4px 12px 12px 4px;
-    border-left: none;
+    right: 0;
+    border-right: none;
+    border-top: none;
     flex-direction: row-reverse;
-    margin-left: -1px;
+    border-radius: 0 0 0 10px;
 }
 .mechili-fightbar .portrait {
     width: 44px;
@@ -627,38 +827,23 @@ export function hudStyles(): string {
 }
 .mechili-fightbar .fighter.player .hp-val { color: ${pc}; }
 .mechili-fightbar .fighter.enemy .hp-val { color: ${ec}; }
-.mechili-topbar .round { font-size: 15px; font-weight: bold; letter-spacing: 1px; }
-.mechili-topbar .phase { font-size: 13px; color: ${u.phase}; letter-spacing: 1px; text-transform: uppercase; }
-.mechili-topbar .timer { font-size: 18px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
-.mechili-topbar .supply { font-size: 16px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brass}; }
-.mechili-topbar .supply::before { content: '⬢ '; color: ${u.brassDark}; }
-.mechili-topbar .deploys { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.phase}; }
-.mechili-topbar.battle .deploys { display: none; }
+.mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
+.mechili-topbar .phase { font-size: 12px; color: ${u.phase}; letter-spacing: 1px; text-transform: uppercase; }
+.mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
 .mechili-topbar .end-deploy {
-    padding: 7px 14px;
+    padding: 9px 22px;
     background: ${u.alliedBtnBg};
-    border: 1.5px solid ${pc};
+    border: 2px solid ${u.brass};
     border-radius: 8px;
-    color: ${pc};
-    font-size: 13px;
+    color: ${u.brassLight};
+    font-size: 14px;
     font-weight: bold;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     cursor: pointer;
 }
-.mechili-topbar .end-deploy:hover { background: ${u.alliedBtnHover}; }
-.mechili-topbar .undo {
-    padding: 7px 12px;
-    background: ${u.undoBg};
-    border: 1.5px solid ${u.undoBorder};
-    border-radius: 8px;
-    color: ${u.undoText};
-    font-size: 13px;
-    font-weight: bold;
-    cursor: pointer;
-}
-.mechili-topbar .undo:hover { background: ${u.undoHover}; }
-.mechili-topbar.battle .end-deploy, .mechili-topbar.battle .undo { display: none; }
-.mechili-topbar.waiting .end-deploy, .mechili-topbar.waiting .undo { display: none; }
+.mechili-topbar .end-deploy:hover { background: ${u.alliedBtnHover}; border-color: ${u.brassLight}; }
+.mechili-topbar.battle .end-deploy { display: none; }
+.mechili-topbar.waiting .end-deploy { display: none; }
 .mechili-topbar.battle .timer { color: ${ec}; }
 .mechili-topbar .speed {
     display: none;

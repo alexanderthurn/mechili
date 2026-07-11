@@ -122,6 +122,8 @@ class PartFactory {
     constructor(
         private readonly group: Group,
         private readonly team: Team,
+        /** icon/thumbnail renders skip oversized parts like the shield dome */
+        readonly preview = false,
     ) {}
 
     private add(mesh: Mesh): Mesh {
@@ -222,7 +224,7 @@ function buildShield(parts: PartFactory): void {
     parts.cylinder(1.0, 1.3, 0.5, 0, 0.25, 0, 'dark'); // emitter base
     parts.cylinder(0.35, 0.5, 1.6, 0, 1.3, 0, 'hull'); // pylon
     parts.sphere(0.55, 0, 2.4, 0, 'accent'); // projector orb
-    parts.dome(SHIELD_RADIUS, SHIELD_HEIGHT / SHIELD_RADIUS);
+    if (!parts.preview) parts.dome(SHIELD_RADIUS, SHIELD_HEIGHT / SHIELD_RADIUS);
 }
 
 function buildRocket(parts: PartFactory): void {
@@ -656,6 +658,14 @@ function levelStudMaterial(index: number): MeshStandardMaterial {
         const c = tier === 'gold' ? THEME.veteran : 0xfff8f0;
         return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.4 });
     });
+}
+
+/** one mech mesh for UI thumbnails — same builders as in-game, preview-sized */
+export function buildUnitPreviewMesh(type: UnitType, team: Team = 'player'): Group {
+    const group = new Group();
+    type.build(new PartFactory(group, team, true));
+    group.scale.setScalar(type.meshScale);
+    return group;
 }
 
 /** type lookup by id — actions and replays store unit types as strings */

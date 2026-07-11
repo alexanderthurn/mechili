@@ -57,11 +57,11 @@ export interface SelectionInfo {
 }
 
 /**
- * HUD built from real HTML: the unit selector bar and the round/phase top
- * bar. When the browser supports the experimental HTML-in-Canvas API, the
- * elements live inside the Pixi canvas and are mirrored to the GPU via
- * HTMLSource (staying natively interactive). Otherwise they fall back to a
- * plain DOM overlay above the canvases.
+ * HUD built from real HTML: deployment shop (bottom-right), unit inspector
+ * (bottom-left), item sidebars, and the round/phase top bar. When the browser
+ * supports the experimental HTML-in-Canvas API, the elements live inside the
+ * Pixi canvas and are mirrored to the GPU via HTMLSource (staying natively
+ * interactive). Otherwise they fall back to a plain DOM overlay above the canvases.
  */
 export class Hud {
     /** 'html-in-canvas' when mirrored via HTMLSource, 'dom-overlay' otherwise */
@@ -83,7 +83,10 @@ export class Hud {
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
 
-    private readonly unitBar: HTMLDivElement;
+    private readonly supplyFrame: HTMLDivElement;
+    private readonly shopColumn: HTMLDivElement;
+    private readonly extrasRow: HTMLDivElement;
+    private readonly shopPanel: HTMLDivElement;
     private readonly fightBar: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
@@ -103,8 +106,10 @@ export class Hud {
     private readonly undoEl: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
     private readonly inventoryEl: HTMLDivElement;
+    private readonly enemyInventoryEl: HTMLDivElement;
     private itemGhost: HTMLDivElement | null = null;
     private lastInventoryKey = '';
+    private lastEnemyInventoryKey = '';
     private deploysLeft = Infinity;
     private extrasBudgetLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
@@ -131,16 +136,16 @@ export class Hud {
         style.textContent = hudStyles();
         document.head.appendChild(style);
 
-        // unit selector (bottom center)
-        this.unitBar = document.createElement('div');
-        this.unitBar.className = 'mechili-hud';
-        UNIT_TYPES.forEach((type, i) => {
+        const shopUnits = UNIT_TYPES.filter((t) => !t.extra);
+        const extraTypes = UNIT_TYPES.filter((t) => t.extra);
+
+        const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
+            button.className = 'shop-tile';
             const mechs = type.formation.cols * type.formation.rows;
             button.innerHTML =
-                `<span class="name">${type.name}</span>` +
-                `<span class="icon"></span>` +
-                `<span class="size">${type.footprint.cols}×${type.footprint.rows}${mechs > 1 ? ` · ${mechs}` : ''}</span>` +
+                `<span class="title">${type.name}</span>` +
+                `<span class="art"></span>` +
                 `<span class="cost">${costOf(type)}</span>`;
             const hits = [type.targets.ground && 'ground', type.targets.air && 'air']
                 .filter(Boolean)
@@ -150,19 +155,62 @@ export class Hud {
                 `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each · hits ${hits}\n` +
                 `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
                 ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
-            button.addEventListener('click', () => onBuy(UNIT_TYPES[i]!));
+            button.addEventListener('click', () => onBuy(UNIT_TYPES[index]!));
             this.buttons.push({ el: button, type });
-            this.unitBar.appendChild(button);
-        });
+            return button;
+        };
 
-        // controls hint (bottom right, non-interactive)
-        const help = document.createElement('div');
-        help.className = 'mechili-help';
-        help.innerHTML =
-            '<b>Click</b> buy/select/place · <b>Right</b> deselect / drag pan<br>' +
-            '<b>Middle</b> rotate pack / drag orbit · <b>Wheel</b> zoom<br>' +
-            '<b>WASD</b> pan · <b>Q/E</b> rotate · <b>Home</b> reset camera';
-        this.mount(help);
+        // deployment shop column (bottom-right): toolbar, extras row, unit shop
+        this.shopColumn = document.createElement('div');
+        this.shopColumn.className = 'mechili-shop-col';
+
+        const shopToolbar = document.createElement('div');
+        shopToolbar.className = 'shop-toolbar';
+        this.undoEl = document.createElement('button');
+        this.undoEl.className = 'undo';
+        this.undoEl.textContent = '↩ Undo';
+        this.undoEl.title = 'Revert your last action this round — click again for the one before';
+        this.undoEl.addEventListener('click', () => this.onUndo?.());
+        shopToolbar.append(this.undoEl);
+
+        this.supplyFrame = document.createElement('div');
+        this.supplyFrame.className = 'mechili-supply';
+        this.supplyEl = document.createElement('span');
+        this.supplyEl.className = 'supply';
+        this.supplyFrame.append(this.supplyEl);
+        shopToolbar.append(this.supplyFrame);
+
+        this.extrasRow = document.createElement('div');
+        this.extrasRow.className = 'mechili-extras';
+        for (const type of extraTypes) {
+            const i = UNIT_TYPES.indexOf(type);
+            this.extrasRow.appendChild(makeShopTile(type, i));
+        }
+
+        this.shopPanel = document.createElement('div');
+        this.shopPanel.className = 'mechili-shop';
+
+        const shopHeader = document.createElement('div');
+        shopHeader.className = 'shop-header';
+        this.deploysEl = document.createElement('span');
+        this.deploysEl.className = 'unit-cap';
+        this.deploysEl.title = 'Units bought this round / your limit';
+        shopHeader.append(this.deploysEl);
+
+        const shopGrid = document.createElement('div');
+        shopGrid.className = 'shop-grid';
+        for (const type of shopUnits) {
+            const i = UNIT_TYPES.indexOf(type);
+            shopGrid.appendChild(makeShopTile(type, i));
+        }
+        const unlockTile = document.createElement('button');
+        unlockTile.className = 'shop-tile unlock';
+        unlockTile.title = 'Unlock a new unit type each round (coming soon)';
+        unlockTile.innerHTML = '<span class="unlock-icon">+</span><span class="unlock-label">Unlock unit</span>';
+        shopGrid.appendChild(unlockTile);
+
+        this.shopPanel.append(shopHeader, shopGrid);
+        this.shopColumn.append(shopToolbar, this.extrasRow, this.shopPanel);
 
         // selection stats panel (bottom left); tech buys via delegation so
         // the per-frame innerHTML refresh can't eat clicks
@@ -183,14 +231,19 @@ export class Hud {
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
 
-        // unequipped pack items (left edge): click to pick up, click a pack to place
+        // unequipped pack items (left edge sidebar): click to pick up, click a pack to place
         this.inventoryEl = document.createElement('div');
-        this.inventoryEl.className = 'mechili-inv';
+        this.inventoryEl.className = 'mechili-sidebar left';
         this.inventoryEl.style.display = 'none';
         this.inventoryEl.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item');
             if (button?.dataset.item) this.onArmItem?.(button.dataset.item);
         });
+
+        // opponent items not yet placed (right edge; wired when visibility rules exist)
+        this.enemyInventoryEl = document.createElement('div');
+        this.enemyInventoryEl.className = 'mechili-sidebar right';
+        this.enemyInventoryEl.style.display = 'none';
         // the picked-up item rides the cursor (capture phase: HUD elements
         // stop pointer events from bubbling to window)
         window.addEventListener(
@@ -203,6 +256,7 @@ export class Hud {
             true,
         );
         this.mount(this.inventoryEl);
+        this.mount(this.enemyInventoryEl);
 
         // fighting-game style top bar: fighters on the edges, controls in the center
         this.fightBar = document.createElement('div');
@@ -248,27 +302,19 @@ export class Hud {
 
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
+        const topMeta = document.createElement('div');
+        topMeta.className = 'top-meta';
         this.roundEl = document.createElement('span');
         this.roundEl.className = 'round';
         this.phaseEl = document.createElement('span');
         this.phaseEl.className = 'phase';
+        topMeta.append(this.roundEl, this.phaseEl);
         this.timerEl = document.createElement('span');
         this.timerEl.className = 'timer';
-        this.supplyEl = document.createElement('span');
-        this.supplyEl.className = 'supply';
-        this.deploysEl = document.createElement('span');
-        this.deploysEl.className = 'deploys';
-        this.deploysEl.title =
-            'Units bought this round / your limit · remaining supply budget for shields & rockets';
         const endButton = document.createElement('button');
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
         endButton.addEventListener('click', () => this.onEndDeployment?.());
-        this.undoEl = document.createElement('button');
-        this.undoEl.className = 'undo';
-        this.undoEl.textContent = '↩ Undo';
-        this.undoEl.title = 'Revert your last action this round — click again for the one before';
-        this.undoEl.addEventListener('click', () => this.onUndo?.());
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
@@ -279,19 +325,15 @@ export class Hud {
             this.onSpeedDown?.();
         });
         this.topBar.append(
-            this.roundEl,
-            this.phaseEl,
+            topMeta,
             this.timerEl,
-            this.supplyEl,
-            this.deploysEl,
-            this.undoEl,
             endButton,
             this.speedEl,
         );
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
 
-        this.mount(this.unitBar);
+        this.mount(this.shopColumn);
         this.mount(this.fightBar);
         this.mount(this.panel);
     }
@@ -345,19 +387,48 @@ export class Hud {
         }
     }
 
+    /** opponent items not yet placed on the field (right sidebar; visibility rules TBD) */
+    setEnemyInventory(items: readonly { icon: string; name: string }[]): void {
+        const key = JSON.stringify(items);
+        if (key === this.lastEnemyInventoryKey) return;
+        this.lastEnemyInventoryKey = key;
+        this.enemyInventoryEl.style.display = items.length ? '' : 'none';
+        this.enemyInventoryEl.innerHTML =
+            `<div class="inv-title">Enemy items</div>` +
+            items
+                .map(
+                    (i) =>
+                        `<span class="inv-item readonly" title="${i.name}">` +
+                        `<span class="i">${i.icon}</span></span>`,
+                )
+                .join('');
+    }
+
     /** purchases used / allowed this round; buy buttons grey out at the limit.
      *  `extrasBudgetLeft` is the separate supply cap for shields/rockets. */
     setDeploys(used: number, limit: number, extrasBudgetLeft: number): void {
         this.deploysLeft = limit - used;
         this.extrasBudgetLeft = extrasBudgetLeft;
-        const label = `⚙ ${used}/${limit} · ◇ ${extrasBudgetLeft}`;
+        const label = `${used}/${limit}`;
         if (this.deploysEl.textContent !== label) this.deploysEl.textContent = label;
+        this.deploysEl.title =
+            `Units bought this round / your limit · ◇ ${extrasBudgetLeft} left for shields & rockets`;
     }
 
     /** re-reads unit prices (they change while the recruit switch is active) */
     refreshCosts(): void {
         for (const { el, type } of this.buttons) {
             el.querySelector('.cost')!.textContent = String(this.costOf(type));
+        }
+    }
+
+    /** 3D-rendered thumbnails for shop tiles (generated once at match start). */
+    setUnitIcons(icons: ReadonlyMap<string, string>): void {
+        for (const { el, type } of this.buttons) {
+            const url = icons.get(type.id);
+            const art = el.querySelector<HTMLElement>('.art');
+            if (!url || !art) continue;
+            art.style.backgroundImage = `url(${url})`;
         }
     }
 
@@ -491,7 +562,10 @@ export class Hud {
         this.topBar.classList.toggle('waiting', waitingForPeer);
         this.fightBar.classList.toggle('battle', phase === 'battle');
         this.fightBar.classList.toggle('waiting', waitingForPeer);
-        this.unitBar.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
+        this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
+        this.shopColumn.classList.toggle('battle', phase === 'battle');
+        this.inventoryEl.classList.toggle('battle', phase === 'battle');
+        this.enemyInventoryEl.classList.toggle('battle', phase === 'battle');
     }
 
     setSpeed(multiplier: number): void {
