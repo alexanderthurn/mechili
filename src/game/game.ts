@@ -151,6 +151,8 @@ export class Game {
     private suspended = false;
     /** the round-card offer drawn during hydration, shown once it finishes */
     private pendingOffer: RoundCard[] | null = null;
+    /** the four specialist cards currently offered to the player (for auto-pick) */
+    private playerStarterOffer: StartCard[] | null = null;
     /** state checksums per round (battle start), ours and the peer's */
     private readonly sentChecks = new Map<number, number>();
     private readonly peerChecks = new Map<number, number>();
@@ -315,13 +317,6 @@ export class Game {
             this.selectedActor = null;
             this.armedItem = null;
         };
-        // Escape deselects, exactly like a right click
-        window.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.code !== 'Escape') return;
-            this.placement.deselect();
-            this.selectedActor = null;
-            this.armedItem = null;
-        });
         this.hud = new Hud(
             pixiApp,
             wrapper,
@@ -330,6 +325,7 @@ export class Game {
         );
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
+        this.hud.onQuitToMenu = () => this.quitToMenu();
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
@@ -428,6 +424,18 @@ export class Game {
         // only now may peer messages flow — everything they touch exists
         if (this.net) this.wireSession(this.net);
 
+        // Escape toggles the in-game menu (the match keeps running underneath)
+        window.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.code !== 'Escape') return;
+            if (this.matchOver || this.suspended) return;
+            this.hud.togglePauseMenu();
+            if (this.hud.isPauseMenuOpen()) {
+                this.placement.deselect();
+                this.selectedActor = null;
+                this.armedItem = null;
+            }
+        });
+
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', () => this.resize(wrapper.clientWidth, wrapper.clientHeight));
         pixiApp.ticker.add((ticker) => this.tick(ticker.deltaMS / 1000));
@@ -506,7 +514,7 @@ export class Game {
             if (this.speciality[team] === 'elite' && this.round === 1) {
                 this.economy.credit(team, ELITE_ROUND1_BONUS);
             }
-            if (this.speciality[team] === 'marksman' && this.round === FREE_MARKSMAN_ROUND) {
+            if (this.speciality[team] === 'marksman' && this.round === FREE_MARKSMAN_ROUND && !this.hydrating) {
                 const type = unitTypeById('marksman')!;
                 const anchor = this.placement.findStartSpot(team, type);
                 const unit = anchor ? this.placement.spawn(type, anchor, team, false, true) : null;
@@ -516,9 +524,10 @@ export class Game {
                 }
             }
         }
-        // the opponent (AI today, network peer later) plays its whole round
-        // through the same action system, then locks in
-        this.opponent.onBuildPhase(this.round);
+        // replay applies every action from the log — only run live AI when not rebuilding
+        if (!this.hydrating) {
+            this.opponent.onBuildPhase(this.round);
+        }
 
         // from round 2 on, both sides get a card offer at the round's start
         if (this.round >= 2) this.offerRoundCards();
@@ -535,13 +544,51 @@ export class Game {
 
     /** the specialist overlay (also re-shown after a resume that predates the pick) */
     private showStarterPick(offer: StartCard[]): void {
+        this.playerStarterOffer = [...offer];
+        this.phaseRemaining = this.settings.buildTimeSeconds;
         this.hud.showStartCards(offer, (cardId) => {
+            this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.net?.send({ type: 'starter', cardId });
             this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
             this.refreshShopHud();
             this.maybeStartMatch();
         });
+    }
+
+    /** timer ran out before the player picked a specialist — choose one at random */
+    private autoPickSpecialist(): void {
+        if (this.speciality.player !== null || !this.playerStarterOffer?.length) return;
+        const pick =
+            this.playerStarterOffer[
+                Math.floor(this.rngCards.player() * this.playerStarterOffer.length)
+            ]!;
+        this.hud.hideCardOverlay();
+        this.playerStarterOffer = null;
+        this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
+        this.net?.send({ type: 'starter', cardId: pick.id });
+        this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
+        this.refreshShopHud();
+        this.maybeStartMatch();
+    }
+
+    /** timer ran out during deployment with the round-card overlay still open — skip */
+    private autoSkipRoundCard(): void {
+        if (this.round < 2 || this.roundCardTaken.player || !this.awaitingCards) return;
+        this.hud.hideCardOverlay();
+        this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId: null });
+        this.awaitingCards = false;
+    }
+
+    /** build-phase clock hit zero — resolve any open card pick, then lock in */
+    private onDeployTimerExpired(): void {
+        if (this.round === 0 && this.speciality.player === null) {
+            this.autoPickSpecialist();
+            return;
+        }
+        if (this.phase !== 'build' || this.deployReady.player) return;
+        this.autoSkipRoundCard();
+        this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
     }
 
     /** connects (or re-connects) a peer session to this game */
@@ -563,6 +610,7 @@ export class Game {
     /** pause everything (connection lost / desync) behind a blocking notice */
     suspend(message: string): void {
         this.suspended = true;
+        this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
         this.hud.showNotice(message, 'Give up — back to menu', () => {
@@ -570,6 +618,20 @@ export class Game {
             clearSinglePlayer();
             location.reload();
         });
+    }
+
+    /** leave the match — clears resume data and reloads to the main menu */
+    quitToMenu(): void {
+        clearResumeMarker();
+        clearSinglePlayer();
+        try {
+            sessionStorage.removeItem('mechili-desync-guard');
+        } catch {
+            /* ignore */
+        }
+        this.net?.close();
+        this.net = null;
+        location.reload();
     }
 
     /** the peer is back on a fresh session — continue exactly where we were */
@@ -1134,6 +1196,7 @@ export class Game {
         this.matchOver = true;
         clearResumeMarker();
         clearSinglePlayer();
+        this.hud.hidePauseMenu();
         this.placement.enabled = false;
         this.placement.deselect();
         this.gridOverlay.visible = false;
@@ -1144,6 +1207,11 @@ export class Game {
                 : this.enemyHp <= 0
                   ? 'victory'
                   : 'defeat';
+        // resuming a finished save replays to defeat/victory — go to menu, not game over
+        if (this.hydrating) {
+            queueMicrotask(() => this.quitToMenu());
+            return;
+        }
         this.hud.showGameOver(result);
     }
 
@@ -1187,13 +1255,16 @@ export class Game {
             this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;
         this.time += gameDt;
 
-        if (!this.matchOver && !this.awaitingCards && !this.suspended) {
-            this.phaseRemaining -= gameDt;
+        if (!this.matchOver && !this.suspended) {
+            const waitingForStarterPeer =
+                this.round === 0 &&
+                this.speciality.player !== null &&
+                this.speciality.enemy === null;
+            if (!waitingForStarterPeer) {
+                this.phaseRemaining -= gameDt;
+            }
             if (this.phase === 'build') {
-                // the timer ends the round like the button would — as an action
-                if (this.phaseRemaining <= 0) {
-                    this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
-                }
+                if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
             } else if (this.sim) {
                 this.sim.update(gameDt);
                 this.particles.spawnFromEvents(this.sim.consumeEvents());
@@ -1236,7 +1307,8 @@ export class Game {
 
         if (this.onStateCheckpoint && !this.net && !this.matchOver && !this.hydrating) {
             this.persistTimer += dtSeconds;
-            if (this.persistTimer >= 1) {
+            const interval = this.phase === 'battle' ? 0.25 : 1;
+            if (this.persistTimer >= interval) {
                 this.persistTimer = 0;
                 this.onStateCheckpoint();
             }

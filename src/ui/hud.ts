@@ -81,6 +81,9 @@ export class Hud {
     onArmItem: ((itemId: string) => void) | null = null;
     onUndo: (() => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
+    onQuitToMenu: (() => void) | null = null;
+    private pauseMenu: HTMLDivElement | null = null;
+    private cardOverlay: HTMLDivElement | null = null;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
 
@@ -720,6 +723,51 @@ export class Hud {
         this.report = null;
     }
 
+    isPauseMenuOpen(): boolean {
+        return this.pauseMenu !== null;
+    }
+
+    togglePauseMenu(): void {
+        if (this.pauseMenu) this.hidePauseMenu();
+        else this.showPauseMenu();
+    }
+
+    hidePauseMenu(): void {
+        this.pauseMenu?.remove();
+        this.pauseMenu = null;
+    }
+
+    /** dismisses the specialist or round-card picker if it is still open */
+    hideCardOverlay(): void {
+        this.cardOverlay?.remove();
+        this.cardOverlay = null;
+    }
+
+    private showCardOverlay(overlay: HTMLDivElement): void {
+        this.hideCardOverlay();
+        this.cardOverlay = overlay;
+        this.mount(overlay);
+    }
+
+    private showPauseMenu(): void {
+        this.hidePauseMenu();
+        const el = document.createElement('div');
+        el.className = 'mechili-pause';
+        el.innerHTML =
+            `<div class="pause-box">` +
+            `<div class="pause-title">Menu</div>` +
+            `<button type="button" class="pause-resume">Close</button>` +
+            `<button type="button" class="pause-quit">Quit to menu</button>` +
+            `</div>`;
+        el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
+        el.querySelector('.pause-quit')!.addEventListener('click', () => {
+            this.hidePauseMenu();
+            this.onQuitToMenu?.();
+        });
+        this.pauseMenu = el;
+        this.mount(el);
+    }
+
     /** the pre-round-1 loadout pick: four cards, click one, the game begins */
     showStartCards(cards: readonly StartCard[], onPick: (cardId: string) => void): void {
         const overlay = document.createElement('div');
@@ -741,10 +789,10 @@ export class Hud {
         overlay.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card) return;
-            overlay.remove();
+            this.hideCardOverlay();
             onPick(button.dataset.card);
         });
-        this.mount(overlay);
+        this.showCardOverlay(overlay);
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
@@ -772,16 +820,16 @@ export class Hud {
         overlay.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('.cards-skip')) {
-                overlay.remove();
+                this.hideCardOverlay();
                 onPick(null);
                 return;
             }
             const button = target.closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card || button.disabled) return;
-            overlay.remove();
+            this.hideCardOverlay();
             onPick(button.dataset.card);
         });
-        this.mount(overlay);
+        this.showCardOverlay(overlay);
     }
 
     private notice: HTMLDivElement | null = null;
@@ -810,8 +858,8 @@ export class Hud {
     showDisconnect(): void {
         const el = document.createElement('div');
         el.className = 'mechili-gameover draw';
-        el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Main Menu</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => location.reload());
+        el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Back to main menu</button>`;
+        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
     }
 
@@ -819,8 +867,8 @@ export class Hud {
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;
         const title = result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW';
-        el.innerHTML = `<div class="go-title">${title}</div><button class="go-restart">Play Again</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => location.reload());
+        el.innerHTML = `<div class="go-title">${title}</div><button class="go-restart">Back to main menu</button>`;
+        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
     }
 

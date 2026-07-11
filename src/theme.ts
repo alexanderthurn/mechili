@@ -796,6 +796,55 @@ export function hudStyles(): string {
 }
 .mechili-cards .cards-skip:hover { background: ${u.undoHover}; }
 
+.mechili-pause {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(12, 20, 8, 0.45);
+    z-index: 55;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+}
+.mechili-pause .pause-box {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    min-width: 260px;
+    padding: 22px 24px;
+    background: ${u.panelBg};
+    border: 2px solid ${u.border};
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+.mechili-pause .pause-title {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-align: center;
+    color: ${u.brassLight};
+    margin-bottom: 4px;
+}
+.mechili-pause button {
+    padding: 11px 16px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+.mechili-pause button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-pause .pause-quit {
+    border-color: ${u.undoBorder};
+    color: ${u.undoText};
+}
+.mechili-pause .pause-quit:hover { background: ${u.undoHover}; }
+
 .mechili-gameover {
     position: absolute;
     left: 50%;
