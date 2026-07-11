@@ -1,6 +1,9 @@
 import {
     CanvasTexture,
+    ConeGeometry,
+    CylinderGeometry,
     DoubleSide,
+    Group,
     Mesh,
     MeshBasicMaterial,
     PlaneGeometry,
@@ -109,9 +112,9 @@ export class PlacementController {
     private rectPreview: Unit[] = [];
     /** per-member marker plates (own material each — validity color differs per pack) */
     private readonly groupPlates: Mesh[] = [];
-    /** pulsing gold rings under packs with a buyable level */
-    private readonly readyRings: Mesh[] = [];
-    private readonly readyRingMaterial: MeshBasicMaterial;
+    /** small gold up-arrows over packs with a buyable level */
+    private readonly levelArrows: Group[] = [];
+    private readonly levelArrowMaterial: MeshBasicMaterial;
     /** floating item symbols over equipped packs (build phase only) */
     private readonly itemBadges: Sprite[] = [];
     private readonly itemBadgeMaterials = new Map<string, SpriteMaterial>();
@@ -151,13 +154,7 @@ export class PlacementController {
         // attack range ring for the selected own pack (unit radius, scaled per unit)
         this.rangeMesh = createRangeRing(scene);
 
-        this.readyRingMaterial = new MeshBasicMaterial({
-            color: SELECT_COLOR,
-            transparent: true,
-            opacity: 0.5,
-            side: DoubleSide,
-            depthWrite: false,
-        });
+        this.levelArrowMaterial = new MeshBasicMaterial({ color: SELECT_COLOR });
 
         this.plateGeometry = new PlaneGeometry(1, 1);
         this.plateGeometry.rotateX(-Math.PI / 2);
@@ -453,7 +450,7 @@ export class PlacementController {
     update(timeSeconds: number): void {
         for (const unit of this.units) unit.update(timeSeconds);
         this.updateMovablePlates();
-        this.updateReadyRings(timeSeconds);
+        this.updateLevelArrows(timeSeconds);
         this.updateItemBadges();
         this.updateMarkers();
     }
@@ -513,32 +510,40 @@ export class PlacementController {
         return material;
     }
 
-    /** pulsing gold ring under every own pack whose next level is buyable */
-    private updateReadyRings(timeSeconds: number): void {
+    /**
+     * A small solid gold up-arrow bobbing over the center of every pack —
+     * own OR revealed enemy — whose next level is banked and buyable.
+     */
+    private updateLevelArrows(timeSeconds: number): void {
         let used = 0;
         if (this.enabled && this.levelReady) {
+            const bob = Math.sin(timeSeconds * 3) * 0.2;
             for (const unit of this.units) {
-                if (unit.team !== 'player' || !this.levelReady(unit)) continue;
-                let ring = this.readyRings[used];
-                if (!ring) {
-                    const geo = new RingGeometry(0.94, 1, 48);
-                    geo.rotateX(-Math.PI / 2);
-                    ring = new Mesh(geo, this.readyRingMaterial);
-                    ring.position.y = 0.07;
-                    this.scene.add(ring);
-                    this.readyRings.push(ring);
+                if (!this.levelReady(unit)) continue;
+                if (unit.team !== 'player' && !unit.revealed) continue;
+                let arrow = this.levelArrows[used];
+                if (!arrow) {
+                    arrow = new Group();
+                    const shaft = new Mesh(new CylinderGeometry(0.16, 0.16, 0.6, 8), this.levelArrowMaterial);
+                    shaft.position.y = 0;
+                    const head = new Mesh(new ConeGeometry(0.42, 0.7, 10), this.levelArrowMaterial);
+                    head.position.y = 0.65;
+                    arrow.add(shaft, head);
+                    this.scene.add(arrow);
+                    this.levelArrows.push(arrow);
                 }
                 const fp = this.footprintOf(unit.type, unit.rotated);
                 const center = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
-                const radius = (Math.hypot(fp.cols, fp.rows) * CELL) / 2 + 0.6;
-                ring.position.set(center.x, 0.07, center.z);
-                ring.scale.set(radius, 1, radius);
-                ring.visible = true;
+                arrow.position.set(
+                    center.x,
+                    unit.type.meshScale * 2.4 + 0.9 + (unit.type.flying ?? 0) + bob,
+                    center.z,
+                );
+                arrow.visible = true;
                 used++;
             }
-            this.readyRingMaterial.opacity = 0.4 + 0.25 * Math.sin(timeSeconds * 4);
         }
-        for (let i = used; i < this.readyRings.length; i++) this.readyRings[i]!.visible = false;
+        for (let i = used; i < this.levelArrows.length; i++) this.levelArrows[i]!.visible = false;
     }
 
     /**
