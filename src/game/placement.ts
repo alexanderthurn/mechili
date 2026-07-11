@@ -316,11 +316,12 @@ export class PlacementController {
         return null;
     }
 
-    /** Middle click: leaves as a rotate action for the selected movable pack. */
+    /** Middle click: pick up if needed, then rotate the selected movable pack. */
     rotateSelected(): void {
         if (this.selectedGroup.length > 1) return; // formations don't rotate
         const unit = this.selectedUnit;
         if (!unit || !this.enabled || !this.isMovable(unit)) return;
+        if (!this.carryingSelected) this.carryingSelected = true;
         this.dispatch?.({ kind: 'rotate', team: unit.team, unitId: unit.id });
     }
 
