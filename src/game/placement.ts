@@ -490,9 +490,9 @@ export class PlacementController {
             unit.update(timeSeconds);
         }
         this.updateMovablePlates(timeSeconds);
-        this.updateLevelArrows(timeSeconds);
         this.updateItemBadges();
         this.updateMarkers(timeSeconds);
+        this.updateLevelArrows(timeSeconds);
     }
 
     private pulse(t: number): number {
@@ -580,13 +580,13 @@ export class PlacementController {
     private updateLevelArrows(timeSeconds: number): void {
         let used = 0;
         if (this.enabled && this.levelReady) {
-            const bob = Math.sin(timeSeconds * 3) * 0.2;
             for (const unit of this.units) {
                 if (!this.levelReady(unit)) continue;
                 if (unit.team !== 'player' && !unit.revealed) continue;
                 let arrow = this.levelArrows[used];
                 if (!arrow) {
                     arrow = new Group();
+                    arrow.scale.setScalar(3);
                     const shaft = new Mesh(new CylinderGeometry(0.16, 0.16, 0.6, 8), this.levelArrowMaterial);
                     shaft.position.y = 0;
                     const head = new Mesh(new ConeGeometry(0.42, 0.7, 10), this.levelArrowMaterial);
@@ -595,13 +595,13 @@ export class PlacementController {
                     this.scene.add(arrow);
                     this.levelArrows.push(arrow);
                 }
-                const fp = this.footprintOf(unit.type, unit.rotated);
-                const center = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
-                arrow.position.set(
-                    center.x,
-                    unit.type.meshScale * 2.4 + 0.9 + (unit.type.flying ?? 0) + bob,
-                    center.z,
-                );
+                const bob = Math.sin(timeSeconds * 3 + unit.id) * 0.2;
+                const top =
+                    unit.view.position.y +
+                    unit.memberBaseY() +
+                    unit.type.meshScale * 2.4 +
+                    0.9;
+                arrow.position.set(unit.view.position.x, top + bob, unit.view.position.z);
                 arrow.visible = true;
                 used++;
             }
