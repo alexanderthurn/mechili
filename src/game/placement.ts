@@ -25,7 +25,7 @@ import { Unit, type GridExtent, type Team, type UnitType } from './units';
 const VALID_COLOR = THEME.valid;
 const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
-/** how far selected / carried packs lift off the ground */
+/** how far packs lift off the ground while being moved (carried) */
 const SELECT_LIFT = 2.8;
 /** green tint for movable packs that are not currently selected */
 const MOVABLE_PLATE_OPACITY = 0.52;
@@ -736,7 +736,7 @@ export class PlacementController {
                 unitId: this.selectedUnit.id,
                 anchor,
             });
-            if (done) this.carryingSelected = !this.carryingSelected;
+            if (done) this.carryingSelected = false; // placed — stay selected, back on the ground
         } else {
             this.deselect();
         }
@@ -964,32 +964,42 @@ export class PlacementController {
         const fp = this.footprintOf(sel.type, sel.rotated);
         const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
 
-        // a PICKED-UP movable pack is carried: it rides the cursor with the
-        // preview until a click drops it (or deselecting puts it back)
+        // a PICKED-UP movable pack rides the cursor; mere selection only pulses the plate
         let markerCenter: Vector3;
-        if (this.carryingSelected && this.isMovable(sel) && cell) {
-            const anchor = this.centeredAnchor(sel.type, sel.rotated, cell);
-            const cells = this.coveredCells(fp, anchor);
-            const valid =
-                cells !== null &&
-                cells.every((c) => this.map.isPlayerCell(c) && this.freeFor(c, sel));
-            const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
+        if (this.carryingSelected && this.isMovable(sel)) {
+            const center = cell
+                ? this.map.areaCenter(
+                      this.centeredAnchor(sel.type, sel.rotated, cell),
+                      fp.cols,
+                      fp.rows,
+                  )
+                : this.map.areaCenter(sel.cell, fp.cols, fp.rows);
+            if (cell) {
+                const anchor = this.centeredAnchor(sel.type, sel.rotated, cell);
+                const cells = this.coveredCells(fp, anchor);
+                const valid =
+                    cells !== null &&
+                    cells.every((c) => this.map.isPlayerCell(c) && this.freeFor(c, sel));
+                this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
+            } else {
+                this.hoverMaterial.color.setHex(VALID_COLOR);
+            }
             this.applyViewHeight(sel, center.x, center.z, true);
-            this.hoverMesh.position.set(center.x, 0.04, center.z);
-            this.hoverMesh.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
-            this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
-            this.hoverMaterial.opacity = 0.58 + 0.22 * this.pulse(timeSeconds);
+            this.placeFootprintPlate(
+                this.hoverMesh,
+                this.hoverMaterial,
+                center,
+                fp,
+                this.hoverMaterial.color.getHex(),
+                timeSeconds,
+                true,
+            );
             const edge = 0.96 + 0.04 * this.pulse(timeSeconds);
             this.hoverMesh.scale.set(fp.cols * CELL * edge, 1, fp.rows * CELL * edge);
-            this.hoverMesh.visible = true;
             markerCenter = center;
         } else {
+            sel.view.position.copy(sel.world);
             const center = this.map.areaCenter(sel.cell, fp.cols, fp.rows);
-            if (this.isMovable(sel)) {
-                this.applyViewHeight(sel, sel.world.x, sel.world.z, true);
-            } else {
-                sel.view.position.copy(sel.world);
-            }
             this.placeFootprintPlate(
                 this.hoverMesh,
                 this.hoverMaterial,
@@ -1044,7 +1054,8 @@ export class PlacementController {
                 ? { col: unit.cell.col + delta.dc, row: unit.cell.row + delta.dr }
                 : unit.cell;
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
-            if (lift) this.applyViewHeight(unit, center.x, center.z, true);
+            const moving = lift && delta !== null;
+            if (moving) this.applyViewHeight(unit, center.x, center.z, true);
             else unit.view.position.set(center.x, unit.world.y, center.z);
             plate.position.set(center.x, 0.035, center.z);
             const mat = plate.material as MeshBasicMaterial;
