@@ -1199,6 +1199,7 @@ export class Game {
             hostParity: this.side === 'a' ? 0 : 1,
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
+            hasTech: (team, typeId, techId) => this.techTree.has(team, typeId, techId),
         });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
@@ -1307,6 +1308,7 @@ export class Game {
                 this.sim.update(gameDt);
                 this.particles.spawnFromEvents(this.sim.consumeEvents());
                 this.sim.syncMeshes(); // per-frame interpolated positions
+                this.sim.syncGoldenVisuals(this.time);
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer

@@ -10,6 +10,8 @@ export interface ItemDef {
     icon: string;
     /** stat multipliers for every mech of the equipped pack */
     mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
+    /** pack-wide immunity to tower-destruction debuffs for the battle */
+    debuffImmune?: boolean;
     description: string;
 }
 
@@ -48,5 +50,13 @@ export const ITEMS: Record<string, ItemDef> = {
         icon: '☠',
         mods: { damage: 4 },
         description: '+300% attack damage for this pack.',
+    },
+    golden: {
+        id: 'golden',
+        name: 'Golden Plating',
+        icon: '✦',
+        mods: {},
+        debuffImmune: true,
+        description: 'Immune to tower debuffs and takes 30% less damage for this pack.',
     },
 };

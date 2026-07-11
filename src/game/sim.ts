@@ -1,7 +1,13 @@
 import type { Group } from 'three';
+import { ITEMS } from './items';
 import type { LevelingSettings, TowerSettings } from './settings';
 import type { ResolvedStats } from './tech';
-import type { Team, Unit, UnitType } from './units';
+import { SHIELD_RADIUS, setGoldenTint, type Team, type Unit, type UnitType } from './units';
+
+/** how long the fortress Golden Aura keeps allies immune after leaving range */
+export const GOLDEN_AURA_DURATION = 30;
+/** golden units take 30% less damage on top of debuff immunity */
+export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 
 export interface SimConfig {
     towers: TowerSettings;
@@ -18,6 +24,7 @@ export interface SimConfig {
     costOf: (type: UnitType) => number;
     /** a pack's tech-resolved base stats (level scaling happens in the sim) */
     statsOf: (unit: Unit) => ResolvedStats;
+    hasTech: (team: Team, typeId: string, techId: string) => boolean;
 }
 
 export interface Actor {
@@ -46,6 +53,8 @@ export interface Actor {
     altitude: number;
     /** rocket extras: the enemy being homed onto once launched */
     rocketTarget: Actor | null;
+    /** sim time until which this mech ignores tower-destruction debuffs (fortress aura) */
+    goldenUntil: number;
 }
 
 /** how long a hit keeps the HP bar visible */
@@ -161,6 +170,7 @@ export class BattleSim {
                     hurtTimer: 0,
                     altitude: unit.type.flying ?? 0,
                     rocketTarget: null,
+                    goldenUntil: 0,
                 });
             }
         }
@@ -251,12 +261,54 @@ export class BattleSim {
         return this.actors.some((a) => a.alive && a.unit.team === team && !a.unit.type.structure);
     }
 
-    /** stacking multiplier from a side's lost towers (iterative — Math.pow
-     *  isn't correctly rounded in every engine, plain multiplies are) */
-    private debuff(team: Team, mult: number): number {
+    /** stacking tower-destruction multiplier — golden mechs skip attack/speed debuffs */
+    private debuff(actor: Actor, mult: number): number {
+        if (this.isGolden(actor)) return 1;
         let factor = 1;
-        for (let i = 0; i < this.lostTowers[team]; i++) factor *= mult;
+        for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
         return factor;
+    }
+
+    /** incoming damage: golden = −30% and no tower debuff; others stack tower debuff */
+    private damageTakenMult(actor: Actor): number {
+        if (this.isGolden(actor)) return GOLDEN_DAMAGE_TAKEN_MULT;
+        const mult = this.config.towers.debuffPerLostTower.damageTakenMult;
+        let factor = 1;
+        for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
+        return factor;
+    }
+
+    /** golden item on the pack, or a recent fortress aura buff */
+    isGolden(actor: Actor): boolean {
+        for (const id of actor.unit.items) {
+            if (ITEMS[id]?.debuffImmune) return true;
+        }
+        return actor.goldenUntil > this.elapsed + 1e-9;
+    }
+
+    /** living fortresses with Golden Aura grant nearby allies temporary immunity */
+    private refreshGoldenAura(): void {
+        const r2 = SHIELD_RADIUS * SHIELD_RADIUS;
+        for (const f of this.actors) {
+            if (!f.alive || f.unit.type.id !== 'fortress') continue;
+            if (!this.config.hasTech(f.unit.team, 'fortress', 'golden')) continue;
+            for (const a of this.actors) {
+                if (!a.alive || a.unit.team !== f.unit.team || a.unit.type.structure) continue;
+                const dx = a.x - f.x;
+                const dz = a.z - f.z;
+                if (dx * dx + dz * dz <= r2) {
+                    a.goldenUntil = Math.max(a.goldenUntil, this.elapsed + GOLDEN_AURA_DURATION);
+                }
+            }
+        }
+    }
+
+    /** golden tint on every debuff-immune mech */
+    syncGoldenVisuals(timeSeconds: number): void {
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.type.structure) continue;
+            setGoldenTint(a.mesh, this.isGolden(a), timeSeconds);
+        }
     }
 
     /** hp/damage multiplier from a pack's veterancy level (linear: level N = N × base at bonus 1) */
@@ -317,6 +369,7 @@ export class BattleSim {
             p.pz = p.z;
         }
         const d = this.config.towers.debuffPerLostTower;
+        this.refreshGoldenAura();
         this.rebuildHash();
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
         for (const a of this.actors) {
@@ -349,12 +402,12 @@ export class BattleSim {
                 if (canAttack && a.cooldown <= 0) {
                     a.cooldown += stats.attackInterval;
                     const damage =
-                        stats.damage * this.levelMult(a.unit) * this.debuff(a.unit.team, d.attackMult);
+                        stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                     if (a.unit.type.projectileSpeed) {
                         this.fire(a, target, damage, a.unit.type.projectileSpeed);
                     } else {
                         // melee: instant hit
-                        const dealt = damage * this.debuff(target.unit.team, d.damageTakenMult);
+                        const dealt = damage * this.damageTakenMult(target);
                         this.applyDamage(a.unit, target, dealt);
                         this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
                     }
@@ -417,7 +470,7 @@ export class BattleSim {
             if (steerLen > 1e-4) {
                 steerX /= steerLen;
                 steerZ /= steerLen;
-                const speed = stats.speed * this.debuff(a.unit.team, d.speedMult);
+                const speed = stats.speed * this.debuff(a, d.speedMult);
                 const move = Math.min(speed * dt, Math.max(0, dist - reach * 0.95));
                 a.x += steerX * move;
                 a.z += steerZ * move;
@@ -581,7 +634,6 @@ export class BattleSim {
      * may be a different mech standing in the way — or the ground.
      */
     private stepProjectiles(dt: number): void {
-        const d = this.config.towers.debuffPerLostTower;
         let write = 0;
         for (const p of this.projectiles) {
             // homing shots re-aim at their victim every step — they can't miss
@@ -657,7 +709,7 @@ export class BattleSim {
                     this.explode(p, ix, iz, splash);
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
                 } else {
-                    const dealt = p.damage * this.debuff(hit.unit.team, d.damageTakenMult);
+                    const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(p.source, hit, dealt);
                     this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
                 }
@@ -694,14 +746,13 @@ export class BattleSim {
         z: number,
         radius: number,
     ): void {
-        const d = this.config.towers.debuffPerLostTower;
         const targets = p.source.type.targets;
         for (const a of this.actors) {
             if (!a.alive || a.unit.team === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
             if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
-            const dealt = p.damage * this.debuff(a.unit.team, d.damageTakenMult);
+            const dealt = p.damage * this.damageTakenMult(a);
             this.applyDamage(p.source, a, dealt);
         }
     }

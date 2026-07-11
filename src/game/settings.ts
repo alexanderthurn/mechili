@@ -127,9 +127,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
     },
     towers: {
         debuffPerLostTower: {
-            speedMult: 0.6,
-            attackMult: 0.7,
-            damageTakenMult: 1.3,
+            speedMult: 0.1,
+            attackMult: 0.1,
+            damageTakenMult: 2.0,
         },
         upgrade: {
             baseCost: 100, // level 2 costs 100, then 150, 200, 250

@@ -1,5 +1,6 @@
 import {
     BoxGeometry,
+    Color,
     CylinderGeometry,
     DoubleSide,
     Group,
@@ -374,6 +375,7 @@ export const UNIT_TYPES: UnitType[] = [
         techs: [
             { id: 'armor', name: 'Reactive Armor', cost: 300, mods: { hp: 1.5 } },
             { id: 'autoloader', name: 'Autoloader', cost: 300, mods: { attackInterval: 0.7 } },
+            { id: 'golden', name: 'Golden Aura', cost: 50, mods: {} },
         ],
         build: buildFortress,
     },
@@ -657,6 +659,33 @@ function levelStudMaterial(index: number): MeshStandardMaterial {
     return material(`level-stud-${tier}`, () => {
         const c = tier === 'gold' ? THEME.veteran : 0xfff8f0;
         return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.4 });
+    });
+}
+
+/** tints a mech's hull materials gold with a pulsing emissive glow */
+export function setGoldenTint(mesh: Group, on: boolean, timeSeconds: number): void {
+    const gold = new Color(THEME.veteran);
+    const pulse = 0.4 + Math.sin(timeSeconds * 4.5) * 0.22;
+
+    mesh.traverse((child) => {
+        if (!(child instanceof Mesh)) return;
+        const orig = child.material;
+        if (!(orig instanceof MeshStandardMaterial)) return;
+
+        if (on) {
+            let tinted = child.userData.goldenMat as MeshStandardMaterial | undefined;
+            if (!tinted) {
+                tinted = orig.clone();
+                tinted.color.lerpColors(orig.color, gold, 0.55);
+                tinted.emissive.copy(gold);
+                child.userData.goldenOrigMat = orig;
+                child.userData.goldenMat = tinted;
+            }
+            tinted.emissiveIntensity = pulse;
+            if (child.material !== tinted) child.material = tinted;
+        } else if (child.userData.goldenOrigMat) {
+            child.material = child.userData.goldenOrigMat as MeshStandardMaterial;
+        }
     });
 }
 
