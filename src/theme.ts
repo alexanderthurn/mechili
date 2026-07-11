@@ -133,6 +133,54 @@ export const THEME = {
     },
 } as const;
 
+/** CSS for the pre-game main menu (exists before the HUD does). */
+export function menuStyles(): string {
+    const u = THEME.ui;
+    return `
+.mechili-menu {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -12%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+}
+.mechili-menu .m-btn {
+    width: 260px;
+    padding: 13px 0;
+    background: ${u.panelBgDark};
+    border: 2px solid ${u.border};
+    border-radius: 12px;
+    color: ${u.text};
+    font-size: 17px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+}
+.mechili-menu .m-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-menu .m-small { width: 200px; padding: 9px 0; font-size: 14px; }
+.mechili-menu .m-custom { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.mechili-menu .m-join { display: flex; gap: 8px; }
+.mechili-menu .m-input {
+    width: 130px;
+    padding: 9px 10px;
+    background: ${u.panelBg};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-align: center;
+}
+.mechili-menu .m-status { font-size: 14px; color: ${u.phase}; max-width: 380px; text-align: center; }
+.mechili-menu .m-cancel { border-color: ${u.undoBorder}; color: ${u.undoText}; }
+`;
+}
+
 /** CSS block for the HTML HUD — generated from {@link THEME}. */
 export function hudStyles(): string {
     const u = THEME.ui;
@@ -442,6 +490,7 @@ export function hudStyles(): string {
 }
 .mechili-topbar .undo:hover { background: ${u.undoHover}; }
 .mechili-topbar.battle .end-deploy, .mechili-topbar.battle .undo { display: none; }
+.mechili-topbar.waiting .end-deploy, .mechili-topbar.waiting .undo { display: none; }
 .mechili-topbar.battle .timer { color: ${u.enemy}; }
 .mechili-topbar .speed {
     display: none;

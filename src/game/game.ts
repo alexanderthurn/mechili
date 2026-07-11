@@ -11,8 +11,9 @@ import {
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
-import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type LoggedAction } from './actions';
+import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
+import { NetworkOpponent, type NetMessage, type NetSession } from './net';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -27,7 +28,7 @@ import {
     type SpecialityId,
 } from './cards';
 import { ITEMS } from './items';
-import { BattleMap, CELL, mulberry32 } from './map';
+import { BattleMap, CELL, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import { createRangeRing, PlacementController } from './placement';
@@ -102,10 +103,12 @@ export class Game {
      */
     private readonly rngAi: () => number;
     private readonly rngCards: Record<Team, () => number>;
-    /** the other side's decision maker (AI now, network peer later) */
+    /** the other side's decision maker (built-in AI or the network peer) */
     private readonly opponent: Opponent;
     /** which sides locked in the current deployment — battle starts at both */
     private readonly deployReady: Record<Team, boolean> = { player: false, enemy: false };
+    /** remote round batches that arrived before our game reached their round */
+    private readonly remoteBatches: { round: number; actions: Action[] }[] = [];
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
     private readonly recruitLevel: Record<Team, number> = { player: 1, enemy: 1 };
     /** the sell ability: `owned` is a permanent match unlock, `used` resets per round */
@@ -141,6 +144,10 @@ export class Game {
         threeCanvas: HTMLCanvasElement,
         wrapper: HTMLElement,
         private readonly settings: GameSettings = DEFAULT_SETTINGS,
+        /** the peer connection in multiplayer, null against the AI */
+        private readonly net: NetSession | null = null,
+        /** canonical side: the host is 'a', the guest 'b' — keys the card streams */
+        side: 'a' | 'b' = 'a',
     ) {
         this.map = new BattleMap(settings.map);
         this.economy = new Economy(settings.economy);
@@ -190,9 +197,11 @@ export class Game {
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
+        // card streams are keyed by canonical side, so both peers compute the
+        // same offers for the same player regardless of local perspective
         this.rngCards = {
-            player: mulberry32(seedFrom(this.seed, 'cards-player')),
-            enemy: mulberry32(seedFrom(this.seed, 'cards-enemy')),
+            player: mulberry32(seedFrom(this.seed, `cards-${side}`)),
+            enemy: mulberry32(seedFrom(this.seed, `cards-${side === 'a' ? 'b' : 'a'}`)),
         };
         this.deployState = {
             limit: { player: settings.deploy.unitsPerRound, enemy: settings.deploy.unitsPerRound },
@@ -228,20 +237,39 @@ export class Game {
                 round: this.round,
                 t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
             }),
-            onEndDeployment: () => {
-                // the battle waits until BOTH sides have locked in
+            onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
+                if (team === 'player') {
+                    // freeze local input and ship the round's actions to the peer
+                    this.placement.deselect();
+                    this.placement.enabled = false;
+                    this.armedItem = null;
+                    // the endDeployment action itself is not in the log yet
+                    // (we're inside its apply) — append it by hand so the
+                    // peer's batch actually locks us in on their side
+                    this.net?.send({
+                        type: 'round',
+                        round: this.round,
+                        actions: [
+                            ...this.dispatcher.actionsFor(this.round, 'player'),
+                            { kind: 'endDeployment', team: 'player' },
+                        ],
+                    });
+                }
+                // the battle waits until BOTH sides have locked in
                 if (this.deployReady.player && this.deployReady.enemy) this.startBattlePhase();
             },
         });
-        this.opponent = new AiOpponent('enemy', {
-            dispatch: (action) => this.dispatcher.dispatch(action),
-            placement: this.placement,
-            economy: this.economy,
-            techTree: this.techTree,
-            rng: this.rngAi,
-        });
-        this.placement.dispatch = (action) => this.dispatcher.dispatch(action);
+        this.opponent = this.net
+            ? new NetworkOpponent()
+            : new AiOpponent('enemy', {
+                  dispatch: (action) => this.dispatcher.dispatch(action),
+                  placement: this.placement,
+                  economy: this.economy,
+                  techTree: this.techTree,
+                  rng: this.rngAi,
+              });
+        this.placement.dispatch = (action) => this.dispatchPlayer(action);
         // gold pulse under packs whose next level is buyable right now
         this.placement.levelReady = (unit) => this.canLevel(unit);
         // an armed inventory item lands on the next own pack that gets clicked
@@ -271,48 +299,48 @@ export class Game {
         );
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
-                this.dispatcher.dispatch({ kind: 'endDeployment', team: 'player' });
+                this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
             }
         };
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
         this.hud.onUndo = () => this.undoLast();
         this.hud.onArmItem = (itemId) => {
-            if (this.phase !== 'build') return;
+            if (!this.playerCanAct) return;
             this.armedItem = this.armedItem === itemId ? null : itemId; // click again to disarm
         };
         this.hud.onRecruitLevel = () => {
             // offered in the Research Center's menu
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
-            if (this.dispatcher.dispatch({ kind: 'recruitLevel', team: 'player' })) {
+            if (this.dispatchPlayer({ kind: 'recruitLevel', team: 'player' })) {
                 this.hud.refreshCosts(); // unit buttons now show the level-2 price
             }
         };
         this.hud.onUpgradeTower = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.structure) return;
-            this.dispatcher.dispatch({ kind: 'upgradeTower', team: 'player', unitId: unit.id });
+            this.dispatchPlayer({ kind: 'upgradeTower', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyBoost = (boost) => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
-            this.dispatcher.dispatch({ kind: 'buyBoost', team: 'player', boost });
+            this.dispatchPlayer({ kind: 'buyBoost', team: 'player', boost });
         };
         this.hud.onBuySellAbility = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
-            this.dispatcher.dispatch({ kind: 'buySellAbility', team: 'player' });
+            this.dispatchPlayer({ kind: 'buySellAbility', team: 'player' });
         };
         this.hud.onBuyDeploySlot = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
-            this.dispatcher.dispatch({ kind: 'buyDeploySlot', team: 'player' });
+            this.dispatchPlayer({ kind: 'buyDeploySlot', team: 'player' });
         };
         this.hud.onSellUnit = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || unit.type.structure) return;
-            this.dispatcher.dispatch({ kind: 'sellUnit', team: 'player', unitId: unit.id });
+            this.dispatchPlayer({ kind: 'sellUnit', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
@@ -328,7 +356,7 @@ export class Game {
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
-            this.dispatcher.dispatch({
+            this.dispatchPlayer({
                 kind: 'buyTech',
                 team: 'player',
                 typeId: unit.type.id,
@@ -352,16 +380,24 @@ export class Game {
         });
 
         // round 0: towers stand, then the loadout cards decide the starting
-        // armies — the first build phase begins after the pick
+        // armies — the first build phase begins once BOTH sides picked
         this.spawnTowers();
         this.placement.enabled = false;
         // the specialist pick is always 4 cards, drawn from each side's own stream
         this.hud.showStartCards(this.draw(START_CARDS, 4, this.rngCards.player), (cardId) => {
-            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'player', cardId });
+            this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
+            this.net?.send({ type: 'starter', cardId });
             this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
-            this.awaitingCards = false;
-            this.startBuildPhase();
+            this.maybeStartMatch();
         });
+        // only now may peer messages flow — everything they touch exists
+        if (this.net) {
+            this.net.attach((msg) => this.onNetMessage(msg));
+            this.net.onClose = () => {
+                this.matchOver = true;
+                this.hud.showDisconnect();
+            };
+        }
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', () => this.resize(wrapper.clientWidth, wrapper.clientHeight));
@@ -447,6 +483,117 @@ export class Game {
         if (this.round >= 2) this.offerRoundCards();
     }
 
+    /** local player input — refused once this deployment is locked in */
+    private dispatchPlayer(action: Action): boolean {
+        if (this.deployReady.player) return false;
+        return this.dispatcher.dispatch(action);
+    }
+
+    /** the player may act: build phase, not locked in, match running */
+    private get playerCanAct(): boolean {
+        return this.phase === 'build' && !this.deployReady.player && !this.matchOver;
+    }
+
+    /** round 1 begins once BOTH specialists are chosen (the peer's may lag) */
+    private maybeStartMatch(): void {
+        if (!this.awaitingCards || this.round > 0) return;
+        if (!this.speciality.player || !this.speciality.enemy) return;
+        this.awaitingCards = false;
+        this.startBuildPhase();
+    }
+
+    private onNetMessage(msg: NetMessage): void {
+        if (this.matchOver) return;
+        if (msg.type === 'starter') {
+            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId });
+            this.maybeStartMatch();
+        } else if (msg.type === 'round') {
+            this.remoteBatches.push(msg);
+            this.drainRemoteBatches();
+        }
+    }
+
+    /** applies queued peer batches once our game is in the matching round */
+    private drainRemoteBatches(): void {
+        for (let i = 0; i < this.remoteBatches.length; i++) {
+            const batch = this.remoteBatches[i]!;
+            if (batch.round !== this.round || this.phase !== 'build' || this.awaitingCards) continue;
+            this.remoteBatches.splice(i--, 1);
+            for (const action of batch.actions) {
+                const translated = this.translateRemote(action);
+                if (translated) this.dispatcher.dispatch(translated);
+            }
+        }
+    }
+
+    /**
+     * A peer's action arrives in the sender's perspective: their 'player' is
+     * our 'enemy', their unit ids flip parity, and their board is ours
+     * rotated 180° — anchors mirror by footprint rectangle.
+     */
+    private translateRemote(action: Action): Action | null {
+        if (action.team !== 'player') return null; // peers only send their own side
+        const flipId = (id: number) => (id % 2 === 0 ? id + 1 : id - 1);
+        const mirror = (anchor: Cell, cols: number, rows: number): Cell => ({
+            col: this.map.cols - cols - anchor.col,
+            row: this.map.rows - rows - anchor.row,
+        });
+        switch (action.kind) {
+            case 'buy': {
+                const type = unitTypeById(action.typeId);
+                if (!type) return null;
+                const fp = action.rotated
+                    ? { cols: type.footprint.rows, rows: type.footprint.cols }
+                    : type.footprint;
+                return { ...action, team: 'enemy', anchor: mirror(action.anchor, fp.cols, fp.rows) };
+            }
+            case 'move': {
+                const unit = this.placement.unitById(flipId(action.unitId));
+                if (!unit) return null;
+                const fp = unit.rotated
+                    ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols }
+                    : unit.type.footprint;
+                return {
+                    ...action,
+                    team: 'enemy',
+                    unitId: flipId(action.unitId),
+                    anchor: mirror(action.anchor, fp.cols, fp.rows),
+                };
+            }
+            case 'rotate': {
+                const unit = this.placement.unitById(flipId(action.unitId));
+                if (!unit) return null;
+                // the footprint swaps on rotation, so mirror the POST-rotate rect
+                const fpCur = unit.rotated
+                    ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols }
+                    : unit.type.footprint;
+                const fpAfter = { cols: fpCur.rows, rows: fpCur.cols };
+                const theirAnchor = action.anchor ?? mirror(unit.cell, fpCur.cols, fpCur.rows);
+                return {
+                    kind: 'rotate',
+                    team: 'enemy',
+                    unitId: flipId(action.unitId),
+                    anchor: mirror(theirAnchor, fpAfter.cols, fpAfter.rows),
+                };
+            }
+            case 'moveGroup':
+                return {
+                    ...action,
+                    team: 'enemy',
+                    unitIds: action.unitIds.map(flipId),
+                    dc: -action.dc,
+                    dr: -action.dr,
+                };
+            case 'buyLevel':
+            case 'sellUnit':
+            case 'upgradeTower':
+            case 'applyItem':
+                return { ...action, team: 'enemy', unitId: flipId(action.unitId) };
+            default:
+                return { ...action, team: 'enemy' };
+        }
+    }
+
     /** draws n distinct cards from a pool with the given seeded stream */
     private draw<T>(pool: readonly T[], n: number, rng: () => number): T[] {
         const deck = [...pool];
@@ -476,7 +623,7 @@ export class Game {
             offer.map((c) => this.roundCardView(c)),
             SKIP_CARD_REWARD,
             (cardId) => {
-                this.dispatcher.dispatch({ kind: 'roundCard', team: 'player', cardId });
+                this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId });
                 this.awaitingCards = false;
             },
         );
@@ -530,7 +677,7 @@ export class Game {
 
     /** the left-side item strip: one square per item instance, hidden outside build */
     private inventoryView(): { id: string; icon: string; name: string; armed: boolean }[] {
-        if (this.phase !== 'build') return [];
+        if (!this.playerCanAct) return [];
         return this.itemInventory.player.map((id) => {
             const item = ITEMS[id];
             return {
@@ -544,8 +691,8 @@ export class Game {
 
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
     private applyItemTo(unit: Unit, itemId: string): boolean {
-        if (this.phase !== 'build' || unit.team !== 'player' || unit.type.structure) return false;
-        if (!this.dispatcher.dispatch({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
+        if (!this.playerCanAct || unit.team !== 'player' || unit.type.structure) return false;
+        if (!this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
             return false;
         }
         const bursts: SimEvent[] = unit.members.map((m) => ({
@@ -561,7 +708,7 @@ export class Game {
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
     private canLevel(unit: Unit): boolean {
         return (
-            this.phase === 'build' &&
+            this.playerCanAct &&
             !unit.type.structure &&
             unit.level < this.settings.leveling.maxLevel &&
             unit.xp >= xpForNextLevel(unit, this.economy, this.settings.leveling)
@@ -581,7 +728,7 @@ export class Game {
         u: Unit,
         lv: { xp: number; xpNext: number },
     ): SelectionInfo['levelUp'] {
-        if (u.team !== 'player' || this.phase !== 'build' || u.type.structure || lv.xpNext < 0) {
+        if (u.team !== 'player' || !this.playerCanAct || u.type.structure || lv.xpNext < 0) {
             return undefined;
         }
         const cost = levelCost(u.type, this.economy, this.settings.leveling);
@@ -602,7 +749,7 @@ export class Game {
     }
 
     private buyLevelFor(unit: Unit): boolean {
-        if (!this.dispatcher.dispatch({ kind: 'buyLevel', team: 'player', unitId: unit.id })) {
+        if (!this.dispatchPlayer({ kind: 'buyLevel', team: 'player', unitId: unit.id })) {
             return false;
         }
         const bursts: SimEvent[] = unit.members.map((m) => ({
@@ -633,7 +780,7 @@ export class Game {
 
     /** HUD buy button: resolve a spawn spot, then run it through the action system */
     private buyUnit(type: UnitType): void {
-        if (this.phase !== 'build' || this.matchOver) return;
+        if (!this.playerCanAct) return;
         if (this.economy.balance('player') < this.effectiveCost(type)) return;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
@@ -645,7 +792,7 @@ export class Game {
         }
         const anchor = this.placement.findBuySpot(type);
         if (!anchor) return;
-        this.dispatcher.dispatch({
+        this.dispatchPlayer({
             kind: 'buy',
             team: 'player',
             typeId: type.id,
@@ -667,7 +814,12 @@ export class Game {
     }
 
     private canUndo(): boolean {
-        return this.phase === 'build' && !this.matchOver && this.dispatcher.canUndo(this.round, 'player');
+        return (
+            this.phase === 'build' &&
+            !this.matchOver &&
+            !this.deployReady.player && // locked in: the batch is already with the peer
+            this.dispatcher.canUndo(this.round, 'player')
+        );
     }
 
     /** the whole match as data: the same seed + actions reproduce it exactly */
@@ -778,7 +930,7 @@ export class Game {
             if (this.phase === 'build') {
                 // the timer ends the round like the button would — as an action
                 if (this.phaseRemaining <= 0) {
-                    this.dispatcher.dispatch({ kind: 'endDeployment', team: 'player' });
+                    this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
                 }
             } else if (this.sim) {
                 this.sim.update(gameDt);
@@ -799,7 +951,13 @@ export class Game {
         this.scenery.update(dtSeconds, this.rig.camera.position);
         this.placement.update(this.time);
         this.updateSelectionUi();
-        this.hud.setPhase(this.round, this.phase, this.phaseRemaining);
+        this.drainRemoteBatches();
+        const waitingForPeer =
+            this.net !== null &&
+            !this.matchOver &&
+            ((this.phase === 'build' && this.deployReady.player && !this.deployReady.enemy) ||
+                (this.awaitingCards && this.round === 0 && this.speciality.player !== null));
+        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer);
         this.hud.setUndoVisible(this.canUndo());
         this.hud.setDeploys(
             this.deployState.used.player,
@@ -931,7 +1089,7 @@ export class Game {
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
-                u.team === 'player' && this.phase === 'build' && u.type.structure && !u.type.extra
+                u.team === 'player' && this.playerCanAct && u.type.structure && !u.type.extra
                     ? {
                           cost: towerUpgradeCost(u.level, this.settings.towers),
                           affordable:
@@ -943,7 +1101,7 @@ export class Game {
                     : undefined,
             // the once-per-round level-2 recruit switch lives in the Research Center
             recruit:
-                u.team === 'player' && this.phase === 'build' && u.type === RESEARCH_CENTER
+                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
                     ? {
                           cost: this.settings.leveling.recruitLevel2Cost,
                           active: this.recruitLevel.player > 1,
@@ -954,7 +1112,7 @@ export class Game {
                     : undefined,
             // the Research Center sells +1 deployment for the running round
             deploySlot:
-                u.team === 'player' && this.phase === 'build' && u.type === RESEARCH_CENTER
+                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
                     ? {
                           cost: this.settings.deploy.extraSlotCost,
                           active: this.deployState.extra.player > 0,
@@ -964,7 +1122,7 @@ export class Game {
                     : undefined,
             // Command Tower: the two permanent army-wide boost tracks
             boosts:
-                u.team === 'player' && this.phase === 'build' && u.type === COMMAND_TOWER
+                u.team === 'player' && this.playerCanAct && u.type === COMMAND_TOWER
                     ? (['attack', 'hp'] as const).map((id) => {
                           const tiers =
                               id === 'attack'
@@ -985,7 +1143,7 @@ export class Game {
                     : undefined,
             // so does the permanent sell-ability unlock
             sellAbility:
-                u.team === 'player' && this.phase === 'build' && u.type === COMMAND_TOWER
+                u.team === 'player' && this.playerCanAct && u.type === COMMAND_TOWER
                     ? {
                           cost: this.settings.sell.abilityCost,
                           owned: this.sellState.owned.player,
@@ -1010,7 +1168,7 @@ export class Game {
             levelUp: this.levelUpInfo(u, lv),
             // techs are buyable on your own packs during deployment
             techs:
-                u.team === 'player' && this.phase === 'build' && !u.type.structure
+                u.team === 'player' && this.playerCanAct && !u.type.structure
                     ? u.type.techs.map((t) => {
                           // each owned tech of the type raises the others' prices
                           const owned = this.techTree.ownedFor('player', u.type.id).size;

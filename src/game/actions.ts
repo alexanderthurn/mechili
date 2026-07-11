@@ -47,6 +47,9 @@ export interface RotateAction {
     kind: 'rotate';
     team: Team;
     unitId: number;
+    /** target anchor (defaults to the current one) — mirrored boards need it
+     *  because rotating a non-square footprint in place shifts its rectangle */
+    anchor?: Cell;
 }
 export interface BuyTechAction {
     kind: 'buyTech';
@@ -260,6 +263,13 @@ export class ActionDispatcher {
         return false;
     }
 
+    /** one side's applied actions of a round, in order — the network batch */
+    actionsFor(round: number, team: Team): Action[] {
+        return this.log
+            .filter((e) => e.round === round && e.action.team === team)
+            .map((e) => e.action);
+    }
+
     /** the match as pure data — with the settings and seed this reproduces everything */
     serializable(): LoggedAction[] {
         return this.log.map((e) => ({
@@ -328,7 +338,8 @@ export class ActionDispatcher {
             case 'rotate': {
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || !placement.canReposition(unit)) return false;
-                return placement.rotateUnit(unit);
+                entry.from = { ...unit.cell };
+                return placement.rotateUnit(unit, action.anchor);
             }
             case 'buyTech': {
                 const type = unitTypeById(action.typeId);
@@ -521,7 +532,7 @@ export class ActionDispatcher {
                 );
                 break;
             case 'rotate':
-                placement.rotateUnit(placement.unitById(action.unitId)!);
+                placement.rotateUnit(placement.unitById(action.unitId)!, e.from);
                 break;
             case 'buyTech':
                 techTree.remove(action.team, action.typeId, action.techId);

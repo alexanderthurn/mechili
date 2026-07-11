@@ -19,6 +19,7 @@
     "build:linux": "steam-electron-build linux"
   },
   "dependencies": {
+    "peerjs": "^1.5.5",
     "pixi.js": "^8.19.0",
     "three": "^0.185.1"
   },

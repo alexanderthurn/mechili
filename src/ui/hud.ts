@@ -425,13 +425,19 @@ export class Hud {
             techs;
     }
 
-    setPhase(round: number, phase: Phase, remainingSeconds: number): void {
+    setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {
         this.roundEl.textContent = `Round ${round}`;
-        this.phaseEl.textContent = phase === 'build' ? 'Deployment' : 'Battle';
+        this.phaseEl.textContent = waitingForPeer
+            ? 'Waiting for opponent…'
+            : phase === 'build'
+              ? 'Deployment'
+              : 'Battle';
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle');
-        this.unitBar.classList.toggle('disabled', phase !== 'build');
+        // locked in: only spectating remains — no buying, no ending twice
+        this.topBar.classList.toggle('waiting', waitingForPeer);
+        this.unitBar.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
     }
 
     setSpeed(multiplier: number): void {
@@ -531,6 +537,15 @@ export class Hud {
             onPick(button.dataset.card);
         });
         this.mount(overlay);
+    }
+
+    /** the peer connection died — nothing to do but return to the menu */
+    showDisconnect(): void {
+        const el = document.createElement('div');
+        el.className = 'mechili-gameover draw';
+        el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Main Menu</button>`;
+        el.querySelector('.go-restart')!.addEventListener('click', () => location.reload());
+        this.mount(el);
     }
 
     showGameOver(result: 'victory' | 'defeat' | 'draw'): void {

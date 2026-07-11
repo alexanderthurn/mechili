@@ -273,21 +273,35 @@ export class PlacementController {
         return this.findStartSpot('player', type);
     }
 
-    /** the same ring search from either side's zone center (deterministic, rng-free) */
+    /**
+     * The same ring search from either side's zone center (deterministic,
+     * rng-free). Candidates are enumerated in a canonical own-side frame and
+     * mirrored onto the board for the enemy — so two lockstep peers compute
+     * EXACT 180° mirrors of each other's spawn spots.
+     */
     findStartSpot(team: Team, type: UnitType): Cell | null {
+        const fp = this.footprintOf(type, false);
         const centerCol = Math.floor(this.map.cols / 2);
-        const ownRow = Math.floor(this.map.size.zoneRows / 2);
-        const centerRow = team === 'player' ? ownRow : this.map.rows - 1 - ownRow;
+        const centerRow = Math.floor(this.map.size.zoneRows / 2);
+        const toBoard = (anchor: Cell): Cell =>
+            team === 'player'
+                ? anchor
+                : {
+                      col: this.map.cols - fp.cols - anchor.col,
+                      row: this.map.rows - fp.rows - anchor.row,
+                  };
         const maxRadius = Math.max(this.map.cols, this.map.rows);
         for (let radius = 0; radius < maxRadius; radius++) {
             for (let dc = -radius; dc <= radius; dc++) {
                 for (let dr = -radius; dr <= radius; dr++) {
                     if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
-                    const anchor = this.centeredAnchor(type, false, {
-                        col: centerCol + dc,
-                        row: centerRow + dr,
-                    });
-                    const cells = this.coveredCells(this.footprintOf(type, false), anchor);
+                    const anchor = toBoard(
+                        this.centeredAnchor(type, false, {
+                            col: centerCol + dc,
+                            row: centerRow + dr,
+                        }),
+                    );
+                    const cells = this.coveredCells(fp, anchor);
                     const ok =
                         cells !== null &&
                         cells.every((c) => this.zoneCell(team, c) && !this.occupied.has(cellKey(c)));
@@ -306,17 +320,17 @@ export class PlacementController {
         this.dispatch?.({ kind: 'rotate', team: unit.team, unitId: unit.id });
     }
 
-    /** Rotates a pack in place when its rotated footprint fits (dispatcher-only). */
-    rotateUnit(unit: Unit): boolean {
+    /** Rotates a pack (optionally onto a new anchor) when it fits (dispatcher-only). */
+    rotateUnit(unit: Unit, anchor: Cell = unit.cell): boolean {
         const rotated = !unit.rotated;
         const fp = this.footprintOf(unit.type, rotated);
-        const cells = this.coveredCells(fp, unit.cell);
+        const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
             this.zoneCell(unit.team, c) && (unit.type.extra || this.freeFor(c, unit));
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.setRotated(rotated);
-        unit.moveTo(unit.cell, this.map.areaCenter(unit.cell, fp.cols, fp.rows));
+        unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
