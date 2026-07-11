@@ -127,6 +127,8 @@ export class Hud {
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
+    /** every HUD root passed through mount() — needed for dom-overlay teardown */
+    private readonly mountedRoots: HTMLElement[] = [];
     private readonly pixiCanvas: HTMLCanvasElement;
     private readonly app: Application;
     private readonly overlayParent: HTMLElement;
@@ -905,6 +907,7 @@ export class Hud {
         for (const type of ['pointerdown', 'pointerup', 'pointermove', 'click', 'wheel']) {
             el.addEventListener(type, (e) => e.stopPropagation());
         }
+        this.mountedRoots.push(el);
         if (this.mode === 'html-in-canvas') {
             // must be a direct child of the Pixi canvas; mirrored to the GPU each repaint
             this.pixiCanvas.appendChild(el);
@@ -914,5 +917,23 @@ export class Hud {
         } else {
             this.overlayParent.appendChild(el);
         }
+    }
+
+    /** removes every HUD element from the page / canvas mirror */
+    destroy(): void {
+        this.hidePauseMenu();
+        this.hideCardOverlay();
+        this.hideNotice();
+        this.hideBattleReport();
+        this.itemGhost?.remove();
+        this.itemGhost = null;
+        for (const { sprite } of this.sprites) {
+            sprite.destroy();
+        }
+        this.sprites.length = 0;
+        for (const el of this.mountedRoots) {
+            el.remove();
+        }
+        this.mountedRoots.length = 0;
     }
 }

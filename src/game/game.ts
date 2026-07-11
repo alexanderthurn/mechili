@@ -158,9 +158,27 @@ export class Game {
     private readonly peerChecks = new Map<number, number>();
     /** set by main: the connection dropped mid-match (reconnect orchestration) */
     onConnectionLost: (() => void) | null = null;
+    /** set by main: tear down the match and restore the pre-game menu */
+    onReturnToMenu: (() => void) | null = null;
     /** throttled hook for persisting single-player state to session storage */
     onStateCheckpoint: (() => void) | null = null;
     private persistTimer = 0;
+    private readonly boundTick = (ticker: { deltaMS: number }) => this.tick(ticker.deltaMS / 1000);
+    private readonly onEscapeKey = (e: KeyboardEvent) => {
+        if (e.code !== 'Escape') return;
+        if (this.matchOver || this.suspended) return;
+        this.hud.togglePauseMenu();
+        if (this.hud.isPauseMenuOpen()) {
+            this.placement.deselect();
+            this.selectedActor = null;
+            this.armedItem = null;
+        }
+    };
+    private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
+    private readonly wrapper: HTMLElement;
+    private readonly threeCanvas: HTMLCanvasElement;
+    private readonly inputDisposers: (() => void)[] = [];
+    private battleDown: { x: number; y: number } | null = null;
 
     constructor(
         private readonly pixiApp: Application,
@@ -178,6 +196,8 @@ export class Game {
         /** recorded state to rebuild from — reconnect/resync/reload */
         resume: { actions: LoggedAction[]; battleElapsed: number | null; local?: boolean } | null = null,
     ) {
+        this.wrapper = wrapper;
+        this.threeCanvas = threeCanvas;
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
         this.map = new BattleMap(settings.map);
@@ -400,17 +420,20 @@ export class Game {
         pixiApp.stage.addChild(this.hpBars.view, this.debug.view);
 
         // battle phase: left click selects a single mech, own or enemy
-        let battleDown: { x: number; y: number } | null = null;
-        surface.addEventListener('pointerdown', (e: PointerEvent) => {
-            if (e.button === 0) battleDown = { x: e.clientX, y: e.clientY };
-        });
-        surface.addEventListener('pointerup', (e: PointerEvent) => {
-            if (e.button !== 0 || this.phase !== 'battle' || !battleDown) return;
-            const moved = Math.hypot(e.clientX - battleDown.x, e.clientY - battleDown.y);
-            battleDown = null;
+        const listen = (type: string, handler: EventListener) => {
+            surface.addEventListener(type, handler);
+            this.inputDisposers.push(() => surface.removeEventListener(type, handler));
+        };
+        listen('pointerdown', ((e: PointerEvent) => {
+            if (e.button === 0) this.battleDown = { x: e.clientX, y: e.clientY };
+        }) as EventListener);
+        listen('pointerup', ((e: PointerEvent) => {
+            if (e.button !== 0 || this.phase !== 'battle' || !this.battleDown) return;
+            const moved = Math.hypot(e.clientX - this.battleDown.x, e.clientY - this.battleDown.y);
+            this.battleDown = null;
             if (moved > 6) return;
             this.selectedActor = this.pickActor(e);
-        });
+        }) as EventListener);
 
         // round 0: towers stand, then the loadout cards decide the starting
         // armies — the first build phase begins once BOTH sides picked
@@ -425,20 +448,37 @@ export class Game {
         if (this.net) this.wireSession(this.net);
 
         // Escape toggles the in-game menu (the match keeps running underneath)
-        window.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.code !== 'Escape') return;
-            if (this.matchOver || this.suspended) return;
-            this.hud.togglePauseMenu();
-            if (this.hud.isPauseMenuOpen()) {
-                this.placement.deselect();
-                this.selectedActor = null;
-                this.armedItem = null;
-            }
-        });
+        window.addEventListener('keydown', this.onEscapeKey);
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
-        window.addEventListener('resize', () => this.resize(wrapper.clientWidth, wrapper.clientHeight));
-        pixiApp.ticker.add((ticker) => this.tick(ticker.deltaMS / 1000));
+        window.addEventListener('resize', this.onWindowResize);
+        pixiApp.ticker.add(this.boundTick);
+    }
+
+    /** stop the loop, release GPU/DOM resources — main restores the menu */
+    destroy(): void {
+        this.onStateCheckpoint = null;
+        this.onReturnToMenu = null;
+        this.onConnectionLost = null;
+        this.pixiApp.ticker.remove(this.boundTick);
+        window.removeEventListener('keydown', this.onEscapeKey);
+        window.removeEventListener('resize', this.onWindowResize);
+        for (const dispose of this.inputDisposers) dispose();
+        this.inputDisposers.length = 0;
+        this.placement.dispose();
+        this.controls.dispose();
+        this.hud.destroy();
+        this.pixiApp.stage.removeChild(this.hpBars.view);
+        this.pixiApp.stage.removeChild(this.debug.view);
+        this.hpBars.view.destroy({ children: true });
+        this.debug.view.destroy({ children: true });
+        // drop any HTML HUD nodes still attached to the pixi canvas (html-in-canvas mode)
+        for (const node of [...this.pixiApp.canvas.children]) {
+            if (node instanceof HTMLElement) node.remove();
+        }
+        this.renderer.dispose();
+        this.net?.close();
+        this.net = null;
     }
 
     /**
@@ -613,25 +653,15 @@ export class Game {
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
-        this.hud.showNotice(message, 'Give up — back to menu', () => {
-            clearResumeMarker();
-            clearSinglePlayer();
-            location.reload();
-        });
+        this.hud.showNotice(message, 'Give up — back to menu', () => this.quitToMenu());
     }
 
-    /** leave the match — clears resume data and reloads to the main menu */
+    /** leave the match — main tears down the session and restores the menu */
     quitToMenu(): void {
-        clearResumeMarker();
-        clearSinglePlayer();
-        try {
-            sessionStorage.removeItem('mechili-desync-guard');
-        } catch {
-            /* ignore */
-        }
+        this.onStateCheckpoint = null;
         this.net?.close();
         this.net = null;
-        location.reload();
+        this.onReturnToMenu?.();
     }
 
     /** the peer is back on a fresh session — continue exactly where we were */

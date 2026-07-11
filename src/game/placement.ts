@@ -126,6 +126,7 @@ export class PlacementController {
     private rectActive = false;
     private pointer: { x: number; y: number } | null = null;
     private downAt: { x: number; y: number } | null = null;
+    private readonly disposers: (() => void)[] = [];
 
     constructor(
         private readonly rig: CameraRig,
@@ -175,23 +176,31 @@ export class PlacementController {
         this.rectEl.style.cssText = `position:absolute; display:none; pointer-events:none; z-index:10; border:1.5px solid ${THEME.ui.hover}; background:rgba(255, 208, 64, 0.08);`;
         (surface.parentElement ?? document.body).appendChild(this.rectEl);
 
-        surface.addEventListener('pointermove', (e: PointerEvent) => {
+        const listen = (
+            type: string,
+            handler: EventListener,
+            options?: AddEventListenerOptions,
+        ) => {
+            surface.addEventListener(type, handler, options);
+            this.disposers.push(() => surface.removeEventListener(type, handler, options));
+        };
+
+        listen('pointermove', ((e: PointerEvent) => {
             this.pointer = this.toLocal(e);
             if (!this.downAt || !this.enabled || this.pendingType) return;
             const moved = Math.hypot(this.pointer.x - this.downAt.x, this.pointer.y - this.downAt.y);
             if (this.rectActive || moved > 6) this.updateRect(this.downAt, this.pointer);
-        });
-        surface.addEventListener('pointerdown', (e: PointerEvent) => {
+        }) as EventListener);
+        listen('pointerdown', ((e: PointerEvent) => {
             if (e.button !== 0) return;
             this.downAt = this.toLocal(e);
-            // the rubber-band keeps tracking (and reliably ends) outside the canvas
             surface.setPointerCapture(e.pointerId);
-        });
-        surface.addEventListener('pointercancel', () => {
+        }) as EventListener);
+        listen('pointercancel', (() => {
             this.downAt = null;
             this.hideRect();
-        });
-        surface.addEventListener('pointerup', (e: PointerEvent) => {
+        }) as EventListener);
+        listen('pointerup', ((e: PointerEvent) => {
             if (e.button !== 0) return;
             const down = this.downAt;
             this.downAt = null;
@@ -203,9 +212,18 @@ export class PlacementController {
                 this.finishRectSelect(down, up);
                 return;
             }
-            if (Math.hypot(up.x - down.x, up.y - down.y) > 6) return; // drag, not a click
+            if (Math.hypot(up.x - down.x, up.y - down.y) > 6) return;
             this.handleClick(up.x, up.y);
-        });
+        }) as EventListener);
+    }
+
+    /** detach input listeners and DOM helpers */
+    dispose(): void {
+        this.enabled = false;
+        this.deselect();
+        for (const dispose of this.disposers) dispose();
+        this.disposers.length = 0;
+        this.rectEl.remove();
     }
 
     get unitCount(): number {

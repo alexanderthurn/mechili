@@ -38,11 +38,23 @@ function settingsFromUrl(): GameSettings {
 }
 
 const wrapper = document.createElement('div');
-wrapper.style.cssText = 'position:fixed;inset:0;overflow:hidden;';
+wrapper.style.cssText = `position:fixed;inset:0;overflow:hidden;background:${THEME.sky};`;
 
-const threeCanvas = document.createElement('canvas');
-threeCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+function createThreeCanvas(): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+    return canvas;
+}
+
+/** replaced after each match — WebGL contexts cannot be recreated on a lost canvas */
+let threeCanvas = createThreeCanvas();
 wrapper.appendChild(threeCanvas);
+
+function replaceThreeCanvas(): void {
+    threeCanvas.remove();
+    threeCanvas = createThreeCanvas();
+    wrapper.insertBefore(threeCanvas, app.canvas);
+}
 
 document.body.appendChild(wrapper);
 
@@ -51,6 +63,12 @@ await app.init({ backgroundAlpha: 0, resizeTo: wrapper, antialias: true });
 app.canvas.style.position = 'absolute';
 app.canvas.style.inset = '0';
 wrapper.appendChild(app.canvas);
+
+/** hide the 3D/HUD input layer behind the main menu; pixi keeps the title visible */
+function setGameLayerVisible(visible: boolean): void {
+    threeCanvas.style.display = visible ? '' : 'none';
+    app.canvas.style.pointerEvents = visible ? 'auto' : 'none';
+}
 
 const title = new Container();
 const heading = new Text({
@@ -73,6 +91,8 @@ document.head.appendChild(style);
 
 const menu = document.createElement('div');
 menu.className = 'mechili-menu';
+menu.style.position = 'relative';
+menu.style.zIndex = '30';
 menu.innerHTML = `
     <button class="m-btn" data-mode="single">Single Player</button>
     <button class="m-btn" data-mode="quick">Matchmaking</button>
@@ -92,6 +112,7 @@ wrapper.appendChild(menu);
 const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
 usernameEl.type = 'button';
+usernameEl.style.zIndex = '30';
 wrapper.appendChild(usernameEl);
 
 const lobbyEl = menu.querySelector<HTMLDivElement>('.m-lobby')!;
@@ -104,6 +125,8 @@ let pending: Pending | null = null;
 let roomPoll: ReturnType<typeof setInterval> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
 let resumeAbort: AbortController | null = null;
+let activeGame: Game | null = null;
+let stopSinglePlayerPersist: (() => void) | null = null;
 
 type MatchResume = { actions: LoggedAction[]; battleElapsed: number | null; local?: boolean };
 
@@ -239,6 +262,37 @@ function stopRoomPoll(): void {
     roomPoll = null;
 }
 
+function clearMatchResumeData(): void {
+    clearResumeMarker();
+    clearSinglePlayer();
+    try {
+        sessionStorage.removeItem('mechili-desync-guard');
+    } catch {
+        /* ignore */
+    }
+}
+
+/** tear down an active match and bring back the pre-game menu (no page reload) */
+function returnToMenu(): void {
+    stopSinglePlayerPersist?.();
+    stopSinglePlayerPersist = null;
+    clearMatchResumeData();
+    activeGame?.destroy();
+    activeGame = null;
+    replaceThreeCanvas();
+    started = false;
+    setGameLayerVisible(false);
+    title.visible = true;
+    layoutTitle();
+    app.renderer.on('resize', layoutTitle);
+    app.render();
+    wrapper.appendChild(menu);
+    wrapper.appendChild(usernameEl);
+    refreshUsernameLabel();
+    setMenuBusy(false);
+    setStatus('');
+}
+
 function startGame(
     settings: GameSettings,
     net: NetSession | null = null,
@@ -255,8 +309,9 @@ function startGame(
     hideResumeOverlay();
     resumeAbort?.abort();
     resumeAbort = null;
+    setGameLayerVisible(true);
+    title.visible = false;
     app.renderer.off('resize', layoutTitle);
-    title.destroy({ children: true });
     menu.remove();
     usernameEl.remove();
     if (net) {
@@ -272,13 +327,17 @@ function startGame(
         if (!resume?.local) clearSinglePlayer();
     }
     const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume);
+    activeGame = game;
+    game.onReturnToMenu = returnToMenu;
     if (net) wireReconnect(game, net);
-    else wireSinglePlayerPersist(game);
+    else stopSinglePlayerPersist = wireSinglePlayerPersist(game);
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */
-function wireSinglePlayerPersist(game: Game): void {
+function wireSinglePlayerPersist(game: Game): () => void {
+    let enabled = true;
     const persist = () => {
+        if (!enabled) return;
         const data = game.exportResume();
         saveSinglePlayer({
             seed: data.seed,
@@ -289,9 +348,16 @@ function wireSinglePlayerPersist(game: Game): void {
         });
     };
     game.onStateCheckpoint = persist;
-    window.addEventListener('pagehide', persist);
-    window.addEventListener('beforeunload', persist);
+    const onHide = () => persist();
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onHide);
     persist();
+    return () => {
+        enabled = false;
+        game.onStateCheckpoint = null;
+        window.removeEventListener('pagehide', onHide);
+        window.removeEventListener('beforeunload', onHide);
+    };
 }
 
 /**
@@ -481,6 +547,7 @@ menu.addEventListener('click', (e) => {
 });
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
+setGameLayerVisible(false);
 const mpMarker = loadResumeMarker();
 const spSave = loadSinglePlayer();
 if (mpMarker) {
