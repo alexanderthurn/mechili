@@ -12,6 +12,7 @@ import {
 export const CELL = 4;
 
 import { THEME } from '../theme';
+import { teamColors } from './colors';
 
 export interface Cell {
     col: number;
@@ -303,14 +304,14 @@ export class BattleMap {
             ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
         };
         // enemy half (top) and player half (bottom)
-        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, THEME.enemyTint);
-        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, THEME.playerTint);
+        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, teamColors.enemy.tint);
+        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, teamColors.player.tint);
         if (this.flanksUnlocked) {
             // flanks beside the opponent's half belong to you
-            paintZone(0, 0, flankPx, zonePx, THEME.playerTint);
-            paintZone(w - flankPx, 0, flankPx, zonePx, THEME.playerTint);
-            paintZone(0, h - zonePx, flankPx, zonePx, THEME.enemyTint);
-            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, THEME.enemyTint);
+            paintZone(0, 0, flankPx, zonePx, teamColors.player.tint);
+            paintZone(w - flankPx, 0, flankPx, zonePx, teamColors.player.tint);
+            paintZone(0, h - zonePx, flankPx, zonePx, teamColors.enemy.tint);
+            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, teamColors.enemy.tint);
         } else {
             // locked in round 1: neutral grey
             ctx.fillStyle = t.flankLocked;

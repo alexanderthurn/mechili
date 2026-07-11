@@ -9,6 +9,7 @@ import {
     type Vector3,
 } from 'three';
 import { THEME } from '../theme';
+import { teamColors } from './colors';
 import { CELL, type Cell } from './map';
 
 export type Team = 'player' | 'enemy';
@@ -81,10 +82,6 @@ export interface UnitType {
     build: (parts: PartFactory) => void;
 }
 
-const TEAM_ACCENT: Record<Team, number> = {
-    player: THEME.player,
-    enemy: THEME.enemy,
-};
 
 /** Shared materials per team so all units batch nicely. */
 const materialCache = new Map<string, MeshStandardMaterial>();
@@ -111,8 +108,8 @@ function lightMaterial(): MeshStandardMaterial {
 }
 
 function accentMaterial(team: Team): MeshStandardMaterial {
-    return material(`accent-${team}`, () => {
-        const c = TEAM_ACCENT[team];
+    const c = teamColors[team].hex;
+    return material(`accent-${team}-${c}`, () => {
         return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: THEME.accentEmissive, roughness: 0.4 });
     });
 }

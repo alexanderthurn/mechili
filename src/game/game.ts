@@ -27,6 +27,7 @@ import {
     type RoundCard,
     type SpecialityId,
 } from './cards';
+import { assignTeamColors, teamColors } from './colors';
 import { ITEMS } from './items';
 import { BattleMap, CELL, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
@@ -107,8 +108,8 @@ export class Game {
     private readonly opponent: Opponent;
     /** which sides locked in the current deployment — battle starts at both */
     private readonly deployReady: Record<Team, boolean> = { player: false, enemy: false };
-    /** remote round batches that arrived before our game reached their round */
-    private readonly remoteBatches: { round: number; actions: Action[] }[] = [];
+    /** streamed peer events, applied in order once our game reaches their round */
+    private readonly remoteQueue: { round: number; action?: Action; undo?: boolean }[] = [];
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
     private readonly recruitLevel: Record<Team, number> = { player: 1, enemy: 1 };
     /** the sell ability: `owned` is a permanent match unlock, `used` resets per round */
@@ -149,6 +150,8 @@ export class Game {
         /** canonical side: the host is 'a', the guest 'b' — keys the card streams */
         side: 'a' | 'b' = 'a',
     ) {
+        // canonical colors first — units, overlays and HUD CSS all read them
+        assignTeamColors(side);
         this.map = new BattleMap(settings.map);
         this.economy = new Economy(settings.economy);
         this.playerHp = settings.startingHp;
@@ -240,21 +243,13 @@ export class Game {
             onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
                 if (team === 'player') {
-                    // freeze local input and ship the round's actions to the peer
+                    // freeze local input; from here on the opponent's live
+                    // (already-streamed) deployment becomes visible
                     this.placement.deselect();
                     this.placement.enabled = false;
                     this.armedItem = null;
-                    // the endDeployment action itself is not in the log yet
-                    // (we're inside its apply) — append it by hand so the
-                    // peer's batch actually locks us in on their side
-                    this.net?.send({
-                        type: 'round',
-                        round: this.round,
-                        actions: [
-                            ...this.dispatcher.actionsFor(this.round, 'player'),
-                            { kind: 'endDeployment', team: 'player' },
-                        ],
-                    });
+                    this.placement.hiddenPlacements = false;
+                    this.placement.revealAll();
                 }
                 // the battle waits until BOTH sides have locked in
                 if (this.deployReady.player && this.deployReady.enemy) this.startBattlePhase();
@@ -483,10 +478,13 @@ export class Game {
         if (this.round >= 2) this.offerRoundCards();
     }
 
-    /** local player input — refused once this deployment is locked in */
+    /** local player input — refused once this deployment is locked in; every
+     *  accepted action streams to the peer immediately */
     private dispatchPlayer(action: Action): boolean {
         if (this.deployReady.player) return false;
-        return this.dispatcher.dispatch(action);
+        if (!this.dispatcher.dispatch(action)) return false;
+        if (this.round >= 1) this.net?.send({ type: 'action', round: this.round, action });
+        return true;
     }
 
     /** the player may act: build phase, not locked in, match running */
@@ -507,20 +505,28 @@ export class Game {
         if (msg.type === 'starter') {
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId });
             this.maybeStartMatch();
-        } else if (msg.type === 'round') {
-            this.remoteBatches.push(msg);
-            this.drainRemoteBatches();
+        } else if (msg.type === 'action') {
+            this.remoteQueue.push({ round: msg.round, action: msg.action });
+            this.drainRemoteQueue();
+        } else if (msg.type === 'undo') {
+            this.remoteQueue.push({ round: msg.round, undo: true });
+            this.drainRemoteQueue();
         }
     }
 
-    /** applies queued peer batches once our game is in the matching round */
-    private drainRemoteBatches(): void {
-        for (let i = 0; i < this.remoteBatches.length; i++) {
-            const batch = this.remoteBatches[i]!;
-            if (batch.round !== this.round || this.phase !== 'build' || this.awaitingCards) continue;
-            this.remoteBatches.splice(i--, 1);
-            for (const action of batch.actions) {
-                const translated = this.translateRemote(action);
+    /**
+     * Applies streamed peer events strictly in order, holding at the head
+     * until our game reaches the event's round (our battle may lag theirs).
+     */
+    private drainRemoteQueue(): void {
+        while (this.remoteQueue.length > 0) {
+            const head = this.remoteQueue[0]!;
+            if (head.round !== this.round || this.phase !== 'build' || this.awaitingCards) return;
+            this.remoteQueue.shift();
+            if (head.undo) {
+                this.dispatcher.undoLast(head.round, 'enemy');
+            } else if (head.action) {
+                const translated = this.translateRemote(head.action);
                 if (translated) this.dispatcher.dispatch(translated);
             }
         }
@@ -809,7 +815,9 @@ export class Game {
     private undoLast(): void {
         if (!this.canUndo()) return;
         this.placement.deselect();
-        this.dispatcher.undoLast(this.round, 'player');
+        if (this.dispatcher.undoLast(this.round, 'player')) {
+            this.net?.send({ type: 'undo', round: this.round }); // the peer mirrors it
+        }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
     }
 
@@ -951,7 +959,7 @@ export class Game {
         this.scenery.update(dtSeconds, this.rig.camera.position);
         this.placement.update(this.time);
         this.updateSelectionUi();
-        this.drainRemoteBatches();
+        this.drainRemoteQueue();
         const waitingForPeer =
             this.net !== null &&
             !this.matchOver &&
@@ -1007,7 +1015,7 @@ export class Game {
         this.battleRangeMesh.position.set(a.rx, 0.05, a.rz);
         this.battleRangeMesh.scale.set(radius, 1, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
-        material.color.setHex(a.unit.team === 'player' ? THEME.valid : THEME.enemy);
+        material.color.setHex(a.unit.team === 'player' ? THEME.valid : teamColors.enemy.hex);
     }
 
     private updateSelectionUi(): void {

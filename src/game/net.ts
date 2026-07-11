@@ -16,11 +16,16 @@ export function matchUrl(): string {
     return new URLSearchParams(location.search).get('match') ?? DEFAULT_MATCH_URL;
 }
 
-/** everything that crosses the wire */
+/**
+ * Everything that crosses the wire. Actions stream LIVE as they happen —
+ * hiding the opponent's deployment is purely a local rendering rule (until
+ * your own lock-in), not a transmission delay.
+ */
 export type NetMessage =
     | { type: 'setup'; version: number; seed: number; settings: GameSettings }
     | { type: 'starter'; cardId: string }
-    | { type: 'round'; round: number; actions: Action[] };
+    | { type: 'action'; round: number; action: Action }
+    | { type: 'undo'; round: number };
 
 /** the remote player as an Opponent: it acts via received messages, so the
  *  local hooks are all no-ops */

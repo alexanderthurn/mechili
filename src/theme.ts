@@ -1,3 +1,5 @@
+import { teamColors } from './game/colors';
+
 /**
  * Allied blue vs Soviet red on a bright, warm RA2-style green battlefield.
  * Single source of truth for palette — tweak here to shift the whole look.
@@ -181,9 +183,12 @@ export function menuStyles(): string {
 `;
 }
 
-/** CSS block for the HTML HUD — generated from {@link THEME}. */
+/** CSS block for the HTML HUD — generated from {@link THEME} + the match's
+ *  canonical team colors (assign those BEFORE the HUD is built). */
 export function hudStyles(): string {
     const u = THEME.ui;
+    const pc = teamColors.player.css;
+    const ec = teamColors.enemy.css;
     return `
 .mechili-hud {
     position: absolute;
@@ -229,8 +234,8 @@ export function hudStyles(): string {
 }
 .mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
 .mechili-panel .team { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-.mechili-panel .team.player { color: ${u.player}; }
-.mechili-panel .team.enemy { color: ${u.enemy}; }
+.mechili-panel .team.player { color: ${pc}; }
+.mechili-panel .team.enemy { color: ${ec}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
 .mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: ${u.barTrack}; border-radius: 3px; overflow: hidden; }
@@ -384,15 +389,15 @@ export function hudStyles(): string {
     user-select: none;
 }
 .mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
-.mechili-gameover.victory .go-title { color: ${u.player}; }
-.mechili-gameover.defeat .go-title { color: ${u.enemy}; }
+.mechili-gameover.victory .go-title { color: ${pc}; }
+.mechili-gameover.defeat .go-title { color: ${ec}; }
 .mechili-gameover.draw .go-title { color: ${u.brassLight}; }
 .mechili-gameover .go-restart {
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
-    border: 1.5px solid ${u.player};
+    border: 1.5px solid ${pc};
     border-radius: 10px;
-    color: ${u.player};
+    color: ${pc};
     font-size: 15px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -416,8 +421,8 @@ export function hudStyles(): string {
 .mechili-report .r-title { font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
 .mechili-report .r-close { background: none; border: none; color: ${u.textMuted}; cursor: pointer; font-size: 14px; padding: 0; }
 .mechili-report .r-row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
-.mechili-report .r-row .n.player { color: ${u.player}; }
-.mechili-report .r-row .n.enemy { color: ${u.enemy}; }
+.mechili-report .r-row .n.player { color: ${pc}; }
+.mechili-report .r-row .n.enemy { color: ${ec}; }
 .mechili-report .r-row .d { color: ${u.brass}; font-variant-numeric: tabular-nums; }
 .mechili-hud .name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
 .mechili-hud .icon { width: 24px; height: 24px; border-radius: 50%;
@@ -463,15 +468,15 @@ export function hudStyles(): string {
 .mechili-topbar .deploys { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.phase}; }
 .mechili-topbar.battle .deploys { display: none; }
 .mechili-topbar .hp { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; }
-.mechili-topbar .hp.player { color: ${u.player}; }
-.mechili-topbar .hp.enemy { color: ${u.enemy}; }
+.mechili-topbar .hp.player { color: ${pc}; }
+.mechili-topbar .hp.enemy { color: ${ec}; }
 .mechili-topbar .hp::before { content: '♥ '; opacity: 0.6; }
 .mechili-topbar .end-deploy {
     padding: 7px 14px;
     background: ${u.alliedBtnBg};
-    border: 1.5px solid ${u.player};
+    border: 1.5px solid ${pc};
     border-radius: 8px;
-    color: ${u.player};
+    color: ${pc};
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -491,7 +496,7 @@ export function hudStyles(): string {
 .mechili-topbar .undo:hover { background: ${u.undoHover}; }
 .mechili-topbar.battle .end-deploy, .mechili-topbar.battle .undo { display: none; }
 .mechili-topbar.waiting .end-deploy, .mechili-topbar.waiting .undo { display: none; }
-.mechili-topbar.battle .timer { color: ${u.enemy}; }
+.mechili-topbar.battle .timer { color: ${ec}; }
 .mechili-topbar .speed {
     display: none;
     min-width: 52px;
