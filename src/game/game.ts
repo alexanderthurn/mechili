@@ -35,7 +35,7 @@ import { BattleMap, CELL, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import { createRangeRing, PlacementController } from './placement';
-import { DEFAULT_SETTINGS, Economy, type GameSettings } from './settings';
+import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent } from './sim';
 import { TechTree } from './tech';
 import {
@@ -182,11 +182,13 @@ export class Game {
     private readonly inputDisposers: (() => void)[] = [];
     private battleDown: { x: number; y: number } | null = null;
 
+    private readonly settings: GameSettings;
+
     constructor(
         private readonly pixiApp: Application,
         threeCanvas: HTMLCanvasElement,
         wrapper: HTMLElement,
-        private readonly settings: GameSettings = DEFAULT_SETTINGS,
+        settingsInput: GameSettings = DEFAULT_SETTINGS,
         /** the peer connection in multiplayer, null against the AI (swappable on reconnect) */
         private net: NetSession | null = null,
         /** canonical side: the host is 'a', the guest 'b' — keys card streams & sim ordering */
@@ -198,6 +200,8 @@ export class Game {
         /** recorded state to rebuild from — reconnect/resync/reload */
         resume: { actions: LoggedAction[]; battleElapsed: number | null; local?: boolean } | null = null,
     ) {
+        this.settings = normalizeGameSettings(settingsInput);
+        const settings = this.settings;
         this.wrapper = wrapper;
         this.threeCanvas = threeCanvas;
         // canonical colors first — units, overlays and HUD CSS all read them
@@ -1308,7 +1312,7 @@ export class Game {
                 this.sim.update(gameDt);
                 this.particles.spawnFromEvents(this.sim.consumeEvents());
                 this.sim.syncMeshes(); // per-frame interpolated positions
-                this.sim.syncGoldenVisuals(this.time);
+                this.sim.syncBattleVisuals(this.time);
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer

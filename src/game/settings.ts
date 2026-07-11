@@ -44,14 +44,24 @@ export interface LevelingSettings {
 
 export interface TowerSettings {
     /**
-     * Towers are buffs, not score: each destroyed OWN tower applies these
-     * multipliers to all of that side's units, stacking multiplicatively,
-     * for the rest of the battle it fell in (towers rebuild between rounds).
+     * Towers are debuffs, not score: destroying an ENEMY tower does nothing to
+     * you; each of YOUR OWN towers that falls applies these multipliers to all
+     * of that side's units, stacking multiplicatively, while the debuff timer
+     * runs (duration depends on the fallen tower's level).
      */
     debuffPerLostTower: {
         speedMult: number;
         attackMult: number;
         damageTakenMult: number;
+    };
+    /**
+     * How long a tower loss debuffs its side. Level 1 lasts baseSeconds; each
+     * level above 1 subtracts stepSeconds (level 2 → 8s, level 3 → 6s, …).
+     * If another tower falls during an active debuff, the new duration is added.
+     */
+    debuffDuration: {
+        baseSeconds: number;
+        stepSeconds: number;
     };
     /**
      * Towers level like units (+base hp per level) but need no XP — just
@@ -131,6 +141,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
             attackMult: 0.1,
             damageTakenMult: 2.0,
         },
+        debuffDuration: {
+            baseSeconds: 10,
+            stepSeconds: 2,
+        },
         upgrade: {
             baseCost: 100, // level 2 costs 100, then 150, 200, 250
             costStep: 50,
@@ -160,6 +174,37 @@ export const DEFAULT_SETTINGS: GameSettings = {
         recruitLevel2Cost: 100,
     },
 };
+
+/** fills in settings added after older saves/replays were recorded */
+export function normalizeGameSettings(settings: GameSettings): GameSettings {
+    const towers = settings.towers ?? DEFAULT_SETTINGS.towers;
+    return {
+        ...DEFAULT_SETTINGS,
+        ...settings,
+        economy: {
+            ...DEFAULT_SETTINGS.economy,
+            ...settings.economy,
+            unitCosts: { ...DEFAULT_SETTINGS.economy.unitCosts, ...settings.economy.unitCosts },
+        },
+        towers: {
+            ...DEFAULT_SETTINGS.towers,
+            ...towers,
+            debuffPerLostTower: {
+                ...DEFAULT_SETTINGS.towers.debuffPerLostTower,
+                ...towers.debuffPerLostTower,
+            },
+            debuffDuration: {
+                ...DEFAULT_SETTINGS.towers.debuffDuration,
+                ...towers.debuffDuration,
+            },
+            upgrade: { ...DEFAULT_SETTINGS.towers.upgrade, ...towers.upgrade },
+        },
+        sell: { ...DEFAULT_SETTINGS.sell, ...settings.sell },
+        deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
+        boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
+        leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
+    };
+}
 
 /** Both players' supply balances, driven by an {@link EconomySettings}. */
 export class Economy {

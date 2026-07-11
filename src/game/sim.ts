@@ -1,13 +1,17 @@
 import type { Group } from 'three';
 import { ITEMS } from './items';
-import type { LevelingSettings, TowerSettings } from './settings';
+import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import type { ResolvedStats } from './tech';
-import { SHIELD_RADIUS, setGoldenTint, type Team, type Unit, type UnitType } from './units';
+import { SHIELD_RADIUS, syncBattleTint, type Team, type Unit, type UnitType } from './units';
 
-/** how long the fortress Golden Aura keeps allies immune after leaving range */
+/** how long the fortress Golden Aura keeps allies immune after the one-shot apply */
 export const GOLDEN_AURA_DURATION = 30;
 /** golden units take 30% less damage on top of debuff immunity */
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
+/** battle clock time when fortress Golden Aura is applied once (after other pre-battle effects) */
+export const GOLDEN_AURA_APPLY_AT = 0.1;
+/** units stand still for this long at battle start before moving or firing */
+export const BATTLE_START_FREEZE = 1.0;
 
 export interface SimConfig {
     towers: TowerSettings;
@@ -130,13 +134,17 @@ export class BattleSim {
     elapsed = 0;
     private events: SimEvent[] = [];
     private accumulator = 0;
-    /** destroyed towers per side (pre-battle + during battle) drive the debuffs */
+    /** how many command towers each side has lost this battle (stack strength) */
     private readonly lostTowers: Record<Team, number> = { player: 0, enemy: 0 };
+    /** sim clock time until which each side's tower-destruction debuff runs */
+    private readonly debuffUntil: Record<Team, number> = { player: 0, enemy: 0 };
     private readonly hash = new Map<number, Actor[]>();
     /** tech-resolved base stats per pack, fixed at battle start */
     private readonly resolved = new Map<Unit, ResolvedStats>();
     /** damage dealt per `${team}:${typeId}` — the post-battle report data */
     readonly damageByType = new Map<string, number>();
+    /** fortress Golden Aura is a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
+    private goldenAuraApplied = false;
 
     constructor(
         units: readonly Unit[],
@@ -144,7 +152,10 @@ export class BattleSim {
     ) {
         for (const unit of units) {
             if (unit.destroyed) {
-                this.lostTowers[unit.team]++;
+                if (this.isCommandTower(unit)) {
+                    this.lostTowers[unit.team]++;
+                    this.extendTeamDebuff(unit.team, unit.level);
+                }
                 continue; // rubble is not a target
             }
             const stats = config.statsOf(unit);
@@ -261,17 +272,41 @@ export class BattleSim {
         return this.actors.some((a) => a.alive && a.unit.team === team && !a.unit.type.structure);
     }
 
-    /** stacking tower-destruction multiplier — golden mechs skip attack/speed debuffs */
+    private isCommandTower(unit: Unit): boolean {
+        return unit.type.structure === true && !unit.type.extra;
+    }
+
+    /** seconds of debuff from losing a command tower at the given level */
+    private debuffSecondsForTowerLevel(level: number): number {
+        const { baseSeconds, stepSeconds } =
+            this.config.towers.debuffDuration ?? DEFAULT_SETTINGS.towers.debuffDuration;
+        return Math.max(0, baseSeconds - (level - 1) * stepSeconds);
+    }
+
+    /** extends (or starts) a side's debuff window — stacks time if already active */
+    private extendTeamDebuff(team: Team, towerLevel: number): void {
+        const add = this.debuffSecondsForTowerLevel(towerLevel);
+        this.debuffUntil[team] = Math.max(this.debuffUntil[team], this.elapsed) + add;
+    }
+
+    /** tower-destruction debuff is active for this mech right now */
+    private isDebuffed(actor: Actor): boolean {
+        if (this.isGolden(actor)) return false;
+        return this.elapsed < this.debuffUntil[actor.unit.team] - 1e-9;
+    }
+
+    /** stacking tower-destruction multiplier — only while the debuff timer runs */
     private debuff(actor: Actor, mult: number): number {
-        if (this.isGolden(actor)) return 1;
+        if (!this.isDebuffed(actor)) return 1;
         let factor = 1;
         for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
         return factor;
     }
 
-    /** incoming damage: golden = −30% and no tower debuff; others stack tower debuff */
+    /** incoming damage: golden = −30%; tower debuff only while its timer runs */
     private damageTakenMult(actor: Actor): number {
         if (this.isGolden(actor)) return GOLDEN_DAMAGE_TAKEN_MULT;
+        if (!this.isDebuffed(actor)) return 1;
         const mult = this.config.towers.debuffPerLostTower.damageTakenMult;
         let factor = 1;
         for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
@@ -286,9 +321,10 @@ export class BattleSim {
         return actor.goldenUntil > this.elapsed + 1e-9;
     }
 
-    /** living fortresses with Golden Aura grant nearby allies temporary immunity */
-    private refreshGoldenAura(): void {
+    /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden fortress get 30s immunity */
+    private applyFortressGoldenAura(): void {
         const r2 = SHIELD_RADIUS * SHIELD_RADIUS;
+        const expires = GOLDEN_AURA_APPLY_AT + GOLDEN_AURA_DURATION;
         for (const f of this.actors) {
             if (!f.alive || f.unit.type.id !== 'fortress') continue;
             if (!this.config.hasTech(f.unit.team, 'fortress', 'golden')) continue;
@@ -296,18 +332,18 @@ export class BattleSim {
                 if (!a.alive || a.unit.team !== f.unit.team || a.unit.type.structure) continue;
                 const dx = a.x - f.x;
                 const dz = a.z - f.z;
-                if (dx * dx + dz * dz <= r2) {
-                    a.goldenUntil = Math.max(a.goldenUntil, this.elapsed + GOLDEN_AURA_DURATION);
-                }
+                if (dx * dx + dz * dz <= r2) a.goldenUntil = Math.max(a.goldenUntil, expires);
             }
         }
     }
 
-    /** golden tint on every debuff-immune mech */
-    syncGoldenVisuals(timeSeconds: number): void {
+    /** golden tint on golden mechs; wild color shift while tower debuff timer runs */
+    syncBattleVisuals(timeSeconds: number): void {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            setGoldenTint(a.mesh, this.isGolden(a), timeSeconds);
+            const stacks = this.lostTowers[a.unit.team];
+            const tint = this.isGolden(a) ? 'golden' : this.isDebuffed(a) ? 'debuff' : 'normal';
+            syncBattleTint(a.mesh, tint, timeSeconds, stacks);
         }
     }
 
@@ -343,10 +379,11 @@ export class BattleSim {
             big: target.radius >= 2 || !!t.structure,
         });
         if (t.structure) {
-            // a fallen tower weakens its side for the REST OF THIS BATTLE;
-            // the round reset rebuilds it like any other unit
             target.unit.markDestroyed();
-            this.lostTowers[target.unit.team]++;
+            if (this.isCommandTower(target.unit)) {
+                this.lostTowers[target.unit.team]++;
+                this.extendTeamDebuff(target.unit.team, target.unit.level);
+            }
         } else {
             // tip over and stay as a battlefield wreck until the round resets
             // (air units crash to the ground)
@@ -368,13 +405,22 @@ export class BattleSim {
             p.py = p.y;
             p.pz = p.z;
         }
-        const d = this.config.towers.debuffPerLostTower;
-        this.refreshGoldenAura();
-        this.rebuildHash();
-        const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
+
+        if (!this.goldenAuraApplied && this.elapsed >= GOLDEN_AURA_APPLY_AT) {
+            this.applyFortressGoldenAura();
+            this.goldenAuraApplied = true;
+        }
+
         for (const a of this.actors) {
             if (a.hurtTimer > 0) a.hurtTimer -= dt;
         }
+
+        // opening beat: no movement, attacks, rockets, or projectiles yet
+        if (this.elapsed < BATTLE_START_FREEZE) return;
+
+        const d = this.config.towers.debuffPerLostTower;
+        this.rebuildHash();
+        const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
 
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;

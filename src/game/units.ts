@@ -583,6 +583,7 @@ export class Unit {
 
     resetFormation(): void {
         for (const m of this.members) {
+            clearBattleTint(m.mesh);
             m.mesh.position.copy(m.home);
             m.mesh.position.y = this.memberBaseY();
             m.mesh.visible = true;
@@ -662,30 +663,71 @@ function levelStudMaterial(index: number): MeshStandardMaterial {
     });
 }
 
-/** tints a mech's hull materials gold with a pulsing emissive glow */
-export function setGoldenTint(mesh: Group, on: boolean, timeSeconds: number): void {
+/** tints a mech during battle — golden wins over debuff; debuff is a wild color shift */
+export function syncBattleTint(
+    mesh: Group,
+    tint: 'normal' | 'golden' | 'debuff',
+    timeSeconds: number,
+    debuffStacks = 1,
+): void {
     const gold = new Color(THEME.veteran);
-    const pulse = 0.4 + Math.sin(timeSeconds * 4.5) * 0.22;
+    const goldPulse = 0.4 + Math.sin(timeSeconds * 4.5) * 0.22;
+    const debuffT = timeSeconds * 7;
 
     mesh.traverse((child) => {
         if (!(child instanceof Mesh)) return;
         const orig = child.material;
         if (!(orig instanceof MeshStandardMaterial)) return;
 
-        if (on) {
+        if (!child.userData.battleOrigMat) child.userData.battleOrigMat = orig;
+
+        if (tint === 'golden') {
             let tinted = child.userData.goldenMat as MeshStandardMaterial | undefined;
             if (!tinted) {
-                tinted = orig.clone();
-                tinted.color.lerpColors(orig.color, gold, 0.55);
+                tinted = (child.userData.battleOrigMat as MeshStandardMaterial).clone();
+                tinted.color.lerpColors((child.userData.battleOrigMat as MeshStandardMaterial).color, gold, 0.55);
                 tinted.emissive.copy(gold);
-                child.userData.goldenOrigMat = orig;
                 child.userData.goldenMat = tinted;
             }
-            tinted.emissiveIntensity = pulse;
-            if (child.material !== tinted) child.material = tinted;
-        } else if (child.userData.goldenOrigMat) {
-            child.material = child.userData.goldenOrigMat as MeshStandardMaterial;
+            tinted.emissiveIntensity = goldPulse;
+            child.material = tinted;
+            return;
         }
+
+        if (tint === 'debuff') {
+            let tinted = child.userData.debuffMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) tinted = base.clone();
+            const mix = Math.min(0.85, 0.35 + debuffStacks * 0.25);
+            const r = 0.55 + 0.45 * Math.sin(debuffT);
+            const g = 0.2 + 0.35 * Math.sin(debuffT + 2.4);
+            const b = 0.45 + 0.45 * Math.sin(debuffT + 4.8);
+            const crazy = new Color(r * 0.9 + 0.1, g * 0.35, b * 0.7 + 0.15);
+            tinted.color.lerpColors(base.color, crazy, mix);
+            tinted.emissive.setRGB(r * 0.95, g * 0.25, b * 0.85);
+            tinted.emissiveIntensity = 0.3 + debuffStacks * 0.18 + Math.sin(debuffT * 2.3) * 0.25;
+            child.userData.debuffMat = tinted;
+            child.material = tinted;
+            return;
+        }
+
+        child.material = child.userData.battleOrigMat as MeshStandardMaterial;
+    });
+}
+
+/** restores default hull materials after battle — call when a round ends */
+export function clearBattleTint(mesh: Group): void {
+    mesh.traverse((child) => {
+        if (!(child instanceof Mesh)) return;
+        const orig = child.userData.battleOrigMat as MeshStandardMaterial | undefined;
+        if (orig) child.material = orig;
+        const golden = child.userData.goldenMat as MeshStandardMaterial | undefined;
+        const debuff = child.userData.debuffMat as MeshStandardMaterial | undefined;
+        golden?.dispose();
+        debuff?.dispose();
+        delete child.userData.battleOrigMat;
+        delete child.userData.goldenMat;
+        delete child.userData.debuffMat;
     });
 }
 
