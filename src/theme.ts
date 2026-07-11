@@ -294,6 +294,8 @@ export function hudStyles(): string {
 .mechili-supply {
     display: flex;
     align-items: center;
+    box-sizing: border-box;
+    min-height: 54px;
     padding: 8px 14px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
@@ -332,16 +334,24 @@ export function hudStyles(): string {
 }
 .shop-toolbar .undo {
     margin-right: auto;
-    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 54px;
+    padding: 8px 14px;
     background: ${u.undoBg};
-    border: 1.5px solid ${u.undoBorder};
-    border-radius: 7px;
+    border: 2px solid ${u.undoBorder};
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     color: ${u.undoText};
-    font-size: 12px;
+    font-size: 20px;
     font-weight: bold;
+    line-height: 1;
+    letter-spacing: 0.5px;
     cursor: pointer;
     appearance: none;
     font-family: system-ui, sans-serif;
+    flex-shrink: 0;
 }
 .shop-toolbar .undo:hover { background: ${u.undoHover}; }
 .mechili-extras {
