@@ -1,11 +1,11 @@
 import Peer, { type DataConnection } from 'peerjs';
-import type { Action } from './actions';
+import type { Action, LoggedAction } from './actions';
 import type { Opponent } from './ai';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { GameSettings } from './settings';
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 2; // v2: shared-board protocol (no mirrored coordinates)
+export const GAME_VERSION = 3; // v3: checksums + resume/state (reconnect & desync recovery)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -50,7 +50,13 @@ export type NetMessage =
     | { type: 'setup'; version: number; seed: number; settings: GameSettings; hostName: string; guestName: string }
     | { type: 'starter'; cardId: string }
     | { type: 'action'; round: number; action: Action }
-    | { type: 'undo'; round: number };
+    | { type: 'undo'; round: number }
+    /** state checksum at every battle start — mismatch = desync, triggers a resync */
+    | { type: 'check'; round: number; hash: number }
+    /** a reloaded/rejoining peer asks for the full match state */
+    | { type: 'resume' }
+    /** the survivor's answer: seed + full action log (in the SENDER's perspective) */
+    | { type: 'state'; version: number; seed: number; settings: GameSettings; actions: LoggedAction[] };
 
 /** the remote player as an Opponent: it acts via received messages, so the
  *  local hooks are all no-ops */
@@ -122,6 +128,99 @@ export class NetSession {
     setRemoteName(name: string): void {
         this.remoteName = name;
     }
+
+    get ownId(): string {
+        return this.peer.id;
+    }
+
+    get remoteId(): string {
+        return this.conn.peer;
+    }
+
+    /** survivor who OWNS the room id: keep the peer open, wait for the rejoin */
+    awaitReconnect(): Promise<NetSession> {
+        return awaitConnection(this.peer, this.localName).then((s) => {
+            s.setRemoteName(this.remoteName);
+            return s;
+        });
+    }
+
+    /** survivor on the other end: redial the dropped peer until it comes back */
+    async redial(attempts = 20, delayMs = 3000): Promise<NetSession> {
+        for (let i = 0; i < attempts; i++) {
+            try {
+                return await connectTo(this.peer, this.remoteId, this.localName, this.remoteName);
+            } catch {
+                await new Promise((r) => setTimeout(r, delayMs));
+            }
+        }
+        throw new Error('Opponent did not come back');
+    }
+}
+
+// --- resume marker: enough to find the match again after a reload ---
+
+const RESUME_KEY = 'mechili-resume';
+
+export interface ResumeMarker {
+    side: 'a' | 'b';
+    names: { local: string; opponent: string };
+    /** the opponent's PeerJS id (redialed directly after our reload) */
+    remotePeerId: string;
+    /** our own id IF it is a recreatable room id, else null */
+    ownRoomId: string | null;
+}
+
+export function saveResumeMarker(marker: ResumeMarker): void {
+    try {
+        sessionStorage.setItem(RESUME_KEY, JSON.stringify(marker));
+    } catch {
+        /* private browsing */
+    }
+}
+
+export function loadResumeMarker(): ResumeMarker | null {
+    try {
+        const raw = sessionStorage.getItem(RESUME_KEY);
+        return raw ? (JSON.parse(raw) as ResumeMarker) : null;
+    } catch {
+        return null;
+    }
+}
+
+export function clearResumeMarker(): void {
+    try {
+        sessionStorage.removeItem(RESUME_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+/**
+ * After a reload: reopen our side of the connection. If we owned a room id
+ * we re-host it (the survivor redials it); otherwise we dial the survivor.
+ */
+export async function resumeSession(marker: ResumeMarker): Promise<NetSession> {
+    if (marker.ownRoomId) {
+        const peer = await openPeer(marker.ownRoomId);
+        const session = await Promise.race([
+            awaitConnection(peer, marker.names.local),
+            new Promise<NetSession>((_, reject) =>
+                setTimeout(() => reject(new Error('Opponent did not reconnect')), 60_000),
+            ),
+        ]);
+        session.setRemoteName(marker.names.opponent);
+        return session;
+    }
+    const peer = await openPeer();
+    for (let i = 0; i < 15; i++) {
+        try {
+            return await connectTo(peer, marker.remotePeerId, marker.names.local, marker.names.opponent);
+        } catch {
+            await new Promise((r) => setTimeout(r, 3000));
+        }
+    }
+    throw new Error('Could not reach the opponent');
 }
 
 function openPeer(id?: string): Promise<Peer> {

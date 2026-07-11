@@ -1,14 +1,20 @@
 import { Application, Container, Text } from 'pixi.js';
+import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
 import {
+    clearResumeMarker,
     fetchLobbyRooms,
     GAME_VERSION,
     handshake,
     hostLobby,
     joinLobby,
+    loadResumeMarker,
     quickMatch,
+    resumeSession,
+    saveResumeMarker,
     type NetSession,
     type Pending,
+    type ResumeMarker,
 } from './game/net';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
@@ -195,6 +201,7 @@ function startGame(
         local: getPlayerName(),
         opponent: net ? 'Opponent' : 'AI',
     },
+    resumeLog: LoggedAction[] | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -203,7 +210,74 @@ function startGame(
     title.destroy({ children: true });
     menu.remove();
     usernameEl.remove();
-    new Game(app, threeCanvas, wrapper, settings, net, side, names);
+    if (net) {
+        // enough to find this match again after a reload or crash
+        saveResumeMarker({
+            side,
+            names,
+            remotePeerId: net.remoteId,
+            ownRoomId: net.ownId.startsWith('mechili-room-') ? net.ownId : null,
+        });
+    }
+    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resumeLog);
+    if (net) wireReconnect(game, net);
+}
+
+/**
+ * Survivor side of a dropped connection: pause the game, wait for the peer
+ * to come back (re-hosting our room, or redialing theirs), answer their
+ * resume request with the full match state, then continue.
+ */
+function wireReconnect(game: Game, initial: NetSession): void {
+    let session = initial;
+    game.onConnectionLost = () => {
+        game.suspend('Connection lost — waiting for the opponent to reconnect…');
+        void (async () => {
+            try {
+                // if the dropped peer owned a room id it will RE-HOST it (we
+                // redial); otherwise it knows our id and dials us (we wait)
+                const next = session.remoteId.startsWith('mechili-room-')
+                    ? await session.redial()
+                    : await session.awaitReconnect();
+                const first = await next.once();
+                if (first.type === 'resume') {
+                    next.send({ type: 'state', version: GAME_VERSION, ...game.exportResume() });
+                }
+                session = next;
+                game.resumeWith(next);
+            } catch {
+                clearResumeMarker();
+                game.suspend('The opponent did not come back.');
+            }
+        })();
+    };
+}
+
+/** After a reload mid-match: rejoin the room and rebuild from the peer's log. */
+async function attemptResume(marker: ResumeMarker): Promise<void> {
+    setMenuBusy(true);
+    setStatus('Reconnecting to your match…');
+    try {
+        const session = await resumeSession(marker);
+        session.send({ type: 'resume' });
+        const msg = await Promise.race([
+            session.once(),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('No answer from the opponent')), 30_000),
+            ),
+        ]);
+        if (msg.type !== 'state' || msg.version !== GAME_VERSION) {
+            throw new Error('Resume rejected (version mismatch?)');
+        }
+        const settings = msg.settings;
+        settings.seed = msg.seed;
+        setStatus('');
+        startGame(settings, session, marker.side, marker.names, msg.actions);
+    } catch (e) {
+        clearResumeMarker();
+        setMenuBusy(false);
+        setStatus(`Could not rejoin: ${e instanceof Error ? e.message : e}`);
+    }
 }
 
 async function beginNetGame(session: NetSession): Promise<void> {
@@ -297,10 +371,16 @@ menu.addEventListener('click', (e) => {
     }
 });
 
-// ?room=mangoo — join that host's room directly
-const roomParam = new URLSearchParams(location.search).get('room');
-if (roomParam) {
-    lobbyEl.style.display = '';
-    startRoomPoll();
-    runPending(joinLobby(roomParam, setStatus));
+// a reload mid-match rejoins automatically and rebuilds from the peer's log
+const resumeMarker = loadResumeMarker();
+if (resumeMarker) {
+    void attemptResume(resumeMarker);
+} else {
+    // ?room=mangoo — join that host's room directly
+    const roomParam = new URLSearchParams(location.search).get('room');
+    if (roomParam) {
+        lobbyEl.style.display = '';
+        startRoomPoll();
+        runPending(joinLobby(roomParam, setStatus));
+    }
 }

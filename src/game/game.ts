@@ -13,7 +13,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
-import { NetworkOpponent, type NetMessage, type NetSession } from './net';
+import { clearResumeMarker, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -26,6 +26,7 @@ import {
     START_CARDS,
     type RoundCard,
     type SpecialityId,
+    type StartCard,
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
 import { ITEMS } from './items';
@@ -139,20 +140,33 @@ export class Game {
     private readonly roundCardTaken: Record<Team, boolean> = { player: false, enemy: false };
     /** the game idles behind the card overlay until the loadout is picked */
     private awaitingCards = true;
+    /** rebuilding from a recorded log: no UI, no net sends, battles fast-forward */
+    private hydrating = false;
+    /** connection lost: everything pauses until the peer is back */
+    private suspended = false;
+    /** the round-card offer drawn during hydration, shown once it finishes */
+    private pendingOffer: RoundCard[] | null = null;
+    /** state checksums per round (battle start), ours and the peer's */
+    private readonly sentChecks = new Map<number, number>();
+    private readonly peerChecks = new Map<number, number>();
+    /** set by main: the connection dropped mid-match (reconnect orchestration) */
+    onConnectionLost: (() => void) | null = null;
 
     constructor(
         private readonly pixiApp: Application,
         threeCanvas: HTMLCanvasElement,
         wrapper: HTMLElement,
         private readonly settings: GameSettings = DEFAULT_SETTINGS,
-        /** the peer connection in multiplayer, null against the AI */
-        private readonly net: NetSession | null = null,
+        /** the peer connection in multiplayer, null against the AI (swappable on reconnect) */
+        private net: NetSession | null = null,
         /** canonical side: the host is 'a', the guest 'b' — keys card streams & sim ordering */
         private readonly side: 'a' | 'b' = 'a',
         private readonly playerNames: { local: string; opponent: string } = {
             local: 'You',
             opponent: 'AI',
         },
+        /** a recorded log (in the SENDER's perspective) to rebuild from — reconnect/resync */
+        resumeLog: LoggedAction[] | null = null,
     ) {
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
@@ -389,21 +403,13 @@ export class Game {
         // armies — the first build phase begins once BOTH sides picked
         this.spawnTowers();
         this.placement.enabled = false;
-        // the specialist pick is always 4 cards, drawn from each side's own stream
-        this.hud.showStartCards(this.draw(START_CARDS, 4, this.rngCards.player), (cardId) => {
-            this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
-            this.net?.send({ type: 'starter', cardId });
-            this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
-            this.maybeStartMatch();
-        });
-        // only now may peer messages flow — everything they touch exists
-        if (this.net) {
-            this.net.attach((msg) => this.onNetMessage(msg));
-            this.net.onClose = () => {
-                this.matchOver = true;
-                this.hud.showDisconnect();
-            };
+        if (resumeLog) {
+            this.hydrate(resumeLog);
+        } else {
+            this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
+        // only now may peer messages flow — everything they touch exists
+        if (this.net) this.wireSession(this.net);
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', () => this.resize(wrapper.clientWidth, wrapper.clientHeight));
@@ -500,15 +506,185 @@ export class Game {
     /** local player input — refused once this deployment is locked in; every
      *  accepted action streams to the peer immediately */
     private dispatchPlayer(action: Action): boolean {
-        if (this.deployReady.player) return false;
+        if (this.deployReady.player || this.suspended) return false;
         if (!this.dispatcher.dispatch(action)) return false;
         if (this.round >= 1) this.net?.send({ type: 'action', round: this.round, action });
         return true;
     }
 
-    /** the player may act: build phase, not locked in, match running */
+    /** the specialist overlay (also re-shown after a resume that predates the pick) */
+    private showStarterPick(offer: StartCard[]): void {
+        this.hud.showStartCards(offer, (cardId) => {
+            this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
+            this.net?.send({ type: 'starter', cardId });
+            this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
+            this.maybeStartMatch();
+        });
+    }
+
+    /** connects (or re-connects) a peer session to this game */
+    private wireSession(session: NetSession): void {
+        this.net = session;
+        session.attach((msg) => this.onNetMessage(msg));
+        session.onClose = () => {
+            if (this.matchOver) return;
+            if (this.onConnectionLost) this.onConnectionLost();
+            else {
+                this.matchOver = true;
+                this.hud.showDisconnect();
+            }
+        };
+    }
+
+    // --- reconnect / resync ------------------------------------------------
+
+    /** pause everything (connection lost / desync) behind a blocking notice */
+    suspend(message: string): void {
+        this.suspended = true;
+        this.placement.deselect();
+        this.armedItem = null;
+        this.hud.showNotice(message, 'Give up — back to menu', () => {
+            clearResumeMarker();
+            location.reload();
+        });
+    }
+
+    /** the peer is back on a fresh session — continue exactly where we were */
+    resumeWith(session: NetSession): void {
+        this.wireSession(session);
+        this.suspended = false;
+        this.hud.hideNotice();
+    }
+
+    /** everything a rejoining peer needs to rebuild the match (our perspective) */
+    exportResume(): { seed: number; settings: GameSettings; actions: LoggedAction[] } {
+        return { seed: this.seed, settings: this.settings, actions: this.dispatcher.serializable() };
+    }
+
+    /**
+     * Rebuilds the whole match from a recorded log: actions re-apply in
+     * order, battles fast-forward headlessly to their exact deterministic
+     * end. Used for reconnects, desync recovery — and replays later.
+     */
+    private hydrate(foreignLog: LoggedAction[]): void {
+        this.hydrating = true;
+        // the log is in the sender's perspective — swap it into ours; and
+        // consume the starter draws exactly like a live start would
+        const log = foreignLog.map((e) => ({ ...e, action: this.swapPerspective(e.action) }));
+        const starterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
+        this.draw(START_CARDS, 4, this.rngCards.enemy);
+
+        let i = 0;
+        while (i < log.length && !this.matchOver) {
+            const entry = log[i]!;
+            if (entry.round === 0) {
+                this.dispatcher.dispatch(entry.action);
+                i++;
+                this.maybeStartMatch();
+                continue;
+            }
+            if (this.awaitingCards || entry.round !== this.round || this.phase !== 'build') break;
+            this.dispatcher.dispatch(entry.action);
+            i++;
+            // both sides locked in mid-log: run the battle to its exact end
+            if ((this.phase as Phase) === 'battle') this.fastForwardBattle();
+        }
+        this.hydrating = false;
+
+        // reopen whatever decision was pending when the state was captured
+        if (this.speciality.player === null) {
+            this.showStarterPick(starterOffer);
+        } else if (this.pendingOffer && !this.roundCardTaken.player && this.phase === 'build') {
+            this.awaitingCards = true;
+            this.showRoundOffer(this.pendingOffer);
+        }
+        this.pendingOffer = null;
+        this.hud.refreshCosts();
+    }
+
+    /** runs the current battle to its deterministic end without rendering */
+    private fastForwardBattle(): void {
+        while (this.sim && !this.sim.finished) {
+            this.sim.update(0.25);
+            this.sim.consumeEvents(); // discard visuals
+        }
+        if (this.sim) {
+            this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
+            this.endBattlePhase();
+        }
+    }
+
+    /** flips team and unit-id parity — translates actions between the two perspectives */
+    private swapPerspective(action: Action): Action {
+        const team: Team = action.team === 'player' ? 'enemy' : 'player';
+        const flipId = (id: number) => (id % 2 === 0 ? id + 1 : id - 1);
+        switch (action.kind) {
+            case 'move':
+            case 'rotate':
+            case 'buyLevel':
+            case 'sellUnit':
+            case 'upgradeTower':
+            case 'applyItem':
+                return { ...action, team, unitId: flipId(action.unitId) };
+            case 'moveGroup':
+                return { ...action, team, unitIds: action.unitIds.map(flipId) };
+            default:
+                return { ...action, team };
+        }
+    }
+
+    /** canonical state fingerprint, exchanged at battle start to catch desyncs */
+    private stateHash(): number {
+        const buffer = new DataView(new ArrayBuffer(8));
+        let h = 0x811c9dc5;
+        const mix = (v: number) => {
+            buffer.setFloat64(0, v);
+            h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
+            h = Math.imul(h ^ buffer.getUint32(4), 0x9e3779b1);
+        };
+        const hostParity = this.side === 'a' ? 0 : 1;
+        const hostFirst = (player: number, enemy: number) =>
+            this.side === 'a' ? [player, enemy] : [enemy, player];
+        mix(this.round);
+        for (const v of hostFirst(this.playerHp, this.enemyHp)) mix(v);
+        for (const v of hostFirst(this.economy.balance('player'), this.economy.balance('enemy'))) mix(v);
+        for (const a of this.sim?.actors ?? []) {
+            const id = a.unit.id;
+            mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
+            mix(a.x);
+            mix(a.z);
+            mix(a.hp);
+            mix(a.unit.level);
+        }
+        return h >>> 0;
+    }
+
+    private verifyCheck(round: number): void {
+        const mine = this.sentChecks.get(round);
+        const theirs = this.peerChecks.get(round);
+        if (mine === undefined || theirs === undefined || mine === theirs) return;
+        // desync: the guest rebuilds from the host's log (reload + resume);
+        // the host just waits — the guest's reload drops the connection,
+        // which flows into the normal reconnect path
+        if (this.side === 'b') {
+            // guard against a reload loop if the divergence is persistent
+            const guard = sessionStorage.getItem('mechili-desync-guard');
+            if (guard === String(round)) {
+                this.suspend('Persistent desync — this match cannot continue.');
+                return;
+            }
+            sessionStorage.setItem('mechili-desync-guard', String(round));
+            location.reload();
+        } else {
+            this.suspend('Desync detected — the opponent is resyncing…');
+        }
+    }
+
+    /** the player may act: build phase, not locked in, match running, peer present */
     private get playerCanAct(): boolean {
-        return this.phase === 'build' && !this.deployReady.player && !this.matchOver;
+        return (
+            this.phase === 'build' && !this.deployReady.player && !this.matchOver && !this.suspended
+        );
     }
 
     /** round 1 begins once BOTH specialists are chosen (the peer's may lag) */
@@ -530,6 +706,12 @@ export class Game {
         } else if (msg.type === 'undo') {
             this.remoteQueue.push({ round: msg.round, undo: true });
             this.drainRemoteQueue();
+        } else if (msg.type === 'check') {
+            this.peerChecks.set(msg.round, msg.hash);
+            this.verifyCheck(msg.round);
+        } else if (msg.type === 'resume') {
+            // the peer reloaded and rebuilt mid-session (rare direct path)
+            this.net?.send({ type: 'state', version: GAME_VERSION, ...this.exportResume() });
         }
     }
 
@@ -595,10 +777,20 @@ export class Game {
 
         // each side's offer comes from its OWN card stream — reproducible on
         // any peer regardless of when either client computes it
-        this.opponent.onRoundCards(this.draw(ROUND_CARDS, 4, this.rngCards.enemy));
-
+        const enemyOffer = this.draw(ROUND_CARDS, 4, this.rngCards.enemy);
         const offer = this.draw(ROUND_CARDS, 4, this.rngCards.player);
+        if (this.hydrating) {
+            // no UI, no opponent hook — the recorded actions carry the picks;
+            // the streams were consumed above so future offers stay aligned
+            this.pendingOffer = offer;
+            return;
+        }
+        this.opponent.onRoundCards(enemyOffer);
         this.awaitingCards = true;
+        this.showRoundOffer(offer);
+    }
+
+    private showRoundOffer(offer: RoundCard[]): void {
         this.hud.showRoundCards(
             offer.map((c) => this.roundCardView(c)),
             SKIP_CARD_REWARD,
@@ -832,6 +1024,13 @@ export class Game {
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
         });
+        // the sync point: both peers hash the identical battle-start state
+        if (this.net && !this.hydrating) {
+            const hash = this.stateHash();
+            this.sentChecks.set(this.round, hash);
+            this.net.send({ type: 'check', round: this.round, hash });
+            this.verifyCheck(this.round);
+        }
     }
 
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
@@ -856,6 +1055,7 @@ export class Game {
     /** someone hit 0 HP — freeze the game and show the result */
     private finishMatch(): void {
         this.matchOver = true;
+        clearResumeMarker(); // the match ended properly — nothing to rejoin
         this.placement.enabled = false;
         this.placement.deselect();
         this.gridOverlay.visible = false;
@@ -909,7 +1109,7 @@ export class Game {
             this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;
         this.time += gameDt;
 
-        if (!this.matchOver && !this.awaitingCards) {
+        if (!this.matchOver && !this.awaitingCards && !this.suspended) {
             this.phaseRemaining -= gameDt;
             if (this.phase === 'build') {
                 // the timer ends the round like the button would — as an action

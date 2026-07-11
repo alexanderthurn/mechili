@@ -599,6 +599,28 @@ export class Hud {
         this.mount(overlay);
     }
 
+    private notice: HTMLDivElement | null = null;
+
+    /** full-screen blocking notice (reconnect wait, resync); replaces any previous one */
+    showNotice(text: string, buttonLabel?: string, onButton?: () => void): void {
+        this.hideNotice();
+        const el = document.createElement('div');
+        el.className = 'mechili-cards'; // reuses the dimmed overlay styling
+        el.innerHTML =
+            `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">${text}</div>` +
+            (buttonLabel ? `<button class="cards-skip">${buttonLabel}</button>` : '');
+        if (buttonLabel && onButton) {
+            el.querySelector('.cards-skip')!.addEventListener('click', onButton);
+        }
+        this.notice = el;
+        this.mount(el);
+    }
+
+    hideNotice(): void {
+        this.notice?.remove();
+        this.notice = null;
+    }
+
     /** the peer connection died — nothing to do but return to the menu */
     showDisconnect(): void {
         const el = document.createElement('div');
