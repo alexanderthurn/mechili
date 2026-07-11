@@ -1,6 +1,16 @@
 import { Application, Container, Text } from 'pixi.js';
 import { Game } from './game/game';
-import { GAME_VERSION, hostRoom, joinRoom, makeRoomCode, quickMatch, type NetSession, type Pending } from './game/net';
+import {
+    fetchLobbyRooms,
+    GAME_VERSION,
+    handshake,
+    hostLobby,
+    joinLobby,
+    quickMatch,
+    type NetSession,
+    type Pending,
+} from './game/net';
+import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
 import { THEME, menuStyles } from './theme';
 
@@ -13,11 +23,10 @@ function settingsFromUrl(): GameSettings {
     const build = Number(params.get('build'));
     if (build > 0) settings.buildTimeSeconds = build;
     const seed = Number(params.get('seed'));
-    if (seed > 0) settings.seed = seed; // reproducible match (AI plays identically)
+    if (seed > 0) settings.seed = seed;
     return settings;
 }
 
-// layered setup: three.js world canvas below, transparent Pixi UI canvas on top
 const wrapper = document.createElement('div');
 wrapper.style.cssText = 'position:fixed;inset:0;overflow:hidden;';
 
@@ -25,17 +34,14 @@ const threeCanvas = document.createElement('canvas');
 threeCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
 wrapper.appendChild(threeCanvas);
 
-// the wrapper must be in the DOM before init so resizeTo measures its real size
 document.body.appendChild(wrapper);
 
 const app = new Application();
 await app.init({ backgroundAlpha: 0, resizeTo: wrapper, antialias: true });
-// don't touch width/height styles — Pixi's resize handling owns those
 app.canvas.style.position = 'absolute';
 app.canvas.style.inset = '0';
 wrapper.appendChild(app.canvas);
 
-// --- title (pixi) ---
 const title = new Container();
 const heading = new Text({
     text: 'MECHILI',
@@ -51,7 +57,6 @@ function layoutTitle() {
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
 
-// --- main menu (html overlay) ---
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
@@ -61,26 +66,79 @@ menu.className = 'mechili-menu';
 menu.innerHTML = `
     <button class="m-btn" data-mode="single">Single Player</button>
     <button class="m-btn" data-mode="quick">Matchmaking</button>
-    <button class="m-btn" data-mode="custom">Custom Server</button>
-    <div class="m-custom" style="display:none">
-        <button class="m-btn m-small" data-mode="create">Create Room</button>
-        <div class="m-join">
-            <input class="m-input" maxlength="12" placeholder="room code" spellcheck="false" />
-            <button class="m-btn m-small" data-mode="join">Join</button>
+    <button class="m-btn" data-mode="lobby">Custom Room</button>
+    <div class="m-lobby" style="display:none">
+        <div class="m-room-row">
+            <button class="m-btn m-small" data-mode="host">Host Room</button>
+            <button class="m-btn m-small" data-mode="refresh">Refresh</button>
         </div>
+        <div class="m-room-list empty">No open rooms</div>
     </div>
     <div class="m-status" style="display:none"></div>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
 
-const customEl = menu.querySelector<HTMLDivElement>('.m-custom')!;
+const usernameEl = document.createElement('button');
+usernameEl.className = 'mechili-username';
+usernameEl.type = 'button';
+wrapper.appendChild(usernameEl);
+
+const lobbyEl = menu.querySelector<HTMLDivElement>('.m-lobby')!;
+const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
-const inputEl = menu.querySelector<HTMLInputElement>('.m-input')!;
 
 let started = false;
 let pending: Pending | null = null;
+let roomPoll: ReturnType<typeof setInterval> | null = null;
+
+function refreshUsernameLabel(): void {
+    usernameEl.textContent = getPlayerName();
+}
+
+function showNameEditor(): void {
+    if (started || pending) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'mechili-name-edit';
+    overlay.innerHTML =
+        `<div class="box">` +
+        `<div>Choose your username</div>` +
+        `<input maxlength="16" spellcheck="false" value="${getPlayerName()}" />` +
+        `<div class="hint">Your username is your room code when hosting.</div>` +
+        `<div class="actions">` +
+        `<button type="button" data-act="cancel">Cancel</button>` +
+        `<button type="button" class="primary" data-act="save">Save</button>` +
+        `</div></div>`;
+    const input = overlay.querySelector('input')!;
+    input.select();
+    overlay.addEventListener('click', (e) => {
+        const act = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.act;
+        if (act === 'cancel' || e.target === overlay) {
+            overlay.remove();
+            return;
+        }
+        if (act === 'save') {
+            const next = validatePlayerName(input.value);
+            if (!next) {
+                input.style.borderColor = '#e83828';
+                return;
+            }
+            setPlayerName(next);
+            refreshUsernameLabel();
+            overlay.remove();
+        }
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') overlay.querySelector<HTMLButtonElement>('[data-act="save"]')!.click();
+        if (e.key === 'Escape') overlay.remove();
+    });
+    wrapper.appendChild(overlay);
+    input.focus();
+}
+
+refreshUsernameLabel();
+usernameEl.addEventListener('click', () => showNameEditor());
 
 function setStatus(text: string): void {
     statusEl.style.display = text ? '' : 'none';
@@ -88,22 +146,82 @@ function setStatus(text: string): void {
     cancelEl.style.display = text ? '' : 'none';
 }
 
-function startGame(settings: GameSettings, net: NetSession | null = null, side: 'a' | 'b' = 'a'): void {
+function setMenuBusy(busy: boolean): void {
+    menu.querySelectorAll<HTMLButtonElement>('.m-btn:not(.m-cancel)').forEach((b) => {
+        b.disabled = busy;
+    });
+    roomListEl.querySelectorAll<HTMLButtonElement>('.m-room').forEach((b) => {
+        b.disabled = busy;
+    });
+}
+
+async function refreshRoomList(): Promise<void> {
+    if (lobbyEl.style.display === 'none') return;
+    try {
+        const rooms = await fetchLobbyRooms();
+        const mine = getPlayerName();
+        const others = rooms.filter((r) => r.name.toLowerCase() !== mine.toLowerCase());
+        if (others.length === 0) {
+            roomListEl.className = 'm-room-list empty';
+            roomListEl.innerHTML = 'No open rooms';
+            return;
+        }
+        roomListEl.className = 'm-room-list';
+        roomListEl.innerHTML = others
+            .map((r) => `<button type="button" class="m-room" data-room="${r.name}">${r.name}</button>`)
+            .join('');
+    } catch {
+        roomListEl.className = 'm-room-list empty';
+        roomListEl.innerHTML = 'Could not load rooms';
+    }
+}
+
+function startRoomPoll(): void {
+    stopRoomPoll();
+    void refreshRoomList();
+    roomPoll = setInterval(() => void refreshRoomList(), 5000);
+}
+
+function stopRoomPoll(): void {
+    if (roomPoll) clearInterval(roomPoll);
+    roomPoll = null;
+}
+
+function startGame(
+    settings: GameSettings,
+    net: NetSession | null = null,
+    side: 'a' | 'b' = 'a',
+    names: { local: string; opponent: string } = {
+        local: getPlayerName(),
+        opponent: net ? 'Opponent' : 'AI',
+    },
+): void {
     if (started) return;
     started = true;
+    stopRoomPoll();
     app.renderer.off('resize', layoutTitle);
     title.destroy({ children: true });
     menu.remove();
-    new Game(app, threeCanvas, wrapper, settings, net, side);
+    usernameEl.remove();
+    new Game(app, threeCanvas, wrapper, settings, net, side, names);
 }
 
-/** the connection is up — the host deals the seed, the guest receives it */
 async function beginNetGame(session: NetSession): Promise<void> {
+    await handshake(session);
+    const localName = session.localName;
+
     if (session.role === 'host') {
         const settings = settingsFromUrl();
         settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-        session.send({ type: 'setup', version: GAME_VERSION, seed: settings.seed, settings });
-        startGame(settings, session, 'a');
+        session.send({
+            type: 'setup',
+            version: GAME_VERSION,
+            seed: settings.seed,
+            settings,
+            hostName: localName,
+            guestName: session.remoteName,
+        });
+        startGame(settings, session, 'a', { local: localName, opponent: session.remoteName });
     } else {
         setStatus('Receiving match setup…');
         const msg = await session.once();
@@ -114,52 +232,75 @@ async function beginNetGame(session: NetSession): Promise<void> {
         }
         const settings = msg.settings;
         settings.seed = msg.seed;
-        startGame(settings, session, 'b');
+        startGame(settings, session, 'b', { local: localName, opponent: msg.hostName });
     }
 }
 
 function runPending(p: Pending): void {
+    pending?.cancel();
     pending = p;
+    setMenuBusy(true);
     p.session
         .then((session) => {
             pending = null;
+            setMenuBusy(false);
             void beginNetGame(session);
         })
         .catch((e: unknown) => {
             pending = null;
+            setMenuBusy(false);
             if (String(e).includes('cancelled')) setStatus('');
             else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
         });
 }
 
 menu.addEventListener('click', (e) => {
+    const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
+    if (roomBtn?.dataset.room && !started && !pending) {
+        runPending(joinLobby(roomBtn.dataset.room, setStatus));
+        return;
+    }
+
     const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-btn');
     if (!button || started) return;
+
+    if (button.classList.contains('m-cancel')) {
+        pending?.cancel();
+        pending = null;
+        setMenuBusy(false);
+        setStatus('');
+        return;
+    }
+
     switch (button.dataset.mode) {
         case 'single':
             startGame(settingsFromUrl());
             break;
         case 'quick':
-            customEl.style.display = 'none';
+            lobbyEl.style.display = 'none';
+            stopRoomPoll();
             runPending(quickMatch(setStatus));
             break;
-        case 'custom':
-            customEl.style.display = customEl.style.display === 'none' ? '' : 'none';
-            break;
-        case 'create': {
-            const code = makeRoomCode();
-            runPending(hostRoom(code, setStatus));
-            break;
-        }
-        case 'join': {
-            const code = inputEl.value.trim();
-            if (code) runPending(joinRoom(code, setStatus));
+        case 'lobby': {
+            const open = lobbyEl.style.display === 'none';
+            lobbyEl.style.display = open ? '' : 'none';
+            if (open) startRoomPoll();
+            else stopRoomPoll();
             break;
         }
-    }
-    if (button.classList.contains('m-cancel')) {
-        pending?.cancel();
-        pending = null;
-        setStatus('');
+        case 'host':
+            runPending(hostLobby(setStatus));
+            break;
+        case 'refresh':
+            void refreshRoomList();
+            break;
     }
 });
+
+// ?room=mangoo — join that host's room directly
+const roomParam = new URLSearchParams(location.search).get('room');
+if (roomParam) {
+    lobbyEl.style.display = '';
+    startRoomPoll();
+    runPending(joinLobby(roomParam, setStatus));
+}

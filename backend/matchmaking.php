@@ -1,22 +1,23 @@
 <?php
 /**
- * MECHILI quick-match endpoint.
+ * MECHILI matchmaking + public lobby endpoint.
  *
- * Bundled at backend/matchmaking.php and deployed with the game. The client
- * resolves the URL in net.ts (relative by default; remote on localhost).
- * Override with ?match=<url>.
+ * Bundled at backend/matchmaking.php and deployed with the game.
  *
  * Protocol (all GET, JSON responses):
  *   ?action=join&peer=<peerjs-id>
- *       If a fresh waiting peer exists, it is consumed and returned as
- *       {"match":"<their-peer-id>"} — the caller then connects via PeerJS.
- *       Otherwise the caller is stored as waiting: {"match":null}.
- *       Repeating the call acts as the heartbeat that keeps the entry fresh.
+ *       Quick match: pair with another waiting quick-match peer, or queue.
+ *       {"match":"<their-peer-id>"|null}
+ *   ?action=host&peer=<peerjs-id>&name=<display-name>
+ *       Register a public custom room (heartbeat via repeat calls).
+ *       {"ok":true} or {"error":"..."}
+ *   ?action=list
+ *       Open public rooms: {"rooms":[{"name":"...","peer":"..."}]}
  *   ?action=leave&peer=<peerjs-id>
- *       Removes the caller's waiting entry.
+ *       Remove the caller's queue or lobby entry.
  *
- * Entries not refreshed for TTL seconds are deleted automatically — the
- * waiting client heartbeats every 5s, so 15s means "gone".
+ * Entries not refreshed for TTL seconds are deleted automatically.
+ * Clients heartbeat every 5s, so TTL 15s means "gone".
  */
 
 const TTL = 15;
@@ -28,6 +29,30 @@ header('Cache-Control: no-store');
 
 $action = $_GET['action'] ?? '';
 $peer = $_GET['peer'] ?? '';
+$name = trim($_GET['name'] ?? '');
+
+if ($action === 'list') {
+    $fp = fopen(STORE, 'c+');
+    if (!$fp || !flock($fp, LOCK_SH)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'lock failed']);
+        exit;
+    }
+    $raw = stream_get_contents($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    $rooms = $raw ? (json_decode($raw, true) ?: []) : [];
+    $now = time();
+    $open = [];
+    foreach ($rooms as $r) {
+        if (($r['kind'] ?? '') !== 'lobby') continue;
+        if ($now - ($r['ts'] ?? 0) > TTL) continue;
+        $open[] = ['name' => $r['name'] ?? '', 'peer' => $r['peer'] ?? ''];
+    }
+    echo json_encode(['rooms' => $open]);
+    exit;
+}
+
 if ($peer === '' || strlen($peer) > 128 || !preg_match('/^[A-Za-z0-9_-]+$/', $peer)) {
     http_response_code(400);
     echo json_encode(['error' => 'bad peer id']);
@@ -46,34 +71,63 @@ $rooms = $raw ? (json_decode($raw, true) ?: []) : [];
 $now = time();
 
 // prune stale entries
-$rooms = array_values(array_filter($rooms, fn($r) => $now - $r['ts'] <= TTL));
+$rooms = array_values(array_filter($rooms, fn($r) => $now - ($r['ts'] ?? 0) <= TTL));
 
-$match = null;
 if ($action === 'leave') {
-    $rooms = array_values(array_filter($rooms, fn($r) => $r['peer'] !== $peer));
-} else { // join / heartbeat
+    $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($rooms));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    echo json_encode(['ok' => true]);
+    exit;
+} elseif ($action === 'host') {
+    if ($name === '' || strlen($name) > 32) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        http_response_code(400);
+        echo json_encode(['error' => 'bad room name']);
+        exit;
+    }
+    // one lobby entry per peer id; name is the display label
+    $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
+    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'lobby', 'ts' => $now];
+    echo json_encode(['ok' => true]);
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($rooms));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    exit;
+} else { // join — quick match only, never pairs with lobby hosts
+    $match = null;
     foreach ($rooms as $i => $r) {
-        if ($r['peer'] !== $peer) {
-            $match = $r['peer'];
-            array_splice($rooms, $i, 1); // consumed — one opponent each
-            break;
-        }
+        if (($r['kind'] ?? 'queue') !== 'queue') continue;
+        if (($r['peer'] ?? '') === $peer) continue;
+        $match = $r['peer'];
+        array_splice($rooms, $i, 1);
+        break;
     }
     if ($match === null) {
-        // (re-)register the caller as waiting
-        $rooms = array_values(array_filter($rooms, fn($r) => $r['peer'] !== $peer));
-        $rooms[] = ['peer' => $peer, 'ts' => $now];
+        $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
+        $rooms[] = ['peer' => $peer, 'kind' => 'queue', 'ts' => $now];
     } else {
-        // matched: our own waiting entry (if any) is obsolete
-        $rooms = array_values(array_filter($rooms, fn($r) => $r['peer'] !== $peer));
+        $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
     }
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($rooms));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    echo json_encode(['match' => $match]);
+    exit;
 }
 
-ftruncate($fp, 0);
-rewind($fp);
-fwrite($fp, json_encode($rooms));
-fflush($fp);
+http_response_code(400);
+echo json_encode(['error' => 'bad action']);
 flock($fp, LOCK_UN);
 fclose($fp);
-
-echo json_encode(['match' => $match]);

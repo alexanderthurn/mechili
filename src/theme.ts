@@ -180,6 +180,93 @@ export function menuStyles(): string {
 }
 .mechili-menu .m-status { font-size: 14px; color: ${u.phase}; max-width: 380px; text-align: center; }
 .mechili-menu .m-cancel { border-color: ${u.undoBorder}; color: ${u.undoText}; }
+.mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 280px; }
+.mechili-menu .m-room-list {
+    width: 100%;
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px;
+    background: ${u.panelBg};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+}
+.mechili-menu .m-room-list.empty { justify-content: center; align-items: center; color: ${u.textMuted}; font-size: 13px; min-height: 64px; }
+.mechili-menu .m-room {
+    padding: 10px 12px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-align: left;
+}
+.mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
+.mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
+.mechili-username {
+    position: absolute;
+    right: 16px;
+    bottom: 14px;
+    padding: 8px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    user-select: none;
+}
+.mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
+.mechili-name-edit {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 20;
+}
+.mechili-name-edit .box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 20px;
+    background: ${u.panelBgSolid};
+    border: 2px solid ${u.border};
+    border-radius: 12px;
+    min-width: 280px;
+}
+.mechili-name-edit input {
+    padding: 10px 12px;
+    background: ${u.panelBg};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-size: 15px;
+    letter-spacing: 1px;
+}
+.mechili-name-edit .hint { font-size: 12px; color: ${u.textMuted}; }
+.mechili-name-edit .actions { display: flex; gap: 8px; justify-content: flex-end; }
+.mechili-name-edit button {
+    padding: 8px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-weight: bold;
+    cursor: pointer;
+}
+.mechili-name-edit button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
 `;
 }
 
@@ -445,10 +532,6 @@ export function hudStyles(): string {
 .mechili-help b { color: ${u.helpBold}; font-weight: 600; }
 
 .mechili-topbar {
-    position: absolute;
-    left: 50%;
-    top: 12px;
-    transform: translateX(-50%);
     display: flex;
     align-items: center;
     gap: 16px;
@@ -459,7 +542,91 @@ export function hudStyles(): string {
     font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
+    flex-shrink: 0;
 }
+.mechili-fightbar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 10px 12px;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    pointer-events: none;
+}
+.mechili-fightbar .mechili-topbar { pointer-events: auto; }
+.mechili-fightbar .fighter {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 12px;
+    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
+    border: 2px solid ${u.border};
+    pointer-events: none;
+}
+.mechili-fightbar .fighter.player {
+    border-radius: 12px 4px 4px 12px;
+    border-right: none;
+    margin-right: -1px;
+}
+.mechili-fightbar .fighter.enemy {
+    border-radius: 4px 12px 12px 4px;
+    border-left: none;
+    flex-direction: row-reverse;
+    margin-left: -1px;
+}
+.mechili-fightbar .portrait {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: ${u.panelBg};
+    border: 2px solid ${u.border};
+    border-radius: 8px;
+    font-size: 22px;
+    font-weight: bold;
+}
+.mechili-fightbar .fighter.player .portrait { color: ${pc}; border-color: ${pc}; }
+.mechili-fightbar .fighter.enemy .portrait { color: ${ec}; border-color: ${ec}; }
+.mechili-fightbar .fighter-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mechili-fightbar .fname {
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mechili-fightbar .fighter.player .fname { color: ${pc}; text-align: left; }
+.mechili-fightbar .fighter.enemy .fname { color: ${ec}; text-align: right; }
+.mechili-fightbar .hp-track {
+    height: 14px;
+    background: ${u.barTrack};
+    border: 1px solid ${u.border};
+    border-radius: 3px;
+    overflow: hidden;
+}
+.mechili-fightbar .fighter.player .hp-track { direction: ltr; }
+.mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
+.mechili-fightbar .hp-fill { height: 100%; width: 100%; transition: width 0.25s ease-out; }
+.mechili-fightbar .fighter.player .hp-fill { background: linear-gradient(90deg, ${pc}, ${u.hpBar}); }
+.mechili-fightbar .fighter.enemy .hp-fill { background: linear-gradient(90deg, ${ec}, #e85848); }
+.mechili-fightbar .hp-val {
+    font-size: 22px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    min-width: 3ch;
+    flex-shrink: 0;
+}
+.mechili-fightbar .fighter.player .hp-val { color: ${pc}; }
+.mechili-fightbar .fighter.enemy .hp-val { color: ${ec}; }
 .mechili-topbar .round { font-size: 15px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .phase { font-size: 13px; color: ${u.phase}; letter-spacing: 1px; text-transform: uppercase; }
 .mechili-topbar .timer { font-size: 18px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
@@ -467,10 +634,6 @@ export function hudStyles(): string {
 .mechili-topbar .supply::before { content: '⬢ '; color: ${u.brassDark}; }
 .mechili-topbar .deploys { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.phase}; }
 .mechili-topbar.battle .deploys { display: none; }
-.mechili-topbar .hp { font-size: 14px; font-weight: bold; font-variant-numeric: tabular-nums; }
-.mechili-topbar .hp.player { color: ${pc}; }
-.mechili-topbar .hp.enemy { color: ${ec}; }
-.mechili-topbar .hp::before { content: '♥ '; opacity: 0.6; }
 .mechili-topbar .end-deploy {
     padding: 7px 14px;
     background: ${u.alliedBtnBg};

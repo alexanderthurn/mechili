@@ -84,14 +84,21 @@ export class Hud {
     private report: HTMLDivElement | null = null;
 
     private readonly unitBar: HTMLDivElement;
+    private readonly fightBar: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
     private readonly phaseEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
     private readonly supplyEl: HTMLSpanElement;
-    private readonly playerHpEl: HTMLSpanElement;
-    private readonly enemyHpEl: HTMLSpanElement;
+    private readonly playerNameEl: HTMLSpanElement;
+    private readonly enemyNameEl: HTMLSpanElement;
+    private readonly playerHpFill: HTMLDivElement;
+    private readonly enemyHpFill: HTMLDivElement;
+    private readonly playerHpVal: HTMLSpanElement;
+    private readonly enemyHpVal: HTMLSpanElement;
+    private playerMaxHp = 1000;
+    private enemyMaxHp = 1000;
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
@@ -197,7 +204,48 @@ export class Hud {
         );
         this.mount(this.inventoryEl);
 
-        // round / phase / timer (top center)
+        // fighting-game style top bar: fighters on the edges, controls in the center
+        this.fightBar = document.createElement('div');
+        this.fightBar.className = 'mechili-fightbar';
+
+        const playerFighter = document.createElement('div');
+        playerFighter.className = 'fighter player';
+        const playerPortrait = document.createElement('div');
+        playerPortrait.className = 'portrait';
+        playerPortrait.textContent = '◆';
+        this.playerNameEl = document.createElement('span');
+        this.playerNameEl.className = 'fname';
+        this.playerHpFill = document.createElement('div');
+        this.playerHpFill.className = 'hp-fill';
+        const playerHpTrack = document.createElement('div');
+        playerHpTrack.className = 'hp-track';
+        playerHpTrack.appendChild(this.playerHpFill);
+        this.playerHpVal = document.createElement('span');
+        this.playerHpVal.className = 'hp-val';
+        const playerInfo = document.createElement('div');
+        playerInfo.className = 'fighter-info';
+        playerInfo.append(this.playerNameEl, playerHpTrack);
+        playerFighter.append(playerPortrait, playerInfo, this.playerHpVal);
+
+        const enemyFighter = document.createElement('div');
+        enemyFighter.className = 'fighter enemy';
+        this.enemyHpVal = document.createElement('span');
+        this.enemyHpVal.className = 'hp-val';
+        const enemyInfo = document.createElement('div');
+        enemyInfo.className = 'fighter-info';
+        this.enemyNameEl = document.createElement('span');
+        this.enemyNameEl.className = 'fname';
+        this.enemyHpFill = document.createElement('div');
+        this.enemyHpFill.className = 'hp-fill';
+        const enemyHpTrack = document.createElement('div');
+        enemyHpTrack.className = 'hp-track';
+        enemyHpTrack.appendChild(this.enemyHpFill);
+        enemyInfo.append(this.enemyNameEl, enemyHpTrack);
+        const enemyPortrait = document.createElement('div');
+        enemyPortrait.className = 'portrait';
+        enemyPortrait.textContent = '◆';
+        enemyFighter.append(this.enemyHpVal, enemyInfo, enemyPortrait);
+
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
         this.roundEl = document.createElement('span');
@@ -230,12 +278,7 @@ export class Hud {
             e.preventDefault();
             this.onSpeedDown?.();
         });
-        this.playerHpEl = document.createElement('span');
-        this.playerHpEl.className = 'hp player';
-        this.enemyHpEl = document.createElement('span');
-        this.enemyHpEl.className = 'hp enemy';
         this.topBar.append(
-            this.playerHpEl,
             this.roundEl,
             this.phaseEl,
             this.timerEl,
@@ -244,12 +287,21 @@ export class Hud {
             this.undoEl,
             endButton,
             this.speedEl,
-            this.enemyHpEl,
         );
 
+        this.fightBar.append(playerFighter, this.topBar, enemyFighter);
+
         this.mount(this.unitBar);
-        this.mount(this.topBar);
+        this.mount(this.fightBar);
         this.mount(this.panel);
+    }
+
+    /** Commander names shown in the top fight bar. */
+    setPlayers(local: string, opponent: string, maxHp: number): void {
+        this.playerNameEl.textContent = local;
+        this.enemyNameEl.textContent = opponent;
+        this.playerMaxHp = maxHp;
+        this.enemyMaxHp = maxHp;
     }
 
     /** the undo button only shows while there is something to undo */
@@ -437,6 +489,8 @@ export class Hud {
         this.topBar.classList.toggle('battle', phase === 'battle');
         // locked in: only spectating remains — no buying, no ending twice
         this.topBar.classList.toggle('waiting', waitingForPeer);
+        this.fightBar.classList.toggle('battle', phase === 'battle');
+        this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.unitBar.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
     }
 
@@ -445,8 +499,14 @@ export class Hud {
     }
 
     setHp(player: number, enemy: number): void {
-        this.playerHpEl.textContent = String(player);
-        this.enemyHpEl.textContent = String(enemy);
+        if (player > this.playerMaxHp) this.playerMaxHp = player;
+        if (enemy > this.enemyMaxHp) this.enemyMaxHp = enemy;
+        const pPct = Math.max(0, (player / this.playerMaxHp) * 100);
+        const ePct = Math.max(0, (enemy / this.enemyMaxHp) * 100);
+        this.playerHpFill.style.width = `${pPct}%`;
+        this.enemyHpFill.style.width = `${ePct}%`;
+        this.playerHpVal.textContent = String(Math.max(0, Math.round(player)));
+        this.enemyHpVal.textContent = String(Math.max(0, Math.round(enemy)));
     }
 
     /** post-battle damage report; replaces the previous one, dismissible */

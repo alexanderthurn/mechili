@@ -149,6 +149,10 @@ export class Game {
         private readonly net: NetSession | null = null,
         /** canonical side: the host is 'a', the guest 'b' — keys card streams & sim ordering */
         private readonly side: 'a' | 'b' = 'a',
+        private readonly playerNames: { local: string; opponent: string } = {
+            local: 'You',
+            opponent: 'AI',
+        },
     ) {
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
@@ -298,6 +302,7 @@ export class Game {
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
         );
+        this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
                 this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });

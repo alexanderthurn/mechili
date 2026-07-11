@@ -1,10 +1,14 @@
 import Peer, { type DataConnection } from 'peerjs';
 import type { Action } from './actions';
 import type { Opponent } from './ai';
+import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { GameSettings } from './settings';
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
 export const GAME_VERSION = 2; // v2: shared-board protocol (no mirrored coordinates)
+
+const CONNECT_TIMEOUT_MS = 20_000;
+const HEARTBEAT_MS = 5000;
 
 /**
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
@@ -31,13 +35,19 @@ export function matchUrl(): string {
     return new URL('./backend/matchmaking.php', location.href).href;
 }
 
+export interface LobbyRoom {
+    name: string;
+    peer: string;
+}
+
 /**
  * Everything that crosses the wire. Actions stream LIVE as they happen —
  * hiding the opponent's deployment is purely a local rendering rule (until
  * your own lock-in), not a transmission delay.
  */
 export type NetMessage =
-    | { type: 'setup'; version: number; seed: number; settings: GameSettings }
+    | { type: 'hello'; name: string }
+    | { type: 'setup'; version: number; seed: number; settings: GameSettings; hostName: string; guestName: string }
     | { type: 'starter'; cardId: string }
     | { type: 'action'; round: number; action: Action }
     | { type: 'undo'; round: number };
@@ -56,11 +66,18 @@ export class NetSession {
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
 
+    readonly localName: string;
+    remoteName: string;
+
     constructor(
         readonly role: 'host' | 'guest',
         private readonly peer: Peer,
         private readonly conn: DataConnection,
+        localName: string,
+        remoteName: string,
     ) {
+        this.localName = localName;
+        this.remoteName = remoteName;
         conn.on('data', (data) => {
             const msg = data as NetMessage;
             if (this.handler) this.handler(msg);
@@ -89,7 +106,7 @@ export class NetSession {
                 return;
             }
             this.handler = (msg) => {
-                this.handler = null; // later messages queue for attach()
+                this.handler = null;
                 resolve(msg);
             };
         });
@@ -99,6 +116,11 @@ export class NetSession {
         this.onClose = null;
         this.conn.close();
         this.peer.destroy();
+    }
+
+    /** host learns the guest's display name during handshake */
+    setRemoteName(name: string): void {
+        this.remoteName = name;
     }
 }
 
@@ -110,21 +132,58 @@ function openPeer(id?: string): Promise<Peer> {
     });
 }
 
-function connectTo(peer: Peer, remoteId: string): Promise<NetSession> {
+function connectTo(
+    peer: Peer,
+    remoteId: string,
+    localName: string,
+    remoteName: string,
+): Promise<NetSession> {
     return new Promise((resolve, reject) => {
+        const timer = setTimeout(
+            () => reject(new Error('Room not found or host offline')),
+            CONNECT_TIMEOUT_MS,
+        );
         const conn = peer.connect(remoteId, { reliable: true });
-        conn.on('open', () => resolve(new NetSession('guest', peer, conn)));
-        conn.on('error', (e) => reject(e));
-        peer.on('error', (e) => reject(e));
+        conn.on('open', () => {
+            clearTimeout(timer);
+            resolve(new NetSession('guest', peer, conn, localName, remoteName));
+        });
+        conn.on('error', (e) => {
+            clearTimeout(timer);
+            reject(e);
+        });
+        peer.on('error', (e) => {
+            clearTimeout(timer);
+            reject(e);
+        });
     });
 }
 
-function awaitConnection(peer: Peer): Promise<NetSession> {
+function awaitConnection(peer: Peer, localName: string): Promise<NetSession> {
     return new Promise((resolve) => {
         peer.on('connection', (conn) => {
-            conn.on('open', () => resolve(new NetSession('host', peer, conn)));
+            conn.on('open', () => {
+                resolve(new NetSession('host', peer, conn, localName, ''));
+            });
         });
     });
+}
+
+async function lobbyLeave(peerId: string): Promise<void> {
+    await fetch(`${matchUrl()}?action=leave&peer=${encodeURIComponent(peerId)}`).catch(() => undefined);
+}
+
+async function lobbyRegister(peerId: string, name: string): Promise<void> {
+    await fetch(
+        `${matchUrl()}?action=host&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(name)}`,
+    ).catch(() => undefined);
+}
+
+/** Public lobby rooms (refreshed by the menu every few seconds). */
+export async function fetchLobbyRooms(): Promise<LobbyRoom[]> {
+    const res = await fetch(`${matchUrl()}?action=list`);
+    const data = (await res.json()) as { rooms?: LobbyRoom[] };
+    return data.rooms ?? [];
 }
 
 /** a cancellable matchmaking attempt */
@@ -135,20 +194,17 @@ export interface Pending {
 
 /**
  * Quick match via the PHP endpoint: register our PeerJS id as waiting, or
- * take a waiting one and connect to it. The waiting side learns of the match
- * through the incoming PeerJS connection itself — no polling needed, only
- * heartbeats so stale entries expire server-side.
+ * take a waiting one and connect to it.
  */
 export function quickMatch(onStatus: (status: string) => void): Pending {
     let cancelled = false;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let peer: Peer | null = null;
+    const localName = getPlayerName();
 
     const cleanup = () => {
         if (heartbeat) clearInterval(heartbeat);
-        if (peer) {
-            void fetch(`${matchUrl()}?action=leave&peer=${peer.id}`).catch(() => undefined);
-        }
+        if (peer) void lobbyLeave(peer.id);
     };
 
     const session = (async () => {
@@ -156,19 +212,20 @@ export function quickMatch(onStatus: (status: string) => void): Pending {
         peer = await openPeer();
         if (cancelled) throw new Error('cancelled');
         onStatus('Searching for an opponent…');
-        const res = await fetch(`${matchUrl()}?action=join&peer=${peer.id}`);
+        const res = await fetch(`${matchUrl()}?action=join&peer=${encodeURIComponent(peer.id)}`);
         const data = (await res.json()) as { match: string | null };
         if (cancelled) throw new Error('cancelled');
         if (data.match) {
             onStatus('Opponent found — connecting…');
-            return await connectTo(peer, data.match);
+            return await connectTo(peer, data.match, localName, 'Opponent');
         }
-        // we are the waiting side: keep our entry fresh until someone connects
         heartbeat = setInterval(() => {
-            void fetch(`${matchUrl()}?action=join&peer=${peer!.id}`).catch(() => undefined);
-        }, 5000);
+            void fetch(`${matchUrl()}?action=join&peer=${encodeURIComponent(peer!.id)}`).catch(
+                () => undefined,
+            );
+        }, HEARTBEAT_MS);
         onStatus('Waiting for an opponent…');
-        const s = await awaitConnection(peer);
+        const s = await awaitConnection(peer, localName);
         cleanup();
         return s;
     })();
@@ -183,32 +240,83 @@ export function quickMatch(onStatus: (status: string) => void): Pending {
     };
 }
 
-/** Custom rooms need no server: the room code IS the host's PeerJS id. */
-export function hostRoom(code: string, onStatus: (status: string) => void): Pending {
+/**
+ * Host a public room. The room code is the player's username — friends can
+ * find it in the lobby list or connect directly by name.
+ */
+export function hostLobby(onStatus: (status: string) => void): Pending {
+    let cancelled = false;
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
     let peer: Peer | null = null;
+    const name = getPlayerName();
+    const roomId = peerRoomId(name);
+
+    const cleanup = () => {
+        if (heartbeat) clearInterval(heartbeat);
+        if (peer) void lobbyLeave(peer.id);
+    };
+
     const session = (async () => {
         onStatus('Opening room…');
-        peer = await openPeer(`mechili-room-${code.toLowerCase()}`);
-        onStatus(`Room "${code}" open — waiting for your opponent…`);
-        return await awaitConnection(peer);
+        try {
+            peer = await openPeer(roomId);
+        } catch {
+            throw new Error(`Name "${name}" is already hosting — pick another username`);
+        }
+        if (cancelled) throw new Error('cancelled');
+        await lobbyRegister(peer.id, name);
+        heartbeat = setInterval(() => {
+            void lobbyRegister(peer!.id, name);
+        }, HEARTBEAT_MS);
+        onStatus(`Room open — waiting for an opponent…`);
+        const s = await awaitConnection(peer, name);
+        cleanup();
+        return s;
     })();
-    return { session, cancel: () => peer?.destroy() };
+
+    return {
+        session,
+        cancel: () => {
+            cancelled = true;
+            cleanup();
+            peer?.destroy();
+        },
+    };
 }
 
-export function joinRoom(code: string, onStatus: (status: string) => void): Pending {
+/** Join a public room by the host's username (room code). */
+export function joinLobby(hostName: string, onStatus: (status: string) => void): Pending {
     let peer: Peer | null = null;
+    const localName = getPlayerName();
+    const code = roomCodeFromName(hostName);
+    if (!code) {
+        return {
+            session: Promise.reject(new Error('Invalid room name')),
+            cancel: () => undefined,
+        };
+    }
+
     const session = (async () => {
-        onStatus('Connecting to room…');
+        onStatus(`Joining "${hostName.trim()}"…`);
         peer = await openPeer();
-        return await connectTo(peer, `mechili-room-${code.toLowerCase()}`);
+        return await connectTo(peer, peerRoomId(hostName), localName, hostName.trim());
     })();
+
     return { session, cancel: () => peer?.destroy() };
 }
 
-/** a short shareable room code */
-export function makeRoomCode(): string {
-    const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let code = '';
-    for (let i = 0; i < 5; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
-    return code;
+/** Guest sends hello; host waits for the guest's display name. */
+export async function handshake(session: NetSession): Promise<void> {
+    if (session.role === 'guest') {
+        session.send({ type: 'hello', name: session.localName });
+        return;
+    }
+    const msg = await Promise.race([
+        session.once(),
+        new Promise<NetMessage>((_, reject) =>
+            setTimeout(() => reject(new Error('Opponent did not respond')), CONNECT_TIMEOUT_MS),
+        ),
+    ]);
+    if (msg.type !== 'hello') throw new Error('Unexpected handshake');
+    session.setRemoteName(msg.name);
 }
