@@ -23,9 +23,9 @@ export function matchUrl(): string {
     if (isLocalhost()) {
         const branch = params.get('branch');
         if (branch) {
-            return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/matchmaking.php`;
+            return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/backend/matchmaking.php`;
         }
-        return 'https://mechili.feuerware.com/matchmaking.php';
+        return 'https://mechili.feuerware.com/backend/matchmaking.php';
     }
 
     return new URL('./backend/matchmaking.php', location.href).href;
