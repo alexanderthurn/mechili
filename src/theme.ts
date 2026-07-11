@@ -26,9 +26,9 @@ export const THEME = {
     light: 0xf0ecd8,
     accentEmissive: 0.85,
 
-    // placement markers
-    valid: 0x8ec858,
-    invalid: 0xe83828,
+    // placement markers — vivid green/red validity feedback on the ground
+    valid: 0x00ff66,
+    invalid: 0xff2244,
     select: 0xffd040,
     movable: 0xffffff,
 

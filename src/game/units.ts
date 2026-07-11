@@ -28,6 +28,9 @@ export interface TechDef {
     mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
 }
 
+/** ground-hugging altitude for flyers during deployment (full height comes at battle start) */
+export const DEPLOY_AIR_Y = 1.25;
+
 export interface UnitType {
     id: string;
     name: string;
@@ -451,6 +454,9 @@ export class Unit {
     facing: number;
     /** individual mechs; `home` is each one's formation slot (local offset from the unit center) */
     readonly members: { mesh: Group; phase: number; home: Vector3 }[] = [];
+    /** 0 on the ground in deployment, animates to 1 at full combat altitude */
+    flightLift = 0;
+    inDeployment = true;
 
     constructor(
         readonly type: UnitType,
@@ -472,7 +478,7 @@ export class Unit {
                 mesh.scale.setScalar(type.meshScale);
                 mesh.position.set(
                     (i - (formation.cols - 1) / 2) * spacingX,
-                    type.flying ?? 0, // flyers (and hovering extras) start at altitude
+                    type.flying ? DEPLOY_AIR_Y : 0,
                     (j - (formation.rows - 1) / 2) * spacingZ,
                 );
                 this.view.add(mesh);
@@ -485,6 +491,26 @@ export class Unit {
             for (const m of this.members) m.mesh.rotation.y = this.facing;
         }
         this.view.position.copy(this.world);
+    }
+
+    /** current hover base for idle bob (deployment keeps flyers near the ground) */
+    memberBaseY(): number {
+        if (!this.type.flying) return 0.05;
+        return DEPLOY_AIR_Y + (this.type.flying - DEPLOY_AIR_Y) * this.flightLift;
+    }
+
+    setDeployment(deploy: boolean): void {
+        this.inDeployment = deploy;
+        if (deploy) this.flightLift = 0;
+    }
+
+    /** ramps flyers up (battle) or down (deployment) */
+    tickFlight(dtSeconds: number): void {
+        if (!this.type.flying) return;
+        const target = this.inDeployment ? 0 : 1;
+        const rate = 8;
+        if (this.flightLift < target) this.flightLift = Math.min(1, this.flightLift + dtSeconds * rate);
+        else if (this.flightLift > target) this.flightLift = Math.max(0, this.flightLift - dtSeconds * rate);
     }
 
     /** Repositions the whole pack (build phase only — occupancy is the caller's job). */
@@ -554,7 +580,7 @@ export class Unit {
     resetFormation(): void {
         for (const m of this.members) {
             m.mesh.position.copy(m.home);
-            m.mesh.position.y = this.type.flying ?? 0;
+            m.mesh.position.y = this.memberBaseY();
             m.mesh.visible = true;
             if (!this.type.structure) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
@@ -604,9 +630,8 @@ export class Unit {
 
     update(timeSeconds: number): void {
         if (this.type.structure) return;
-        // idle bob per mech (wrecks lie still); flyers hover at altitude
-        const base = this.type.flying ?? 0.05;
-        const amplitude = this.type.flying ? 0.35 : 0.04;
+        const base = this.memberBaseY();
+        const amplitude = this.type.flying && !this.inDeployment ? 0.35 : 0.04;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
             m.mesh.position.y = base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;

@@ -448,6 +448,7 @@ export class Game {
         this.round++;
         this.phase = 'build';
         this.phaseRemaining = this.settings.buildTimeSeconds;
+        this.placement.beginDeployment();
         this.placement.enabled = true;
         this.placement.hiddenPlacements = true;
         this.placement.currentRound = this.round; // earlier deployments are locked now
@@ -1037,6 +1038,7 @@ export class Game {
 
     /** Everything is revealed and the sim takes over; the player can only watch. */
     private startBattlePhase(): void {
+        this.placement.beginBattle();
         this.phase = 'battle';
         this.phaseRemaining = this.settings.battleTimeSeconds;
         this.placement.enabled = false;
@@ -1162,7 +1164,7 @@ export class Game {
         this.rig.update(dtSeconds);
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
-        this.placement.update(this.time);
+        this.placement.update(this.time, gameDt);
         this.updateSelectionUi();
         this.drainRemoteQueue();
         const waitingForPeer =

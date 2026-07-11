@@ -25,6 +25,10 @@ import { Unit, type GridExtent, type Team, type UnitType } from './units';
 const VALID_COLOR = THEME.valid;
 const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
+/** how far selected / carried packs lift off the ground */
+const SELECT_LIFT = 2.8;
+/** green tint for movable packs that are not currently selected */
+const MOVABLE_PLATE_OPACITY = 0.52;
 
 /**
  * The attack-range ring visual, shared by deployment selection and the
@@ -145,7 +149,7 @@ export class PlacementController {
             scene.add(mesh);
             return mesh;
         };
-        this.hoverMesh = makeMarker(VALID_COLOR, 0.3);
+        this.hoverMesh = makeMarker(VALID_COLOR, 0.72);
         this.hoverMesh.position.y = 0.04;
         this.hoverMaterial = this.hoverMesh.material as MeshBasicMaterial;
         this.selectMesh = makeMarker(SELECT_COLOR, 0.22);
@@ -159,9 +163,9 @@ export class PlacementController {
         this.plateGeometry = new PlaneGeometry(1, 1);
         this.plateGeometry.rotateX(-Math.PI / 2);
         this.plateMaterial = new MeshBasicMaterial({
-            color: THEME.movable,
+            color: VALID_COLOR,
             transparent: true,
-            opacity: 0.16,
+            opacity: MOVABLE_PLATE_OPACITY,
             side: DoubleSide,
             depthWrite: false,
         });
@@ -240,6 +244,16 @@ export class PlacementController {
         this.pendingUnit = null;
     }
 
+    /** carried / selected packs ride above the grid; everything else sits on world */
+    private applyViewHeight(unit: Unit, x: number, z: number, lifted: boolean): void {
+        unit.view.position.set(x, lifted ? SELECT_LIFT : unit.world.y, z);
+    }
+
+    private isHighlighted(unit: Unit): boolean {
+        if (this.selectedGroup.includes(unit)) return true;
+        return unit === this.selectedUnit && this.selectedGroup.length <= 1;
+    }
+
     /** carried packs go back to their committed spots */
     private restoreSelectedView(): void {
         this.selectedUnit?.view.position.copy(this.selectedUnit.world);
@@ -310,9 +324,17 @@ export class PlacementController {
         this.dispatch?.({ kind: 'rotate', team: unit.team, unitId: unit.id });
     }
 
-    /** Rotates a pack (optionally onto a new anchor) when it fits (dispatcher-only). */
+    /** Rotates a pack in place (dispatcher-only). While carrying, rotation is
+     *  visual-only — drop validity is checked separately on move. */
     rotateUnit(unit: Unit, anchor: Cell = unit.cell): boolean {
         const rotated = !unit.rotated;
+
+        if (this.carryingSelected && unit === this.selectedUnit) {
+            unit.setRotated(rotated);
+            unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
+            return true;
+        }
+
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
@@ -447,12 +469,53 @@ export class PlacementController {
         }
     }
 
-    update(timeSeconds: number): void {
-        for (const unit of this.units) unit.update(timeSeconds);
-        this.updateMovablePlates();
+    /** Flyers sit near the ground; packs may be repositioned. */
+    beginDeployment(): void {
+        for (const u of this.units) {
+            u.setDeployment(true);
+            if (u.type.flying) {
+                for (const m of u.members) m.mesh.position.y = u.memberBaseY();
+            }
+        }
+    }
+
+    /** Flyers climb to combat altitude. */
+    beginBattle(): void {
+        for (const u of this.units) u.setDeployment(false);
+    }
+
+    update(timeSeconds: number, dtSeconds: number): void {
+        for (const unit of this.units) {
+            unit.tickFlight(dtSeconds);
+            unit.update(timeSeconds);
+        }
+        this.updateMovablePlates(timeSeconds);
         this.updateLevelArrows(timeSeconds);
         this.updateItemBadges();
-        this.updateMarkers();
+        this.updateMarkers(timeSeconds);
+    }
+
+    private pulse(t: number): number {
+        return 0.5 + 0.5 * Math.sin(t * 5.5);
+    }
+
+    private placeFootprintPlate(
+        mesh: Mesh,
+        material: MeshBasicMaterial,
+        center: { x: number; z: number },
+        fp: GridExtent,
+        color: number,
+        timeSeconds: number,
+        animated: boolean,
+        y = 0.04,
+    ): void {
+        const pulse = this.pulse(timeSeconds);
+        const edge = animated ? 0.96 + 0.04 * pulse : 0.94;
+        mesh.position.set(center.x, y, center.z);
+        mesh.scale.set(fp.cols * CELL * edge, 1, fp.rows * CELL * edge);
+        material.color.setHex(color);
+        material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
+        mesh.visible = true;
     }
 
     /** small floating icon over every pack that carries an item */
@@ -547,14 +610,14 @@ export class PlacementController {
     }
 
     /**
-     * Build phase: every pack that may still be repositioned stands on a
-     * whitish plate — locked packs (earlier rounds, structures) have none.
+     * Build phase: movable packs that are not selected show a static green plate.
      */
-    private updateMovablePlates(): void {
+    private updateMovablePlates(_timeSeconds: number): void {
         let used = 0;
         if (this.enabled) {
             for (const unit of this.units) {
                 if (!this.isMovable(unit)) continue;
+                if (this.isHighlighted(unit)) continue;
                 let plate = this.movablePlates[used];
                 if (!plate) {
                     plate = new Mesh(this.plateGeometry, this.plateMaterial);
@@ -847,7 +910,7 @@ export class PlacementController {
         return cells;
     }
 
-    private updateMarkers(): void {
+    private updateMarkers(timeSeconds: number): void {
         const sel = this.selectedUnit;
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
@@ -855,7 +918,7 @@ export class PlacementController {
 
         // an extra riding the cursor: ghost mesh + footprint plate + effect ring
         if (this.pendingType && this.pendingUnit && this.enabled) {
-            this.showGroupPlates([], null);
+            this.showGroupPlates([], null, false, timeSeconds);
             const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
             if (!cell) {
                 this.pendingUnit.view.position.set(0, -9999, 0);
@@ -884,7 +947,7 @@ export class PlacementController {
 
         // while rubber-banding: highlight what the rect would select
         if (this.rectActive) {
-            this.showGroupPlates(this.rectPreview, null);
+            this.showGroupPlates(this.rectPreview, null, false, timeSeconds);
             return;
         }
         // a formation is carried as one rigid shape, each pack showing its own validity
@@ -892,10 +955,10 @@ export class PlacementController {
             const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
             const center = this.groupCenterCell();
             const delta = cell ? { dc: cell.col - center.col, dr: cell.row - center.row } : null;
-            this.showGroupPlates(this.selectedGroup, delta);
+            this.showGroupPlates(this.selectedGroup, delta, true, timeSeconds);
             return;
         }
-        this.showGroupPlates([], null);
+        this.showGroupPlates([], null, false, timeSeconds);
         if (!sel || !this.enabled) return;
 
         const fp = this.footprintOf(sel.type, sel.rotated);
@@ -911,19 +974,31 @@ export class PlacementController {
                 cells !== null &&
                 cells.every((c) => this.map.isPlayerCell(c) && this.freeFor(c, sel));
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
-            sel.view.position.set(center.x, 0, center.z);
+            this.applyViewHeight(sel, center.x, center.z, true);
             this.hoverMesh.position.set(center.x, 0.04, center.z);
             this.hoverMesh.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
             this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
+            this.hoverMaterial.opacity = 0.58 + 0.22 * this.pulse(timeSeconds);
+            const edge = 0.96 + 0.04 * this.pulse(timeSeconds);
+            this.hoverMesh.scale.set(fp.cols * CELL * edge, 1, fp.rows * CELL * edge);
             this.hoverMesh.visible = true;
             markerCenter = center;
         } else {
-            // the pack sits at its committed spot with the selection marker
-            sel.view.position.copy(sel.world);
             const center = this.map.areaCenter(sel.cell, fp.cols, fp.rows);
-            this.selectMesh.position.set(center.x, 0.03, center.z);
-            this.selectMesh.scale.set(fp.cols * CELL * 1.02, 1, fp.rows * CELL * 1.02);
-            this.selectMesh.visible = true;
+            if (this.isMovable(sel)) {
+                this.applyViewHeight(sel, sel.world.x, sel.world.z, true);
+            } else {
+                sel.view.position.copy(sel.world);
+            }
+            this.placeFootprintPlate(
+                this.hoverMesh,
+                this.hoverMaterial,
+                center,
+                fp,
+                VALID_COLOR,
+                timeSeconds,
+                true,
+            );
             markerCenter = center;
         }
 
@@ -942,7 +1017,12 @@ export class PlacementController {
      * their views ride the cursor and each plate turns green/red for its own
      * target spot.
      */
-    private showGroupPlates(units: readonly Unit[], delta: { dc: number; dr: number } | null): void {
+    private showGroupPlates(
+        units: readonly Unit[],
+        delta: { dc: number; dr: number } | null,
+        lift: boolean,
+        timeSeconds: number,
+    ): void {
         for (let i = 0; i < units.length; i++) {
             const unit = units[i]!;
             let plate = this.groupPlates[i];
@@ -951,7 +1031,7 @@ export class PlacementController {
                     this.plateGeometry,
                     new MeshBasicMaterial({
                         transparent: true,
-                        opacity: 0.24,
+                        opacity: 0.68,
                         side: DoubleSide,
                         depthWrite: false,
                     }),
@@ -964,17 +1044,24 @@ export class PlacementController {
                 ? { col: unit.cell.col + delta.dc, row: unit.cell.row + delta.dr }
                 : unit.cell;
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
-            unit.view.position.set(center.x, 0, center.z);
+            if (lift) this.applyViewHeight(unit, center.x, center.z, true);
+            else unit.view.position.set(center.x, unit.world.y, center.z);
             plate.position.set(center.x, 0.035, center.z);
-            plate.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
-            (plate.material as MeshBasicMaterial).color.setHex(
-                delta
-                    ? this.groupSpotValid(unit, anchor, units)
-                        ? VALID_COLOR
-                        : INVALID_COLOR
-                    : SELECT_COLOR,
-            );
-            plate.visible = true;
+            const mat = plate.material as MeshBasicMaterial;
+            const pulse = this.pulse(timeSeconds);
+            const edge = 0.96 + 0.04 * pulse;
+            plate.scale.set(fp.cols * CELL * edge, 1, fp.rows * CELL * edge);
+            if (!delta) {
+                mat.color.setHex(VALID_COLOR);
+                mat.opacity = 0.58 + 0.22 * pulse;
+                plate.visible = true;
+            } else {
+                mat.color.setHex(
+                    this.groupSpotValid(unit, anchor, units) ? VALID_COLOR : INVALID_COLOR,
+                );
+                mat.opacity = 0.58 + 0.22 * pulse;
+                plate.visible = true;
+            }
         }
         for (let i = units.length; i < this.groupPlates.length; i++) this.groupPlates[i]!.visible = false;
     }
