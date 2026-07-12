@@ -33,16 +33,17 @@ export interface TechDef {
     icon?: string;
 }
 
-/** glyph representing a tech — its own, or one derived from its dominant mod */
+/** glyph representing a tech — its own, or one derived from its dominant mod.
+ *  Emoji throughout so every action tile fills its box at a consistent size. */
 export function techIcon(tech: TechDef): string {
     if (tech.icon) return tech.icon;
     const m = tech.mods;
-    if (m.damage !== undefined && m.damage !== 1) return '⚔';
-    if (m.hp !== undefined && m.hp !== 1) return '❤';
-    if (m.range !== undefined && m.range !== 1) return '➹';
-    if (m.speed !== undefined && m.speed !== 1) return '»';
-    if (m.attackInterval !== undefined && m.attackInterval !== 1) return '⟳';
-    return '✦';
+    if (m.damage !== undefined && m.damage !== 1) return '⚔️';
+    if (m.hp !== undefined && m.hp !== 1) return '🛡️';
+    if (m.range !== undefined && m.range !== 1) return '🎯';
+    if (m.speed !== undefined && m.speed !== 1) return '💨';
+    if (m.attackInterval !== undefined && m.attackInterval !== 1) return '🔄';
+    return '✨';
 }
 
 /** human-readable summary of what a tech does — its own text, or built from its mods */
@@ -413,7 +414,7 @@ export const UNIT_TYPES: UnitType[] = [
                 name: 'Golden Aura',
                 cost: 50,
                 mods: {},
-                icon: '✦',
+                icon: '✨',
                 description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
             },
         ],

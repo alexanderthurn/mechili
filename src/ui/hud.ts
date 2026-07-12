@@ -771,7 +771,7 @@ export class Hud {
         if (info.levelUp) {
             tiles.push({
                 data: 'data-levelup="1"',
-                icon: '★',
+                icon: '🔼',
                 title: 'Level Up',
                 desc: 'Raise this pack one level — it gains its base HP and damage again. Costs banked XP plus supply.',
                 cost: info.levelUp.cost,
@@ -781,7 +781,7 @@ export class Hud {
             if (info.levelUp.all) {
                 tiles.push({
                     data: 'data-levelall="1"',
-                    icon: '⭐',
+                    icon: '⏫',
                     title: `Level All (${info.levelUp.all.count})`,
                     desc: 'Level every ready pack of this type at once.',
                     cost: info.levelUp.all.cost,
@@ -803,7 +803,7 @@ export class Hud {
         for (const b of info.boosts ?? []) {
             tiles.push({
                 data: `data-boost="${b.id}"`,
-                icon: b.id === 'attack' ? '⚔' : '❤',
+                icon: b.id === 'attack' ? '⚔️' : '🛡️',
                 title: b.label,
                 desc:
                     b.id === 'attack'
@@ -816,7 +816,7 @@ export class Hud {
         if (info.towerUpgrade && !info.towerUpgrade.maxed) {
             tiles.push({
                 data: 'data-towerupgrade="1"',
-                icon: '⬆',
+                icon: '🏗️',
                 title: `Upgrade — level ${info.level + 1}`,
                 desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
                 cost: info.towerUpgrade.cost,
@@ -826,7 +826,7 @@ export class Hud {
         if (info.recruit) {
             tiles.push({
                 data: 'data-recruit="1"',
-                icon: '②',
+                icon: '2️⃣',
                 title: 'Recruit at Level 2',
                 desc: 'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
                 cost: info.recruit.cost,
@@ -836,7 +836,7 @@ export class Hud {
         if (info.deploySlot) {
             tiles.push({
                 data: 'data-deployslot="1"',
-                icon: '＋',
+                icon: '➕',
                 title: '+1 Deployment',
                 desc: 'One extra unit purchase this round only.',
                 cost: info.deploySlot.cost,
@@ -846,7 +846,7 @@ export class Hud {
         if (info.rangeBoost) {
             tiles.push({
                 data: 'data-rangeboost="1"',
-                icon: '➹',
+                icon: '🎯',
                 title: 'Range Boost',
                 desc: `+${info.rangeBoost.bonus} range for all ranged units, this round only.`,
                 cost: info.rangeBoost.cost,
@@ -856,7 +856,7 @@ export class Hud {
         if (info.speedBoost) {
             tiles.push({
                 data: 'data-speedboost="1"',
-                icon: '»',
+                icon: '💨',
                 title: 'Speed Boost',
                 desc: `+${info.speedBoost.bonus} speed for all units, this round only.`,
                 cost: info.speedBoost.cost,
