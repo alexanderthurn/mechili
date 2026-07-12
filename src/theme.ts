@@ -1087,6 +1087,17 @@ export function hudStyles(): string {
 .mechili-cards .card.static { cursor: default; }
 .mechili-cards .card.static:hover { border-color: ${u.border}; transform: none; }
 .mechili-cards .card-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+/* the both-specialists reveal: cards further apart, then fly to the corners */
+.mechili-cards.reveal .cards-row { gap: min(24vw, 340px); }
+.mechili-cards.reveal { transition: background 0.5s ease-in; }
+.mechili-cards.reveal .card-col { transition: transform 0.55s cubic-bezier(0.5, 0, 0.75, 0.4), opacity 0.55s ease-in; }
+.mechili-cards.reveal .cards-title { transition: opacity 0.3s; }
+.mechili-cards.reveal.exiting { background: transparent; pointer-events: none; }
+.mechili-cards.reveal.exiting .cards-title { opacity: 0; }
+.mechili-cards.reveal.exiting .card-col { opacity: 0; }
+.mechili-cards.reveal.exiting .card-col.player { transform: translate(-42vw, -44vh) scale(0.18); }
+.mechili-cards.reveal.exiting .card-col.enemy { transform: translate(42vw, -44vh) scale(0.18); }
 .mechili-cards .c-owner {
     font-size: 14px;
     font-weight: bold;
@@ -1320,6 +1331,9 @@ export function hudStyles(): string {
 .mechili-fightbar .fspec:empty { display: none; }
 .mechili-fightbar .fighter.player .fspec { text-align: left; }
 .mechili-fightbar .fighter.enemy .fspec { text-align: right; }
+/* a chosen specialist makes the frame clickable (opens its card) */
+.mechili-fightbar .fighter.has-spec { pointer-events: auto; cursor: pointer; }
+.mechili-fightbar .fighter.has-spec:hover { border-color: ${u.hover}; }
 .mechili-fightbar .hp-track {
     height: 14px;
     background: ${u.barTrack};

@@ -125,6 +125,9 @@ export class Hud {
     private readonly enemyNameEl: HTMLSpanElement;
     private playerSpecEl!: HTMLSpanElement;
     private enemySpecEl!: HTMLSpanElement;
+    /** the chosen specialist card per side — drives the clickable frame detail */
+    private playerCard: StartCard | null = null;
+    private enemyCard: StartCard | null = null;
     private readonly playerHpFill: HTMLDivElement;
     private readonly enemyHpFill: HTMLDivElement;
     private readonly playerHpVal: HTMLSpanElement;
@@ -357,6 +360,10 @@ export class Hud {
         enemyPortrait.className = 'portrait';
         enemyPortrait.textContent = '◆';
         enemyFighter.append(this.enemyHpVal, enemyInfo, enemyPortrait);
+
+        // clicking a commander frame opens its specialist card (once known)
+        playerFighter.addEventListener('click', () => this.showSpecialistDetail('player'));
+        enemyFighter.addEventListener('click', () => this.showSpecialistDetail('enemy'));
 
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
@@ -935,9 +942,15 @@ export class Hud {
         this.topBar.classList.remove('overlay-open');
     }
 
-    /** dismisses the specialist reveal only (leaves any other overlay alone) */
+    /** dismisses the specialist reveal only: the two cards fly out to the
+     *  commander frames (top corners), then the overlay is removed */
     dismissReveal(): void {
-        if (this.cardOverlay?.classList.contains('reveal')) this.hideCardOverlay();
+        const overlay = this.cardOverlay;
+        if (!overlay?.classList.contains('reveal')) return;
+        this.cardOverlay = null;
+        this.topBar.classList.remove('overlay-open'); // deployment controls return
+        overlay.classList.add('exiting');
+        setTimeout(() => overlay.remove(), 600); // matches the exit transition
     }
 
     private showCardOverlay(overlay: HTMLDivElement): void {
@@ -1019,8 +1032,8 @@ export class Hud {
         overlay.innerHTML =
             `<div class="cards-title">Specialists</div>` +
             `<div class="cards-row">` +
-            `<div class="card-col"><div class="c-owner player"></div><div class="card static">${this.startCardFace(own)}</div></div>` +
-            `<div class="card-col"><div class="c-owner enemy"></div><div class="card static">${this.startCardFace(opponent)}</div></div>` +
+            `<div class="card-col player"><div class="c-owner player"></div><div class="card static">${this.startCardFace(own)}</div></div>` +
+            `<div class="card-col enemy"><div class="c-owner enemy"></div><div class="card static">${this.startCardFace(opponent)}</div></div>` +
             `</div>`;
         // player names are user input — textContent only, never innerHTML
         const owners = overlay.querySelectorAll<HTMLDivElement>('.c-owner');
@@ -1029,10 +1042,32 @@ export class Hud {
         this.showCardOverlay(overlay);
     }
 
-    /** speciality names under the commander names (empty until picked) */
-    setSpecialities(own: string | null, opponent: string | null): void {
-        this.playerSpecEl.textContent = own ?? '';
-        this.enemySpecEl.textContent = opponent ?? '';
+    /** the chosen specialist cards (opponent's stays null until both picked) —
+     *  sets the fighter-card labels and makes the frames clickable for detail */
+    setSpecialities(own: StartCard | null, opponent: StartCard | null): void {
+        this.playerCard = own;
+        this.enemyCard = opponent;
+        this.playerSpecEl.textContent = own?.title ?? '';
+        this.enemySpecEl.textContent = opponent?.title ?? '';
+        this.playerFighterEl.classList.toggle('has-spec', own !== null);
+        this.enemyFighterEl.classList.toggle('has-spec', opponent !== null);
+    }
+
+    /** a dismissible popup of one side's specialist card (frame click) */
+    private showSpecialistDetail(team: 'player' | 'enemy'): void {
+        const card = team === 'player' ? this.playerCard : this.enemyCard;
+        if (!card) return;
+        const name = (team === 'player' ? this.playerNameEl : this.enemyNameEl).textContent ?? '';
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards detail';
+        overlay.innerHTML =
+            `<div class="cards-row"><div class="card-col ${team}">` +
+            `<div class="c-owner ${team}"></div>` +
+            `<div class="card static">${this.startCardFace(card)}</div>` +
+            `</div></div>`;
+        overlay.querySelector('.c-owner')!.textContent = name;
+        overlay.addEventListener('click', () => overlay.remove());
+        this.mount(overlay);
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */

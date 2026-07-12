@@ -649,7 +649,7 @@ export class Game {
     private syncSpecialities(): void {
         const own = this.starterCardOf('player');
         const opp = this.starterCardOf('enemy');
-        this.hud.setSpecialities(own?.title ?? null, own && opp ? opp.title : null);
+        this.hud.setSpecialities(own, own && opp ? opp : null);
     }
 
     /** local specialist is locked in — if the peer is still picking, show ours centered */
