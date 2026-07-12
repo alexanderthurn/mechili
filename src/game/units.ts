@@ -445,8 +445,6 @@ export class Unit {
     consumed = false;
     /** the pack's equipped item (at most ONE) — permanent once its deployment ended */
     readonly items: string[] = [];
-    /** touched a flank tile for the first time — spawns slowly if still on flank at battle start */
-    flankSpawnEligible = false;
     /** flank spawn already happened once for this pack */
     flankSpawnDone = false;
     /** lifetime EFFECTIVE damage dealt (capped at each victim's remaining hp) */

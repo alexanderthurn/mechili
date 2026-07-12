@@ -196,14 +196,23 @@ export class BattleSim {
             }
         }
 
+        // flank tax: packs standing on the flanks spawn slowly this battle —
+        // paid exactly once ever (attempting counts, even if the pack dies
+        // mid-spawn). Collect units first: the flag must flip only after
+        // EVERY member of the pack has been marked.
+        const spawningUnits = new Set<Unit>();
         for (const a of this.actors) {
-            if (!this.config.needsFlankSpawn(a.unit)) continue;
-            const base = this.config.flankSpawnSeconds ?? DEFAULT_SETTINGS.deploy.flankSpawnSeconds;
-            const duration = base * this.config.flankSpawnMult(a.unit.team);
-            a.spawnUntil = duration;
-            a.hp = 1;
-            a.unit.flankSpawnEligible = true;
+            if (this.config.needsFlankSpawn(a.unit)) spawningUnits.add(a.unit);
         }
+        for (const a of this.actors) {
+            if (!spawningUnits.has(a.unit)) continue;
+            const base = this.config.flankSpawnSeconds ?? DEFAULT_SETTINGS.deploy.flankSpawnSeconds;
+            // the ramp starts when the opening freeze ends, so the advertised
+            // duration is real vulnerability time
+            a.spawnUntil = BATTLE_START_FREEZE + base * this.config.flankSpawnMult(a.unit.team);
+            a.hp = 1;
+        }
+        for (const unit of spawningUnits) unit.flankSpawnDone = true;
 
         // canonical battle order: both peers sort into the SAME sequence
         // (host units first, each side by spawn counter, members in pack
@@ -368,7 +377,7 @@ export class BattleSim {
             else if (this.isDebuffed(a)) tint = 'debuff';
             else if (this.isSpawning(a)) {
                 tint = 'spawning';
-                spawnProgress = a.spawnUntil > 0 ? Math.min(1, this.elapsed / a.spawnUntil) : 1;
+                spawnProgress = this.spawnProgress(a);
             }
             syncBattleTint(a.mesh, tint, timeSeconds, stacks, spawnProgress);
         }
@@ -379,17 +388,22 @@ export class BattleSim {
     }
 
     /** hp ramps 1 → max during flank spawn; finishes with full hp if undamaged */
+    /** 0 → 1 across the post-freeze spawn window */
+    private spawnProgress(a: Actor): number {
+        const duration = a.spawnUntil - BATTLE_START_FREEZE;
+        if (duration <= 0) return 1;
+        return Math.min(1, Math.max(0, (this.elapsed - BATTLE_START_FREEZE) / duration));
+    }
+
     private updateFlankSpawning(): void {
         for (const a of this.actors) {
             if (a.spawnUntil <= 0) continue;
             if (this.elapsed >= a.spawnUntil) {
                 if (!a.spawnDamaged && a.alive) a.hp = a.maxHp;
                 a.spawnUntil = 0;
-                if (a.unit.flankSpawnEligible) a.unit.flankSpawnDone = true;
                 continue;
             }
-            const progress = this.elapsed / a.spawnUntil;
-            const ceiling = 1 + (a.maxHp - 1) * progress;
+            const ceiling = 1 + (a.maxHp - 1) * this.spawnProgress(a);
             if (!a.spawnDamaged) a.hp = ceiling;
         }
     }
@@ -415,7 +429,10 @@ export class BattleSim {
 
     private kill(target: Actor, killer: Unit | null): void {
         if (killer) killer.kills++;
-        if (killer && !target.unit.type.structure) this.grantXp(killer, target);
+        // no XP for executing a still-spawning pack — it never fully arrived
+        if (killer && !target.unit.type.structure && !this.isSpawning(target)) {
+            this.grantXp(killer, target);
+        }
         target.alive = false;
         const t = target.unit.type;
         this.events.push({

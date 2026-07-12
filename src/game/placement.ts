@@ -365,7 +365,6 @@ export class PlacementController {
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
-        this.refreshFlankSpawn(unit);
         return true;
     }
 
@@ -375,12 +374,6 @@ export class PlacementController {
         const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), unit.cell);
         if (!cells) return false;
         return cells.some((c) => this.map.isFlankDeployCell(c, unit.team));
-    }
-
-    /** first flank placement marks the pack for a one-time spawn phase at battle start */
-    refreshFlankSpawn(unit: Unit): void {
-        if (unit.type.structure || unit.type.extra || unit.flankSpawnDone) return;
-        if (this.isOnFlank(unit)) unit.flankSpawnEligible = true;
     }
 
     /** a tile a team may deploy on */
@@ -444,7 +437,6 @@ export class PlacementController {
         // could be aware of — from revealed enemy units, or the enemy's
         // command towers when nothing else is visible
         unit.faceClosestOf(this.opponentMechPositions(team, unit));
-        this.refreshFlankSpawn(unit);
         return unit;
     }
 
@@ -468,6 +460,9 @@ export class PlacementController {
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
             if (!cells.every((c) => this.deployCellOk('enemy', c, type) && !this.occupied.has(cellKey(c)))) continue;
+            // the AI doesn't understand the flank-spawn tax yet — keep it off
+            // the flanks so its units don't arrive at 1 hp unaware
+            if (cells.some((c) => this.map.isFlankDeployCell(c, 'enemy'))) continue;
             found++;
             if (
                 !best ||
@@ -887,7 +882,6 @@ export class PlacementController {
         });
         for (const u of units) {
             u.faceClosestOf(this.opponentMechPositions(u.team, u));
-            this.refreshFlankSpawn(u);
         }
         return true;
     }
@@ -904,7 +898,6 @@ export class PlacementController {
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
-        this.refreshFlankSpawn(unit);
         return true;
     }
 

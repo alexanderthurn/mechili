@@ -1261,7 +1261,6 @@ export class Game {
         this.armedItem = null;
         this.gridOverlay.visible = false;
         this.placement.revealAll();
-        for (const unit of this.placement.allUnits()) this.placement.refreshFlankSpawn(unit);
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,

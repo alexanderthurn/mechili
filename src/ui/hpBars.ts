@@ -31,8 +31,10 @@ export class HpBars {
             const isSelected = a === selected;
             const spawning = a.spawnUntil > elapsed + 1e-9;
             if (!isSelected && a.hurtTimer <= 0 && !spawning) continue;
-            // recently-hit bars fade out over the last part of the timer
-            const alpha = isSelected ? 1 : Math.min(1, a.hurtTimer / (HURT_BAR_SECONDS * 0.35));
+            // recently-hit bars fade out over the last part of the timer;
+            // spawning bars stay fully visible so the hp ramp reads
+            const alpha =
+                isSelected || spawning ? 1 : Math.min(1, a.hurtTimer / (HURT_BAR_SECONDS * 0.35));
             this.drawBar(a, camera, width, height, alpha, isSelected);
         }
     }
