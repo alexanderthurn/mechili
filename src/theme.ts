@@ -1358,6 +1358,8 @@ export function hudStyles(): string {
 .mechili-topbar .end-deploy:hover { background: ${u.alliedBtnHover}; border-color: ${u.brassLight}; }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
+/* a card overlay is up (specialist pick, reveal, round card) — can't end yet */
+.mechili-topbar.overlay-open .end-deploy { display: none; }
 .mechili-topbar.battle .timer { color: ${ec}; }
 .mechili-topbar .speed {
     display: none;

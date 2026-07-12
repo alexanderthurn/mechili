@@ -52,6 +52,9 @@ import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 
+/** how long the both-specialists reveal stays up before deployment takes over */
+const SPECIALIST_REVEAL_MS = 2000;
+
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
     let h = seed >>> 0;
@@ -925,11 +928,16 @@ export class Game {
         this.hud.hideCardOverlay(); // the waiting card, if one is up
         this.syncSpecialities();
         this.startBuildPhase();
-        // reveal both picks while the deployment clock already runs
+        // reveal both picks for a beat, then it auto-dismisses into deployment
         if (!this.hydrating) {
             const own = this.starterCardOf('player');
             const opp = this.starterCardOf('enemy');
-            if (own && opp) this.hud.showSpecialistReveal(own, opp, this.playerNames);
+            if (own && opp) {
+                this.hud.showSpecialistReveal(own, opp, this.playerNames);
+                window.setTimeout(() => {
+                    if (!this.disposed) this.hud.dismissReveal();
+                }, SPECIALIST_REVEAL_MS);
+            }
         }
     }
 

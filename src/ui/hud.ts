@@ -930,11 +930,20 @@ export class Hud {
     hideCardOverlay(): void {
         this.cardOverlay?.remove();
         this.cardOverlay = null;
+        // a card overlay (specialist pick, round card, reveal) blocks
+        // deployment: no ending the round while one is up
+        this.topBar.classList.remove('overlay-open');
+    }
+
+    /** dismisses the specialist reveal only (leaves any other overlay alone) */
+    dismissReveal(): void {
+        if (this.cardOverlay?.classList.contains('reveal')) this.hideCardOverlay();
     }
 
     private showCardOverlay(overlay: HTMLDivElement): void {
         this.hideCardOverlay();
         this.cardOverlay = overlay;
+        this.topBar.classList.add('overlay-open');
         this.mount(overlay);
     }
 
@@ -998,26 +1007,25 @@ export class Hud {
         this.showCardOverlay(overlay);
     }
 
-    /** both specialists picked: show them side by side while deployment begins */
+    /** both specialists picked: show them side by side for a moment, then the
+     *  game auto-dismisses via {@link dismissReveal} and deployment takes over */
     showSpecialistReveal(
         own: StartCard,
         opponent: StartCard,
         names: { local: string; opponent: string },
     ): void {
         const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards';
+        overlay.className = 'mechili-cards reveal';
         overlay.innerHTML =
             `<div class="cards-title">Specialists</div>` +
             `<div class="cards-row">` +
             `<div class="card-col"><div class="c-owner player"></div><div class="card static">${this.startCardFace(own)}</div></div>` +
             `<div class="card-col"><div class="c-owner enemy"></div><div class="card static">${this.startCardFace(opponent)}</div></div>` +
-            `</div>` +
-            `<button class="cards-skip">Start deployment</button>`;
+            `</div>`;
         // player names are user input — textContent only, never innerHTML
         const owners = overlay.querySelectorAll<HTMLDivElement>('.c-owner');
         owners[0]!.textContent = names.local;
         owners[1]!.textContent = names.opponent;
-        overlay.querySelector('.cards-skip')!.addEventListener('click', () => this.hideCardOverlay());
         this.showCardOverlay(overlay);
     }
 
