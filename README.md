@@ -9,17 +9,27 @@ for the UI overlay (HTML-in-canvas), and shipped to Steam via
 
 ## How it plays
 
-- **Deployment phase** — buy packs, position them on your side of the grid
-  (flanks and the center strip unlock after round 1), all hidden from the
-  enemy until the fight starts. Ends via button or timer.
+- **Specialist pick** — before round 1 each player chooses a specialist
+  card: a starting army, HP pool, and a permanent speciality.
+- **Deployment phase** — buy packs, level them with banked XP, buy techs
+  and tower upgrades, equip items, place shields and rockets; position
+  everything on your side of the grid (flanks and the center strip unlock
+  after round 1), hidden from the enemy until the fight starts. From round
+  2 a card offer opens each round. Ends via button or timer.
 - **Battle phase** — fully automatic: every mech walks at the closest enemy
   it can attack, packs split around obstacles, bullets fly and hit whatever
-  is actually in the way. Watch at 0.5×–4×.
+  is actually in the way. Watch at 0.25×–8×.
 - Survivors damage the enemy commander by their remaining value; losing a
-  command tower permanently weakens your army. First to 0 HP loses.
+  command tower debuffs your army for a while. First to 0 HP loses.
+
+**Multiplayer**: peer-to-peer (PeerJS) with quick match, a public lobby and
+named rooms — deterministic lockstep with automatic desync recovery, and
+reloading mid-match reconnects and resumes.
 
 All match rules (map layout, timers, economy, tower debuffs) live in one
-JSON-serializable settings object — see `src/game/settings.ts`.
+JSON-serializable settings object — see `src/game/settings.ts`. How the
+whole thing fits together (action log, determinism rules, wire protocol,
+extension checklists): see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Controls
 
