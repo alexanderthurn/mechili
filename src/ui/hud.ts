@@ -48,6 +48,10 @@ export interface SelectionInfo {
     recruit?: { cost: number; active: boolean; affordable: boolean };
     /** +1 deployment for the running round (Research Center only) */
     deploySlot?: { cost: number; active: boolean; affordable: boolean };
+    /** +range for all ranged units this round (Research Center only) */
+    rangeBoost?: { cost: number; bonus: number; active: boolean; affordable: boolean };
+    /** +speed for all units this round (Research Center only) */
+    speedBoost?: { cost: number; bonus: number; active: boolean; affordable: boolean };
     /** the permanent sell-ability unlock (Command Tower only) */
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Command Tower only); label shows the NEXT tier */
@@ -77,6 +81,8 @@ export class Hud {
     onBuySellAbility: (() => void) | null = null;
     onSellUnit: (() => void) | null = null;
     onBuyDeploySlot: (() => void) | null = null;
+    onBuyRoundRangeBoost: (() => void) | null = null;
+    onBuyRoundSpeedBoost: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     onArmItem: ((itemId: string) => void) | null = null;
     onUndo: (() => void) | null = null;
@@ -256,6 +262,8 @@ export class Hud {
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
+            else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
+            else if (button.dataset.speedboost) this.onBuyRoundSpeedBoost?.();
             else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
             else if (button.dataset.sell) this.onSellUnit?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
@@ -587,7 +595,13 @@ export class Hud {
             )
             .join('');
         const building =
-            info.towerUpgrade || info.recruit || info.sellAbility || boosts
+            info.towerUpgrade ||
+            info.recruit ||
+            info.deploySlot ||
+            info.rangeBoost ||
+            info.speedBoost ||
+            info.sellAbility ||
+            boosts
                 ? `<div class="techs">` +
                   boosts +
                   (info.towerUpgrade && !info.towerUpgrade.maxed
@@ -608,6 +622,20 @@ export class Hud {
                           : `<button class="tech-buy" data-deployslot="1" ${
                                 info.deploySlot.affordable ? '' : 'disabled'
                             }><span>+1 deployment this round</span><span class="c">${info.deploySlot.cost}</span></button>`
+                      : '') +
+                  (info.rangeBoost
+                      ? info.rangeBoost.active
+                          ? `<div class="tech-owned"><span>✓ +${info.rangeBoost.bonus} range for ranged units this round</span></div>`
+                          : `<button class="tech-buy" data-rangeboost="1" ${
+                                info.rangeBoost.affordable ? '' : 'disabled'
+                            }><span>+${info.rangeBoost.bonus} range for ranged units this round</span><span class="c">${info.rangeBoost.cost}</span></button>`
+                      : '') +
+                  (info.speedBoost
+                      ? info.speedBoost.active
+                          ? `<div class="tech-owned"><span>✓ +${info.speedBoost.bonus} speed for all units this round</span></div>`
+                          : `<button class="tech-buy" data-speedboost="1" ${
+                                info.speedBoost.affordable ? '' : 'disabled'
+                            }><span>+${info.speedBoost.bonus} speed for all units this round</span><span class="c">${info.speedBoost.cost}</span></button>`
                       : '') +
                   (info.sellAbility
                       ? info.sellAbility.owned

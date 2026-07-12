@@ -90,6 +90,16 @@ export interface BuyDeploySlotAction {
     kind: 'buyDeploySlot';
     team: Team;
 }
+/** Research Center: +range for all ranged units this round only */
+export interface BuyRoundRangeBoostAction {
+    kind: 'buyRoundRangeBoost';
+    team: Team;
+}
+/** Research Center: +speed for all units this round only */
+export interface BuyRoundSpeedBoostAction {
+    kind: 'buyRoundSpeedBoost';
+    team: Team;
+}
 /** Command Tower: the next tier of a permanent army-wide stat boost */
 export interface BuyBoostAction {
     kind: 'buyBoost';
@@ -138,6 +148,8 @@ export type Action =
     | BuySellAbilityAction
     | SellUnitAction
     | BuyDeploySlotAction
+    | BuyRoundRangeBoostAction
+    | BuyRoundSpeedBoostAction
     | BuyBoostAction
     | ChooseCardAction
     | ApplyItemAction
@@ -196,6 +208,8 @@ export interface ActionContext {
     };
     /** per-team tier (0 = none) of each permanent army boost */
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
+    /** per-team round-only stat boosts from the Research Center (reset each round) */
+    roundBoosts: { range: Record<Team, boolean>; speed: Record<Team, boolean> };
     /** each side's chosen card speciality (null until the pick) */
     speciality: Record<Team, SpecialityId | null>;
     /** per-team multiplier on flank spawn duration (Flanky card → 0.5) */
@@ -439,6 +453,22 @@ export class ActionDispatcher {
                 this.ctx.deployState.extra[action.team]++;
                 return true;
             }
+            case 'buyRoundRangeBoost': {
+                if (this.ctx.roundBoosts.range[action.team]) return false;
+                const cost = this.ctx.deploySettings.rangedRangeBoostCost;
+                if (!economy.spend(action.team, cost)) return false;
+                entry.paid = cost;
+                this.ctx.roundBoosts.range[action.team] = true;
+                return true;
+            }
+            case 'buyRoundSpeedBoost': {
+                if (this.ctx.roundBoosts.speed[action.team]) return false;
+                const cost = this.ctx.deploySettings.armySpeedBoostCost;
+                if (!economy.spend(action.team, cost)) return false;
+                entry.paid = cost;
+                this.ctx.roundBoosts.speed[action.team] = true;
+                return true;
+            }
             case 'buyBoost': {
                 const state = this.ctx.boostState[action.boost];
                 const tier = state[action.team];
@@ -605,6 +635,14 @@ export class ActionDispatcher {
                 break;
             case 'buyDeploySlot':
                 this.ctx.deployState.extra[action.team]--;
+                economy.credit(action.team, e.paid!);
+                break;
+            case 'buyRoundRangeBoost':
+                this.ctx.roundBoosts.range[action.team] = false;
+                economy.credit(action.team, e.paid!);
+                break;
+            case 'buyRoundSpeedBoost':
+                this.ctx.roundBoosts.speed[action.team] = false;
                 economy.credit(action.team, e.paid!);
                 break;
             case 'buyBoost':

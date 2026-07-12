@@ -403,7 +403,7 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'rocket',
         name: 'Rocket',
-        cost: 200,
+        cost: 50,
         footprint: { cols: 1, rows: 1 },
         formation: { cols: 1, rows: 1 },
         meshScale: 1,

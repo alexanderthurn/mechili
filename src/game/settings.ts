@@ -93,6 +93,12 @@ export interface DeploySettings {
     unitsPerRound: number;
     /** Research Center: price of +1 buy for the running round only */
     extraSlotCost: number;
+    /** Research Center: +rangeBoost range for all ranged units this round only */
+    rangedRangeBoostCost: number;
+    rangeBoost: number;
+    /** Research Center: +speedBoost speed for all units this round only */
+    armySpeedBoostCost: number;
+    speedBoost: number;
     /** board extras (shields, rockets) have their own cap: supply spent on them per round */
     extrasBudgetPerRound: number;
     /** first-time flank mech deploys spawn for this many seconds (whenever flanks are open) */
@@ -161,6 +167,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
     deploy: {
         unitsPerRound: 2,
         extraSlotCost: 50,
+        rangedRangeBoostCost: 100,
+        rangeBoost: 5,
+        armySpeedBoostCost: 50,
+        speedBoost: 3,
         extrasBudgetPerRound: 500,
         flankSpawnSeconds: 5,
     },

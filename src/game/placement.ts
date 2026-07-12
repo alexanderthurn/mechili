@@ -1,7 +1,7 @@
 import {
+    BoxGeometry,
     CanvasTexture,
     ConeGeometry,
-    CylinderGeometry,
     DoubleSide,
     Group,
     Mesh,
@@ -631,9 +631,11 @@ export class PlacementController {
                 if (!arrow) {
                     arrow = new Group();
                     arrow.scale.setScalar(3);
-                    const shaft = new Mesh(new CylinderGeometry(0.16, 0.16, 0.6, 8), this.levelArrowMaterial);
+                    // square shaft + pyramid head — a solid "upgrade" arrow
+                    const shaft = new Mesh(new BoxGeometry(0.34, 0.6, 0.34), this.levelArrowMaterial);
                     shaft.position.y = 0;
-                    const head = new Mesh(new ConeGeometry(0.42, 0.7, 10), this.levelArrowMaterial);
+                    const head = new Mesh(new ConeGeometry(0.46, 0.7, 4), this.levelArrowMaterial);
+                    head.rotation.y = Math.PI / 4; // pyramid faces align with the shaft
                     head.position.y = 0.65;
                     arrow.add(shaft, head);
                     this.scene.add(arrow);

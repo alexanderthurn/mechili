@@ -133,6 +133,11 @@ export class Game {
         attack: { player: 0, enemy: 0 },
         hp: { player: 0, enemy: 0 },
     };
+    /** round-only stat boosts from the Research Center (reset each deployment) */
+    private readonly roundBoosts: { range: Record<Team, boolean>; speed: Record<Team, boolean> } = {
+        range: { player: false, enemy: false },
+        speed: { player: false, enemy: false },
+    };
     /** each side's chosen starting-card speciality (null until picked) */
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
     /** per-team multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
@@ -287,6 +292,7 @@ export class Game {
             sellState: this.sellState,
             deployState: this.deployState,
             boostState: this.boostState,
+            roundBoosts: this.roundBoosts,
             speciality: this.speciality,
             flankSpawnMult: this.flankSpawnMult,
             items: this.itemInventory,
@@ -395,6 +401,16 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyDeploySlot', team: 'player' });
+        };
+        this.hud.onBuyRoundRangeBoost = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            this.dispatchPlayer({ kind: 'buyRoundRangeBoost', team: 'player' });
+        };
+        this.hud.onBuyRoundSpeedBoost = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            this.dispatchPlayer({ kind: 'buyRoundSpeedBoost', team: 'player' });
         };
         this.hud.onSellUnit = () => {
             const unit = this.placement.selectedUnit;
@@ -546,6 +562,10 @@ export class Game {
         this.sellState.used.enemy = 0;
         this.deployState.extra.player = 0;
         this.deployState.extra.enemy = 0;
+        this.roundBoosts.range.player = false;
+        this.roundBoosts.range.enemy = false;
+        this.roundBoosts.speed.player = false;
+        this.roundBoosts.speed.enemy = false;
         this.deployState.used.player = 0;
         this.deployState.used.enemy = 0;
         this.deployState.extrasSpent.player = 0;
@@ -1006,6 +1026,9 @@ export class Game {
             stats.speed *= mods.speed ?? 1;
             stats.attackInterval *= mods.attackInterval ?? 1;
         }
+        const rb = this.settings.deploy;
+        if (this.roundBoosts.speed[team]) stats.speed += rb.speedBoost;
+        if (this.roundBoosts.range[team] && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;
     }
 
@@ -1518,6 +1541,28 @@ export class Game {
                           active: this.deployState.extra.player > 0,
                           affordable:
                               this.economy.balance('player') >= this.settings.deploy.extraSlotCost,
+                      }
+                    : undefined,
+            rangeBoost:
+                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
+                    ? {
+                          cost: this.settings.deploy.rangedRangeBoostCost,
+                          bonus: this.settings.deploy.rangeBoost,
+                          active: this.roundBoosts.range.player,
+                          affordable:
+                              this.economy.balance('player') >=
+                              this.settings.deploy.rangedRangeBoostCost,
+                      }
+                    : undefined,
+            speedBoost:
+                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
+                    ? {
+                          cost: this.settings.deploy.armySpeedBoostCost,
+                          bonus: this.settings.deploy.speedBoost,
+                          active: this.roundBoosts.speed.player,
+                          affordable:
+                              this.economy.balance('player') >=
+                              this.settings.deploy.armySpeedBoostCost,
                       }
                     : undefined,
             // Command Tower: the two permanent army-wide boost tracks
