@@ -29,6 +29,20 @@ export interface TechDef {
     mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
+    /** glyph for the action tile; auto-derived from `mods` when omitted */
+    icon?: string;
+}
+
+/** glyph representing a tech — its own, or one derived from its dominant mod */
+export function techIcon(tech: TechDef): string {
+    if (tech.icon) return tech.icon;
+    const m = tech.mods;
+    if (m.damage !== undefined && m.damage !== 1) return '⚔';
+    if (m.hp !== undefined && m.hp !== 1) return '❤';
+    if (m.range !== undefined && m.range !== 1) return '➹';
+    if (m.speed !== undefined && m.speed !== 1) return '»';
+    if (m.attackInterval !== undefined && m.attackInterval !== 1) return '⟳';
+    return '✦';
 }
 
 /** human-readable summary of what a tech does — its own text, or built from its mods */
@@ -399,6 +413,7 @@ export const UNIT_TYPES: UnitType[] = [
                 name: 'Golden Aura',
                 cost: 50,
                 mods: {},
+                icon: '✦',
                 description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
             },
         ],

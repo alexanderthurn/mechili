@@ -14,6 +14,21 @@ function escapeAttr(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+/** one buyable/owned action in the detail panel, rendered as a square tile */
+interface ActionTile {
+    /** the data-* attribute string the click handler dispatches on, e.g. `data-tech="ap"` */
+    data: string;
+    icon: string;
+    title: string;
+    desc: string;
+    /** supply price; negative = a refund. Omitted when there's nothing to pay. */
+    cost?: number;
+    /** buy = affordable, locked = can't act (unaffordable / needs XP), owned = already have it */
+    state: 'buy' | 'locked' | 'owned';
+    /** small extra line in the hover frame (e.g. why it's locked) */
+    note?: string;
+}
+
 /** what the stats panel shows for a selected pack or single mech */
 export interface SelectionInfo {
     name: string;
@@ -47,7 +62,7 @@ export interface SelectionInfo {
         all?: { count: number; cost: number; affordable: boolean };
     };
     /** buyable techs (own packs, build phase only) */
-    techs?: { id: string; name: string; desc: string; cost: number; owned: boolean; affordable: boolean }[];
+    techs?: { id: string; name: string; desc: string; icon: string; cost: number; owned: boolean; affordable: boolean }[];
     /** base buildings render their level as N / maxLevel and hide XP */
     structure?: boolean;
     /** a base building's supply-only level upgrade (own, build phase) */
@@ -284,10 +299,11 @@ export class Hud {
         this.panel.className = 'mechili-panel';
         this.panel.style.display = 'none';
         this.panel.addEventListener('click', (e) => {
-            const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.tech-buy');
+            const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.action-tile');
             if (!button) return;
-            // unaffordable buttons stay hoverable (for their tooltip) but inert
-            if (button.classList.contains('unaffordable')) return;
+            // locked (unaffordable / not ready) and owned tiles stay hoverable
+            // for their info frame, but do nothing on click
+            if (button.classList.contains('locked') || button.classList.contains('owned')) return;
             if (button.dataset.levelall) this.onLevelAll?.();
             else if (button.dataset.levelup) this.onBuyLevel?.();
             else if (button.dataset.recruit) this.onRecruitLevel?.();
@@ -299,6 +315,16 @@ export class Hud {
             else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
             else if (button.dataset.sell) this.onSellUnit?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
+        });
+        // hovering a tile pops the big info frame (title, description, cost)
+        this.panel.addEventListener('pointerover', (e) => {
+            const tile = (e.target as HTMLElement).closest<HTMLElement>('.action-tile');
+            if (tile) this.showActionInfo(tile);
+        });
+        this.panel.addEventListener('pointerout', (e) => {
+            const from = (e.target as HTMLElement).closest<HTMLElement>('.action-tile');
+            const to = (e.relatedTarget as HTMLElement | null)?.closest?.('.action-tile');
+            if (from && from !== to) this.hideActionInfo();
         });
 
         // unequipped pack items (left edge sidebar): click to pick up, click a pack to place
@@ -738,98 +764,126 @@ export class Hud {
         this.lastPanelKey = key;
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
         const stars = info.level > 1 ? ` <span style="color:${THEME.ui.veteranStar}">${'★'.repeat(info.level - 1)}</span>` : '';
-        const unitButtons =
-            (info.levelUp
-                ? `<button class="tech-buy" data-levelup="1" ${
-                      info.levelUp.ready && info.levelUp.affordable ? '' : 'disabled'
-                  }><span>★ Level up${info.levelUp.ready ? '' : ' — needs XP'}</span><span class="c">${info.levelUp.cost}</span></button>`
-                : '') +
-            (info.levelUp?.all
-                ? `<button class="tech-buy" data-levelall="1" ${
-                      info.levelUp.all.affordable ? '' : 'disabled'
-                  }><span>★ Level all (${info.levelUp.all.count})</span><span class="c">${info.levelUp.all.cost}</span></button>`
-                : '') +
-            (info.sell
-                ? `<button class="tech-buy" data-sell="1" ${
-                      info.sell.available ? '' : 'disabled'
-                  }><span>Sell${info.sell.available ? '' : ' — used this round'}</span><span class="c">+${info.sell.refund}</span></button>`
-                : '');
-        const levelUp = unitButtons ? `<div class="techs">${unitButtons}</div>` : '';
-        // base building actions: the supply-only upgrade, and (Command Tower) the recruit switch
-        const boosts = (info.boosts ?? [])
-            .map((b) =>
-                b.maxed
-                    ? `<div class="tech-owned"><span>✓ ${b.label}</span></div>`
-                    : `<button class="tech-buy" data-boost="${b.id}" ${
-                          b.affordable ? '' : 'disabled'
-                      }><span>${b.label}</span><span class="c">${b.cost}</span></button>`,
-            )
-            .join('');
-        const building =
-            info.towerUpgrade ||
-            info.recruit ||
-            info.deploySlot ||
-            info.rangeBoost ||
-            info.speedBoost ||
-            info.sellAbility ||
-            boosts
-                ? `<div class="techs">` +
-                  boosts +
-                  (info.towerUpgrade && !info.towerUpgrade.maxed
-                      ? `<button class="tech-buy" data-towerupgrade="1" ${
-                            info.towerUpgrade.affordable ? '' : 'disabled'
-                        }><span>⬆ Upgrade to level ${info.level + 1}</span><span class="c">${info.towerUpgrade.cost}</span></button>`
-                      : '') +
-                  (info.recruit
-                      ? info.recruit.active
-                          ? `<div class="tech-owned"><span>✓ Recruiting at level 2</span></div>`
-                          : `<button class="tech-buy" data-recruit="1" ${
-                                info.recruit.affordable ? '' : 'disabled'
-                            }><span>★★ Recruits at level 2</span><span class="c">${info.recruit.cost}</span></button>`
-                      : '') +
-                  (info.deploySlot
-                      ? info.deploySlot.active
-                          ? `<div class="tech-owned"><span>✓ +1 deployment this round</span></div>`
-                          : `<button class="tech-buy" data-deployslot="1" ${
-                                info.deploySlot.affordable ? '' : 'disabled'
-                            }><span>+1 deployment this round</span><span class="c">${info.deploySlot.cost}</span></button>`
-                      : '') +
-                  (info.rangeBoost
-                      ? info.rangeBoost.active
-                          ? `<div class="tech-owned"><span>✓ +${info.rangeBoost.bonus} range for ranged units this round</span></div>`
-                          : `<button class="tech-buy" data-rangeboost="1" ${
-                                info.rangeBoost.affordable ? '' : 'disabled'
-                            }><span>+${info.rangeBoost.bonus} range for ranged units this round</span><span class="c">${info.rangeBoost.cost}</span></button>`
-                      : '') +
-                  (info.speedBoost
-                      ? info.speedBoost.active
-                          ? `<div class="tech-owned"><span>✓ +${info.speedBoost.bonus} speed for all units this round</span></div>`
-                          : `<button class="tech-buy" data-speedboost="1" ${
-                                info.speedBoost.affordable ? '' : 'disabled'
-                            }><span>+${info.speedBoost.bonus} speed for all units this round</span><span class="c">${info.speedBoost.cost}</span></button>`
-                      : '') +
-                  (info.sellAbility
-                      ? info.sellAbility.owned
-                          ? `<div class="tech-owned"><span>✓ Sell ability</span></div>`
-                          : `<button class="tech-buy" data-sellability="1" ${
-                                info.sellAbility.affordable ? '' : 'disabled'
-                            }><span>Unlock selling (1/round)</span><span class="c">${info.sellAbility.cost}</span></button>`
-                      : '') +
-                  `</div>`
-                : '';
-        const techs = info.techs?.length
-            ? `<div class="techs">` +
-              info.techs
-                  .map((t) => {
-                      // hover shows what the tech does (space stays tight)
-                      const tip = ` title="${t.name}: ${escapeAttr(t.desc)}"`;
-                      return t.owned
-                          ? `<div class="tech-owned"${tip}><span>✓ ${t.name}</span></div>`
-                          : `<button class="tech-buy${t.affordable ? '' : ' unaffordable'}"${tip} data-tech="${t.id}"><span>${t.name}</span><span class="c">${t.cost}</span></button>`;
-                  })
-                  .join('') +
-              `</div>`
-            : '';
+
+        // every buyable/owned action is one square tile in a horizontal row;
+        // the big hover frame (below) shows its title, description and cost
+        const tiles: ActionTile[] = [];
+        if (info.levelUp) {
+            tiles.push({
+                data: 'data-levelup="1"',
+                icon: '★',
+                title: 'Level Up',
+                desc: 'Raise this pack one level — it gains its base HP and damage again. Costs banked XP plus supply.',
+                cost: info.levelUp.cost,
+                state: info.levelUp.ready && info.levelUp.affordable ? 'buy' : 'locked',
+                note: info.levelUp.ready ? undefined : 'Needs more XP',
+            });
+            if (info.levelUp.all) {
+                tiles.push({
+                    data: 'data-levelall="1"',
+                    icon: '⭐',
+                    title: `Level All (${info.levelUp.all.count})`,
+                    desc: 'Level every ready pack of this type at once.',
+                    cost: info.levelUp.all.cost,
+                    state: info.levelUp.all.affordable ? 'buy' : 'locked',
+                });
+            }
+        }
+        if (info.sell) {
+            tiles.push({
+                data: 'data-sell="1"',
+                icon: '💰',
+                title: 'Sell Pack',
+                desc: 'Sell this pack for a supply refund. Once per deployment phase.',
+                cost: -info.sell.refund,
+                state: info.sell.available ? 'buy' : 'locked',
+                note: info.sell.available ? undefined : 'Already sold this round',
+            });
+        }
+        for (const b of info.boosts ?? []) {
+            tiles.push({
+                data: `data-boost="${b.id}"`,
+                icon: b.id === 'attack' ? '⚔' : '❤',
+                title: b.label,
+                desc:
+                    b.id === 'attack'
+                        ? 'Permanent army-wide damage boost. Buy one tier after the other.'
+                        : 'Permanent army-wide HP boost. Buy one tier after the other.',
+                cost: b.cost,
+                state: b.maxed ? 'owned' : b.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.towerUpgrade && !info.towerUpgrade.maxed) {
+            tiles.push({
+                data: 'data-towerupgrade="1"',
+                icon: '⬆',
+                title: `Upgrade — level ${info.level + 1}`,
+                desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
+                cost: info.towerUpgrade.cost,
+                state: info.towerUpgrade.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.recruit) {
+            tiles.push({
+                data: 'data-recruit="1"',
+                icon: '②',
+                title: 'Recruit at Level 2',
+                desc: 'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
+                cost: info.recruit.cost,
+                state: info.recruit.active ? 'owned' : info.recruit.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.deploySlot) {
+            tiles.push({
+                data: 'data-deployslot="1"',
+                icon: '＋',
+                title: '+1 Deployment',
+                desc: 'One extra unit purchase this round only.',
+                cost: info.deploySlot.cost,
+                state: info.deploySlot.active ? 'owned' : info.deploySlot.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.rangeBoost) {
+            tiles.push({
+                data: 'data-rangeboost="1"',
+                icon: '➹',
+                title: 'Range Boost',
+                desc: `+${info.rangeBoost.bonus} range for all ranged units, this round only.`,
+                cost: info.rangeBoost.cost,
+                state: info.rangeBoost.active ? 'owned' : info.rangeBoost.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.speedBoost) {
+            tiles.push({
+                data: 'data-speedboost="1"',
+                icon: '»',
+                title: 'Speed Boost',
+                desc: `+${info.speedBoost.bonus} speed for all units, this round only.`,
+                cost: info.speedBoost.cost,
+                state: info.speedBoost.active ? 'owned' : info.speedBoost.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.sellAbility) {
+            tiles.push({
+                data: 'data-sellability="1"',
+                icon: '💰',
+                title: 'Unlock Selling',
+                desc: 'Permanently unlock selling packs (up to one per deployment phase).',
+                cost: info.sellAbility.cost,
+                state: info.sellAbility.owned ? 'owned' : info.sellAbility.affordable ? 'buy' : 'locked',
+            });
+        }
+        for (const t of info.techs ?? []) {
+            tiles.push({
+                data: `data-tech="${t.id}"`,
+                icon: t.icon,
+                title: t.name,
+                desc: t.desc,
+                cost: t.cost,
+                state: t.owned ? 'owned' : t.affordable ? 'buy' : 'locked',
+            });
+        }
+        const actions = this.renderActionTiles(tiles);
         const itemSquares = info.items?.length
             ? `<div class="item-row">${info.items
                   .map((i) => `<span class="item-sq" title="${i.name}">${i.icon}</span>`)
@@ -859,9 +913,62 @@ export class Hud {
                 ? row('Total dmg', String(Math.round(info.record.damageDealt))) +
                   row('Kills', String(info.record.kills))
                 : '') +
-            levelUp +
-            building +
-            techs;
+            actions +
+            `<div class="action-info" style="display:none"></div>`;
+    }
+
+    /** one horizontal row of square action tiles (icons); hover shows details */
+    private renderActionTiles(tiles: ActionTile[]): string {
+        if (tiles.length === 0) return '';
+        return (
+            `<div class="action-row">` +
+            tiles
+                .map((t) => {
+                    const badge =
+                        t.state === 'owned'
+                            ? `<span class="at-badge">✓</span>`
+                            : t.cost !== undefined
+                              ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
+                              : '';
+                    return (
+                        `<button class="action-tile ${t.state}" ${t.data}` +
+                        ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
+                        ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
+                        ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +
+                        `<span class="at-icon">${t.icon}</span>${badge}</button>`
+                    );
+                })
+                .join('') +
+            `</div>`
+        );
+    }
+
+    /** fills and positions the big hover frame from a focused tile's data */
+    private showActionInfo(tile: HTMLElement): void {
+        const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
+        if (!frame) return;
+        const d = tile.dataset;
+        const state = d.tstate;
+        const cost = d.tcost;
+        const costLine =
+            state === 'owned'
+                ? `<span class="ai-cost owned">✓ Owned</span>`
+                : cost
+                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? `Refund +${-Number(cost)}` : `⬢ ${cost}`}</span>`
+                  : '';
+        const note = d.tnote ? `<div class="ai-note">${d.tnote}</div>` : '';
+        frame.innerHTML =
+            `<div class="ai-head"><span class="ai-icon">${d.ticon ?? ''}</span>` +
+            `<span class="ai-title">${d.ttitle ?? ''}</span></div>` +
+            `<div class="ai-desc">${d.tdesc ?? ''}</div>` +
+            note +
+            costLine;
+        frame.style.display = 'block';
+    }
+
+    private hideActionInfo(): void {
+        const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
+        if (frame) frame.style.display = 'none';
     }
 
     setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {

@@ -768,23 +768,75 @@ export function hudStyles(): string {
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
 .mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: ${u.barTrack}; border-radius: 3px; overflow: hidden; }
 .mechili-panel .hpbar div { height: 100%; background: ${u.hpBar}; }
-.mechili-panel .techs { margin-top: 10px; border-top: 1px solid ${u.divider}; padding-top: 8px; }
-.mechili-panel .tech-buy {
-    display: flex; justify-content: space-between; gap: 12px; width: 100%;
-    margin: 3px 0; padding: 5px 8px;
-    background: ${u.techBuyBg}; border: 1px solid ${u.border}; border-radius: 6px;
-    color: ${u.text}; font-size: 11.5px; cursor: pointer;
+/* horizontal row of square action tiles (level up, sell, techs, tower actions) */
+.mechili-panel .action-row {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    margin-top: 10px; border-top: 1px solid ${u.divider}; padding-top: 10px;
 }
-.mechili-panel .tech-buy:hover { border-color: ${u.hover}; }
-.mechili-panel .tech-buy .c { color: ${u.brass}; }
-.mechili-panel .tech-buy:disabled { opacity: 0.4; pointer-events: none; }
-/* unaffordable: dimmed and inert, but still hoverable so the tooltip shows */
-.mechili-panel .tech-buy.unaffordable { opacity: 0.4; cursor: default; }
-.mechili-panel .tech-buy.unaffordable:hover { border-color: ${u.border}; }
-.mechili-panel .tech-owned {
-    display: flex; justify-content: space-between; gap: 12px;
-    margin: 3px 0; padding: 5px 8px; font-size: 11.5px; color: ${u.techOwned};
+.mechili-panel .action-tile {
+    position: relative;
+    width: 46px; height: 46px;
+    box-sizing: border-box;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; margin: 0;
+    appearance: none; -webkit-appearance: none;
+    background: ${u.techBuyBg};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    cursor: pointer;
+    overflow: visible;
 }
+.mechili-panel .action-tile .at-icon { font-size: 22px; line-height: 1; }
+.mechili-panel .action-tile .at-cost {
+    position: absolute; left: 0; bottom: 0; right: 0;
+    padding: 1px 0 2px;
+    font-size: 9px; font-weight: bold; text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    background: rgba(180, 32, 24, 0.92);
+    border-radius: 0 0 6px 6px;
+    pointer-events: none;
+}
+.mechili-panel .action-tile .at-cost.refund { background: rgba(40, 140, 60, 0.92); }
+.mechili-panel .action-tile .at-badge {
+    position: absolute; top: -5px; right: -5px;
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: bold;
+    color: #0c1408; background: ${u.techOwned};
+    border-radius: 50%;
+    pointer-events: none;
+}
+.mechili-panel .action-tile:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-panel .action-tile:active { transform: scale(0.94); }
+.mechili-panel .action-tile.locked { opacity: 0.42; }
+.mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
+.mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
+
+/* the big hover frame — pops to the right of the panel with full details */
+.mechili-panel .action-info {
+    position: absolute;
+    left: calc(100% + 8px);
+    bottom: 0;
+    width: 220px;
+    padding: 12px 14px;
+    background: ${u.panelBgSolid};
+    border: 1.5px solid ${u.brass};
+    border-radius: 10px;
+    color: ${u.text};
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    z-index: 6;
+}
+.mechili-panel .action-info .ai-head { display: flex; align-items: center; gap: 10px; }
+.mechili-panel .action-info .ai-icon { font-size: 28px; line-height: 1; }
+.mechili-panel .action-info .ai-title { font-size: 14px; font-weight: bold; color: ${u.brassLight}; }
+.mechili-panel .action-info .ai-desc { font-size: 12px; line-height: 1.5; color: ${u.text}; margin-top: 8px; }
+.mechili-panel .action-info .ai-note { font-size: 11px; color: ${u.textMuted}; margin-top: 6px; font-style: italic; }
+.mechili-panel .action-info .ai-cost { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: bold; color: ${u.brass}; }
+.mechili-panel .action-info .ai-cost.refund { color: ${u.techOwned}; }
+.mechili-panel .action-info .ai-cost.owned { color: ${u.techOwned}; }
 
 .mechili-sidebar {
     position: absolute;
