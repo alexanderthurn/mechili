@@ -2,10 +2,12 @@ import type { Group } from 'three';
 import { ITEMS } from './items';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import type { ResolvedStats } from './tech';
-import { SHIELD_RADIUS, syncBattleTint, type Team, type Unit, type UnitType } from './units';
+import { syncBattleTint, type Team, type Unit, type UnitType } from './units';
 
 /** how long the fortress Golden Aura keeps allies immune after the one-shot apply */
 export const GOLDEN_AURA_DURATION = 30;
+/** how far around a golden fortress allies get the buff (world units) */
+export const GOLDEN_AURA_RADIUS = 20;
 /** golden units take 30% less damage on top of debuff immunity */
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 /** battle clock time when fortress Golden Aura is applied once (after other pre-battle effects) */
@@ -352,7 +354,7 @@ export class BattleSim {
 
     /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden fortress get 30s immunity */
     private applyFortressGoldenAura(): void {
-        const r2 = SHIELD_RADIUS * SHIELD_RADIUS;
+        const r2 = GOLDEN_AURA_RADIUS * GOLDEN_AURA_RADIUS;
         const expires = GOLDEN_AURA_APPLY_AT + GOLDEN_AURA_DURATION;
         for (const f of this.actors) {
             if (!f.alive || f.unit.type.id !== 'fortress') continue;

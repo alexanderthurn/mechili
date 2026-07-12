@@ -477,8 +477,11 @@ export class PlacementController {
     /** Puts a removed pack back on its committed spot (sell-action undo). */
     restoreUnit(unit: Unit): void {
         this.units.push(unit);
-        const fp = this.footprintOf(unit.type, unit.rotated);
-        for (const c of this.coveredCells(fp, unit.cell)!) this.occupied.set(cellKey(c), unit);
+        if (!unit.type.extra) {
+            // extras never occupy tiles — writing them here would corrupt the grid
+            const fp = this.footprintOf(unit.type, unit.rotated);
+            for (const c of this.coveredCells(fp, unit.cell)!) this.occupied.set(cellKey(c), unit);
+        }
         this.scene.add(unit.view);
     }
 

@@ -604,7 +604,10 @@ export class Game {
             if (this.speciality[team] === 'elite' && this.round === 1) {
                 this.economy.credit(team, ELITE_ROUND1_BONUS);
             }
-            if (this.speciality[team] === 'marksman' && this.round === FREE_MARKSMAN_ROUND && !this.hydrating) {
+            // NOTE: must also run while hydrating — the gift is never in the
+            // action log, so a rebuild that skipped it would produce a
+            // different board (and shifted unit ids → guaranteed desync)
+            if (this.speciality[team] === 'marksman' && this.round === FREE_MARKSMAN_ROUND) {
                 const type = unitTypeById('marksman')!;
                 const anchor = this.placement.findStartSpot(team, type);
                 const unit = anchor ? this.placement.spawn(type, anchor, team, false, true) : null;
@@ -646,12 +649,15 @@ export class Game {
         });
     }
 
-    /** timer ran out before the player picked a specialist — choose one at random */
+    /** timer ran out before the player picked a specialist — choose one at random.
+     *  Plain Math.random is correct here: the pick is broadcast/logged as an
+     *  action, and consuming the seeded card stream for a timing-dependent
+     *  event would desync future offers from what a rebuild computes. */
     private autoPickSpecialist(): void {
         if (this.speciality.player !== null || !this.playerStarterOffer?.length) return;
         const pick =
             this.playerStarterOffer[
-                Math.floor(this.rngCards.player() * this.playerStarterOffer.length)
+                Math.floor(Math.random() * this.playerStarterOffer.length)
             ]!;
         this.hud.hideCardOverlay();
         this.playerStarterOffer = null;
@@ -807,7 +813,13 @@ export class Game {
         }
     }
 
-    /** flips team and unit-id parity — translates actions between the two perspectives */
+    /**
+     * Flips team and unit-id parity — translates actions between the two
+     * perspectives (the peer's 'player' is our 'enemy'; coordinates pass
+     * through untouched because both peers hold the identical board).
+     * NEW ACTION KINDS THAT CARRY UNIT IDS MUST BE ADDED HERE — a missed
+     * case desyncs peers silently.
+     */
     private swapPerspective(action: Action): Action {
         const team: Team = action.team === 'player' ? 'enemy' : 'player';
         const flipId = (id: number) => (id % 2 === 0 ? id + 1 : id - 1);
@@ -944,27 +956,10 @@ export class Game {
         }
     }
 
-    /**
-     * A peer's action arrives in the sender's perspective: their 'player' is
-     * our 'enemy' and their unit ids flip parity. Coordinates pass through
-     * untouched — both peers hold the identical board.
-     */
+    /** a streamed peer action, validated and flipped into our perspective */
     private translateRemote(action: Action): Action | null {
         if (action.team !== 'player') return null; // peers only send their own side
-        const flipId = (id: number) => (id % 2 === 0 ? id + 1 : id - 1);
-        switch (action.kind) {
-            case 'move':
-            case 'rotate':
-            case 'buyLevel':
-            case 'sellUnit':
-            case 'upgradeTower':
-            case 'applyItem':
-                return { ...action, team: 'enemy', unitId: flipId(action.unitId) };
-            case 'moveGroup':
-                return { ...action, team: 'enemy', unitIds: action.unitIds.map(flipId) };
-            default:
-                return { ...action, team: 'enemy' };
-        }
+        return this.swapPerspective(action);
     }
 
     /** draws n distinct cards from a pool with the given seeded stream */
@@ -1186,7 +1181,8 @@ export class Game {
         if (index < 0) return;
         this.speedIndex = index;
         this.hud.setSpeed(1);
-        this.net?.send({ type: 'speed', multiplier: 1 });
+        // during hydration this runs once per replayed round — don't spam the peer
+        if (!this.hydrating) this.net?.send({ type: 'speed', multiplier: 1 });
     }
 
     /** what the player pays right now, including an active recruit-level premium */

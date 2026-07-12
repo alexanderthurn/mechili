@@ -557,11 +557,6 @@ export class Unit {
     }
 
     /**
-     * Puts every mech back on its formation slot, alive and visible — the
-     * battle phase is a simulation; deployments persist between rounds.
-     * Destroyed towers are rebuilt too: rubble stands back up.
-     */
-    /**
      * Rebuilds the rank insignia on every mech of the pack: a small totem of
      * glowing studs above the hull, one per level above 1 (up to 8). Call
      * after every level change.
@@ -583,6 +578,11 @@ export class Unit {
         }
     }
 
+    /**
+     * Puts every mech back on its formation slot, alive and visible — the
+     * battle phase is a simulation; deployments persist between rounds.
+     * Destroyed towers are rebuilt too: rubble stands back up.
+     */
     resetFormation(): void {
         for (const m of this.members) {
             clearBattleTint(m.mesh);
@@ -665,6 +665,11 @@ function levelStudMaterial(index: number): MeshStandardMaterial {
     });
 }
 
+// scratch colors for syncBattleTint — it runs per mech per frame, so it must not allocate
+const TINT_GOLD = new Color(THEME.veteran);
+const TINT_GREY = new Color(0x888890);
+const tintScratch = new Color();
+
 /** tints a mech during battle — golden > debuff > spawning > normal */
 export function syncBattleTint(
     mesh: Group,
@@ -673,11 +678,11 @@ export function syncBattleTint(
     debuffStacks = 1,
     spawnProgress = 0,
 ): void {
-    const gold = new Color(THEME.veteran);
-    const grey = new Color(0x888890);
+    const gold = TINT_GOLD;
+    const grey = TINT_GREY;
     const goldPulse = 0.4 + Math.sin(timeSeconds * 4.5) * 0.22;
     const debuffT = timeSeconds * 7;
-    const spawnGlow = new Color();
+    const spawnGlow = tintScratch;
 
     mesh.traverse((child) => {
         if (!(child instanceof Mesh)) return;

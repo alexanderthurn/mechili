@@ -264,9 +264,15 @@ export class ActionDispatcher {
         return true;
     }
 
-    /** card picks are final (the offer is gone) and a lock-in can't be taken back */
+    /** card picks are final (the overlay is gone — undoing one would leave the
+     *  player with no speciality and no way to re-pick) and a lock-in can't be
+     *  taken back */
     private static isUndoable(action: Action): boolean {
-        return action.kind !== 'roundCard' && action.kind !== 'endDeployment';
+        return (
+            action.kind !== 'roundCard' &&
+            action.kind !== 'chooseCard' &&
+            action.kind !== 'endDeployment'
+        );
     }
 
     /** true when `team` has revertible actions in `round` (drives the undo button) */
@@ -649,18 +655,6 @@ export class ActionDispatcher {
                 this.ctx.boostState[action.boost][action.team]--;
                 economy.credit(action.team, e.paid!);
                 break;
-            case 'chooseCard': {
-                for (const unit of e.units!) placement.removeUnit(unit);
-                const inventory = this.ctx.items[action.team];
-                for (const id of e.grantedItems ?? []) {
-                    const held = inventory.indexOf(id);
-                    if (held >= 0) inventory.splice(held, 1);
-                }
-                this.ctx.hp.set(action.team, e.prevHp!);
-                this.ctx.speciality[action.team] = null;
-                this.ctx.unlockedUnits[action.team] = [];
-                break;
-            }
             case 'applyItem': {
                 const unit = placement.unitById(action.unitId)!;
                 const worn = unit.items.lastIndexOf(action.itemId);
@@ -668,6 +662,7 @@ export class ActionDispatcher {
                 this.ctx.items[action.team].push(action.itemId);
                 break;
             }
+            case 'chooseCard':
             case 'roundCard':
             case 'endDeployment':
                 break; // excluded from undo (see isUndoable)
