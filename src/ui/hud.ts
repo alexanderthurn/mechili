@@ -27,8 +27,6 @@ interface ActionTile {
     state: 'buy' | 'locked' | 'owned';
     /** small extra line in the hover frame (e.g. why it's locked) */
     note?: string;
-    /** small label in the tile's top-left corner (e.g. the current level) */
-    badge?: string;
 }
 
 /** what the stats panel shows for a selected pack or single mech */
@@ -766,22 +764,21 @@ export class Hud {
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
-        const stars = info.level > 1 ? ` <span style="color:${THEME.ui.veteranStar}">${'★'.repeat(info.level - 1)}</span>` : '';
 
         // leveling sits at the top-right of the frame (next to the name);
         // everything else is a square tile in the bottom action row
         const levelTiles: ActionTile[] = [];
         const tiles: ActionTile[] = [];
-        if (info.levelUp) {
+        // a unit's Level Up shows only when a level is actually available
+        // (XP banked); the level itself is always shown big in the header
+        if (info.levelUp?.ready) {
             levelTiles.push({
                 data: 'data-levelup="1"',
                 icon: '🔼',
                 title: 'Level Up',
                 desc: 'Raise this pack one level — it gains its base HP and damage again. Costs banked XP plus supply.',
                 cost: info.levelUp.cost,
-                state: info.levelUp.ready && info.levelUp.affordable ? 'buy' : 'locked',
-                note: info.levelUp.ready ? undefined : 'Needs more XP',
-                badge: `L${info.level}`,
+                state: info.levelUp.affordable ? 'buy' : 'locked',
             });
             if (info.levelUp.all) {
                 levelTiles.push({
@@ -804,7 +801,6 @@ export class Hud {
                 desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
                 cost: tu.maxed ? undefined : tu.cost,
                 state: tu.maxed ? 'owned' : tu.affordable ? 'buy' : 'locked',
-                badge: `L${info.level}`,
             });
         }
         if (info.sell) {
@@ -902,8 +898,11 @@ export class Hud {
                   .join('')}</div>`
             : '';
         this.panel.innerHTML =
-            `<div class="panel-head"><div class="title">${info.name}${stars}</div>${levelActions}</div>` +
-            `<div class="team ${info.team}">${info.team}</div>` +
+            `<div class="panel-head">` +
+            `<div class="lvl-big"><span class="lvl-cap">LVL</span><span class="lvl-num">${info.level}</span></div>` +
+            `<div class="head-main"><div class="title">${info.name}</div><div class="team ${info.team}">${info.team}</div></div>` +
+            levelActions +
+            `</div>` +
             itemSquares +
             `<div class="hpbar"><div style="width:${Math.max(0, (info.hp / info.maxHp) * 100)}%"></div></div>` +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
@@ -942,13 +941,12 @@ export class Hud {
                             : t.cost !== undefined
                               ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
                               : '';
-                    const lvl = t.badge ? `<span class="at-level">${escapeAttr(t.badge)}</span>` : '';
                     return (
                         `<button class="action-tile ${t.state}" ${t.data}` +
                         ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
                         ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
                         ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +
-                        `<span class="at-icon">${t.icon}</span>${lvl}${badge}</button>`
+                        `<span class="at-icon">${t.icon}</span>${badge}</button>`
                     );
                 })
                 .join('') +

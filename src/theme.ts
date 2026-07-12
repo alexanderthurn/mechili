@@ -748,8 +748,8 @@ export function hudStyles(): string {
     position: absolute;
     left: 0;
     bottom: 0;
-    min-width: 220px;
-    max-width: 280px;
+    min-width: 244px;
+    max-width: 300px;
     padding: 12px 14px;
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
@@ -773,11 +773,24 @@ export function hudStyles(): string {
     display: flex; flex-wrap: wrap; gap: 5px;
     margin-top: 10px; border-top: 1px solid ${u.divider}; padding-top: 10px;
 }
-/* header row: pack name on the left, leveling tiles on the right */
+/* header: big level block · name+team · leveling tiles */
 .mechili-panel .panel-head {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
 }
-.mechili-panel .panel-head .title { margin-bottom: 0; }
+.mechili-panel .lvl-big {
+    flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-width: 42px; padding: 2px 6px 3px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.brass};
+    border-radius: 8px;
+    line-height: 1;
+}
+.mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: ${u.textMuted}; }
+.mechili-panel .lvl-big .lvl-num { font-size: 27px; font-weight: 900; color: ${u.brassLight}; }
+.mechili-panel .head-main { flex: 1; min-width: 0; }
+.mechili-panel .head-main .title { margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mechili-panel .head-main .team { margin-bottom: 0; }
 .mechili-panel .level-actions { display: flex; gap: 5px; flex-shrink: 0; }
 .mechili-panel .action-tile {
     position: relative;
@@ -806,13 +819,6 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 .mechili-panel .action-tile .at-cost.refund { background: rgba(40, 140, 60, 0.92); }
-.mechili-panel .action-tile .at-level {
-    position: absolute; top: 1px; left: 2px;
-    font-size: 9px; font-weight: bold; line-height: 1;
-    color: ${u.brassLight};
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
-    pointer-events: none;
-}
 .mechili-panel .action-tile .at-badge {
     position: absolute; top: -5px; right: -5px;
     width: 16px; height: 16px;
