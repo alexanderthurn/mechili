@@ -1575,7 +1575,7 @@ export class Game {
             splash: a.unit.type.splashRadius,
             structure: !!a.unit.type.structure,
             items: a.unit.items.length
-                ? a.unit.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id }))
+                ? a.unit.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id, desc: ITEMS[id]?.description ?? '' }))
                 : undefined,
             record: a.unit.type.structure
                 ? undefined
@@ -1608,7 +1608,7 @@ export class Game {
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
             items: u.items.length
-                ? u.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id }))
+                ? u.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id, desc: ITEMS[id]?.description ?? '' }))
                 : undefined,
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder

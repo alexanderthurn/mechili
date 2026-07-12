@@ -768,11 +768,17 @@ export function hudStyles(): string {
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
 .mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: ${u.barTrack}; border-radius: 3px; overflow: hidden; }
 .mechili-panel .hpbar div { height: 100%; background: ${u.hpBar}; }
-/* horizontal row of square action tiles (level up, sell, techs, tower actions) */
+/* horizontal row of square action tiles (sell, techs, tower actions) */
 .mechili-panel .action-row {
     display: flex; flex-wrap: wrap; gap: 5px;
     margin-top: 10px; border-top: 1px solid ${u.divider}; padding-top: 10px;
 }
+/* header row: pack name on the left, leveling tiles on the right */
+.mechili-panel .panel-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+}
+.mechili-panel .panel-head .title { margin-bottom: 0; }
+.mechili-panel .level-actions { display: flex; gap: 5px; flex-shrink: 0; }
 .mechili-panel .action-tile {
     position: relative;
     width: 46px; height: 46px;
@@ -905,18 +911,20 @@ export function hudStyles(): string {
     font-family: system-ui, sans-serif;
 }
 
-.mechili-panel .item-row { display: flex; gap: 4px; margin: 2px 0 6px; }
+.mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
 .mechili-panel .item-sq {
-    width: 22px;
-    height: 22px;
+    width: 44px;
+    height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 26px;
     background: ${u.techBuyBg};
     border: 1px solid ${u.brassDark};
-    border-radius: 5px;
+    border-radius: 7px;
+    cursor: help;
 }
+.mechili-panel .item-sq:hover { border-color: ${u.hover}; }
 
 /* --- in-match chat ------------------------------------------------------ */
 .mechili-fightbar .fighter { position: relative; }

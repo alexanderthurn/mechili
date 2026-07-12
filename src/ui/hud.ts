@@ -46,7 +46,7 @@ export interface SelectionInfo {
     alive: number;
     total: number;
     /** equipped pack items, as squares in the panel */
-    items?: { icon: string; name: string }[];
+    items?: { icon: string; name: string; desc: string }[];
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -316,14 +316,15 @@ export class Hud {
             else if (button.dataset.sell) this.onSellUnit?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
-        // hovering a tile pops the big info frame (title, description, cost)
+        // hovering a tile or equipped item pops the big info frame
+        const infoSel = '.action-tile, .item-sq';
         this.panel.addEventListener('pointerover', (e) => {
-            const tile = (e.target as HTMLElement).closest<HTMLElement>('.action-tile');
+            const tile = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             if (tile) this.showActionInfo(tile);
         });
         this.panel.addEventListener('pointerout', (e) => {
-            const from = (e.target as HTMLElement).closest<HTMLElement>('.action-tile');
-            const to = (e.relatedTarget as HTMLElement | null)?.closest?.('.action-tile');
+            const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
+            const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) this.hideActionInfo();
         });
 
@@ -765,11 +766,12 @@ export class Hud {
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
         const stars = info.level > 1 ? ` <span style="color:${THEME.ui.veteranStar}">${'★'.repeat(info.level - 1)}</span>` : '';
 
-        // every buyable/owned action is one square tile in a horizontal row;
-        // the big hover frame (below) shows its title, description and cost
+        // leveling sits at the top-right of the frame (next to the name);
+        // everything else is a square tile in the bottom action row
+        const levelTiles: ActionTile[] = [];
         const tiles: ActionTile[] = [];
         if (info.levelUp) {
-            tiles.push({
+            levelTiles.push({
                 data: 'data-levelup="1"',
                 icon: '🔼',
                 title: 'Level Up',
@@ -779,7 +781,7 @@ export class Hud {
                 note: info.levelUp.ready ? undefined : 'Needs more XP',
             });
             if (info.levelUp.all) {
-                tiles.push({
+                levelTiles.push({
                     data: 'data-levelall="1"',
                     icon: '⏫',
                     title: `Level All (${info.levelUp.all.count})`,
@@ -884,13 +886,17 @@ export class Hud {
             });
         }
         const actions = this.renderActionTiles(tiles);
+        const levelActions = this.renderActionTiles(levelTiles, 'level-actions');
         const itemSquares = info.items?.length
             ? `<div class="item-row">${info.items
-                  .map((i) => `<span class="item-sq" title="${i.name}">${i.icon}</span>`)
+                  .map(
+                      (i) =>
+                          `<span class="item-sq" data-ttitle="${escapeAttr(i.name)}" data-tdesc="${escapeAttr(i.desc ?? i.name)}" data-ticon="${escapeAttr(i.icon)}">${i.icon}</span>`,
+                  )
                   .join('')}</div>`
             : '';
         this.panel.innerHTML =
-            `<div class="title">${info.name}${stars}</div>` +
+            `<div class="panel-head"><div class="title">${info.name}${stars}</div>${levelActions}</div>` +
             `<div class="team ${info.team}">${info.team}</div>` +
             itemSquares +
             `<div class="hpbar"><div style="width:${Math.max(0, (info.hp / info.maxHp) * 100)}%"></div></div>` +
@@ -918,10 +924,10 @@ export class Hud {
     }
 
     /** one horizontal row of square action tiles (icons); hover shows details */
-    private renderActionTiles(tiles: ActionTile[]): string {
+    private renderActionTiles(tiles: ActionTile[], containerClass = 'action-row'): string {
         if (tiles.length === 0) return '';
         return (
-            `<div class="action-row">` +
+            `<div class="${containerClass}">` +
             tiles
                 .map((t) => {
                     const badge =
