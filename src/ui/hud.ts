@@ -376,16 +376,11 @@ export class Hud {
             e.preventDefault();
             this.onSpeedDown?.();
         });
-        const settingsButton = document.createElement('button');
-        settingsButton.className = 'settings-btn';
-        settingsButton.textContent = 'Settings';
-        settingsButton.addEventListener('click', () => openSettings(this.overlayParent));
         this.topBar.append(
             topMeta,
             this.timerEl,
             endButton,
             this.speedEl,
-            settingsButton,
         );
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
@@ -942,9 +937,11 @@ export class Hud {
             `<div class="pause-box">` +
             `<div class="pause-title">Menu</div>` +
             `<button type="button" class="pause-resume">Close</button>` +
+            `<button type="button" class="pause-settings">Settings</button>` +
             `<button type="button" class="pause-quit">Quit to menu</button>` +
             `</div>`;
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
+        el.querySelector('.pause-settings')!.addEventListener('click', () => openSettings(this.overlayParent));
         el.querySelector('.pause-quit')!.addEventListener('click', () => {
             this.hidePauseMenu();
             this.onQuitToMenu?.();

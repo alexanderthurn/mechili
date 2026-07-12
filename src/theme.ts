@@ -958,18 +958,6 @@ export function hudStyles(): string {
 }
 .mechili-chat .c-send:hover { border-color: ${u.hover}; }
 
-.mechili-topbar .settings-btn {
-    padding: 7px 12px;
-    background: ${u.speedBg};
-    border: 1.5px solid ${u.border};
-    border-radius: 8px;
-    color: ${u.text};
-    font-size: 13px;
-    font-weight: bold;
-    cursor: pointer;
-}
-.mechili-topbar .settings-btn:hover { border-color: ${u.hover}; }
-
 .mechili-chat-float {
     position: absolute;
     left: 50%;
