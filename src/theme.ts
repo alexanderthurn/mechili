@@ -778,7 +778,8 @@ export function hudStyles(): string {
     width: 46px; height: 46px;
     box-sizing: border-box;
     display: flex; align-items: center; justify-content: center;
-    padding: 0; margin: 0;
+    /* leave room at the bottom for the cost strip so the icon centers above it */
+    padding: 0 0 12px; margin: 0;
     appearance: none; -webkit-appearance: none;
     background: ${u.techBuyBg};
     border: 1.5px solid ${u.border};
