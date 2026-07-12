@@ -787,7 +787,7 @@ export function hudStyles(): string {
     cursor: pointer;
     overflow: visible;
 }
-.mechili-panel .action-tile .at-icon { font-size: 22px; line-height: 1; }
+.mechili-panel .action-tile .at-icon { font-size: 33px; line-height: 1; }
 .mechili-panel .action-tile .at-cost {
     position: absolute; left: 0; bottom: 0; right: 0;
     padding: 1px 0 2px;
