@@ -27,6 +27,25 @@ export interface TechDef {
     cost: number;
     /** multipliers applied to the base stats (attackInterval < 1 = faster) */
     mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
+    /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
+    description?: string;
+}
+
+/** human-readable summary of what a tech does — its own text, or built from its mods */
+export function techDescription(tech: TechDef): string {
+    if (tech.description) return tech.description;
+    const parts: string[] = [];
+    const pct = (mult: number) => `${mult >= 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;
+    const { hp, damage, range, speed, attackInterval } = tech.mods;
+    if (hp !== undefined && hp !== 1) parts.push(`${pct(hp)} HP`);
+    if (damage !== undefined && damage !== 1) parts.push(`${pct(damage)} damage`);
+    if (range !== undefined && range !== 1) parts.push(`${pct(range)} range`);
+    if (speed !== undefined && speed !== 1) parts.push(`${pct(speed)} move speed`);
+    // a lower attack interval means faster firing (rate = 1 / interval)
+    if (attackInterval !== undefined && attackInterval !== 1) {
+        parts.push(`${pct(1 / attackInterval)} attack speed`);
+    }
+    return parts.length ? parts.join(', ') : tech.name;
 }
 
 /** ground-hugging altitude for flyers during deployment (full height comes at battle start) */
@@ -375,7 +394,13 @@ export const UNIT_TYPES: UnitType[] = [
         techs: [
             { id: 'armor', name: 'Reactive Armor', cost: 300, mods: { hp: 1.5 } },
             { id: 'autoloader', name: 'Autoloader', cost: 300, mods: { attackInterval: 0.7 } },
-            { id: 'golden', name: 'Golden Aura', cost: 50, mods: {} },
+            {
+                id: 'golden',
+                name: 'Golden Aura',
+                cost: 50,
+                mods: {},
+                description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
+            },
         ],
         build: buildFortress,
     },

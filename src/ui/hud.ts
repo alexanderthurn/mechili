@@ -9,6 +9,11 @@ import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
 
+/** escapes a string for safe use inside a double-quoted HTML attribute */
+function escapeAttr(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
 /** what the stats panel shows for a selected pack or single mech */
 export interface SelectionInfo {
     name: string;
@@ -42,7 +47,7 @@ export interface SelectionInfo {
         all?: { count: number; cost: number; affordable: boolean };
     };
     /** buyable techs (own packs, build phase only) */
-    techs?: { id: string; name: string; cost: number; owned: boolean; affordable: boolean }[];
+    techs?: { id: string; name: string; desc: string; cost: number; owned: boolean; affordable: boolean }[];
     /** base buildings render their level as N / maxLevel and hide XP */
     structure?: boolean;
     /** a base building's supply-only level upgrade (own, build phase) */
@@ -813,11 +818,13 @@ export class Hud {
         const techs = info.techs?.length
             ? `<div class="techs">` +
               info.techs
-                  .map((t) =>
-                      t.owned
-                          ? `<div class="tech-owned"><span>✓ ${t.name}</span></div>`
-                          : `<button class="tech-buy" data-tech="${t.id}" ${t.affordable ? '' : 'disabled'}><span>${t.name}</span><span class="c">${t.cost}</span></button>`,
-                  )
+                  .map((t) => {
+                      // hover shows what the tech does (space stays tight)
+                      const tip = ` title="${t.name}: ${escapeAttr(t.desc)}"`;
+                      return t.owned
+                          ? `<div class="tech-owned"${tip}><span>✓ ${t.name}</span></div>`
+                          : `<button class="tech-buy"${tip} data-tech="${t.id}" ${t.affordable ? '' : 'disabled'}><span>${t.name}</span><span class="c">${t.cost}</span></button>`;
+                  })
                   .join('') +
               `</div>`
             : '';

@@ -42,6 +42,7 @@ import { TechTree } from './tech';
 import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
+    techDescription,
     unitTypeById,
     type Team,
     type Unit,
@@ -1720,6 +1721,7 @@ export class Game {
                           return {
                               id: t.id,
                               name: t.name,
+                              desc: techDescription(t),
                               cost,
                               owned: this.techTree.has('player', u.type.id, t.id),
                               affordable: this.economy.balance('player') >= cost,
