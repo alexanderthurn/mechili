@@ -778,6 +778,9 @@ export function hudStyles(): string {
 .mechili-panel .tech-buy:hover { border-color: ${u.hover}; }
 .mechili-panel .tech-buy .c { color: ${u.brass}; }
 .mechili-panel .tech-buy:disabled { opacity: 0.4; pointer-events: none; }
+/* unaffordable: dimmed and inert, but still hoverable so the tooltip shows */
+.mechili-panel .tech-buy.unaffordable { opacity: 0.4; cursor: default; }
+.mechili-panel .tech-buy.unaffordable:hover { border-color: ${u.border}; }
 .mechili-panel .tech-owned {
     display: flex; justify-content: space-between; gap: 12px;
     margin: 3px 0; padding: 5px 8px; font-size: 11.5px; color: ${u.techOwned};

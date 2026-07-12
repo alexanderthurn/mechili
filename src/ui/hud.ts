@@ -286,6 +286,8 @@ export class Hud {
         this.panel.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.tech-buy');
             if (!button) return;
+            // unaffordable buttons stay hoverable (for their tooltip) but inert
+            if (button.classList.contains('unaffordable')) return;
             if (button.dataset.levelall) this.onLevelAll?.();
             else if (button.dataset.levelup) this.onBuyLevel?.();
             else if (button.dataset.recruit) this.onRecruitLevel?.();
@@ -823,7 +825,7 @@ export class Hud {
                       const tip = ` title="${t.name}: ${escapeAttr(t.desc)}"`;
                       return t.owned
                           ? `<div class="tech-owned"${tip}><span>✓ ${t.name}</span></div>`
-                          : `<button class="tech-buy"${tip} data-tech="${t.id}" ${t.affordable ? '' : 'disabled'}><span>${t.name}</span><span class="c">${t.cost}</span></button>`;
+                          : `<button class="tech-buy${t.affordable ? '' : ' unaffordable'}"${tip} data-tech="${t.id}"><span>${t.name}</span><span class="c">${t.cost}</span></button>`;
                   })
                   .join('') +
               `</div>`
