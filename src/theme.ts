@@ -1083,6 +1083,21 @@ export function hudStyles(): string {
 }
 .mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
+/* a card shown for information only (waiting / reveal) — no hover, no lift */
+.mechili-cards .card.static { cursor: default; }
+.mechili-cards .card.static:hover { border-color: ${u.border}; transform: none; }
+.mechili-cards .card-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.mechili-cards .c-owner {
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    max-width: 215px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mechili-cards .c-owner.player { color: ${pc}; }
+.mechili-cards .c-owner.enemy { color: ${ec}; }
 .mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.brassLight}; }
 .mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
 .mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
@@ -1291,6 +1306,20 @@ export function hudStyles(): string {
 }
 .mechili-fightbar .fighter.player .fname { color: ${pc}; text-align: left; }
 .mechili-fightbar .fighter.enemy .fname { color: ${ec}; text-align: right; }
+.mechili-fightbar .fspec {
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: ${u.brass};
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: -3px;
+}
+.mechili-fightbar .fspec:empty { display: none; }
+.mechili-fightbar .fighter.player .fspec { text-align: left; }
+.mechili-fightbar .fighter.enemy .fspec { text-align: right; }
 .mechili-fightbar .hp-track {
     height: 14px;
     background: ${u.barTrack};

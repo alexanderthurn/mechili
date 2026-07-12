@@ -24,7 +24,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 6; // v6: marksman gift spawns during hydration too (resume fix)
+export const GAME_VERSION = 7; // v7: dedicated specialist phase + reveal (settings.specialistTimeSeconds)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;

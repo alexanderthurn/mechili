@@ -123,6 +123,8 @@ export class Hud {
     private readonly supplyEl: HTMLSpanElement;
     private readonly playerNameEl: HTMLSpanElement;
     private readonly enemyNameEl: HTMLSpanElement;
+    private playerSpecEl!: HTMLSpanElement;
+    private enemySpecEl!: HTMLSpanElement;
     private readonly playerHpFill: HTMLDivElement;
     private readonly enemyHpFill: HTMLDivElement;
     private readonly playerHpVal: HTMLSpanElement;
@@ -320,6 +322,8 @@ export class Hud {
         playerPortrait.textContent = '◆';
         this.playerNameEl = document.createElement('span');
         this.playerNameEl.className = 'fname';
+        this.playerSpecEl = document.createElement('span');
+        this.playerSpecEl.className = 'fspec';
         this.playerHpFill = document.createElement('div');
         this.playerHpFill.className = 'hp-fill';
         const playerHpTrack = document.createElement('div');
@@ -329,7 +333,7 @@ export class Hud {
         this.playerHpVal.className = 'hp-val';
         const playerInfo = document.createElement('div');
         playerInfo.className = 'fighter-info';
-        playerInfo.append(this.playerNameEl, playerHpTrack);
+        playerInfo.append(this.playerNameEl, this.playerSpecEl, playerHpTrack);
         playerFighter.append(playerPortrait, playerInfo, this.playerHpVal);
 
         const enemyFighter = document.createElement('div');
@@ -341,12 +345,14 @@ export class Hud {
         enemyInfo.className = 'fighter-info';
         this.enemyNameEl = document.createElement('span');
         this.enemyNameEl.className = 'fname';
+        this.enemySpecEl = document.createElement('span');
+        this.enemySpecEl.className = 'fspec';
         this.enemyHpFill = document.createElement('div');
         this.enemyHpFill.className = 'hp-fill';
         const enemyHpTrack = document.createElement('div');
         enemyHpTrack.className = 'hp-track';
         enemyHpTrack.appendChild(this.enemyHpFill);
-        enemyInfo.append(this.enemyNameEl, enemyHpTrack);
+        enemyInfo.append(this.enemyNameEl, this.enemySpecEl, enemyHpTrack);
         const enemyPortrait = document.createElement('div');
         enemyPortrait.className = 'portrait';
         enemyPortrait.textContent = '◆';
@@ -843,12 +849,15 @@ export class Hud {
     }
 
     setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {
-        this.roundEl.textContent = `Round ${round}`;
+        // round 0 is the specialist pick, not a numbered round
+        this.roundEl.textContent = round === 0 ? 'Specialists' : `Round ${round}`;
         this.phaseEl.textContent = waitingForPeer
             ? 'Waiting for opponent…'
-            : phase === 'build'
-              ? 'Deployment'
-              : 'Battle';
+            : round === 0
+              ? 'Pick a card'
+              : phase === 'build'
+                ? 'Deployment'
+                : 'Battle';
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle');
@@ -950,6 +959,16 @@ export class Hud {
         this.mount(el);
     }
 
+    /** the face of a specialist card (static data only — safe for innerHTML) */
+    private startCardFace(c: StartCard): string {
+        return (
+            `<div class="c-title">${c.title}</div>` +
+            `<div class="c-units">${c.unitsLabel}</div>` +
+            `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
+            `<div class="c-desc">${c.description}</div>`
+        );
+    }
+
     /** the pre-round-1 loadout pick: four cards, click one, the game begins */
     showStartCards(cards: readonly StartCard[], onPick: (cardId: string) => void): void {
         const overlay = document.createElement('div');
@@ -957,15 +976,7 @@ export class Hud {
         overlay.innerHTML =
             `<div class="cards-title">Choose your specialist</div><div class="cards-row">` +
             cards
-                .map(
-                    (c) =>
-                        `<button class="card" data-card="${c.id}">` +
-                        `<div class="c-title">${c.title}</div>` +
-                        `<div class="c-units">${c.unitsLabel}</div>` +
-                        `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
-                        `<div class="c-desc">${c.description}</div>` +
-                        `</button>`,
-                )
+                .map((c) => `<button class="card" data-card="${c.id}">${this.startCardFace(c)}</button>`)
                 .join('') +
             `</div>`;
         overlay.addEventListener('click', (e) => {
@@ -975,6 +986,45 @@ export class Hud {
             onPick(button.dataset.card);
         });
         this.showCardOverlay(overlay);
+    }
+
+    /** own specialist locked in, the peer still choosing: show the pick, wait */
+    showWaitingCard(card: StartCard): void {
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards';
+        overlay.innerHTML =
+            `<div class="cards-title">Waiting for opponent…</div>` +
+            `<div class="cards-row"><div class="card static">${this.startCardFace(card)}</div></div>`;
+        this.showCardOverlay(overlay);
+    }
+
+    /** both specialists picked: show them side by side while deployment begins */
+    showSpecialistReveal(
+        own: StartCard,
+        opponent: StartCard,
+        names: { local: string; opponent: string },
+    ): void {
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards';
+        overlay.innerHTML =
+            `<div class="cards-title">Specialists</div>` +
+            `<div class="cards-row">` +
+            `<div class="card-col"><div class="c-owner player"></div><div class="card static">${this.startCardFace(own)}</div></div>` +
+            `<div class="card-col"><div class="c-owner enemy"></div><div class="card static">${this.startCardFace(opponent)}</div></div>` +
+            `</div>` +
+            `<button class="cards-skip">Start deployment</button>`;
+        // player names are user input — textContent only, never innerHTML
+        const owners = overlay.querySelectorAll<HTMLDivElement>('.c-owner');
+        owners[0]!.textContent = names.local;
+        owners[1]!.textContent = names.opponent;
+        overlay.querySelector('.cards-skip')!.addEventListener('click', () => this.hideCardOverlay());
+        this.showCardOverlay(overlay);
+    }
+
+    /** speciality names under the commander names (empty until picked) */
+    setSpecialities(own: string | null, opponent: string | null): void {
+        this.playerSpecEl.textContent = own ?? '';
+        this.enemySpecEl.textContent = opponent ?? '';
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */

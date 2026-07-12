@@ -11,6 +11,8 @@ export interface GameSettings {
     /** phase lengths in seconds */
     buildTimeSeconds: number;
     battleTimeSeconds: number;
+    /** seconds to choose the specialist card; on expiry one is auto-picked */
+    specialistTimeSeconds: number;
     /** each player's hit points; surviving enemy units bite into these after every battle */
     startingHp: number;
     economy: EconomySettings;
@@ -129,6 +131,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     map: STANDARD_MAP,
     buildTimeSeconds: 90,
     battleTimeSeconds: 90,
+    specialistTimeSeconds: 15,
     startingHp: 2000,
     economy: {
         startingSupply: 200,

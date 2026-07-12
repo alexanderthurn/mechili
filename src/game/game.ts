@@ -635,17 +635,42 @@ export class Game {
         return true;
     }
 
+    /** the chosen specialist card of a side (null until picked) */
+    private starterCardOf(team: Team): StartCard | null {
+        const spec = this.speciality[team];
+        return spec ? (START_CARDS.find((c) => c.speciality === spec) ?? null) : null;
+    }
+
+    /** speciality names under the commander names — the opponent's pick stays
+     *  hidden until BOTH have chosen (no counter-picking) */
+    private syncSpecialities(): void {
+        const own = this.starterCardOf('player');
+        const opp = this.starterCardOf('enemy');
+        this.hud.setSpecialities(own?.title ?? null, own && opp ? opp.title : null);
+    }
+
+    /** local specialist is locked in — if the peer is still picking, show ours centered */
+    private afterStarterPick(): void {
+        this.refreshShopHud();
+        this.maybeStartMatch();
+        this.syncSpecialities();
+        if (this.awaitingCards && this.round === 0) {
+            const own = this.starterCardOf('player');
+            if (own) this.hud.showWaitingCard(own);
+        }
+    }
+
     /** the specialist overlay (also re-shown after a resume that predates the pick) */
     private showStarterPick(offer: StartCard[]): void {
         this.playerStarterOffer = [...offer];
-        this.phaseRemaining = this.settings.buildTimeSeconds;
+        // the pick has its own short clock — expiry auto-picks at random
+        this.phaseRemaining = this.settings.specialistTimeSeconds;
         this.hud.showStartCards(offer, (cardId) => {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.net?.send({ type: 'starter', cardId });
             this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
-            this.refreshShopHud();
-            this.maybeStartMatch();
+            this.afterStarterPick();
         });
     }
 
@@ -664,8 +689,7 @@ export class Game {
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.net?.send({ type: 'starter', cardId: pick.id });
         this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
-        this.refreshShopHud();
-        this.maybeStartMatch();
+        this.afterStarterPick();
     }
 
     /** timer ran out during deployment with the round-card overlay still open — skip */
@@ -793,6 +817,7 @@ export class Game {
         this.pendingOffer = null;
         this.hud.refreshCosts();
         this.refreshShopHud();
+        this.syncSpecialities(); // restore the fighter-card labels after a rebuild
     }
 
     /** runs the current battle headlessly — fully, or just up to `toElapsed`
@@ -897,7 +922,15 @@ export class Game {
         if (!this.awaitingCards || this.round > 0) return;
         if (!this.speciality.player || !this.speciality.enemy) return;
         this.awaitingCards = false;
+        this.hud.hideCardOverlay(); // the waiting card, if one is up
+        this.syncSpecialities();
         this.startBuildPhase();
+        // reveal both picks while the deployment clock already runs
+        if (!this.hydrating) {
+            const own = this.starterCardOf('player');
+            const opp = this.starterCardOf('enemy');
+            if (own && opp) this.hud.showSpecialistReveal(own, opp, this.playerNames);
+        }
     }
 
     private onNetMessage(msg: NetMessage): void {
@@ -905,6 +938,7 @@ export class Game {
         if (msg.type === 'starter') {
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId });
             this.refreshShopHud();
+            this.syncSpecialities();
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
             this.remoteQueue.push({ round: msg.round, action: msg.action });
