@@ -132,10 +132,13 @@ wrapper.appendChild(settingsCornerEl);
 const gchatEl = document.createElement('div');
 gchatEl.className = 'mechili-gchat';
 gchatEl.innerHTML =
+    `<button type="button" class="g-strip">Chat</button>` +
+    `<div class="g-panel">` +
     `<div class="g-title">Global chat</div>` +
     `<div class="g-sticky" style="display:none"></div>` +
     `<div class="g-list"><div class="g-empty">…</div></div>` +
-    `<div class="g-row"><input class="g-input" maxlength="200" placeholder="say something…" spellcheck="false" /><button type="button" class="g-send">Send</button></div>`;
+    `<div class="g-row"><input class="g-input" maxlength="200" placeholder="say something…" spellcheck="false" /><button type="button" class="g-send">Send</button></div>` +
+    `</div>`;
 wrapper.appendChild(gchatEl);
 const gchatSticky = gchatEl.querySelector<HTMLDivElement>('.g-sticky')!;
 const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
@@ -193,6 +196,19 @@ async function sendGlobalChat(): Promise<void> {
 gchatEl.querySelector('.g-send')!.addEventListener('click', () => void sendGlobalChat());
 gchatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') void sendGlobalChat();
+});
+
+// starts collapsed as a small "Chat" button; clicking anywhere outside
+// collapses it again (the input keeps whatever was typed)
+gchatEl.querySelector('.g-strip')!.addEventListener('click', () => {
+    gchatEl.classList.add('open');
+    void refreshGlobalChat();
+    gchatInput.focus();
+});
+document.addEventListener('pointerdown', (e) => {
+    if (gchatEl.classList.contains('open') && !gchatEl.contains(e.target as Node)) {
+        gchatEl.classList.remove('open');
+    }
 });
 
 // the "show global chat" setting hides the panel, live; the poll keeps

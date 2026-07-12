@@ -413,7 +413,7 @@ export class Hud {
             (e) => `<button type="button" class="c-emote" data-emote="${e.id}" title="${e.label}">${e.icon}</button>`,
         ).join('');
         bar.innerHTML =
-            `<div class="c-strip"></div>` +
+            `<div class="c-strip">Chat</div>` +
             `<div class="c-panel">` +
             `<div class="c-emotes">${emoteButtons}</div>` +
             `<div class="c-row">` +
@@ -446,6 +446,19 @@ export class Hud {
             if (e.key === 'Enter') submit();
         });
         this.mount(bar);
+
+        // clicking anywhere outside collapses the panel; the input keeps its
+        // text so a half-typed message survives. Self-detaches after teardown.
+        const onDocPointer = (e: PointerEvent) => {
+            if (!bar.isConnected) {
+                document.removeEventListener('pointerdown', onDocPointer);
+                return;
+            }
+            if (bar.classList.contains('open') && !bar.contains(e.target as Node)) {
+                bar.classList.remove('open');
+            }
+        };
+        document.addEventListener('pointerdown', onDocPointer);
 
         // "show combat chat" hides the whole thing, live; the listener
         // detaches itself once this HUD is torn down

@@ -187,6 +187,31 @@ export function menuStyles(): string {
     bottom: 14px;
     transform: translateX(-50%);
     width: 440px;
+    font-family: system-ui, sans-serif;
+    color: ${u.text};
+    z-index: 30;
+}
+.mechili-gchat .g-strip {
+    display: block;
+    width: 130px;
+    margin: 0 auto;
+    padding: 6px 0;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: ${u.panelBg};
+    border: 1px solid ${u.border};
+    border-radius: 9px;
+    color: ${u.textMuted};
+    cursor: pointer;
+    opacity: 0.8;
+}
+.mechili-gchat .g-strip:hover { opacity: 1; border-color: ${u.hover}; color: ${u.text}; }
+.mechili-gchat.open .g-strip { display: none; }
+.mechili-gchat .g-panel { display: none; }
+.mechili-gchat.open .g-panel {
     display: flex;
     flex-direction: column;
     gap: 5px;
@@ -194,9 +219,6 @@ export function menuStyles(): string {
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
     border-radius: 12px;
-    font-family: system-ui, sans-serif;
-    color: ${u.text};
-    z-index: 30;
 }
 .mechili-gchat .g-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: ${u.textMuted}; }
 .mechili-gchat .g-sticky {
@@ -848,21 +870,21 @@ export function hudStyles(): string {
     margin-top: 6px;
     left: 50%;
     transform: translateX(-50%);
-    padding: 4px 12px;
+    padding: 6px 18px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.brassDark};
-    border-radius: 12px;
+    border-radius: 14px;
     color: ${u.text};
-    font-size: 13px;
+    font-size: 26px;
     white-space: nowrap;
-    max-width: 260px;
+    max-width: 480px;
     overflow: hidden;
     text-overflow: ellipsis;
     animation: chat-pop 0.18s ease-out, chat-fade 0.6s ease-in 3.9s forwards;
     pointer-events: none;
     z-index: 20;
 }
-.mechili-fightbar .chat-bubble.emote { font-size: 30px; padding: 2px 10px; }
+.mechili-fightbar .chat-bubble.emote { font-size: 56px; padding: 2px 14px; }
 @keyframes chat-pop { from { transform: translateX(-50%) scale(0.4); opacity: 0; } }
 @keyframes chat-fade { to { opacity: 0; } }
 
@@ -877,14 +899,22 @@ export function hudStyles(): string {
     z-index: 15;
 }
 .mechili-chat .c-strip {
-    height: 9px;
-    border-radius: 5px;
+    width: 110px;
+    margin: 0 auto;
+    padding: 5px 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-radius: 8px;
     background: ${u.panelBg};
     border: 1px solid ${u.border};
+    color: ${u.textMuted};
     cursor: pointer;
-    opacity: 0.65;
+    opacity: 0.7;
 }
-.mechili-chat .c-strip:hover { opacity: 1; border-color: ${u.hover}; }
+.mechili-chat .c-strip:hover { opacity: 1; border-color: ${u.hover}; color: ${u.text}; }
 .mechili-chat .c-panel { display: none; }
 .mechili-chat.open .c-strip { display: none; }
 .mechili-chat.open .c-panel {
