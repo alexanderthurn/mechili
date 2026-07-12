@@ -806,6 +806,13 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 .mechili-panel .action-tile .at-cost.refund { background: rgba(40, 140, 60, 0.92); }
+.mechili-panel .action-tile .at-level {
+    position: absolute; top: 1px; left: 2px;
+    font-size: 9px; font-weight: bold; line-height: 1;
+    color: ${u.brassLight};
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+}
 .mechili-panel .action-tile .at-badge {
     position: absolute; top: -5px; right: -5px;
     width: 16px; height: 16px;

@@ -27,6 +27,8 @@ interface ActionTile {
     state: 'buy' | 'locked' | 'owned';
     /** small extra line in the hover frame (e.g. why it's locked) */
     note?: string;
+    /** small label in the tile's top-left corner (e.g. the current level) */
+    badge?: string;
 }
 
 /** what the stats panel shows for a selected pack or single mech */
@@ -779,6 +781,7 @@ export class Hud {
                 cost: info.levelUp.cost,
                 state: info.levelUp.ready && info.levelUp.affordable ? 'buy' : 'locked',
                 note: info.levelUp.ready ? undefined : 'Needs more XP',
+                badge: `L${info.level}`,
             });
             if (info.levelUp.all) {
                 levelTiles.push({
@@ -790,6 +793,19 @@ export class Hud {
                     state: info.levelUp.all.affordable ? 'buy' : 'locked',
                 });
             }
+        }
+        // a tower's upgrade is its leveling — same spot, same icon as a unit's
+        if (info.towerUpgrade) {
+            const tu = info.towerUpgrade;
+            levelTiles.push({
+                data: 'data-towerupgrade="1"',
+                icon: '🔼',
+                title: tu.maxed ? `Max level (${info.level})` : `Upgrade — level ${info.level + 1}`,
+                desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
+                cost: tu.maxed ? undefined : tu.cost,
+                state: tu.maxed ? 'owned' : tu.affordable ? 'buy' : 'locked',
+                badge: `L${info.level}`,
+            });
         }
         if (info.sell) {
             tiles.push({
@@ -813,16 +829,6 @@ export class Hud {
                         : 'Permanent army-wide HP boost. Buy one tier after the other.',
                 cost: b.cost,
                 state: b.maxed ? 'owned' : b.affordable ? 'buy' : 'locked',
-            });
-        }
-        if (info.towerUpgrade && !info.towerUpgrade.maxed) {
-            tiles.push({
-                data: 'data-towerupgrade="1"',
-                icon: '🏗️',
-                title: `Upgrade — level ${info.level + 1}`,
-                desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
-                cost: info.towerUpgrade.cost,
-                state: info.towerUpgrade.affordable ? 'buy' : 'locked',
             });
         }
         if (info.recruit) {
@@ -936,12 +942,13 @@ export class Hud {
                             : t.cost !== undefined
                               ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
                               : '';
+                    const lvl = t.badge ? `<span class="at-level">${escapeAttr(t.badge)}</span>` : '';
                     return (
                         `<button class="action-tile ${t.state}" ${t.data}` +
                         ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
                         ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
                         ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +
-                        `<span class="at-icon">${t.icon}</span>${badge}</button>`
+                        `<span class="at-icon">${t.icon}</span>${lvl}${badge}</button>`
                     );
                 })
                 .join('') +
