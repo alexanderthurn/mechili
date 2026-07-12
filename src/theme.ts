@@ -404,6 +404,55 @@ export function hudStyles(): string {
     flex-shrink: 0;
 }
 .shop-toolbar .undo:hover { background: ${u.undoHover}; }
+.shop-toolbar-right {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.shop-toolbar .level-all-global {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: auto;
+    min-width: 64px;
+    max-width: 88px;
+    min-height: 44px;
+    padding: 4px 8px;
+    background: ${u.panelBgSolid};
+    border: 2px solid ${u.border};
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    appearance: none;
+    font-family: system-ui, sans-serif;
+    cursor: pointer;
+    pointer-events: auto;
+    flex-shrink: 0;
+    align-self: flex-start;
+}
+.shop-toolbar .level-all-global .title {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.4px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+    color: ${u.phase};
+}
+.shop-toolbar .level-all-global .cost {
+    font-size: 14px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    line-height: 1;
+    margin-top: 2px;
+}
+.shop-toolbar .level-all-global:hover { border-color: ${u.hover}; }
+.shop-toolbar .level-all-global:active { transform: scale(0.96); }
+.shop-toolbar .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras {
     display: flex;
     flex-direction: row-reverse;

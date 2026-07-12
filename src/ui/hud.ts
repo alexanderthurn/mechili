@@ -76,6 +76,7 @@ export class Hud {
     onBuyTech: ((techId: string) => void) | null = null;
     onBuyLevel: (() => void) | null = null;
     onLevelAll: (() => void) | null = null;
+    onLevelAllGlobal: (() => void) | null = null;
     onRecruitLevel: (() => void) | null = null;
     onUpgradeTower: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
@@ -105,6 +106,7 @@ export class Hud {
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
     private lastShopKey = '';
+    private lastLevelAllKey = '';
     private readonly fightBar: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
@@ -122,6 +124,7 @@ export class Hud {
     private enemyMaxHp = 1000;
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
+    private readonly levelAllGlobalBtn: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
     private readonly inventoryEl: HTMLDivElement;
     private readonly enemyInventoryEl: HTMLDivElement;
@@ -200,12 +203,22 @@ export class Hud {
         this.undoEl.addEventListener('click', () => this.onUndo?.());
         shopToolbar.append(this.undoEl);
 
+        const toolbarRight = document.createElement('div');
+        toolbarRight.className = 'shop-toolbar-right';
+        this.levelAllGlobalBtn = document.createElement('button');
+        this.levelAllGlobalBtn.className = 'level-all-global';
+        this.levelAllGlobalBtn.style.display = 'none';
+        this.levelAllGlobalBtn.title = 'Level up every ready pack on the field';
+        this.levelAllGlobalBtn.addEventListener('click', () => this.onLevelAllGlobal?.());
+        toolbarRight.append(this.levelAllGlobalBtn);
+
         this.supplyFrame = document.createElement('div');
         this.supplyFrame.className = 'mechili-supply';
         this.supplyEl = document.createElement('span');
         this.supplyEl.className = 'supply';
         this.supplyFrame.append(this.supplyEl);
-        shopToolbar.append(this.supplyFrame);
+        toolbarRight.append(this.supplyFrame);
+        shopToolbar.append(toolbarRight);
 
         this.extrasRow = document.createElement('div');
         this.extrasRow.className = 'mechili-extras';
@@ -458,6 +471,24 @@ export class Hud {
                 cost > this.shopBalance || blocked || locked,
             );
         }
+    }
+
+    /** global level-up shortcut beside the extras row; hidden when nothing is ready */
+    setLevelAllGlobal(info: { count: number; cost: number; affordable: boolean } | null): void {
+        const key = info ? `${info.count}|${info.cost}|${info.affordable}` : '';
+        if (key === this.lastLevelAllKey) return;
+        this.lastLevelAllKey = key;
+        if (!info) {
+            this.levelAllGlobalBtn.style.display = 'none';
+            return;
+        }
+        this.levelAllGlobalBtn.style.display = '';
+        const label =
+            info.count >= 2 ? `★ Level all (${info.count})` : '★ Level up';
+        this.levelAllGlobalBtn.innerHTML =
+            `<span class="title">${label}</span><span class="cost">${info.cost}</span>`;
+        this.levelAllGlobalBtn.disabled = !info.affordable;
+        this.levelAllGlobalBtn.classList.toggle('unaffordable', !info.affordable);
     }
 
     /** 3D-rendered thumbnails for shop tiles (generated once at match start). */

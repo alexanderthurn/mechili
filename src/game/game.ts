@@ -428,6 +428,12 @@ export class Game {
             // every ready pack of the same kind, oldest first
             for (const u of this.levelablePacksOf(unit.type)) this.buyLevelFor(u);
         };
+        this.hud.onLevelAllGlobal = () => {
+            if (!this.playerCanAct) return;
+            for (const u of this.allLevelablePacks()) {
+                if (!this.buyLevelFor(u)) break;
+            }
+        };
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
@@ -1080,6 +1086,29 @@ export class Game {
             .sort((a, b) => a.id - b.id);
     }
 
+    /** every ready-to-level pack on the field, any unit type */
+    private allLevelablePacks(): Unit[] {
+        return this.placement
+            .allUnits()
+            .filter((u) => u.team === 'player' && this.canLevel(u))
+            .sort((a, b) => a.id - b.id);
+    }
+
+    /** the bottom-right shortcut: total cost/count for all ready packs */
+    private globalLevelUpInfo(): { count: number; cost: number; affordable: boolean } | null {
+        const packs = this.allLevelablePacks();
+        if (packs.length === 0) return null;
+        const cost = packs.reduce(
+            (sum, u) => sum + levelCost(u.type, this.economy, this.settings.leveling),
+            0,
+        );
+        return {
+            count: packs.length,
+            cost,
+            affordable: this.economy.balance('player') >= cost,
+        };
+    }
+
     /** the panel's level-up offer, with a "level all" when several packs of the kind are ready */
     private levelUpInfo(
         u: Unit,
@@ -1378,6 +1407,7 @@ export class Game {
         );
         this.hud.setInventory(this.inventoryView());
         this.hud.setSupply(this.economy.balance('player'));
+        this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
