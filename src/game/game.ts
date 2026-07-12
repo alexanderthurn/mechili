@@ -544,6 +544,7 @@ export class Game {
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */
     private startBuildPhase(): void {
+        this.resetSpeed();
         this.round++;
         this.phase = 'build';
         this.phaseRemaining = this.settings.buildTimeSeconds;
@@ -1155,6 +1156,15 @@ export class Game {
         this.hud.setSpeed(multiplier);
         // both players watch at the same pace and finish together
         this.net?.send({ type: 'speed', multiplier });
+    }
+
+    /** battle speed returns to 1× at the start of every deployment phase */
+    private resetSpeed(): void {
+        const index = Game.SPEED_STEPS.indexOf(1);
+        if (index < 0) return;
+        this.speedIndex = index;
+        this.hud.setSpeed(1);
+        this.net?.send({ type: 'speed', multiplier: 1 });
     }
 
     /** what the player pays right now, including an active recruit-level premium */
