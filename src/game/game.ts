@@ -135,6 +135,8 @@ export class Game {
     };
     /** each side's chosen starting-card speciality (null until picked) */
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
+    /** per-team multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
+    private readonly flankSpawnMult: Record<Team, number> = { player: 1, enemy: 1 };
     /** each side's unequipped pack items */
     private readonly itemInventory: Record<Team, string[]> = { player: [], enemy: [] };
     /** unit types buyable in the shop this match */
@@ -286,6 +288,7 @@ export class Game {
             deployState: this.deployState,
             boostState: this.boostState,
             speciality: this.speciality,
+            flankSpawnMult: this.flankSpawnMult,
             items: this.itemInventory,
             roundCardTaken: this.roundCardTaken,
             deployReady: this.deployReady,
@@ -1196,6 +1199,7 @@ export class Game {
         this.armedItem = null;
         this.gridOverlay.visible = false;
         this.placement.revealAll();
+        for (const unit of this.placement.allUnits()) this.placement.refreshFlankSpawn(unit);
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
@@ -1204,6 +1208,14 @@ export class Game {
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
             hasTech: (team, typeId, techId) => this.techTree.has(team, typeId, techId),
+            flankSpawnSeconds: this.settings.deploy.flankSpawnSeconds ?? 5,
+            flankSpawnMult: (team) => this.flankSpawnMult[team],
+            needsFlankSpawn: (unit) =>
+                // mechs on flank at battle start — not tied to a specific round, only to flank tiles
+                !unit.flankSpawnDone &&
+                !unit.type.structure &&
+                !unit.type.extra &&
+                this.placement.isOnFlank(unit),
         });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
@@ -1407,6 +1419,7 @@ export class Game {
                 this.pixiApp.screen.width,
                 this.pixiApp.screen.height,
                 this.selectedActor,
+                this.sim.elapsed,
             );
             this.hud.setSelection(this.selectedActor ? this.actorInfo(this.selectedActor) : null);
         } else {

@@ -326,7 +326,7 @@ export class PlacementController {
                     const cells = this.coveredCells(fp, anchor);
                     const ok =
                         cells !== null &&
-                        cells.every((c) => this.zoneCell(team, c) && !this.occupied.has(cellKey(c)));
+                        cells.every((c) => this.deployCellOk(team, c, type) && !this.occupied.has(cellKey(c)));
                     if (ok) return anchor;
                 }
             }
@@ -357,7 +357,7 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.zoneCell(unit.team, c) && (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type) && (unit.type.extra || this.freeFor(c, unit));
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.setRotated(rotated);
@@ -365,12 +365,34 @@ export class PlacementController {
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
+        this.refreshFlankSpawn(unit);
         return true;
+    }
+
+    /** true when any tile under the pack sits in the flank strips (mechs only) */
+    isOnFlank(unit: Unit): boolean {
+        if (unit.type.structure || unit.type.extra) return false;
+        const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), unit.cell);
+        if (!cells) return false;
+        return cells.some((c) => this.map.isFlankDeployCell(c, unit.team));
+    }
+
+    /** first flank placement marks the pack for a one-time spawn phase at battle start */
+    refreshFlankSpawn(unit: Unit): void {
+        if (unit.type.structure || unit.type.extra || unit.flankSpawnDone) return;
+        if (this.isOnFlank(unit)) unit.flankSpawnEligible = true;
     }
 
     /** a tile a team may deploy on */
     private zoneCell(team: Team, cell: Cell): boolean {
         return team === 'player' ? this.map.isPlayerCell(cell) : this.map.isEnemyCell(cell);
+    }
+
+    /** zone check plus type rules — shield and rocket may not sit on flank strips */
+    private deployCellOk(team: Team, cell: Cell, type: UnitType): boolean {
+        if (!this.zoneCell(team, cell)) return false;
+        if (type.extra && this.map.isFlankDeployCell(cell, team)) return false;
+        return true;
     }
 
     /**
@@ -393,7 +415,9 @@ export class PlacementController {
         const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
         const valid =
             cells !== null &&
-            cells.every((c) => this.zoneCell(team, c) && (type.extra || !this.occupied.has(cellKey(c))));
+            cells.every(
+                (c) => this.deployCellOk(team, c, type) && (type.extra || !this.occupied.has(cellKey(c))),
+            );
         return valid ? this.spawn(type, anchor, team, rotated) : null;
     }
 
@@ -420,6 +444,7 @@ export class PlacementController {
         // could be aware of — from revealed enemy units, or the enemy's
         // command towers when nothing else is visible
         unit.faceClosestOf(this.opponentMechPositions(team, unit));
+        this.refreshFlankSpawn(unit);
         return unit;
     }
 
@@ -442,7 +467,7 @@ export class PlacementController {
             };
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
-            if (!cells.every((c) => this.map.isEnemyCell(c) && !this.occupied.has(cellKey(c)))) continue;
+            if (!cells.every((c) => this.deployCellOk('enemy', c, type) && !this.occupied.has(cellKey(c)))) continue;
             found++;
             if (
                 !best ||
@@ -833,8 +858,8 @@ export class PlacementController {
         return (
             cells !== null &&
             cells.every((c) => {
-                if (!this.zoneCell(unit.team, c)) return false;
-                if (unit.type.extra) return true; // extras overlap anything
+                if (!this.deployCellOk(unit.team, c, unit.type)) return false;
+                if (unit.type.extra) return true; // extras overlap anything (but not flanks)
                 const holder = this.occupied.get(cellKey(c));
                 return holder === undefined || holder === unit || group.includes(holder);
             })
@@ -860,6 +885,7 @@ export class PlacementController {
         });
         for (const u of units) {
             u.faceClosestOf(this.opponentMechPositions(u.team, u));
+            this.refreshFlankSpawn(u);
         }
         return true;
     }
@@ -869,13 +895,14 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, unit.rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.zoneCell(unit.team, c) && (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type) && (unit.type.extra || this.freeFor(c, unit));
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
+        this.refreshFlankSpawn(unit);
         return true;
     }
 
@@ -947,7 +974,7 @@ export class PlacementController {
             const fp = this.footprintOf(type, false);
             const anchor = this.centeredAnchor(type, false, cell);
             const cells = this.coveredCells(fp, anchor);
-            const valid = cells !== null && cells.every((c) => this.zoneCell('player', c));
+            const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type));
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             this.pendingUnit.view.position.set(center.x, 0, center.z);
             this.hoverMesh.position.set(center.x, 0.04, center.z);
@@ -998,7 +1025,7 @@ export class PlacementController {
                 const cells = this.coveredCells(fp, anchor);
                 const valid =
                     cells !== null &&
-                    cells.every((c) => this.map.isPlayerCell(c) && this.freeFor(c, sel));
+                    cells.every((c) => this.deployCellOk('player', c, sel.type) && this.freeFor(c, sel));
                 this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
             } else {
                 this.hoverMaterial.color.setHex(VALID_COLOR);

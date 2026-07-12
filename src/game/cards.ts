@@ -5,7 +5,7 @@
  * between-round cards with different content.
  */
 
-export type SpecialityId = 'air' | 'costControl' | 'elite' | 'marksman' | 'addi';
+export type SpecialityId = 'air' | 'costControl' | 'elite' | 'marksman' | 'addi' | 'flanky';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
@@ -14,6 +14,8 @@ export const COST_CONTROL_INCOME = 100; // ... but +100 supply every round
 export const FREE_MARKSMAN_ROUND = 2; // the marksman specialist's gift arrives here
 export const FREE_MARKSMAN_LEVEL = 3;
 export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
+/** flank spawn duration multiplier when the Flanky card/speciality is owned */
+export const FLANK_SPAWN_HALF_MULT = 0.5;
 
 /** skipping the between-round card pays this instead */
 export const SKIP_CARD_REWARD = 50;
@@ -29,6 +31,8 @@ export interface RoundCard {
     unitsLabel?: string;
     /** items granted into the inventory */
     items?: string[];
+    /** halves flank spawn time for the rest of the match */
+    flankSpawnHalf?: boolean;
     description: string;
 }
 
@@ -93,6 +97,13 @@ export const ROUND_CARDS: RoundCard[] = [
         items: ['wrath'],
         description: 'Item: +300% attack damage for one pack.',
     },
+    {
+        id: 'flanky',
+        title: 'Flanky',
+        cost: 100,
+        flankSpawnHalf: true,
+        description: 'First-time flank spawns take half the time (2.5s).',
+    },
 ];
 
 /** buyable army types in the deployment shop (not board extras) */
@@ -114,6 +125,7 @@ export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
     elite: 'fortress',
     marksman: 'marksman',
     addi: 'wasp',
+    flanky: 'crawler',
 };
 
 export interface StartCard {
@@ -191,5 +203,14 @@ export const START_CARDS: StartCard[] = [
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
         description: '3× Addi item: +15% attack and HP for one pack each.',
+    },
+    {
+        id: 'flanky',
+        title: 'Flanky Specialist',
+        units: ['crawler', 'crawler', 'marksman', 'marksman'],
+        unitsLabel: '2× Crawlers · 2× Marksman',
+        startingHp: 2000,
+        speciality: 'flanky',
+        description: 'First-time flank spawns take half the time (2.5s).',
     },
 ];

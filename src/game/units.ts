@@ -445,6 +445,10 @@ export class Unit {
     consumed = false;
     /** the pack's equipped item (at most ONE) — permanent once its deployment ended */
     readonly items: string[] = [];
+    /** touched a flank tile for the first time — spawns slowly if still on flank at battle start */
+    flankSpawnEligible = false;
+    /** flank spawn already happened once for this pack */
+    flankSpawnDone = false;
     /** lifetime EFFECTIVE damage dealt (capped at each victim's remaining hp) */
     damageDealt = 0;
     /** lifetime individual mechs killed (a wiped 24-crawler pack counts 24) */
@@ -663,16 +667,19 @@ function levelStudMaterial(index: number): MeshStandardMaterial {
     });
 }
 
-/** tints a mech during battle — golden wins over debuff; debuff is a wild color shift */
+/** tints a mech during battle — golden > debuff > spawning > normal */
 export function syncBattleTint(
     mesh: Group,
-    tint: 'normal' | 'golden' | 'debuff',
+    tint: 'normal' | 'golden' | 'debuff' | 'spawning',
     timeSeconds: number,
     debuffStacks = 1,
+    spawnProgress = 0,
 ): void {
     const gold = new Color(THEME.veteran);
+    const grey = new Color(0x888890);
     const goldPulse = 0.4 + Math.sin(timeSeconds * 4.5) * 0.22;
     const debuffT = timeSeconds * 7;
+    const spawnGlow = new Color();
 
     mesh.traverse((child) => {
         if (!(child instanceof Mesh)) return;
@@ -711,6 +718,25 @@ export function syncBattleTint(
             return;
         }
 
+        if (tint === 'spawning') {
+            let tinted = child.userData.spawnMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                child.userData.spawnMat = tinted;
+            }
+            const pulse = 0.5 + 0.5 * Math.sin(timeSeconds * 6.5);
+            const flicker = 0.5 + 0.5 * Math.sin(timeSeconds * 11 + spawnProgress * 4);
+            // overlay fades as spawn completes; pulse keeps it visibly alive throughout
+            const mix = (0.55 - spawnProgress * 0.35) * (0.55 + pulse * 0.45);
+            spawnGlow.lerpColors(grey, base.color, spawnProgress * 0.45 + pulse * 0.15);
+            tinted.color.lerpColors(base.color, spawnGlow, mix);
+            tinted.emissive.copy(spawnGlow);
+            tinted.emissiveIntensity = 0.18 + pulse * 0.55 + flicker * 0.12;
+            child.material = tinted;
+            return;
+        }
+
         child.material = child.userData.battleOrigMat as MeshStandardMaterial;
     });
 }
@@ -723,11 +749,14 @@ export function clearBattleTint(mesh: Group): void {
         if (orig) child.material = orig;
         const golden = child.userData.goldenMat as MeshStandardMaterial | undefined;
         const debuff = child.userData.debuffMat as MeshStandardMaterial | undefined;
+        const spawn = child.userData.spawnMat as MeshStandardMaterial | undefined;
         golden?.dispose();
         debuff?.dispose();
+        spawn?.dispose();
         delete child.userData.battleOrigMat;
         delete child.userData.goldenMat;
         delete child.userData.debuffMat;
+        delete child.userData.spawnMat;
     });
 }
 

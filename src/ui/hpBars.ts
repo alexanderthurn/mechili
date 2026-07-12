@@ -23,12 +23,14 @@ export class HpBars {
         width: number,
         height: number,
         selected: Actor | null,
+        elapsed: number,
     ): void {
         this.view.clear();
         for (const a of actors) {
             if (!a.alive) continue;
             const isSelected = a === selected;
-            if (!isSelected && a.hurtTimer <= 0) continue;
+            const spawning = a.spawnUntil > elapsed + 1e-9;
+            if (!isSelected && a.hurtTimer <= 0 && !spawning) continue;
             // recently-hit bars fade out over the last part of the timer
             const alpha = isSelected ? 1 : Math.min(1, a.hurtTimer / (HURT_BAR_SECONDS * 0.35));
             this.drawBar(a, camera, width, height, alpha, isSelected);

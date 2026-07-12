@@ -137,6 +137,15 @@ export class BattleMap {
         return this.zoneHalf(cell, this.ownAtFar);
     }
 
+    /** flank strips beside the opponent's half — deployable from round 2 once unlocked */
+    isFlankDeployCell(cell: Cell, team: 'player' | 'enemy'): boolean {
+        if (!this.flanksUnlocked || !this.inFlankCols(cell.col)) return false;
+        const near = team === 'player' ? !this.ownAtFar : this.ownAtFar;
+        const zr = this.ownRows();
+        const oppHalf = near ? cell.row >= this.rows - zr : cell.row < zr;
+        return oppHalf;
+    }
+
     /** center row of a team's main zone (near = row 0 side, the +z edge) */
     zoneCenterRow(near: boolean): number {
         const half = Math.floor(this.size.zoneRows / 2);

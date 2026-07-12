@@ -1,4 +1,4 @@
-import { ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
 import { ITEMS } from './items';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
@@ -198,6 +198,8 @@ export interface ActionContext {
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
     /** each side's chosen card speciality (null until the pick) */
     speciality: Record<Team, SpecialityId | null>;
+    /** per-team multiplier on flank spawn duration (Flanky card → 0.5) */
+    flankSpawnMult: Record<Team, number>;
     /** each side's UNEQUIPPED pack items (item ids; duplicates stack) */
     items: Record<Team, string[]>;
     /** whether each side already took (or skipped) this round's card */
@@ -452,6 +454,9 @@ export class ActionDispatcher {
                 const card = START_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
                 this.ctx.speciality[action.team] = card.speciality;
+                if (card.speciality === 'flanky') {
+                    this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
+                }
                 this.ctx.unlockedUnits[action.team] = starterUnlockedUnits(card);
                 entry.prevHp = this.ctx.hp.get(action.team);
                 this.ctx.hp.set(action.team, card.startingHp);
@@ -512,6 +517,9 @@ export class ActionDispatcher {
                 if (card.items) {
                     this.ctx.items[action.team].push(...card.items);
                     entry.grantedItems = [...card.items];
+                }
+                if (card.flankSpawnHalf) {
+                    this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
                 }
                 this.ctx.roundCardTaken[action.team] = true;
                 return true;

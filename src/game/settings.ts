@@ -95,6 +95,8 @@ export interface DeploySettings {
     extraSlotCost: number;
     /** board extras (shields, rockets) have their own cap: supply spent on them per round */
     extrasBudgetPerRound: number;
+    /** first-time flank mech deploys spawn for this many seconds (whenever flanks are open) */
+    flankSpawnSeconds: number;
 }
 
 /** the sell ability: bought ONCE at the Command Tower, then permanent */
@@ -160,6 +162,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
         unitsPerRound: 2,
         extraSlotCost: 50,
         extrasBudgetPerRound: 500,
+        flankSpawnSeconds: 5,
     },
     boosts: {
         costs: [100, 300],

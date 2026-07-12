@@ -29,6 +29,10 @@ export interface SimConfig {
     /** a pack's tech-resolved base stats (level scaling happens in the sim) */
     statsOf: (unit: Unit) => ResolvedStats;
     hasTech: (team: Team, typeId: string, techId: string) => boolean;
+    /** base flank spawn duration in seconds (before team multiplier) */
+    flankSpawnSeconds: number;
+    flankSpawnMult: (team: Team) => number;
+    needsFlankSpawn: (unit: Unit) => boolean;
 }
 
 export interface Actor {
@@ -59,6 +63,10 @@ export interface Actor {
     rocketTarget: Actor | null;
     /** sim time until which this mech ignores tower-destruction debuffs (fortress aura) */
     goldenUntil: number;
+    /** battle time when flank spawn finishes (0 = already spawned) */
+    spawnUntil: number;
+    /** took damage during flank spawn — hp no longer auto-ramps */
+    spawnDamaged: boolean;
 }
 
 /** how long a hit keeps the HP bar visible */
@@ -182,8 +190,19 @@ export class BattleSim {
                     altitude: unit.type.flying ?? 0,
                     rocketTarget: null,
                     goldenUntil: 0,
+                    spawnUntil: 0,
+                    spawnDamaged: false,
                 });
             }
+        }
+
+        for (const a of this.actors) {
+            if (!this.config.needsFlankSpawn(a.unit)) continue;
+            const base = this.config.flankSpawnSeconds ?? DEFAULT_SETTINGS.deploy.flankSpawnSeconds;
+            const duration = base * this.config.flankSpawnMult(a.unit.team);
+            a.spawnUntil = duration;
+            a.hp = 1;
+            a.unit.flankSpawnEligible = true;
         }
 
         // canonical battle order: both peers sort into the SAME sequence
@@ -231,6 +250,7 @@ export class BattleSim {
         target.hp -= amount;
         this.recordDamage(source, amount);
         target.hurtTimer = HURT_BAR_SECONDS;
+        if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
         if (target.hp <= 0) this.kill(target, source);
     }
 
@@ -342,8 +362,35 @@ export class BattleSim {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
             const stacks = this.lostTowers[a.unit.team];
-            const tint = this.isGolden(a) ? 'golden' : this.isDebuffed(a) ? 'debuff' : 'normal';
-            syncBattleTint(a.mesh, tint, timeSeconds, stacks);
+            let tint: 'normal' | 'golden' | 'debuff' | 'spawning' = 'normal';
+            let spawnProgress = 0;
+            if (this.isGolden(a)) tint = 'golden';
+            else if (this.isDebuffed(a)) tint = 'debuff';
+            else if (this.isSpawning(a)) {
+                tint = 'spawning';
+                spawnProgress = a.spawnUntil > 0 ? Math.min(1, this.elapsed / a.spawnUntil) : 1;
+            }
+            syncBattleTint(a.mesh, tint, timeSeconds, stacks, spawnProgress);
+        }
+    }
+
+    isSpawning(a: Actor): boolean {
+        return a.spawnUntil > this.elapsed + 1e-9;
+    }
+
+    /** hp ramps 1 → max during flank spawn; finishes with full hp if undamaged */
+    private updateFlankSpawning(): void {
+        for (const a of this.actors) {
+            if (a.spawnUntil <= 0) continue;
+            if (this.elapsed >= a.spawnUntil) {
+                if (!a.spawnDamaged && a.alive) a.hp = a.maxHp;
+                a.spawnUntil = 0;
+                if (a.unit.flankSpawnEligible) a.unit.flankSpawnDone = true;
+                continue;
+            }
+            const progress = this.elapsed / a.spawnUntil;
+            const ceiling = 1 + (a.maxHp - 1) * progress;
+            if (!a.spawnDamaged) a.hp = ceiling;
         }
     }
 
@@ -415,6 +462,8 @@ export class BattleSim {
             if (a.hurtTimer > 0) a.hurtTimer -= dt;
         }
 
+        this.updateFlankSpawning();
+
         // opening beat: no movement, attacks, rockets, or projectiles yet
         if (this.elapsed < BATTLE_START_FREEZE) return;
 
@@ -424,6 +473,7 @@ export class BattleSim {
 
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
+            if (this.isSpawning(a)) continue;
             // out of attackable targets (e.g. crawlers vs a lone wasp): walk
             // up to the closest enemy anyway and wait there, weapons silent
             let canAttack = true;
