@@ -4,6 +4,7 @@ import { Game } from './game/game';
 import {
     clearResumeMarker,
     clearSinglePlayer,
+    fetchGlobalChat,
     fetchLobbyRooms,
     GAME_VERSION,
     handshake,
@@ -11,6 +12,7 @@ import {
     joinLobby,
     loadResumeMarker,
     loadSinglePlayer,
+    postGlobalChat,
     quickMatch,
     resumeSession,
     saveResumeMarker,
@@ -21,6 +23,8 @@ import {
     type SinglePlayerSave,
 } from './game/net';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
+import { onPrefsChange, prefs } from './game/prefs';
+import { openSettings } from './ui/settings';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
 import { THEME, menuStyles } from './theme';
 
@@ -114,6 +118,92 @@ usernameEl.className = 'mechili-username';
 usernameEl.type = 'button';
 usernameEl.style.zIndex = '30';
 wrapper.appendChild(usernameEl);
+
+// big gear in the top-right corner of the main menu
+const settingsCornerEl = document.createElement('button');
+settingsCornerEl.className = 'mechili-settings-btn';
+settingsCornerEl.type = 'button';
+settingsCornerEl.textContent = '⚙';
+settingsCornerEl.title = 'Settings';
+settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
+wrapper.appendChild(settingsCornerEl);
+
+// --- global menu chat (php-backed: last 10 messages + admin sticky) ---
+const gchatEl = document.createElement('div');
+gchatEl.className = 'mechili-gchat';
+gchatEl.innerHTML =
+    `<div class="g-title">Global chat</div>` +
+    `<div class="g-sticky" style="display:none"></div>` +
+    `<div class="g-list"><div class="g-empty">…</div></div>` +
+    `<div class="g-row"><input class="g-input" maxlength="200" placeholder="say something…" spellcheck="false" /><button type="button" class="g-send">Send</button></div>`;
+wrapper.appendChild(gchatEl);
+const gchatSticky = gchatEl.querySelector<HTMLDivElement>('.g-sticky')!;
+const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
+const gchatInput = gchatEl.querySelector<HTMLInputElement>('.g-input')!;
+let gchatPoll: ReturnType<typeof setInterval> | null = null;
+
+async function refreshGlobalChat(): Promise<void> {
+    if (!gchatEl.isConnected || !prefs().globalChat) return;
+    try {
+        const state = await fetchGlobalChat();
+        gchatSticky.style.display = state.sticky ? '' : 'none';
+        gchatSticky.textContent = state.sticky ? `📌 ${state.sticky}` : '';
+        gchatList.replaceChildren();
+        if (state.messages.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'g-empty';
+            empty.textContent = 'No messages yet — say hello!';
+            gchatList.appendChild(empty);
+        }
+        for (const m of state.messages) {
+            // built via textContent — server data never reaches innerHTML
+            const line = document.createElement('div');
+            line.className = 'g-msg';
+            const who = document.createElement('span');
+            who.className = 'g-name';
+            who.textContent = m.name;
+            line.append(who, document.createTextNode(`: ${m.text}`));
+            gchatList.appendChild(line);
+        }
+        gchatList.scrollTop = gchatList.scrollHeight;
+    } catch {
+        /* endpoint missing — leave the panel quiet */
+    }
+}
+
+function startGlobalChatPoll(): void {
+    stopGlobalChatPoll();
+    void refreshGlobalChat();
+    gchatPoll = setInterval(() => void refreshGlobalChat(), 5000);
+}
+
+function stopGlobalChatPoll(): void {
+    if (gchatPoll) clearInterval(gchatPoll);
+    gchatPoll = null;
+}
+
+async function sendGlobalChat(): Promise<void> {
+    const text = gchatInput.value.trim().slice(0, 200);
+    if (!text) return;
+    gchatInput.value = '';
+    await postGlobalChat(getPlayerName(), text);
+    void refreshGlobalChat();
+}
+
+gchatEl.querySelector('.g-send')!.addEventListener('click', () => void sendGlobalChat());
+gchatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') void sendGlobalChat();
+});
+
+// the "show global chat" setting hides the panel, live; the poll keeps
+// ticking but refreshGlobalChat skips fetching while hidden or in-game
+function applyGlobalChatVisibility(): void {
+    gchatEl.style.display = prefs().globalChat ? '' : 'none';
+    if (prefs().globalChat) void refreshGlobalChat();
+}
+applyGlobalChatVisibility();
+onPrefsChange(applyGlobalChatVisibility);
+startGlobalChatPoll();
 
 const lobbyEl = menu.querySelector<HTMLDivElement>('.m-lobby')!;
 const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
@@ -242,9 +332,17 @@ async function refreshRoomList(): Promise<void> {
             return;
         }
         roomListEl.className = 'm-room-list';
-        roomListEl.innerHTML = others
-            .map((r) => `<button type="button" class="m-room" data-room="${r.name}">${r.name}</button>`)
-            .join('');
+        // room names come from the server — build via DOM, never innerHTML
+        roomListEl.replaceChildren(
+            ...others.map((r) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'm-room';
+                button.dataset.room = r.name;
+                button.textContent = r.name;
+                return button;
+            }),
+        );
     } catch {
         roomListEl.className = 'm-room-list empty';
         roomListEl.innerHTML = 'Could not load rooms';
@@ -288,6 +386,9 @@ function returnToMenu(): void {
     app.render();
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
+    wrapper.appendChild(settingsCornerEl);
+    wrapper.appendChild(gchatEl);
+    startGlobalChatPoll();
     refreshUsernameLabel();
     setMenuBusy(false);
     setStatus('');
@@ -306,6 +407,7 @@ function startGame(
     if (started) return;
     started = true;
     stopRoomPoll();
+    stopGlobalChatPoll();
     hideResumeOverlay();
     resumeAbort?.abort();
     resumeAbort = null;
@@ -314,6 +416,8 @@ function startGame(
     app.renderer.off('resize', layoutTitle);
     menu.remove();
     usernameEl.remove();
+    settingsCornerEl.remove();
+    gchatEl.remove();
     if (net) {
         clearSinglePlayer();
         saveResumeMarker({

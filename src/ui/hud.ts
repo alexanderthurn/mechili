@@ -1,7 +1,10 @@
 import { Sprite, type Application } from 'pixi.js';
 import { HTMLSource } from 'pixi.js/html-source';
 import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
+import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
+import { onPrefsChange, prefs } from '../game/prefs';
 import { UNIT_TYPES, type UnitType } from '../game/units';
+import { openSettings } from './settings';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -87,6 +90,8 @@ export class Hud {
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     onArmItem: ((itemId: string) => void) | null = null;
     onUndo: (() => void) | null = null;
+    /** the player sent a chat item (emote or text) */
+    onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
     onQuitToMenu: (() => void) | null = null;
     private pauseMenu: HTMLDivElement | null = null;
@@ -108,6 +113,8 @@ export class Hud {
     private lastShopKey = '';
     private lastLevelAllKey = '';
     private readonly fightBar: HTMLDivElement;
+    private playerFighterEl!: HTMLDivElement;
+    private enemyFighterEl!: HTMLDivElement;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
@@ -306,6 +313,7 @@ export class Hud {
         this.fightBar.className = 'mechili-fightbar';
 
         const playerFighter = document.createElement('div');
+        this.playerFighterEl = playerFighter;
         playerFighter.className = 'fighter player';
         const playerPortrait = document.createElement('div');
         playerPortrait.className = 'portrait';
@@ -325,6 +333,7 @@ export class Hud {
         playerFighter.append(playerPortrait, playerInfo, this.playerHpVal);
 
         const enemyFighter = document.createElement('div');
+        this.enemyFighterEl = enemyFighter;
         enemyFighter.className = 'fighter enemy';
         this.enemyHpVal = document.createElement('span');
         this.enemyHpVal.className = 'hp-val';
@@ -367,11 +376,16 @@ export class Hud {
             e.preventDefault();
             this.onSpeedDown?.();
         });
+        const settingsButton = document.createElement('button');
+        settingsButton.className = 'settings-btn';
+        settingsButton.textContent = 'Settings';
+        settingsButton.addEventListener('click', () => openSettings(this.overlayParent));
         this.topBar.append(
             topMeta,
             this.timerEl,
             endButton,
             this.speedEl,
+            settingsButton,
         );
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
@@ -379,6 +393,104 @@ export class Hud {
         this.mount(this.shopColumn);
         this.mount(this.fightBar);
         this.mount(this.panel);
+        this.buildChatBar();
+    }
+
+    // --- in-match chat -----------------------------------------------------
+
+    private readonly chatFloat = document.createElement('div');
+    private chatBar!: HTMLDivElement;
+    private chatInput!: HTMLInputElement;
+
+    private buildChatBar(): void {
+        this.chatFloat.className = 'mechili-chat-float';
+        this.mount(this.chatFloat);
+
+        const bar = document.createElement('div');
+        this.chatBar = bar;
+        bar.className = 'mechili-chat';
+        const emoteButtons = EMOTES.map(
+            (e) => `<button type="button" class="c-emote" data-emote="${e.id}" title="${e.label}">${e.icon}</button>`,
+        ).join('');
+        bar.innerHTML =
+            `<div class="c-strip"></div>` +
+            `<div class="c-panel">` +
+            `<div class="c-emotes">${emoteButtons}</div>` +
+            `<div class="c-row">` +
+            `<input class="c-input" maxlength="${CHAT_TEXT_LIMIT}" placeholder="message…" spellcheck="false" />` +
+            `<button type="button" class="c-send">Send</button>` +
+            `</div></div>`;
+        this.chatInput = bar.querySelector('.c-input')!;
+
+        const submit = () => {
+            const text = this.chatInput.value.trim().slice(0, CHAT_TEXT_LIMIT);
+            if (text) this.onSendChat?.({ kind: 'text', text });
+            this.chatInput.value = '';
+            this.chatInput.focus();
+        };
+        bar.querySelector('.c-strip')!.addEventListener('click', () => {
+            bar.classList.toggle('open');
+            if (bar.classList.contains('open')) this.chatInput.focus();
+        });
+        bar.addEventListener('click', (e) => {
+            const emote = (e.target as HTMLElement).closest<HTMLButtonElement>('.c-emote');
+            if (emote?.dataset.emote) this.onSendChat?.({ kind: 'emote', id: emote.dataset.emote });
+        });
+        bar.querySelector('.c-send')!.addEventListener('click', submit);
+        this.chatInput.addEventListener('keydown', (e) => {
+            e.stopPropagation(); // don't trigger game hotkeys while typing
+            if (e.key === 'Escape') {
+                bar.classList.remove('open');
+                this.chatInput.blur();
+            }
+            if (e.key === 'Enter') submit();
+        });
+        this.mount(bar);
+
+        // "show combat chat" hides the whole thing, live; the listener
+        // detaches itself once this HUD is torn down
+        const applyVisibility = () => {
+            const show = prefs().combatChat;
+            bar.style.display = show ? '' : 'none';
+            this.chatFloat.style.display = show ? '' : 'none';
+        };
+        applyVisibility();
+        const off = onPrefsChange(() => {
+            if (!bar.isConnected) {
+                off();
+                return;
+            }
+            applyVisibility();
+        });
+    }
+
+    /** shows a chat item: bubble at the sender's fighter card + floating line */
+    addChat(name: string, item: ChatItem, from: 'local' | 'remote'): void {
+        if (!prefs().combatChat) return; // combat chat fully hidden
+        const icon = item.kind === 'emote' ? (emoteById(item.id)?.icon ?? '❓') : null;
+        const text = item.kind === 'text' ? item.text : (emoteById(item.id)?.label ?? '');
+
+        // bubble under the sender's fighter card (one at a time per side)
+        const fighter = from === 'local' ? this.playerFighterEl : this.enemyFighterEl;
+        fighter.querySelector('.chat-bubble')?.remove();
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${item.kind}`;
+        bubble.textContent = icon ?? text;
+        fighter.appendChild(bubble);
+        setTimeout(() => bubble.remove(), 4500);
+
+        // floating line above the chat bar (XSS-safe: textContent only)
+        const line = document.createElement('div');
+        line.className = `cf-msg ${from}`;
+        const who = document.createElement('span');
+        who.className = 'cf-name';
+        who.textContent = name;
+        const what = document.createElement('span');
+        what.textContent = icon ? ` ${icon} ${text}` : ` ${text}`;
+        line.append(who, what);
+        this.chatFloat.appendChild(line);
+        while (this.chatFloat.children.length > 4) this.chatFloat.firstChild?.remove();
+        setTimeout(() => line.remove(), 7000);
     }
 
     /** Commander names shown in the top fight bar. */

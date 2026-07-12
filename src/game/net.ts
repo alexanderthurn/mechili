@@ -1,6 +1,7 @@
 import Peer, { type DataConnection } from 'peerjs';
 import type { Action, LoggedAction } from './actions';
 import type { Opponent } from './ai';
+import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { GameSettings } from './settings';
 
@@ -58,6 +59,28 @@ export interface LobbyRoom {
     peer: string;
 }
 
+/** the menu's global chat endpoint — chat.php next to matchmaking.php */
+export function chatUrl(): string {
+    return new URL('chat.php', matchUrl()).href;
+}
+
+export interface GlobalChatState {
+    sticky: string | null;
+    messages: { name: string; text: string; ts: number }[];
+}
+
+export async function fetchGlobalChat(): Promise<GlobalChatState> {
+    const res = await fetch(`${chatUrl()}?action=list`);
+    const data = (await res.json()) as Partial<GlobalChatState>;
+    return { sticky: data.sticky ?? null, messages: data.messages ?? [] };
+}
+
+export async function postGlobalChat(name: string, text: string): Promise<void> {
+    await fetch(
+        `${chatUrl()}?action=post&name=${encodeURIComponent(name)}&text=${encodeURIComponent(text)}`,
+    ).catch(() => undefined);
+}
+
 /**
  * Everything that crosses the wire. Actions stream LIVE as they happen —
  * hiding the opponent's deployment is purely a local rendering rule (until
@@ -84,7 +107,9 @@ export type NetMessage =
           battleElapsed: number | null;
       }
     /** battle playback speed — kept in sync so both players finish together */
-    | { type: 'speed'; multiplier: number };
+    | { type: 'speed'; multiplier: number }
+    /** chat: emote or short text — never part of game state */
+    | { type: 'chat'; item: ChatItem };
 
 /** the remote player as an Opponent: it acts via received messages, so the
  *  local hooks are all no-ops */

@@ -30,6 +30,7 @@ import {
     type StartCard,
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
+import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { ITEMS } from './items';
 import { BattleMap, CELL, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
@@ -165,6 +166,9 @@ export class Game {
     /** state checksums per round (battle start), ours and the peer's */
     private readonly sentChecks = new Map<number, number>();
     private readonly peerChecks = new Map<number, number>();
+    /** chat rate limiting, both directions */
+    private lastChatSent = -Infinity;
+    private lastChatReceived = -Infinity;
     /** set by main: the connection dropped mid-match (reconnect orchestration) */
     onConnectionLost: (() => void) | null = null;
     /** set by main: tear down the match and restore the pre-game menu */
@@ -370,6 +374,13 @@ export class Game {
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
         this.hud.onUndo = () => this.undoLast();
+        this.hud.onSendChat = (item) => {
+            const now = performance.now();
+            if (now - this.lastChatSent < CHAT_COOLDOWN_MS) return;
+            this.lastChatSent = now;
+            this.hud.addChat(this.playerNames.local, item, 'local');
+            this.net?.send({ type: 'chat', item });
+        };
         this.hud.onArmItem = (itemId) => {
             if (!this.playerCanAct) return;
             this.armedItem = this.armedItem === itemId ? null : itemId; // click again to disarm
@@ -892,6 +903,17 @@ export class Game {
         } else if (msg.type === 'check') {
             this.peerChecks.set(msg.round, msg.hash);
             this.verifyCheck(msg.round);
+        } else if (msg.type === 'chat') {
+            // clamp the peer's rate too (P2P — never trust the sender) and
+            // re-truncate text before it reaches the DOM
+            const now = performance.now();
+            if (now - this.lastChatReceived < CHAT_COOLDOWN_MS * 0.5) return;
+            this.lastChatReceived = now;
+            const item: ChatItem =
+                msg.item.kind === 'text'
+                    ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
+                    : msg.item;
+            this.hud.addChat(this.playerNames.opponent, item, 'remote');
         } else if (msg.type === 'speed') {
             const index = Game.SPEED_STEPS.indexOf(msg.multiplier);
             if (index >= 0) {
