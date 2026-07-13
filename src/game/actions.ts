@@ -1,5 +1,6 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
 import { ITEMS } from './items';
+import { RALLY_ROUTE_ID, TACTICS, type RallyRoute } from './tactics';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
 import type {
@@ -135,6 +136,21 @@ export interface UnlockUnitAction {
     team: Team;
     typeId: string;
 }
+/** places a rally route on the battlefield — consumes one tactic charge */
+export interface PlaceRallyRouteAction {
+    kind: 'placeRallyRoute';
+    team: Team;
+    startX: number;
+    startZ: number;
+    endX: number;
+    endZ: number;
+}
+/** clears a placed rally route — refunds the tactic charge */
+export interface RemoveRallyRouteAction {
+    kind: 'removeRallyRoute';
+    team: Team;
+    routeId: number;
+}
 
 export type Action =
     | BuyAction
@@ -155,7 +171,9 @@ export type Action =
     | ApplyItemAction
     | RoundCardAction
     | EndDeploymentAction
-    | UnlockUnitAction;
+    | UnlockUnitAction
+    | PlaceRallyRouteAction
+    | RemoveRallyRouteAction;
 
 /** one applied action as stored in a replay */
 export interface LoggedAction {
@@ -180,6 +198,9 @@ interface LogEntry extends LoggedAction {
     units?: Unit[];
     prevHp?: number;
     grantedItems?: string[];
+    grantedTactics?: string[];
+    /** placeRallyRoute: the spawned route */
+    rallyRoute?: RallyRoute;
 }
 
 export interface ActionContext {
@@ -216,6 +237,12 @@ export interface ActionContext {
     flankSpawnMult: Record<Team, number>;
     /** each side's UNEQUIPPED pack items (item ids; duplicates stack) */
     items: Record<Team, string[]>;
+    /** tactical order charges (e.g. rally routes) — not pack items */
+    tactics: Record<Team, string[]>;
+    /** rally routes placed this deployment round (cleared each round) */
+    rallyRoutes: RallyRoute[];
+    /** monotonic id source for rally routes */
+    rallyRouteIds: { next: number };
     /** whether each side already took (or skipped) this round's card */
     roundCardTaken: Record<Team, boolean>;
     /** which sides have locked in this deployment — battle needs BOTH */
@@ -554,6 +581,10 @@ export class ActionDispatcher {
                     this.ctx.items[action.team].push(...card.items);
                     entry.grantedItems = [...card.items];
                 }
+                if (card.tactics) {
+                    this.ctx.tactics[action.team].push(...card.tactics);
+                    entry.grantedTactics = [...card.tactics];
+                }
                 if (card.flankSpawnHalf) {
                     this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
                 }
@@ -575,6 +606,33 @@ export class ActionDispatcher {
                 this.ctx.unlockedUnits[action.team].push(action.typeId);
                 this.ctx.unlockUsedThisRound[action.team] = true;
                 entry.paid = cost;
+                return true;
+            }
+            case 'placeRallyRoute': {
+                if (!TACTICS[RALLY_ROUTE_ID]) return false;
+                const max =
+                    this.ctx.tactics[action.team].filter((id) => id === RALLY_ROUTE_ID).length;
+                const placed = this.ctx.rallyRoutes.filter((r) => r.team === action.team).length;
+                if (placed >= max) return false;
+                const route: RallyRoute = {
+                    id: this.ctx.rallyRouteIds.next++,
+                    team: action.team,
+                    startX: action.startX,
+                    startZ: action.startZ,
+                    endX: action.endX,
+                    endZ: action.endZ,
+                };
+                this.ctx.rallyRoutes.push(route);
+                entry.rallyRoute = route;
+                return true;
+            }
+            case 'removeRallyRoute': {
+                const i = this.ctx.rallyRoutes.findIndex(
+                    (r) => r.id === action.routeId && r.team === action.team,
+                );
+                if (i < 0) return false;
+                entry.rallyRoute = this.ctx.rallyRoutes[i];
+                this.ctx.rallyRoutes.splice(i, 1);
                 return true;
             }
         }
@@ -660,6 +718,16 @@ export class ActionDispatcher {
                 const worn = unit.items.lastIndexOf(action.itemId);
                 if (worn >= 0) unit.items.splice(worn, 1);
                 this.ctx.items[action.team].push(action.itemId);
+                break;
+            }
+            case 'placeRallyRoute': {
+                const route = e.rallyRoute!;
+                const i = this.ctx.rallyRoutes.findIndex((r) => r.id === route.id);
+                if (i >= 0) this.ctx.rallyRoutes.splice(i, 1);
+                break;
+            }
+            case 'removeRallyRoute': {
+                this.ctx.rallyRoutes.push(e.rallyRoute!);
                 break;
             }
             case 'chooseCard':

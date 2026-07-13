@@ -906,6 +906,12 @@ export function hudStyles(): string {
 }
 .mechili-sidebar .inv-item:hover { border-color: ${u.hover}; }
 .mechili-sidebar .inv-item.armed { border-color: ${u.brass}; box-shadow: 0 0 10px ${u.brass}; }
+.mechili-sidebar .inv-item.placed {
+    border-color: ${u.techOwned};
+    box-shadow: 0 0 8px rgba(80, 200, 100, 0.45);
+    cursor: default;
+}
+.mechili-sidebar .inv-item.placed .i { opacity: 0.85; }
 .mechili-sidebar .inv-item.readonly { cursor: default; pointer-events: none; }
 .inv-drag {
     position: fixed;

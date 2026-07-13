@@ -109,6 +109,9 @@ export class Hud {
     onBuyRoundSpeedBoost: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     onArmItem: ((itemId: string) => void) | null = null;
+    onArmTactic: ((tacticId: string) => void) | null = null;
+    onCancelTactic: (() => void) | null = null;
+    onResetPlacedTactic: ((routeId: number) => void) | null = null;
     onUndo: (() => void) | null = null;
     /** the player sent a chat item (emote or text) */
     onSendChat: ((item: ChatItem) => void) | null = null;
@@ -333,8 +336,23 @@ export class Hud {
         this.inventoryEl.className = 'mechili-sidebar left';
         this.inventoryEl.style.display = 'none';
         this.inventoryEl.addEventListener('click', (e) => {
-            const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item');
-            if (button?.dataset.item) this.onArmItem?.(button.dataset.item);
+            const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-item]');
+            if (itemBtn?.dataset.item) {
+                this.onArmItem?.(itemBtn.dataset.item);
+                return;
+            }
+            const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+                '.inv-item[data-tactic]:not(.placed)',
+            );
+            if (tacticBtn?.dataset.tactic) this.onArmTactic?.(tacticBtn.dataset.tactic);
+        });
+        this.inventoryEl.addEventListener('contextmenu', (e) => {
+            const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-tactic]');
+            if (!tacticBtn) return;
+            e.preventDefault();
+            const routeId = tacticBtn.dataset.routeId;
+            if (routeId) this.onResetPlacedTactic?.(Number(routeId));
+            else this.onCancelTactic?.();
         });
 
         // opponent items not yet placed (right edge; wired when visibility rules exist)
@@ -565,20 +583,50 @@ export class Hud {
     /** the left-edge strip of unequipped items (one square each); empty list hides it */
     setInventory(
         items: readonly { id: string; icon: string; name: string; armed: boolean }[],
+        tactics: readonly {
+            id: string;
+            icon: string;
+            name: string;
+            armed: boolean;
+            placed?: boolean;
+            routeId?: number;
+        }[] = [],
     ): void {
-        const key = JSON.stringify(items);
+        const key = JSON.stringify({ items, tactics });
         if (key === this.lastInventoryKey) return;
         this.lastInventoryKey = key;
-        this.inventoryEl.style.display = items.length ? '' : 'none';
-        this.inventoryEl.innerHTML =
-            `<div class="inv-title">Items</div>` +
-            items
-                .map(
-                    (i) =>
-                        `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
-                        `<span class="i">${i.icon}</span></button>`,
-                )
-                .join('');
+        const visible = items.length > 0 || tactics.length > 0;
+        this.inventoryEl.style.display = visible ? '' : 'none';
+        const itemHtml = items.length
+            ? `<div class="inv-title">Items</div>` +
+              items
+                  .map(
+                      (i) =>
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
+                          `<span class="i">${i.icon}</span></button>`,
+                  )
+                  .join('')
+            : '';
+        const tacticHtml = tactics.length
+            ? `<div class="inv-title">Tactics</div>` +
+              tactics
+                  .map((t) => {
+                      const routeAttr = t.routeId !== undefined ? ` data-route-id="${t.routeId}"` : '';
+                      const cls =
+                          `inv-item tactic` +
+                          (t.placed ? ' placed' : '') +
+                          (t.armed ? ' armed' : '');
+                      const hint = t.placed
+                          ? `${t.name}\nRight-click to clear and place again.`
+                          : `${t.name}\nClick to place on the map. Right-click to cancel.`;
+                      return (
+                          `<button class="${cls}" data-tactic="${t.id}"${routeAttr} title="${hint}">` +
+                          `<span class="i">${t.icon}</span></button>`
+                      );
+                  })
+                  .join('')
+            : '';
+        this.inventoryEl.innerHTML = itemHtml + tacticHtml;
         // the picked-up item's ghost rides the cursor until placed or cancelled
         const picked = items.find((i) => i.armed);
         if (picked && !this.itemGhost) {

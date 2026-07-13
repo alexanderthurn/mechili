@@ -1,6 +1,12 @@
 import type { Group } from 'three';
 import { ITEMS } from './items';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
+import {
+    RALLY_ROUTE_RADIUS,
+    RALLY_ROUTE_REACH,
+    RALLY_ROUTE_STUCK_SEC,
+    type RallyRoute,
+} from './tactics';
 import type { ResolvedStats } from './tech';
 import { syncBattleTint, type Team, type Unit, type UnitType } from './units';
 
@@ -35,6 +41,8 @@ export interface SimConfig {
     flankSpawnSeconds: number;
     flankSpawnMult: (team: Team) => number;
     needsFlankSpawn: (unit: Unit) => boolean;
+    /** rally routes placed this deployment (player tactics only for now) */
+    rallyRoutes?: readonly RallyRoute[];
 }
 
 export interface Actor {
@@ -69,6 +77,13 @@ export interface Actor {
     spawnUntil: number;
     /** took damage during flank spawn — hp no longer auto-ramps */
     spawnDamaged: boolean;
+    /** personal rally-route destination (null = default seek-enemy AI) */
+    pathDestX: number | null;
+    pathDestZ: number | null;
+    /** seconds without getting closer to the rally destination */
+    pathStuck: number;
+    /** closest approach to pathDest so far */
+    pathBestDist: number;
 }
 
 /** how long a hit keeps the HP bar visible */
@@ -194,6 +209,10 @@ export class BattleSim {
                     goldenUntil: 0,
                     spawnUntil: 0,
                     spawnDamaged: false,
+                    pathDestX: null,
+                    pathDestZ: null,
+                    pathStuck: 0,
+                    pathBestDist: Infinity,
                 });
             }
         }
@@ -235,6 +254,55 @@ export class BattleSim {
             const stats = this.resolved.get(a.unit)!;
             a.cooldown = (nth % 5) * (stats.attackInterval / 5);
         });
+
+        this.assignRallyRoutes(config.rallyRoutes ?? []);
+    }
+
+    /** snapshot at battle start: mechs inside a route's start circle march to a
+     *  matching offset at the end. Overlapping zones: last-placed route wins. */
+    private assignRallyRoutes(routes: readonly RallyRoute[]): void {
+        const r2 = RALLY_ROUTE_RADIUS * RALLY_ROUTE_RADIUS;
+        for (const route of routes) {
+            for (const a of this.actors) {
+                if (!a.alive || a.unit.type.structure || a.unit.team !== route.team) continue;
+                if (a.spawnUntil > BATTLE_START_FREEZE + 1e-9) continue;
+                const dx = a.x - route.startX;
+                const dz = a.z - route.startZ;
+                if (dx * dx + dz * dz > r2) continue;
+                a.pathDestX = route.endX + dx;
+                a.pathDestZ = route.endZ + dz;
+                a.pathStuck = 0;
+                a.pathBestDist = Infinity;
+            }
+        }
+    }
+
+    private clearPathOrder(a: Actor): void {
+        a.pathDestX = null;
+        a.pathDestZ = null;
+        a.pathStuck = 0;
+        a.pathBestDist = Infinity;
+    }
+
+    /** true when the mech has arrived or given up on its rally destination */
+    private updatePathProgress(a: Actor, dt: number): boolean {
+        if (a.pathDestX === null || a.pathDestZ === null) return false;
+        const dist = hypot(a.x - a.pathDestX, a.z - a.pathDestZ);
+        if (dist <= RALLY_ROUTE_REACH) {
+            this.clearPathOrder(a);
+            return false;
+        }
+        if (dist < a.pathBestDist - 0.05) {
+            a.pathBestDist = dist;
+            a.pathStuck = 0;
+        } else {
+            a.pathStuck += dt;
+            if (a.pathStuck >= RALLY_ROUTE_STUCK_SEC) {
+                this.clearPathOrder(a);
+                return false;
+            }
+        }
+        return true;
     }
 
     /** deterministic end: timeout or one side wiped — never step past it */
@@ -493,20 +561,64 @@ export class BattleSim {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
             if (this.isSpawning(a)) continue;
-            // out of attackable targets (e.g. crawlers vs a lone wasp): walk
-            // up to the closest enemy anyway and wait there, weapons silent
+
+            const onPath = this.updatePathProgress(a, dt);
+            const stats = this.resolved.get(a.unit)!;
+
             let canAttack = true;
             let target = this.closestEnemy(a);
             if (!target) {
                 canAttack = false;
                 target = this.closestEnemy(a, true);
             }
+
+            if (onPath && a.pathDestX !== null && a.pathDestZ !== null) {
+                const destX = a.pathDestX;
+                const destZ = a.pathDestZ;
+                const isMelee = !a.unit.type.projectileSpeed;
+
+                if (target) {
+                    const tdx = target.x - a.x;
+                    const tdz = target.z - a.z;
+                    const tDist = hypot(tdx, tdz) || 1e-6;
+                    const reach = stats.range + a.radius + target.radius;
+                    if (tDist <= reach) {
+                        if (isMelee) {
+                            if (canAttack) a.cooldown -= dt;
+                            if (canAttack && a.cooldown <= 0) {
+                                a.cooldown += stats.attackInterval;
+                                const damage =
+                                    stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                                const dealt = damage * this.damageTakenMult(target);
+                                this.applyDamage(a.unit, target, dealt);
+                                this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                            }
+                            a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
+                            continue;
+                        }
+                        // ranged on a rally route: fire while marching
+                        if (canAttack) a.cooldown -= dt;
+                        if (canAttack && a.cooldown <= 0) {
+                            a.cooldown += stats.attackInterval;
+                            const damage =
+                                stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                            this.fire(a, target, damage, a.unit.type.projectileSpeed!);
+                        }
+                    }
+                }
+
+                const dx = destX - a.x;
+                const dz = destZ - a.z;
+                const dist = hypot(dx, dz) || 1e-6;
+                this.steerToward(a, dx / dist, dz / dist, dist, dt, stats, d, target, bigs);
+                continue;
+            }
+
             if (!target) continue;
 
             const dx = target.x - a.x;
             const dz = target.z - a.z;
             const dist = hypot(dx, dz) || 1e-6;
-            const stats = this.resolved.get(a.unit)!;
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
             const reach = stats.range + a.radius + target.radius;
@@ -531,71 +643,79 @@ export class BattleSim {
                 continue;
             }
 
-            // --- steering: seek + steer around big blockers + soft separation ---
-            const seekX = dx / dist;
-            const seekZ = dz / dist;
-            let steerX = seekX;
-            let steerZ = seekZ;
-
-            // nearest big actor blocking the path ahead (never the target
-            // itself) — air units fly over everything on the ground
-            let blocker: Actor | null = null;
-            let blockerDist = Infinity;
-            for (const o of a.altitude > 0 ? [] : bigs) {
-                if (o === a || o === target || !o.alive || o.altitude > 0) continue;
-                const ox = o.x - a.x;
-                const oz = o.z - a.z;
-                const ahead = ox * seekX + oz * seekZ;
-                if (ahead <= 0 || ahead > AVOID_LOOKAHEAD + o.radius) continue;
-                const lateral = seekX * oz - seekZ * ox; // signed side offset of the obstacle
-                if (Math.abs(lateral) >= o.radius + a.radius + AVOID_MARGIN) continue;
-                const oDist = hypot(ox, oz);
-                if (oDist < blockerDist) {
-                    blockerDist = oDist;
-                    blocker = o;
-                }
-            }
-            if (blocker) {
-                const ox = blocker.x - a.x;
-                const oz = blocker.z - a.z;
-                const oLen = hypot(ox, oz) || 1e-6;
-                const lateral = seekX * oz - seekZ * ox;
-                // steer to the side the mech already favors -> a pack naturally
-                // splits: its left half flows left, its right half flows right
-                const side = lateral >= 0 ? 1 : -1;
-                const w = AVOID_STRENGTH * Math.max(0, 1 - oLen / (AVOID_LOOKAHEAD + blocker.radius));
-                steerX += (side * (oz / oLen)) * w;
-                steerZ += (-side * (ox / oLen)) * w;
-            }
-
-            // soft separation from nearby mechs of any team, same layer only
-            for (const b of this.nearby(a)) {
-                if (b === a || !b.alive || (b.altitude > 0) !== (a.altitude > 0)) continue;
-                const sx = a.x - b.x;
-                const sz = a.z - b.z;
-                const sd = hypot(sx, sz);
-                const minD = a.radius + b.radius + SEPARATION_GAP;
-                if (sd >= minD || sd < 1e-4) continue;
-                const w = ((minD - sd) / minD) * SEPARATION_STRENGTH;
-                steerX += (sx / sd) * w;
-                steerZ += (sz / sd) * w;
-            }
-
-            const steerLen = hypot(steerX, steerZ);
-            if (steerLen > 1e-4) {
-                steerX /= steerLen;
-                steerZ /= steerLen;
-                const speed = stats.speed * this.debuff(a, d.speedMult);
-                const move = Math.min(speed * dt, Math.max(0, dist - reach * 0.95));
-                a.x += steerX * move;
-                a.z += steerZ * move;
-                a.mesh.rotation.y = Math.atan2(-steerX, -steerZ);
-            }
+            this.steerToward(a, dx / dist, dz / dist, dist, dt, stats, d, target, bigs, reach * 0.95);
         }
 
         this.resolveOverlaps();
         this.stepRockets(dt);
         this.stepProjectiles(dt);
+    }
+
+    /** seek toward a direction with obstacle avoidance and crowd separation */
+    private steerToward(
+        a: Actor,
+        seekX: number,
+        seekZ: number,
+        goalDist: number,
+        dt: number,
+        stats: ResolvedStats,
+        d: { speedMult: number },
+        avoid: Actor | null,
+        bigs: Actor[],
+        stopMargin = 0,
+    ): void {
+        let steerX = seekX;
+        let steerZ = seekZ;
+
+        let blocker: Actor | null = null;
+        let blockerDist = Infinity;
+        for (const o of a.altitude > 0 ? [] : bigs) {
+            if (o === a || o === avoid || !o.alive || o.altitude > 0) continue;
+            const ox = o.x - a.x;
+            const oz = o.z - a.z;
+            const ahead = ox * seekX + oz * seekZ;
+            if (ahead <= 0 || ahead > AVOID_LOOKAHEAD + o.radius) continue;
+            const lateral = seekX * oz - seekZ * ox;
+            if (Math.abs(lateral) >= o.radius + a.radius + AVOID_MARGIN) continue;
+            const oDist = hypot(ox, oz);
+            if (oDist < blockerDist) {
+                blockerDist = oDist;
+                blocker = o;
+            }
+        }
+        if (blocker) {
+            const ox = blocker.x - a.x;
+            const oz = blocker.z - a.z;
+            const oLen = hypot(ox, oz) || 1e-6;
+            const lateral = seekX * oz - seekZ * ox;
+            const side = lateral >= 0 ? 1 : -1;
+            const w = AVOID_STRENGTH * Math.max(0, 1 - oLen / (AVOID_LOOKAHEAD + blocker.radius));
+            steerX += (side * (oz / oLen)) * w;
+            steerZ += (-side * (ox / oLen)) * w;
+        }
+
+        for (const b of this.nearby(a)) {
+            if (b === a || !b.alive || (b.altitude > 0) !== (a.altitude > 0)) continue;
+            const sx = a.x - b.x;
+            const sz = a.z - b.z;
+            const sd = hypot(sx, sz);
+            const minD = a.radius + b.radius + SEPARATION_GAP;
+            if (sd >= minD || sd < 1e-4) continue;
+            const w = ((minD - sd) / minD) * SEPARATION_STRENGTH;
+            steerX += (sx / sd) * w;
+            steerZ += (sz / sd) * w;
+        }
+
+        const steerLen = hypot(steerX, steerZ);
+        if (steerLen > 1e-4) {
+            steerX /= steerLen;
+            steerZ /= steerLen;
+            const speed = stats.speed * this.debuff(a, d.speedMult);
+            const move = Math.min(speed * dt, Math.max(0, goalDist - stopMargin));
+            a.x += steerX * move;
+            a.z += steerZ * move;
+            a.mesh.rotation.y = Math.atan2(-steerX, -steerZ);
+        }
     }
 
     /**

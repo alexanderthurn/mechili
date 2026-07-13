@@ -31,6 +31,8 @@ export interface RoundCard {
     unitsLabel?: string;
     /** items granted into the inventory */
     items?: string[];
+    /** tactical order charges granted into the tactics strip */
+    tactics?: string[];
     /** halves flank spawn time for the rest of the match */
     flankSpawnHalf?: boolean;
     description: string;
@@ -103,6 +105,13 @@ export const ROUND_CARDS: RoundCard[] = [
         cost: 100,
         flankSpawnHalf: true,
         description: 'First-time flank spawns take half the time (2.5s).',
+    },
+    {
+        id: 'rallyRoute',
+        title: 'Rally Route',
+        cost: 50,
+        tactics: ['rallyRoute'],
+        description: 'Place a march route: units in the start zone head to the end zone, fighting along the way.',
     },
 ];
 

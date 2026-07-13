@@ -84,6 +84,10 @@ export class PlacementController {
     levelReady: ((unit: Unit) => boolean) | null = null;
     /** fires on every click that lands on a unit (used for item application) */
     onSelect: ((unit: Unit) => void) | null = null;
+    /** when set, left clicks are offered here first; return true to swallow */
+    groundClickInterceptor: ((x: number, y: number) => boolean) | null = null;
+    /** blocks normal placement interaction (tactic placement mode) */
+    inputLocked = false;
 
     /**
      * per-team id counters: a side's ids depend only on its OWN spawn
@@ -187,14 +191,14 @@ export class PlacementController {
 
         listen('pointermove', ((e: PointerEvent) => {
             this.pointer = this.toLocal(e);
-            if (!this.downAt || !this.enabled || this.pendingType) return;
+            if (!this.downAt || !this.enabled || this.pendingType || this.inputLocked) return;
             const moved = Math.hypot(this.pointer.x - this.downAt.x, this.pointer.y - this.downAt.y);
             if (this.rectActive || moved > 6) this.updateRect(this.downAt, this.pointer);
         }) as EventListener);
         listen('pointerdown', ((e: PointerEvent) => {
             if (e.button !== 0) return;
             this.downAt = this.toLocal(e);
-            surface.setPointerCapture(e.pointerId);
+            if (!this.inputLocked) surface.setPointerCapture(e.pointerId);
         }) as EventListener);
         listen('pointercancel', (() => {
             this.downAt = null;
@@ -206,8 +210,13 @@ export class PlacementController {
             this.downAt = null;
             const wasRect = this.rectActive;
             this.hideRect();
-            if (!this.enabled || !down) return;
             const up = this.toLocal(e);
+            // tactic placement: single clicks only, no drag-select
+            if (this.inputLocked) {
+                if (this.enabled && !wasRect) this.handleClick(up.x, up.y);
+                return;
+            }
+            if (!this.enabled || !down) return;
             if (wasRect) {
                 this.finishRectSelect(down, up);
                 return;
@@ -707,6 +716,7 @@ export class PlacementController {
     }
 
     private handleClick(x: number, y: number): void {
+        if (this.groundClickInterceptor?.(x, y)) return;
         const cell = this.cellAt(x, y);
         if (!cell) return;
         // click-placing an extra: buy it right here (stays pending if invalid)
@@ -939,6 +949,11 @@ export class PlacementController {
         const rect = this.surface.getBoundingClientRect();
         const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
         return ground ? this.map.worldToCell(ground) : null;
+    }
+
+    /** latest pointer position in canvas-local pixels (for tactic previews) */
+    get lastPointer(): { x: number; y: number } | null {
+        return this.pointer;
     }
 
     /** all tiles under the footprint, or null when part of it is off the map */

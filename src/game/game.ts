@@ -36,8 +36,10 @@ import { BattleMap, CELL, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import { createRangeRing, PlacementController } from './placement';
+import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent } from './sim';
+import { RALLY_ROUTE_ID, TACTICS, type RallyRoute } from './tactics';
 import { TechTree } from './tech';
 import {
     COMMAND_TOWER,
@@ -85,6 +87,7 @@ export class Game {
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
     private readonly scenery: Scenery;
+    private readonly rallyVisuals: RallyVisuals;
     private gridOverlay;
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
@@ -150,12 +153,23 @@ export class Game {
     private readonly flankSpawnMult: Record<Team, number> = { player: 1, enemy: 1 };
     /** each side's unequipped pack items */
     private readonly itemInventory: Record<Team, string[]> = { player: [], enemy: [] };
+    /** tactical order charges (rally routes, etc.) — separate from pack items */
+    private readonly tacticInventory: Record<Team, string[]> = { player: [], enemy: [] };
+    /** rally routes placed this deployment round */
+    private readonly rallyRoutes: RallyRoute[] = [];
+    private readonly rallyRouteIds = { next: 1 };
+    /** true once the test rally-route charge has been granted */
+    private testRallyRouteGranted = false;
     /** unit types buyable in the shop this match */
     private readonly unlockedUnits: Record<Team, string[]> = { player: [], enemy: [] };
     /** at most one shop unlock per deployment round */
     private readonly unlockUsedThisRound: Record<Team, boolean> = { player: false, enemy: false };
     /** the inventory item currently armed for placement onto a pack */
     private armedItem: string | null = null;
+    /** the tactic currently being placed on the map */
+    private armedTactic: string | null = null;
+    /** first click of an in-progress rally route */
+    private rallyDraftStart: { x: number; z: number } | null = null;
     /** whether each side already took/skipped this round's card */
     private readonly roundCardTaken: Record<Team, boolean> = { player: false, enemy: false };
     /** the game idles behind the card overlay until the loadout is picked */
@@ -190,6 +204,7 @@ export class Game {
             this.placement.deselect();
             this.selectedActor = null;
             this.armedItem = null;
+            this.cancelRallyPlacement();
         }
     };
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
@@ -254,6 +269,7 @@ export class Game {
         this.scene.add(this.map.createMesh());
         this.scenery = new Scenery(this.map);
         this.scene.add(this.scenery.group);
+        this.rallyVisuals = new RallyVisuals(this.scene, this.map);
         this.gridOverlay = this.map.createOverlayMesh();
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
@@ -305,6 +321,9 @@ export class Game {
             speciality: this.speciality,
             flankSpawnMult: this.flankSpawnMult,
             items: this.itemInventory,
+            tactics: this.tacticInventory,
+            rallyRoutes: this.rallyRoutes,
+            rallyRouteIds: this.rallyRouteIds,
             roundCardTaken: this.roundCardTaken,
             deployReady: this.deployReady,
             unlockedUnits: this.unlockedUnits,
@@ -328,6 +347,7 @@ export class Game {
                     this.placement.deselect();
                     this.placement.enabled = false;
                     this.armedItem = null;
+                    this.cancelRallyPlacement();
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
                 }
@@ -354,9 +374,14 @@ export class Game {
             if (!this.armedItem) return;
             if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
         };
-        this.controls.onMiddleClick = () => this.placement.rotateSelected();
+        this.placement.groundClickInterceptor = (x, y) => this.handleRallyGroundClick(x, y);
+        this.controls.onMiddleClick = () => {
+            if (this.armedTactic) return;
+            this.placement.rotateSelected();
+        };
         this.placement.rangeOf = (unit) => this.resolvedStats(unit).range;
         this.controls.onRightClick = () => {
+            if (this.cancelRallyPlacement()) return;
             this.placement.deselect();
             this.selectedActor = null;
             this.armedItem = null;
@@ -387,8 +412,27 @@ export class Game {
             this.net?.send({ type: 'chat', item });
         };
         this.hud.onArmItem = (itemId) => {
-            if (!this.playerCanAct) return;
+            if (!this.playerCanAct || this.armedTactic) return;
             this.armedItem = this.armedItem === itemId ? null : itemId; // click again to disarm
+        };
+        this.hud.onArmTactic = (tacticId) => {
+            if (!this.playerCanAct) return;
+            if (this.armedTactic === tacticId) {
+                this.cancelRallyPlacement();
+                return;
+            }
+            this.armedItem = null;
+            this.placement.deselect();
+            this.armedTactic = tacticId;
+            this.rallyDraftStart = null;
+            this.placement.inputLocked = true;
+            this.syncRallyVisuals();
+        };
+        this.hud.onCancelTactic = () => {
+            this.cancelRallyPlacement();
+        };
+        this.hud.onResetPlacedTactic = (routeId) => {
+            this.resetPlacedRallyRoute(routeId);
         };
         this.hud.onRecruitLevel = () => {
             // offered in the Research Center's menu
@@ -515,6 +559,7 @@ export class Game {
         for (const dispose of this.inputDisposers) dispose();
         this.inputDisposers.length = 0;
         this.placement.dispose();
+        this.rallyVisuals.dispose();
         this.controls.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
@@ -570,6 +615,9 @@ export class Game {
         this.placement.currentRound = this.round; // earlier deployments are locked now
         this.selectedActor = null;
         this.hpBars.clear();
+        this.rallyRoutes.length = 0;
+        this.cancelRallyPlacement();
+        this.syncRallyVisuals();
         // flanks and the neutral strip open up after the first round
         const unlocked = this.round >= 2;
         if (unlocked !== this.map.flanksUnlocked) {
@@ -629,6 +677,12 @@ export class Game {
 
         // from round 2 on, both sides get a card offer at the round's start
         if (this.round >= 2) this.offerRoundCards();
+
+        // testing: one free rally route charge at the first deployment
+        if (this.round === 1 && !this.hydrating && !this.testRallyRouteGranted) {
+            this.tacticInventory.player.push(RALLY_ROUTE_ID);
+            this.testRallyRouteGranted = true;
+        }
     }
 
     /** local player input — refused once this deployment is locked in; every
@@ -1114,6 +1168,129 @@ export class Game {
         });
     }
 
+    /** the left-side tactics strip: placed routes + remaining slots this round */
+    private tacticsView(): {
+        id: string;
+        icon: string;
+        name: string;
+        armed: boolean;
+        placed?: boolean;
+        routeId?: number;
+    }[] {
+        if (!this.playerCanAct) return [];
+        const tactic = TACTICS[RALLY_ROUTE_ID];
+        const maxCharges = this.tacticInventory.player.filter((id) => id === RALLY_ROUTE_ID).length;
+        if (maxCharges === 0) return [];
+
+        const placed = this.rallyRoutes
+            .filter((r) => r.team === 'player')
+            .map((r) => ({
+                id: RALLY_ROUTE_ID,
+                icon: tactic?.icon ?? '⚑',
+                name: tactic ? `${tactic.name} — placed` : 'Rally Route — placed',
+                armed: false,
+                placed: true as const,
+                routeId: r.id,
+            }));
+
+        const availableCount = maxCharges - placed.length;
+        const available = Array.from({ length: availableCount }, () => ({
+            id: RALLY_ROUTE_ID,
+            icon: tactic?.icon ?? '⚑',
+            name: tactic ? `${tactic.name} — ${tactic.description}` : RALLY_ROUTE_ID,
+            armed: this.armedTactic === RALLY_ROUTE_ID,
+        }));
+
+        return [...placed, ...available];
+    }
+
+    private resetPlacedRallyRoute(routeId: number): void {
+        if (!this.playerCanAct) return;
+        this.cancelRallyPlacement();
+        if (
+            this.dispatchPlayer({
+                kind: 'removeRallyRoute',
+                team: 'player',
+                routeId,
+            })
+        ) {
+            this.syncRallyVisuals();
+        }
+    }
+
+    private groundAtLocal(x: number, y: number): { x: number; z: number } | null {
+        const rect = this.pixiApp.canvas.getBoundingClientRect();
+        const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
+        if (!ground) return null;
+        return this.rallyVisuals.clamp(ground.x, ground.z);
+    }
+
+    private syncRallyVisuals(): void {
+        const pointer = this.placement.lastPointer;
+        let draft: RallyDraft | null = null;
+        if (this.armedTactic === RALLY_ROUTE_ID && pointer) {
+            const pos = this.groundAtLocal(pointer.x, pointer.y);
+            if (pos) {
+                if (this.rallyDraftStart) {
+                    draft = {
+                        startX: this.rallyDraftStart.x,
+                        startZ: this.rallyDraftStart.z,
+                        endX: pos.x,
+                        endZ: pos.z,
+                        mode: 'full',
+                    };
+                } else {
+                    draft = {
+                        startX: pos.x,
+                        startZ: pos.z,
+                        endX: pos.x,
+                        endZ: pos.z,
+                        mode: 'start-only',
+                    };
+                }
+            }
+        }
+        this.rallyVisuals.sync(this.rallyRoutes, draft);
+    }
+
+    /** aborts in-progress rally placement; returns true when something was cancelled */
+    private cancelRallyPlacement(): boolean {
+        const had = this.armedTactic !== null || this.rallyDraftStart !== null;
+        this.armedTactic = null;
+        this.rallyDraftStart = null;
+        this.placement.inputLocked = false;
+        this.syncRallyVisuals();
+        return had;
+    }
+
+    /** swallows map clicks while a tactic is being placed */
+    private handleRallyGroundClick(x: number, y: number): boolean {
+        if (!this.playerCanAct || this.armedTactic !== RALLY_ROUTE_ID) return false;
+        const ground = this.groundAtLocal(x, y);
+        if (!ground) return true;
+        if (!this.rallyDraftStart) {
+            this.rallyDraftStart = ground;
+            this.syncRallyVisuals();
+            return true;
+        }
+        if (
+            this.dispatchPlayer({
+                kind: 'placeRallyRoute',
+                team: 'player',
+                startX: this.rallyDraftStart.x,
+                startZ: this.rallyDraftStart.z,
+                endX: ground.x,
+                endZ: ground.z,
+            })
+        ) {
+            this.armedTactic = null;
+            this.rallyDraftStart = null;
+            this.placement.inputLocked = false;
+            this.syncRallyVisuals();
+        }
+        return true;
+    }
+
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
     private applyItemTo(unit: Unit, itemId: string): boolean {
         if (!this.playerCanAct || unit.team !== 'player' || unit.type.structure) return false;
@@ -1276,6 +1453,7 @@ export class Game {
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
+        this.syncRallyVisuals();
     }
 
     private unlockUnit(typeId: string): void {
@@ -1321,6 +1499,7 @@ export class Game {
         this.placement.hiddenPlacements = false;
         this.placement.deselect();
         this.armedItem = null;
+        this.cancelRallyPlacement();
         this.gridOverlay.visible = false;
         this.placement.revealAll();
         this.sim = new BattleSim(this.placement.allUnits(), {
@@ -1339,6 +1518,7 @@ export class Game {
                 !unit.type.structure &&
                 !unit.type.extra &&
                 this.placement.isOnFlank(unit),
+            rallyRoutes: this.rallyRoutes.filter((r) => r.team === 'player' || r.team === 'enemy'),
         });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
@@ -1476,7 +1656,8 @@ export class Game {
             this.deployState.limit.player + this.deployState.extra.player,
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent.player,
         );
-        this.hud.setInventory(this.inventoryView());
+        this.hud.setInventory(this.inventoryView(), this.tacticsView());
+        this.syncRallyVisuals();
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();
