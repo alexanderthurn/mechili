@@ -678,10 +678,18 @@ export class Game {
         // from round 2 on, both sides get a card offer at the round's start
         if (this.round >= 2) this.offerRoundCards();
 
-        // testing: one free rally route charge at the first deployment
-        if (this.round === 1 && !this.hydrating && !this.testRallyRouteGranted) {
+        if (this.round === 1 && !this.hydrating) this.ensureTestRallyRoute();
+    }
+
+    /**
+     * Dev/testing: one free rally-route charge for the match. Not in the action
+     * log, so this also runs after hydrate/reload to restore the test grant.
+     */
+    private ensureTestRallyRoute(): void {
+        if (this.testRallyRouteGranted) return;
+        this.testRallyRouteGranted = true;
+        if (!this.tacticInventory.player.includes(RALLY_ROUTE_ID)) {
             this.tacticInventory.player.push(RALLY_ROUTE_ID);
-            this.testRallyRouteGranted = true;
         }
     }
 
@@ -865,6 +873,8 @@ export class Game {
             }
         }
         this.hydrating = false;
+
+        if (!this.matchOver) this.ensureTestRallyRoute();
 
         // reopen whatever decision was pending when the state was captured
         if (this.speciality.player === null) {

@@ -172,12 +172,12 @@ export class RallyVisuals {
         }
 
         const arrowGeo = this.chevronGeometry(2.8, 1.6);
+        const heading = Math.atan2(ux, uz);
         const count = Math.max(1, Math.floor(len / ARROW_SPACING));
         for (let i = 1; i <= count; i++) {
             const t = i / (count + 1);
             const arrow = new Mesh(arrowGeo, arrowMat);
-            arrow.rotation.x = -Math.PI / 2;
-            arrow.rotation.z = -Math.atan2(dx, dz);
+            arrow.rotation.y = heading;
             arrow.position.set(startX + dx * t, Y_ARROW, startZ + dz * t);
             this.group.add(arrow);
         }
@@ -262,13 +262,24 @@ export class RallyVisuals {
         }
     }
 
+    /** flat chevron in the XZ plane; tip points +Z, rotated by Y to face the path */
     private chevronGeometry(width: number, depth: number): BufferGeometry {
         const hw = width / 2;
         const geo = new BufferGeometry();
         geo.setAttribute(
             'position',
             new Float32BufferAttribute(
-                [0, depth * 0.5, 0, -hw, -depth * 0.5, 0, hw, -depth * 0.5, 0],
+                [
+                    0,
+                    0,
+                    depth * 0.5,
+                    -hw,
+                    0,
+                    -depth * 0.5,
+                    hw,
+                    0,
+                    -depth * 0.5,
+                ],
                 3,
             ),
         );
