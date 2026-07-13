@@ -60,17 +60,17 @@ export class RallyVisuals {
 
     sync(routes: readonly RallyRoute[], draft: RallyDraft | null): void {
         this.clear();
-        const color = teamColors.player.hex;
         for (const route of routes) {
-            if (route.team === 'player') {
-                this.addRoute(route.startX, route.startZ, route.endX, route.endZ, color);
-            }
+            const color =
+                route.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex;
+            this.addRoute(route.startX, route.startZ, route.endX, route.endZ, color);
         }
         if (!draft) return;
+        const draftColor = teamColors.player.hex;
         if (draft.mode === 'start-only') {
-            this.addCircleMarker(draft.startX, draft.startZ, color, true);
+            this.addCircleMarker(draft.startX, draft.startZ, draftColor, true);
         } else {
-            this.addRoute(draft.startX, draft.startZ, draft.endX, draft.endZ, color, true);
+            this.addRoute(draft.startX, draft.startZ, draft.endX, draft.endZ, draftColor, true);
         }
     }
 

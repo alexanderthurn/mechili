@@ -684,12 +684,16 @@ export class Game {
     /**
      * Dev/testing: one free rally-route charge for the match. Not in the action
      * log, so this also runs after hydrate/reload to restore the test grant.
+     * In multiplayer both sides get the test charge so peer validation stays aligned.
      */
     private ensureTestRallyRoute(): void {
         if (this.testRallyRouteGranted) return;
         this.testRallyRouteGranted = true;
-        if (!this.tacticInventory.player.includes(RALLY_ROUTE_ID)) {
-            this.tacticInventory.player.push(RALLY_ROUTE_ID);
+        const teams: Team[] = this.net ? ['player', 'enemy'] : ['player'];
+        for (const team of teams) {
+            if (!this.tacticInventory[team].includes(RALLY_ROUTE_ID)) {
+                this.tacticInventory[team].push(RALLY_ROUTE_ID);
+            }
         }
     }
 
@@ -1061,6 +1065,7 @@ export class Game {
                 const translated = this.translateRemote(head.action);
                 if (translated) this.dispatcher.dispatch(translated);
             }
+            this.syncRallyVisuals();
         }
     }
 

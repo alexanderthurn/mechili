@@ -613,7 +613,7 @@ export class ActionDispatcher {
                 const max =
                     this.ctx.tactics[action.team].filter((id) => id === RALLY_ROUTE_ID).length;
                 const placed = this.ctx.rallyRoutes.filter((r) => r.team === action.team).length;
-                if (placed >= max) return false;
+                if (max < 1 || placed >= max) return false;
                 const route: RallyRoute = {
                     id: this.ctx.rallyRouteIds.next++,
                     team: action.team,
