@@ -1265,7 +1265,18 @@ export class Game {
                 }
             }
         }
-        this.rallyVisuals.sync(this.rallyRoutes, draft);
+        this.rallyVisuals.sync(this.visibleRallyRoutes(), draft);
+    }
+
+    /** own routes always; opponent routes only after we lock in (multiplayer fog) */
+    private visibleRallyRoutes(): readonly RallyRoute[] {
+        const revealEnemy =
+            this.phase === 'battle' ||
+            this.deployReady.player ||
+            this.net === null;
+        return this.rallyRoutes.filter(
+            (r) => r.team === 'player' || revealEnemy,
+        );
     }
 
     /** aborts in-progress rally placement; returns true when something was cancelled */
