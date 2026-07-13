@@ -164,6 +164,12 @@ export class Game {
     private readonly unlockedUnits: Record<Team, string[]> = { player: [], enemy: [] };
     /** at most one shop unlock per deployment round */
     private readonly unlockUsedThisRound: Record<Team, boolean> = { player: false, enemy: false };
+    /** frozen enemy inventory intel captured at deployment-phase start */
+    private enemyIntelSnapshot: {
+        items: string[];
+        tactics: string[];
+        sellAbilityOwned: boolean;
+    } | null = null;
     /** the inventory item currently armed for placement onto a pack */
     private armedItem: string | null = null;
     /** the tactic currently being placed on the map */
@@ -350,6 +356,7 @@ export class Game {
                     this.cancelRallyPlacement();
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
+                    this.enemyIntelSnapshot = null;
                 }
                 // the battle waits until BOTH sides have locked in
                 if (this.deployReady.player && this.deployReady.enemy) this.startBattlePhase();
@@ -670,6 +677,9 @@ export class Game {
                 }
             }
         }
+        this.placement.captureIntelSnapshot();
+        this.placement.setIntelFog(true);
+        this.captureEnemyIntelSnapshot();
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
@@ -1219,6 +1229,50 @@ export class Game {
         return [...placed, ...available];
     }
 
+    /** Records the enemy's unequipped items/tactics at deployment-phase start. */
+    private captureEnemyIntelSnapshot(): void {
+        this.enemyIntelSnapshot = {
+            items: [...this.itemInventory.enemy],
+            tactics: [...this.tacticInventory.enemy],
+            sellAbilityOwned: this.sellState.owned.enemy,
+        };
+    }
+
+    private enemyInventoryView(): {
+        items: { icon: string; name: string }[];
+        tactics: { icon: string; name: string }[];
+        sellAbility: boolean;
+    } {
+        if (this.phase !== 'build') {
+            return { items: [], tactics: [], sellAbility: false };
+        }
+        const live = this.deployReady.player;
+        const items = live ? [...this.itemInventory.enemy] : (this.enemyIntelSnapshot?.items ?? []);
+        const tactics = live ? [...this.tacticInventory.enemy] : (this.enemyIntelSnapshot?.tactics ?? []);
+        const sellAbility = live
+            ? this.sellState.owned.enemy
+            : (this.enemyIntelSnapshot?.sellAbilityOwned ?? false);
+        const mapItem = (id: string) => {
+            const item = ITEMS[id];
+            return {
+                icon: item?.icon ?? '?',
+                name: item ? `${item.name} — ${item.description}` : id,
+            };
+        };
+        const mapTactic = (id: string) => {
+            const tactic = TACTICS[id];
+            return {
+                icon: tactic?.icon ?? '?',
+                name: tactic ? `${tactic.name} — ${tactic.description}` : id,
+            };
+        };
+        return {
+            items: items.map(mapItem),
+            tactics: tactics.map(mapTactic),
+            sellAbility,
+        };
+    }
+
     private resetPlacedRallyRoute(routeId: number): void {
         if (!this.playerCanAct) return;
         this.cancelRallyPlacement();
@@ -1527,6 +1581,7 @@ export class Game {
         this.armedItem = null;
         this.cancelRallyPlacement();
         this.gridOverlay.visible = false;
+        this.enemyIntelSnapshot = null;
         this.placement.revealAll();
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
@@ -1683,6 +1738,10 @@ export class Game {
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent.player,
         );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
+        const enemyInv = this.enemyInventoryView();
+        this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
+            sellAbility: enemyInv.sellAbility,
+        });
         this.syncRallyVisuals();
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);

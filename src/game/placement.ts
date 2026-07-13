@@ -20,7 +20,20 @@ import type { Action } from './actions';
 import { ITEMS } from './items';
 import { CELL, cellKey, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
-import { Unit, type GridExtent, type Team, type UnitType } from './units';
+import { Unit, unitTypeById, type GridExtent, type Team, type UnitType } from './units';
+
+/** frozen enemy intel captured at deployment-phase start */
+interface IntelEntry {
+    unitId: number;
+    typeId: string;
+    team: Team;
+    cell: Cell;
+    rotated: boolean;
+    facing: number;
+    world: Vector3;
+    level: number;
+    items: string[];
+}
 
 const VALID_COLOR = THEME.valid;
 const INVALID_COLOR = THEME.invalid;
@@ -66,10 +79,16 @@ export class PlacementController {
     /** false during the battle phase: no hover, no placing, no moving */
     enabled = true;
     /**
-     * true while a build phase runs: new placements spawn unrevealed — the
-     * opponent can't see them (or face them) until the battle starts.
+     * true while a build phase runs: enemy intel is frozen to the phase-start
+     * snapshot until the local player locks in or the battle starts.
      */
     hiddenPlacements = false;
+    /** when true, enemy packs render at {@link intelSnapshot} poses instead of live */
+    private intelFog = false;
+    /** unit poses at deployment-phase start — the opponent's stale intel view */
+    private readonly intelSnapshot = new Map<number, IntelEntry>();
+    /** sold snapshotted enemy packs kept visible at their intel pose */
+    private readonly intelGhosts = new Map<number, Unit>();
     /** the running round; units deployed in earlier rounds are locked in place */
     currentRound = 0;
     selectedUnit: Unit | null = null;
@@ -229,6 +248,7 @@ export class PlacementController {
     /** detach input listeners and DOM helpers */
     dispose(): void {
         this.enabled = false;
+        this.clearIntelGhosts();
         this.deselect();
         for (const dispose of this.disposers) dispose();
         this.disposers.length = 0;
@@ -241,6 +261,37 @@ export class PlacementController {
 
     allUnits(): readonly Unit[] {
         return this.units;
+    }
+
+    /** Records every pack's pose at deployment-phase start for stale enemy intel. */
+    captureIntelSnapshot(): void {
+        this.intelSnapshot.clear();
+        this.clearIntelGhosts();
+        for (const u of this.units) {
+            this.intelSnapshot.set(u.id, {
+                unitId: u.id,
+                typeId: u.type.id,
+                team: u.team,
+                cell: { col: u.cell.col, row: u.cell.row },
+                rotated: u.rotated,
+                facing: u.facing,
+                world: u.world.clone(),
+                level: u.level,
+                items: [...u.items],
+            });
+        }
+    }
+
+    /** Turns enemy intel fog on or off (off = live board). */
+    setIntelFog(on: boolean): void {
+        this.intelFog = on;
+    }
+
+    /** true when the opponent may see this enemy pack (snapshot or live reveal). */
+    enemyIntelVisible(unit: Unit): boolean {
+        if (unit.team !== 'enemy') return true;
+        if (!this.intelFog) return true;
+        return this.intelSnapshot.has(unit.id);
     }
 
     deselect(): void {
@@ -372,7 +423,6 @@ export class PlacementController {
         unit.setRotated(rotated);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
-        this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
         return true;
     }
@@ -395,17 +445,6 @@ export class PlacementController {
         if (!this.zoneCell(team, cell)) return false;
         if (type.extra && this.map.isFlankDeployCell(cell, team)) return false;
         return true;
-    }
-
-    /**
-     * Build-phase intel rule: the opponent may see WHICH units you start
-     * with (their spawn spots), but not where you move them — repositioning
-     * a revealed unit conceals it until the battle reveals everything.
-     */
-    private concealAfterMove(unit: Unit): void {
-        if (!this.hiddenPlacements || !unit.revealed) return;
-        unit.revealed = false;
-        unit.view.visible = unit.team === 'player'; // own units stay visible to yourself
     }
 
     /**
@@ -433,17 +472,12 @@ export class PlacementController {
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
         unit.id = ++this.nextUnitId[team] * 2 + (team === 'player' ? 0 : 1);
         unit.deployedRound = this.currentRound;
-        if (this.hiddenPlacements) {
-            unit.revealed = false;
-            // your own hidden units are still visible to you; the enemy's are not
-            unit.view.visible = team === 'player';
-        }
         // board extras take no space on the grid
         if (!type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         this.units.push(unit);
         this.scene.add(unit.view);
         // core rule: every mech faces the closest individual enemy mech it
-        // could be aware of — from revealed enemy units, or the enemy's
+        // could be aware of — from snapshotted enemy intel, or the enemy's
         // command towers when nothing else is visible
         unit.faceClosestOf(this.opponentMechPositions(team, unit));
         return unit;
@@ -485,6 +519,11 @@ export class PlacementController {
 
     /** Puts a removed pack back on its committed spot (sell-action undo). */
     restoreUnit(unit: Unit): void {
+        const ghost = this.intelGhosts.get(unit.id);
+        if (ghost) {
+            this.scene.remove(ghost.view);
+            this.intelGhosts.delete(unit.id);
+        }
         this.units.push(unit);
         if (!unit.type.extra) {
             // extras never occupy tiles — writing them here would corrupt the grid
@@ -496,6 +535,14 @@ export class PlacementController {
 
     /** Removes a unit from the board entirely (buy-action undo). */
     removeUnit(unit: Unit): void {
+        if (
+            this.intelFog &&
+            unit.team === 'enemy' &&
+            this.intelSnapshot.has(unit.id) &&
+            !this.intelGhosts.has(unit.id)
+        ) {
+            this.ensureSoldGhost(this.intelSnapshot.get(unit.id)!);
+        }
         if (this.selectedUnit === unit) this.selectedUnit = null;
         this.selectedGroup = this.selectedGroup.filter((u) => u !== unit);
         this.release(unit);
@@ -506,9 +553,14 @@ export class PlacementController {
 
     /** Reveals everything (battle is about to start — all placements become visible). */
     revealAll(): void {
+        this.intelFog = false;
+        this.intelSnapshot.clear();
+        this.clearIntelGhosts();
         for (const u of this.units) {
             u.revealed = true;
             u.view.visible = true;
+            u.view.position.copy(u.world);
+            this.restoreUnitFacing(u);
         }
     }
 
@@ -544,6 +596,7 @@ export class PlacementController {
         this.updateItemBadges();
         this.updateMarkers(timeSeconds);
         this.updateLevelArrows(timeSeconds);
+        this.applyIntelFog();
     }
 
     private pulse(t: number): number {
@@ -574,9 +627,9 @@ export class PlacementController {
         let used = 0;
         if (this.enabled) {
             for (const unit of this.units) {
-                if (unit.items.length === 0) continue;
-                if (unit.team !== 'player' && !unit.revealed) continue;
-                const icon = ITEMS[unit.items[0]!]?.icon ?? '?';
+                const icon = this.intelItemIcon(unit);
+                if (!icon) continue;
+                const world = this.intelWorldOf(unit);
                 let sprite = this.itemBadges[used];
                 if (!sprite) {
                     sprite = new Sprite();
@@ -586,12 +639,36 @@ export class PlacementController {
                 }
                 sprite.material = this.itemBadgeMaterial(icon);
                 sprite.position.set(
-                    unit.world.x,
+                    world.x,
                     unit.type.meshScale * 2.6 + 2.2 + (unit.type.flying ?? 0),
-                    unit.world.z,
+                    world.z,
                 );
                 sprite.visible = true;
                 used++;
+            }
+            if (this.intelFog) {
+                for (const [id, snap] of this.intelSnapshot) {
+                    if (snap.team !== 'enemy' || snap.items.length === 0) continue;
+                    if (this.units.some((u) => u.id === id)) continue;
+                    const ghost = this.intelGhosts.get(id);
+                    if (!ghost) continue;
+                    const icon = ITEMS[snap.items[0]!]?.icon ?? '?';
+                    let sprite = this.itemBadges[used];
+                    if (!sprite) {
+                        sprite = new Sprite();
+                        sprite.scale.set(2.6, 2.6, 1);
+                        this.scene.add(sprite);
+                        this.itemBadges.push(sprite);
+                    }
+                    sprite.material = this.itemBadgeMaterial(icon);
+                    sprite.position.set(
+                        snap.world.x,
+                        ghost.type.meshScale * 2.6 + 2.2 + (ghost.type.flying ?? 0),
+                        snap.world.z,
+                    );
+                    sprite.visible = true;
+                    used++;
+                }
             }
         }
         for (let i = used; i < this.itemBadges.length; i++) this.itemBadges[i]!.visible = false;
@@ -626,14 +703,14 @@ export class PlacementController {
 
     /**
      * A small solid gold up-arrow bobbing over the center of every pack —
-     * own OR revealed enemy — whose next level is banked and buyable.
+     * own only during intel fog; enemy arrows appear after reveal.
      */
     private updateLevelArrows(timeSeconds: number): void {
         let used = 0;
         if (this.enabled && this.levelReady) {
             for (const unit of this.units) {
                 if (!this.levelReady(unit)) continue;
-                if (unit.team !== 'player' && !unit.revealed) continue;
+                if (unit.team !== 'player' && this.intelFog) continue;
                 let arrow = this.levelArrows[used];
                 if (!arrow) {
                     arrow = new Group();
@@ -690,15 +767,131 @@ export class PlacementController {
 
     /**
      * Positions of every individual opposing mech (not squad centers) that is
-     * revealed — hidden build-phase placements are ignored.
+     * visible in enemy intel — snapshotted placements and sold ghosts count.
      */
     private opponentMechPositions(team: Team, exclude: Unit): Vector3[] {
         const positions: Vector3[] = [];
         for (const u of this.units) {
-            if (u === exclude || u.team === team || !u.revealed || u.destroyed) continue;
+            if (u === exclude || u.team === team || u.destroyed) continue;
+            if (this.intelFog && u.team !== team) {
+                const snap = this.intelSnapshot.get(u.id);
+                if (!snap) continue;
+                positions.push(...this.memberPositionsAt(snap.world, u));
+                continue;
+            }
+            if (!u.revealed) continue;
             positions.push(...u.memberWorldPositions());
         }
+        if (this.intelFog) {
+            for (const [id, snap] of this.intelSnapshot) {
+                if (snap.team === team || id === exclude.id) continue;
+                if (this.units.some((u) => u.id === id)) continue;
+                const ghost = this.intelGhosts.get(id);
+                if (!ghost) continue;
+                positions.push(...this.memberPositionsAt(snap.world, ghost));
+            }
+        }
         return positions;
+    }
+
+    private clearIntelGhosts(): void {
+        for (const ghost of this.intelGhosts.values()) this.scene.remove(ghost.view);
+        this.intelGhosts.clear();
+    }
+
+    private ensureSoldGhost(entry: IntelEntry): Unit {
+        let ghost = this.intelGhosts.get(entry.unitId);
+        if (ghost) return ghost;
+        const type = unitTypeById(entry.typeId)!;
+        ghost = new Unit(type, entry.cell, entry.team, entry.world.clone(), entry.rotated);
+        ghost.id = entry.unitId;
+        ghost.facing = entry.facing;
+        ghost.level = entry.level;
+        ghost.refreshLevelBadge();
+        for (const id of entry.items) ghost.items.push(id);
+        if (!type.structure || type.rocket) {
+            for (const m of ghost.members) m.mesh.rotation.y = entry.facing;
+        }
+        this.intelGhosts.set(entry.unitId, ghost);
+        this.scene.add(ghost.view);
+        return ghost;
+    }
+
+    private restoreUnitFacing(unit: Unit): void {
+        if ((unit.type.structure && !unit.type.rocket) || unit.members.length === 0) return;
+        for (const m of unit.members) m.mesh.rotation.y = unit.facing;
+    }
+
+    private applySnapshotPose(unit: Unit, snap: IntelEntry): void {
+        unit.view.position.copy(snap.world);
+        if (!unit.type.structure || unit.type.rocket) {
+            for (const m of unit.members) m.mesh.rotation.y = snap.facing;
+        }
+    }
+
+    private intelWorldOf(unit: Unit): Vector3 {
+        if (this.intelFog && unit.team === 'enemy') {
+            const snap = this.intelSnapshot.get(unit.id);
+            if (snap) return snap.world;
+        }
+        return unit.world;
+    }
+
+    private intelItemIcon(unit: Unit): string | null {
+        if (unit.team === 'player') {
+            return unit.items[0] ? (ITEMS[unit.items[0]]?.icon ?? '?') : null;
+        }
+        if (!this.enemyIntelVisible(unit)) return null;
+        if (this.intelFog) {
+            const snap = this.intelSnapshot.get(unit.id);
+            if (!snap || snap.items.length === 0) return null;
+            return ITEMS[snap.items[0]!]?.icon ?? '?';
+        }
+        return unit.items[0] ? (ITEMS[unit.items[0]]?.icon ?? '?') : null;
+    }
+
+    private memberPositionsAt(world: Vector3, unit: Unit): Vector3[] {
+        return unit.members.map((m) => new Vector3(world.x + m.home.x, 0, world.z + m.home.z));
+    }
+
+    private applyIntelFog(): void {
+        if (!this.intelFog) {
+            for (const ghost of this.intelGhosts.values()) ghost.view.visible = false;
+            for (const u of this.units) {
+                u.view.visible = true;
+                u.view.position.copy(u.world);
+                this.restoreUnitFacing(u);
+            }
+            return;
+        }
+
+        const liveEnemy = new Set(this.units.filter((u) => u.team === 'enemy').map((u) => u.id));
+
+        for (const u of this.units) {
+            if (u.team === 'player') {
+                u.view.visible = true;
+                u.view.position.copy(u.world);
+                continue;
+            }
+            const snap = this.intelSnapshot.get(u.id);
+            if (snap) {
+                u.view.visible = true;
+                this.applySnapshotPose(u, snap);
+            } else {
+                u.view.visible = false;
+            }
+        }
+
+        for (const [id, snap] of this.intelSnapshot) {
+            if (snap.team !== 'enemy' || liveEnemy.has(id)) continue;
+            const ghost = this.ensureSoldGhost(snap);
+            ghost.view.visible = true;
+            this.applySnapshotPose(ghost, snap);
+        }
+        for (const [id, ghost] of this.intelGhosts) {
+            if (!liveEnemy.has(id) && this.intelSnapshot.has(id)) continue;
+            ghost.view.visible = false;
+        }
     }
 
     /** extras aren't in the occupancy map — hit-test their footprints directly */
@@ -739,8 +932,8 @@ export class PlacementController {
                 this.carryingSelected &&
                 this.isMovable(this.selectedUnit));
         const clicked = this.occupied.get(cellKey(cell)) ?? (carrying ? undefined : this.extraAt(cell));
-        // selecting: any own pack, or a revealed enemy pack (hidden stays hidden)
-        if (clicked && !clicked.destroyed && (clicked.team === 'player' || clicked.revealed)) {
+        // selecting: any own pack, or an enemy pack visible in intel
+        if (clicked && !clicked.destroyed && (clicked.team === 'player' || this.enemyIntelVisible(clicked))) {
             if (clicked === this.selectedUnit && this.selectedGroup.length <= 1) {
                 if (this.isMovable(clicked)) {
                     if (!this.carryingSelected) {
@@ -889,7 +1082,6 @@ export class PlacementController {
             const fp = this.footprintOf(u.type, u.rotated);
             const anchor = anchors[i]!;
             u.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
-            this.concealAfterMove(u);
             if (u.type.extra) return;
             for (const c of this.coveredCells(fp, anchor)!) this.occupied.set(cellKey(c), u);
         });
@@ -909,7 +1101,6 @@ export class PlacementController {
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
-        this.concealAfterMove(unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
         return true;
     }

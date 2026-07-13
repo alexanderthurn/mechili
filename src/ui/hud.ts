@@ -355,7 +355,7 @@ export class Hud {
             else this.onCancelTactic?.();
         });
 
-        // opponent items not yet placed (right edge; wired when visibility rules exist)
+        // opponent items not yet placed (right edge; frozen to phase-start intel)
         this.enemyInventoryEl = document.createElement('div');
         this.enemyInventoryEl.className = 'mechili-sidebar right';
         this.enemyInventoryEl.style.display = 'none';
@@ -645,21 +645,43 @@ export class Hud {
         }
     }
 
-    /** opponent items not yet placed on the field (right sidebar; visibility rules TBD) */
-    setEnemyInventory(items: readonly { icon: string; name: string }[]): void {
-        const key = JSON.stringify(items);
+    /** opponent items/tactics at phase-start intel (right sidebar, read-only) */
+    setEnemyInventory(
+        items: readonly { icon: string; name: string }[],
+        tactics: readonly { icon: string; name: string }[] = [],
+        options: { sellAbility?: boolean } = {},
+    ): void {
+        const key = JSON.stringify({ items, tactics, options });
         if (key === this.lastEnemyInventoryKey) return;
         this.lastEnemyInventoryKey = key;
-        this.enemyInventoryEl.style.display = items.length ? '' : 'none';
-        this.enemyInventoryEl.innerHTML =
-            `<div class="inv-title">Enemy items</div>` +
-            items
-                .map(
-                    (i) =>
-                        `<span class="inv-item readonly" title="${i.name}">` +
-                        `<span class="i">${i.icon}</span></span>`,
-                )
-                .join('');
+        const visible = items.length > 0 || tactics.length > 0 || !!options.sellAbility;
+        this.enemyInventoryEl.style.display = visible ? '' : 'none';
+        const itemHtml = items.length
+            ? `<div class="inv-title">Enemy items</div>` +
+              items
+                  .map(
+                      (i) =>
+                          `<span class="inv-item readonly" title="${i.name}">` +
+                          `<span class="i">${i.icon}</span></span>`,
+                  )
+                  .join('')
+            : '';
+        const tacticHtml = tactics.length
+            ? `<div class="inv-title">Enemy tactics</div>` +
+              tactics
+                  .map(
+                      (t) =>
+                          `<span class="inv-item readonly tactic" title="${t.name}">` +
+                          `<span class="i">${t.icon}</span></span>`,
+                  )
+                  .join('')
+            : '';
+        const abilityHtml = options.sellAbility
+            ? `<div class="inv-title">Enemy abilities</div>` +
+              `<span class="inv-item readonly" title="Sell packs (unlocked)">` +
+              `<span class="i">↩</span></span>`
+            : '';
+        this.enemyInventoryEl.innerHTML = itemHtml + tacticHtml + abilityHtml;
     }
 
     /** purchases used / allowed this round; buy buttons grey out at the limit.

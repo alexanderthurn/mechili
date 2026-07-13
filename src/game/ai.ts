@@ -104,7 +104,7 @@ export class AiOpponent implements Opponent {
         }
 
         // rearrange fresh deployments (starting army included in round 1) —
-        // every move conceals that unit from the player until battle
+        // moves stay invisible to the player until lock-in via intel snapshot
         for (const unit of placement.allUnits()) {
             if (unit.team !== this.team || !placement.canReposition(unit)) continue;
             if (rng() < 0.3) continue; // some stay where they are
