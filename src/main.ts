@@ -525,6 +525,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
         'Waiting for your opponent and restoring the match.',
         () => {
             ac.abort();
+            clearResumeMarker();
             hideResumeOverlay();
             menu.style.display = '';
             usernameEl.style.display = '';
