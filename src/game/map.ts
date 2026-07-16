@@ -318,15 +318,63 @@ export class BattleMap {
             ctx.fill();
         };
 
+        // Helper to draw a sandy path between two pixel points
+        const drawPath = (x1: number, y1: number, x2: number, y2: number) => {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 1e-3) return;
+            const steps = Math.max(10, Math.ceil(dist / (0.8 * pxPerUnit)));
+            const nx = -dy / dist;
+            const ny = dx / dist;
+            for (let s = 0; s <= steps; s++) {
+                const t = s / steps;
+                const px = x1 + dx * t;
+                const py = y1 + dy * t;
+                const wobbleDist = (rng() - 0.5) * 0.8 * pxPerUnit;
+                const bx = px + nx * wobbleDist;
+                const by = py + ny * wobbleDist;
+                const r = (1.5 + rng() * 1.0) * pxPerUnit;
+                blob(bx, by, r, 0.4 + rng() * 0.2);
+            }
+        };
+
+        // Draw paths between base buildings for each side
+        const { flankCols, zoneCols, zoneRows } = this.size;
+        const toCanvas = (wx: number, wz: number) => {
+            const cx = ((wx + this.halfW) / this.width) * w;
+            const cy = ((wz + this.halfH) / this.height) * h;
+            return { cx, cy };
+        };
+        const drawSidePaths = (sign: number) => {
+            const getPt = (a: { xFrac: number; rowFrac: number }) => {
+                const x = -this.halfW + (flankCols + zoneCols * a.xFrac) * CELL;
+                const z = this.halfH - zoneRows * a.rowFrac * CELL;
+                return toCanvas(x * sign, z * sign);
+            };
+            const research = getPt(BASE_ANCHORS.research);
+            const command = getPt(BASE_ANCHORS.command);
+            const stronghold = getPt(BASE_ANCHORS.stronghold);
+
+            // Paths from stronghold to towers
+            drawPath(stronghold.cx, stronghold.cy, research.cx, research.cy);
+            drawPath(stronghold.cx, stronghold.cy, command.cx, command.cy);
+        };
+
+        drawSidePaths(1);
+        drawSidePaths(-1);
+
         // sand courtyards under the base buildings (canvas top = -z, far side)
         for (const a of this.baseAnchors()) {
             const cx = ((a.x + this.halfW) / this.width) * w;
             const cy = ((a.z + this.halfH) / this.height) * h;
+            const isStronghold = Math.abs(a.r - BASE_ANCHORS.stronghold.r) < 0.1;
+            const mult = isStronghold ? 1.2 : 1.0;
             for (let b = 0; b < 8; b++) {
-                const r = a.r * (0.55 + rng() * 0.5) * pxPerUnit;
+                const r = a.r * mult * (0.55 + rng() * 0.5) * pxPerUnit;
                 blob(
-                    cx + (rng() - 0.5) * a.r * 0.9 * pxPerUnit,
-                    cy + (rng() - 0.5) * a.r * 0.9 * pxPerUnit,
+                    cx + (rng() - 0.5) * a.r * mult * 0.9 * pxPerUnit,
+                    cy + (rng() - 0.5) * a.r * mult * 0.9 * pxPerUnit,
                     r,
                     0.8 + rng() * 0.2,
                 );

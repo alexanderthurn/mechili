@@ -209,13 +209,22 @@ export class Game {
     private persistTimer = 0;
     private readonly boundTick = (ticker: { deltaMS: number }) => this.tick(ticker.deltaMS / 1000);
     private readonly onEscapeKey = (e: KeyboardEvent) => {
-        // N cycles the weather scenario (visual only) — but never while typing
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+
+        // cheats / debug hotkeys (visual or single-player only)
         if (e.code === 'KeyN') {
-            const t = e.target as HTMLElement | null;
-            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+            // cycle weather: sunny → rain → night → …
             this.weather.next();
             return;
         }
+        if (e.code === 'KeyM' && !this.net) {
+            // single-player: +1000 supply to both sides, each press
+            this.economy.credit('player', 1000);
+            this.economy.credit('enemy', 1000);
+            return;
+        }
+
         if (e.code !== 'Escape') return;
         if (this.matchOver || this.suspended) return;
         this.hud.togglePauseMenu();

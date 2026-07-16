@@ -110,6 +110,10 @@ export interface Projectile {
     team: Team;
     /** the pack that fired it (kill XP goes there) */
     source: Unit;
+    /** render style copied from the shooter — visual only */
+    style: 'bolt' | 'arrow' | 'largeArrow' | 'stone';
+    /** gravity (world units/s²) for lobbed shots — absent = straight flight */
+    gravity?: number;
     /** homing shots chase this actor and hit nothing else */
     target?: Actor;
     ttl: number;
@@ -125,6 +129,8 @@ export type SimEvent =
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
+/** ballista / catapult lob — strong enough to read as an arc at long range */
+const BALLISTIC_GRAVITY = 28;
 
 /**
  * Deterministic replacement for Math.hypot: sqrt IS correctly rounded per
@@ -889,14 +895,38 @@ export class BattleSim {
         const dirX = target.x - a.x;
         const dirZ = target.z - a.z;
         const flat = hypot(dirX, dirZ) || 1e-6;
-        const muzzleY = a.altitude + (at.colliders[0]?.y ?? 0.5) * at.meshScale + 0.4;
-        const mx = a.x + (dirX / flat) * (a.radius + 0.5);
-        const mz = a.z + (dirZ / flat) * (a.radius + 0.5);
+        // arrows spawn from the unit center so they don't pop out ahead of the mesh
+        const fromCenter = at.projectileStyle === 'arrow' || at.projectileStyle === 'largeArrow';
+        const muzzleY =
+            at.projectileLaunchHeight !== undefined
+                ? a.altitude + at.projectileLaunchHeight
+                : a.altitude + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
+        const mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
+        const mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
         const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
         const dx = target.x - mx;
         const dy = target.altitude + aim.y * tt.meshScale - muzzleY;
         const dz = target.z - mz;
-        const len = hypot(dx, dy, dz) || 1e-6;
+
+        let vx: number;
+        let vy: number;
+        let vz: number;
+        let gravity: number | undefined;
+        if (at.projectileBallistic) {
+            // horizontal speed toward the target; loft so the bolt lands near aim height
+            const flatDist = hypot(dx, dz) || 1e-6;
+            const flightTime = Math.max(0.4, flatDist / speed);
+            gravity = BALLISTIC_GRAVITY;
+            vx = (dx / flatDist) * speed;
+            vz = (dz / flatDist) * speed;
+            vy = dy / flightTime + 0.5 * gravity * flightTime;
+        } else {
+            const len = hypot(dx, dy, dz) || 1e-6;
+            vx = (dx / len) * speed;
+            vy = (dy / len) * speed;
+            vz = (dz / len) * speed;
+        }
+
         this.projectiles.push({
             x: mx,
             y: muzzleY,
@@ -904,12 +934,14 @@ export class BattleSim {
             px: mx,
             py: muzzleY,
             pz: mz,
-            vx: (dx / len) * speed,
-            vy: (dy / len) * speed,
-            vz: (dz / len) * speed,
+            vx,
+            vy,
+            vz,
             damage,
             team: a.unit.team,
             source: a.unit,
+            style: at.projectileStyle ?? 'bolt',
+            gravity,
             target: at.homing ? target : undefined,
             ttl: PROJECTILE_TTL,
         });
@@ -937,6 +969,8 @@ export class BattleSim {
                 p.vy = (dy / len) * speed;
                 p.vz = (dz / len) * speed;
             }
+            // lobbed shots tip over under gravity (arrow mesh follows velocity)
+            if (p.gravity) p.vy -= p.gravity * dt;
             const nx = p.x + p.vx * dt;
             const ny = p.y + p.vy * dt;
             const nz = p.z + p.vz * dt;

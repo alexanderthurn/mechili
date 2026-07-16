@@ -103,6 +103,22 @@ export interface UnitType {
     colliders: { y: number; r: number }[];
     /** ranged mechs fire visible projectiles at this speed (world units/s); melee when absent */
     projectileSpeed?: number;
+    /**
+     * visual for the flying shot — does not affect sim hit radius.
+     * `bolt` = energy bead (default); `arrow` / `largeArrow` = fletched shafts;
+     * `stone` = hurled rock (catapult).
+     */
+    projectileStyle?: 'bolt' | 'arrow' | 'largeArrow' | 'stone';
+    /**
+     * spawn height above the unit's altitude (world units). When set, overrides
+     * the default collider-mid muzzle for that shot.
+     */
+    projectileLaunchHeight?: number;
+    /**
+     * lobbed shot: aims upward and falls under gravity so long-range bolts arc.
+     * `projectileSpeed` is the horizontal speed toward the target.
+     */
+    projectileBallistic?: boolean;
     /** homing shots re-aim mid-flight and hit ONLY their victim — a guaranteed hit (shields still block) */
     homing?: boolean;
     /**
@@ -358,7 +374,8 @@ export const UNIT_TYPES: UnitType[] = [
         targets: { ground: true, air: true }, // picks off anything
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
-        projectileSpeed: 160,
+        projectileSpeed: 100,
+        projectileStyle: 'arrow',
         homing: true, // an archer does not miss
         hp: 130,
         damage: 65,
@@ -383,6 +400,9 @@ export const UNIT_TYPES: UnitType[] = [
         collisionRadius: 0.75,
         colliders: [{ y: 0.1, r: 0.75 }],
         projectileSpeed: 70,
+        projectileStyle: 'stone',
+        // wide blast vs packed dwarves (3× the ballista's old splash radius of 3)
+        splashRadius: 9,
         hp: 45,
         damage: 18,
         range: 12,
@@ -405,10 +425,14 @@ export const UNIT_TYPES: UnitType[] = [
         collisionRadius: 2.8,
         colliders: [{ y: 0.9, r: 1.1 }],
         projectileSpeed: 50,
+        projectileStyle: 'largeArrow',
+        // cradle sits high on the siege frame — not at the chassis collider mid
+        projectileLaunchHeight: 5.8,
+        projectileBallistic: true,
         splashRadius: 3, // bolts shatter — everything near the impact takes the hit
-        hp: 900,
-        damage: 130,
-        range: 28,
+        hp: 500,
+        damage: 500,
+        range: 84,
         attackInterval: 2.8,
         speed: 2.2,
         techs: [

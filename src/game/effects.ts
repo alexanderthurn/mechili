@@ -3,21 +3,44 @@ import {
     BufferAttribute,
     BufferGeometry,
     Color,
+    ConeGeometry,
+    CylinderGeometry,
     DynamicDrawUsage,
+    IcosahedronGeometry,
     InstancedMesh,
     Matrix4,
     MeshBasicMaterial,
+    MeshLambertMaterial,
     Points,
     PointsMaterial,
+    Quaternion,
     SphereGeometry,
+    Vector3,
     type Scene,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Projectile, SimEvent } from './sim';
 import { THEME } from '../theme';
 
 const MAX_PROJECTILES = 512;
 const MAX_PARTICLES = 2048;
 const GRAVITY = -14;
+
+type ProjectileStyle = Projectile['style'];
+
+/** shaft + tip along +Z (nose forward); `scale` 1 ≈ archer arrow */
+function makeArrowGeometry(scale: number): BufferGeometry {
+    const shaft = new CylinderGeometry(0.045 * scale, 0.055 * scale, 1.15 * scale, 5);
+    shaft.rotateX(Math.PI / 2);
+    shaft.translate(0, 0, -0.12 * scale);
+    const tip = new ConeGeometry(0.14 * scale, 0.42 * scale, 5);
+    tip.rotateX(Math.PI / 2);
+    tip.translate(0, 0, 0.58 * scale);
+    const fletch = new ConeGeometry(0.12 * scale, 0.28 * scale, 4);
+    fletch.rotateX(-Math.PI / 2);
+    fletch.translate(0, 0, -0.72 * scale);
+    return mergeGeometries([shaft, tip, fletch])!;
+}
 
 /**
  * A pooled point-sprite particle system: one Points object, one draw call.
@@ -141,40 +164,71 @@ export class Particles {
     }
 }
 
-/** Draws the sim's bullets as one instanced mesh (a single draw call). */
+/** Draws the sim's bullets as instanced meshes — one pool per visual style. */
 export class ProjectileRenderer {
-    private readonly mesh: InstancedMesh;
+    private readonly pools: Record<ProjectileStyle, InstancedMesh>;
     private readonly matrix = new Matrix4();
+    private readonly pos = new Vector3();
+    private readonly dir = new Vector3();
+    private readonly quat = new Quaternion();
+    private readonly fwd = new Vector3(0, 0, 1);
+    private readonly one = new Vector3(1, 1, 1);
 
     constructor(scene: Scene) {
-        this.mesh = new InstancedMesh(
-            new SphereGeometry(0.28, 6, 5),
-            new MeshBasicMaterial({ color: THEME.projectile }),
-            MAX_PROJECTILES,
-        );
-        this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-        this.mesh.frustumCulled = false;
-        this.mesh.count = 0;
-        scene.add(this.mesh);
+        const wood = new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
+        const rock = new MeshLambertMaterial({ color: THEME.scenery.rock, flatShading: true });
+        this.pools = {
+            bolt: new InstancedMesh(
+                new SphereGeometry(0.28, 6, 5),
+                new MeshBasicMaterial({ color: THEME.projectile }),
+                MAX_PROJECTILES,
+            ),
+            arrow: new InstancedMesh(makeArrowGeometry(3), wood, MAX_PROJECTILES),
+            // still clearly bigger than the archer's arrow
+            largeArrow: new InstancedMesh(makeArrowGeometry(5.5), wood, MAX_PROJECTILES),
+            // reserved for catapult
+            stone: new InstancedMesh(new IcosahedronGeometry(0.84, 0), rock, MAX_PROJECTILES),
+        };
+        for (const mesh of Object.values(this.pools)) {
+            mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+            mesh.frustumCulled = false;
+            mesh.count = 0;
+            scene.add(mesh);
+        }
     }
 
     /** `alpha` interpolates between the last two sim steps for smooth flight */
     update(projectiles: readonly Projectile[], alpha = 1): void {
-        const count = Math.min(projectiles.length, MAX_PROJECTILES);
-        for (let i = 0; i < count; i++) {
+        const counts: Record<ProjectileStyle, number> = {
+            bolt: 0,
+            arrow: 0,
+            largeArrow: 0,
+            stone: 0,
+        };
+        const n = Math.min(projectiles.length, MAX_PROJECTILES);
+        for (let i = 0; i < n; i++) {
             const p = projectiles[i]!;
-            this.matrix.makeTranslation(
+            this.pos.set(
                 p.px + (p.x - p.px) * alpha,
                 p.py + (p.y - p.py) * alpha,
                 p.pz + (p.z - p.pz) * alpha,
             );
-            this.mesh.setMatrixAt(i, this.matrix);
+            this.dir.set(p.vx, p.vy, p.vz);
+            if (this.dir.lengthSq() < 1e-8) this.dir.set(0, 0, -1);
+            else this.dir.normalize();
+            this.quat.setFromUnitVectors(this.fwd, this.dir);
+            this.matrix.compose(this.pos, this.quat, this.one);
+            const style = p.style;
+            this.pools[style].setMatrixAt(counts[style]++, this.matrix);
         }
-        this.mesh.count = count;
-        this.mesh.instanceMatrix.needsUpdate = true;
+        for (const style of Object.keys(this.pools) as ProjectileStyle[]) {
+            const mesh = this.pools[style];
+            mesh.count = counts[style];
+            mesh.instanceMatrix.needsUpdate = true;
+        }
     }
 
     clear(): void {
-        this.mesh.count = 0;
+        for (const mesh of Object.values(this.pools)) mesh.count = 0;
     }
 }
