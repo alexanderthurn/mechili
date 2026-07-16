@@ -1,5 +1,17 @@
-import { Box3, Color, Group, MathUtils, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three';
+import {
+    Box3,
+    BufferGeometry,
+    Color,
+    Group,
+    MathUtils,
+    Matrix4,
+    Mesh,
+    MeshStandardMaterial,
+    Vector3,
+    type Object3D,
+} from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { teamColors } from './colors';
 import type { Team } from './units';
@@ -47,8 +59,29 @@ type Template = { player: Group; enemy: Group };
 const templates = new Map<string, Template>();
 const loader = new GLTFLoader();
 
+/** Shared geometry + team material for InstancedMesh pools (one entry per material). */
+export interface InstancePart {
+    geometry: BufferGeometry;
+    material: MeshStandardMaterial;
+}
+
+export interface InstanceAsset {
+    parts: InstancePart[];
+}
+
+const instanceAssets = new Map<string, { player: InstanceAsset; enemy: InstanceAsset }>();
+
 export function hasUnitModel(id: string): boolean {
     return templates.has(id);
+}
+
+export function hasUnitInstanceAsset(id: string): boolean {
+    return instanceAssets.has(id);
+}
+
+export function getUnitInstanceAsset(id: string, team: Team): InstanceAsset | null {
+    const a = instanceAssets.get(id);
+    return a ? a[team] : null;
 }
 
 /**
@@ -118,6 +151,54 @@ function normalize(
 }
 
 /**
+ * Bake meshes from a normalized template into root-local geometries, merged
+ * per unique material — ready for InstancedMesh (instance matrix = proxy world).
+ */
+function bakeInstanceAsset(root: Group): InstanceAsset {
+    root.updateMatrixWorld(true);
+    const rootInv = new Matrix4().copy(root.matrixWorld).invert();
+    const scratch = new Matrix4();
+    const byMat = new Map<MeshStandardMaterial, BufferGeometry[]>();
+
+    root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        // multi-material meshes are rare on these assets; use the first slot
+        const mat = mats[0];
+        if (!(mat instanceof MeshStandardMaterial)) return;
+        const geo = mesh.geometry.clone();
+        scratch.multiplyMatrices(rootInv, mesh.matrixWorld);
+        geo.applyMatrix4(scratch);
+        let list = byMat.get(mat);
+        if (!list) {
+            list = [];
+            byMat.set(mat, list);
+        }
+        list.push(geo);
+    });
+
+    const parts: InstancePart[] = [];
+    for (const [material, geos] of byMat) {
+        const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos, false);
+        for (const g of geos) {
+            if (g !== merged) g.dispose();
+        }
+        if (!merged) continue;
+        merged.computeBoundingSphere();
+        parts.push({ geometry: merged, material });
+    }
+    if (parts.length === 0) {
+        // empty fallback so pools can still be created without crashing
+        parts.push({
+            geometry: new BufferGeometry(),
+            material: new MeshStandardMaterial({ color: 0x888888 }),
+        });
+    }
+    return { parts };
+}
+
+/**
  * Load every spec'd model and bake team-tinted, normalized templates.
  * `heights` gives each unit's procedural local height. Failures fall back to
  * the procedural mesh (the unit id simply stays absent from the template map).
@@ -128,9 +209,12 @@ export async function loadUnitModels(heights: Record<string, number>): Promise<v
             try {
                 const gltf = await loader.loadAsync(spec.url);
                 const h = (heights[id] || 1) * (spec.scale ?? 1);
-                templates.set(id, {
-                    player: normalize(tintedClone(gltf.scene, 'player'), h, spec.yaw, spec.pitch, spec.roll, spec.offset),
-                    enemy: normalize(tintedClone(gltf.scene, 'enemy'), h, spec.yaw, spec.pitch, spec.roll, spec.offset),
+                const player = normalize(tintedClone(gltf.scene, 'player'), h, spec.yaw, spec.pitch, spec.roll, spec.offset);
+                const enemy = normalize(tintedClone(gltf.scene, 'enemy'), h, spec.yaw, spec.pitch, spec.roll, spec.offset);
+                templates.set(id, { player, enemy });
+                instanceAssets.set(id, {
+                    player: bakeInstanceAsset(player),
+                    enemy: bakeInstanceAsset(enemy),
                 });
                 console.info(`[unitModels] loaded '${id}' from ${spec.url} (height ${h.toFixed(2)})`);
             } catch (e) {

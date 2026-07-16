@@ -15,6 +15,7 @@ import { teamColors } from './colors';
 import { CELL, groundSupportAt, type Cell } from './map';
 import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
+import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 export type Team = 'player' | 'enemy';
 
@@ -570,14 +571,22 @@ export class Unit {
         for (let i = 0; i < formation.cols; i++) {
             for (let j = 0; j < formation.rows; j++) {
                 const mesh = new Group();
-                // rigged/animated FBX first, then static GLB, else procedural
-                // primitives. Models are pre-normalized to the procedural LOCAL
-                // size, so meshScale below (and wreck/reset scaling) is uniform.
+                // rigged/animated FBX first, then static GLB (instanced when
+                // possible), else procedural primitives. Models are
+                // pre-normalized to the procedural LOCAL size, so meshScale
+                // below (and wreck/reset scaling) is uniform.
                 const animated = hasAnimatedModel(type.id) ? cloneAnimatedModel(type.id, team) : null;
-                const model = animated ?? (hasUnitModel(type.id) ? cloneUnitModel(type.id, team) : null);
-                if (animated) mesh.userData.animated = true;
-                if (model) mesh.add(model);
-                else type.build(new PartFactory(mesh, team));
+                if (animated) {
+                    mesh.userData.animated = true;
+                    mesh.add(animated);
+                } else if (UnitInstanceRenderer.canInstance(type.id) && getUnitInstanceRenderer()) {
+                    // empty proxy — UnitInstanceRenderer draws the shared mesh
+                    getUnitInstanceRenderer()!.register(mesh, type.id, team);
+                } else {
+                    const model = hasUnitModel(type.id) ? cloneUnitModel(type.id, team) : null;
+                    if (model) mesh.add(model);
+                    else type.build(new PartFactory(mesh, team));
+                }
                 mesh.scale.setScalar(type.meshScale);
                 const ox = (i - (formation.cols - 1) / 2) * spacingX;
                 const oz = (j - (formation.rows - 1) / 2) * spacingZ;
@@ -665,9 +674,12 @@ export class Unit {
     /** Collapses the meshes into rubble until the next round reset. */
     markDestroyed(): void {
         this.destroyed = true;
+        const instances = getUnitInstanceRenderer();
         for (const m of this.members) {
             m.mesh.scale.y *= 0.3;
             m.mesh.rotation.z = 0.12;
+            m.mesh.userData.dead = true;
+            instances?.setDead(m.mesh);
         }
     }
 
@@ -699,14 +711,17 @@ export class Unit {
      * Destroyed towers are rebuilt too: rubble stands back up.
      */
     resetFormation(): void {
+        const instances = getUnitInstanceRenderer();
         for (const m of this.members) {
             clearBattleTint(m.mesh);
             m.mesh.position.copy(m.home);
             m.mesh.visible = true;
             if (!this.type.structure) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
+            m.mesh.rotation.x = 0;
             m.mesh.scale.setScalar(this.type.meshScale); // un-squash tower rubble
             m.mesh.userData.dead = false;
+            instances?.setAlive(m.mesh);
         }
         this.seatMembers();
         this.destroyed = false;
@@ -799,6 +814,11 @@ export function syncBattleTint(
     debuffStacks = 1,
     spawnProgress = 0,
 ): void {
+    if (mesh.userData.instanced) {
+        getUnitInstanceRenderer()?.setTint(mesh, tint, timeSeconds, debuffStacks, spawnProgress);
+        return;
+    }
+
     const gold = TINT_GOLD;
     const grey = TINT_GREY;
     const goldPulse = 0.4 + Math.sin(timeSeconds * 4.5) * 0.22;
@@ -867,6 +887,10 @@ export function syncBattleTint(
 
 /** restores default hull materials after battle — call when a round ends */
 export function clearBattleTint(mesh: Group): void {
+    if (mesh.userData.instanced) {
+        getUnitInstanceRenderer()?.setTint(mesh, 'normal', 0);
+        return;
+    }
     mesh.traverse((child) => {
         if (!(child instanceof Mesh)) return;
         const orig = child.userData.battleOrigMat as MeshStandardMaterial | undefined;
@@ -923,5 +947,6 @@ export function buildUnitPreviewMesh(type: UnitType, team: Team = 'player'): Gro
 export function unitTypeById(id: string): UnitType | null {
     if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
+    if (id === STRONGHOLD.id) return STRONGHOLD;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
 }

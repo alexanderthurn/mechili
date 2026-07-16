@@ -18,6 +18,7 @@ import {
     type Unit,
     type UnitType,
 } from './units';
+import { getUnitInstanceRenderer } from './unitInstances';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
 export const GOLDEN_AURA_DURATION = 30;
@@ -610,6 +611,7 @@ export class BattleSim {
             target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
             target.mesh.position.y = groundSupportAt(target.x, target.z, target.radius * 0.65) + 0.08;
             target.mesh.userData.dead = true;
+            getUnitInstanceRenderer()?.setDead(target.mesh);
         }
     }
 

@@ -21,6 +21,7 @@ import { ITEMS } from './items';
 import { CELL, cellKey, groundHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import { Unit, unitTypeById, type GridExtent, type Team, type UnitType } from './units';
+import { getUnitInstanceRenderer } from './unitInstances';
 
 /** frozen enemy intel captured at deployment-phase start */
 interface IntelEntry {
@@ -333,7 +334,10 @@ export class PlacementController {
     }
 
     private cancelPlacing(): void {
-        if (this.pendingUnit) this.scene.remove(this.pendingUnit.view);
+        if (this.pendingUnit) {
+            getUnitInstanceRenderer()?.unregisterUnit(this.pendingUnit);
+            this.scene.remove(this.pendingUnit.view);
+        }
         this.pendingType = null;
         this.pendingUnit = null;
     }
@@ -565,6 +569,7 @@ export class PlacementController {
     restoreUnit(unit: Unit): void {
         const ghost = this.intelGhosts.get(unit.id);
         if (ghost) {
+            getUnitInstanceRenderer()?.unregisterUnit(ghost);
             this.scene.remove(ghost.view);
             this.intelGhosts.delete(unit.id);
         }
@@ -856,7 +861,11 @@ export class PlacementController {
     }
 
     private clearIntelGhosts(): void {
-        for (const ghost of this.intelGhosts.values()) this.scene.remove(ghost.view);
+        const instances = getUnitInstanceRenderer();
+        for (const ghost of this.intelGhosts.values()) {
+            instances?.unregisterUnit(ghost);
+            this.scene.remove(ghost.view);
+        }
         this.intelGhosts.clear();
     }
 

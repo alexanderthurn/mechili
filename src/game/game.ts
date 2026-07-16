@@ -39,7 +39,7 @@ import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
-import { onPrefsChange, prefs } from './prefs';
+import { onPrefsChange, prefs, effectiveDpr } from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
@@ -66,6 +66,7 @@ import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { updateAnimatedUnits } from './unitAnimated';
+import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 /** how long the both-specialists reveal stays up before deployment takes over */
 const SPECIALIST_REVEAL_MS = 2000;
@@ -97,6 +98,7 @@ export class Game {
     private readonly hpBars = new HpBars();
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
+    private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
     private weather: Weather;
     private groundMesh: Mesh;
@@ -293,7 +295,7 @@ export class Game {
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
         this.renderer = new WebGLRenderer({ canvas: threeCanvas, antialias: true });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(effectiveDpr());
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = PCFSoftShadowMap;
 
@@ -332,12 +334,14 @@ export class Game {
         this.scene.add(this.groundMesh);
         this.scenery = new Scenery(this.map);
         this.scene.add(this.scenery.group);
-        this.inputDisposers.push(onPrefsChange(() => this.applySceneryQuality()));
+        this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
         this.gridOverlay = this.map.createOverlayMesh();
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
+        this.unitInstances = new UnitInstanceRenderer(this.scene);
+        setUnitInstanceRenderer(this.unitInstances);
         this.battleRangeMesh = createRangeRing(this.scene);
 
         // input listens on the Pixi canvas — it's the top-most surface
@@ -615,6 +619,26 @@ export class Game {
 
     /** stop the loop, release GPU/DOM resources — main restores the menu */
     /**
+     * Live-applies prefs from the settings menu: scenery rebuild, DPR cap,
+     * and unit shadow casting.
+     */
+    private applyPrefs(): void {
+        if (this.disposed) return;
+        this.applyRenderPrefs();
+        this.applySceneryQuality();
+    }
+
+    private applyRenderPrefs(): void {
+        const dpr = effectiveDpr();
+        if (this.renderer.getPixelRatio() !== dpr) {
+            this.renderer.setPixelRatio(dpr);
+            this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
+        }
+        this.unitInstances.applyShadowPref(prefs().unitShadows);
+        this.unitInstances.applyDeadPref(prefs().renderDeadUnits);
+    }
+
+    /**
      * Live-applies the scenery quality pref from the settings menu: rebuilds
      * the ground, the outer world (incl. weather hooks) and the shadow map.
      */
@@ -672,6 +696,8 @@ export class Game {
         for (const dispose of this.inputDisposers) dispose();
         this.inputDisposers.length = 0;
         this.placement.dispose();
+        this.unitInstances.dispose();
+        setUnitInstanceRenderer(null);
         this.rallyVisuals.dispose();
         this.controls.dispose();
         this.hud.destroy();
@@ -734,6 +760,7 @@ export class Game {
 
         for (const team of ['player', 'enemy'] as const) {
             for (const type of UNIT_TYPES) {
+                if (type.id === 'shield') continue; // ward stones clutter the test field
                 const copies = type.id === 'dwarf' ? 3 : 1;
                 for (let i = 0; i < copies; i++) {
                     const spot = this.placement.findStartSpot(team, type);
@@ -1925,6 +1952,7 @@ export class Game {
         this.scenery.update(dtSeconds, this.rig.camera.position);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
+        this.unitInstances.sync();
         this.updateSandWear();
         this.updateSelectionUi();
         this.drainRemoteQueue();
@@ -1955,9 +1983,15 @@ export class Game {
         let mechs = 0;
         if (this.sim) mechs = this.sim.actors.length;
         else for (const u of this.placement.allUnits()) mechs += u.members.length;
+        const instSnap = this.unitInstances.debugSnapshot();
         this.debug.update(this.pixiApp, this.renderer, this.scene, {
             units: this.placement.unitCount,
             mechs,
+            phase: this.phase,
+            round: this.round,
+            instanceCount: instSnap.instances,
+            instancePools: instSnap.pools,
+            instanceLines: instSnap.lines,
         }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.net && !this.matchOver && !this.hydrating) {
