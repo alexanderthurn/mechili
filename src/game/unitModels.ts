@@ -30,7 +30,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
     crawler: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3,offset: { x: 0, y: -0.1, z: 0 }  },
     marksman: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW,offset: { x: 0, y: -0.1, z: 0 }  },
-    fortress: { url: new URL('../../assets/models/fortress-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ballista
+    fortress: { url: new URL('../../assets/models/fortress-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) }, // ballista
     wasp: { url: new URL('../../assets/models/wasp-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // crow rider
     shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
