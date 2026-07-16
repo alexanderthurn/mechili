@@ -67,8 +67,10 @@ export class Scenery {
     private cloudMaterial!: MeshBasicMaterial;
     private cloudTexture!: CanvasTexture;
 
-    /** outer-world height: flat meadow band, then slopes rising into a mountain ring */
+    /** outer-world height: meadow band with soft relief, then slopes into a mountain ring */
     private readonly terrainHeight: (x: number, z: number) => number;
+    /** shared value noise for height + vertex color variation */
+    private readonly noise: (x: number, z: number) => number;
 
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
@@ -76,17 +78,26 @@ export class Scenery {
         this.cloudBoundsX = map.halfW + 600;
 
         const noise = makeValueNoise(31337);
+        this.noise = noise;
         this.terrainHeight = (x, z) => {
             const d = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
-            if (d <= 55) return 0;
+            // Battlefield owns this AABB — stay flat under the field mesh so
+            // units/buildings keep riding map.heightAt without sinking into scenery.
+            if (d === 0) return 0;
+            // soft meadow undulation in the band between field and mountains
+            const meadow =
+                (noise(x / 95 + 1.2, z / 95 + 4.8) * 0.55 +
+                    noise(x / 38 + 22.1, z / 38 + 9.3) * 0.45) *
+                1.35;
+            if (d <= 55) return meadow * smooth01(d / 55) * 0.85;
             // rise into the ring, then settle back down toward the horizon
             const rise = smooth01((d - 55) / 380) * (1 - smooth01((d - 640) / 260));
             const n =
                 noise(x / 170 + 3.7, z / 170 + 8.1) * 0.55 +
                 noise(x / 62 + 51.2, z / 62 + 17.9) * 0.3 +
                 noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
-            const ridge = Math.pow(Math.max(0, n - 0.35) / 0.65, 1.4);
-            return rise * (16 + 135 * ridge);
+            const ridge = Math.pow(Math.max(0, n - 0.32) / 0.68, 1.35);
+            return rise * (14 + 140 * ridge);
         };
 
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
@@ -201,6 +212,7 @@ export class Scenery {
      */
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
+        const t = THEME.terrain;
         const SIZE = 3000;
         const SEGS = 300;
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
@@ -208,18 +220,45 @@ export class Scenery {
 
         const pos = geometry.attributes.position!;
         const colors = new Float32Array(pos.count * 3);
-        // white base: the grass texture (or the material color fallback)
-        // provides the meadow green; rock/snow tint the heights
-        const meadow = new Color(0xffffff);
+        // meadow vertex colors modulate the grass texture (like the field macro);
+        // rock/snow take over on the heights. White = "show texture as-is".
+        const base = new Color(t.base);
+        const meadowTones = t.meadow.map((hex) => {
+            const m = new Color(hex);
+            return new Color(m.r / base.r, m.g / base.g, m.b / base.b);
+        });
+        const dirt = new Color(0xc4b896);
+        const dirtMod = new Color(dirt.r / base.r, dirt.g / base.g, dirt.b / base.b);
         const rock = new Color(s.rock);
+        const rockDark = new Color(s.rock).multiplyScalar(0.72);
         const snow = new Color(s.snow);
         const c = new Color();
+        const rockVar = new Color();
         for (let i = 0; i < pos.count; i++) {
-            const h = this.terrainHeight(pos.getX(i), pos.getZ(i));
+            const x = pos.getX(i);
+            const z = pos.getZ(i);
+            const h = this.terrainHeight(x, z);
             pos.setY(i, h);
-            c.copy(meadow)
-                .lerp(rock, smooth01((h - 8) / 38))
-                .lerp(snow, smooth01((h - 88) / 32));
+
+            // soft meadow patches + rare dirt — same idea as the field macro paint
+            const n1 = this.noise(x / 120 + 2.1, z / 120 + 7.4);
+            const n2 = this.noise(x / 48 + 41.0, z / 48 + 13.2);
+            const n3 = this.noise(x / 22 + 8.8, z / 22 + 55.5);
+            const toneIdx = Math.min(
+                meadowTones.length - 1,
+                Math.floor(n1 * meadowTones.length),
+            );
+            // keep modulation gentle so the grass albedo still reads
+            c.setRGB(1, 1, 1).lerp(meadowTones[toneIdx]!, 0.55 + n2 * 0.25);
+            if (n3 > 0.78) c.lerp(dirtMod, ((n3 - 0.78) / 0.22) * 0.45);
+
+            // rock arrives early/hard so the grass-fade never flashes white first
+            const rockAmt = smooth01((h - 6) / 22);
+            rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
+            c.lerp(rockVar, rockAmt);
+            // snow only on true peaks — starts after rock is fully in
+            c.lerp(snow, smooth01((h - 92) / 28));
+
             colors[i * 3] = c.r;
             colors[i * 3 + 1] = c.g;
             colors[i * 3 + 2] = c.b;
@@ -271,8 +310,10 @@ export class Scenery {
             material.normalScale = new Vector2(0.35, 0.35);
         }
         material.color.set(0xffffff);
-        // fade the grass detail out with altitude so the rocky heights keep
-        // their clean faceted vertex-color look
+        // Fade grass albedo out once rock vertex tint is already strong.
+        // Mixing toward white removes the green texture so rock/snow colors
+        // read cleanly — the old 8→32 range washed lower slopes white because
+        // rock hadn't caught up yet.
         material.onBeforeCompile = (shader) => {
             shader.vertexShader =
                 'varying float vTerrainH;\n' +
@@ -284,30 +325,46 @@ export class Scenery {
                 'varying float vTerrainH;\n' +
                 shader.fragmentShader.replace(
                     '#include <map_fragment>',
-                    '#include <map_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(8.0, 32.0, vTerrainH));',
+                    '#include <map_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(26.0, 48.0, vTerrainH));',
                 );
         };
-        material.customProgramCacheKey = () => 'outer-meadow-grass';
+        material.customProgramCacheKey = () => 'outer-meadow-grass-v2';
         material.needsUpdate = true;
     }
 
     /**
-     * Low-poly trees, bushes and rocks — a ring around the field, plus a few
-     * trees and bushes ON the battlefield (pure scenery: no collision, units
-     * simply walk through/behind them). Instanced per part — five draw calls.
+     * Low-poly trees, bushes and rocks — a forest belt from the field edge
+     * up into the mountain foothills, plus a few trees/bushes ON the battlefield
+     * (pure scenery: no collision). Instanced per part — five draw calls.
      */
     private createForest(map: BattleMap, rng: () => number): void {
         const s = THEME.scenery;
-        const margin = 150; // how far beyond the field trees spread
-        const keepOut = 8; // gap between field edge and the first trunk
+        // reach lower mountain slopes (rise starts ~d=55, foothills to ~350)
+        const margin = 420;
+        const keepOut = 8;
 
-        const spot = (): { x: number; z: number } => {
+        const distOut = (x: number, z: number) =>
+            Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+
+        /** random point outside the field; biased toward foothill forest density */
+        const forestSpot = (maxHeight: number): { x: number; z: number } => {
+            for (let attempt = 0; attempt < 16; attempt++) {
+                const x = (rng() * 2 - 1) * (map.halfW + margin);
+                const z = (rng() * 2 - 1) * (map.halfH + margin);
+                const d = distOut(x, z);
+                if (d < keepOut) continue;
+                const h = this.terrainHeight(x, z);
+                if (h > maxHeight) continue;
+                // thin near the field, dense toward foothills, taper before high rock
+                const belt = smooth01((d - 25) / 70) * (1 - smooth01((d - 300) / 120));
+                if (rng() > 0.18 + belt * 0.82) continue;
+                return { x, z };
+            }
+            // fallback: any valid outer point
             for (;;) {
                 const x = (rng() * 2 - 1) * (map.halfW + margin);
                 const z = (rng() * 2 - 1) * (map.halfH + margin);
-                if (Math.abs(x) > map.halfW + keepOut || Math.abs(z) > map.halfH + keepOut) {
-                    return { x, z };
-                }
+                if (distOut(x, z) >= keepOut) return { x, z };
             }
         };
         // on the battlefield, but never in a base's courtyard
@@ -330,12 +387,13 @@ export class Scenery {
         // bright so the multiply keeps the leaf pattern readable
         const white = new Color(0xffffff);
         const lighten = (c: Color) => c.lerp(white, 0.45);
-        const PINES = 55;
-        const LEAFY = 35;
+        // ~320 outer trees — forest belt, still 5 instanced draw calls
+        const PINES = 200;
+        const LEAFY = 120;
         const FIELD_PINES = 5;
         const FIELD_LEAFY = 6;
-        const ROCKS = 30;
-        const BUSHES = 40; // outer ring
+        const ROCKS = 80;
+        const BUSHES = 90;
         const FIELD_BUSHES = 45;
 
         const trunks = new InstancedMesh(
@@ -377,7 +435,7 @@ export class Scenery {
         };
 
         for (let i = 0; i < PINES + FIELD_PINES; i++) {
-            const { x, z } = i < PINES ? spot() : fieldSpot(10);
+            const { x, z } = i < PINES ? forestSpot(42) : fieldSpot(10);
             const h = groundY(x, z);
             const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
             placeTrunk(x, z, sc, h);
@@ -396,7 +454,7 @@ export class Scenery {
         }
 
         for (let i = 0; i < LEAFY + FIELD_LEAFY; i++) {
-            const { x, z } = i < LEAFY ? spot() : fieldSpot(10);
+            const { x, z } = i < LEAFY ? forestSpot(36) : fieldSpot(10);
             const h = groundY(x, z);
             const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
             placeTrunk(x, z, sc, h);
@@ -414,9 +472,18 @@ export class Scenery {
             }
         }
 
+        // prefer foothill / lower-slope rocks for silhouette variation
+        const rockSpot = (): { x: number; z: number } => {
+            for (let attempt = 0; attempt < 10; attempt++) {
+                const p = forestSpot(75);
+                const h = this.terrainHeight(p.x, p.z);
+                if (h > 4 && h < 70) return p;
+            }
+            return forestSpot(75);
+        };
         for (let i = 0; i < ROCKS; i++) {
-            const { x, z } = spot();
-            const sc = 0.5 + rng() * 1.3;
+            const { x, z } = rockSpot();
+            const sc = 0.5 + rng() * 1.5;
             dummy.position.set(x, groundY(x, z) + 0.4 * sc, z);
             dummy.scale.set(sc, sc * 0.55, sc);
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
@@ -425,7 +492,7 @@ export class Scenery {
         }
 
         for (let i = 0; i < BUSHES + FIELD_BUSHES; i++) {
-            const { x, z } = i < BUSHES ? spot() : fieldSpot(5);
+            const { x, z } = i < BUSHES ? forestSpot(28) : fieldSpot(5);
             const sc = 0.6 + rng() * 0.8;
             dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
             dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));

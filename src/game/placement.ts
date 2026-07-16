@@ -341,6 +341,8 @@ export class PlacementController {
     /** carried / selected packs ride above the grid; everything else sits on world */
     private applyViewHeight(unit: Unit, x: number, z: number, lifted: boolean): void {
         unit.view.position.set(x, lifted ? SELECT_LIFT : unit.world.y, z);
+        // structures skip Unit.update — reseat here so drag follows the hills
+        if (unit.type.structure) unit.seatMembers(x, z);
     }
 
     private isHighlighted(unit: Unit): boolean {
@@ -350,8 +352,12 @@ export class PlacementController {
 
     /** carried packs go back to their committed spots */
     private restoreSelectedView(): void {
-        this.selectedUnit?.view.position.copy(this.selectedUnit.world);
-        for (const u of this.selectedGroup) u.view.position.copy(u.world);
+        const restore = (u: Unit) => {
+            u.view.position.copy(u.world);
+            u.seatMembers(u.world.x, u.world.z);
+        };
+        if (this.selectedUnit) restore(this.selectedUnit);
+        for (const u of this.selectedGroup) restore(u);
     }
 
     /** repositioning is allowed only in the round the pack was deployed (extras included) */
@@ -592,9 +598,7 @@ export class PlacementController {
     beginDeployment(): void {
         for (const u of this.units) {
             u.setDeployment(true);
-            if (u.type.flying) {
-                for (const m of u.members) m.mesh.position.y = u.memberBaseY();
-            }
+            u.seatMembers();
         }
     }
 
@@ -1214,6 +1218,7 @@ export class PlacementController {
             const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type));
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             this.pendingUnit.view.position.set(center.x, 0, center.z);
+            this.pendingUnit.seatMembers(center.x, center.z);
             this.placeFootprintPlate(
                 this.hoverMesh,
                 this.hoverMaterial,
@@ -1283,6 +1288,7 @@ export class PlacementController {
             markerCenter = center;
         } else {
             sel.view.position.copy(sel.world);
+            sel.seatMembers(sel.world.x, sel.world.z);
             const center = this.map.areaCenter(sel.cell, fp.cols, fp.rows);
             this.placeFootprintPlate(
                 this.hoverMesh,
@@ -1338,7 +1344,10 @@ export class PlacementController {
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             const moving = lift && delta !== null;
             if (moving) this.applyViewHeight(unit, center.x, center.z, true);
-            else unit.view.position.set(center.x, unit.world.y, center.z);
+            else {
+                unit.view.position.set(center.x, unit.world.y, center.z);
+                if (unit.type.structure) unit.seatMembers(center.x, center.z);
+            }
             const color = !delta
                 ? VALID_COLOR
                 : this.groupSpotValid(unit, anchor, units)

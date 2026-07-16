@@ -1,6 +1,6 @@
 import type { Group } from 'three';
 import { ITEMS } from './items';
-import { groundHeightAt } from './map';
+import { groundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     RALLY_ROUTE_RADIUS,
@@ -480,16 +480,20 @@ export class BattleSim {
         // their own altitude handling. Skinned/animated units get their gait
         // from the skeleton, so only apply the procedural bob to the rest.
         if (a.altitude === 0) {
-            // visual ground height under the actor — the sim itself stays flat
-            const groundY = groundHeightAt(a.x, a.z) + 0.05;
+            // sample under the footprint (max of a ring) at the RENDERED xz so
+            // walkers clear the uphill side of mounds instead of sinking in
+            const groundY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + 0.08;
             if (!a.mesh.userData.animated) {
                 const gait = Math.sin(timeSeconds * 9 + a.index);
                 a.mesh.position.y = groundY + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
                 a.mesh.rotation.z = gait * 0.06 * moving; // side-to-side roll
-                a.mesh.rotation.x = -0.1 * moving; // lean into the walk
+                a.mesh.rotation.x = -0.06 * moving; // slight lean — kept small so noses don't dig in
             } else {
                 a.mesh.position.y = groundY;
             }
+        } else {
+            // air layer is absolute world Y; soft hover bob
+            a.mesh.position.y = a.altitude + Math.sin(timeSeconds * 2 + a.index) * 0.35;
         }
 
         // recoil kicks the unit backward along its facing, then decays
@@ -571,7 +575,7 @@ export class BattleSim {
             // tip over and stay as a battlefield wreck until the round resets
             // (air units crash to the ground)
             target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
-            target.mesh.position.y = groundHeightAt(target.x, target.z) + 0.05;
+            target.mesh.position.y = groundSupportAt(target.x, target.z, target.radius * 0.65) + 0.08;
             target.mesh.userData.dead = true;
         }
     }

@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { THEME } from '../theme';
 import { teamColors } from './colors';
-import { CELL, groundHeightAt, type Cell } from './map';
+import { CELL, groundSupportAt, type Cell } from './map';
 import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 
@@ -537,15 +537,9 @@ export class Unit {
                 mesh.scale.setScalar(type.meshScale);
                 const ox = (i - (formation.cols - 1) / 2) * spacingX;
                 const oz = (j - (formation.rows - 1) / 2) * spacingZ;
-                mesh.position.set(
-                    ox,
-                    type.flying
-                        ? DEPLOY_AIR_Y
-                        : groundHeightAt(this.world.x + ox, this.world.z + oz),
-                    oz,
-                );
+                mesh.position.set(ox, 0, oz);
                 this.view.add(mesh);
-                this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: mesh.position.clone() });
+                this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: new Vector3(ox, 0, oz) });
             }
         }
         // default facing until a target is known: straight at the opposing
@@ -554,12 +548,28 @@ export class Unit {
         this.facing = team === 'enemy' ? Math.PI : 0;
         for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
+        this.seatMembers();
     }
 
     /** current hover base for idle bob (deployment keeps flyers near the ground) */
     memberBaseY(): number {
         if (!this.type.flying) return 0.05;
         return DEPLOY_AIR_Y + (this.type.flying - DEPLOY_AIR_Y) * this.flightLift;
+    }
+
+    /**
+     * Stick every member to the terrain at the pack origin:
+     * `y = groundSupportAt + memberBaseY()` (flyers = ground + altitude).
+     * Defaults to the current view xz so drag previews follow the hills.
+     */
+    seatMembers(originX = this.view.position.x, originZ = this.view.position.z): void {
+        const base = this.memberBaseY();
+        const r = this.type.collisionRadius * 0.65;
+        for (const m of this.members) {
+            if (m.mesh.userData.dead) continue;
+            m.mesh.position.y =
+                groundSupportAt(originX + m.home.x, originZ + m.home.z, r) + base;
+        }
     }
 
     setDeployment(deploy: boolean): void {
@@ -581,15 +591,9 @@ export class Unit {
         this.cell = cell;
         this.world.copy(world);
         this.view.position.copy(world);
-        // re-seat every member on the relief at the new spot (structures get
-        // no per-frame update, so this is their only chance)
-        if (!this.type.flying) {
-            for (const m of this.members) {
-                m.mesh.position.y =
-                    this.memberBaseY() +
-                    groundHeightAt(world.x + m.home.x, world.z + m.home.z);
-            }
-        }
+        // structures get no per-frame update, so this is their main chance;
+        // everyone (including flyers) reseats on the new relief
+        this.seatMembers(world.x, world.z);
     }
 
     /** Re-arranges the formation for the new orientation, in place. */
@@ -611,6 +615,7 @@ export class Unit {
                 m.mesh.position.copy(m.home);
             }
         }
+        this.seatMembers();
     }
 
     /** Collapses the meshes into rubble until the next round reset. */
@@ -653,17 +658,13 @@ export class Unit {
         for (const m of this.members) {
             clearBattleTint(m.mesh);
             m.mesh.position.copy(m.home);
-            m.mesh.position.y =
-                this.memberBaseY() +
-                (this.type.flying
-                    ? 0
-                    : groundHeightAt(this.world.x + m.home.x, this.world.z + m.home.z));
             m.mesh.visible = true;
             if (!this.type.structure) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
             m.mesh.scale.setScalar(this.type.meshScale); // un-squash tower rubble
             m.mesh.userData.dead = false;
         }
+        this.seatMembers();
         this.destroyed = false;
     }
 
@@ -706,14 +707,17 @@ export class Unit {
     }
 
     update(timeSeconds: number): void {
-        if (this.type.structure) return;
+        // battle owns per-mech Y via BattleSim — don't overwrite walkers with
+        // the pack's home-slot height or they sink into (or float over) hills
+        if (this.type.structure || !this.inDeployment) return;
         const base = this.memberBaseY();
-        const amplitude = this.type.flying && !this.inDeployment ? 0.35 : 0.04;
+        const amplitude = 0.04;
+        const ox = this.view.position.x;
+        const oz = this.view.position.z;
+        const r = this.type.collisionRadius * 0.65;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
-            const ground = this.type.flying
-                ? 0
-                : groundHeightAt(this.world.x + m.home.x, this.world.z + m.home.z);
+            const ground = groundSupportAt(ox + m.home.x, oz + m.home.z, r);
             m.mesh.position.y = ground + base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;
         }
     }

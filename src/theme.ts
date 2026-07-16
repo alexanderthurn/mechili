@@ -79,8 +79,10 @@ export const THEME = {
         sunWashTop: 'rgba(255, 248, 200, 0.18)',
         sunWashBottom: 'rgba(255, 248, 200, 0)',
         groundRoughness: 0.88,
-        // deepest visual hollow of the battlefield relief (gameplay stays flat)
-        reliefDepth: 0.8,
+        // visual mounds on the field (gameplay stays flat). Temporarily large
+        // so sinking/hovering against the relief is easy to spot — dial back
+        // toward ~0.8–1.2 once placement looks right.
+        reliefDepth: 5,
     },
 
     scenery: {
