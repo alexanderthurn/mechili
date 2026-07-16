@@ -3,3 +3,7 @@ dist/
 dist-electron/
 .steam-electron-build/
 .DS_Store
+
+# runtime match telemetry (kept on the server, not in git)
+backend/stats/matches/*.json
+backend/stats/matches/.*.tmp

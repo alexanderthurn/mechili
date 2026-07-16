@@ -470,7 +470,9 @@ export class Weather {
         const active = this.state.rain > 0.02;
         this.rainGroup.visible = active;
         if (!active) return;
-        this.rainGroup.position.set(cameraPos.x, 0, cameraPos.z);
+        // drops live in WORLD space (the group never moves): panning the
+        // camera streams past them naturally. Drops leaving the window around
+        // the camera wrap to its other side while off-screen.
         const p = this.rainPositions;
         const wind = 14;
         for (let i = 0; i < RAIN_DROPS; i++) {
@@ -478,10 +480,15 @@ export class Weather {
             p[i * 3 + 1] = p[i * 3 + 1]! - this.rainSpeeds[i]! * dt;
             if (p[i * 3 + 1]! < 0) {
                 p[i * 3 + 1] = RAIN_BOX.y;
-                p[i * 3] = (Math.random() * 2 - 1) * RAIN_BOX.x;
-                p[i * 3 + 2] = (Math.random() * 2 - 1) * RAIN_BOX.z;
+                p[i * 3] = cameraPos.x + (Math.random() * 2 - 1) * RAIN_BOX.x;
+                p[i * 3 + 2] = cameraPos.z + (Math.random() * 2 - 1) * RAIN_BOX.z;
             }
-            if (p[i * 3]! > RAIN_BOX.x) p[i * 3] = -RAIN_BOX.x;
+            const dx = p[i * 3]! - cameraPos.x;
+            if (dx > RAIN_BOX.x) p[i * 3] = p[i * 3]! - 2 * RAIN_BOX.x;
+            else if (dx < -RAIN_BOX.x) p[i * 3] = p[i * 3]! + 2 * RAIN_BOX.x;
+            const dz = p[i * 3 + 2]! - cameraPos.z;
+            if (dz > RAIN_BOX.z) p[i * 3 + 2] = p[i * 3 + 2]! - 2 * RAIN_BOX.z;
+            else if (dz < -RAIN_BOX.z) p[i * 3 + 2] = p[i * 3 + 2]! + 2 * RAIN_BOX.z;
         }
         this.rainGeometry.attributes.position!.needsUpdate = true;
     }

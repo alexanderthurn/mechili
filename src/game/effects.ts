@@ -94,7 +94,7 @@ export class Particles {
                     break;
                 }
                 case 'death':
-                    if (e.ash) {
+                    if (e.wear === 'ash') {
                         // dark ash / debris — not blood
                         this.burst(e.x, e.y, e.z, {
                             count: e.big ? 36 : 18,
@@ -112,6 +112,8 @@ export class Particles {
                             up: 6,
                             blood: true,
                         });
+                    } else if (e.wear === 'none') {
+                        break;
                     } else if (e.big) {
                         this.burst(e.x, e.y, e.z, {
                             count: 44,

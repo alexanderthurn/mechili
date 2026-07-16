@@ -64,6 +64,11 @@ export function chatUrl(): string {
     return new URL('chat.php', matchUrl()).href;
 }
 
+/** match telemetry endpoint — stats.php next to matchmaking.php */
+export function statsUrl(): string {
+    return new URL('stats.php', matchUrl()).href;
+}
+
 export interface GlobalChatState {
     sticky: string | null;
     messages: { name: string; text: string; ts: number }[];

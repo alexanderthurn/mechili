@@ -17,6 +17,7 @@ import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
+import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -1694,7 +1695,41 @@ export class Game {
             queueMicrotask(() => this.quitToMenu());
             return;
         }
+        this.reportMatchTelemetry(result);
         this.hud.showGameOver(result);
+    }
+
+    /**
+     * Best-effort upload for balance stats. Host-only in multiplayer (one
+     * record per match); never blocks or throws if the PHP backend is down.
+     */
+    private reportMatchTelemetry(result: 'victory' | 'defeat' | 'draw'): void {
+        if (this.net && this.side !== 'a') return;
+        try {
+            const replay = this.exportReplay();
+            submitMatchTelemetry({
+                schema: 1,
+                ts: Math.floor(Date.now() / 1000),
+                gameVersion: GAME_VERSION,
+                balancePatchId: BALANCE_PATCH_ID,
+                mode: this.net ? 'mp' : 'ai',
+                side: this.side,
+                result,
+                rounds: this.round,
+                playerHp: this.playerHp,
+                enemyHp: this.enemyHp,
+                names: { ...this.playerNames },
+                speciality: { player: this.speciality.player, enemy: this.speciality.enemy },
+                units: summarizeUnits(this.placement.allUnits()),
+                unlocked: {
+                    player: [...this.unlockedUnits.player],
+                    enemy: [...this.unlockedUnits.enemy],
+                },
+                replay,
+            });
+        } catch {
+            // telemetry must never affect the game-over flow
+        }
     }
 
     /**
@@ -1847,9 +1882,9 @@ export class Game {
             if (e.kind === 'impact' && e.y > 0.25) {
                 this.map.stampBlood(e.x, e.z, 1.1, 0.55);
             } else if (e.kind === 'death') {
-                if (e.ash) {
+                if (e.wear === 'ash') {
                     this.map.stampScorch(e.x, e.z, e.big ? 10 : 7, e.big ? 0.85 : 0.7);
-                } else {
+                } else if (e.wear === 'blood') {
                     this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65);
                 }
             } else if (e.kind === 'explosion') {

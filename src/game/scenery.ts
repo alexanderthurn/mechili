@@ -3,6 +3,7 @@ import {
     BackSide,
     BufferAttribute,
     CanvasTexture,
+    CircleGeometry,
     ConeGeometry,
     CylinderGeometry,
     Group,
@@ -36,6 +37,7 @@ import {
     DETAIL_TILE,
     grassAlbedoUrl,
     grassNormalUrl,
+    sandAlbedoUrl,
     makeValueNoise,
     mulberry32,
     type BattleMap,
@@ -65,6 +67,8 @@ export class Scenery {
     private readonly map: BattleMap;
     private weather: Weather | null = null;
 
+    private waterTexture!: CanvasTexture;
+
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
     private sunGlow!: Sprite;
@@ -73,6 +77,8 @@ export class Scenery {
 
     /** outer-world height: meadow band with soft relief, then slopes into a mountain ring */
     private readonly terrainHeight: (x: number, z: number) => number;
+    /** 0..1 — how much a spot belongs to a lake basin (drives depth + beaches) */
+    private readonly lakeAt: (x: number, z: number) => number;
     /** shared value noise for height + vertex color variation */
     private readonly noise: (x: number, z: number) => number;
 
@@ -83,6 +89,14 @@ export class Scenery {
 
         const noise = makeValueNoise(31337);
         this.noise = noise;
+        // a handful of lakes, confined to the VISIBLE ring near the board
+        // (verified: 1 big + 1 medium lake and 2 ponds, nearest ~66 from the edge)
+        this.lakeAt = (x, z) => {
+            const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+            const ring = smooth01((dOut - 30) / 40) * (1 - smooth01((dOut - 260) / 120));
+            const basinN = noise(x / 270 + 77.7, z / 270 + 31.3);
+            return smooth01((basinN - 0.52) / 0.14) * ring;
+        };
         this.terrainHeight = (x, z) => {
             // keep the playable AABB flat — field mesh owns that surface
             if (Math.abs(x) <= map.halfW && Math.abs(z) <= map.halfH) return 0;
@@ -95,10 +109,10 @@ export class Scenery {
             d += (noise(x / 40 + 9.0, z / 40 + 1.7) - 0.5) * 12;
             d = Math.max(0, d);
 
-            // ~10 tiles stay nearly flat; then hills ease in (some spots earlier
+            // ~6 tiles stay nearly flat; then hills ease in (some spots earlier
             // via the noise on d, but never the old "wall at 5 tiles")
-            const nearFlat = 40; // CELL=4 → 10 tiles
-            const ramp = 150;
+            const nearFlat = 24; // CELL=4 → 6 tiles
+            const ramp = 90;
             const edgeIn = Math.pow(smooth01((d - nearFlat) / ramp), 1.45);
 
             const hN =
@@ -106,8 +120,8 @@ export class Scenery {
                 noise(x / 48 + 22.1, z / 48 + 9.3) * 0.32 +
                 noise(x / 22 + 8.8, z / 22 + 55.5) * 0.18;
             const knoll = Math.pow(Math.max(0, hN - 0.45) / 0.55, 1.3);
-            // gentler foothills — mountains still carry the big drama farther out
-            const rolling = (1.2 + 8 * hN + 6 * knoll) * edgeIn;
+            // real rolling hills — mountains still carry the big drama farther out
+            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn;
 
             const rise = smooth01((d - 110) / 360) * (1 - smooth01((d - 640) / 260));
             const n =
@@ -117,12 +131,18 @@ export class Scenery {
             const ridge = Math.pow(Math.max(0, n - 0.32) / 0.68, 1.35);
             const mountain = rise * (28 + 280 * ridge);
 
-            return rolling + mountain;
+            // lakes win over everything: where the basin noise runs high the
+            // ground is pressed to -7, well below the water table at -1.1
+            const lake = this.lakeAt(x, z);
+            const depth = -7 * smooth01((d - 25) / 45);
+            return (rolling + mountain) * (1 - lake) + depth * lake;
         };
 
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
         this.group.add(this.createOuterGround(map));
+        this.group.add(this.createWater());
+        this.createLakeDetails(rng);
         this.createForest(map, rng);
         this.cloudShadow = this.createCloudShadow(map);
         this.group.add(this.cloudShadow);
@@ -164,6 +184,158 @@ export class Scenery {
         for (const p of this.peakClouds) {
             p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
         }
+        // slow ripple drift on the lakes
+        this.waterTexture.offset.x += dtSeconds * 0.006;
+        this.waterTexture.offset.y += dtSeconds * 0.0035;
+    }
+
+    /**
+     * The water table: one flat translucent plane at y = -1.1. It is hidden
+     * under the terrain everywhere, EXCEPT where a lake basin dips below it.
+     * A painted ripple texture drifts slowly to make it read as water.
+     */
+    private createWater(): Mesh {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#3d7fb4';
+        ctx.fillRect(0, 0, 256, 256);
+        const rng = mulberry32(1234);
+        // light wavy ripple strokes, drawn twice with an offset so they tile
+        ctx.strokeStyle = 'rgba(210, 235, 255, 0.16)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 26; i++) {
+            const y0 = rng() * 256;
+            const amp = 2 + rng() * 3;
+            const len = 40 + rng() * 80;
+            const x0 = rng() * 256;
+            for (const [ox, oy] of [
+                [0, 0],
+                [-256, 0],
+                [0, -256],
+            ] as const) {
+                ctx.beginPath();
+                for (let x = 0; x <= len; x += 6) {
+                    const px = x0 + x + ox;
+                    const py = y0 + Math.sin(x * 0.15) * amp + oy;
+                    if (x === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            }
+        }
+        this.waterTexture = new CanvasTexture(canvas);
+        this.waterTexture.colorSpace = SRGBColorSpace;
+        this.waterTexture.wrapS = this.waterTexture.wrapT = RepeatWrapping;
+        this.waterTexture.repeat.set(100, 100); // one ripple tile per 30 world units
+
+        const geometry = new PlaneGeometry(3000, 3000);
+        geometry.rotateX(-Math.PI / 2);
+        const mesh = new Mesh(
+            geometry,
+            new MeshStandardMaterial({
+                map: this.waterTexture,
+                transparent: true,
+                opacity: 0.86,
+                roughness: 0.18,
+                metalness: 0,
+            }),
+        );
+        mesh.position.y = -1.1;
+        mesh.receiveShadow = true;
+        return mesh;
+    }
+
+    /**
+     * Life on and around the lakes: reeds along the shores, lily pads on the
+     * water, and blossoms on some of the pads. Three instanced draw calls.
+     */
+    private createLakeDetails(rng: () => number): void {
+        const WATER_Y = -1.1;
+        const dummy = new Object3D();
+        const color = new Color();
+
+        /** random point where the lake factor and height match the given band */
+        const lakeSpot = (minLake: number, hMin: number, hMax: number) => {
+            for (let attempt = 0; attempt < 400; attempt++) {
+                const x = (rng() * 2 - 1) * 1300;
+                const z = (rng() * 2 - 1) * 1300;
+                if (this.lakeAt(x, z) < minLake) continue;
+                const h = this.terrainHeight(x, z);
+                if (h < hMin || h > hMax) continue;
+                return { x, z, h };
+            }
+            return null;
+        };
+
+        const REEDS = 160;
+        const reeds = new InstancedMesh(
+            new CylinderGeometry(0.05, 0.09, 2.4, 4),
+            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }),
+            REEDS,
+        );
+        let reedI = 0;
+        for (let i = 0; i < REEDS; i++) {
+            const spot = lakeSpot(0.2, -1.5, -0.1); // shoreline band
+            if (!spot) break;
+            const sc = 0.7 + rng() * 0.6;
+            dummy.position.set(spot.x, spot.h + 1.2 * sc, spot.z);
+            dummy.scale.setScalar(sc);
+            dummy.rotation.set((rng() - 0.5) * 0.2, 0, (rng() - 0.5) * 0.2);
+            dummy.updateMatrix();
+            reeds.setMatrixAt(reedI, dummy.matrix);
+            color.set(0x6a8a3e).lerp(new Color(0x9a8a52), rng());
+            reeds.setColorAt(reedI++, color);
+        }
+        reeds.count = reedI;
+        reeds.castShadow = true;
+
+        const PADS = 70;
+        const padGeo = new CircleGeometry(0.6, 8);
+        padGeo.rotateX(-Math.PI / 2);
+        const pads = new InstancedMesh(
+            padGeo,
+            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
+            PADS,
+        );
+        const blossoms = new InstancedMesh(
+            new PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2),
+            new MeshStandardMaterial({
+                map: makeFlowerTexture(),
+                transparent: true,
+                alphaTest: 0.4,
+                roughness: 1,
+            }),
+            PADS,
+        );
+        const flowerTones = THEME.terrain.flowers;
+        let padI = 0;
+        let blossomI = 0;
+        for (let i = 0; i < PADS; i++) {
+            const spot = lakeSpot(0.7, -8, -2); // clearly inside a lake
+            if (!spot) break;
+            const sc = 0.7 + rng() * 0.9;
+            dummy.position.set(spot.x, WATER_Y + 0.04, spot.z);
+            dummy.scale.setScalar(sc);
+            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+            dummy.updateMatrix();
+            pads.setMatrixAt(padI, dummy.matrix);
+            color.set(0x3e7a34).lerp(new Color(0x5a9a48), rng());
+            pads.setColorAt(padI++, color);
+            if (rng() < 0.35) {
+                dummy.position.y = WATER_Y + 0.09;
+                dummy.scale.setScalar(sc * 0.6);
+                dummy.updateMatrix();
+                blossoms.setMatrixAt(blossomI, dummy.matrix);
+                color.set(flowerTones[Math.floor(rng() * flowerTones.length)]!);
+                blossoms.setColorAt(blossomI++, color);
+            }
+        }
+        pads.count = padI;
+        blossoms.count = blossomI;
+
+        this.group.add(reeds, pads, blossoms);
     }
 
     /** big back-side sphere with a painted zenith-to-horizon gradient */
@@ -191,6 +363,7 @@ export class Scenery {
             new SphereGeometry(850, 32, 16),
             new MeshBasicMaterial({ map: texture, side: BackSide, fog: false, depthWrite: false }),
         );
+        mesh.renderOrder = -2; // very first: the stars (order -1) draw right on top of it
         return mesh;
     }
 
@@ -228,13 +401,13 @@ export class Scenery {
     }
 
     /**
-     * The world beyond the field: meadow + mountains. Grass detail matches the
-     * battlefield tiling; soft vertex tint keeps the lawn from reading neon.
-     * Rock/snow take over with altitude.
+     * The world beyond the field: the SAME grass as the battlefield (same
+     * texture, same tiling, one constant to match the board's macro-darkened
+     * tone), with rock and snow taking over on the mountains. Vertex colors
+     * carry the rock/snow tint; the grass area stays plain white.
      */
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
-        const t = THEME.terrain;
         const SIZE = 3000;
         const SEGS = 300;
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
@@ -242,14 +415,10 @@ export class Scenery {
 
         const pos = geometry.attributes.position!;
         const colors = new Float32Array(pos.count * 3);
-        const base = new Color(t.base);
-        const meadowTones = t.meadow.map((hex) => {
-            const m = new Color(hex);
-            return new Color(m.r / base.r, m.g / base.g, m.b / base.b);
-        });
-        // field macro darkens the grass albedo — pull outer toward that tone
-        const lawnTone = new Color(0.82, 0.86, 0.74);
-        // near-white: the tiled rock texture carries the stone color now, the
+        /** 0..1 per vertex: how sandy this spot is (lake shores + rare patches) */
+        const beach = new Float32Array(pos.count);
+        const meadow = new Color(0xffffff); // grass texture shows as-is
+        // near-white: the tiled rock texture carries the stone color, the
         // vertex tint only adds large-scale light/dark variation
         const rock = new Color(0xf2efe9);
         const rockDark = new Color(0xf2efe9).multiplyScalar(0.75);
@@ -262,15 +431,19 @@ export class Scenery {
             const h = this.terrainHeight(x, z);
             pos.setY(i, h);
 
-            const n1 = this.noise(x / 120 + 2.1, z / 120 + 7.4);
-            const n2 = this.noise(x / 48 + 41.0, z / 48 + 13.2);
-            const toneIdx = Math.min(meadowTones.length - 1, Math.floor(n1 * meadowTones.length));
-            c.copy(lawnTone).lerp(meadowTones[toneIdx]!, 0.2 + n2 * 0.15);
+            // sand around (and under) the lakes, fading up the banks…
+            const shore = smooth01(this.lakeAt(x, z) / 0.5) * (1 - smooth01((h - 0.2) / 2.0));
+            // …plus rare small dry patches scattered over the meadow
+            const patchN = this.noise(x / 37 + 5.1, z / 37 + 50.4);
+            const patch = smooth01((patchN - 0.72) / 0.09) * 0.7 * (h < 10 ? 1 : 0);
+            // never right next to the board — it would break the transition
+            const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+            beach[i] = Math.min(1, Math.max(shore, patch)) * smooth01((dOut - 15) / 25);
 
-            const rockAmt = smooth01((h - 12) / 45);
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
-            c.lerp(rockVar, rockAmt);
-            c.lerp(snow, smooth01((h - 180) / 55));
+            c.copy(meadow)
+                .lerp(rockVar, smooth01((h - 12) / 45))
+                .lerp(snow, smooth01((h - 180) / 55));
 
             colors[i * 3] = c.r;
             colors[i * 3 + 1] = c.g;
@@ -278,6 +451,7 @@ export class Scenery {
         }
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
+        geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
         geometry.computeVertexNormals();
 
         const material = new MeshStandardMaterial({
@@ -294,17 +468,25 @@ export class Scenery {
         return mesh;
     }
 
-    /** battlefield grass detail, world-aligned so it continues across the border */
+    /**
+     * The outer world's grass = the battlefield's grass: same texture, same
+     * tile size, phase-aligned so the pattern continues across the border.
+     * BOARD_TONE matches the board's average brightness (its painted macro
+     * layer darkens it slightly). On the mountains the rock texture takes
+     * over (by height and slope), with plain white snow above.
+     */
     private async applyMeadowTexture(
         material: MeshStandardMaterial,
         map: BattleMap,
         size: number,
     ): Promise<void> {
+        const BOARD_TONE = 0.93;
         const loader = new TextureLoader();
-        const [albedo, normal, rock] = await Promise.all([
+        const [albedo, normal, rock, sand] = await Promise.all([
             loader.loadAsync(grassAlbedoUrl).catch(() => null),
             loader.loadAsync(grassNormalUrl).catch(() => null),
             loader.loadAsync(rockUrl).catch(() => null),
+            loader.loadAsync(sandAlbedoUrl).catch(() => null),
         ]);
         if (!albedo) return;
         const frac = (v: number) => ((v % 1) + 1) % 1;
@@ -328,34 +510,44 @@ export class Scenery {
             rock.colorSpace = SRGBColorSpace;
             rock.anisotropy = 8;
         }
+        if (sand) {
+            sand.wrapS = sand.wrapT = RepeatWrapping;
+            sand.colorSpace = SRGBColorSpace;
+            sand.anisotropy = 8;
+        }
         material.color.set(0xffffff);
         material.onBeforeCompile = (shader) => {
             if (rock) shader.uniforms.uRock = { value: rock };
+            if (sand) shader.uniforms.uSand = { value: sand };
             shader.vertexShader =
-                'varying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;',
                 );
             const inject = rock
                 ? `
-    // break the grass repeat: second sample, rotated + rescaled, blended by a
-    // large smooth interference pattern
-    vec2 uv2 = mat2(0.59, -0.81, 0.81, 0.59) * (vWorldXZ / 16.6);
-    float mixF = smoothstep(0.25, 0.75, 0.5 + 0.5 * sin(vWorldXZ.x * 0.031) * sin(vWorldXZ.y * 0.027));
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(map, uv2).rgb, mixF);
+    // match the board's average brightness
+    diffuseColor.rgb *= ${BOARD_TONE.toFixed(2)};
+    ${
+        sand
+            ? `// sand where the geometry says so: lake shores + rare dry patches
+    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / 20.0).rgb, vBeach);`
+            : ''
+    }
     // rock takes over with altitude and on steep faces; snow caps the peaks
     float snowF = smoothstep(170.0, 235.0, vTerrainH);
     float rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF);
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uRock, vWorldXZ / 34.0).rgb, rockF);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`
-                : '\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(40.0, 90.0, vTerrainH));';
+                : `\n\tdiffuseColor.rgb *= ${BOARD_TONE.toFixed(2)};`;
             shader.fragmentShader =
-                'varying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
+                (sand ? 'uniform sampler2D uSand;\n' : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
         };
-        material.customProgramCacheKey = () => `outer-meadow-grass-v5${rock ? '-rock' : ''}`;
+        material.customProgramCacheKey = () => `outer-meadow-simple-v2${rock ? '-rock' : ''}${sand ? '-sand' : ''}`;
         material.needsUpdate = true;
     }
 
@@ -382,6 +574,7 @@ export class Scenery {
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
                 if (h > maxHeight) continue;
+                if (h < -0.4) continue; // no trees in the lakes
                 // thin near the field, dense toward foothills, taper before high rock
                 const belt = smooth01((d - 25) / 70) * (1 - smooth01((d - 300) / 120));
                 if (rng() > 0.18 + belt * 0.82) continue;
@@ -419,7 +612,7 @@ export class Scenery {
         const LEAFY = 120;
         const FIELD_PINES = 5;
         const FIELD_LEAFY = 6;
-        const ROCKS = 80;
+        const ROCKS = 170;
         const BUSHES = 90;
         const FIELD_BUSHES = 45;
 
@@ -557,7 +750,8 @@ export class Scenery {
                 const x = (rng() * 2 - 1) * (map.halfW + 260);
                 const z = (rng() * 2 - 1) * (map.halfH + 260);
                 if (distOut(x, z) < keepOut) continue;
-                if (this.terrainHeight(x, z) < 5) return { x, z };
+                const h = this.terrainHeight(x, z);
+                if (h > -0.4 && h < 5) return { x, z }; // meadow only, not in lakes
             }
         };
         for (let i = 0; i < FLOWERS; i++) {

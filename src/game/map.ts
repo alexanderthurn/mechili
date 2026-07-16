@@ -18,7 +18,7 @@ const sandAlbedoUrl = new URL('../../assets/textures/sand-albedo.webp', import.m
 
 /** world units covered by one repeat of the grass detail texture (field AND outer meadow) */
 export const DETAIL_TILE = 20;
-export { grassAlbedoUrl, grassNormalUrl };
+export { grassAlbedoUrl, grassNormalUrl, sandAlbedoUrl };
 
 /** world units per grid tile */
 export const CELL = 4;
@@ -155,6 +155,9 @@ export class BattleMap {
     get sandReady(): boolean {
         return this.sandMask !== null;
     }
+
+    /** the field's macro tone canvas — the outer meadow samples its clamped edge */
+    groundMacro: CanvasTexture | null = null;
 
     /** live sand-wear mask (null until ground textures finish loading) */
     private sandMask: CanvasTexture | null = null;
@@ -294,6 +297,7 @@ export class BattleMap {
         this.applyRelief(geometry);
         geometry.computeVertexNormals();
         const macro = this.createGroundTexture(seed);
+        this.groundMacro = macro; // scenery continues this tone past the border
         const material = new MeshStandardMaterial({
             map: macro,
             roughness: THEME.terrain.groundRoughness,
@@ -459,20 +463,18 @@ export class BattleMap {
 
     /**
      * How hard a ground unit presses into the sand (1 ≈ archer/dwarf).
-     * Heavier siege (ballista) leaves deeper, wider wear.
+     * Uses `type.sandWeight` when set; otherwise derives from cost + bulk.
      */
     sandStampWeight(type: {
-        id?: string;
+        sandWeight?: number;
         cost: number;
         collisionRadius: number;
         meshScale: number;
     }): number {
+        if (type.sandWeight !== undefined) return type.sandWeight;
         const costW = type.cost / 100;
         const bulkW = (type.collisionRadius * type.meshScale) / 2.5;
-        let w = Math.max(0.55, Math.min(4.5, 0.5 * costW + 0.5 * bulkW));
-        // ballista is heavy but shouldn't carve deserts — keep a light track
-        if (type.id === 'ballista') w *= 0.3;
-        return w;
+        return Math.max(0.55, Math.min(4.5, 0.5 * costW + 0.5 * bulkW));
     }
 
     /**
@@ -540,20 +542,23 @@ export class BattleMap {
                     '\tfloat sandLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n' +
                     '\tfloat scorchM = smoothstep(0.12, 0.45, wear.b);\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
-                    '\tfloat sandM = smoothstep(0.30, 0.62, wear.r - (sandLum - 0.25) * 0.5);\n' +
+                    // low threshold so light footprints still read (stamps are weak by design)
+                    '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
                     // nearly black crimson puddles — not bright scarlet
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n' +
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
             }
+            // full macro modulation to the very rim — the outer meadow starts
+            // at the field's average brightness, so the border blends anyway
             inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
             shader.fragmentShader =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 (sand ? 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n' : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
         };
-        material.customProgramCacheKey = () => `ground-macro-detail${sand ? '-wear-rgb' : ''}`;
+        material.customProgramCacheKey = () => `ground-macro-detail-edgefade${sand ? '-wear-rgb' : ''}`;
 
         const previous = mesh.material as MeshStandardMaterial;
         mesh.material = material;

@@ -517,7 +517,7 @@ export class PlacementController {
             unit.world.x,
             unit.world.z,
             this.map.packSandRadius(fp.cols, fp.rows) * Math.sqrt(w),
-            0.12 * w,
+            0.22 * w,
         );
     }
 
@@ -637,9 +637,11 @@ export class PlacementController {
         }
         this.updateMovablePlates(timeSeconds);
         this.updateItemBadges();
+        // intel fog snaps views to committed/snapshot poses — must run BEFORE
+        // markers so a carried pack's cursor ride is not overwritten
+        this.applyIntelFog();
         this.updateMarkers(timeSeconds);
         this.updateLevelArrows(timeSeconds);
-        this.applyIntelFog();
     }
 
     private pulse(t: number): number {

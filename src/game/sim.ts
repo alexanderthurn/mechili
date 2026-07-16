@@ -9,7 +9,15 @@ import {
     type RallyRoute,
 } from './tactics';
 import type { ResolvedStats } from './tech';
-import { syncBattleTint, type Team, type Unit, type UnitType } from './units';
+import {
+    DEPLOY_AIR_Y,
+    resolveDeathWear,
+    syncBattleTint,
+    type DeathWear,
+    type Team,
+    type Unit,
+    type UnitType,
+} from './units';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
 export const GOLDEN_AURA_DURATION = 30;
@@ -132,7 +140,7 @@ export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     | { kind: 'impact'; x: number; y: number; z: number }
     | { kind: 'explosion'; x: number; y: number; z: number; radius: number }
-    | { kind: 'death'; x: number; y: number; z: number; big: boolean; ash?: boolean }
+    | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear }
     | { kind: 'levelup'; x: number; y: number; z: number };
 
 const PROJECTILE_RADIUS = 0.25;
@@ -511,8 +519,13 @@ export class BattleSim {
                 a.mesh.position.y = groundY;
             }
         } else {
-            // air layer is absolute world Y; soft hover bob
-            a.mesh.position.y = a.altitude + Math.sin(timeSeconds * 2 + a.index) * 0.35;
+            // climb from deployment hover (ground + DEPLOY_AIR_Y) to the combat
+            // air layer via unit.flightLift — battle used to snap to altitude
+            // immediately, which read as a teleport especially on hills
+            const lift = a.unit.flightLift;
+            const fromY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + DEPLOY_AIR_Y;
+            const y = fromY + (a.altitude - fromY) * lift;
+            a.mesh.position.y = y + Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
         }
 
         // recoil kicks the unit backward along its facing, then decays
@@ -583,8 +596,7 @@ export class BattleSim {
             y: target.altitude + t.meshScale * 0.8,
             z: target.z,
             big: target.radius >= 2 || !!t.structure,
-            // siege engines & buildings burn/collapse — no blood
-            ash: !!t.structure || t.id === 'ballista',
+            wear: resolveDeathWear(t),
         });
         if (t.structure) {
             target.unit.markDestroyed();
@@ -916,7 +928,7 @@ export class BattleSim {
         s.alive = false;
         s.mesh.visible = false;
         s.unit.consumed = true; // broken — gone for good at the round reset
-        this.events.push({ kind: 'death', x: s.x, y: 2, z: s.z, big: true, ash: true });
+        this.events.push({ kind: 'death', x: s.x, y: 2, z: s.z, big: true, wear: resolveDeathWear(s.unit.type) });
     }
 
     /** spawns a bullet from the shooter's muzzle toward the target's primary hit volume */

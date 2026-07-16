@@ -1,0 +1,2 @@
+# Match JSON is served only via stats.php — block direct URL access.
+Require all denied

@@ -23,7 +23,8 @@ to prevent exactly that.
 | `src/game/colors.ts` | canonical side colors (host blue, guest red, on both screens) |
 | `src/ui/hud.ts` | the whole in-match UI (DOM overlay), incl. combat chat |
 | `src/theme.ts` | every color and all CSS |
-| `backend/*.php` | matchmaking lobby + global chat (plain JSON files, flock'd) |
+| `backend/*.php` | matchmaking lobby, global chat, match telemetry (plain JSON files) |
+| `src/game/telemetry.ts` | fire-and-forget match upload; analysis stays in clients |
 
 ## The action system
 
@@ -105,6 +106,15 @@ clients:
 
 `GAME_VERSION` gates all of this: bump it on ANY change to game logic,
 hydration behavior, or the wire format.
+
+## Match telemetry
+
+On `finishMatch` the host (and single-player) POSTs a MatchRecord to
+`backend/stats.php` — one JSON file per match under `stats/matches/`,
+atomic write, content-hash dedupe. Failures are ignored. Bulk download
+(`?action=bulk`) feeds client-side analysis (`backend/stats.html`). Bump
+`BALANCE_PATCH_ID` in `telemetry.ts` when tuning costs/stats for patches.
+The FTP deploy excludes `backend/stats/` so collected matches survive releases.
 
 ## Adding a unit type — checklist
 

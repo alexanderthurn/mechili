@@ -69,6 +69,14 @@ export function techDescription(tech: TechDef): string {
 /** ground-hugging altitude for flyers during deployment (full height comes at battle start) */
 export const DEPLOY_AIR_Y = 1.25;
 
+/** Ground / particle residue when a unit dies. */
+export type DeathWear = 'blood' | 'ash' | 'none';
+
+/** Resolve death wear: explicit override, else ash for structures, blood otherwise. */
+export function resolveDeathWear(type: Pick<UnitType, 'deathWear' | 'structure'>): DeathWear {
+    return type.deathWear ?? (type.structure ? 'ash' : 'blood');
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -126,6 +134,15 @@ export interface UnitType {
      * range (world units), not just what it hit. Absent = single target.
      */
     splashRadius?: number;
+    /**
+     * Ground wear strength when walking/standing (1 ≈ typical infantry).
+     * Omit = derive from cost + bulk via {@link sandStampWeight}.
+     */
+    sandWeight?: number;
+    /**
+     * Ground stain / death particles. Omit = ash if structure, else blood.
+     */
+    deathWear?: DeathWear;
     /** combat stats, per individual mech */
     hp: number;
     damage: number;
@@ -430,6 +447,9 @@ export const UNIT_TYPES: UnitType[] = [
         projectileLaunchHeight: 5.8,
         projectileBallistic: true,
         splashRadius: 3, // bolts shatter — everything near the impact takes the hit
+        // heavy chassis would stamp hard from cost/bulk — keep a light track
+        sandWeight: 1.1,
+        deathWear: 'ash', // wood/iron siege — burns, no blood
         hp: 500,
         damage: 500,
         range: 84,
@@ -601,11 +621,11 @@ export class Unit {
         if (deploy) this.flightLift = 0;
     }
 
-    /** ramps flyers up (battle) or down (deployment) */
+    /** ramps flyers up (battle) or down (deployment) — ~0.6s full climb */
     tickFlight(dtSeconds: number): void {
         if (!this.type.flying) return;
         const target = this.inDeployment ? 0 : 1;
-        const rate = 8;
+        const rate = 1.6;
         if (this.flightLift < target) this.flightLift = Math.min(1, this.flightLift + dtSeconds * rate);
         else if (this.flightLift > target) this.flightLift = Math.max(0, this.flightLift - dtSeconds * rate);
     }
