@@ -18,7 +18,7 @@ import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
 import { ITEMS } from './items';
-import { CELL, cellKey, type BattleMap, type Cell } from './map';
+import { CELL, cellKey, groundHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import { Unit, unitTypeById, type GridExtent, type Team, type UnitType } from './units';
 
@@ -47,9 +47,6 @@ const MOVABLE_PLATE_OPACITY = 0.52;
  * The attack-range ring visual, shared by deployment selection and the
  * battle-phase mech selection. Unit scale = range in world units.
  */
-/** big flat rings can't follow the relief per-vertex — float just above the tallest mound */
-const RANGE_RING_Y = THEME.terrain.reliefDepth + 0.06;
-
 export function createRangeRing(scene: Scene): Mesh {
     const ringGeo = new RingGeometry(0.985, 1, 96);
     ringGeo.rotateX(-Math.PI / 2);
@@ -63,10 +60,25 @@ export function createRangeRing(scene: Scene): Mesh {
             depthWrite: false,
         }),
     );
-    mesh.position.y = RANGE_RING_Y;
+    mesh.frustumCulled = false; // draped vertices outgrow the static bounding sphere
     mesh.visible = false;
     scene.add(mesh);
     return mesh;
+}
+
+/**
+ * Position + size a range ring, draping its band over the ground relief so
+ * it hugs the terrain (and units occlude it) instead of floating.
+ */
+export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: number): void {
+    const pos = mesh.geometry.attributes.position!;
+    for (let i = 0; i < pos.count; i++) {
+        pos.setY(i, groundHeightAt(x + pos.getX(i) * radius, z + pos.getZ(i) * radius));
+    }
+    pos.needsUpdate = true;
+    mesh.position.set(x, 0.12, z);
+    mesh.scale.set(radius, 1, radius);
+    mesh.visible = true;
 }
 
 /**
@@ -1214,9 +1226,7 @@ export class PlacementController {
             // show what it will cover: dome radius, or the rocket's trigger range
             const radius = type.shield?.radius ?? type.rocket?.range;
             if (radius) {
-                this.rangeMesh.position.set(center.x, RANGE_RING_Y, center.z);
-                this.rangeMesh.scale.set(radius, 1, radius);
-                this.rangeMesh.visible = true;
+                placeRangeRing(this.rangeMesh, center.x, center.z, radius);
             }
             return;
         }
@@ -1289,9 +1299,7 @@ export class PlacementController {
         // attack range ring for own packs (follows the carried position)
         if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
-            this.rangeMesh.position.set(markerCenter.x, RANGE_RING_Y, markerCenter.z);
-            this.rangeMesh.scale.set(radius, 1, radius);
-            this.rangeMesh.visible = true;
+            placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
         }
     }
 

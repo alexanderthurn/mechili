@@ -237,7 +237,7 @@ export class BattleMap {
     }
 
     /** approximate centers of the base buildings on both sides (see game.ts spawnTowers) */
-    private baseAnchors(): { x: number; z: number; r: number }[] {
+    baseAnchors(): { x: number; z: number; r: number }[] {
         const { flankCols, zoneCols, zoneRows } = this.size;
         const anchors: { x: number; z: number; r: number }[] = [];
         for (const a of Object.values(BASE_ANCHORS)) {

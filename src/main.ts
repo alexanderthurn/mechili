@@ -97,7 +97,7 @@ const subtitle = new Text({
     },
 });
 subtitle.anchor.set(0.5);
-title.addChild(logo, subtitle);
+title.addChild(logo);
 app.stage.addChild(title);
 
 function layoutTitle() {

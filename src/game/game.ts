@@ -37,7 +37,7 @@ import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
-import { createRangeRing, PlacementController } from './placement';
+import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent } from './sim';
@@ -1810,8 +1810,7 @@ export class Game {
         if (!a) return;
         const radius =
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
-        this.battleRangeMesh.position.set(a.rx, 0.05, a.rz);
-        this.battleRangeMesh.scale.set(radius, 1, radius);
+        placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
         material.color.setHex(a.unit.team === 'player' ? THEME.valid : teamColors.enemy.hex);
     }

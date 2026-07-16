@@ -18,10 +18,14 @@ import {
     Sprite,
     SpriteMaterial,
     SRGBColorSpace,
+    TextureLoader,
     Color,
     Vector3,
 } from 'three';
 import { THEME } from '../theme';
+
+const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
+const foliageUrl = new URL('../../assets/textures/foliage.webp', import.meta.url).href;
 import { makeValueNoise, mulberry32, type BattleMap } from './map';
 
 function smooth01(t: number): number {
@@ -57,8 +61,9 @@ export class Scenery {
             // rise into the ring, then settle back down toward the horizon
             const rise = smooth01((d - 55) / 380) * (1 - smooth01((d - 640) / 260));
             const n =
-                noise(x / 170 + 3.7, z / 170 + 8.1) * 0.65 +
-                noise(x / 62 + 51.2, z / 62 + 17.9) * 0.35;
+                noise(x / 170 + 3.7, z / 170 + 8.1) * 0.55 +
+                noise(x / 62 + 51.2, z / 62 + 17.9) * 0.3 +
+                noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
             const ridge = Math.pow(Math.max(0, n - 0.35) / 0.65, 1.4);
             return rise * (16 + 135 * ridge);
         };
@@ -144,7 +149,7 @@ export class Scenery {
     private createOuterGround(): Mesh {
         const s = THEME.scenery;
         const SIZE = 3000;
-        const SEGS = 150;
+        const SEGS = 300;
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
         geometry.rotateX(-Math.PI / 2);
 
@@ -183,8 +188,9 @@ export class Scenery {
     }
 
     /**
-     * Low-poly trees and rocks ringing the battlefield. Instanced per part —
-     * the whole forest is four draw calls.
+     * Low-poly trees, bushes and rocks — a ring around the field, plus a few
+     * trees and bushes ON the battlefield (pure scenery: no collision, units
+     * simply walk through/behind them). Instanced per part — five draw calls.
      */
     private createForest(map: BattleMap, rng: () => number): void {
         const s = THEME.scenery;
@@ -200,32 +206,54 @@ export class Scenery {
                 }
             }
         };
+        // on the battlefield, but never in a base's courtyard
+        const anchors = map.baseAnchors();
+        const fieldSpot = (clearance: number): { x: number; z: number } => {
+            for (;;) {
+                const x = (rng() * 2 - 1) * (map.halfW - 10);
+                const z = (rng() * 2 - 1) * (map.halfH - 10);
+                if (anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + clearance)) {
+                    return { x, z };
+                }
+            }
+        };
+        // field relief inside, mountain terrain outside (each is 0 elsewhere)
+        const groundY = (x: number, z: number) => this.terrainHeight(x, z) + map.heightAt(x, z);
 
         const dummy = new Object3D();
         const color = new Color();
         const PINES = 55;
         const LEAFY = 35;
+        const FIELD_PINES = 5;
+        const FIELD_LEAFY = 6;
         const ROCKS = 30;
+        const BUSHES = 40; // outer ring
+        const FIELD_BUSHES = 45;
 
         const trunks = new InstancedMesh(
             new CylinderGeometry(0.35, 0.55, 3.4, 6),
             new MeshStandardMaterial({ color: s.trunk, roughness: 0.9 }),
-            PINES + LEAFY,
+            PINES + LEAFY + FIELD_PINES + FIELD_LEAFY,
         );
         const cones = new InstancedMesh(
             new ConeGeometry(2.6, 6, 7),
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
-            PINES * 2,
+            (PINES + FIELD_PINES) * 2,
         );
         const blobs = new InstancedMesh(
             new IcosahedronGeometry(2.4, 1),
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
-            LEAFY * 2,
+            (LEAFY + FIELD_LEAFY) * 2,
         );
         const rocks = new InstancedMesh(
             new IcosahedronGeometry(1.4, 0),
             new MeshStandardMaterial({ color: s.rock, roughness: 0.95, flatShading: true }),
             ROCKS,
+        );
+        const bushes = new InstancedMesh(
+            new IcosahedronGeometry(1, 1),
+            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
+            BUSHES + FIELD_BUSHES,
         );
 
         let trunkI = 0;
@@ -240,10 +268,10 @@ export class Scenery {
             trunks.setMatrixAt(trunkI++, dummy.matrix);
         };
 
-        for (let i = 0; i < PINES; i++) {
-            const { x, z } = spot();
-            const h = this.terrainHeight(x, z);
-            const sc = 0.8 + rng() * 1.1;
+        for (let i = 0; i < PINES + FIELD_PINES; i++) {
+            const { x, z } = i < PINES ? spot() : fieldSpot(10);
+            const h = groundY(x, z);
+            const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
             placeTrunk(x, z, sc, h);
             color.set(s.pine).lerp(new Color(s.pineLight), rng());
             for (const [ty, tsc] of [
@@ -259,10 +287,10 @@ export class Scenery {
             }
         }
 
-        for (let i = 0; i < LEAFY; i++) {
-            const { x, z } = spot();
-            const h = this.terrainHeight(x, z);
-            const sc = 0.9 + rng() * 1.2;
+        for (let i = 0; i < LEAFY + FIELD_LEAFY; i++) {
+            const { x, z } = i < LEAFY ? spot() : fieldSpot(10);
+            const h = groundY(x, z);
+            const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
             placeTrunk(x, z, sc, h);
             color.set(s.leaf).lerp(new Color(s.leafLight), rng());
             for (const [ox, oy, oz, bsc] of [
@@ -281,16 +309,69 @@ export class Scenery {
         for (let i = 0; i < ROCKS; i++) {
             const { x, z } = spot();
             const sc = 0.5 + rng() * 1.3;
-            dummy.position.set(x, this.terrainHeight(x, z) + 0.4 * sc, z);
+            dummy.position.set(x, groundY(x, z) + 0.4 * sc, z);
             dummy.scale.set(sc, sc * 0.55, sc);
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
             dummy.updateMatrix();
             rocks.setMatrixAt(i, dummy.matrix);
         }
 
-        for (const m of [trunks, cones, blobs, rocks]) {
+        for (let i = 0; i < BUSHES + FIELD_BUSHES; i++) {
+            const { x, z } = i < BUSHES ? spot() : fieldSpot(5);
+            const sc = 0.6 + rng() * 0.8;
+            dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
+            dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));
+            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+            dummy.updateMatrix();
+            bushes.setMatrixAt(i, dummy.matrix);
+            color.set(s.leaf).lerp(new Color(s.leafLight), rng() * 0.8);
+            bushes.setColorAt(i, color);
+        }
+
+        for (const m of [trunks, cones, blobs, rocks, bushes]) {
             m.castShadow = true;
             this.group.add(m);
+        }
+        void this.applyForestTextures(
+            trunks.material as MeshStandardMaterial,
+            cones.material as MeshStandardMaterial,
+            [blobs.material as MeshStandardMaterial, bushes.material as MeshStandardMaterial],
+        );
+    }
+
+    /**
+     * Swaps the flat forest colors for generated bark/foliage textures once
+     * they load; instance colors keep providing the per-tree hue variation.
+     */
+    private async applyForestTextures(
+        trunkMat: MeshStandardMaterial,
+        coneMat: MeshStandardMaterial,
+        leafMats: MeshStandardMaterial[],
+    ): Promise<void> {
+        const loader = new TextureLoader();
+        const [bark, foliage] = await Promise.all([
+            loader.loadAsync(barkUrl).catch(() => null),
+            loader.loadAsync(foliageUrl).catch(() => null),
+        ]);
+        if (bark) {
+            bark.colorSpace = SRGBColorSpace;
+            bark.wrapS = bark.wrapT = RepeatWrapping;
+            bark.repeat.set(2, 1.5);
+            trunkMat.map = bark;
+            trunkMat.color.set(0xffffff); // the texture carries the brown now
+            trunkMat.needsUpdate = true;
+        }
+        if (foliage) {
+            foliage.colorSpace = SRGBColorSpace;
+            foliage.wrapS = foliage.wrapT = RepeatWrapping;
+            const coneFoliage = foliage.clone();
+            coneFoliage.repeat.set(3, 2);
+            coneMat.map = coneFoliage;
+            coneMat.needsUpdate = true;
+            for (const m of leafMats) {
+                m.map = foliage;
+                m.needsUpdate = true;
+            }
         }
     }
 
