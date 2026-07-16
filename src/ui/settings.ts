@@ -17,7 +17,7 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row">Scenery <select class="s-scenery">` +
         `<option value="full">Full</option>` +
         `<option value="minimal">Minimal (old computers)</option>` +
-        `</select> <span class="s-hint">applies to the next match</span></label>` +
+        `</select> <span class="s-hint">applies immediately</span></label>` +
         `<div class="actions"><button type="button" class="primary" data-act="close">Close</button></div>` +
         `</div>`;
 

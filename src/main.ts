@@ -145,7 +145,7 @@ wrapper.appendChild(usernameEl);
 const versionEl = document.createElement('div');
 versionEl.className = 'mechili-version';
 versionEl.style.zIndex = '30';
-versionEl.textContent = `v${__APP_VERSION__} · protocol ${GAME_VERSION}`;
+versionEl.textContent = `v${__APP_VERSION__} · ${GAME_VERSION}`;
 wrapper.appendChild(versionEl);
 
 // big gear in the top-right corner of the main menu

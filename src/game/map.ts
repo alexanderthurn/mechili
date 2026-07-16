@@ -182,7 +182,12 @@ export class BattleMap {
     private sandFlushAt = 0;
 
     /** false with the 'minimal' scenery pref: flat board, no detail textures */
-    private readonly detailed = prefs().scenery !== 'minimal';
+    private detailed = prefs().scenery !== 'minimal';
+
+    /** live-switch for the scenery setting; the game rebuilds the meshes after */
+    setDetailed(detailed: boolean): void {
+        this.detailed = detailed;
+    }
 
     constructor(readonly size: MapSize = STANDARD_MAP) {
         this.cols = size.zoneCols + 2 * size.flankCols;

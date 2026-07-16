@@ -8,6 +8,8 @@ import {
     PMREMGenerator,
     Scene,
     WebGLRenderer,
+    type Mesh,
+    type Object3D,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { THEME } from '../theme';
@@ -37,7 +39,7 @@ import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
-import { prefs } from './prefs';
+import { onPrefsChange, prefs } from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
@@ -94,8 +96,13 @@ export class Game {
     private readonly hpBars = new HpBars();
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
-    private readonly scenery: Scenery;
-    private readonly weather: Weather;
+    private scenery: Scenery;
+    private weather: Weather;
+    private groundMesh: Mesh;
+    private readonly sun: DirectionalLight;
+    private readonly hemi: HemisphereLight;
+    /** currently APPLIED scenery quality (the pref may change live) */
+    private sceneryDetailed = prefs().scenery !== 'minimal';
     private readonly rallyVisuals: RallyVisuals;
     private gridOverlay;
     private time = 0;
@@ -313,9 +320,13 @@ export class Game {
         sun.shadow.camera.far = 500;
         this.scene.add(sun);
 
-        this.scene.add(this.map.createMesh());
+        this.sun = sun;
+        this.hemi = hemi;
+        this.groundMesh = this.map.createMesh();
+        this.scene.add(this.groundMesh);
         this.scenery = new Scenery(this.map);
         this.scene.add(this.scenery.group);
+        this.inputDisposers.push(onPrefsChange(() => this.applySceneryQuality()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
         this.gridOverlay = this.map.createOverlayMesh();
         this.scene.add(this.gridOverlay);
@@ -597,6 +608,52 @@ export class Game {
     }
 
     /** stop the loop, release GPU/DOM resources — main restores the menu */
+    /**
+     * Live-applies the scenery quality pref from the settings menu: rebuilds
+     * the ground, the outer world (incl. weather hooks) and the shadow map.
+     */
+    private applySceneryQuality(): void {
+        const detailed = prefs().scenery !== 'minimal';
+        if (detailed === this.sceneryDetailed || this.disposed) return;
+        this.sceneryDetailed = detailed;
+        this.map.setDetailed(detailed);
+
+        const disposeTree = (root: Object3D) =>
+            root.traverse((o) => {
+                const m = o as Mesh;
+                if (!m.isMesh) return;
+                m.geometry.dispose();
+                for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mat.dispose();
+            });
+
+        // battlefield ground + grid overlay (keep its current visibility)
+        this.scene.remove(this.groundMesh);
+        disposeTree(this.groundMesh);
+        this.groundMesh = this.map.createMesh();
+        this.scene.add(this.groundMesh);
+        const gridVisible = this.gridOverlay.visible;
+        this.scene.remove(this.gridOverlay);
+        disposeTree(this.gridOverlay);
+        this.gridOverlay = this.map.createOverlayMesh();
+        this.gridOverlay.visible = gridVisible;
+        this.scene.add(this.gridOverlay);
+
+        // outer world + weather (restore the current scenario)
+        const currentWeather = this.weather.currentId;
+        this.scene.remove(this.scenery.group);
+        disposeTree(this.scenery.group);
+        this.scenery = new Scenery(this.map);
+        this.scene.add(this.scenery.group);
+        this.weather = this.scenery.createWeather(this.scene, this.sun, this.hemi, seedFrom(this.seed, 'weather'));
+        this.weather.setTarget(currentWeather);
+
+        // shadow resolution (force the render target to reallocate)
+        const res = detailed ? 4096 : 1024;
+        this.sun.shadow.mapSize.set(res, res);
+        this.sun.shadow.map?.dispose();
+        this.sun.shadow.map = null;
+    }
+
     destroy(): void {
         if (this.disposed) return;
         this.disposed = true;

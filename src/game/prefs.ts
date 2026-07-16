@@ -7,7 +7,7 @@ export interface Prefs {
     /**
      * 'full' = mountains, lakes, forests, grass, relief, big shadows.
      * 'minimal' = flat board + flat green world, no decoration — for old
-     * machines. Applies when the next match starts.
+     * machines. Applies immediately, also mid-match.
      */
     scenery: 'full' | 'minimal';
 }
