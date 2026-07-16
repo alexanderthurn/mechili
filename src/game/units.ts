@@ -376,7 +376,7 @@ export const UNIT_TYPES: UnitType[] = [
         colliders: [{ y: 1.1, r: 0.75 }],
         projectileSpeed: 100,
         projectileStyle: 'arrow',
-        homing: true, // an archer does not miss
+        projectileBallistic: true, // bow lob — lead-aimed so moving targets still get clipped
         hp: 130,
         damage: 65,
         range: 45,

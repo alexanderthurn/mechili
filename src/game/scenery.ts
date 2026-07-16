@@ -31,6 +31,7 @@ import { THEME } from '../theme';
 
 const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
 const foliageUrl = new URL('../../assets/textures/foliage.webp', import.meta.url).href;
+const rockUrl = new URL('../../assets/textures/rock.webp', import.meta.url).href;
 import {
     DETAIL_TILE,
     grassAlbedoUrl,
@@ -56,6 +57,9 @@ export class Scenery {
     /** dome + sun glow follow the camera so the horizon never hits the far plane */
     private readonly skyGroup = new Group();
     private readonly clouds: { mesh: Mesh; speed: number }[] = [];
+    /** wisps clinging to the snowy summits — they sway in place, never leave */
+    private readonly peakClouds: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
+    private time = 0;
     private readonly cloudShadow: Mesh;
     private readonly cloudBoundsX: number;
     private readonly map: BattleMap;
@@ -156,6 +160,10 @@ export class Scenery {
             c.mesh.position.x += c.speed * dtSeconds;
             if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
         }
+        this.time += dtSeconds;
+        for (const p of this.peakClouds) {
+            p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
+        }
     }
 
     /** big back-side sphere with a painted zenith-to-horizon gradient */
@@ -241,8 +249,10 @@ export class Scenery {
         });
         // field macro darkens the grass albedo — pull outer toward that tone
         const lawnTone = new Color(0.82, 0.86, 0.74);
-        const rock = new Color(s.rock);
-        const rockDark = new Color(s.rock).multiplyScalar(0.72);
+        // near-white: the tiled rock texture carries the stone color now, the
+        // vertex tint only adds large-scale light/dark variation
+        const rock = new Color(0xf2efe9);
+        const rockDark = new Color(0xf2efe9).multiplyScalar(0.75);
         const snow = new Color(s.snow);
         const c = new Color();
         const rockVar = new Color();
@@ -291,9 +301,10 @@ export class Scenery {
         size: number,
     ): Promise<void> {
         const loader = new TextureLoader();
-        const [albedo, normal] = await Promise.all([
+        const [albedo, normal, rock] = await Promise.all([
             loader.loadAsync(grassAlbedoUrl).catch(() => null),
             loader.loadAsync(grassNormalUrl).catch(() => null),
+            loader.loadAsync(rockUrl).catch(() => null),
         ]);
         if (!albedo) return;
         const frac = (v: number) => ((v % 1) + 1) % 1;
@@ -311,22 +322,40 @@ export class Scenery {
             material.normalMap = normal;
             material.normalScale = new Vector2(0.35, 0.35);
         }
+        if (rock) {
+            // sampled with explicit world-space UVs in the shader
+            rock.wrapS = rock.wrapT = RepeatWrapping;
+            rock.colorSpace = SRGBColorSpace;
+            rock.anisotropy = 8;
+        }
         material.color.set(0xffffff);
         material.onBeforeCompile = (shader) => {
+            if (rock) shader.uniforms.uRock = { value: rock };
             shader.vertexShader =
-                'varying float vTerrainH;\n' +
+                'varying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;',
                 );
+            const inject = rock
+                ? `
+    // break the grass repeat: second sample, rotated + rescaled, blended by a
+    // large smooth interference pattern
+    vec2 uv2 = mat2(0.59, -0.81, 0.81, 0.59) * (vWorldXZ / 16.6);
+    float mixF = smoothstep(0.25, 0.75, 0.5 + 0.5 * sin(vWorldXZ.x * 0.031) * sin(vWorldXZ.y * 0.027));
+    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(map, uv2).rgb, mixF);
+    // rock takes over with altitude and on steep faces; snow caps the peaks
+    float snowF = smoothstep(170.0, 235.0, vTerrainH);
+    float rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF);
+    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uRock, vWorldXZ / 34.0).rgb, rockF);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`
+                : '\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(40.0, 90.0, vTerrainH));';
             shader.fragmentShader =
-                'varying float vTerrainH;\n' +
-                shader.fragmentShader.replace(
-                    '#include <map_fragment>',
-                    '#include <map_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(40.0, 90.0, vTerrainH));',
-                );
+                'varying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                (rock ? 'uniform sampler2D uRock;\n' : '') +
+                shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
         };
-        material.customProgramCacheKey = () => 'outer-meadow-grass-v4';
+        material.customProgramCacheKey = () => `outer-meadow-grass-v5${rock ? '-rock' : ''}`;
         material.needsUpdate = true;
     }
 
@@ -505,6 +534,45 @@ export class Scenery {
             m.castShadow = true;
             this.group.add(m);
         }
+
+        // wildflowers on the outer meadow band — matches the field's painted
+        // flowers so the grass doesn't read as an empty green carpet
+        const FLOWERS = 280;
+        const flowerGeo = new PlaneGeometry(1.1, 1.1);
+        flowerGeo.rotateX(-Math.PI / 2);
+        const flowers = new InstancedMesh(
+            flowerGeo,
+            new MeshStandardMaterial({
+                map: makeFlowerTexture(),
+                transparent: true,
+                alphaTest: 0.4,
+                roughness: 1,
+                metalness: 0,
+            }),
+            FLOWERS,
+        );
+        const flowerTones = THEME.terrain.flowers;
+        const meadowSpot = (): { x: number; z: number } => {
+            for (;;) {
+                const x = (rng() * 2 - 1) * (map.halfW + 260);
+                const z = (rng() * 2 - 1) * (map.halfH + 260);
+                if (distOut(x, z) < keepOut) continue;
+                if (this.terrainHeight(x, z) < 5) return { x, z };
+            }
+        };
+        for (let i = 0; i < FLOWERS; i++) {
+            const { x, z } = meadowSpot();
+            const sc = 0.7 + rng() * 0.9;
+            dummy.position.set(x, groundY(x, z) + 0.08, z);
+            dummy.scale.setScalar(sc);
+            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+            dummy.updateMatrix();
+            flowers.setMatrixAt(i, dummy.matrix);
+            color.set(flowerTones[Math.floor(rng() * flowerTones.length)]!);
+            flowers.setColorAt(i, color);
+        }
+        this.group.add(flowers);
+
         void this.applyForestTextures(
             trunks.material as MeshStandardMaterial,
             cones.material as MeshStandardMaterial,
@@ -639,5 +707,60 @@ export class Scenery {
             this.clouds.push({ mesh, speed: 2 + rng() * 3 });
             this.group.add(mesh);
         }
+
+        // summit wisps: parked just below the white peaks, swaying in place.
+        // They share the horizon clouds' material, so every weather scenario
+        // tints and fades them automatically.
+        let placed = 0;
+        for (let attempt = 0; attempt < 6000 && placed < 12; attempt++) {
+            const x = (rng() * 2 - 1) * 1300;
+            const z = (rng() * 2 - 1) * 1300;
+            const h = this.terrainHeight(x, z);
+            if (h < 165) continue;
+            // keep them spread out — one wisp per summit area
+            if (this.peakClouds.some((p) => Math.hypot(p.mesh.position.x - x, p.mesh.position.z - z) < 90)) {
+                continue;
+            }
+            const mesh = new Mesh(geometry, material);
+            mesh.position.set(x, h - 4 + rng() * 16, z);
+            const scale = 55 + rng() * 70;
+            mesh.scale.set(scale, 1, scale * (0.35 + rng() * 0.3));
+            this.peakClouds.push({
+                mesh,
+                baseX: x,
+                phase: rng() * Math.PI * 2,
+                speed: 0.05 + rng() * 0.06,
+            });
+            this.group.add(mesh);
+            placed++;
+        }
     }
+}
+
+/** a little cluster of petal flowers on transparent ground — tinted per instance */
+function makeFlowerTexture(): CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    const rng = mulberry32(424242);
+    const flower = (cx: number, cy: number, r: number) => {
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        for (let p = 0; p < 5; p++) {
+            const a = (p / 5) * Math.PI * 2 + rng();
+            ctx.beginPath();
+            ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, r * 0.75, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = 'rgba(255,220,90,1)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+    };
+    flower(22, 24, 5.5);
+    flower(43, 40, 4.5);
+    flower(36, 14, 3.5);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
 }

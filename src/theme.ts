@@ -32,13 +32,13 @@ export const THEME = {
     select: 0xffd040,
     movable: 0xffffff,
 
-    // combat: bright blood spatters in air; ground stains stay dark via the shader
-    muzzle: 0xffe8a0,
+    // combat: bright blood spatters; muzzle/debris stay dusty stone-gray
+    muzzle: 0x8a8478,
     impact: 0xff1a28,
     death: 0xe01018,
     deathSecondary: 0xff3840,
     deathSmall: 0xff2028,
-    levelup: 0xffe040,
+    levelup: 0xc4b896,
     projectile: 0xffe878,
 
     // HP bars (pixi hex)

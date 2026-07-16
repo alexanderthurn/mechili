@@ -86,10 +86,11 @@ export class Particles {
                     });
                     break;
                 case 'explosion': {
+                    // dusty debris / scorched soil — not fire-yellow
                     const s = e.radius / 3;
-                    this.burst(e.x, e.y, e.z, { count: Math.round(32 * s), color: 0xffa040, speed: 15 * s, life: 0.5, up: 5 });
-                    this.burst(e.x, e.y + 0.6, e.z, { count: Math.round(18 * s), color: 0xff6030, speed: 9 * s, life: 0.7, up: 7 });
-                    this.burst(e.x, e.y, e.z, { count: 10, color: 0xffd060, speed: 4, life: 0.4, up: 3 });
+                    this.burst(e.x, e.y, e.z, { count: Math.round(32 * s), color: 0x6e6558, speed: 15 * s, life: 0.5, up: 5 });
+                    this.burst(e.x, e.y + 0.6, e.z, { count: Math.round(18 * s), color: 0x4a4338, speed: 9 * s, life: 0.7, up: 7 });
+                    this.burst(e.x, e.y, e.z, { count: 10, color: 0x9a8f7a, speed: 4, life: 0.4, up: 3 });
                     break;
                 }
                 case 'death':

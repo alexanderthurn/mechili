@@ -1,6 +1,6 @@
 import type { Group } from 'three';
 import { ITEMS } from './items';
-import { groundSupportAt } from './map';
+import { groundHeightAt, groundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     RALLY_ROUTE_RADIUS,
@@ -70,6 +70,11 @@ export interface Actor {
     hurtTimer: number;
     /** flight altitude (0 for ground units) — air collides with nothing on the ground */
     altitude: number;
+    /**
+     * world Y of the actor's feet this step: terrain support for ground units,
+     * absolute air altitude for flyers. Projectiles aim at / hit relative to this.
+     */
+    footY: number;
     /** rocket extras: the enemy being homed onto once launched */
     rocketTarget: Actor | null;
     /** sim time until which this mech ignores tower-destruction debuffs (ballista aura) */
@@ -85,6 +90,9 @@ export interface Actor {
     pathStuck: number;
     /** closest approach to pathDest so far */
     pathBestDist: number;
+    /** last sim-step displacement — used to lead ballistic shots */
+    mvX: number;
+    mvZ: number;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
@@ -181,6 +189,8 @@ export class BattleSim {
     readonly damageByType = new Map<string, number>();
     /** ballista Golden Aura is a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
     private goldenAuraApplied = false;
+    /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
+    private prevStepDt = 1 / 30;
 
     constructor(
         units: readonly Unit[],
@@ -216,6 +226,7 @@ export class BattleSim {
                     index: 0,
                     hurtTimer: 0,
                     altitude: unit.type.flying ?? 0,
+                    footY: unit.type.flying ?? 0,
                     rocketTarget: null,
                     goldenUntil: 0,
                     spawnUntil: 0,
@@ -224,6 +235,8 @@ export class BattleSim {
                     pathDestZ: null,
                     pathStuck: 0,
                     pathBestDist: Infinity,
+                    mvX: 0,
+                    mvZ: 0,
                 });
             }
         }
@@ -592,6 +605,8 @@ export class BattleSim {
         this.elapsed += dt;
         // remember where everything stood — rendering interpolates prev -> current
         for (const a of this.actors) {
+            a.mvX = a.x - a.prevX;
+            a.mvZ = a.z - a.prevZ;
             a.prevX = a.x;
             a.prevZ = a.z;
         }
@@ -708,8 +723,22 @@ export class BattleSim {
         }
 
         this.resolveOverlaps();
+        // seat hit volumes on the terrain before bullets fly this step
+        for (const a of this.actors) {
+            if (a.alive) a.footY = this.feetY(a);
+        }
         this.stepRockets(dt);
         this.stepProjectiles(dt);
+        this.prevStepDt = dt;
+    }
+
+    /**
+     * World Y of an actor's feet. Ground units ride the relief; flyers use the
+     * absolute air layer. Optional xz overrides sample a lead/aim point.
+     */
+    private feetY(a: Actor, x = a.x, z = a.z): number {
+        if (a.altitude > 0) return a.altitude;
+        return groundSupportAt(x, z, a.radius * 0.65) + 0.08;
     }
 
     /** seek toward a direction with obstacle avoidance and crowd separation */
@@ -899,25 +928,42 @@ export class BattleSim {
         const flat = hypot(dirX, dirZ) || 1e-6;
         // arrows spawn from the unit center so they don't pop out ahead of the mesh
         const fromCenter = at.projectileStyle === 'arrow' || at.projectileStyle === 'largeArrow';
+        const shooterFeet = this.feetY(a);
         const muzzleY =
             at.projectileLaunchHeight !== undefined
-                ? a.altitude + at.projectileLaunchHeight
-                : a.altitude + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
+                ? shooterFeet + at.projectileLaunchHeight
+                : shooterFeet + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
         const mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
         const mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
         const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
-        const dx = target.x - mx;
-        const dy = target.altitude + aim.y * tt.meshScale - muzzleY;
-        const dz = target.z - mz;
+        let aimX = target.x;
+        let aimZ = target.z;
+        let dx = aimX - mx;
+        let dz = aimZ - mz;
+        let dy = this.feetY(target, aimX, aimZ) + aim.y * tt.meshScale - muzzleY;
 
         let vx: number;
         let vy: number;
         let vz: number;
         let gravity: number | undefined;
         if (at.projectileBallistic) {
-            // horizontal speed toward the target; loft so the bolt lands near aim height
-            const flatDist = hypot(dx, dz) || 1e-6;
-            const flightTime = Math.max(0.4, flatDist / speed);
+            // horizontal speed toward a lead point; loft so the bolt lands near aim height
+            const dtPrev = this.prevStepDt || 1e-3;
+            const tvx = target.mvX / dtPrev;
+            const tvz = target.mvZ / dtPrev;
+            let flatDist = hypot(dx, dz) || 1e-6;
+            // honest time-to-target (no artificial floor — that lofted short shots past the aim)
+            let flightTime = Math.max(1e-3, flatDist / speed);
+            // one refine so closing enemies still get clipped without homing
+            for (let i = 0; i < 2; i++) {
+                aimX = target.x + tvx * flightTime;
+                aimZ = target.z + tvz * flightTime;
+                dx = aimX - mx;
+                dz = aimZ - mz;
+                flatDist = hypot(dx, dz) || 1e-6;
+                flightTime = Math.max(1e-3, flatDist / speed);
+            }
+            dy = this.feetY(target, aimX, aimZ) + aim.y * tt.meshScale - muzzleY;
             gravity = BALLISTIC_GRAVITY;
             vx = (dx / flatDist) * speed;
             vz = (dz / flatDist) * speed;
@@ -963,7 +1009,7 @@ export class BattleSim {
                 const tt = p.target.unit.type;
                 const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
                 const dx = p.target.x - p.x;
-                const dy = p.target.altitude + aim.y * tt.meshScale - p.y;
+                const dy = p.target.footY + aim.y * tt.meshScale - p.y;
                 const dz = p.target.z - p.z;
                 const len = hypot(dx, dy, dz) || 1e-6;
                 const speed = hypot(p.vx, p.vy, p.vz);
@@ -993,7 +1039,7 @@ export class BattleSim {
                 if (bx * bx + bz * bz > reach * reach) continue;
                 const mt = a.unit.type;
                 for (const c of mt.colliders) {
-                    const cy = a.altitude + c.y * mt.meshScale;
+                    const cy = a.footY + c.y * mt.meshScale;
                     const cr = c.r * mt.meshScale + PROJECTILE_RADIUS;
                     // closest approach of the flight segment to the sphere center
                     let t = (bx * sx + (cy - p.y) * sy + bz * sz) / segLen2;
@@ -1039,13 +1085,14 @@ export class BattleSim {
                 }
                 continue; // bullet consumed
             }
-            if (ny <= 0) {
+            const groundY = groundHeightAt(nx, nz);
+            if (ny <= groundY) {
                 // splash shells detonate on the ground too — a miss still hurts
                 if (splash > 0) {
                     this.explode(p, nx, nz, splash);
-                    this.events.push({ kind: 'explosion', x: nx, y: 0.15, z: nz, radius: splash });
+                    this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
                 } else {
-                    this.events.push({ kind: 'impact', x: nx, y: 0.15, z: nz });
+                    this.events.push({ kind: 'impact', x: nx, y: groundY + 0.15, z: nz });
                 }
                 continue;
             }

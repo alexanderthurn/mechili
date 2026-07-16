@@ -1,4 +1,5 @@
 import {
+    AdditiveBlending,
     BufferAttribute,
     BufferGeometry,
     CanvasTexture,
@@ -9,8 +10,10 @@ import {
     PlaneGeometry,
     Points,
     PointsMaterial,
+    SpriteMaterial,
     SRGBColorSpace,
     Sprite,
+    TextureLoader,
     Vector3,
     type DirectionalLight,
     type Fog,
@@ -19,6 +22,8 @@ import {
     type Texture,
 } from 'three';
 import { mulberry32, type BattleMap } from './map';
+
+const moonUrl = new URL('../../assets/textures/moon.webp', import.meta.url).href;
 
 export type WeatherId = 'sunny' | 'rain' | 'night';
 
@@ -80,8 +85,8 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         skyZenith: 0x5c6c7a,
         skyMid: 0x8a969c,
         skyHorizon: 0xa8b2b2,
-        fogNear: 300,
-        fogFar: 950,
+        fogNear: 130,
+        fogFar: 620,
         sun: 0xc0ccd8,
         sunIntensity: 0.75,
         sunPos: { x: 120, y: 160, z: 80 },
@@ -104,8 +109,8 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         skyZenith: 0x050912,
         skyMid: 0x0b1428,
         skyHorizon: 0x18253e,
-        fogNear: 380,
-        fogFar: 1150,
+        fogNear: 620,
+        fogFar: 2100,
         sun: 0xa8c4e8,
         sunIntensity: 0.8,
         sunPos: { x: -100, y: 190, z: -60 },
@@ -275,14 +280,20 @@ export class Weather {
         }
         const starGeometry = new BufferGeometry();
         starGeometry.setAttribute('position', new BufferAttribute(starPositions, 3));
+        // NOT transparent: additive stars render in the OPAQUE pass right
+        // after the sky dome, so mountains (and everything else) paint over
+        // them — the star shell is nearer than far peaks and would otherwise
+        // depth-test in front of them in the transparent pass.
         this.starMaterial = new PointsMaterial({
             map: makeStarTexture(),
             color: 0xffffff,
             size: 2.6,
             sizeAttenuation: false,
-            transparent: true,
+            transparent: false,
+            blending: AdditiveBlending,
             opacity: 0,
             depthWrite: false,
+            depthTest: false,
             fog: false,
         });
         const stars = new Points(starGeometry, this.starMaterial);
@@ -291,6 +302,46 @@ export class Weather {
         stars.renderOrder = -1; // right after the dome, behind everything solid
         h.skyGroup.add(stars);
         this.starsMesh = stars;
+
+        // --- sun disc + moon, riding the glow sprite's direction
+        this.sunDisc = new Sprite(
+            new SpriteMaterial({
+                map: makeSunDiscTexture(),
+                color: 0xfff6d8,
+                blending: AdditiveBlending,
+                transparent: true,
+                depthWrite: false,
+                fog: false,
+                opacity: 0,
+            }),
+        );
+        this.sunDisc.scale.setScalar(85);
+        this.sunDisc.visible = false;
+        h.skyGroup.add(this.sunDisc);
+
+        this.moon = new Sprite(
+            new SpriteMaterial({
+                map: makeFallbackMoonTexture(),
+                color: 0xffffff,
+                blending: AdditiveBlending, // generated on pure black — adds cleanly
+                transparent: true,
+                depthWrite: false,
+                fog: false,
+                opacity: 0,
+            }),
+        );
+        this.moon.scale.setScalar(120);
+        this.moon.visible = false;
+        h.skyGroup.add(this.moon);
+        // upgrade to the painted moon once (if) it loads
+        void new TextureLoader().loadAsync(moonUrl).then(
+            (t) => {
+                t.colorSpace = SRGBColorSpace;
+                this.moon.material.map = t;
+                this.moon.material.needsUpdate = true;
+            },
+            () => undefined,
+        );
 
         // --- near clouds: translucent wisps drifting over the battlefield
         this.nearCloudMaterial = new MeshBasicMaterial({
@@ -318,6 +369,8 @@ export class Weather {
     }
 
     private readonly starsMesh: Points;
+    private readonly sunDisc: Sprite;
+    private readonly moon: Sprite;
 
     get currentId(): WeatherId {
         return this.target.id;
@@ -384,6 +437,16 @@ export class Weather {
         h.glow.position.copy(s.sunPos).normalize().multiplyScalar(760);
         h.glow.visible = s.glowOpacity > 0.02;
 
+        // celestial bodies share the glow's direction; night (= star amount)
+        // crossfades the crisp sun disc into the moon
+        const night = s.stars;
+        this.sunDisc.position.copy(h.glow.position);
+        this.sunDisc.material.opacity = s.glowOpacity * (1 - night);
+        this.sunDisc.visible = this.sunDisc.material.opacity > 0.02;
+        this.moon.position.copy(h.glow.position);
+        this.moon.material.opacity = night;
+        this.moon.visible = night > 0.02;
+
         h.cloudMaterial.color.copy(s.cloudTint);
         h.cloudMaterial.opacity = s.cloudOpacity;
         h.cloudShadowMaterial.opacity = s.cloudShadowOpacity;
@@ -436,6 +499,54 @@ function makeStreakTexture(): CanvasTexture {
     grad.addColorStop(1, 'rgba(255,255,255,0.1)');
     ctx.fillStyle = grad;
     ctx.fillRect(3, 0, 2, 32);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
+}
+
+/** crisp bright circle with a thin soft edge — the visible sun disc */
+function makeSunDiscTexture(): CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.42, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.52, 'rgba(255,255,255,0.35)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
+}
+
+/** procedural stand-in until the painted moon texture loads */
+function makeFallbackMoonTexture(): CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 58);
+    grad.addColorStop(0, 'rgba(228,238,252,1)');
+    grad.addColorStop(0.85, 'rgba(206,220,240,0.95)');
+    grad.addColorStop(1, 'rgba(206,220,240,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(64, 64, 58, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(150,168,196,0.5)';
+    for (const [x, y, r] of [
+        [46, 50, 9],
+        [72, 68, 12],
+        [58, 86, 6],
+        [84, 42, 5],
+    ] as const) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+    }
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
     return texture;

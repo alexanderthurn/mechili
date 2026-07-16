@@ -461,10 +461,18 @@ export class BattleMap {
      * How hard a ground unit presses into the sand (1 ≈ archer/dwarf).
      * Heavier siege (ballista) leaves deeper, wider wear.
      */
-    sandStampWeight(type: { cost: number; collisionRadius: number; meshScale: number }): number {
+    sandStampWeight(type: {
+        id?: string;
+        cost: number;
+        collisionRadius: number;
+        meshScale: number;
+    }): number {
         const costW = type.cost / 100;
         const bulkW = (type.collisionRadius * type.meshScale) / 2.5;
-        return Math.max(0.55, Math.min(4.5, 0.5 * costW + 0.5 * bulkW));
+        let w = Math.max(0.55, Math.min(4.5, 0.5 * costW + 0.5 * bulkW));
+        // ballista is heavy but shouldn't carve deserts — keep a light track
+        if (type.id === 'ballista') w *= 0.3;
+        return w;
     }
 
     /**

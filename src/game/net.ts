@@ -24,7 +24,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 10; // v10: ballista ballistic arc + higher launch
+export const GAME_VERSION = 12; // v12: projectiles aim/hit/land on terrain height, not y=0
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
