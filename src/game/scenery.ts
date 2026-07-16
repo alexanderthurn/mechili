@@ -20,13 +20,21 @@ import {
     SRGBColorSpace,
     TextureLoader,
     Color,
+    Vector2,
     Vector3,
 } from 'three';
 import { THEME } from '../theme';
 
 const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
 const foliageUrl = new URL('../../assets/textures/foliage.webp', import.meta.url).href;
-import { makeValueNoise, mulberry32, type BattleMap } from './map';
+import {
+    DETAIL_TILE,
+    grassAlbedoUrl,
+    grassNormalUrl,
+    makeValueNoise,
+    mulberry32,
+    type BattleMap,
+} from './map';
 
 function smooth01(t: number): number {
     const c = Math.min(1, Math.max(0, t));
@@ -70,7 +78,7 @@ export class Scenery {
 
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
-        this.group.add(this.createOuterGround());
+        this.group.add(this.createOuterGround(map));
         this.createForest(map, rng);
         this.cloudShadow = this.createCloudShadow(map);
         this.group.add(this.cloudShadow);
@@ -144,9 +152,12 @@ export class Scenery {
 
     /**
      * The world beyond the field: a meadow band ringed by low-poly mountains.
-     * One displaced plane with height-based vertex colors (grass, rock, snow).
+     * One displaced plane with height-based vertex colors. The meadow band
+     * carries the SAME world-aligned grass detail texture as the battlefield,
+     * so the two surfaces read as one continuous terrain; the texture fades
+     * out with altitude, leaving the mountains their faceted rock/snow look.
      */
-    private createOuterGround(): Mesh {
+    private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
         const SIZE = 3000;
         const SEGS = 300;
@@ -155,14 +166,16 @@ export class Scenery {
 
         const pos = geometry.attributes.position!;
         const colors = new Float32Array(pos.count * 3);
-        const grass = new Color(s.outerGround);
+        // white base: the grass texture (or the material color fallback)
+        // provides the meadow green; rock/snow tint the heights
+        const meadow = new Color(0xffffff);
         const rock = new Color(s.rock);
         const snow = new Color(s.snow);
         const c = new Color();
         for (let i = 0; i < pos.count; i++) {
             const h = this.terrainHeight(pos.getX(i), pos.getZ(i));
             pos.setY(i, h);
-            c.copy(grass)
+            c.copy(meadow)
                 .lerp(rock, smooth01((h - 8) / 38))
                 .lerp(snow, smooth01((h - 88) / 32));
             colors[i * 3] = c.r;
@@ -172,19 +185,68 @@ export class Scenery {
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
 
-        const mesh = new Mesh(
-            geometry,
-            new MeshStandardMaterial({
-                color: 0xffffff,
-                vertexColors: true,
-                roughness: 1,
-                metalness: 0,
-                flatShading: true,
-            }),
-        );
+        const material = new MeshStandardMaterial({
+            color: s.outerGround, // swapped to white once the grass texture loads
+            vertexColors: true,
+            roughness: THEME.terrain.groundRoughness,
+            metalness: 0,
+            flatShading: true,
+        });
+        const mesh = new Mesh(geometry, material);
         mesh.position.y = -0.05;
         mesh.receiveShadow = true;
+        void this.applyMeadowTexture(material, map, SIZE);
         return mesh;
+    }
+
+    /** load the battlefield's grass detail and continue its tiling out here */
+    private async applyMeadowTexture(
+        material: MeshStandardMaterial,
+        map: BattleMap,
+        size: number,
+    ): Promise<void> {
+        const loader = new TextureLoader();
+        const [albedo, normal] = await Promise.all([
+            loader.loadAsync(grassAlbedoUrl).catch(() => null),
+            loader.loadAsync(grassNormalUrl).catch(() => null),
+        ]);
+        if (!albedo) return;
+        // world-aligned tiling: same period as the field, and phase-shifted so
+        // the pattern continues ACROSS the field border without a seam
+        const frac = (v: number) => ((v % 1) + 1) % 1;
+        const configure = (t: NonNullable<typeof albedo>) => {
+            t.wrapS = t.wrapT = RepeatWrapping;
+            t.repeat.set(size / DETAIL_TILE, size / DETAIL_TILE);
+            t.offset.set(frac(map.halfW / DETAIL_TILE), frac(map.halfH / DETAIL_TILE));
+            t.anisotropy = 8;
+        };
+        configure(albedo);
+        albedo.colorSpace = SRGBColorSpace;
+        material.map = albedo;
+        if (normal) {
+            configure(normal);
+            material.normalMap = normal;
+            material.normalScale = new Vector2(0.35, 0.35);
+        }
+        material.color.set(0xffffff);
+        // fade the grass detail out with altitude so the rocky heights keep
+        // their clean faceted vertex-color look
+        material.onBeforeCompile = (shader) => {
+            shader.vertexShader =
+                'varying float vTerrainH;\n' +
+                shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;',
+                );
+            shader.fragmentShader =
+                'varying float vTerrainH;\n' +
+                shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    '#include <map_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(8.0, 32.0, vTerrainH));',
+                );
+        };
+        material.customProgramCacheKey = () => 'outer-meadow-grass';
+        material.needsUpdate = true;
     }
 
     /**

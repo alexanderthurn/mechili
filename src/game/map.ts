@@ -16,6 +16,10 @@ const grassAlbedoUrl = new URL('../../assets/textures/grass-albedo.webp', import
 const grassNormalUrl = new URL('../../assets/textures/grass-normal.webp', import.meta.url).href;
 const sandAlbedoUrl = new URL('../../assets/textures/sand-albedo.webp', import.meta.url).href;
 
+/** world units covered by one repeat of the grass detail texture (field AND outer meadow) */
+export const DETAIL_TILE = 20;
+export { grassAlbedoUrl, grassNormalUrl };
+
 /** world units per grid tile */
 export const CELL = 4;
 
@@ -209,9 +213,6 @@ export class BattleMap {
         return near ? half : this.rows - 1 - half;
     }
 
-    /** world units covered by one repeat of the grass detail texture */
-    private static readonly DETAIL_TILE = 20;
-
     private readonly reliefNoise = makeValueNoise(9241);
 
     /**
@@ -353,8 +354,8 @@ export class BattleMap {
         // sand is optional garnish — without it the ground is plain grass
         const sand = await loader.loadAsync(sandAlbedoUrl).catch(() => null);
         const repeat = new Vector2(
-            this.width / BattleMap.DETAIL_TILE,
-            this.height / BattleMap.DETAIL_TILE,
+            this.width / DETAIL_TILE,
+            this.height / DETAIL_TILE,
         );
         const tile = (t: typeof albedo) => {
             t.wrapS = t.wrapT = RepeatWrapping;
@@ -532,11 +533,6 @@ export class BattleMap {
         vin.addColorStop(1, t.vignette);
         ctx.fillStyle = vin;
         ctx.fillRect(0, 0, w, h);
-
-        // field border
-        ctx.strokeStyle = t.border;
-        ctx.lineWidth = 5;
-        ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
 
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;

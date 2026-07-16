@@ -70,9 +70,9 @@ export const THEME = {
         flowers: ['#fff8f0', '#ffd84d', '#ffa8b8'],
         // faint worn-earth patches
         dirt: 'rgba(138, 122, 78, 0.5)',
-        // edge darkening that pushes the eye to the field center
-        vignette: 'rgba(18, 42, 14, 0.22)',
-        border: 'rgba(100, 140, 70, 0.75)',
+        // edge darkening that pushes the eye to the field center — kept subtle
+        // so the field blends into the outer meadow instead of being framed
+        vignette: 'rgba(18, 42, 14, 0.1)',
         grid: 'rgba(255, 255, 255, 0.2)',
         centerLine: 'rgba(255, 220, 80, 0.6)',
         flankLocked: 'rgba(140, 170, 100, 0.14)',
@@ -89,8 +89,9 @@ export const THEME = {
         skyMid: '#8cc4e4',
         skyHorizon: '#b8d4c8',
         sunGlow: 'rgba(255, 244, 200, 1)',
-        // the world beyond the battlefield
-        outerGround: 0x4e9040,
+        // the world beyond the battlefield — matches terrain.base so the
+        // meadow reads as one continuous surface with the field
+        outerGround: 0x55a244,
         trunk: 0x6a4a32,
         pine: 0x2e6e34,
         pineLight: 0x48904a,
@@ -1563,29 +1564,21 @@ export function hudStyles(): string {
 .mechili-fightbar .fighter.player .fname { color: ${pc}; text-align: left; }
 .mechili-fightbar .fighter.enemy .fname { color: ${ec}; text-align: right; }
 .mechili-fightbar .fspec {
-    font-size: 11px;
-    font-weight: bold;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: ${u.brass};
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-top: -3px;
+    display: none;
 }
-.mechili-fightbar .fspec:empty { display: none; }
 .mechili-fightbar .fighter.player .fspec { text-align: left; }
 .mechili-fightbar .fighter.enemy .fspec { text-align: right; }
 /* a chosen specialist makes the frame clickable (opens its card) */
 .mechili-fightbar .fighter.has-spec { pointer-events: auto; cursor: pointer; }
 .mechili-fightbar .fighter.has-spec:hover { border-color: ${u.hover}; }
 .mechili-fightbar .hp-track {
-    height: 14px;
+    height: 22px;
     background: ${u.barTrack};
     border: 1px solid ${u.border};
     border-radius: 3px;
     overflow: hidden;
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+    position: relative;
 }
 .mechili-fightbar .fighter.player .hp-track { direction: ltr; }
 .mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
@@ -1593,14 +1586,22 @@ export function hudStyles(): string {
 .mechili-fightbar .fighter.player .hp-fill { background: linear-gradient(90deg, ${pc}, ${u.hpBar}); }
 .mechili-fightbar .fighter.enemy .hp-fill { background: linear-gradient(90deg, ${ec}, #e85848); }
 .mechili-fightbar .hp-val {
-    font-size: 22px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
-    min-width: 3ch;
-    flex-shrink: 0;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+    z-index: 2;
 }
-.mechili-fightbar .fighter.player .hp-val { color: ${pc}; }
-.mechili-fightbar .fighter.enemy .hp-val { color: ${ec}; }
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .phase { font-size: 12px; color: ${u.phase}; letter-spacing: 1px; text-transform: uppercase; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }

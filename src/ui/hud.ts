@@ -151,6 +151,7 @@ export class Hud {
     /** the chosen specialist card per side — drives the clickable frame detail */
     private playerCard: StartCard | null = null;
     private enemyCard: StartCard | null = null;
+    private specDetailOverlay: HTMLDivElement | null = null;
     private readonly playerHpFill: HTMLDivElement;
     private readonly enemyHpFill: HTMLDivElement;
     private readonly playerHpVal: HTMLSpanElement;
@@ -381,15 +382,15 @@ export class Hud {
         this.playerSpecEl.className = 'fspec';
         this.playerHpFill = document.createElement('div');
         this.playerHpFill.className = 'hp-fill';
-        const playerHpTrack = document.createElement('div');
-        playerHpTrack.className = 'hp-track';
-        playerHpTrack.appendChild(this.playerHpFill);
         this.playerHpVal = document.createElement('span');
         this.playerHpVal.className = 'hp-val';
+        const playerHpTrack = document.createElement('div');
+        playerHpTrack.className = 'hp-track';
+        playerHpTrack.append(this.playerHpFill, this.playerHpVal);
         const playerInfo = document.createElement('div');
         playerInfo.className = 'fighter-info';
-        playerInfo.append(this.playerNameEl, this.playerSpecEl, playerHpTrack);
-        playerFighter.append(playerPortrait, playerInfo, this.playerHpVal);
+        playerInfo.append(playerHpTrack, this.playerNameEl, this.playerSpecEl);
+        playerFighter.append(playerPortrait, playerInfo);
 
         const enemyFighter = document.createElement('div');
         this.enemyFighterEl = enemyFighter;
@@ -406,12 +407,12 @@ export class Hud {
         this.enemyHpFill.className = 'hp-fill';
         const enemyHpTrack = document.createElement('div');
         enemyHpTrack.className = 'hp-track';
-        enemyHpTrack.appendChild(this.enemyHpFill);
-        enemyInfo.append(this.enemyNameEl, this.enemySpecEl, enemyHpTrack);
+        enemyHpTrack.append(this.enemyHpFill, this.enemyHpVal);
+        enemyInfo.append(enemyHpTrack, this.enemyNameEl, this.enemySpecEl);
         const enemyPortrait = document.createElement('div');
         enemyPortrait.className = 'portrait';
         enemyPortrait.textContent = '◆';
-        enemyFighter.append(enemyPortrait, enemyInfo, this.enemyHpVal);
+        enemyFighter.append(enemyPortrait, enemyInfo);
 
         // clicking or hovering a commander frame opens its specialist card (once known)
         playerFighter.addEventListener('click', () => this.showSpecialistDetail('player'));
@@ -1254,10 +1255,12 @@ export class Hud {
         this.enemyFighterEl.classList.toggle('has-spec', opponent !== null);
     }
 
-    /** a dismissible popup of one side's specialist card (frame click) */
+    /** a dismissible popup of one side's specialist card (frame click or hover) */
     private showSpecialistDetail(team: 'player' | 'enemy'): void {
         const card = team === 'player' ? this.playerCard : this.enemyCard;
         if (!card) return;
+        // avoid stacking duplicate overlays
+        if (this.specDetailOverlay) this.specDetailOverlay.remove();
         const name = (team === 'player' ? this.playerNameEl : this.enemyNameEl).textContent ?? '';
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards detail';
@@ -1267,8 +1270,17 @@ export class Hud {
             `<div class="card static">${this.startCardFace(card)}</div>` +
             `</div></div>`;
         overlay.querySelector('.c-owner')!.textContent = name;
-        overlay.addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', () => this.hideSpecialistDetail());
+        this.specDetailOverlay = overlay;
         this.mount(overlay);
+    }
+
+    /** dismiss the specialist detail popup (hover-out or click) */
+    private hideSpecialistDetail(): void {
+        if (this.specDetailOverlay) {
+            this.specDetailOverlay.remove();
+            this.specDetailOverlay = null;
+        }
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
