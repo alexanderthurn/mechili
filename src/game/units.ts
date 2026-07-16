@@ -295,13 +295,13 @@ function makeTower(id: string, name: string): UnitType {
         id,
         name,
         cost: 0,
-        // collision on the grid is 2x2; the mesh is a bit bigger and overlaps it visually
-        footprint: { cols: 2, rows: 2 },
+        // collision on the grid is 3x3; the mesh is a bit bigger and overlaps it visually
+        footprint: { cols: 3, rows: 3 },
         formation: { cols: 1, rows: 1 },
-        meshScale: 2.4,
+        meshScale: 3.6,
         structure: true,
         targets: { ground: false, air: false }, // towers don't shoot
-        collisionRadius: 4.5,
+        collisionRadius: 6.8,
         colliders: [
             { y: 0.5, r: 1.6 },
             { y: 1.9, r: 1.1 },
@@ -825,7 +825,7 @@ export function preloadUnitVisuals(): Promise<void> {
     visualsPromise = (async () => {
         try {
             const heights: Record<string, number> = {};
-            for (const type of UNIT_TYPES) {
+            for (const type of [...UNIT_TYPES, COMMAND_TOWER, RESEARCH_CENTER]) {
                 const probe = new Group();
                 type.build(new PartFactory(probe, 'player'));
                 heights[type.id] = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;

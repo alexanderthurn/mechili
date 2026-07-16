@@ -855,6 +855,7 @@ export class PlacementController {
     }
 
     private applyIntelFog(): void {
+        if (!this.enabled) return;
         if (!this.intelFog) {
             for (const ghost of this.intelGhosts.values()) ghost.view.visible = false;
             for (const u of this.units) {

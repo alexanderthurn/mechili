@@ -1,5 +1,6 @@
-import { Box3, Color, Group,MathUtils, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three';
+import { Box3, Color, Group, MathUtils, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { teamColors } from './colors';
 import type { Team } from './units';
 
@@ -33,6 +34,9 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     wasp: { url: new URL('../../assets/models/wasp-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // crow rider
     shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
+    // the two base buildings — distinct castles instead of the shared procedural tower
+    'command-tower': { url: new URL('../../assets/models/command-tower-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep
+    'research-center': { url: new URL('../../assets/models/research-center-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // wizard tower
 };
 
 /** how strongly the neutral gunmetal model is tinted toward its team color (0..1) */
@@ -53,12 +57,12 @@ export function hasUnitModel(id: string): boolean {
  */
 export function cloneUnitModel(id: string, team: Team): Group | null {
     const t = templates.get(id);
-    return t ? (t[team].clone(true) as Group) : null;
+    return t ? (skeletonClone(t[team]) as Group) : null;
 }
 
 /** Deep-clone the scene and tint each material toward the team color. */
 function tintedClone(scene: Object3D, team: Team): Object3D {
-    const clone = scene.clone(true);
+    const clone = skeletonClone(scene);
     const col = new Color(teamColors[team].hex);
     clone.traverse((o) => {
         const mesh = o as Mesh;

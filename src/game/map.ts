@@ -1,12 +1,20 @@
 import {
     CanvasTexture,
+    Color,
     Mesh,
     MeshBasicMaterial,
     MeshStandardMaterial,
     PlaneGeometry,
+    RepeatWrapping,
     SRGBColorSpace,
+    TextureLoader,
+    Vector2,
     Vector3,
 } from 'three';
+
+const grassAlbedoUrl = new URL('../../assets/textures/grass-albedo.webp', import.meta.url).href;
+const grassNormalUrl = new URL('../../assets/textures/grass-normal.webp', import.meta.url).href;
+const sandAlbedoUrl = new URL('../../assets/textures/sand-albedo.webp', import.meta.url).href;
 
 /** world units per grid tile */
 export const CELL = 4;
@@ -152,18 +160,143 @@ export class BattleMap {
         return near ? half : this.rows - 1 - half;
     }
 
+    /** world units covered by one repeat of the grass detail texture */
+    private static readonly DETAIL_TILE = 20;
+
     /** The ground plane: a code-generated texture on a real 3D plane mesh. */
     createMesh(seed = 1337): Mesh {
         const geometry = new PlaneGeometry(this.width, this.height);
         geometry.rotateX(-Math.PI / 2); // lie flat; texture top edge faces -z (enemy side)
+        const macro = this.createGroundTexture(seed);
         const material = new MeshStandardMaterial({
-            map: this.createGroundTexture(seed),
+            map: macro,
             roughness: THEME.terrain.groundRoughness,
             metalness: 0,
         });
         const mesh = new Mesh(geometry, material);
         mesh.receiveShadow = true;
+        void this.upgradeGroundMaterial(mesh, macro, seed);
         return mesh;
+    }
+
+    /**
+     * Where the sand shows through the grass: a low-frequency blob mask over
+     * the whole field. Clusters of overlapping soft circles make organic
+     * patches; the shader adds the high-frequency ragged edge.
+     */
+    private createSandMask(seed: number): CanvasTexture {
+        const w = 512;
+        const h = Math.round((w * this.height) / this.width);
+        const rng = mulberry32(seed ^ 0x5eed);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+
+        const pxPerUnit = w / this.width;
+        const patches = Math.round((this.width * this.height) / 5500);
+        for (let i = 0; i < patches; i++) {
+            const cx = w * (0.06 + rng() * 0.88);
+            const cy = h * (0.06 + rng() * 0.88);
+            const blobs = 3 + Math.floor(rng() * 5);
+            for (let b = 0; b < blobs; b++) {
+                const r = (3.5 + rng() * 8) * pxPerUnit;
+                const x = cx + (rng() - 0.5) * r * 1.6;
+                const y = cy + (rng() - 0.5) * r * 1.6;
+                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+                grad.addColorStop(0, `rgba(255,255,255,${0.55 + rng() * 0.3})`);
+                grad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        return new CanvasTexture(canvas);
+    }
+
+    /**
+     * Swaps the macro-only ground material for the detailed one once the
+     * generated grass textures arrive: a high-frequency tiled albedo+normal
+     * carries the blade detail, while the macro canvas (meadow drift, stripes,
+     * dirt, flowers, sun wash, vignette, border) modulates it — divided by the
+     * base tone so it acts as pure relative variation. Until then (or if the
+     * files are missing) the ground keeps the plain macro look.
+     */
+    private async upgradeGroundMaterial(mesh: Mesh, macro: CanvasTexture, seed: number): Promise<void> {
+        const loader = new TextureLoader();
+        let albedo, normal;
+        try {
+            [albedo, normal] = await Promise.all([
+                loader.loadAsync(grassAlbedoUrl),
+                loader.loadAsync(grassNormalUrl),
+            ]);
+        } catch {
+            return;
+        }
+        // sand is optional garnish — without it the ground is plain grass
+        const sand = await loader.loadAsync(sandAlbedoUrl).catch(() => null);
+        const repeat = new Vector2(
+            this.width / BattleMap.DETAIL_TILE,
+            this.height / BattleMap.DETAIL_TILE,
+        );
+        const tile = (t: typeof albedo) => {
+            t.wrapS = t.wrapT = RepeatWrapping;
+            t.repeat.copy(repeat);
+            t.anisotropy = 8;
+        };
+        tile(albedo);
+        albedo.colorSpace = SRGBColorSpace;
+        tile(normal);
+        if (sand) {
+            tile(sand);
+            sand.colorSpace = SRGBColorSpace;
+        }
+        const sandMask = sand ? this.createSandMask(seed) : null;
+
+        const material = new MeshStandardMaterial({
+            map: albedo,
+            normalMap: normal,
+            normalScale: new Vector2(0.35, 0.35),
+            roughness: THEME.terrain.groundRoughness,
+            metalness: 0,
+        });
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.uMacro = { value: macro };
+            shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
+            shader.vertexShader =
+                'varying vec2 vMacroUv;\n' +
+                shader.vertexShader.replace(
+                    '#include <uv_vertex>',
+                    '#include <uv_vertex>\n\tvMacroUv = uv;',
+                );
+            // sand first (a full detail layer under the same lighting),
+            // then the macro modulation over whatever ground is showing
+            let inject = '';
+            if (sand && sandMask) {
+                shader.uniforms.uSand = { value: sand };
+                shader.uniforms.uSandMask = { value: sandMask };
+                inject +=
+                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
+                    '\tfloat sandLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n' +
+                    '\tfloat sandM = texture2D(uSandMask, vMacroUv).r;\n' +
+                    // bright grass blades overhang into the patch: raggier edge
+                    '\tsandM = smoothstep(0.30, 0.62, sandM - (sandLum - 0.25) * 0.5);\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
+            }
+            inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
+            shader.fragmentShader =
+                'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
+                (sand ? 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n' : '') +
+                shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
+        };
+        material.customProgramCacheKey = () => `ground-macro-detail${sand ? '-sand' : ''}`;
+
+        const previous = mesh.material as MeshStandardMaterial;
+        mesh.material = material;
+        previous.dispose(); // keeps `macro` alive — dispose() frees the program, not textures
     }
 
     /**
