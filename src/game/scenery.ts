@@ -22,7 +22,11 @@ import {
     Color,
     Vector2,
     Vector3,
+    type DirectionalLight,
+    type HemisphereLight,
+    type Scene,
 } from 'three';
+import { Weather } from './weather';
 import { THEME } from '../theme';
 
 const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
@@ -54,12 +58,21 @@ export class Scenery {
     private readonly clouds: { mesh: Mesh; speed: number }[] = [];
     private readonly cloudShadow: Mesh;
     private readonly cloudBoundsX: number;
+    private readonly map: BattleMap;
+    private weather: Weather | null = null;
+
+    // weather hooks, wired up by the create* builders below
+    private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
+    private sunGlow!: Sprite;
+    private cloudMaterial!: MeshBasicMaterial;
+    private cloudTexture!: CanvasTexture;
 
     /** outer-world height: flat meadow band, then slopes rising into a mountain ring */
     private readonly terrainHeight: (x: number, z: number) => number;
 
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
+        this.map = map;
         this.cloudBoundsX = map.halfW + 600;
 
         const noise = makeValueNoise(31337);
@@ -85,8 +98,30 @@ export class Scenery {
         this.createClouds(map, rng);
     }
 
+    /** builds the scenario system driving sky, fog, lights, clouds, rain, stars */
+    createWeather(scene: Scene, sun: DirectionalLight, hemi: HemisphereLight, seed: number): Weather {
+        this.weather = new Weather(
+            {
+                scene,
+                sun,
+                hemi,
+                repaintSky: this.repaintSky,
+                glow: this.sunGlow,
+                cloudMaterial: this.cloudMaterial,
+                cloudShadowMaterial: this.cloudShadow.material as MeshBasicMaterial,
+                cloudTexture: this.cloudTexture,
+                skyGroup: this.skyGroup,
+                worldGroup: this.group,
+                map: this.map,
+            },
+            seed,
+        );
+        return this.weather;
+    }
+
     update(dtSeconds: number, cameraPos: Vector3): void {
         this.skyGroup.position.set(cameraPos.x, 0, cameraPos.z);
+        this.weather?.update(dtSeconds, cameraPos);
         const mat = this.cloudShadow.material as MeshBasicMaterial;
         mat.map!.offset.x += dtSeconds * 0.0035;
         mat.map!.offset.y += dtSeconds * 0.0012;
@@ -103,15 +138,19 @@ export class Scenery {
         canvas.width = 4;
         canvas.height = 256;
         const ctx = canvas.getContext('2d')!;
-        const grad = ctx.createLinearGradient(0, 0, 0, 256);
-        grad.addColorStop(0, s.skyZenith);
-        grad.addColorStop(0.32, s.skyMid);
-        grad.addColorStop(0.5, s.skyHorizon); // equator = horizon = fog color
-        grad.addColorStop(1, s.skyHorizon);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 4, 256);
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
+        this.repaintSky = (zenith, mid, horizon) => {
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0, zenith);
+            grad.addColorStop(0.32, mid);
+            grad.addColorStop(0.5, horizon); // equator = horizon = fog color
+            grad.addColorStop(1, horizon);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 4, 256);
+            texture.needsUpdate = true;
+        };
+        this.repaintSky(s.skyZenith, s.skyMid, s.skyHorizon);
 
         const mesh = new Mesh(
             new SphereGeometry(850, 32, 16),
@@ -122,14 +161,15 @@ export class Scenery {
 
     /** soft additive glow billboard sitting where the directional sun points from */
     private createSunGlow(): Sprite {
+        // white gradient — the weather system tints it (warm sun / pale moon)
         const canvas = document.createElement('canvas');
         canvas.width = 128;
         canvas.height = 128;
         const ctx = canvas.getContext('2d')!;
         const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-        grad.addColorStop(0, THEME.scenery.sunGlow);
-        grad.addColorStop(0.25, 'rgba(255, 240, 190, 0.5)');
-        grad.addColorStop(1, 'rgba(255, 240, 190, 0)');
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(0.25, 'rgba(255, 255, 255, 0.5)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, 128, 128);
         const texture = new CanvasTexture(canvas);
@@ -138,6 +178,7 @@ export class Scenery {
         const sprite = new Sprite(
             new SpriteMaterial({
                 map: texture,
+                color: 0xfff2cc,
                 blending: AdditiveBlending,
                 fog: false,
                 depthWrite: false,
@@ -147,6 +188,7 @@ export class Scenery {
         // same direction the DirectionalLight shines from, pushed near the dome shell
         sprite.position.copy(new Vector3(120, 160, 80).normalize().multiplyScalar(760));
         sprite.scale.setScalar(340);
+        this.sunGlow = sprite;
         return sprite;
     }
 
@@ -506,12 +548,14 @@ export class Scenery {
         }
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
+        this.cloudTexture = texture;
         const material = new MeshBasicMaterial({
             map: texture,
             transparent: true,
             opacity: THEME.scenery.cloudOpacity,
             depthWrite: false,
         });
+        this.cloudMaterial = material;
         const geometry = new PlaneGeometry(1, 0.5);
         geometry.rotateX(-Math.PI / 2);
 

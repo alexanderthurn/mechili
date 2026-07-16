@@ -37,6 +37,7 @@ import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
+import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
@@ -91,6 +92,7 @@ export class Game {
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
     private readonly scenery: Scenery;
+    private readonly weather: Weather;
     private readonly rallyVisuals: RallyVisuals;
     private gridOverlay;
     private time = 0;
@@ -207,6 +209,13 @@ export class Game {
     private persistTimer = 0;
     private readonly boundTick = (ticker: { deltaMS: number }) => this.tick(ticker.deltaMS / 1000);
     private readonly onEscapeKey = (e: KeyboardEvent) => {
+        // N cycles the weather scenario (visual only) — but never while typing
+        if (e.code === 'KeyN') {
+            const t = e.target as HTMLElement | null;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+            this.weather.next();
+            return;
+        }
         if (e.code !== 'Escape') return;
         if (this.matchOver || this.suspended) return;
         this.hud.togglePauseMenu();
@@ -270,7 +279,8 @@ export class Game {
         this.scene.environmentIntensity = 0.55;
         pmrem.dispose();
 
-        this.scene.add(new HemisphereLight(THEME.hemiSky, THEME.hemiGround, THEME.hemiIntensity));
+        const hemi = new HemisphereLight(THEME.hemiSky, THEME.hemiGround, THEME.hemiIntensity);
+        this.scene.add(hemi);
         const sun = new DirectionalLight(THEME.sun, THEME.sunIntensity);
         sun.position.set(120, 160, 80);
         sun.castShadow = true;
@@ -309,6 +319,7 @@ export class Game {
         this.controls = new CameraControls(this.rig, surface);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+        this.weather = this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'));
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // card streams are keyed by canonical side, so both peers compute the
         // same offers for the same player regardless of local perspective
@@ -629,6 +640,7 @@ export class Game {
     private startBuildPhase(): void {
         this.resetSpeed();
         this.round++;
+        this.weather.onRound(this.round);
         this.phase = 'build';
         this.phaseRemaining = this.settings.buildTimeSeconds;
         this.placement.beginDeployment();
