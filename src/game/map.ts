@@ -530,7 +530,7 @@ export class BattleMap {
 
     /**
      * Rebuild oil (R) + fire (G) from the sim hazard field. Optional draft
-     * circle is stamped on top for placement preview (visual only).
+     * stamps the same cell silhouette as a real oil spill (visual only).
      */
     syncHazardFromField(
         field: {
@@ -538,6 +538,12 @@ export class BattleMap {
             forEachFireCell: (
                 now: number,
                 fn: (x: number, z: number, dps: number, until: number) => void,
+            ) => void;
+            forEachDiscCells: (
+                x: number,
+                z: number,
+                radius: number,
+                fn: (wx: number, wz: number) => void,
             ) => void;
             cellSize: number;
         },
@@ -550,17 +556,20 @@ export class BattleMap {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, this.hazardW, this.hazardH);
         const cellR = field.cellSize * 0.85;
-        field.forEachOilCell((x, z) => {
+        const stampOilCell = (x: number, z: number) => {
             this.stampHazardChannel(x, z, cellR, 0.55, 'r');
             this.stampHazardChannel(x, z, cellR * 1.35, 0.22, 'r');
-        });
+        };
+        field.forEachOilCell((x, z) => stampOilCell(x, z));
         field.forEachFireCell(now, (x, z) => {
             this.stampHazardChannel(x, z, cellR, 0.7, 'g');
             this.stampHazardChannel(x, z, cellR * 1.4, 0.3, 'g');
         });
         if (draft) {
-            this.stampHazardChannel(draft.x, draft.z, draft.radius, 0.4, 'r');
-            this.stampHazardChannel(draft.x, draft.z, draft.radius * 1.15, 0.2, 'r');
+            // identical cell stamps to stampOil — WYSIWYG placement preview
+            field.forEachDiscCells(draft.x, draft.z, draft.radius, (x, z) => {
+                stampOilCell(x, z);
+            });
         }
         this.hazardDirty = true;
         this.flushHazardMask(performance.now(), true);

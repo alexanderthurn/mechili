@@ -518,8 +518,8 @@ export const UNIT_TYPES: UnitType[] = [
         splashRadius: 8, // display only — the blast itself comes from `rocket.splash`
         // splash + lingering burn + ground fire (oil connected to this ignites)
         fire: {
-            burn: { dps: 55, duration: 6 },
-            ground: { radius: 8, duration: 10, intensity: 35 },
+            burn: { dps: 28, duration: 12 },
+            ground: { radius: 8, duration: 20, intensity: 18 },
         },
         burn: { takenMult: 0 }, // the bolt itself doesn't cook
         targets: { ground: true, air: true }, // what it may home onto / hurt

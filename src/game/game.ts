@@ -1632,7 +1632,10 @@ export class Game {
         const pointer = this.placement.lastPointer;
         if (this.armedTactic === OIL_SPILL_ID && pointer) {
             const pos = this.groundAtLocal(pointer.x, pointer.y);
-            this.oilVisuals.setDraft(pos?.x ?? null, pos?.z ?? null);
+            this.oilVisuals.setDraft(
+                pos ? quantizeWorld(pos.x) : null,
+                pos ? quantizeWorld(pos.z) : null,
+            );
         } else {
             this.oilVisuals.setDraft(null, null);
         }

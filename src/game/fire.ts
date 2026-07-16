@@ -19,8 +19,8 @@ export const OIL_SPILL_RADIUS = 4 * CELL;
 export const OIL_SPILL_DURATION_ROUNDS = 2;
 
 /** Fire Bolt / weapon ground-fire defaults (can be overridden per UnitType.fire) */
-export const DEFAULT_GROUND_FIRE_DURATION = 8;
-export const DEFAULT_GROUND_FIRE_INTENSITY = 28;
+export const DEFAULT_GROUND_FIRE_DURATION = 16;
+export const DEFAULT_GROUND_FIRE_INTENSITY = 14;
 
 /** ground units on oil cells move at this fraction of normal speed */
 export const OIL_SPEED_MULT = 0.55;
@@ -166,11 +166,16 @@ export class HazardField {
     }
 
     /**
-     * Stamp a disc of oil. Overlapping cells keep the later expiry
-     * (`Math.max`). Order of cell writes is row-major ix, iz — deterministic.
+     * Visit cell centers covered by a disc stamp (same geometry as
+     * {@link stampOil} / fire discs). No mutation — used for placement preview.
      */
-    stampOil(x: number, z: number, radius: number, expiresRound: number): void {
-        if (radius <= 0 || expiresRound <= 0) return;
+    forEachDiscCells(
+        x: number,
+        z: number,
+        radius: number,
+        fn: (wx: number, wz: number, cx: number, cz: number) => void,
+    ): void {
+        if (radius <= 0) return;
         const r2 = radius * radius;
         const { cx: c0, cz: z0 } = this.worldToCell(x, z);
         const span = Math.ceil(radius / this.cellSize) + 1;
@@ -181,11 +186,22 @@ export class HazardField {
                 const dx = c.x - x;
                 const dz = c.z - z;
                 if (dx * dx + dz * dz > r2) continue;
-                const i = this.index(cx, cz);
-                const prev = this.oilExpires[i]!;
-                this.oilExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
+                fn(c.x, c.z, cx, cz);
             }
         }
+    }
+
+    /**
+     * Stamp a disc of oil. Overlapping cells keep the later expiry
+     * (`Math.max`). Order of cell writes is row-major ix, iz — deterministic.
+     */
+    stampOil(x: number, z: number, radius: number, expiresRound: number): void {
+        if (expiresRound <= 0) return;
+        this.forEachDiscCells(x, z, radius, (_wx, _wz, cx, cz) => {
+            const i = this.index(cx, cz);
+            const prev = this.oilExpires[i]!;
+            this.oilExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
+        });
     }
 
     /**
@@ -203,23 +219,13 @@ export class HazardField {
     ): number {
         if (radius <= 0 || duration <= 0 || intensity <= 0) return 0;
         const until = now + duration;
-        const r2 = radius * radius;
-        const { cx: c0, cz: z0 } = this.worldToCell(x, z);
-        const span = Math.ceil(radius / this.cellSize) + 1;
         const seedOil: number[] = [];
 
-        for (let cz = z0 - span; cz <= z0 + span; cz++) {
-            for (let cx = c0 - span; cx <= c0 + span; cx++) {
-                if (!this.inBounds(cx, cz)) continue;
-                const c = this.cellCenter(cx, cz);
-                const dx = c.x - x;
-                const dz = c.z - z;
-                if (dx * dx + dz * dz > r2) continue;
-                const i = this.index(cx, cz);
-                this.setFireCell(i, until, intensity);
-                if (this.oilExpires[i]! !== 0) seedOil.push(i);
-            }
-        }
+        this.forEachDiscCells(x, z, radius, (_wx, _wz, cx, cz) => {
+            const i = this.index(cx, cz);
+            this.setFireCell(i, until, intensity);
+            if (this.oilExpires[i]! !== 0) seedOil.push(i);
+        });
 
         return this.igniteConnectedOil(seedOil, until, intensity);
     }

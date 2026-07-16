@@ -12,13 +12,25 @@ export class OilVisuals {
 
     constructor(private readonly map: BattleMap) {}
 
-    /** placement preview circle (soft-stamped into the hazard mask) */
+    /**
+     * Placement preview — stamps the exact cell silhouette a spill would
+     * leave (visual only; does not mutate the field). Pass already-quantized
+     * world coords so the ghost matches the click.
+     */
     setDraft(x: number | null, z: number | null, radius = OIL_SPILL_RADIUS): void {
         if (x === null || z === null) {
             if (this.draft) {
                 this.draft = null;
-                this.lastKey = ''; // force rebuild without draft
+                this.lastKey = '';
             }
+            return;
+        }
+        if (
+            this.draft &&
+            this.draft.x === x &&
+            this.draft.z === z &&
+            this.draft.radius === radius
+        ) {
             return;
         }
         this.draft = { x, z, radius };
@@ -56,7 +68,7 @@ function hazardKey(
         fire++;
     });
     const d = draft
-        ? `${draft.x.toFixed(1)},${draft.z.toFixed(1)},${draft.radius.toFixed(1)}`
+        ? `${draft.x.toFixed(2)},${draft.z.toFixed(2)},${draft.radius.toFixed(2)}`
         : '';
     return `${oil}:${fire}:${d}`;
 }
