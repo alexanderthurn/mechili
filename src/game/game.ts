@@ -46,7 +46,7 @@ import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
-import { BattleSim, type Actor, type SimEvent } from './sim';
+import { BattleSim, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import { RALLY_ROUTE_ID, TACTICS, type RallyRoute } from './tactics';
 import { TechTree } from './tech';
 import {
@@ -2011,12 +2011,31 @@ export class Game {
         this.renderer.render(this.scene, this.rig.camera);
         if (profile) cpu.end('render');
         let mechs = 0;
-        if (this.sim) mechs = this.sim.actors.length;
-        else for (const u of this.placement.allUnits()) mechs += u.members.length;
+        let mobile: number | undefined;
+        let softCrowd: boolean | undefined;
+        if (this.sim) {
+            mechs = this.sim.actors.length;
+            mobile = this.sim.lastMobileCount;
+            softCrowd = this.sim.lastSoftCrowd;
+        } else {
+            for (const u of this.placement.allUnits()) {
+                mechs += u.members.length;
+                if (!u.type.structure) {
+                    for (const m of u.members) {
+                        if (!m.mesh.userData.dead) mobile = (mobile ?? 0) + 1;
+                    }
+                }
+            }
+            if (mobile === undefined) mobile = 0;
+            softCrowd = mobile <= SOFT_CROWD_LIMIT;
+        }
         const instSnap = this.unitInstances.debugSnapshot();
         this.debug.update(this.pixiApp, this.renderer, this.scene, {
             units: this.placement.unitCount,
             mechs,
+            mobile,
+            softCrowd,
+            softCrowdLimit: SOFT_CROWD_LIMIT,
             phase: this.phase,
             round: this.round,
             instanceCount: instSnap.instances,

@@ -103,6 +103,8 @@ export interface Actor {
     /** last sim-step displacement — used to lead ballistic shots */
     mvX: number;
     mvZ: number;
+    /** sticky attack target — held while in range; closest search when not */
+    cachedEnemy: Actor | null;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
@@ -169,8 +171,12 @@ const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers,
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
 /** expanding-ring cap for closest-enemy search (map diagonal ≪ this × cell) */
 const TARGET_MAX_RING = 48;
-/** under load, prefer smooth frames over catching up every missed sim tick */
-const MAX_STEPS_PER_UPDATE = 3;
+/** above this many living mobile mechs, drop soft crowd separation entirely */
+export const SOFT_CROWD_LIMIT = 2000;
+/** soft crowd runs every N steps per mech (staggered by index), like retargeting */
+const CROWD_EVERY_STEPS = 6;
+/** re-run closestEnemy only every N steps (staggered by actor index) */
+const TARGET_REFRESH_STEPS = 30;
 
 /**
  * The real-time battle: every mech acts individually — it walks toward the
@@ -218,6 +224,14 @@ export class BattleSim {
     lastProfile: CpuTimings = {};
     /** how many fixed steps the last update() ran */
     lastProfileSteps = 0;
+    /** increments every step — used to stagger target refresh */
+    private stepIndex = 0;
+    /** soft mech-vs-mech separation enabled this step */
+    private softCrowd = true;
+    /** living non-structure mechs — last computed in step() / readable for debug */
+    lastMobileCount = 0;
+    /** whether soft crowd was enabled on the last step */
+    lastSoftCrowd = true;
 
     constructor(
         units: readonly Unit[],
@@ -264,6 +278,7 @@ export class BattleSim {
                     pathBestDist: Infinity,
                     mvX: 0,
                     mvZ: 0,
+                    cachedEnemy: null,
                 });
             }
         }
@@ -307,6 +322,14 @@ export class BattleSim {
         });
 
         this.assignRallyRoutes(config.rallyRoutes ?? []);
+
+        let mobile = 0;
+        for (const a of this.actors) {
+            if (a.alive && !a.unit.type.structure) mobile++;
+        }
+        this.lastMobileCount = mobile;
+        this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
+        this.lastSoftCrowd = this.softCrowd;
     }
 
     /** snapshot at battle start: mechs inside a route's start circle march to a
@@ -415,7 +438,7 @@ export class BattleSim {
         }
         this.accumulator += Math.min(dtSeconds, 0.25);
         let steps = 0;
-        while (this.accumulator >= BattleSim.STEP && steps < MAX_STEPS_PER_UPDATE) {
+        while (this.accumulator >= BattleSim.STEP) {
             this.accumulator -= BattleSim.STEP;
             steps++;
             // stop EXACTLY at the deciding step — overshooting by a frame's
@@ -680,6 +703,15 @@ export class BattleSim {
         // opening beat: no movement, attacks, rockets, or projectiles yet
         if (this.elapsed < BATTLE_START_FREEZE) return;
 
+        this.stepIndex++;
+        let mobile = 0;
+        for (const a of this.actors) {
+            if (a.alive && !a.unit.type.structure) mobile++;
+        }
+        this.lastMobileCount = mobile;
+        this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
+        this.lastSoftCrowd = this.softCrowd;
+
         const d = this.config.towers.debuffPerLostTower;
         mark();
         this.rebuildHash();
@@ -847,7 +879,7 @@ export class BattleSim {
             steerZ += (-side * (ox / oLen)) * w;
         }
 
-        for (const b of this.nearby(a)) {
+        for (const b of this.softCrowdActive(a) ? this.nearby(a) : []) {
             if (b === a || !b.alive || (b.altitude > 0) !== (a.altitude > 0)) continue;
             const sx = a.x - b.x;
             const sz = a.z - b.z;
@@ -1195,23 +1227,29 @@ export class BattleSim {
 
     /** mass-based push-out: heavy units shove light ones aside, structures never move */
     private resolveOverlaps(): void {
-        for (let iter = 0; iter < 2; iter++) {
-            for (const a of this.actors) {
-                if (!a.alive || a.unit.type.structure) continue;
+        // soft mech-vs-mech is staggered across steps — one pass per involved mech
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.type.structure) continue;
+            if (this.softCrowdActive(a)) {
                 for (const b of this.nearby(a)) {
                     if (b.index <= a.index || !b.alive || b.unit.type.structure) continue;
                     if ((b.altitude > 0) !== (a.altitude > 0)) continue; // air passes over ground
                     this.pushApart(a, b);
                 }
-                if (a.altitude > 0) continue; // air units ignore structures entirely
-                // towers and rubble-free structures are immovable walls
-                // (board extras take no space — everything walks through them)
-                for (const s of this.structures) {
-                    if (!s.alive) continue;
-                    this.pushApart(a, s);
-                }
+            }
+            if (a.altitude > 0) continue; // air units ignore structures entirely
+            // towers and rubble-free structures are immovable walls
+            // (board extras take no space — everything walks through them)
+            for (const s of this.structures) {
+                if (!s.alive) continue;
+                this.pushApart(a, s);
             }
         }
+    }
+
+    /** soft crowd on for this mech this step (limit + stagger — deterministic). */
+    private softCrowdActive(a: Actor): boolean {
+        return this.softCrowd && (this.stepIndex + a.index) % CROWD_EVERY_STEPS === 0;
     }
 
     private pushApart(a: Actor, b: Actor): void {
@@ -1297,8 +1335,9 @@ export class BattleSim {
         }
     }
 
-    /** mobile mechs in the 3x3 cells around an actor, in CANONICAL order —
-     *  bucket enumeration order differs on mirrored boards, so sort */
+    /** mobile mechs in the 3x3 cells around an actor.
+     *  Buckets are filled in canonical actor-index order; cells are visited in
+     *  a fixed (ix,iz) order — deterministic without a per-call sort. */
     private nearby(a: Actor): Actor[] {
         const cx = Math.floor(a.x / HASH_CELL);
         const cz = Math.floor(a.z / HASH_CELL);
@@ -1310,7 +1349,6 @@ export class BattleSim {
                 if (bucket) result.push(...bucket);
             }
         }
-        result.sort((p, q) => p.index - q.index);
         return result;
     }
 
@@ -1351,8 +1389,10 @@ export class BattleSim {
     }
 
     /**
-     * The closest living enemy THIS unit can attack (towers are units like
-     * any other). The can-attack matrix rules: e.g. dwarves can't reach air.
+     * Prefer a sticky attack target: while the cached enemy is still alive and
+     * in weapon range, keep shooting it (do not hop to a closer foe). Only
+     * re-pick closest when the cache is invalid or the target leaves range.
+     * Full searches are still staggered via {@link TARGET_REFRESH_STEPS}.
      * With `anyLayer` the matrix is ignored — used to pick something to walk
      * to and wait at when no attackable enemy is left.
      *
@@ -1363,6 +1403,33 @@ export class BattleSim {
         const wantAir = anyLayer || from.unit.type.targets.air;
         const wantGround = anyLayer || from.unit.type.targets.ground;
         if (!wantAir && !wantGround) return null;
+
+        const cacheOk = (cached: Actor): boolean =>
+            cached.alive &&
+            cached.unit.team !== from.unit.team &&
+            !cached.unit.type.extra &&
+            (cached.altitude > 0 ? wantAir : wantGround);
+
+        const inWeaponRange = (cached: Actor): boolean => {
+            const stats = this.resolved.get(from.unit)!;
+            const reach = stats.range + from.radius + cached.radius;
+            const dx = cached.x - from.x;
+            const dz = cached.z - from.z;
+            return dx * dx + dz * dz <= reach * reach;
+        };
+
+        if (!anyLayer) {
+            const cached = from.cachedEnemy;
+            if (cached && cacheOk(cached) && inWeaponRange(cached)) {
+                // engaged: never retarget mid-fight, even on a refresh step
+                return cached;
+            }
+            const refresh = ((this.stepIndex + from.index) % TARGET_REFRESH_STEPS) === 0;
+            // out of range (or no cache): keep chasing the same foe between refreshes
+            if (!refresh && cached && cacheOk(cached)) {
+                return cached;
+            }
+        }
 
         const team = from.unit.team;
         let best: Actor | null = null;
@@ -1407,6 +1474,7 @@ export class BattleSim {
                 scanCell(cx + ring, cz + dz);
             }
         }
+        if (!anyLayer) from.cachedEnemy = best;
         return best;
     }
 }

@@ -10,6 +10,12 @@ export interface DebugPerfStats {
     units: number;
     /** individual mechs (pack members / battle actors) */
     mechs: number;
+    /** living non-structure mechs (soft-crowd counter) */
+    mobile?: number;
+    /** soft-crowd on/off for the current sim step */
+    softCrowd?: boolean;
+    /** soft-crowd limit constant (for HUD context) */
+    softCrowdLimit?: number;
     /** build | battle | … */
     phase?: string;
     round?: number;
@@ -189,7 +195,14 @@ export class DebugOverlay {
 
         const hud =
             `fps ${fps.toFixed(0)}  ${ms.toFixed(1)}ms  dpr ${dpr}\n` +
-            `units ${stats.units}  mechs ${stats.mechs}  objs ${sceneStats.drawables}\n` +
+            `units ${stats.units}  mechs ${stats.mechs}` +
+            (stats.mobile !== undefined
+                ? `  mobile ${stats.mobile}` +
+                  (stats.softCrowdLimit !== undefined
+                      ? `/${stats.softCrowdLimit}${stats.softCrowd === false ? ' off' : ''}`
+                      : '')
+                : '') +
+            `  objs ${sceneStats.drawables}\n` +
             `calls ${info.render.calls}  tris ${tris}\n` +
             `geo ${info.memory.geometries}  tex ${info.memory.textures}` +
             (stats.instanceCount !== undefined
@@ -207,7 +220,11 @@ export class DebugOverlay {
             `phase ${stats.phase ?? '?'}  round ${stats.round ?? '?'}`,
             `fps   ${fps.toFixed(1)}  frame ${ms.toFixed(2)}ms  dpr ${dpr}`,
             `canvas css ${canvas.clientWidth}x${canvas.clientHeight}  buffer ${canvas.width}x${canvas.height}`,
-            `units ${stats.units}  mechs ${stats.mechs}`,
+            `units ${stats.units}  mechs ${stats.mechs}` +
+            (stats.mobile !== undefined ? `  mobile ${stats.mobile}` : '') +
+            (stats.softCrowdLimit !== undefined
+                ? `  softCrowd ${stats.softCrowd ? 'on' : 'off'} (limit ${stats.softCrowdLimit})`
+                : ''),
             `draw  calls=${info.render.calls}  tris=${info.render.triangles}  points=${info.render.points}  lines=${info.render.lines}`,
             `mem3  geo=${info.memory.geometries}  tex=${info.memory.textures}`,
             `scene drawables=${sceneStats.drawables}  meshes=${sceneStats.meshes}  instancedMeshes=${sceneStats.instanced}  sprites=${sceneStats.sprites}`,
