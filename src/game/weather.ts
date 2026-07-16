@@ -22,6 +22,7 @@ import {
     type Texture,
 } from 'three';
 import { mulberry32, type BattleMap } from './map';
+import { sceneryFogScale } from './prefs';
 
 const moonUrl = new URL('../../assets/textures/moon.webp', import.meta.url).href;
 
@@ -420,8 +421,9 @@ export class Weather {
         (h.scene.background as Color).copy(s.skyHorizon);
         const fog = h.scene.fog as Fog;
         fog.color.copy(s.skyHorizon);
-        fog.near = s.fogNear;
-        fog.far = s.fogFar;
+        const fogScale = sceneryFogScale();
+        fog.near = s.fogNear * fogScale;
+        fog.far = s.fogFar * fogScale;
 
         h.sun.color.copy(s.sun);
         h.sun.intensity = s.sunIntensity;

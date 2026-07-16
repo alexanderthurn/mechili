@@ -420,7 +420,7 @@ export const UNIT_TYPES: UnitType[] = [
         projectileSpeed: 70,
         projectileStyle: 'stone',
         // wide blast vs packed dwarves (3× the ballista's old splash radius of 3)
-        splashRadius: 9,
+        splashRadius: 3,
         hp: 45,
         damage: 18,
         range: 12,
@@ -454,7 +454,7 @@ export const UNIT_TYPES: UnitType[] = [
         hp: 500,
         damage: 500,
         range: 84,
-        attackInterval: 2.8,
+        attackInterval: 3.8,
         speed: 2.2,
         techs: [
             { id: 'armor', name: 'Iron Plating', cost: 300, mods: { hp: 1.5 } },
@@ -500,7 +500,7 @@ export const UNIT_TYPES: UnitType[] = [
         meshScale: 1,
         structure: true,
         extra: true,
-        flying: 36, // hovers at twice the air layer, waiting
+        flying: 36, // always at combat altitude (unlike crow riders)
         rocket: { range: 35, speed: 30, damage: 5000, splash: 8 }, // wipes a close-packed swarm
         splashRadius: 8, // display only — the blast itself comes from `rocket.splash`
         targets: { ground: true, air: true }, // what it may home onto / hurt
@@ -564,6 +564,9 @@ export class Unit {
         /** placement rotated 90°: footprint and formation use swapped cols/rows */
         public rotated = false,
     ) {
+        // Fire Bolt hovers at combat altitude from the moment it's placed —
+        // unlike crow riders, it never hugs the ground during deployment
+        if (type.rocket && type.flying) this.flightLift = 1;
         const footprint = rotated ? swapExtent(type.footprint) : type.footprint;
         const formation = rotated ? swapExtent(type.formation) : type.formation;
         const spacingX = (footprint.cols * CELL) / formation.cols;
@@ -612,32 +615,48 @@ export class Unit {
     /** current hover base for idle bob (deployment keeps flyers near the ground) */
     memberBaseY(): number {
         if (!this.type.flying) return 0.05;
+        // rockets use absolute combat altitude (see seatMembers) — this is
+        // only consulted for crow-rider-style flyers
+        if (this.type.rocket) return this.type.flying;
         return DEPLOY_AIR_Y + (this.type.flying - DEPLOY_AIR_Y) * this.flightLift;
     }
 
     /**
      * Stick every member to the terrain at the pack origin:
      * `y = groundSupportAt + memberBaseY()` (flyers = ground + altitude).
+     * Rockets sit at absolute combat altitude so they match battle sim / launch.
      * Defaults to the current view xz so drag previews follow the hills.
      */
     seatMembers(originX = this.view.position.x, originZ = this.view.position.z): void {
-        const base = this.memberBaseY();
         const r = this.type.collisionRadius * 0.65;
+        const rocketAlt = this.type.rocket ? this.type.flying : undefined;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
+            if (rocketAlt != null) {
+                m.mesh.position.y = rocketAlt;
+                continue;
+            }
             m.mesh.position.y =
-                groundSupportAt(originX + m.home.x, originZ + m.home.z, r) + base;
+                groundSupportAt(originX + m.home.x, originZ + m.home.z, r) + this.memberBaseY();
         }
     }
 
     setDeployment(deploy: boolean): void {
         this.inDeployment = deploy;
-        if (deploy) this.flightLift = 0;
+        if (deploy) {
+            // rockets stay armed at altitude; other flyers drop to ground-hug
+            this.flightLift = this.type.rocket ? 1 : 0;
+        }
     }
 
     /** ramps flyers up (battle) or down (deployment) — ~0.6s full climb */
     tickFlight(dtSeconds: number): void {
         if (!this.type.flying) return;
+        // Fire Bolt never climbs/descends with the flock — always combat height
+        if (this.type.rocket) {
+            this.flightLift = 1;
+            return;
+        }
         const target = this.inDeployment ? 0 : 1;
         const rate = 1.6;
         if (this.flightLift < target) this.flightLift = Math.min(1, this.flightLift + dtSeconds * rate);

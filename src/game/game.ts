@@ -39,7 +39,16 @@ import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
-import { onPrefsChange, prefs, effectiveDpr } from './prefs';
+import {
+    onPrefsChange,
+    prefs,
+    effectiveDpr,
+    sceneryDetailed,
+    sceneryShadowMapSize,
+    sceneryCameraFar,
+    type GroundEffectsQuality,
+    type SceneryQuality,
+} from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
@@ -105,8 +114,9 @@ export class Game {
     private groundMesh: Mesh;
     private readonly sun: DirectionalLight;
     private readonly hemi: HemisphereLight;
-    /** currently APPLIED scenery quality (the pref may change live) */
-    private sceneryDetailed = prefs().scenery !== 'minimal';
+    /** currently APPLIED scenery / ground-effects prefs (may differ until rebuild) */
+    private appliedScenery: SceneryQuality = prefs().scenery;
+    private appliedGroundEffects: GroundEffectsQuality = prefs().groundEffects;
     private readonly rallyVisuals: RallyVisuals;
     private gridOverlay;
     private time = 0;
@@ -316,7 +326,7 @@ export class Game {
         const sun = new DirectionalLight(THEME.sun, THEME.sunIntensity);
         sun.position.set(120, 160, 80);
         sun.castShadow = true;
-        const shadowRes = prefs().scenery === 'minimal' ? 1024 : 4096;
+        const shadowRes = sceneryShadowMapSize();
         sun.shadow.mapSize.set(shadowRes, shadowRes);
         // a bit stronger than the Three default (1) so packs/towers read clearly on the grass
         sun.shadow.intensity = 1.55;
@@ -349,7 +359,7 @@ export class Game {
         const surface = pixiApp.canvas;
         // keep the camera target well inside the field so the view never leaves the map
         this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
-        this.rig.fitMap(this.map.width, this.map.height);
+        this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
         // open centered on the player's own zone (where the starting army
         // stands) — the far-side owner looks at the shared board rotated 180°
         const nearSide = side === 'a';
@@ -640,14 +650,25 @@ export class Game {
     }
 
     /**
-     * Live-applies the scenery quality pref from the settings menu: rebuilds
-     * the ground, the outer world (incl. weather hooks) and the shadow map.
+     * Live-applies the scenery / ground-effects prefs from the settings menu:
+     * rebuilds the ground, the outer world (incl. weather hooks) and the shadow map.
      */
     private applySceneryQuality(): void {
-        const detailed = prefs().scenery !== 'minimal';
-        if (detailed === this.sceneryDetailed || this.disposed) return;
-        this.sceneryDetailed = detailed;
+        const scenery = prefs().scenery;
+        const groundEffects = prefs().groundEffects;
+        if (
+            scenery === this.appliedScenery &&
+            groundEffects === this.appliedGroundEffects
+        ) {
+            return;
+        }
+        if (this.disposed) return;
+        this.appliedScenery = scenery;
+        this.appliedGroundEffects = groundEffects;
+        const detailed = sceneryDetailed(scenery);
         this.map.setDetailed(detailed);
+        this.map.setGroundEffects(groundEffects);
+        this.sandBootstrapped = false;
 
         const disposeTree = (root: Object3D) =>
             root.traverse((o) => {
@@ -679,10 +700,12 @@ export class Game {
         this.weather.setTarget(currentWeather);
 
         // shadow resolution (force the render target to reallocate)
-        const res = detailed ? 4096 : 1024;
+        const res = sceneryShadowMapSize(scenery);
         this.sun.shadow.mapSize.set(res, res);
         this.sun.shadow.map?.dispose();
         this.sun.shadow.map = null;
+
+        this.rig.setWorldFar(sceneryCameraFar(scenery));
     }
 
     destroy(): void {
@@ -2062,11 +2085,16 @@ export class Game {
      * Sand (R) washes blood/scorch back when units walk over gore.
      */
     private updateSandWear(): void {
+        if (prefs().groundEffects === 'off') {
+            this.map.flushSandMask();
+            return;
+        }
         if (!this.sandBootstrapped && this.map.sandReady) {
             this.placement.restampGroundSand();
             this.sandBootstrapped = true;
         }
         if (this.phase === 'battle' && this.sim) {
+            const stepMin = prefs().groundEffects === 'medium' ? 1.4 : 0.75;
             for (const a of this.sim.actors) {
                 if (!a.alive || a.altitude > 0) continue;
                 const t = a.unit.type;
@@ -2077,7 +2105,7 @@ export class Game {
                     continue;
                 }
                 const dist = Math.hypot(a.x - prev.x, a.z - prev.z);
-                if (dist < 0.75) continue;
+                if (dist < stepMin) continue;
                 const w = this.map.sandStampWeight(t);
                 // slightly stronger than pure wear so footsteps reclaim bloody/scorched ground
                 this.map.stampSand(a.x, a.z, Math.max(a.radius * 1.35, 0.9) * Math.sqrt(w), 0.08 * w);
@@ -2090,6 +2118,7 @@ export class Game {
 
     /** Blood under hits/kills, scorch under blasts — same wear mask as sand. */
     private stampWearFromEvents(events: readonly SimEvent[]): void {
+        if (prefs().groundEffects === 'off') return;
         for (const e of events) {
             if (e.kind === 'impact' && e.y > 0.25) {
                 this.map.stampBlood(e.x, e.z, 1.1, 0.55);

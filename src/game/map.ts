@@ -25,7 +25,7 @@ export const CELL = 4;
 
 import { THEME } from '../theme';
 import { teamColors } from './colors';
-import { prefs } from './prefs';
+import { prefs, sceneryDetailed, type GroundEffectsQuality } from './prefs';
 
 export interface Cell {
     col: number;
@@ -175,12 +175,18 @@ export class BattleMap {
     private sandDirty = false;
     private sandFlushAt = 0;
 
-    /** false with the 'minimal' scenery pref: flat board, no detail textures */
-    private detailed = prefs().scenery !== 'minimal';
+    /** false with the 'low' scenery pref: flat board, no detail textures */
+    private detailed = sceneryDetailed();
+    /** wear mask quality — independent of scenery when detailed */
+    private groundEffects: GroundEffectsQuality = prefs().groundEffects;
 
     /** live-switch for the scenery setting; the game rebuilds the meshes after */
     setDetailed(detailed: boolean): void {
         this.detailed = detailed;
+    }
+
+    setGroundEffects(quality: GroundEffectsQuality): void {
+        this.groundEffects = quality;
     }
 
     constructor(readonly size: MapSize = STANDARD_MAP) {
@@ -331,7 +337,7 @@ export class BattleMap {
      * use source-over red so walking gradually washes blood/burns back to sand.
      */
     private createSandMask(seed: number): CanvasTexture {
-        const w = 512;
+        const w = this.groundEffects === 'medium' ? 256 : 512;
         const h = Math.round((w * this.height) / this.width);
         const canvas = document.createElement('canvas');
         canvas.width = w;
@@ -420,24 +426,30 @@ export class BattleMap {
 
     /** Stamp sandy wear (R). Also scrubs blood/scorch underfoot. */
     stampSand(x: number, z: number, radius: number, strength = 0.09): void {
-        this.stampWearChannel(x, z, radius, strength, 'r');
+        if (this.groundEffects === 'off') return;
+        const s = this.groundEffects === 'medium' ? strength * 0.55 : strength;
+        this.stampWearChannel(x, z, radius, s, 'r');
     }
 
     /** Stamp blood under a hit/kill (G) — tight stain, short soft edge. */
     stampBlood(x: number, z: number, radius: number, strength = 0.14): void {
+        if (this.groundEffects !== 'full') return; // medium: sand + scorch only
         this.stampWearChannel(x, z, radius, strength, 'g');
         this.stampWearChannel(x, z, radius * 1.35, strength * 0.35, 'g');
     }
 
     /** Stamp scorched earth under explosions / big breaks (B). */
     stampScorch(x: number, z: number, radius: number, strength = 0.16): void {
-        this.stampWearChannel(x, z, radius, strength, 'b');
+        if (this.groundEffects === 'off') return;
+        const s = this.groundEffects === 'medium' ? strength * 0.65 : strength;
+        this.stampWearChannel(x, z, radius, s, 'b');
     }
 
-    /** Push pending canvas stamps to the GPU (throttled ~12 Hz unless `force`). */
+    /** Push pending canvas stamps to the GPU (throttled unless `force`). */
     flushSandMask(now = performance.now(), force = false): void {
         if (!this.sandDirty || !this.sandMask) return;
-        if (!force && now - this.sandFlushAt < 80) return;
+        const minMs = this.groundEffects === 'medium' ? 160 : 80;
+        if (!force && now - this.sandFlushAt < minMs) return;
         this.sandMask.needsUpdate = true;
         this.sandDirty = false;
         this.sandFlushAt = now;
@@ -530,7 +542,12 @@ export class BattleMap {
             tile(sand);
             sand.colorSpace = SRGBColorSpace;
         }
-        const sandMask = sand ? this.createSandMask(seed) : null;
+        const wearOn = this.groundEffects !== 'off';
+        const sandMask = sand && wearOn ? this.createSandMask(seed) : null;
+        if (!sandMask) {
+            this.sandMask = null;
+            this.sandCtx = null;
+        }
 
         const material = new MeshStandardMaterial({
             map: albedo,
@@ -571,10 +588,11 @@ export class BattleMap {
             inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
             shader.fragmentShader =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
-                (sand ? 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n' : '') +
+                (sand && sandMask ? 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n' : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
         };
-        material.customProgramCacheKey = () => `ground-macro-detail-edgefade${sand ? '-wear-rgb' : ''}`;
+        material.customProgramCacheKey = () =>
+            `ground-macro-detail-edgefade${sand && sandMask ? '-wear-rgb' : ''}`;
 
         const previous = mesh.material as MeshStandardMaterial;
         mesh.material = material;

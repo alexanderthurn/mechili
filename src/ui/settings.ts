@@ -15,9 +15,16 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
         `<label class="s-row"><input type="checkbox" class="s-global" /> Show global chat (menu)</label>` +
         `<label class="s-row">Scenery <select class="s-scenery">` +
-        `<option value="full">Full</option>` +
-        `<option value="minimal">Minimal (old computers)</option>` +
-        `</select> <span class="s-hint">applies immediately</span></label>` +
+        `<option value="ultra">Ultra</option>` +
+        `<option value="high">High (dense forests)</option>` +
+        `<option value="medium">Medium</option>` +
+        `<option value="low">Low (flat world)</option>` +
+        `</select> <span class="s-hint">trees &amp; mountains</span></label>` +
+        `<label class="s-row">Ground effects <select class="s-ground">` +
+        `<option value="full">Full (sand &amp; blood)</option>` +
+        `<option value="medium">Medium (sand &amp; scorch)</option>` +
+        `<option value="off">Off</option>` +
+        `</select> <span class="s-hint">battlefield wear</span></label>` +
         `<label class="s-row">Resolution <select class="s-dpr">` +
         `<option value="2">High (retina)</option>` +
         `<option value="1.5">Medium</option>` +
@@ -40,6 +47,12 @@ export function openSettings(parent: HTMLElement): void {
     scenery.value = prefs().scenery;
     scenery.addEventListener('change', () =>
         updatePrefs({ scenery: scenery.value as Prefs['scenery'] }),
+    );
+
+    const ground = overlay.querySelector<HTMLSelectElement>('.s-ground')!;
+    ground.value = prefs().groundEffects;
+    ground.addEventListener('change', () =>
+        updatePrefs({ groundEffects: ground.value as Prefs['groundEffects'] }),
     );
 
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;

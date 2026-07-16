@@ -31,9 +31,78 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather } from './weather';
 import { THEME } from '../theme';
-import { prefs } from './prefs';
+import { prefs, sceneryDetailed, type SceneryQuality } from './prefs';
 
 const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
+
+/** Instance / mesh density for scenery tiers (trees stay InstancedMesh). */
+function sceneryDensity(quality: SceneryQuality): {
+    outer: number;
+    field: number;
+    meadow: number;
+    lake: number;
+    segs: number;
+    margin: number;
+    acceptBase: number;
+    /** distance past board where forest belt starts ramping */
+    beltNear: number;
+    /** how quickly density rises after beltNear */
+    beltRamp: number;
+    /** distance where far taper begins */
+    beltFar: number;
+    peakClouds: number;
+} {
+    if (quality === 'ultra') {
+        return {
+            outer: 10,
+            field: 1.6,
+            meadow: 2.2,
+            lake: 1.8,
+            segs: 400,
+            margin: 600,
+            acceptBase: 0.85,
+            // thick immediately past keep-out — peak density almost at the edge
+            beltNear: 8,
+            beltRamp: 18,
+            // stay dense across green foothills; rockFactor rejects stone
+            beltFar: 500,
+            peakClouds: 22,
+        };
+    }
+    if (quality === 'high') {
+        return {
+            outer: 1.85,
+            field: 1.25,
+            meadow: 1.55,
+            lake: 1.4,
+            segs: 360,
+            margin: 500,
+            acceptBase: 0.3,
+            beltNear: 18,
+            beltRamp: 50,
+            beltFar: 360,
+            peakClouds: 18,
+        };
+    }
+    // medium — former "full"
+    return {
+        outer: 1,
+        field: 1,
+        meadow: 1,
+        lake: 1,
+        segs: 300,
+        margin: 420,
+        acceptBase: 0.18,
+        beltNear: 25,
+        beltRamp: 70,
+        beltFar: 300,
+        peakClouds: 12,
+    };
+}
+
+function scaleCount(n: number, mult: number): number {
+    return Math.max(1, Math.round(n * mult));
+}
 const foliageUrl = new URL('../../assets/textures/foliage.webp', import.meta.url).href;
 const rockUrl = new URL('../../assets/textures/rock.webp', import.meta.url).href;
 import {
@@ -86,8 +155,10 @@ export class Scenery {
     /** shared value noise for height + vertex color variation */
     private readonly noise: (x: number, z: number) => number;
 
-    /** false with the 'minimal' scenery pref: flat green world, no decoration */
-    private readonly detailed = prefs().scenery !== 'minimal';
+    /** false with the 'low' scenery pref: flat green world, no decoration */
+    private readonly quality: SceneryQuality = prefs().scenery;
+    private readonly detailed = sceneryDetailed(this.quality);
+    private readonly density = sceneryDensity(this.quality);
 
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
@@ -166,6 +237,28 @@ export class Scenery {
         this.cloudShadow = this.createCloudShadow(map);
         this.group.add(this.cloudShadow);
         this.createClouds(map, rng);
+    }
+
+    /**
+     * Matches the outer-ground shader's rock mix (height + slope).
+     * 0 = full grass, 1 = full stone — trees only belong on low values.
+     */
+    private rockFactorAt(x: number, z: number): number {
+        const h = this.terrainHeight(x, z);
+        const snowF = smooth01((h - 170) / 65);
+        const heightRock = smooth01((h - 16) / 39); // smoothstep(16, 55)
+        const eps = 2;
+        const dhdx = (this.terrainHeight(x + eps, z) - this.terrainHeight(x - eps, z)) / (2 * eps);
+        const dhdz = (this.terrainHeight(x, z + eps) - this.terrainHeight(x, z - eps)) / (2 * eps);
+        const ny = 1 / Math.hypot(dhdx, 1, dhdz);
+        const slope = 1 - ny;
+        const slopeRock = smooth01((slope - 0.32) / 0.26) * smooth01((h - 3) / 6);
+        return Math.max(heightRock, slopeRock) * (1 - snowF);
+    }
+
+    /** True where the meadow texture still reads green (not mountain stone). */
+    private isGrassy(x: number, z: number): boolean {
+        return this.rockFactorAt(x, z) < 0.32;
     }
 
     /** builds the scenario system driving sky, fog, lights, clouds, rain, stars */
@@ -295,7 +388,7 @@ export class Scenery {
         };
 
         // --- grass tufts: crossed alpha-tested quads, swaying in the wind
-        const TUFTS = 4200;
+        const TUFTS = scaleCount(4200, this.density.meadow);
         const quadA = new PlaneGeometry(1.3, 1).translate(0, 0.5, 0);
         const quadB = quadA.clone().rotateY(Math.PI / 2);
         const tuftGeo = mergeGeometries([quadA, quadB])!;
@@ -342,7 +435,7 @@ export class Scenery {
         tufts.count = tuftI;
 
         // --- small stones
-        const STONES = 240;
+        const STONES = scaleCount(240, this.density.meadow);
         const stones = new InstancedMesh(
             new IcosahedronGeometry(0.3, 0),
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
@@ -364,7 +457,7 @@ export class Scenery {
         stones.count = stoneI;
 
         // --- fallen logs
-        const LOGS = 26;
+        const LOGS = scaleCount(26, this.density.meadow);
         const logs = new InstancedMesh(
             new CylinderGeometry(0.28, 0.36, 3.2, 6),
             new MeshStandardMaterial({ color: THEME.scenery.trunk, roughness: 0.9 }),
@@ -385,7 +478,7 @@ export class Scenery {
         logs.castShadow = true;
 
         // --- mushrooms (stem + cap merged), often in small groups
-        const MUSHROOMS = 90;
+        const MUSHROOMS = scaleCount(90, this.density.meadow);
         const stem = new CylinderGeometry(0.09, 0.13, 0.5, 5).translate(0, 0.25, 0);
         const cap = new ConeGeometry(0.32, 0.34, 6).translate(0, 0.62, 0);
         const mushrooms = new InstancedMesh(
@@ -438,7 +531,7 @@ export class Scenery {
             return null;
         };
 
-        const REEDS = 160;
+        const REEDS = scaleCount(160, this.density.lake);
         const reeds = new InstancedMesh(
             new CylinderGeometry(0.05, 0.09, 2.4, 4),
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }),
@@ -460,7 +553,7 @@ export class Scenery {
         reeds.count = reedI;
         reeds.castShadow = true;
 
-        const PADS = 70;
+        const PADS = scaleCount(70, this.density.lake);
         const padGeo = new CircleGeometry(0.6, 8);
         padGeo.rotateX(-Math.PI / 2);
         const pads = new InstancedMesh(
@@ -578,7 +671,7 @@ export class Scenery {
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
         const SIZE = 3000;
-        const SEGS = this.detailed ? 300 : 1;
+        const SEGS = this.detailed ? this.density.segs : 1;
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
         geometry.rotateX(-Math.PI / 2);
 
@@ -727,29 +820,52 @@ export class Scenery {
      */
     private createForest(map: BattleMap, rng: () => number): void {
         const s = THEME.scenery;
+        const dens = this.density;
         // reach lower mountain slopes (rise starts ~d=55, foothills to ~350)
-        const margin = 420;
+        const margin = dens.margin;
         const keepOut = 8;
+        const acceptBase = dens.acceptBase;
 
         const distOut = (x: number, z: number) =>
             Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
 
-        /** random point outside the field; biased toward foothill forest density */
+        /** random grassy point outside the field (never on mountain stone) */
         const forestSpot = (maxHeight: number): { x: number; z: number } => {
-            for (let attempt = 0; attempt < 16; attempt++) {
-                const x = (rng() * 2 - 1) * (map.halfW + margin);
-                const z = (rng() * 2 - 1) * (map.halfH + margin);
+            const tries = dens.outer >= 5 ? 80 : 24;
+            for (let attempt = 0; attempt < tries; attempt++) {
+                // ultra: near wall + mid meadow + far green foothills
+                let sampleMargin = margin;
+                if (dens.outer >= 5) {
+                    const roll = rng();
+                    if (roll < 0.34) sampleMargin = 140; // board-edge wall
+                    else if (roll < 0.55) sampleMargin = 280; // mid meadow
+                    else sampleMargin = margin; // green pockets toward mountains
+                }
+                const x = (rng() * 2 - 1) * (map.halfW + sampleMargin);
+                const z = (rng() * 2 - 1) * (map.halfH + sampleMargin);
                 const d = distOut(x, z);
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
                 if (h > maxHeight) continue;
                 if (h < -0.4) continue; // no trees in the lakes
-                // thin near the field, dense toward foothills, taper before high rock
-                const belt = smooth01((d - 25) / 70) * (1 - smooth01((d - 300) / 120));
-                if (rng() > 0.18 + belt * 0.82) continue;
+                if (!this.isGrassy(x, z)) continue; // no trees on rock/snow
+                // thin near the field, dense toward foothills, taper far out
+                const belt =
+                    smooth01((d - dens.beltNear) / dens.beltRamp) *
+                    (1 - smooth01((d - dens.beltFar) / 120));
+                if (rng() > acceptBase + belt * (1 - acceptBase)) continue;
                 return { x, z };
             }
-            // fallback: any valid outer point
+            // fallback: any grassy outer point
+            for (let attempt = 0; attempt < 80; attempt++) {
+                const x = (rng() * 2 - 1) * (map.halfW + margin);
+                const z = (rng() * 2 - 1) * (map.halfH + margin);
+                if (distOut(x, z) < keepOut) continue;
+                if (this.terrainHeight(x, z) < -0.4) continue;
+                if (!this.isGrassy(x, z)) continue;
+                return { x, z };
+            }
+            // last resort (should be rare)
             for (;;) {
                 const x = (rng() * 2 - 1) * (map.halfW + margin);
                 const z = (rng() * 2 - 1) * (map.halfH + margin);
@@ -776,14 +892,14 @@ export class Scenery {
         // bright so the multiply keeps the leaf pattern readable
         const white = new Color(0xffffff);
         const lighten = (c: Color) => c.lerp(white, 0.45);
-        // ~320 outer trees — forest belt, still 5 instanced draw calls
-        const PINES = 200;
-        const LEAFY = 120;
-        const FIELD_PINES = 5;
-        const FIELD_LEAFY = 6;
-        const ROCKS = 170;
-        const BUSHES = 90;
-        const FIELD_BUSHES = 45;
+        // outer forest belt — still a handful of instanced draw calls
+        const PINES = scaleCount(200, dens.outer);
+        const LEAFY = scaleCount(120, dens.outer);
+        const FIELD_PINES = scaleCount(5, dens.field);
+        const FIELD_LEAFY = scaleCount(6, dens.field);
+        const ROCKS = scaleCount(170, dens.outer);
+        const BUSHES = scaleCount(90, dens.outer);
+        const FIELD_BUSHES = scaleCount(45, dens.field);
 
         const trunks = new InstancedMesh(
             new CylinderGeometry(0.35, 0.55, 3.4, 6),
@@ -863,10 +979,13 @@ export class Scenery {
 
         // prefer foothill / lower-slope rocks for silhouette variation
         const rockSpot = (): { x: number; z: number } => {
-            for (let attempt = 0; attempt < 10; attempt++) {
-                const p = forestSpot(150);
-                const h = this.terrainHeight(p.x, p.z);
-                if (h > 4 && h < 140) return p;
+            for (let attempt = 0; attempt < 16; attempt++) {
+                const x = (rng() * 2 - 1) * (map.halfW + margin);
+                const z = (rng() * 2 - 1) * (map.halfH + margin);
+                if (distOut(x, z) < keepOut) continue;
+                const h = this.terrainHeight(x, z);
+                // decorative stones belong on rocky / upper slopes, not meadow
+                if (h > 4 && h < 140 && this.rockFactorAt(x, z) > 0.25) return { x, z };
             }
             return forestSpot(150);
         };
@@ -899,7 +1018,7 @@ export class Scenery {
 
         // wildflowers on the outer meadow band — matches the field's painted
         // flowers so the grass doesn't read as an empty green carpet
-        const FLOWERS = 280;
+        const FLOWERS = scaleCount(280, dens.outer);
         const flowerGeo = new PlaneGeometry(1.1, 1.1);
         flowerGeo.rotateX(-Math.PI / 2);
         const flowers = new InstancedMesh(
@@ -1084,8 +1203,9 @@ export class Scenery {
         // They share the horizon clouds' material, so every weather scenario
         // tints and fades them automatically.
         if (!this.detailed) return; // flat world has no summits
+        const peakCap = this.density.peakClouds;
         let placed = 0;
-        for (let attempt = 0; attempt < 6000 && placed < 12; attempt++) {
+        for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {
             const x = (rng() * 2 - 1) * 1300;
             const z = (rng() * 2 - 1) * 1300;
             const h = this.terrainHeight(x, z);

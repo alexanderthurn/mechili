@@ -90,10 +90,17 @@ export class CameraRig {
     }
 
     /** allows zooming out just far enough to frame a map of the given size */
-    fitMap(width: number, height: number): void {
+    fitMap(width: number, height: number, worldFar = 0): void {
         this.maxZoom = Math.max(120, width * 0.95, height * 1.1);
-        // keep the far plane and fog-friendly range beyond the widest view
-        this.camera.far = this.maxZoom * 4;
+        // keep the far plane beyond the widest orbit, and at least `worldFar`
+        // so outer mountains aren't hard-clipped
+        this.camera.far = Math.max(this.maxZoom * 4, worldFar);
+        this.camera.updateProjectionMatrix();
+    }
+
+    /** Live-adjust far plane (scenery quality) without changing zoom limits. */
+    setWorldFar(worldFar: number): void {
+        this.camera.far = Math.max(this.maxZoom * 4, worldFar);
         this.camera.updateProjectionMatrix();
     }
 

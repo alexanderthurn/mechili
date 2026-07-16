@@ -630,9 +630,12 @@ export class PlacementController {
         }
     }
 
-    /** Flyers climb to combat altitude. */
+    /** Flyers climb to combat altitude. Rockets are already there — reseat so they stay. */
     beginBattle(): void {
-        for (const u of this.units) u.setDeployment(false);
+        for (const u of this.units) {
+            u.setDeployment(false);
+            if (u.type.rocket) u.seatMembers();
+        }
     }
 
     update(timeSeconds: number, dtSeconds: number): void {
