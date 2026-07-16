@@ -166,6 +166,10 @@ const SEPARATION_GAP = 1.0; // soft personal space between mechs
 const SEPARATION_STRENGTH = 1.1;
 const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers, ballistas)
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
+/** expanding-ring cap for closest-enemy search (map diagonal ≪ this × cell) */
+const TARGET_MAX_RING = 48;
+/** under load, prefer smooth frames over catching up every missed sim tick */
+const MAX_STEPS_PER_UPDATE = 3;
 
 /**
  * The real-time battle: every mech acts individually — it walks toward the
@@ -192,6 +196,13 @@ export class BattleSim {
     /** sim clock time until which each side's tower-destruction debuff runs */
     private readonly debuffUntil: Record<Team, number> = { player: 0, enemy: 0 };
     private readonly hash = new Map<number, Actor[]>();
+    /** spatial hash of every attackable actor (incl. structures) for targeting / bullets */
+    private readonly targetHash = new Map<number, Actor[]>();
+    /** living immovable structures — rebuilt each step for overlap resolution */
+    private readonly structures: Actor[] = [];
+    /** scratch buffers to avoid per-call allocations in hot paths */
+    private readonly nearbyScratch: Actor[] = [];
+    private readonly segmentScratch: Actor[] = [];
     /** tech-resolved base stats per pack, fixed at battle start */
     private readonly resolved = new Map<Unit, ResolvedStats>();
     /** damage dealt per `${team}:${typeId}` — the post-battle report data */
@@ -391,8 +402,10 @@ export class BattleSim {
 
     update(dtSeconds: number): void {
         this.accumulator += Math.min(dtSeconds, 0.25);
-        while (this.accumulator >= BattleSim.STEP) {
+        let steps = 0;
+        while (this.accumulator >= BattleSim.STEP && steps < MAX_STEPS_PER_UPDATE) {
             this.accumulator -= BattleSim.STEP;
+            steps++;
             // stop EXACTLY at the deciding step — overshooting by a frame's
             // worth of steps would let peers diverge on the survivors
             if (this.finished) break;
@@ -646,6 +659,8 @@ export class BattleSim {
 
         const d = this.config.towers.debuffPerLostTower;
         this.rebuildHash();
+        this.rebuildTargetHash();
+        this.rebuildStructureList();
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
 
         for (const a of this.actors) {
@@ -742,6 +757,8 @@ export class BattleSim {
             if (a.alive) a.footY = this.feetY(a);
         }
         this.stepRockets(dt);
+        // refresh target cells after everyone has moved — bullet hits need current seats
+        this.rebuildTargetHash();
         this.stepProjectiles(dt);
         this.prevStepDt = dt;
     }
@@ -1045,7 +1062,9 @@ export class BattleSim {
             let hit: Actor | null = null;
             let hitT = Infinity;
             // a live homing shot connects with its victim and nothing else
-            const candidates = p.target?.alive ? [p.target] : this.actors;
+            const candidates = p.target?.alive
+                ? [p.target]
+                : this.actorsNearSegment(p.x, p.z, nx, nz, reach, p.team);
             for (const a of candidates) {
                 if (!a.alive || a.unit.team === p.team) continue;
                 const bx = a.x - p.x;
@@ -1155,8 +1174,8 @@ export class BattleSim {
                 if (a.altitude > 0) continue; // air units ignore structures entirely
                 // towers and rubble-free structures are immovable walls
                 // (board extras take no space — everything walks through them)
-                for (const s of this.actors) {
-                    if (!s.alive || !s.unit.type.structure || s.unit.type.extra) continue;
+                for (const s of this.structures) {
+                    if (!s.alive) continue;
                     this.pushApart(a, s);
                 }
             }
@@ -1226,12 +1245,33 @@ export class BattleSim {
         }
     }
 
+    /** attackable actors (mechs + structures) for targeting and projectile hits */
+    private rebuildTargetHash(): void {
+        this.targetHash.clear();
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.type.extra) continue;
+            const key = this.hashKey(a.x, a.z);
+            const bucket = this.targetHash.get(key);
+            if (bucket) bucket.push(a);
+            else this.targetHash.set(key, [a]);
+        }
+    }
+
+    private rebuildStructureList(): void {
+        this.structures.length = 0;
+        for (const a of this.actors) {
+            if (!a.alive || !a.unit.type.structure || a.unit.type.extra) continue;
+            this.structures.push(a);
+        }
+    }
+
     /** mobile mechs in the 3x3 cells around an actor, in CANONICAL order —
      *  bucket enumeration order differs on mirrored boards, so sort */
     private nearby(a: Actor): Actor[] {
         const cx = Math.floor(a.x / HASH_CELL);
         const cz = Math.floor(a.z / HASH_CELL);
-        const result: Actor[] = [];
+        const result = this.nearbyScratch;
+        result.length = 0;
         for (let ix = -1; ix <= 1; ix++) {
             for (let iz = -1; iz <= 1; iz++) {
                 const bucket = this.hash.get((cx + ix + 2048) * 4096 + (cz + iz + 2048));
@@ -1243,25 +1283,96 @@ export class BattleSim {
     }
 
     /**
+     * Actors whose cells overlap the xz AABB of a flight segment (plus pad).
+     * Sorted by canonical index so hit-ties match a full-array scan.
+     */
+    private actorsNearSegment(
+        x0: number,
+        z0: number,
+        x1: number,
+        z1: number,
+        pad: number,
+        team: Team,
+    ): Actor[] {
+        const result = this.segmentScratch;
+        result.length = 0;
+        const minX = Math.min(x0, x1) - pad;
+        const maxX = Math.max(x0, x1) + pad;
+        const minZ = Math.min(z0, z1) - pad;
+        const maxZ = Math.max(z0, z1) + pad;
+        const cx0 = Math.floor(minX / HASH_CELL);
+        const cx1 = Math.floor(maxX / HASH_CELL);
+        const cz0 = Math.floor(minZ / HASH_CELL);
+        const cz1 = Math.floor(maxZ / HASH_CELL);
+        for (let cx = cx0; cx <= cx1; cx++) {
+            for (let cz = cz0; cz <= cz1; cz++) {
+                const bucket = this.targetHash.get((cx + 2048) * 4096 + (cz + 2048));
+                if (!bucket) continue;
+                for (const a of bucket) {
+                    if (!a.alive || a.unit.team === team) continue;
+                    result.push(a);
+                }
+            }
+        }
+        result.sort((p, q) => p.index - q.index);
+        return result;
+    }
+
+    /**
      * The closest living enemy THIS unit can attack (towers are units like
      * any other). The can-attack matrix rules: e.g. dwarves can't reach air.
      * With `anyLayer` the matrix is ignored — used to pick something to walk
      * to and wait at when no attackable enemy is left.
+     *
+     * Uses an expanding-ring spatial search over {@link targetHash} (rebuilt
+     * at step start) so cost stays near O(k) instead of O(n) per mech.
      */
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
-        const targets = from.unit.type.targets;
+        const wantAir = anyLayer || from.unit.type.targets.air;
+        const wantGround = anyLayer || from.unit.type.targets.ground;
+        if (!wantAir && !wantGround) return null;
+
+        const team = from.unit.team;
         let best: Actor | null = null;
         let bestD = Infinity;
-        for (const a of this.actors) {
-            if (!a.alive || a.unit.team === from.unit.team) continue;
-            if (a.unit.type.extra) continue; // shields/rockets are never targets
-            if (!anyLayer && (a.altitude > 0 ? !targets.air : !targets.ground)) continue;
+        const cx = Math.floor(from.x / HASH_CELL);
+        const cz = Math.floor(from.z / HASH_CELL);
+
+        const consider = (a: Actor): void => {
+            if (!a.alive || a.unit.team === team) return;
+            if (a.altitude > 0 ? !wantAir : !wantGround) return;
             const ddx = a.x - from.x;
             const ddz = a.z - from.z;
             const d = ddx * ddx + ddz * ddz;
-            if (d < bestD) {
+            if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
                 bestD = d;
                 best = a;
+            }
+        };
+
+        const scanCell = (ix: number, iz: number): void => {
+            const bucket = this.targetHash.get((ix + 2048) * 4096 + (iz + 2048));
+            if (!bucket) return;
+            for (const a of bucket) consider(a);
+        };
+
+        for (let ring = 0; ring <= TARGET_MAX_RING; ring++) {
+            // further chebyshev rings can't beat the current best
+            if (best && ring > 0) {
+                const minDist = (ring - 1) * HASH_CELL;
+                if (minDist * minDist >= bestD) break;
+            }
+            if (ring === 0) {
+                scanCell(cx, cz);
+                continue;
+            }
+            for (let dx = -ring; dx <= ring; dx++) {
+                scanCell(cx + dx, cz - ring);
+                scanCell(cx + dx, cz + ring);
+            }
+            for (let dz = -ring + 1; dz <= ring - 1; dz++) {
+                scanCell(cx - ring, cz + dz);
+                scanCell(cx + ring, cz + dz);
             }
         }
         return best;
