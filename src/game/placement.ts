@@ -772,15 +772,13 @@ export class PlacementController {
                 if (this.isHighlighted(unit)) continue;
                 let plate = this.movablePlates[used];
                 if (!plate) {
-                    plate = new Mesh(this.plateGeometry, this.plateMaterial);
+                    plate = new Mesh(this.plateGeometry.clone(), this.plateMaterial);
                     this.scene.add(plate);
                     this.movablePlates.push(plate);
                 }
                 const fp = this.footprintOf(unit.type, unit.rotated);
                 const center = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
-                plate.position.set(center.x, 0.025, center.z);
-                plate.scale.set(fp.cols * CELL * 0.94, 1, fp.rows * CELL * 0.94);
-                plate.visible = true;
+                this.placeFootprintPlate(plate, this.plateMaterial, center, fp, VALID_COLOR, 0, false, 0.025);
                 used++;
             }
         }
@@ -1314,7 +1312,7 @@ export class PlacementController {
             let plate = this.groupPlates[i];
             if (!plate) {
                 plate = new Mesh(
-                    this.plateGeometry,
+                    this.plateGeometry.clone(),
                     new MeshBasicMaterial({
                         transparent: true,
                         opacity: 0.68,
@@ -1333,22 +1331,21 @@ export class PlacementController {
             const moving = lift && delta !== null;
             if (moving) this.applyViewHeight(unit, center.x, center.z, true);
             else unit.view.position.set(center.x, unit.world.y, center.z);
-            plate.position.set(center.x, 0.035, center.z);
-            const mat = plate.material as MeshBasicMaterial;
-            const pulse = this.pulse(timeSeconds);
-            const edge = 0.96 + 0.04 * pulse;
-            plate.scale.set(fp.cols * CELL * edge, 1, fp.rows * CELL * edge);
-            if (!delta) {
-                mat.color.setHex(VALID_COLOR);
-                mat.opacity = 0.58 + 0.22 * pulse;
-                plate.visible = true;
-            } else {
-                mat.color.setHex(
-                    this.groupSpotValid(unit, anchor, units) ? VALID_COLOR : INVALID_COLOR,
-                );
-                mat.opacity = 0.58 + 0.22 * pulse;
-                plate.visible = true;
-            }
+            const color = !delta
+                ? VALID_COLOR
+                : this.groupSpotValid(unit, anchor, units)
+                  ? VALID_COLOR
+                  : INVALID_COLOR;
+            this.placeFootprintPlate(
+                plate,
+                plate.material as MeshBasicMaterial,
+                center,
+                fp,
+                color,
+                timeSeconds,
+                true,
+                0.035,
+            );
         }
         for (let i = units.length; i < this.groupPlates.length; i++) this.groupPlates[i]!.visible = false;
     }
