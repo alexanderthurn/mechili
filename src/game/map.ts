@@ -306,8 +306,9 @@ export class BattleMap {
     }
 
     /**
-     * Where the sand shows through the grass. Starts as a few light random
-     * patches; unit stamping accumulates wear into the same canvas at runtime.
+     * Ground wear mask (RGB): R = sand, G = blood, B = scorch.
+     * Starts with light sand patches; combat stamps accumulate. Sand stamps
+     * use source-over red so walking gradually washes blood/burns back to sand.
      */
     private createSandMask(seed: number): CanvasTexture {
         const w = 512;
@@ -326,7 +327,7 @@ export class BattleMap {
         return tex;
     }
 
-    /** faint loose patches only — no building courtyards or path networks */
+    /** faint loose sand patches only (R channel) — no building courtyards */
     private paintBaseSand(
         ctx: CanvasRenderingContext2D,
         w: number,
@@ -344,45 +345,73 @@ export class BattleMap {
             const blobs = 2 + Math.floor(rng() * 3);
             for (let b = 0; b < blobs; b++) {
                 const r = (2.5 + rng() * 5) * pxPerUnit;
-                this.drawSandBlob(
+                this.drawWearBlob(
                     ctx,
                     cx + (rng() - 0.5) * r * 1.4,
                     cy + (rng() - 0.5) * r * 1.4,
                     r,
                     0.35 + rng() * 0.25,
+                    'r',
                 );
             }
         }
     }
 
-    private drawSandBlob(
+    /**
+     * Soft radial stamp into one mask channel. Source-over with a pure R/G/B
+     * color fades the other channels — so sand (R) walking over blood (G)
+     * gradually restores a sandy look.
+     */
+    private drawWearBlob(
         ctx: CanvasRenderingContext2D,
         x: number,
         y: number,
         r: number,
         alpha: number,
+        channel: 'r' | 'g' | 'b',
     ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        const rgb =
+            channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-        grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        grad.addColorStop(0, `rgba(${rgb},${a})`);
+        grad.addColorStop(1, `rgba(${rgb},0)`);
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    /**
-     * Stamp a soft sandy blob at a world position (visual only). Batches GPU
-     * uploads via {@link flushSandMask}.
-     */
-    stampSand(x: number, z: number, radius: number, strength = 0.09): void {
+    private stampWearChannel(
+        x: number,
+        z: number,
+        radius: number,
+        strength: number,
+        channel: 'r' | 'g' | 'b',
+    ): void {
         const ctx = this.sandCtx;
         if (!ctx || !this.sandMask) return;
         const cx = ((x + this.halfW) / this.width) * this.sandW;
         const cy = ((z + this.halfH) / this.height) * this.sandH;
         const r = Math.max(0.5, radius) * (this.sandW / this.width);
-        this.drawSandBlob(ctx, cx, cy, r, Math.min(1, Math.max(0.05, strength)));
+        this.drawWearBlob(ctx, cx, cy, r, strength, channel);
         this.sandDirty = true;
+    }
+
+    /** Stamp sandy wear (R). Also scrubs blood/scorch underfoot. */
+    stampSand(x: number, z: number, radius: number, strength = 0.09): void {
+        this.stampWearChannel(x, z, radius, strength, 'r');
+    }
+
+    /** Stamp blood under a hit/kill (G) — tight stain, short soft edge. */
+    stampBlood(x: number, z: number, radius: number, strength = 0.14): void {
+        this.stampWearChannel(x, z, radius, strength, 'g');
+        this.stampWearChannel(x, z, radius * 1.35, strength * 0.35, 'g');
+    }
+
+    /** Stamp scorched earth under explosions / big breaks (B). */
+    stampScorch(x: number, z: number, radius: number, strength = 0.16): void {
+        this.stampWearChannel(x, z, radius, strength, 'b');
     }
 
     /** Push pending canvas stamps to the GPU (throttled ~12 Hz unless `force`). */
@@ -394,7 +423,26 @@ export class BattleMap {
         this.sandFlushAt = now;
     }
 
-    /** Wipe unit wear and reseed light base patches (new match only — wear persists across rounds). */
+    /**
+     * Softly fade all wear toward clean grass. `keep` is how much remains
+     * (0.7 ≈ 30% fade). Call once per new round so scars heal over time.
+     */
+    fadeWear(keep = 0.7): void {
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const k = Math.min(1, Math.max(0, keep));
+        const v = Math.round(k * 255);
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        ctx.fillRect(0, 0, this.sandW, this.sandH);
+        ctx.restore();
+        this.sandMask.needsUpdate = true;
+        this.sandDirty = false;
+        this.sandFlushAt = performance.now();
+    }
+
+    /** Wipe unit wear and reseed light base patches (new match only). */
     clearSandWear(): void {
         const ctx = this.sandCtx;
         if (!ctx || !this.sandMask) return;
@@ -474,18 +522,21 @@ export class BattleMap {
                     '#include <uv_vertex>',
                     '#include <uv_vertex>\n\tvMacroUv = uv;',
                 );
-            // sand first (a full detail layer under the same lighting),
-            // then the macro modulation over whatever ground is showing
+            // wear mask RGB: scorch → blood → sand (sand last = walking restores sand over gore)
             let inject = '';
             if (sand && sandMask) {
                 shader.uniforms.uSand = { value: sand };
                 shader.uniforms.uSandMask = { value: sandMask };
                 inject +=
-                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
+                    '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
                     '\tfloat sandLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n' +
-                    '\tfloat sandM = texture2D(uSandMask, vMacroUv).r;\n' +
-                    // bright grass blades overhang into the patch: raggier edge
-                    '\tsandM = smoothstep(0.30, 0.62, sandM - (sandLum - 0.25) * 0.5);\n' +
+                    '\tfloat scorchM = smoothstep(0.12, 0.45, wear.b);\n' +
+                    '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
+                    '\tfloat sandM = smoothstep(0.30, 0.62, wear.r - (sandLum - 0.25) * 0.5);\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
+                    // nearly black crimson puddles — not bright scarlet
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n' +
+                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
             }
             inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
@@ -494,7 +545,7 @@ export class BattleMap {
                 (sand ? 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n' : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
         };
-        material.customProgramCacheKey = () => `ground-macro-detail${sand ? '-sand' : ''}`;
+        material.customProgramCacheKey = () => `ground-macro-detail${sand ? '-wear-rgb' : ''}`;
 
         const previous = mesh.material as MeshStandardMaterial;
         mesh.material = material;

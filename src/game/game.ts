@@ -658,6 +658,8 @@ export class Game {
         this.weather.onRound(this.round);
         this.phase = 'build';
         this.phaseRemaining = this.settings.buildTimeSeconds;
+        // scars fade each round so the field heals over a few battles
+        if (this.round > 1) this.map.fadeWear(0.68);
         this.placement.beginDeployment();
         this.placement.enabled = true;
         this.placement.hiddenPlacements = true;
@@ -1748,7 +1750,9 @@ export class Game {
                 if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
             } else if (this.sim) {
                 this.sim.update(gameDt);
-                this.particles.spawnFromEvents(this.sim.consumeEvents());
+                const battleEvents = this.sim.consumeEvents();
+                this.particles.spawnFromEvents(battleEvents);
+                this.stampWearFromEvents(battleEvents);
                 this.sim.syncMeshes(); // per-frame interpolated positions
                 this.sim.syncBattleVisuals(this.time);
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
@@ -1808,6 +1812,7 @@ export class Game {
     /**
      * Visual-only: ground mechs stamp sandy wear as they walk. Throttled via
      * the map's mask flush; flyers/structures/extras leave no trail.
+     * Sand (R) washes blood/scorch back when units walk over gore.
      */
     private updateSandWear(): void {
         if (!this.sandBootstrapped && this.map.sandReady) {
@@ -1827,12 +1832,30 @@ export class Game {
                 const dist = Math.hypot(a.x - prev.x, a.z - prev.z);
                 if (dist < 0.75) continue;
                 const w = this.map.sandStampWeight(t);
-                this.map.stampSand(a.x, a.z, Math.max(a.radius * 1.35, 0.9) * Math.sqrt(w), 0.055 * w);
+                // slightly stronger than pure wear so footsteps reclaim bloody/scorched ground
+                this.map.stampSand(a.x, a.z, Math.max(a.radius * 1.35, 0.9) * Math.sqrt(w), 0.08 * w);
                 prev.x = a.x;
                 prev.z = a.z;
             }
         }
         this.map.flushSandMask();
+    }
+
+    /** Blood under hits/kills, scorch under blasts — same wear mask as sand. */
+    private stampWearFromEvents(events: readonly SimEvent[]): void {
+        for (const e of events) {
+            if (e.kind === 'impact' && e.y > 0.25) {
+                this.map.stampBlood(e.x, e.z, 1.1, 0.55);
+            } else if (e.kind === 'death') {
+                if (e.ash) {
+                    this.map.stampScorch(e.x, e.z, e.big ? 10 : 7, e.big ? 0.85 : 0.7);
+                } else {
+                    this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65);
+                }
+            } else if (e.kind === 'explosion') {
+                this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.9, 2), 0.16);
+            }
+        }
     }
 
     /** the living mech whose on-screen position is closest to the click */

@@ -124,7 +124,7 @@ export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     | { kind: 'impact'; x: number; y: number; z: number }
     | { kind: 'explosion'; x: number; y: number; z: number; radius: number }
-    | { kind: 'death'; x: number; y: number; z: number; big: boolean }
+    | { kind: 'death'; x: number; y: number; z: number; big: boolean; ash?: boolean }
     | { kind: 'levelup'; x: number; y: number; z: number };
 
 const PROJECTILE_RADIUS = 0.25;
@@ -570,6 +570,8 @@ export class BattleSim {
             y: target.altitude + t.meshScale * 0.8,
             z: target.z,
             big: target.radius >= 2 || !!t.structure,
+            // siege engines & buildings burn/collapse — no blood
+            ash: !!t.structure || t.id === 'ballista',
         });
         if (t.structure) {
             target.unit.markDestroyed();
@@ -885,7 +887,7 @@ export class BattleSim {
         s.alive = false;
         s.mesh.visible = false;
         s.unit.consumed = true; // broken — gone for good at the round reset
-        this.events.push({ kind: 'death', x: s.x, y: 2, z: s.z, big: true });
+        this.events.push({ kind: 'death', x: s.x, y: 2, z: s.z, big: true, ash: true });
     }
 
     /** spawns a bullet from the shooter's muzzle toward the target's primary hit volume */

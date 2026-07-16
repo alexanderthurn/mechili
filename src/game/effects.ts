@@ -11,6 +11,7 @@ import {
     Matrix4,
     MeshBasicMaterial,
     MeshLambertMaterial,
+    NormalBlending,
     Points,
     PointsMaterial,
     Quaternion,
@@ -43,10 +44,110 @@ function makeArrowGeometry(scale: number): BufferGeometry {
 }
 
 /**
- * A pooled point-sprite particle system: one Points object, one draw call.
- * Visual only — never part of the deterministic sim (randomness is fine here).
+ * Visual-only particles — never part of the deterministic sim.
+ * Additive sparks for muzzle/explosions; normal-blended blood so hits stay dark.
  */
 export class Particles {
+    private readonly sparks: ParticlePool;
+    private readonly blood: ParticlePool;
+
+    constructor(scene: Scene) {
+        this.sparks = new ParticlePool(scene, AdditiveBlending, 1.4);
+        this.blood = new ParticlePool(scene, NormalBlending, 0.8);
+    }
+
+    burst(
+        x: number,
+        y: number,
+        z: number,
+        opts: { count: number; color: number; speed: number; life: number; up?: number; blood?: boolean },
+    ): void {
+        (opts.blood ? this.blood : this.sparks).burst(x, y, z, opts);
+    }
+
+    update(dt: number): void {
+        this.sparks.update(dt);
+        this.blood.update(dt);
+    }
+
+    spawnFromEvents(events: readonly SimEvent[]): void {
+        for (const e of events) {
+            switch (e.kind) {
+                case 'muzzle':
+                    this.burst(e.x, e.y, e.z, { count: 3, color: THEME.muzzle, speed: 5, life: 0.15, up: 1 });
+                    break;
+                case 'impact':
+                    this.burst(e.x, e.y, e.z, {
+                        count: 6,
+                        color: THEME.impact,
+                        speed: 9,
+                        life: 0.35,
+                        blood: true,
+                    });
+                    break;
+                case 'explosion': {
+                    const s = e.radius / 3;
+                    this.burst(e.x, e.y, e.z, { count: Math.round(32 * s), color: 0xffa040, speed: 15 * s, life: 0.5, up: 5 });
+                    this.burst(e.x, e.y + 0.6, e.z, { count: Math.round(18 * s), color: 0xff6030, speed: 9 * s, life: 0.7, up: 7 });
+                    this.burst(e.x, e.y, e.z, { count: 10, color: 0xffd060, speed: 4, life: 0.4, up: 3 });
+                    break;
+                }
+                case 'death':
+                    if (e.ash) {
+                        // dark ash / debris — not blood
+                        this.burst(e.x, e.y, e.z, {
+                            count: e.big ? 36 : 18,
+                            color: 0x1a1814,
+                            speed: e.big ? 14 : 10,
+                            life: 0.8,
+                            up: 5,
+                            blood: true,
+                        });
+                        this.burst(e.x, e.y + 0.8, e.z, {
+                            count: e.big ? 16 : 8,
+                            color: 0x2e2a24,
+                            speed: 7,
+                            life: 0.55,
+                            up: 6,
+                            blood: true,
+                        });
+                    } else if (e.big) {
+                        this.burst(e.x, e.y, e.z, {
+                            count: 44,
+                            color: THEME.death,
+                            speed: 17,
+                            life: 0.9,
+                            up: 6,
+                            blood: true,
+                        });
+                        this.burst(e.x, e.y + 1, e.z, {
+                            count: 20,
+                            color: THEME.deathSecondary,
+                            speed: 9,
+                            life: 0.6,
+                            up: 8,
+                            blood: true,
+                        });
+                    } else {
+                        this.burst(e.x, e.y, e.z, {
+                            count: 12,
+                            color: THEME.deathSmall,
+                            speed: 11,
+                            life: 0.5,
+                            up: 4,
+                            blood: true,
+                        });
+                    }
+                    break;
+                case 'levelup':
+                    this.burst(e.x, e.y, e.z, { count: 10, color: THEME.levelup, speed: 4, life: 0.6, up: 9 });
+                    break;
+            }
+        }
+    }
+}
+
+class ParticlePool {
     private readonly positions = new Float32Array(MAX_PARTICLES * 3);
     private readonly colors = new Float32Array(MAX_PARTICLES * 3);
     private readonly velocities = new Float32Array(MAX_PARTICLES * 3);
@@ -57,24 +158,24 @@ export class Particles {
     private cursor = 0;
     private readonly tmpColor = new Color();
 
-    constructor(scene: Scene) {
+    constructor(scene: Scene, blending: typeof AdditiveBlending | typeof NormalBlending, size: number) {
         this.positions.fill(0);
         this.geometry.setAttribute('position', new BufferAttribute(this.positions, 3).setUsage(DynamicDrawUsage));
         this.geometry.setAttribute('color', new BufferAttribute(this.colors, 3).setUsage(DynamicDrawUsage));
         const points = new Points(
             this.geometry,
             new PointsMaterial({
-                size: 1.4,
+                size,
                 vertexColors: true,
                 transparent: true,
                 depthWrite: false,
-                blending: AdditiveBlending,
+                blending,
                 sizeAttenuation: true,
+                opacity: blending === NormalBlending ? 0.92 : 1,
             }),
         );
         points.frustumCulled = false;
         scene.add(points);
-        // park everything far underground until used
         for (let i = 0; i < MAX_PARTICLES; i++) this.positions[i * 3 + 1] = -9999;
     }
 
@@ -120,7 +221,7 @@ export class Particles {
             this.positions[i * 3]! += this.velocities[i * 3]! * dt;
             this.positions[i * 3 + 1]! += this.velocities[i * 3 + 1]! * dt;
             this.positions[i * 3 + 2]! += this.velocities[i * 3 + 2]! * dt;
-            if (this.positions[i * 3 + 1]! < 0.05) this.positions[i * 3 + 1] = 0.05; // rest on the ground
+            if (this.positions[i * 3 + 1]! < 0.05) this.positions[i * 3 + 1] = 0.05;
             const fade = this.life[i]! / this.maxLife[i]!;
             this.colors[i * 3] = this.baseColors[i * 3]! * fade;
             this.colors[i * 3 + 1] = this.baseColors[i * 3 + 1]! * fade;
@@ -128,39 +229,6 @@ export class Particles {
         }
         this.geometry.attributes.position!.needsUpdate = true;
         this.geometry.attributes.color!.needsUpdate = true;
-    }
-
-    /** turns a batch of sim events into bursts */
-    spawnFromEvents(events: readonly SimEvent[]): void {
-        for (const e of events) {
-            switch (e.kind) {
-                case 'muzzle':
-                    this.burst(e.x, e.y, e.z, { count: 3, color: THEME.muzzle, speed: 5, life: 0.15, up: 1 });
-                    break;
-                case 'impact':
-                    this.burst(e.x, e.y, e.z, { count: 6, color: THEME.impact, speed: 9, life: 0.35 });
-                    break;
-                case 'explosion': {
-                    // artillery blast, scaled to the splash radius (tuned at r = 3)
-                    const s = e.radius / 3;
-                    this.burst(e.x, e.y, e.z, { count: Math.round(32 * s), color: THEME.impact, speed: 15 * s, life: 0.5, up: 5 });
-                    this.burst(e.x, e.y + 0.6, e.z, { count: Math.round(18 * s), color: THEME.death, speed: 9 * s, life: 0.7, up: 7 });
-                    this.burst(e.x, e.y, e.z, { count: 10, color: THEME.deathSecondary, speed: 4, life: 0.4, up: 3 });
-                    break;
-                }
-                case 'death':
-                    if (e.big) {
-                        this.burst(e.x, e.y, e.z, { count: 44, color: THEME.death, speed: 17, life: 0.9, up: 6 });
-                        this.burst(e.x, e.y + 1, e.z, { count: 20, color: THEME.deathSecondary, speed: 9, life: 0.6, up: 8 });
-                    } else {
-                        this.burst(e.x, e.y, e.z, { count: 12, color: THEME.deathSmall, speed: 11, life: 0.5, up: 4 });
-                    }
-                    break;
-                case 'levelup':
-                    this.burst(e.x, e.y, e.z, { count: 10, color: THEME.levelup, speed: 4, life: 0.6, up: 9 });
-                    break;
-            }
-        }
     }
 }
 
