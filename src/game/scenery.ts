@@ -43,6 +43,7 @@ import {
     sandAlbedoUrl,
     makeValueNoise,
     mulberry32,
+    registerOuterHeight,
     type BattleMap,
 } from './map';
 
@@ -150,6 +151,8 @@ export class Scenery {
             this.terrainHeight = () => 0;
             this.lakeAt = () => 0;
         }
+        // the camera rig uses this to stay above the mountains
+        registerOuterHeight((x, z) => this.terrainHeight(x, z));
 
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
@@ -249,7 +252,7 @@ export class Scenery {
         this.waterTexture = new CanvasTexture(canvas);
         this.waterTexture.colorSpace = SRGBColorSpace;
         this.waterTexture.wrapS = this.waterTexture.wrapT = RepeatWrapping;
-        this.waterTexture.repeat.set(100, 100); // one ripple tile per 30 world units
+        this.waterTexture.repeat.set(215, 215); // one ripple tile per ~14 world units
 
         const geometry = new PlaneGeometry(3000, 3000);
         geometry.rotateX(-Math.PI / 2);

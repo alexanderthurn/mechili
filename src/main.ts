@@ -142,6 +142,12 @@ usernameEl.type = 'button';
 usernameEl.style.zIndex = '30';
 wrapper.appendChild(usernameEl);
 
+const versionEl = document.createElement('div');
+versionEl.className = 'mechili-version';
+versionEl.style.zIndex = '30';
+versionEl.textContent = `v${__APP_VERSION__} · protocol ${GAME_VERSION}`;
+wrapper.appendChild(versionEl);
+
 // big gear in the top-right corner of the main menu
 const settingsCornerEl = document.createElement('button');
 settingsCornerEl.className = 'mechili-settings-btn';
@@ -318,19 +324,19 @@ function showNameEditor(): void {
     overlay.className = 'mechili-name-edit';
     overlay.innerHTML =
         `<div class="box">` +
-        `<div class="title">Choose your username</div>` +
+        `<div class="title">Username</div>` +
         `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" />` +
-        `<div class="hint">Optional password locks this name. No recovery — forget it and the name is gone.</div>` +
+        `<label class="field">Password` +
+        `<input class="pw-input" type="password" maxlength="64" autocomplete="current-password" /></label>` +
+        `<div class="hint">Password is optional if not yet set, no recovery</div>` +
         `<div class="error" hidden></div>` +
-        `<div class="extra"></div>` +
         `<div class="actions">` +
         `<button type="button" data-act="cancel">Cancel</button>` +
-        `<button type="button" class="primary" data-act="continue">Continue</button>` +
+        `<button type="button" class="primary" data-act="save">Save</button>` +
         `</div></div>`;
 
-    const box = overlay.querySelector('.box')!;
     const nameInput = overlay.querySelector<HTMLInputElement>('.name-input')!;
-    const extra = overlay.querySelector<HTMLDivElement>('.extra')!;
+    const pwInput = overlay.querySelector<HTMLInputElement>('.pw-input')!;
     const errorEl = overlay.querySelector<HTMLDivElement>('.error')!;
     const actions = overlay.querySelector<HTMLDivElement>('.actions')!;
     nameInput.select();
@@ -342,154 +348,99 @@ function showNameEditor(): void {
 
     const close = () => overlay.remove();
 
-    const finishClaim = async (name: string, opts: { password?: string; setPassword?: string }) => {
-        setError('');
+    const setBusy = (busy: boolean) => {
         actions.querySelectorAll('button').forEach((b) => {
-            b.disabled = true;
+            b.disabled = busy;
         });
-        const result = await claimName({ name, ...opts });
+        nameInput.disabled = busy;
+        pwInput.disabled = busy;
+    };
+
+    const save = async () => {
+        const next = validatePlayerName(nameInput.value);
+        if (!next) {
+            nameInput.style.borderColor = '#e83828';
+            setError('Name must be 2–16 letters, numbers, _ or -.');
+            return;
+        }
+        nameInput.style.borderColor = '';
+        setError('');
+        setBusy(true);
+
+        const pw = pwInput.value;
+        const probe = await probeName(next);
+
+        if (!probe) {
+            // offline — switch locally
+            setPlayerName(next);
+            refreshUsernameLabel();
+            void refreshOpenProfile();
+            close();
+            return;
+        }
+
+        if (probe.exists && probe.hasPassword) {
+            if (pw.length < 4) {
+                setBusy(false);
+                setError('This name is locked — enter the password.');
+                pwInput.focus();
+                return;
+            }
+            const result = await claimName({ name: next, password: pw });
+            setBusy(false);
+            if (result.ok) {
+                setPlayerName(next);
+                refreshUsernameLabel();
+                close();
+                return;
+            }
+            if (result.wrongPassword) {
+                setError('Wrong password.');
+                return;
+            }
+            setError(result.hint ?? result.error ?? 'Could not unlock name.');
+            return;
+        }
+
+        // new or unprotected — optional setPassword
+        if (pw !== '' && pw.length < 4) {
+            setBusy(false);
+            setError('Password must be at least 4 characters.');
+            return;
+        }
+        const result = await claimName({
+            name: next,
+            ...(pw ? { setPassword: pw } : {}),
+        });
+        setBusy(false);
         if (result.ok) {
-            setPlayerName(name);
+            setPlayerName(next);
             refreshUsernameLabel();
             close();
             return;
         }
-        actions.querySelectorAll('button').forEach((b) => {
-            b.disabled = false;
-        });
-        if (result.wrongPassword) {
-            setError('Wrong password.');
-            return;
-        }
-        if (result.needsPassword) {
-            setError('Password required.');
-            return;
-        }
-        setError(result.hint ?? result.error ?? 'Could not claim name (server unreachable?).');
-    };
-
-    const showPasswordUnlock = (name: string) => {
-        extra.innerHTML =
-            `<label class="field">Password` +
-            `<input class="pw-input" type="password" maxlength="64" autocomplete="current-password" /></label>`;
-        actions.innerHTML =
-            `<button type="button" data-act="cancel">Cancel</button>` +
-            `<button type="button" class="primary" data-act="unlock">Unlock</button>`;
-        const pw = extra.querySelector<HTMLInputElement>('.pw-input')!;
-        pw.focus();
-        box.querySelector('.title')!.textContent = `Unlock “${name}”`;
-        nameInput.hidden = true;
-    };
-
-    const showProtectNew = (name: string) => {
-        extra.innerHTML =
-            `<div class="hint">New name. Protect it with a password?</div>` +
-            `<label class="field">Password (optional)` +
-            `<input class="pw-input" type="password" maxlength="64" autocomplete="new-password" placeholder="leave empty for none" /></label>`;
-        actions.innerHTML =
-            `<button type="button" data-act="cancel">Cancel</button>` +
-            `<button type="button" data-act="skip-protect">No password</button>` +
-            `<button type="button" class="primary" data-act="set-protect">Save</button>`;
-        box.querySelector('.title')!.textContent = `Create “${name}”`;
-        nameInput.hidden = true;
-        extra.querySelector<HTMLInputElement>('.pw-input')?.focus();
+        setError(result.hint ?? result.error ?? 'Could not claim name.');
     };
 
     overlay.addEventListener('click', (e) => {
-        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
-        const act = btn?.dataset.act;
+        const act = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.act;
         if (act === 'cancel' || e.target === overlay) {
             close();
             return;
         }
-        if (!act) return;
-
-        void (async () => {
-            if (act === 'continue') {
-                const next = validatePlayerName(nameInput.value);
-                if (!next) {
-                    nameInput.style.borderColor = '#e83828';
-                    setError('Name must be 2–16 letters, numbers, _ or -.');
-                    return;
-                }
-                nameInput.style.borderColor = '';
-                setError('');
-                btn!.disabled = true;
-                const probe = await probeName(next);
-                btn!.disabled = false;
-                if (!probe) {
-                    // offline: just switch locally
-                    setPlayerName(next);
-                    refreshUsernameLabel();
-                    void refreshOpenProfile();
-                    close();
-                    return;
-                }
-                if (probe.exists && probe.hasPassword) {
-                    showPasswordUnlock(next);
-                    (overlay as HTMLElement & { _pendingName?: string })._pendingName = next;
-                    return;
-                }
-                if (!probe.exists) {
-                    showProtectNew(next);
-                    (overlay as HTMLElement & { _pendingName?: string })._pendingName = next;
-                    return;
-                }
-                // exists, unprotected
-                await finishClaim(next, {});
-                return;
-            }
-
-            const pendingName =
-                (overlay as HTMLElement & { _pendingName?: string })._pendingName ??
-                validatePlayerName(nameInput.value);
-            if (!pendingName) return;
-
-            if (act === 'unlock') {
-                const pw = extra.querySelector<HTMLInputElement>('.pw-input')?.value ?? '';
-                if (pw.length < 4) {
-                    setError('Password must be at least 4 characters.');
-                    return;
-                }
-                await finishClaim(pendingName, { password: pw });
-                return;
-            }
-            if (act === 'skip-protect') {
-                await finishClaim(pendingName, {});
-                return;
-            }
-            if (act === 'set-protect') {
-                const pw = extra.querySelector<HTMLInputElement>('.pw-input')?.value ?? '';
-                if (pw === '') {
-                    await finishClaim(pendingName, {});
-                    return;
-                }
-                if (pw.length < 4) {
-                    setError('Password must be at least 4 characters.');
-                    return;
-                }
-                await finishClaim(pendingName, { setPassword: pw });
-            }
-        })();
+        if (act === 'save') void save();
     });
 
     overlay.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') close();
-        if (e.key === 'Enter') {
-            const primary = overlay.querySelector<HTMLButtonElement>('button.primary');
-            primary?.click();
-        }
+        if (e.key === 'Enter') void save();
     });
 
-    // locked-out current name: jump straight to unlock
-    if (isProfileLockedOut()) {
-        const cur = getPlayerName();
-        (overlay as HTMLElement & { _pendingName?: string })._pendingName = cur;
-        showPasswordUnlock(cur);
-    }
+    // locked-out: focus password
+    if (isProfileLockedOut()) pwInput.focus();
+    else nameInput.focus();
 
     wrapper.appendChild(overlay);
-    if (!nameInput.hidden) nameInput.focus();
 }
 
 refreshUsernameLabel();
@@ -577,6 +528,7 @@ function returnToMenu(): void {
     app.render();
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
+    wrapper.appendChild(versionEl);
     wrapper.appendChild(settingsCornerEl);
     wrapper.appendChild(gchatEl);
     startGlobalChatPoll();
@@ -608,6 +560,7 @@ function startGame(
     app.renderer.off('resize', layoutTitle);
     menu.remove();
     usernameEl.remove();
+    versionEl.remove();
     settingsCornerEl.remove();
     gchatEl.remove();
     if (net) {
@@ -696,6 +649,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
     setMenuBusy(true);
     menu.style.display = 'none';
     usernameEl.style.display = 'none';
+    versionEl.style.display = 'none';
     showResumeOverlay(
         'Reconnecting…',
         'Waiting for your opponent and restoring the match.',
@@ -705,6 +659,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
             hideResumeOverlay();
             menu.style.display = '';
             usernameEl.style.display = '';
+            versionEl.style.display = '';
             setMenuBusy(false);
         },
     );
@@ -733,6 +688,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
         hideResumeOverlay();
         menu.style.display = '';
         usernameEl.style.display = '';
+        versionEl.style.display = '';
         if (e instanceof DOMException && e.name === 'AbortError') {
             setMenuBusy(false);
             return;

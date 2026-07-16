@@ -1,8 +1,9 @@
-import { cpSync } from 'node:fs';
+import { cpSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 const backendDir = resolve('backend');
+const { version: appVersion } = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
 
 /** Copy backend/ (PHP matchmaking, etc.) into dist alongside the game bundle. */
 function copyBackend() {
@@ -19,6 +20,9 @@ export default defineConfig({
     base: './',
     build: {
         target: 'esnext',
+    },
+    define: {
+        __APP_VERSION__: JSON.stringify(appVersion),
     },
     plugins: [copyBackend()],
 });

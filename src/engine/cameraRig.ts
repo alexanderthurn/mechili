@@ -28,6 +28,9 @@ export class CameraRig {
     readonly maxPitch = (85 * Math.PI) / 180;
     readonly defaultPitch = (55 * Math.PI) / 180;
 
+    /** terrain height lookup — the camera never dives below this (+ margin) */
+    floorAt: ((x: number, z: number) => number) | null = null;
+
     private readonly desired: RigState = { x: 0, z: 24, zoom: 75, heading: 0, pitch: this.defaultPitch };
     private readonly state: RigState = { ...this.desired };
     private boundsHalfW = Infinity;
@@ -200,11 +203,12 @@ export class CameraRig {
 
     private applyState(s: RigState): void {
         const horizontal = Math.cos(s.pitch) * s.zoom;
-        this.camera.position.set(
-            s.x + Math.sin(s.heading) * horizontal,
-            Math.sin(s.pitch) * s.zoom,
-            s.z + Math.cos(s.heading) * horizontal,
-        );
+        const px = s.x + Math.sin(s.heading) * horizontal;
+        const pz = s.z + Math.cos(s.heading) * horizontal;
+        let py = Math.sin(s.pitch) * s.zoom;
+        // stay above the terrain (the mountain ring is tall) at low pitches
+        if (this.floorAt) py = Math.max(py, this.floorAt(px, pz) + 3);
+        this.camera.position.set(px, py, pz);
         this.camera.lookAt(s.x, 0, s.z);
     }
 }

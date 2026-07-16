@@ -88,6 +88,18 @@ export function groundHeightAt(x: number, z: number): number {
     return groundHeightFn(x, z);
 }
 
+let outerHeightFn: (x: number, z: number) => number = () => 0;
+
+/** the scenery registers its outer-terrain height here (0 inside the board) */
+export function registerOuterHeight(fn: (x: number, z: number) => number): void {
+    outerHeightFn = fn;
+}
+
+/** total visual terrain height anywhere: board relief + outer world */
+export function worldHeightAt(x: number, z: number): number {
+    return groundHeightFn(x, z) + outerHeightFn(x, z);
+}
+
 /**
  * Height that keeps a footprint clear of the relief: the max of the center
  * and a ring of samples at `radius`. Use this for seating units so they don't

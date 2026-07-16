@@ -36,7 +36,7 @@ import {
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { ITEMS } from './items';
-import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, type Cell } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { prefs } from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
@@ -336,6 +336,7 @@ export class Game {
             (this.map.halfH - (this.map.size.zoneRows * CELL) / 2) * (nearSide ? 1 : -1);
         this.rig.startAt(0, ownZoneZ, 110);
         this.controls = new CameraControls(this.rig, surface);
+        this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'));

@@ -407,6 +407,23 @@ export function menuStyles(): string {
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-settings-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
+.mechili-version {
+    position: absolute;
+    left: calc(16px + env(safe-area-inset-left));
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    color: ${u.textMuted};
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    opacity: 0.85;
+    pointer-events: none;
+    user-select: none;
+    z-index: 30;
+}
 .mechili-name-edit {
     position: absolute;
     inset: 0;
@@ -416,7 +433,7 @@ export function menuStyles(): string {
     background: rgba(0, 0, 0, 0.5);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
-    z-index: 20;
+    z-index: 70;
 }
 .mechili-name-edit .box {
     display: flex;
@@ -428,8 +445,15 @@ export function menuStyles(): string {
     border-radius: 12px;
     min-width: 280px;
     max-width: min(360px, 92vw);
+    color: ${u.text};
+    font-family: system-ui, sans-serif;
 }
-.mechili-name-edit .title { font-weight: bold; letter-spacing: 0.5px; }
+.mechili-name-edit .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: ${u.text};
+    letter-spacing: 0;
+}
 .mechili-name-edit input {
     padding: 10px 12px;
     background: ${u.panelBg};
@@ -439,6 +463,7 @@ export function menuStyles(): string {
     font-size: 15px;
     letter-spacing: 1px;
     width: 100%;
+    box-sizing: border-box;
 }
 .mechili-name-edit .field {
     display: flex;
@@ -479,7 +504,7 @@ export function menuStyles(): string {
     font-family: system-ui, sans-serif;
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
-    z-index: 40;
+    z-index: 70;
 }
 .mechili-settings .box {
     display: flex;
