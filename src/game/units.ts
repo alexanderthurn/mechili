@@ -217,45 +217,45 @@ class PartFactory {
     }
 }
 
-function buildCrawler(parts: PartFactory): void {
-    // one small bug of the swarm
+function buildDwarf(parts: PartFactory): void {
+    // one small fighter of the pack
     parts.sphere(0.42, 0, 0.35, 0, 'hull');
     parts.sphere(0.16, 0, 0.62, -0.25, 'accent');
     parts.box(1.0, 0.12, 0.5, 0, 0.12, 0, 'dark'); // leg plate
 }
 
-function buildMarksman(parts: PartFactory): void {
+function buildArcher(parts: PartFactory): void {
     for (const side of [-1, 1]) {
         parts.cylinder(0.09, 0.13, 1.0, side * 0.5, 0.5, 0.15, 'dark'); // legs
     }
     parts.box(0.9, 0.7, 0.7, 0, 1.15, 0, 'hull'); // torso
-    parts.sphere(0.24, 0, 1.6, -0.15, 'accent'); // sensor head
+    parts.sphere(0.24, 0, 1.6, -0.15, 'accent'); // hooded head
     const barrel = parts.cylinder(0.07, 0.07, 1.9, 0, 1.25, -1.0, 'dark');
     barrel.rotation.x = Math.PI / 2; // aim down -z
-    parts.box(0.18, 0.18, 0.3, 0, 1.25, -1.95, 'accent'); // muzzle
+    parts.box(0.18, 0.18, 0.3, 0, 1.25, -1.95, 'accent'); // bow tip
 }
 
-function buildFortress(parts: PartFactory): void {
+function buildBallista(parts: PartFactory): void {
     for (const side of [-1, 1]) {
-        parts.box(0.6, 0.55, 2.6, side * 1.35, 0.35, 0, 'dark'); // treads
+        parts.box(0.6, 0.55, 2.6, side * 1.35, 0.35, 0, 'dark'); // wheels
     }
     parts.box(2.2, 0.7, 2.4, 0, 0.75, 0, 'hull'); // chassis
-    parts.cylinder(0.85, 0.95, 0.45, 0, 1.3, 0.1, 'dark'); // turret ring
-    parts.cylinder(0.6, 0.7, 0.5, 0, 1.65, 0.1, 'hull'); // turret
+    parts.cylinder(0.85, 0.95, 0.45, 0, 1.3, 0.1, 'dark'); // turntable
+    parts.cylinder(0.6, 0.7, 0.5, 0, 1.65, 0.1, 'hull'); // cradle
     const cannon = parts.cylinder(0.13, 0.13, 2.2, 0, 1.65, -1.1, 'dark');
     cannon.rotation.x = Math.PI / 2;
-    parts.box(0.32, 0.32, 0.4, 0, 1.65, -2.15, 'accent'); // muzzle
-    parts.box(2.0, 0.18, 0.2, 0, 0.55, 1.25, 'accent'); // rear glow strip
+    parts.box(0.32, 0.32, 0.4, 0, 1.65, -2.15, 'accent'); // bolt tip
+    parts.box(2.0, 0.18, 0.2, 0, 0.55, 1.25, 'accent'); // rear brace
 }
 
-function buildWasp(parts: PartFactory): void {
-    parts.sphere(0.5, 0, 0, 0, 'light'); // hull
-    parts.box(0.3, 0.2, 0.9, 0, 0.05, -0.5, 'light'); // nose boom
-    parts.sphere(0.16, 0, 0.1, -0.85, 'accent'); // sensor tip
-    const rotor = parts.cylinder(0.7, 0.7, 0.06, 0, 0.5, 0, 'light'); // rotor disc
+function buildCrowRider(parts: PartFactory): void {
+    parts.sphere(0.5, 0, 0, 0, 'light'); // body
+    parts.box(0.3, 0.2, 0.9, 0, 0.05, -0.5, 'light'); // beak boom
+    parts.sphere(0.16, 0, 0.1, -0.85, 'accent'); // beak tip
+    const rotor = parts.cylinder(0.7, 0.7, 0.06, 0, 0.5, 0, 'light'); // wing disc
     rotor.scale.y = 0.6;
-    parts.box(0.12, 0.35, 0.12, 0, 0.35, 0, 'light'); // rotor mast
-    parts.box(0.9, 0.1, 0.25, 0, -0.25, 0.15, 'accent'); // belly glow strip
+    parts.box(0.12, 0.35, 0.12, 0, 0.35, 0, 'light'); // rider mast
+    parts.box(0.9, 0.1, 0.25, 0, -0.25, 0.15, 'accent'); // belly strip
 }
 
 function buildShield(parts: PartFactory): void {
@@ -328,11 +328,11 @@ export const SHIELD_HEIGHT = 17;
 
 export const UNIT_TYPES: UnitType[] = [
     {
-        id: 'crawler',
+        id: 'dwarf',
         name: 'Dwarf',
         cost: 100,
         footprint: { cols: 5, rows: 2 },
-        formation: { cols: 8, rows: 3 }, // a swarm of 24 bugs
+        formation: { cols: 8, rows: 3 }, // a pack of 24 fighters
         meshScale: 1,
         targets: { ground: true, air: false }, // can't reach the sky
         collisionRadius: 0.5,
@@ -343,40 +343,40 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 0.7,
         speed: 9,
         techs: [
-            { id: 'legs', name: 'Overclocked Legs', cost: 150, mods: { speed: 1.35 } },
-            { id: 'carapace', name: 'Carapace', cost: 200, mods: { hp: 1.5 } },
+            { id: 'legs', name: 'Fleet Feet', cost: 150, mods: { speed: 1.35 } },
+            { id: 'carapace', name: 'Stone Hide', cost: 200, mods: { hp: 1.5 } },
         ],
-        build: buildCrawler,
+        build: buildDwarf,
     },
     {
-        id: 'marksman',
+        id: 'archer',
         name: 'Archer',
         cost: 100,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
-        targets: { ground: true, air: true }, // snipes anything
+        targets: { ground: true, air: true }, // picks off anything
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
         projectileSpeed: 160,
-        homing: true, // a marksman does not miss
+        homing: true, // an archer does not miss
         hp: 130,
         damage: 65,
         range: 45,
         attackInterval: 1.4,
         speed: 3.5,
         techs: [
-            { id: 'barrel', name: 'Long Barrel', cost: 200, mods: { range: 1.3 } },
-            { id: 'ap', name: 'AP Rounds', cost: 250, mods: { damage: 1.4 } },
+            { id: 'barrel', name: 'Longbow', cost: 200, mods: { range: 1.3 } },
+            { id: 'ap', name: 'Piercing Arrows', cost: 250, mods: { damage: 1.4 } },
         ],
-        build: buildMarksman,
+        build: buildArcher,
     },
     {
-        id: 'wasp',
+        id: 'crowRider',
         name: 'Crow Rider',
         cost: 200,
-        footprint: { cols: 5, rows: 2 }, // same pack size as crawlers
-        formation: { cols: 4, rows: 1 }, // a swarm of 12 drones, two wide rows
+        footprint: { cols: 5, rows: 2 }, // same pack size as dwarves
+        formation: { cols: 4, rows: 1 }, // a flock of 12 riders, two wide rows
         meshScale: 4.35, // slightly smaller so the tighter columns don't touch
         flying: 18,
         targets: { ground: true, air: true },
@@ -389,31 +389,31 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.1,
         speed: 8,
         techs: [
-            { id: 'engines', name: 'Swarm Engines', cost: 150, mods: { speed: 1.3 } },
-            { id: 'stingers', name: 'Stingers', cost: 200, mods: { damage: 1.4 } },
+            { id: 'engines', name: 'Gale Wings', cost: 150, mods: { speed: 1.3 } },
+            { id: 'stingers', name: 'Crow Talons', cost: 200, mods: { damage: 1.4 } },
         ],
-        build: buildWasp,
+        build: buildCrowRider,
     },
     {
-        id: 'fortress',
+        id: 'ballista',
         name: 'Ballista',
         cost: 400,
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
-        targets: { ground: true, air: false }, // cannon can't elevate
+        targets: { ground: true, air: false }, // bolts can't elevate
         collisionRadius: 2.8,
         colliders: [{ y: 0.9, r: 1.1 }],
         projectileSpeed: 50,
-        splashRadius: 3, // shells explode — everything near the impact takes the hit
+        splashRadius: 3, // bolts shatter — everything near the impact takes the hit
         hp: 900,
         damage: 130,
         range: 28,
         attackInterval: 2.8,
         speed: 2.2,
         techs: [
-            { id: 'armor', name: 'Reactive Armor', cost: 300, mods: { hp: 1.5 } },
-            { id: 'autoloader', name: 'Autoloader', cost: 300, mods: { attackInterval: 0.7 } },
+            { id: 'armor', name: 'Iron Plating', cost: 300, mods: { hp: 1.5 } },
+            { id: 'autoloader', name: 'Quick Winch', cost: 300, mods: { attackInterval: 0.7 } },
             {
                 id: 'golden',
                 name: 'Golden Aura',
@@ -423,7 +423,7 @@ export const UNIT_TYPES: UnitType[] = [
                 description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
             },
         ],
-        build: buildFortress,
+        build: buildBallista,
     },
     {
         id: 'shield',
@@ -495,7 +495,7 @@ export class Unit {
     flankSpawnDone = false;
     /** lifetime EFFECTIVE damage dealt (capped at each victim's remaining hp) */
     damageDealt = 0;
-    /** lifetime individual mechs killed (a wiped 24-crawler pack counts 24) */
+    /** lifetime individual mechs killed (a wiped 24-dwarf pack counts 24) */
     kills = 0;
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;

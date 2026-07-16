@@ -5,14 +5,14 @@
  * between-round cards with different content.
  */
 
-export type SpecialityId = 'air' | 'costControl' | 'elite' | 'marksman' | 'addi' | 'flanky';
+export type SpecialityId = 'air' | 'costControl' | 'elite' | 'archer' | 'addi' | 'flanky';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
 export const COST_CONTROL_PENALTY = 0.12; // all units: −12% attack & hp ...
 export const COST_CONTROL_INCOME = 100; // ... but +100 supply every round
-export const FREE_MARKSMAN_ROUND = 2; // the marksman specialist's gift arrives here
-export const FREE_MARKSMAN_LEVEL = 3;
+export const FREE_ARCHER_ROUND = 2; // the archer specialist's gift arrives here
+export const FREE_ARCHER_LEVEL = 3;
 export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
 /** flank spawn duration multiplier when the Flanky card/speciality is owned */
 export const FLANK_SPAWN_HALF_MULT = 0.5;
@@ -40,36 +40,36 @@ export interface RoundCard {
 
 export const ROUND_CARDS: RoundCard[] = [
     {
-        id: 'crawlers4',
-        title: 'Crawler Swarm',
+        id: 'dwarves4',
+        title: 'Dwarf Band',
         cost: 150,
-        units: ['crawler', 'crawler', 'crawler', 'crawler'],
-        unitsLabel: '4× Crawlers',
-        description: 'Four Crawler packs join your army.',
+        units: ['dwarf', 'dwarf', 'dwarf', 'dwarf'],
+        unitsLabel: '4× Dwarves',
+        description: 'Four Dwarf packs join your army.',
     },
     {
-        id: 'marksmen4',
-        title: 'Sniper Company',
+        id: 'archers4',
+        title: 'Archer Company',
         cost: 150,
-        units: ['marksman', 'marksman', 'marksman', 'marksman'],
-        unitsLabel: '4× Marksman',
-        description: 'Four Marksmen join your army.',
+        units: ['archer', 'archer', 'archer', 'archer'],
+        unitsLabel: '4× Archers',
+        description: 'Four Archers join your army.',
     },
     {
-        id: 'wasps2',
-        title: 'Air Wing',
+        id: 'crowRiders2',
+        title: 'Crow Wing',
         cost: 150,
-        units: ['wasp', 'wasp'],
-        unitsLabel: '2× Wasps',
-        description: 'Two Wasp swarms join your army.',
+        units: ['crowRider', 'crowRider'],
+        unitsLabel: '2× Crow Riders',
+        description: 'Two Crow Rider flocks join your army.',
     },
     {
-        id: 'fortress1',
-        title: 'Heavy Armor',
+        id: 'ballista1',
+        title: 'Siege Ballista',
         cost: 150,
-        units: ['fortress'],
-        unitsLabel: '1× Fortress',
-        description: 'A Fortress joins your army.',
+        units: ['ballista'],
+        unitsLabel: '1× Ballista',
+        description: 'A Ballista joins your army.',
     },
     {
         id: 'power',
@@ -116,25 +116,25 @@ export const ROUND_CARDS: RoundCard[] = [
 ];
 
 /** buyable army types in the deployment shop (not board extras) */
-export const SHOP_UNIT_IDS = ['crawler', 'marksman', 'wasp', 'fortress'] as const;
+export const SHOP_UNIT_IDS = ['dwarf', 'archer', 'crowRider', 'ballista'] as const;
 export type ShopUnitId = (typeof SHOP_UNIT_IDS)[number];
 
 /** once-per-round unlock fee by unit type */
 export const UNIT_UNLOCK_COST: Record<ShopUnitId, number> = {
-    crawler: 0,
-    marksman: 0,
-    wasp: 50,
-    fortress: 200,
+    dwarf: 0,
+    archer: 0,
+    crowRider: 50,
+    ballista: 200,
 };
 
 /** the signature unit a specialist can buy even if it is not in the starter army */
 export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
-    air: 'wasp',
-    costControl: 'marksman',
-    elite: 'fortress',
-    marksman: 'marksman',
-    addi: 'wasp',
-    flanky: 'crawler',
+    air: 'crowRider',
+    costControl: 'archer',
+    elite: 'ballista',
+    archer: 'archer',
+    addi: 'crowRider',
+    flanky: 'dwarf',
 };
 
 export interface StartCard {
@@ -169,8 +169,8 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'air',
         title: 'Air Specialist',
-        units: ['wasp', 'wasp', 'crawler'],
-        unitsLabel: '2× Wasps · 1× Crawlers',
+        units: ['crowRider', 'crowRider', 'dwarf'],
+        unitsLabel: '2× Crow Riders · 1× Dwarves',
         startingHp: 1800,
         speciality: 'air',
         description: 'Air units get +12% attack and HP.',
@@ -178,8 +178,8 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'cost',
         title: 'Cost Control Specialist',
-        units: ['marksman', 'marksman', 'wasp', 'crawler'],
-        unitsLabel: '2× Marksman · 1× Wasps · 1× Crawlers',
+        units: ['archer', 'archer', 'crowRider', 'dwarf'],
+        unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
         startingHp: 2400,
         speciality: 'costControl',
         description: 'All units −12% attack and HP, but +100 supply every round.',
@@ -187,27 +187,27 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'elite',
         title: 'Elite Specialist',
-        units: ['fortress', 'crawler'],
-        unitsLabel: '1× Fortress · 1× Crawlers',
+        units: ['ballista', 'dwarf'],
+        unitsLabel: '1× Ballista · 1× Dwarves',
         startingHp: 1700,
         speciality: 'elite',
         description:
             'Recruiting at level 2 is permanently on, free of the switch fee (units still pay their level premium). +100 supply in round 1.',
     },
     {
-        id: 'marksman',
-        title: 'Marksman Specialist',
-        units: ['marksman', 'marksman', 'marksman', 'crawler', 'crawler'],
-        unitsLabel: '3× Marksman · 2× Crawlers',
+        id: 'archer',
+        title: 'Archer Specialist',
+        units: ['archer', 'archer', 'archer', 'dwarf', 'dwarf'],
+        unitsLabel: '3× Archers · 2× Dwarves',
         startingHp: 2000,
-        speciality: 'marksman',
-        description: 'A free level-3 Marksman arrives in round 2.',
+        speciality: 'archer',
+        description: 'A free level-3 Archer arrives in round 2.',
     },
     {
         id: 'addi',
         title: 'Addi Specialist',
-        units: ['wasp', 'crawler', 'crawler', 'crawler'],
-        unitsLabel: '1× Wasps · 3× Crawlers',
+        units: ['crowRider', 'dwarf', 'dwarf', 'dwarf'],
+        unitsLabel: '1× Crow Riders · 3× Dwarves',
         startingHp: 2000,
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
@@ -216,8 +216,8 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'flanky',
         title: 'Flanky Specialist',
-        units: ['crawler', 'crawler', 'marksman', 'marksman'],
-        unitsLabel: '2× Crawlers · 2× Marksman',
+        units: ['dwarf', 'dwarf', 'archer', 'archer'],
+        unitsLabel: '2× Dwarves · 2× Archers',
         startingHp: 2000,
         speciality: 'flanky',
         description: 'First-time flank spawns take half the time (2.5s).',

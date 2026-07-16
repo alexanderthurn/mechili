@@ -22,8 +22,8 @@ import {
     COST_CONTROL_INCOME,
     COST_CONTROL_PENALTY,
     ELITE_ROUND1_BONUS,
-    FREE_MARKSMAN_LEVEL,
-    FREE_MARKSMAN_ROUND,
+    FREE_ARCHER_LEVEL,
+    FREE_ARCHER_ROUND,
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
@@ -694,12 +694,12 @@ export class Game {
             // NOTE: must also run while hydrating — the gift is never in the
             // action log, so a rebuild that skipped it would produce a
             // different board (and shifted unit ids → guaranteed desync)
-            if (this.speciality[team] === 'marksman' && this.round === FREE_MARKSMAN_ROUND) {
-                const type = unitTypeById('marksman')!;
+            if (this.speciality[team] === 'archer' && this.round === FREE_ARCHER_ROUND) {
+                const type = unitTypeById('archer')!;
                 const anchor = this.placement.findStartSpot(team, type);
                 const unit = anchor ? this.placement.spawn(type, anchor, team, false, true) : null;
                 if (unit) {
-                    unit.level = FREE_MARKSMAN_LEVEL;
+                    unit.level = FREE_ARCHER_LEVEL;
                     unit.refreshLevelBadge();
                 }
             }
@@ -1682,7 +1682,7 @@ export class Game {
 
     /**
      * Every surviving unit deals its value as player damage: the unit's base
-     * price scaled by how much of it survived (half the crawler pack alive =
+     * price scaled by how much of it survived (half the dwarf pack alive =
      * half its cost), always a whole number. A wiped side has no survivors,
      * so only the losing player takes damage; on a timeout both usually do.
      */

@@ -11,13 +11,13 @@ import {
 import type { ResolvedStats } from './tech';
 import { syncBattleTint, type Team, type Unit, type UnitType } from './units';
 
-/** how long the fortress Golden Aura keeps allies immune after the one-shot apply */
+/** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
 export const GOLDEN_AURA_DURATION = 30;
-/** how far around a golden fortress allies get the buff (world units) */
+/** how far around a golden ballista allies get the buff (world units) */
 export const GOLDEN_AURA_RADIUS = 20;
 /** golden units take 30% less damage on top of debuff immunity */
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
-/** battle clock time when fortress Golden Aura is applied once (after other pre-battle effects) */
+/** battle clock time when ballista Golden Aura is applied once (after other pre-battle effects) */
 export const GOLDEN_AURA_APPLY_AT = 0.1;
 /** units stand still for this long at battle start before moving or firing */
 export const BATTLE_START_FREEZE = 1.0;
@@ -72,7 +72,7 @@ export interface Actor {
     altitude: number;
     /** rocket extras: the enemy being homed onto once launched */
     rocketTarget: Actor | null;
-    /** sim time until which this mech ignores tower-destruction debuffs (fortress aura) */
+    /** sim time until which this mech ignores tower-destruction debuffs (ballista aura) */
     goldenUntil: number;
     /** battle time when flank spawn finishes (0 = already spawned) */
     spawnUntil: number;
@@ -141,7 +141,7 @@ const AVOID_MARGIN = 0.6; // extra clearance kept around obstacles
 const AVOID_STRENGTH = 2.4;
 const SEPARATION_GAP = 1.0; // soft personal space between mechs
 const SEPARATION_STRENGTH = 1.1;
-const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers, fortresses)
+const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers, ballistas)
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
 
 /**
@@ -149,7 +149,7 @@ const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
  * closest enemy it can attack and fires once in range. Nothing walks through
  * anything: mechs steer around big blockers (a pack splits left/right around
  * a tower), keep soft spacing among themselves, and a mass-based push-out
- * pass resolves remaining overlaps (a fortress plows through crawlers).
+ * pass resolves remaining overlaps (a ballista plows through dwarves).
  *
  * Replay groundwork: the sim advances in fixed steps with a stable actor
  * order and no randomness, so re-running it from the same deployment
@@ -173,7 +173,7 @@ export class BattleSim {
     private readonly resolved = new Map<Unit, ResolvedStats>();
     /** damage dealt per `${team}:${typeId}` — the post-battle report data */
     readonly damageByType = new Map<string, number>();
-    /** fortress Golden Aura is a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
+    /** ballista Golden Aura is a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
     private goldenAuraApplied = false;
 
     constructor(
@@ -417,7 +417,7 @@ export class BattleSim {
         return factor;
     }
 
-    /** golden item on the pack, or a recent fortress aura buff */
+    /** golden item on the pack, or a recent ballista aura buff */
     isGolden(actor: Actor): boolean {
         for (const id of actor.unit.items) {
             if (ITEMS[id]?.debuffImmune) return true;
@@ -425,13 +425,13 @@ export class BattleSim {
         return actor.goldenUntil > this.elapsed + 1e-9;
     }
 
-    /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden fortress get 30s immunity */
-    private applyFortressGoldenAura(): void {
+    /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden ballista get 30s immunity */
+    private applyBallistaGoldenAura(): void {
         const r2 = GOLDEN_AURA_RADIUS * GOLDEN_AURA_RADIUS;
         const expires = GOLDEN_AURA_APPLY_AT + GOLDEN_AURA_DURATION;
         for (const f of this.actors) {
-            if (!f.alive || f.unit.type.id !== 'fortress') continue;
-            if (!this.config.hasTech(f.unit.team, 'fortress', 'golden')) continue;
+            if (!f.alive || f.unit.type.id !== 'ballista') continue;
+            if (!this.config.hasTech(f.unit.team, 'ballista', 'golden')) continue;
             for (const a of this.actors) {
                 if (!a.alive || a.unit.team !== f.unit.team || a.unit.type.structure) continue;
                 const dx = a.x - f.x;
@@ -594,7 +594,7 @@ export class BattleSim {
         }
 
         if (!this.goldenAuraApplied && this.elapsed >= GOLDEN_AURA_APPLY_AT) {
-            this.applyFortressGoldenAura();
+            this.applyBallistaGoldenAura();
             this.goldenAuraApplied = true;
         }
 
@@ -1025,8 +1025,8 @@ export class BattleSim {
 
     /**
      * Splash: full damage to every enemy within the radius of the impact,
-     * respecting the shooter's can-attack matrix (a ground-only cannon's
-     * blast doesn't reach wasps overhead).
+     * respecting the shooter's can-attack matrix (a ground-only ballista's
+     * blast doesn't reach crow riders overhead).
      */
     private explode(
         p: { damage: number; team: Team; source: Unit },
@@ -1147,7 +1147,7 @@ export class BattleSim {
 
     /**
      * The closest living enemy THIS unit can attack (towers are units like
-     * any other). The can-attack matrix rules: e.g. crawlers can't reach air.
+     * any other). The can-attack matrix rules: e.g. dwarves can't reach air.
      * With `anyLayer` the matrix is ignored — used to pick something to walk
      * to and wait at when no attackable enemy is left.
      */

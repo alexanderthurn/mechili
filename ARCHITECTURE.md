@@ -83,7 +83,7 @@ clients:
   (`Game.stateHash`, canonical host-first ordering). On mismatch the guest
   reloads and rebuilds from the host's log; a sessionStorage guard stops
   reload loops.
-- Anything spawned OUTSIDE the action log (tower spawns, the marksman
+- Anything spawned OUTSIDE the action log (tower spawns, the archer
   specialist's free unit) must run identically during live play **and**
   hydration — it consumes unit ids, so skipping it in one path shifts every
   later id.

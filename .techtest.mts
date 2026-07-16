@@ -10,13 +10,13 @@ economy.setBalance('player', 1000);
 economy.setBalance('enemy', 1000);
 const tech = new TechTree();
 
-const marksman = T('marksman');
-const ok = tech.buy('player', marksman, marksman.techs.find((t) => t.id === 'barrel')!, economy);
+const archer = T('archer');
+const ok = tech.buy('player', archer, archer.techs.find((t) => t.id === 'barrel')!, economy);
 console.log('bought range tech:', ok, ' supply left:', economy.balance('player'), '(expect 800)');
-console.log('double-buy rejected:', !tech.buy('player', marksman, marksman.techs[0]!, economy));
+console.log('double-buy rejected:', !tech.buy('player', archer, archer.techs[0]!, economy));
 
-const pStats = tech.statsFor('player', marksman);
-const eStats = tech.statsFor('enemy', marksman);
+const pStats = tech.statsFor('player', archer);
+const eStats = tech.statsFor('enemy', archer);
 console.log('player range:', pStats.range, '(expect 58.5) — enemy range:', eStats.range, '(expect 45)');
 
 const config = {
@@ -25,8 +25,8 @@ const config = {
     costOf: (t: (typeof UNIT_TYPES)[number]) => economy.costOf(t),
     statsOf: (u: Unit) => tech.statsFor(u.team, u.type),
 };
-const mine = new Unit(marksman, { col: 0, row: 0 }, 'player', new Vector3(0, 0, 27));
-const theirs = new Unit(marksman, { col: 0, row: 0 }, 'enemy', new Vector3(0, 0, -27));
+const mine = new Unit(archer, { col: 0, row: 0 }, 'player', new Vector3(0, 0, 27));
+const theirs = new Unit(archer, { col: 0, row: 0 }, 'enemy', new Vector3(0, 0, -27));
 const sim = new BattleSim([mine, theirs], config);
 sim.update(0.2);
 let myShots = 0;

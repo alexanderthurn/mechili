@@ -2,10 +2,10 @@
 // These replace the live 3D-mesh renders for the shop tiles / placement ghosts.
 // Vite resolves each `import.meta.url` asset at build time.
 const thumbs: Record<string, string> = {
-    crawler: new URL('../../assets/ui/units/crawler.webp', import.meta.url).href,
-    marksman: new URL('../../assets/ui/units/marksman.webp', import.meta.url).href,
-    wasp: new URL('../../assets/ui/units/wasp.webp', import.meta.url).href,
-    fortress: new URL('../../assets/ui/units/fortress.webp', import.meta.url).href,
+    dwarf: new URL('../../assets/ui/units/dwarf.webp', import.meta.url).href,
+    archer: new URL('../../assets/ui/units/archer.webp', import.meta.url).href,
+    crowRider: new URL('../../assets/ui/units/crowRider.webp', import.meta.url).href,
+    ballista: new URL('../../assets/ui/units/ballista.webp', import.meta.url).href,
     shield: new URL('../../assets/ui/units/shield.webp', import.meta.url).href,
     rocket: new URL('../../assets/ui/units/rocket.webp', import.meta.url).href,
 };

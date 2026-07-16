@@ -28,10 +28,10 @@ export interface ModelSpec {
 export const MODEL_SPECS: Record<string, ModelSpec> = {
     // fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
     // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
-    crawler: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3 },
-    marksman: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
-    fortress: { url: new URL('../../assets/models/fortress-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) }, // ballista
-    wasp: { url: new URL('../../assets/models/wasp-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // crow rider
+    dwarf: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3 },
+    archer: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
+    ballista: { url: new URL('../../assets/models/ballista-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
+    crowRider: { url: new URL('../../assets/models/crow-rider-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower

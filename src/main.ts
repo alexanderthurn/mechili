@@ -692,7 +692,7 @@ menu.addEventListener('click', (e) => {
     }
 });
 
-// load generated unit models (Fortress GLB, etc.) before any match can start
+// load generated unit models (Ballista GLB, etc.) before any match can start
 await preloadUnitVisuals();
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
