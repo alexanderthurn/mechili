@@ -294,6 +294,8 @@ export class Game {
         sun.position.set(120, 160, 80);
         sun.castShadow = true;
         sun.shadow.mapSize.set(4096, 4096);
+        // a bit stronger than the Three default (1) so packs/towers read clearly on the grass
+        sun.shadow.intensity = 1.55;
         // frustum reaches past the field so the tree ring casts onto its edges
         sun.shadow.camera.left = -this.map.halfW - 40;
         sun.shadow.camera.right = this.map.halfW + 40;
