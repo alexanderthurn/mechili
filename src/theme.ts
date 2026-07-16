@@ -70,19 +70,17 @@ export const THEME = {
         flowers: ['#fff8f0', '#ffd84d', '#ffa8b8'],
         // faint worn-earth patches
         dirt: 'rgba(138, 122, 78, 0.5)',
-        // edge darkening that pushes the eye to the field center — kept subtle
-        // so the field blends into the outer meadow instead of being framed
-        vignette: 'rgba(18, 42, 14, 0.1)',
+        // edge darkening — kept very light so the field blends into the outer meadow
+        vignette: 'rgba(18, 42, 14, 0.04)',
         grid: 'rgba(255, 255, 255, 0.2)',
         centerLine: 'rgba(255, 220, 80, 0.6)',
         flankLocked: 'rgba(140, 170, 100, 0.14)',
         sunWashTop: 'rgba(255, 248, 200, 0.18)',
         sunWashBottom: 'rgba(255, 248, 200, 0)',
         groundRoughness: 0.88,
-        // visual mounds on the field (gameplay stays flat). Temporarily large
-        // so sinking/hovering against the relief is easy to spot — dial back
-        // toward ~0.8–1.2 once placement looks right.
-        reliefDepth: 5,
+        // gentle playable mounds — kept modest so combat stays readable
+        // (shots ignore terrain; tall board hills would look like blockers)
+        reliefDepth: 2.5,
     },
 
     scenery: {

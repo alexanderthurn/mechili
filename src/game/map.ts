@@ -549,6 +549,21 @@ export class BattleMap {
         ctx.fillStyle = vin;
         ctx.fillRect(0, 0, w, h);
 
+        // wash unique lawn paint out near the border so the field edge meets
+        // the outer grass instead of cutting from stripes → plain meadow
+        {
+            const rim = 16 * TEX_SCALE;
+            ctx.fillStyle = t.base;
+            for (let i = 0; i < rim; i++) {
+                ctx.globalAlpha = (1 - i / rim) * 0.7;
+                ctx.fillRect(i, 0, 1, h);
+                ctx.fillRect(w - 1 - i, 0, 1, h);
+                ctx.fillRect(0, i, w, 1);
+                ctx.fillRect(0, h - 1 - i, w, 1);
+            }
+            ctx.globalAlpha = 1;
+        }
+
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         texture.anisotropy = 8;

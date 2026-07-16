@@ -80,24 +80,40 @@ export class Scenery {
         const noise = makeValueNoise(31337);
         this.noise = noise;
         this.terrainHeight = (x, z) => {
-            const d = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
-            // Battlefield owns this AABB — stay flat under the field mesh so
-            // units/buildings keep riding map.heightAt without sinking into scenery.
-            if (d === 0) return 0;
-            // soft meadow undulation in the band between field and mountains
-            const meadow =
-                (noise(x / 95 + 1.2, z / 95 + 4.8) * 0.55 +
-                    noise(x / 38 + 22.1, z / 38 + 9.3) * 0.45) *
-                1.35;
-            if (d <= 55) return meadow * smooth01(d / 55) * 0.85;
-            // rise into the ring, then settle back down toward the horizon
-            const rise = smooth01((d - 55) / 380) * (1 - smooth01((d - 640) / 260));
+            // keep the playable AABB flat — field mesh owns that surface
+            if (Math.abs(x) <= map.halfW && Math.abs(z) <= map.halfH) return 0;
+
+            // rounded distance past the board + mild noise (not a square cliff line)
+            const ox = Math.max(0, Math.abs(x) - map.halfW);
+            const oz = Math.max(0, Math.abs(z) - map.halfH);
+            let d = Math.hypot(ox, oz);
+            d += (noise(x / 95 + 2.4, z / 95 + 6.1) - 0.5) * 28;
+            d += (noise(x / 40 + 9.0, z / 40 + 1.7) - 0.5) * 12;
+            d = Math.max(0, d);
+
+            // ~10 tiles stay nearly flat; then hills ease in (some spots earlier
+            // via the noise on d, but never the old "wall at 5 tiles")
+            const nearFlat = 40; // CELL=4 → 10 tiles
+            const ramp = 150;
+            const edgeIn = Math.pow(smooth01((d - nearFlat) / ramp), 1.45);
+
+            const hN =
+                noise(x / 110 + 1.2, z / 110 + 4.8) * 0.5 +
+                noise(x / 48 + 22.1, z / 48 + 9.3) * 0.32 +
+                noise(x / 22 + 8.8, z / 22 + 55.5) * 0.18;
+            const knoll = Math.pow(Math.max(0, hN - 0.45) / 0.55, 1.3);
+            // gentler foothills — mountains still carry the big drama farther out
+            const rolling = (1.2 + 8 * hN + 6 * knoll) * edgeIn;
+
+            const rise = smooth01((d - 110) / 360) * (1 - smooth01((d - 640) / 260));
             const n =
                 noise(x / 170 + 3.7, z / 170 + 8.1) * 0.55 +
                 noise(x / 62 + 51.2, z / 62 + 17.9) * 0.3 +
                 noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
             const ridge = Math.pow(Math.max(0, n - 0.32) / 0.68, 1.35);
-            return rise * (14 + 140 * ridge);
+            const mountain = rise * (28 + 280 * ridge);
+
+            return rolling + mountain;
         };
 
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
@@ -204,11 +220,9 @@ export class Scenery {
     }
 
     /**
-     * The world beyond the field: a meadow band ringed by low-poly mountains.
-     * One displaced plane with height-based vertex colors. The meadow band
-     * carries the SAME world-aligned grass detail texture as the battlefield,
-     * so the two surfaces read as one continuous terrain; the texture fades
-     * out with altitude, leaving the mountains their faceted rock/snow look.
+     * The world beyond the field: meadow + mountains. Grass detail matches the
+     * battlefield tiling; soft vertex tint keeps the lawn from reading neon.
+     * Rock/snow take over with altitude.
      */
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
@@ -220,15 +234,13 @@ export class Scenery {
 
         const pos = geometry.attributes.position!;
         const colors = new Float32Array(pos.count * 3);
-        // meadow vertex colors modulate the grass texture (like the field macro);
-        // rock/snow take over on the heights. White = "show texture as-is".
         const base = new Color(t.base);
         const meadowTones = t.meadow.map((hex) => {
             const m = new Color(hex);
             return new Color(m.r / base.r, m.g / base.g, m.b / base.b);
         });
-        const dirt = new Color(0xc4b896);
-        const dirtMod = new Color(dirt.r / base.r, dirt.g / base.g, dirt.b / base.b);
+        // field macro darkens the grass albedo — pull outer toward that tone
+        const lawnTone = new Color(0.82, 0.86, 0.74);
         const rock = new Color(s.rock);
         const rockDark = new Color(s.rock).multiplyScalar(0.72);
         const snow = new Color(s.snow);
@@ -240,24 +252,15 @@ export class Scenery {
             const h = this.terrainHeight(x, z);
             pos.setY(i, h);
 
-            // soft meadow patches + rare dirt — same idea as the field macro paint
             const n1 = this.noise(x / 120 + 2.1, z / 120 + 7.4);
             const n2 = this.noise(x / 48 + 41.0, z / 48 + 13.2);
-            const n3 = this.noise(x / 22 + 8.8, z / 22 + 55.5);
-            const toneIdx = Math.min(
-                meadowTones.length - 1,
-                Math.floor(n1 * meadowTones.length),
-            );
-            // keep modulation gentle so the grass albedo still reads
-            c.setRGB(1, 1, 1).lerp(meadowTones[toneIdx]!, 0.55 + n2 * 0.25);
-            if (n3 > 0.78) c.lerp(dirtMod, ((n3 - 0.78) / 0.22) * 0.45);
+            const toneIdx = Math.min(meadowTones.length - 1, Math.floor(n1 * meadowTones.length));
+            c.copy(lawnTone).lerp(meadowTones[toneIdx]!, 0.2 + n2 * 0.15);
 
-            // rock arrives early/hard so the grass-fade never flashes white first
-            const rockAmt = smooth01((h - 6) / 22);
+            const rockAmt = smooth01((h - 12) / 45);
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
             c.lerp(rockVar, rockAmt);
-            // snow only on true peaks — starts after rock is fully in
-            c.lerp(snow, smooth01((h - 92) / 28));
+            c.lerp(snow, smooth01((h - 180) / 55));
 
             colors[i * 3] = c.r;
             colors[i * 3 + 1] = c.g;
@@ -265,13 +268,14 @@ export class Scenery {
         }
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
 
         const material = new MeshStandardMaterial({
-            color: s.outerGround, // swapped to white once the grass texture loads
+            color: s.outerGround,
             vertexColors: true,
             roughness: THEME.terrain.groundRoughness,
             metalness: 0,
-            flatShading: true,
+            flatShading: false,
         });
         const mesh = new Mesh(geometry, material);
         mesh.position.y = -0.05;
@@ -280,7 +284,7 @@ export class Scenery {
         return mesh;
     }
 
-    /** load the battlefield's grass detail and continue its tiling out here */
+    /** battlefield grass detail, world-aligned so it continues across the border */
     private async applyMeadowTexture(
         material: MeshStandardMaterial,
         map: BattleMap,
@@ -292,14 +296,12 @@ export class Scenery {
             loader.loadAsync(grassNormalUrl).catch(() => null),
         ]);
         if (!albedo) return;
-        // world-aligned tiling: same period as the field, and phase-shifted so
-        // the pattern continues ACROSS the field border without a seam
         const frac = (v: number) => ((v % 1) + 1) % 1;
-        const configure = (t: NonNullable<typeof albedo>) => {
-            t.wrapS = t.wrapT = RepeatWrapping;
-            t.repeat.set(size / DETAIL_TILE, size / DETAIL_TILE);
-            t.offset.set(frac(map.halfW / DETAIL_TILE), frac(map.halfH / DETAIL_TILE));
-            t.anisotropy = 8;
+        const configure = (tex: NonNullable<typeof albedo>) => {
+            tex.wrapS = tex.wrapT = RepeatWrapping;
+            tex.repeat.set(size / DETAIL_TILE, size / DETAIL_TILE);
+            tex.offset.set(frac(map.halfW / DETAIL_TILE), frac(map.halfH / DETAIL_TILE));
+            tex.anisotropy = 8;
         };
         configure(albedo);
         albedo.colorSpace = SRGBColorSpace;
@@ -310,10 +312,6 @@ export class Scenery {
             material.normalScale = new Vector2(0.35, 0.35);
         }
         material.color.set(0xffffff);
-        // Fade grass albedo out once rock vertex tint is already strong.
-        // Mixing toward white removes the green texture so rock/snow colors
-        // read cleanly — the old 8→32 range washed lower slopes white because
-        // rock hadn't caught up yet.
         material.onBeforeCompile = (shader) => {
             shader.vertexShader =
                 'varying float vTerrainH;\n' +
@@ -325,10 +323,10 @@ export class Scenery {
                 'varying float vTerrainH;\n' +
                 shader.fragmentShader.replace(
                     '#include <map_fragment>',
-                    '#include <map_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(26.0, 48.0, vTerrainH));',
+                    '#include <map_fragment>\n\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), smoothstep(40.0, 90.0, vTerrainH));',
                 );
         };
-        material.customProgramCacheKey = () => 'outer-meadow-grass-v2';
+        material.customProgramCacheKey = () => 'outer-meadow-grass-v4';
         material.needsUpdate = true;
     }
 
@@ -435,7 +433,7 @@ export class Scenery {
         };
 
         for (let i = 0; i < PINES + FIELD_PINES; i++) {
-            const { x, z } = i < PINES ? forestSpot(42) : fieldSpot(10);
+            const { x, z } = i < PINES ? forestSpot(84) : fieldSpot(10);
             const h = groundY(x, z);
             const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
             placeTrunk(x, z, sc, h);
@@ -454,7 +452,7 @@ export class Scenery {
         }
 
         for (let i = 0; i < LEAFY + FIELD_LEAFY; i++) {
-            const { x, z } = i < LEAFY ? forestSpot(36) : fieldSpot(10);
+            const { x, z } = i < LEAFY ? forestSpot(72) : fieldSpot(10);
             const h = groundY(x, z);
             const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
             placeTrunk(x, z, sc, h);
@@ -475,11 +473,11 @@ export class Scenery {
         // prefer foothill / lower-slope rocks for silhouette variation
         const rockSpot = (): { x: number; z: number } => {
             for (let attempt = 0; attempt < 10; attempt++) {
-                const p = forestSpot(75);
+                const p = forestSpot(150);
                 const h = this.terrainHeight(p.x, p.z);
-                if (h > 4 && h < 70) return p;
+                if (h > 4 && h < 140) return p;
             }
-            return forestSpot(75);
+            return forestSpot(150);
         };
         for (let i = 0; i < ROCKS; i++) {
             const { x, z } = rockSpot();
@@ -492,7 +490,7 @@ export class Scenery {
         }
 
         for (let i = 0; i < BUSHES + FIELD_BUSHES; i++) {
-            const { x, z } = i < BUSHES ? forestSpot(28) : fieldSpot(5);
+            const { x, z } = i < BUSHES ? forestSpot(56) : fieldSpot(5);
             const sc = 0.6 + rng() * 0.8;
             dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
             dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));
