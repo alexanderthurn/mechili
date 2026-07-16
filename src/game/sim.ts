@@ -84,6 +84,10 @@ export interface Actor {
     pathStuck: number;
     /** closest approach to pathDest so far */
     pathBestDist: number;
+    /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
+    recoil?: number;
+    /** render-only: last frame's cooldown, to detect a fresh shot */
+    prevCooldown?: number;
 }
 
 /** how long a hit keeps the HP bar visible */
@@ -450,6 +454,44 @@ export class BattleSim {
                 spawnProgress = this.spawnProgress(a);
             }
             syncBattleTint(a.mesh, tint, timeSeconds, stacks, spawnProgress);
+            this.animateActor(a, timeSeconds);
+        }
+    }
+
+    /**
+     * Procedural, render-only motion layered on the interpolated mesh: a walk
+     * bob/sway while moving and a recoil kick when the unit fires. Never touched
+     * by the deterministic step — safe to be frame-rate/wall-clock driven.
+     */
+    private animateActor(a: Actor, timeSeconds: number): void {
+        // fire detection: the sim bumps cooldown UP by attackInterval on a shot,
+        // otherwise it counts down — so an increase means "just fired".
+        const prevCd = a.prevCooldown ?? a.cooldown;
+        if (a.cooldown > prevCd + 1e-4) a.recoil = 1;
+        a.prevCooldown = a.cooldown;
+        const recoil = a.recoil ?? 0;
+
+        // walk factor from per-step displacement (0 standing, ~1 at full speed)
+        const moving = Math.min(1, Math.hypot(a.x - a.prevX, a.z - a.prevZ) / 0.12);
+        const yaw = a.mesh.rotation.y;
+
+        // ground units stride, roll, and lean forward as they walk; flyers keep
+        // their own altitude handling. Skinned/animated units get their gait
+        // from the skeleton, so only apply the procedural bob to the rest.
+        if (a.altitude === 0 && !a.mesh.userData.animated) {
+            const gait = Math.sin(timeSeconds * 9 + a.index);
+            a.mesh.position.y = 0.05 + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
+            a.mesh.rotation.z = gait * 0.06 * moving; // side-to-side roll
+            a.mesh.rotation.x = -0.1 * moving; // lean into the walk
+        }
+
+        // recoil kicks the unit backward along its facing, then decays
+        if (recoil > 0.01) {
+            a.mesh.position.x += Math.sin(yaw) * recoil * 0.3;
+            a.mesh.position.z += Math.cos(yaw) * recoil * 0.3;
+            a.recoil = recoil * 0.8;
+        } else {
+            a.recoil = 0;
         }
     }
 

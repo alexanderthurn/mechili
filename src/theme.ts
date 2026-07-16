@@ -143,28 +143,99 @@ export function menuStyles(): string {
     position: absolute;
     left: 50%;
     top: 50%;
-    transform: translate(-50%, -12%);
+    transform: translate(-50%, -8%);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 14px;
+    align-items: stretch;
+    gap: 12px;
+    width: clamp(264px, 34vw, 324px);
+    box-sizing: border-box;
+    padding: 22px 20px 24px;
+    background: linear-gradient(180deg, rgba(30, 44, 26, 0.62), rgba(18, 28, 15, 0.74));
+    border: 1px solid rgba(255, 216, 64, 0.18);
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    -webkit-backdrop-filter: blur(12px) saturate(1.1);
+    backdrop-filter: blur(12px) saturate(1.1);
     font-family: system-ui, sans-serif;
     user-select: none;
 }
-.mechili-menu .m-btn {
-    width: 260px;
-    padding: 13px 0;
-    background: ${u.panelBgDark};
-    border: 2px solid ${u.border};
-    border-radius: 12px;
-    color: ${u.text};
-    font-size: 17px;
-    font-weight: bold;
-    letter-spacing: 2px;
-    cursor: pointer;
+/* brass accent line across the top of the console */
+.mechili-menu::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    top: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, ${u.brass}, transparent);
+    opacity: 0.7;
 }
-.mechili-menu .m-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
-.mechili-menu .m-small { width: 200px; padding: 9px 0; font-size: 14px; }
+.mechili-menu .m-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 13px 16px;
+    background: linear-gradient(180deg, rgba(42, 58, 34, 0.95), rgba(24, 36, 20, 0.95));
+    border: 1.5px solid ${u.border};
+    border-radius: 11px;
+    color: ${u.text};
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease,
+        background 0.14s ease, color 0.14s ease;
+}
+.mechili-menu .m-btn .m-ico {
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+    font-size: 18px;
+    color: ${u.brass};
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+.mechili-menu .m-btn .m-label { flex: 1; }
+.mechili-menu .m-btn:hover {
+    border-color: ${u.hover};
+    color: ${u.brassLight};
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 216, 64, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.mechili-menu .m-btn:active { transform: translateY(0) scale(0.98); }
+.mechili-menu .m-btn:focus-visible {
+    outline: none;
+    border-color: ${u.brassLight};
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
+.mechili-menu .m-btn:disabled { opacity: 0.4; pointer-events: none; box-shadow: none; }
+/* Single Player — the hero call to action */
+.mechili-menu .m-primary {
+    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
+    border-color: ${u.brassLight};
+    color: #20180a;
+    font-size: 17px;
+    box-shadow: 0 4px 14px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.mechili-menu .m-primary .m-ico { color: #20180a; filter: none; }
+.mechili-menu .m-primary:hover {
+    color: #20180a;
+    background: linear-gradient(180deg, #fff0b0, ${u.brassLight});
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(255, 180, 40, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.mechili-menu .m-small {
+    justify-content: center;
+    padding: 9px 12px;
+    font-size: 13px;
+    letter-spacing: 1px;
+}
 .mechili-menu .m-custom { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .mechili-menu .m-join { display: flex; gap: 8px; }
 .mechili-menu .m-input {
@@ -184,9 +255,10 @@ export function menuStyles(): string {
 .mechili-gchat {
     position: absolute;
     left: 50%;
-    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    width: 440px;
+    width: min(440px, calc(100vw - 32px));
+    box-sizing: border-box;
     font-family: system-ui, sans-serif;
     color: ${u.text};
     z-index: 30;
@@ -216,9 +288,12 @@ export function menuStyles(): string {
     flex-direction: column;
     gap: 5px;
     padding: 10px 12px;
-    background: ${u.panelBg};
+    background: linear-gradient(180deg, rgba(30, 44, 26, 0.72), rgba(18, 28, 15, 0.82));
     border: 1.5px solid ${u.border};
     border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
 }
 .mechili-gchat .g-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: ${u.textMuted}; }
 .mechili-gchat .g-sticky {
@@ -252,17 +327,21 @@ export function menuStyles(): string {
     cursor: pointer;
     font-size: 13px;
 }
+.mechili-gchat .g-send { transition: border-color 0.12s ease, background 0.12s ease; }
 .mechili-gchat .g-send:hover { border-color: ${u.hover}; }
-.mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 280px; }
+.mechili-gchat .g-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-gchat .g-input:focus-visible { outline: none; border-color: ${u.hover}; }
+.mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .mechili-menu .m-room-list {
     width: 100%;
+    box-sizing: border-box;
     max-height: 180px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 4px;
-    background: ${u.panelBg};
+    padding: 6px;
+    background: rgba(18, 28, 15, 0.6);
     border: 1.5px solid ${u.border};
     border-radius: 10px;
 }
@@ -278,14 +357,17 @@ export function menuStyles(): string {
     letter-spacing: 1px;
     cursor: pointer;
     text-align: left;
+    transition: transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
-.mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-menu .m-room::before { content: '▸ '; color: ${u.brass}; }
+.mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateX(2px); }
+.mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
 .mechili-username {
     position: absolute;
-    right: 16px;
-    bottom: 14px;
+    right: calc(16px + env(safe-area-inset-right));
+    bottom: calc(14px + env(safe-area-inset-bottom));
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
@@ -297,14 +379,17 @@ export function menuStyles(): string {
     letter-spacing: 1px;
     cursor: pointer;
     user-select: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
-.mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
 /* big gear, top-right of the main menu */
 .mechili-settings-btn {
     position: absolute;
-    top: 10px;
-    right: 16px;
+    top: calc(10px + env(safe-area-inset-top));
+    right: calc(16px + env(safe-area-inset-right));
     background: none;
     border: none;
     color: ${u.text};
@@ -313,9 +398,10 @@ export function menuStyles(): string {
     cursor: pointer;
     z-index: 30;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-    transition: transform 0.25s;
+    transition: transform 0.25s, color 0.2s;
 }
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
+.mechili-settings-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
 .mechili-name-edit {
     position: absolute;
@@ -323,7 +409,9 @@ export function menuStyles(): string {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     z-index: 20;
 }
 .mechili-name-edit .box {
@@ -357,6 +445,10 @@ export function menuStyles(): string {
     cursor: pointer;
 }
 .mechili-name-edit button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-name-edit button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
+.mechili-name-edit button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-name-edit button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-name-edit input:focus-visible { outline: none; border-color: ${u.hover}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.25); }
 
 .mechili-settings {
     position: absolute;
@@ -364,8 +456,10 @@ export function menuStyles(): string {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.5);
     font-family: system-ui, sans-serif;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     z-index: 40;
 }
 .mechili-settings .box {
@@ -400,13 +494,19 @@ export function menuStyles(): string {
     cursor: pointer;
 }
 .mechili-settings button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-settings button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
+.mechili-settings button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-settings button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.hover}; outline-offset: 1px; }
 .mechili-resume {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.62);
+    background: rgba(0, 0, 0, 0.58);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     z-index: 30;
     font-family: system-ui, sans-serif;
     user-select: none;
@@ -449,7 +549,19 @@ export function menuStyles(): string {
     letter-spacing: 1px;
     cursor: pointer;
 }
-.mechili-resume .resume-cancel:hover { background: ${u.undoHover}; }
+.mechili-resume .resume-cancel { transition: transform 0.14s ease, background 0.14s ease; }
+.mechili-resume .resume-cancel:hover { background: ${u.undoHover}; transform: translateY(-1px); }
+.mechili-resume .resume-cancel:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
+
+/* Respect users who prefer reduced motion: neutralize UI transitions/animations. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
 `;
 }
 
@@ -479,14 +591,14 @@ export function hudStyles(): string {
     align-items: center;
     box-sizing: border-box;
     min-height: 54px;
-    padding: 8px 14px;
-    background: ${u.panelBgSolid};
-    border: 2px solid ${u.border};
-    border-radius: 8px;
+    padding: 8px 16px;
+    background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(26, 40, 22, 0.96));
+    border: 2px solid ${u.brassDark};
+    border-radius: 10px;
     font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     flex-shrink: 0;
 }
 .mechili-supply .supply {
@@ -536,7 +648,9 @@ export function hudStyles(): string {
     font-family: system-ui, sans-serif;
     flex-shrink: 0;
 }
-.shop-toolbar .undo:hover { background: ${u.undoHover}; }
+.shop-toolbar .undo { transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease; }
+.shop-toolbar .undo:hover { background: ${u.undoHover}; transform: translateY(-1px); }
+.shop-toolbar .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
 .shop-toolbar-right {
     display: flex;
     flex-direction: row;
@@ -583,8 +697,10 @@ export function hudStyles(): string {
     line-height: 1;
     margin-top: 2px;
 }
-.shop-toolbar .level-all-global:hover { border-color: ${u.hover}; }
+.shop-toolbar .level-all-global { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+.shop-toolbar .level-all-global:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 .shop-toolbar .level-all-global:active { transform: scale(0.96); }
+.shop-toolbar .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .shop-toolbar .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras {
     display: flex;
@@ -600,11 +716,14 @@ export function hudStyles(): string {
     flex-direction: column;
     gap: 8px;
     padding: 10px 10px 10px 12px;
-    background: ${u.panelBgSolid};
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
     border: 1.5px solid ${u.border};
     border-right: none;
     border-bottom: none;
     border-radius: 10px 0 0 0;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     pointer-events: auto;
 }
 .mechili-shop .shop-header {
@@ -681,8 +800,10 @@ export function hudStyles(): string {
     pointer-events: none;
     z-index: 1;
 }
+.mechili-shop-col .shop-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-shop-col .shop-tile:hover { border-color: ${u.hover}; }
 .mechili-shop-col .shop-tile:active { transform: scale(0.94); }
+.mechili-shop-col .shop-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); z-index: 3; }
 .mechili-shop-col .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras .shop-tile {
     width: 64px;
@@ -751,11 +872,14 @@ export function hudStyles(): string {
     min-width: 244px;
     max-width: 300px;
     padding: 12px 14px;
-    background: ${u.panelBg};
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
     border: 1.5px solid ${u.border};
     border-left: none;
     border-bottom: none;
     border-radius: 0 10px 0 0;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
@@ -828,8 +952,10 @@ export function hudStyles(): string {
     border-radius: 50%;
     pointer-events: none;
 }
+.mechili-panel .action-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-panel .action-tile:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 .mechili-panel .action-tile:active { transform: scale(0.94); }
+.mechili-panel .action-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-panel .action-tile.locked { opacity: 0.42; }
 .mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
@@ -867,9 +993,12 @@ export function hudStyles(): string {
     align-items: center;
     gap: 6px;
     padding: 8px 6px;
-    background: ${u.panelBg};
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
     border: 1.5px solid ${u.border};
     border-radius: 0;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     font-family: system-ui, sans-serif;
     user-select: none;
 }
@@ -904,7 +1033,9 @@ export function hudStyles(): string {
     color: ${u.text};
     cursor: pointer;
 }
-.mechili-sidebar .inv-item:hover { border-color: ${u.hover}; }
+.mechili-sidebar .inv-item { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+.mechili-sidebar .inv-item:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-sidebar .inv-item:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-sidebar .inv-item.armed { border-color: ${u.brass}; box-shadow: 0 0 10px ${u.brass}; }
 .mechili-sidebar .inv-item.placed {
     border-color: ${u.techOwned};
@@ -943,7 +1074,8 @@ export function hudStyles(): string {
     border-radius: 7px;
     cursor: help;
 }
-.mechili-panel .item-sq:hover { border-color: ${u.hover}; }
+.mechili-panel .item-sq { transition: border-color 0.12s ease, transform 0.12s ease; }
+.mechili-panel .item-sq:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 
 /* --- in-match chat ------------------------------------------------------ */
 .mechili-fightbar .fighter { position: relative; }
@@ -1005,9 +1137,12 @@ export function hudStyles(): string {
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    background: ${u.panelBg};
+    background: linear-gradient(180deg, rgba(30, 44, 26, 0.72), rgba(18, 28, 15, 0.82));
     border: 1.5px solid ${u.border};
     border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
 }
 .mechili-chat .c-emotes { display: flex; gap: 4px; justify-content: center; }
 .mechili-chat .c-emote {
@@ -1019,7 +1154,9 @@ export function hudStyles(): string {
     border-radius: 8px;
     cursor: pointer;
 }
+.mechili-chat .c-emote { transition: transform 0.12s ease, border-color 0.12s ease; }
 .mechili-chat .c-emote:hover { border-color: ${u.hover}; transform: scale(1.12); }
+.mechili-chat .c-emote:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
 .mechili-chat .c-row { display: flex; gap: 6px; }
 .mechili-chat .c-input {
     flex: 1;
@@ -1039,7 +1176,10 @@ export function hudStyles(): string {
     cursor: pointer;
     font-size: 13px;
 }
+.mechili-chat .c-send { transition: border-color 0.12s ease, background 0.12s ease; }
 .mechili-chat .c-send:hover { border-color: ${u.hover}; }
+.mechili-chat .c-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-chat .c-input:focus-visible { outline: none; border-color: ${u.hover}; }
 
 .mechili-chat-float {
     position: absolute;
@@ -1110,6 +1250,7 @@ export function hudStyles(): string {
     cursor: pointer;
 }
 .mechili-cards .unlock-pick:hover { border-color: ${u.hover}; transform: translateY(-2px); }
+.mechili-cards .unlock-pick:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-cards .unlock-pick:disabled {
     opacity: 0.4;
     pointer-events: none;
@@ -1165,6 +1306,7 @@ export function hudStyles(): string {
     transition: transform 0.12s, border-color 0.12s;
 }
 .mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
+.mechili-cards .card:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); transform: translateY(-5px); }
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
 /* a card shown for information only (waiting / reveal) — no hover, no lift */
 .mechili-cards .card.static { cursor: default; }
@@ -1207,7 +1349,9 @@ export function hudStyles(): string {
     font-weight: bold;
     cursor: pointer;
 }
-.mechili-cards .cards-skip:hover { background: ${u.undoHover}; }
+.mechili-cards .cards-skip { transition: transform 0.14s ease, background 0.14s ease; }
+.mechili-cards .cards-skip:hover { background: ${u.undoHover}; transform: translateY(-1px); }
+.mechili-cards .cards-skip:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
 
 .mechili-pause {
     position: absolute;
@@ -1215,7 +1359,9 @@ export function hudStyles(): string {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(12, 20, 8, 0.45);
+    background: rgba(12, 20, 8, 0.5);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     z-index: 55;
     font-family: system-ui, sans-serif;
     user-select: none;
@@ -1251,7 +1397,9 @@ export function hudStyles(): string {
     letter-spacing: 1px;
     cursor: pointer;
 }
-.mechili-pause button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-pause button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
+.mechili-pause button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-pause button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
 .mechili-pause .pause-quit {
     border-color: ${u.undoBorder};
     color: ${u.undoText};
@@ -1268,9 +1416,10 @@ export function hudStyles(): string {
     align-items: center;
     gap: 18px;
     padding: 36px 64px;
-    background: ${u.panelBgDark};
+    background: linear-gradient(180deg, rgba(34, 50, 28, 0.96), rgba(20, 30, 16, 0.97));
     border: 2px solid ${u.border};
     border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     font-family: system-ui, sans-serif;
     user-select: none;
 }
@@ -1289,7 +1438,9 @@ export function hudStyles(): string {
     letter-spacing: 1px;
     cursor: pointer;
 }
-.mechili-gameover .go-restart:hover { background: ${u.alliedBtnHover}; }
+.mechili-gameover .go-restart { transition: transform 0.14s ease, background 0.14s ease; }
+.mechili-gameover .go-restart:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
+.mechili-gameover .go-restart:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 
 .mechili-report {
     position: absolute;
@@ -1297,15 +1448,21 @@ export function hudStyles(): string {
     top: 56px;
     min-width: 200px;
     padding: 12px 14px;
-    background: ${u.panelBg};
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 10px 0 0 10px;
+    border-right: none;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
 }
 .mechili-report .r-title { font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
-.mechili-report .r-close { background: none; border: none; color: ${u.textMuted}; cursor: pointer; font-size: 14px; padding: 0; }
+.mechili-report .r-close { background: none; border: none; color: ${u.textMuted}; cursor: pointer; font-size: 14px; padding: 0; transition: color 0.12s ease; }
+.mechili-report .r-close:hover { color: ${u.brassLight}; }
+.mechili-report .r-close:focus-visible { outline: none; color: ${u.brassLight}; }
 .mechili-report .r-row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
 .mechili-report .r-row .n.player { color: ${pc}; }
 .mechili-report .r-row .n.enemy { color: ${ec}; }
@@ -1359,6 +1516,7 @@ export function hudStyles(): string {
     padding: 8px 12px;
     background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
     border: 2px solid ${u.border};
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     pointer-events: none;
 }
 .mechili-fightbar .fighter.player {
@@ -1381,11 +1539,12 @@ export function hudStyles(): string {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: ${u.panelBg};
+    background: linear-gradient(180deg, rgba(46, 62, 36, 0.95), rgba(24, 36, 20, 0.95));
     border: 2px solid ${u.border};
     border-radius: 8px;
     font-size: 22px;
     font-weight: bold;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 .mechili-fightbar .fighter.player .portrait { color: ${pc}; border-color: ${pc}; }
 .mechili-fightbar .fighter.enemy .portrait { color: ${ec}; border-color: ${ec}; }
@@ -1423,10 +1582,11 @@ export function hudStyles(): string {
     border: 1px solid ${u.border};
     border-radius: 3px;
     overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 .mechili-fightbar .fighter.player .hp-track { direction: ltr; }
 .mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
-.mechili-fightbar .hp-fill { height: 100%; width: 100%; transition: width 0.25s ease-out; }
+.mechili-fightbar .hp-fill { height: 100%; width: 100%; transition: width 0.25s ease-out; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28); }
 .mechili-fightbar .fighter.player .hp-fill { background: linear-gradient(90deg, ${pc}, ${u.hpBar}); }
 .mechili-fightbar .fighter.enemy .hp-fill { background: linear-gradient(90deg, ${ec}, #e85848); }
 .mechili-fightbar .hp-val {
@@ -1442,17 +1602,25 @@ export function hudStyles(): string {
 .mechili-topbar .phase { font-size: 12px; color: ${u.phase}; letter-spacing: 1px; text-transform: uppercase; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
 .mechili-topbar .end-deploy {
-    padding: 9px 22px;
-    background: ${u.alliedBtnBg};
-    border: 2px solid ${u.brass};
-    border-radius: 8px;
-    color: ${u.brassLight};
+    padding: 10px 24px;
+    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
+    border: 2px solid ${u.brassLight};
+    border-radius: 9px;
+    color: #20180a;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1.5px;
     cursor: pointer;
+    box-shadow: 0 3px 12px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
 }
-.mechili-topbar .end-deploy:hover { background: ${u.alliedBtnHover}; border-color: ${u.brassLight}; }
+.mechili-topbar .end-deploy:hover {
+    background: linear-gradient(180deg, #fff0b0, ${u.brassLight});
+    transform: translateY(-2px);
+    box-shadow: 0 7px 20px rgba(255, 180, 40, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
+.mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.5); }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
 /* a card overlay is up (specialist pick, reveal, round card) — can't end yet */
@@ -1471,7 +1639,9 @@ export function hudStyles(): string {
     font-variant-numeric: tabular-nums;
     cursor: pointer;
 }
-.mechili-topbar .speed:hover { background: ${u.speedHover}; }
+.mechili-topbar .speed { transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+.mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
+.mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-topbar.battle .speed { display: inline-block; }
 `;
 }

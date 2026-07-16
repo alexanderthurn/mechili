@@ -5,9 +5,11 @@ import {
     Fog,
     HemisphereLight,
     PCFSoftShadowMap,
+    PMREMGenerator,
     Scene,
     WebGLRenderer,
 } from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
@@ -54,7 +56,8 @@ import {
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
-import { renderAllUnitIcons } from '../ui/unitIcons';
+import { unitThumbnails } from '../ui/unitThumbs';
+import { updateAnimatedUnits } from './unitAnimated';
 
 /** how long the both-specialists reveal stays up before deployment takes over */
 const SPECIALIST_REVEAL_MS = 2000;
@@ -258,6 +261,14 @@ export class Game {
         this.scene.background = new Color(THEME.sky);
         this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
 
+        // PBR environment: metallic (Tripo) models render near-black with nothing
+        // to reflect, so give the scene a neutral image-based light. Kept subtle so
+        // it lifts the metals without washing out the tuned direct-light look.
+        const pmrem = new PMREMGenerator(this.renderer);
+        this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+        this.scene.environmentIntensity = 0.55;
+        pmrem.dispose();
+
         this.scene.add(new HemisphereLight(THEME.hemiSky, THEME.hemiGround, THEME.hemiIntensity));
         const sun = new DirectionalLight(THEME.sun, THEME.sunIntensity);
         sun.position.set(120, 160, 80);
@@ -399,7 +410,7 @@ export class Game {
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
         );
-        this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        this.hud.setUnitIcons(unitThumbnails());
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.onQuitToMenu = () => this.quitToMenu();
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
@@ -1722,6 +1733,7 @@ export class Game {
         this.rig.update(dtSeconds);
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
+        updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
         this.updateSelectionUi();
         this.drainRemoteQueue();

@@ -1,4 +1,5 @@
 import {
+    Box3,
     BoxGeometry,
     Color,
     CylinderGeometry,
@@ -7,11 +8,13 @@ import {
     Mesh,
     MeshStandardMaterial,
     SphereGeometry,
-    type Vector3,
+    Vector3,
 } from 'three';
 import { THEME } from '../theme';
 import { teamColors } from './colors';
 import { CELL, type Cell } from './map';
+import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
+import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 
 export type Team = 'player' | 'enemy';
 
@@ -324,7 +327,7 @@ export const SHIELD_HEIGHT = 17;
 export const UNIT_TYPES: UnitType[] = [
     {
         id: 'crawler',
-        name: 'Crawler',
+        name: 'Dwarf',
         cost: 100,
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a swarm of 24 bugs
@@ -345,7 +348,7 @@ export const UNIT_TYPES: UnitType[] = [
     },
     {
         id: 'marksman',
-        name: 'Marksman',
+        name: 'Archer',
         cost: 100,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
@@ -368,7 +371,7 @@ export const UNIT_TYPES: UnitType[] = [
     },
     {
         id: 'wasp',
-        name: 'Wasp',
+        name: 'Crow Rider',
         cost: 200,
         footprint: { cols: 5, rows: 2 }, // same pack size as crawlers
         formation: { cols: 6, rows: 2 }, // a swarm of 12 drones, two wide rows
@@ -391,7 +394,7 @@ export const UNIT_TYPES: UnitType[] = [
     },
     {
         id: 'fortress',
-        name: 'Fortress',
+        name: 'Ballista',
         cost: 400,
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
@@ -422,7 +425,7 @@ export const UNIT_TYPES: UnitType[] = [
     },
     {
         id: 'shield',
-        name: 'Shield',
+        name: 'Ward Stone',
         cost: 100,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
@@ -443,7 +446,7 @@ export const UNIT_TYPES: UnitType[] = [
     },
     {
         id: 'rocket',
-        name: 'Rocket',
+        name: 'Fire Bolt',
         cost: 50,
         footprint: { cols: 1, rows: 1 },
         formation: { cols: 1, rows: 1 },
@@ -521,7 +524,14 @@ export class Unit {
         for (let i = 0; i < formation.cols; i++) {
             for (let j = 0; j < formation.rows; j++) {
                 const mesh = new Group();
-                type.build(new PartFactory(mesh, team));
+                // rigged/animated FBX first, then static GLB, else procedural
+                // primitives. Models are pre-normalized to the procedural LOCAL
+                // size, so meshScale below (and wreck/reset scaling) is uniform.
+                const animated = hasAnimatedModel(type.id) ? cloneAnimatedModel(type.id, team) : null;
+                const model = animated ?? (hasUnitModel(type.id) ? cloneUnitModel(type.id, team) : null);
+                if (animated) mesh.userData.animated = true;
+                if (model) mesh.add(model);
+                else type.build(new PartFactory(mesh, team));
                 mesh.scale.setScalar(type.meshScale);
                 mesh.position.set(
                     (i - (formation.cols - 1) / 2) * spacingX,
@@ -803,6 +813,33 @@ export function clearBattleTint(mesh: Group): void {
         delete child.userData.spawnMat;
     });
 }
+
+/**
+ * Measure each modeled unit's procedural local height, then load its GLB
+ * template at that size. Call once at startup before any Unit is built; units
+ * without a model (or whose model fails to load) keep their procedural mesh.
+ */
+let visualsPromise: Promise<void> | null = null;
+export function preloadUnitVisuals(): Promise<void> {
+    if (visualsPromise) return visualsPromise;
+    visualsPromise = (async () => {
+        try {
+            const heights: Record<string, number> = {};
+            for (const type of UNIT_TYPES) {
+                const probe = new Group();
+                type.build(new PartFactory(probe, 'player'));
+                heights[type.id] = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
+            }
+            await Promise.all([loadUnitModels(heights), loadAnimatedModels(heights)]);
+        } catch (e) {
+            console.error('[unitModels] preloadUnitVisuals failed', e);
+        }
+    })();
+    return visualsPromise;
+}
+// kick off model loading as soon as this module is imported (belt-and-suspenders
+// with main.ts's await, so it runs even if the entry module isn't re-executed)
+void preloadUnitVisuals();
 
 /** one mech mesh for UI thumbnails — same builders as in-game, preview-sized */
 export function buildUnitPreviewMesh(type: UnitType, team: Team = 'player'): Group {

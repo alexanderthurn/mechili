@@ -1,0 +1,37 @@
+{
+  "task_id": "05c38974-1340-4275-83fc-6b5f54350b19",
+  "type": "text_to_model",
+  "status": "success",
+  "input": {
+    "prompt": "super low poly fantasy medieval archer, a human ranger man wearing a hood and leather armor, holding a wooden longbow with a quiver of arrows on his back, stylized low-poly game character with flat faceted minimal-polygon surfaces, colorful hand-painted textures, clean readable silhouette, standing upright front facing, full body, game-ready, no text",
+    "model_version": "P1-20260311",
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "detailed",
+    "texture_alignment": "geometry",
+    "export_uv": true,
+    "face_limit": 4000
+  },
+  "output": {
+    "pbr_model": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260713/05c38974-1340-4275-83fc-6b5f54350b19/tripo_pbr_model_05c38974-1340-4275-83fc-6b5f54350b19.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTMvMDVjMzg5NzQtMTM0MC00Mjc1LTgzZmMtNmI1ZjU0MzUwYjE5L3RyaXBvX3Bicl9tb2RlbF8wNWMzODk3NC0xMzQwLTQyNzUtODNmYy02YjVmNTQzNTBiMTkuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzgzOTg3MjAwfX19XX0_&Signature=eMXcJlRtzWwHkh~9x1lB5B8eUafRfTxltogL2f9WjLSzwjLlNiMyzsgya4syk9F~vTwyKqFHbJD9hHwIkWLkYR9oy4HjVCpMC~BF~sVidPn2DNLR~ruzcqfVpmdlysOxn2mr8q2-5jgVIVtMmAtbX7Cswj2hpmyf~JOlqtXIH8kTJSXndZc662cyf~xsaP7~soiWvM2vSfJwF7K1N2v9g6dbDUY1VRaKPt-TitlTh69C37wmoFP3g38xHLOra3yJyM147uNTwPGHRDO7lFxQcejQQaFDfvQrGf21zyvKNiq-53Te2Nd8yYDk~op3zg3ipzkVg~27VxgcePM816Yjig__",
+    "generated_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260713/05c38974-1340-4275-83fc-6b5f54350b19/text2image_05c38974-1340-4275-83fc-6b5f54350b19.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTMvMDVjMzg5NzQtMTM0MC00Mjc1LTgzZmMtNmI1ZjU0MzUwYjE5L3RleHQyaW1hZ2VfMDVjMzg5NzQtMTM0MC00Mjc1LTgzZmMtNmI1ZjU0MzUwYjE5LmpwZWciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODM5ODcyMDB9fX1dfQ__&Signature=caym0GGgPdmsHK2Za8-bpkIIzdpwLRtYfq0i9XvxykuO7ZoGD35DLr4Wl4XiE8S9WN~NXaMOYGApYXNlRkSbek3uEzKB3-U7g~I8IghTGPxP9zpWTpZ7oA1vkPeT75NsFLguu5-kiyhn89e5IOXT-sJZFwG-ikpjH9hWEfB-p8Ali6UiClT52onYvkhm60QF7jXXZP4PZksvP~ysEsKvBByNqa79Smiq2rQTK0zYAApsK6IkS370JEXZ90i7ufFLy6XpVwLrdf5vU5Y8JZnO2euRzZ1Fk88OjEbDbB74sVytDVm~laM6EJql2CVMJuqrkI5uJpSjE9yjloK2-vPFzg__",
+    "rendered_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260713/05c38974-1340-4275-83fc-6b5f54350b19/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTMvMDVjMzg5NzQtMTM0MC00Mjc1LTgzZmMtNmI1ZjU0MzUwYjE5L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODM5ODcyMDB9fX1dfQ__&Signature=krh4AgdQYbbKzFIVU0XtYuI46~jQ3OQoc2JIzi~xBkj2SXYVEdDSFjNlQu74InOiGXAfSgT4jj7HXOvn4SjkfEjOdvSorrKS63LHCzkhdhH5Y0-Wk9AEPJJv2MXaw4sHzxr4geH6TuKH7bL2PfAfn5udySPGJOdF9hRqXnDMBa5AYehAAffa-Q3H7RZ5TixjLpin019RCp6rzThIxTUytlQXg9WtM1ZSRh5lmyjmYoN0pTuCiA1XuCX8G5CxxlXI6UmP53tCM4IygUHwGG-xEtlOvkKkP-PywDP9hPznXpHvPfhtdNZD22QMz8cqrRI-d6~kAvaXi9S1Pkb5huoijQ__"
+  },
+  "progress": 100,
+  "create_time": 1783964216,
+  "consumed_credit": 50,
+  "prompt": "super low poly fantasy medieval archer, a human ranger man wearing a hood and leather armor, holding a wooden longbow with a quiver of arrows on his back, stylized low-poly game character with flat faceted minimal-polygon surfaces, colorful hand-painted textures, clean readable silhouette, standing upright front facing, full body, game-ready, no text",
+  "thumbnail": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260713/05c38974-1340-4275-83fc-6b5f54350b19/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTMvMDVjMzg5NzQtMTM0MC00Mjc1LTgzZmMtNmI1ZjU0MzUwYjE5L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODM5ODcyMDB9fX1dfQ__&Signature=krh4AgdQYbbKzFIVU0XtYuI46~jQ3OQoc2JIzi~xBkj2SXYVEdDSFjNlQu74InOiGXAfSgT4jj7HXOvn4SjkfEjOdvSorrKS63LHCzkhdhH5Y0-Wk9AEPJJv2MXaw4sHzxr4geH6TuKH7bL2PfAfn5udySPGJOdF9hRqXnDMBa5AYehAAffa-Q3H7RZ5TixjLpin019RCp6rzThIxTUytlQXg9WtM1ZSRh5lmyjmYoN0pTuCiA1XuCX8G5CxxlXI6UmP53tCM4IygUHwGG-xEtlOvkKkP-PywDP9hPznXpHvPfhtdNZD22QMz8cqrRI-d6~kAvaXi9S1Pkb5huoijQ__",
+  "queuing_num": -1,
+  "running_left_time": -1,
+  "result": {
+    "pbr_model": {
+      "type": "glb",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260713/05c38974-1340-4275-83fc-6b5f54350b19/tripo_pbr_model_05c38974-1340-4275-83fc-6b5f54350b19.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTMvMDVjMzg5NzQtMTM0MC00Mjc1LTgzZmMtNmI1ZjU0MzUwYjE5L3RyaXBvX3Bicl9tb2RlbF8wNWMzODk3NC0xMzQwLTQyNzUtODNmYy02YjVmNTQzNTBiMTkuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzgzOTg3MjAwfX19XX0_&Signature=eMXcJlRtzWwHkh~9x1lB5B8eUafRfTxltogL2f9WjLSzwjLlNiMyzsgya4syk9F~vTwyKqFHbJD9hHwIkWLkYR9oy4HjVCpMC~BF~sVidPn2DNLR~ruzcqfVpmdlysOxn2mr8q2-5jgVIVtMmAtbX7Cswj2hpmyf~JOlqtXIH8kTJSXndZc662cyf~xsaP7~soiWvM2vSfJwF7K1N2v9g6dbDUY1VRaKPt-TitlTh69C37wmoFP3g38xHLOra3yJyM147uNTwPGHRDO7lFxQcejQQaFDfvQrGf21zyvKNiq-53Te2Nd8yYDk~op3zg3ipzkVg~27VxgcePM816Yjig__"
+    },
+    "rendered_image": {
+      "type": "webp",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260713/05c38974-1340-4275-83fc-6b5f54350b19/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTMvMDVjMzg5NzQtMTM0MC00Mjc1LTgzZmMtNmI1ZjU0MzUwYjE5L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODM5ODcyMDB9fX1dfQ__&Signature=krh4AgdQYbbKzFIVU0XtYuI46~jQ3OQoc2JIzi~xBkj2SXYVEdDSFjNlQu74InOiGXAfSgT4jj7HXOvn4SjkfEjOdvSorrKS63LHCzkhdhH5Y0-Wk9AEPJJv2MXaw4sHzxr4geH6TuKH7bL2PfAfn5udySPGJOdF9hRqXnDMBa5AYehAAffa-Q3H7RZ5TixjLpin019RCp6rzThIxTUytlQXg9WtM1ZSRh5lmyjmYoN0pTuCiA1XuCX8G5CxxlXI6UmP53tCM4IygUHwGG-xEtlOvkKkP-PywDP9hPznXpHvPfhtdNZD22QMz8cqrRI-d6~kAvaXi9S1Pkb5huoijQ__"
+    }
+  }
+}

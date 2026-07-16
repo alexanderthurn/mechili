@@ -1,11 +1,11 @@
 {
-  "name": "mechili",
+  "name": "melodan",
   "version": "0.1.0",
-  "description": "MECHILI — an auto-battler in projected 3D.",
+  "description": "MELODAN — a fantasy auto-battler.",
   "type": "module",
   "license": "GPL-3.0",
   "steamElectronBuild": {
-    "productName": "MECHILI",
+    "productName": "MELODAN",
     "appId": "com.feuerware.mechili",
     "steamAppId": 480,
     "executableName": "mechili"

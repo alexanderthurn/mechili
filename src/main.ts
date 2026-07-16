@@ -1,4 +1,4 @@
-import { Application, Container, Text } from 'pixi.js';
+import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
 import {
@@ -23,6 +23,7 @@ import {
     type SinglePlayerSave,
 } from './game/net';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
+import { preloadUnitVisuals } from './game/units';
 import { onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
@@ -42,7 +43,10 @@ function settingsFromUrl(): GameSettings {
 }
 
 const wrapper = document.createElement('div');
-wrapper.style.cssText = `position:fixed;inset:0;overflow:hidden;background:${THEME.sky};`;
+const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
+wrapper.style.cssText =
+    `position:fixed;inset:0;overflow:hidden;` +
+    `background:#b8d4c8 url(${menuBgUrl}) center/cover no-repeat;`;
 
 function createThreeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -75,16 +79,34 @@ function setGameLayerVisible(visible: boolean): void {
 }
 
 const title = new Container();
-const heading = new Text({
-    text: 'MECHILI',
-    style: { fill: THEME.title, fontSize: 96, fontWeight: 'bold', letterSpacing: 12 },
+const logoUrl = new URL('../assets/ui/logo.webp', import.meta.url).href;
+const logoTex = await Assets.load(logoUrl);
+const logo = new Sprite(logoTex);
+logo.anchor.set(0.5);
+// the logo art is on a black background (alpha isn't supported in this pipeline);
+// additive blending drops the black and lets the wordmark glow over the scene
+logo.blendMode = 'add';
+const subtitle = new Text({
+    text: 'FANTASY AUTO·BATTLER',
+    style: {
+        fill: THEME.subtitle,
+        fontSize: 18,
+        fontWeight: 'bold',
+        letterSpacing: 6,
+        dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
+    },
 });
-heading.anchor.set(0.5);
-title.addChild(heading);
+subtitle.anchor.set(0.5);
+title.addChild(logo, subtitle);
 app.stage.addChild(title);
 
 function layoutTitle() {
-    heading.position.set(app.screen.width / 2, app.screen.height / 2 - 140);
+    const cx = app.screen.width / 2;
+    const cy = app.screen.height / 2 - 160;
+    const scale = Math.min(app.screen.width * 0.62, 600) / logo.texture.width;
+    logo.scale.set(scale);
+    logo.position.set(cx, cy);
+    subtitle.position.set(cx, cy + logo.height / 2 + 2);
 }
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
@@ -98,9 +120,9 @@ menu.className = 'mechili-menu';
 menu.style.position = 'relative';
 menu.style.zIndex = '30';
 menu.innerHTML = `
-    <button class="m-btn" data-mode="single">Single Player</button>
-    <button class="m-btn" data-mode="quick">Matchmaking</button>
-    <button class="m-btn" data-mode="lobby">Custom Room</button>
+    <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
+    <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
+    <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
     <div class="m-lobby" style="display:none">
         <div class="m-room-row">
             <button class="m-btn m-small" data-mode="host">Host Room</button>
@@ -669,6 +691,9 @@ menu.addEventListener('click', (e) => {
             break;
     }
 });
+
+// load generated unit models (Fortress GLB, etc.) before any match can start
+await preloadUnitVisuals();
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
 setGameLayerVisible(false);
