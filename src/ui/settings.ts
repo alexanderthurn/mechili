@@ -28,6 +28,7 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="off">Off (plain ground)</option>` +
         `</select> <span class="s-hint">battlefield wear</span></label>` +
         `<label class="s-row">Fire effects <select class="s-fire">` +
+        `<option value="ultra">Ultra</option>` +
         `<option value="high">High</option>` +
         `<option value="low">Low</option>` +
         `<option value="off">Off</option>` +

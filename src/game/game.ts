@@ -379,7 +379,7 @@ export class Game {
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
-        this.fireFx = new FireFx(this.particles);
+        this.fireFx = new FireFx(this.particles, this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
@@ -2059,6 +2059,7 @@ export class Game {
         this.sim = null;
         this.selectedActor = null;
         this.projectileRenderer.clear();
+        this.fireFx.clear(); // instanced flame tongues are battle-only
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
         if (this.playerHp <= 0 || this.enemyHp <= 0) {

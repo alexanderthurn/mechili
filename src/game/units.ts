@@ -446,7 +446,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a pack of 24 fighters
         meshScale: 1,
-        burn: { takenMult: 1.25 }, // cloth & leather catch readily
+        burn: { takenMult: 0.5 }, // tough infantry — resists fire better
         targets: { ground: true, air: false }, // can't reach the sky
         collisionRadius: 0.5,
         colliders: [{ y: 0.35, r: 0.55 }],
@@ -545,7 +545,7 @@ export const UNIT_TYPES: UnitType[] = [
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
-        burn: { takenMult: 1.4 }, // timber frame catches easily
+        burn: { takenMult: 4.0 }, // timber siege — burns hard once lit
         hp: 500,
         damage: 500,
         range: 84,

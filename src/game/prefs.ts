@@ -4,8 +4,24 @@
 export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low' | 'off';
 /** Battlefield ground texture + sand / blood / scorch wear. */
 export type GroundEffectsQuality = 'full' | 'medium' | 'low' | 'off';
-/** Combat fire particle density (visual only — never affects sim). */
-export type FireVfxQuality = 'high' | 'low' | 'off';
+/** Combat fire VFX density (visual only — never affects sim). */
+export type FireVfxQuality = 'ultra' | 'high' | 'low' | 'off';
+
+/**
+ * Fire VFX tiers (for tuning):
+ *
+ * | tier  | tongues (max) | fill rule | extras |
+ * |-------|---------------|-----------|--------|
+ * | off   | — | tint only | — |
+ * | low   | — | particles | light sparks |
+ * | high  | 1024 | **1+ tongue per fire cell** (extras if budget allows) | medium + smoke |
+ * | ultra | 2048 | same, denser extras on small blazes | heavy + smoke |
+ *
+ * Coverage comes first: every burning hazard cell gets a billboard whenever
+ * cell count ≤ maxTongues (typical oil spills fit). Only pathological mega-blazes
+ * thin cells, and then tongues widen to close gaps.
+ * Sim oil/fire hitboxes are always the same — quality is visual only.
+ */
 
 export interface Prefs {
     /** show the in-match (combat) chat at all: bar, bubbles, messages */
@@ -28,7 +44,7 @@ export interface Prefs {
      * - low / off: no wear mask work
      */
     groundEffects: GroundEffectsQuality;
-    /** Optional flame particles on top of always-on oil/fire ground tint */
+    /** Optional fire VFX on top of always-on oil/fire ground tint (see FireVfxQuality). */
     fireVfx: FireVfxQuality;
     /**
      * Cap on `devicePixelRatio` for the WebGL canvas.
@@ -78,7 +94,12 @@ function normalizePrefs(p: Prefs): Prefs {
     ) {
         p.groundEffects = DEFAULTS.groundEffects;
     }
-    if (p.fireVfx !== 'high' && p.fireVfx !== 'low' && p.fireVfx !== 'off') {
+    if (
+        p.fireVfx !== 'ultra' &&
+        p.fireVfx !== 'high' &&
+        p.fireVfx !== 'low' &&
+        p.fireVfx !== 'off'
+    ) {
         p.fireVfx = DEFAULTS.fireVfx;
     }
     if (p.dprCap !== 2 && p.dprCap !== 1.5 && p.dprCap !== 1) p.dprCap = 2;
