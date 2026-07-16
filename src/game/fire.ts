@@ -22,6 +22,9 @@ export const OIL_SPILL_DURATION_ROUNDS = 2;
 export const DEFAULT_GROUND_FIRE_DURATION = 8;
 export const DEFAULT_GROUND_FIRE_INTENSITY = 28;
 
+/** ground units on oil cells move at this fraction of normal speed */
+export const OIL_SPEED_MULT = 0.55;
+
 export interface FireBurnSpec {
     /** damage per second while burning */
     dps: number;

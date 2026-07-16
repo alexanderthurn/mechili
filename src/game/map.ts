@@ -189,6 +189,19 @@ export class BattleMap {
     private sandDirty = false;
     private sandFlushAt = 0;
 
+    /**
+     * Oil / active-fire mask (separate from wear RGB): R = oil, G = fire.
+     * Driven by HazardField for look only — never gameplay truth.
+     */
+    private hazardMask: CanvasTexture | null = null;
+    private hazardCtx: CanvasRenderingContext2D | null = null;
+    private hazardW = 0;
+    private hazardH = 0;
+    private hazardDirty = false;
+    private hazardFlushAt = 0;
+    /** updated each frame for fire flicker in the ground shader */
+    private hazardTimeUniform: { value: number } | null = null;
+
     /** ground texture + wear quality (the board's SHAPE is never gated) */
     private groundEffects: GroundEffectsQuality = prefs().groundEffects;
 
@@ -336,14 +349,19 @@ export class BattleMap {
         geometry.computeVertexNormals();
         const macro = this.createGroundTexture(seed);
         this.groundMacro = macro; // scenery continues this tone past the border
+        // Oil/fire is gameplay-visible: always on, fixed mask res — independent of
+        // the cosmetic ground-effects pref (sand/blood/scorch).
+        const hazardMask = this.ensureHazardMask();
         const material = new MeshStandardMaterial({
             map: macro,
             roughness: THEME.terrain.groundRoughness,
             metalness: 0,
         });
+        this.attachGroundShader(material, macro, { hazardMask });
         const mesh = new Mesh(geometry, material);
         mesh.receiveShadow = true;
-        // ground effects 'off' keeps the plain macro canvas — no detail textures
+        // ground effects 'off' keeps the plain macro canvas — no detail textures /
+        // wear, but oil+fire still show via the hazard inject above
         if (this.groundEffects !== 'off') {
             void this.upgradeGroundMaterial(mesh, macro, seed);
         }
@@ -474,6 +492,165 @@ export class BattleMap {
         this.sandFlushAt = now;
     }
 
+    /** Oil/fire mask: R = oil, G = active fire. Fixed size so every machine matches. */
+    private ensureHazardMask(): CanvasTexture {
+        if (this.hazardMask && this.hazardCtx) return this.hazardMask;
+        // fixed — not tied to groundEffects quality (gameplay silhouette must match)
+        const w = 256;
+        const h = Math.round((w * this.height) / this.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        this.hazardW = w;
+        this.hazardH = h;
+        this.hazardCtx = ctx;
+        const tex = new CanvasTexture(canvas);
+        this.hazardMask = tex;
+        return tex;
+    }
+
+    private stampHazardChannel(
+        x: number,
+        z: number,
+        radius: number,
+        strength: number,
+        channel: 'r' | 'g',
+    ): void {
+        const ctx = this.hazardCtx;
+        if (!ctx || !this.hazardMask) return;
+        const cx = ((x + this.halfW) / this.width) * this.hazardW;
+        const cy = ((z + this.halfH) / this.height) * this.hazardH;
+        const r = Math.max(0.5, radius) * (this.hazardW / this.width);
+        this.drawWearBlob(ctx, cx, cy, r, strength, channel);
+        this.hazardDirty = true;
+    }
+
+    /**
+     * Rebuild oil (R) + fire (G) from the sim hazard field. Optional draft
+     * circle is stamped on top for placement preview (visual only).
+     */
+    syncHazardFromField(
+        field: {
+            forEachOilCell: (fn: (x: number, z: number) => void) => void;
+            forEachFireCell: (
+                now: number,
+                fn: (x: number, z: number, dps: number, until: number) => void,
+            ) => void;
+            cellSize: number;
+        },
+        now = 0,
+        draft: { x: number; z: number; radius: number } | null = null,
+    ): void {
+        this.ensureHazardMask();
+        const ctx = this.hazardCtx;
+        if (!ctx || !this.hazardMask) return;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, this.hazardW, this.hazardH);
+        const cellR = field.cellSize * 0.85;
+        field.forEachOilCell((x, z) => {
+            this.stampHazardChannel(x, z, cellR, 0.55, 'r');
+            this.stampHazardChannel(x, z, cellR * 1.35, 0.22, 'r');
+        });
+        field.forEachFireCell(now, (x, z) => {
+            this.stampHazardChannel(x, z, cellR, 0.7, 'g');
+            this.stampHazardChannel(x, z, cellR * 1.4, 0.3, 'g');
+        });
+        if (draft) {
+            this.stampHazardChannel(draft.x, draft.z, draft.radius, 0.4, 'r');
+            this.stampHazardChannel(draft.x, draft.z, draft.radius * 1.15, 0.2, 'r');
+        }
+        this.hazardDirty = true;
+        this.flushHazardMask(performance.now(), true);
+    }
+
+    /** Soft fire bloom at an impact (extra visual punch; field sync still owns shape). */
+    stampHazardFire(x: number, z: number, radius: number, strength = 0.45): void {
+        this.ensureHazardMask();
+        this.stampHazardChannel(x, z, radius, strength, 'g');
+        this.stampHazardChannel(x, z, radius * 1.3, strength * 0.4, 'g');
+    }
+
+    flushHazardMask(now = performance.now(), force = false): void {
+        if (!this.hazardDirty || !this.hazardMask) return;
+        // always flush reasonably fast — oil/fire is gameplay-readable
+        const minMs = 80;
+        if (!force && now - this.hazardFlushAt < minMs) return;
+        this.hazardMask.needsUpdate = true;
+        this.hazardDirty = false;
+        this.hazardFlushAt = now;
+    }
+
+    /** Drive fire flicker in the ground shader (visual only). */
+    setHazardTime(t: number): void {
+        if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
+    }
+
+    /**
+     * Shared ground fragment inject: optional wear (sand/blood/scorch) + always
+     * oil/fire hazard. Used by both the plain macro material and the detailed upgrade.
+     */
+    private attachGroundShader(
+        material: MeshStandardMaterial,
+        macro: CanvasTexture,
+        opts: {
+            hazardMask: CanvasTexture;
+            sand?: import('three').Texture | null;
+            sandMask?: CanvasTexture | null;
+        },
+    ): void {
+        const { hazardMask, sand = null, sandMask = null } = opts;
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.uMacro = { value: macro };
+            shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
+            shader.uniforms.uHazardTime = { value: 0 };
+            shader.uniforms.uHazardMask = { value: hazardMask };
+            this.hazardTimeUniform = shader.uniforms.uHazardTime as { value: number };
+            shader.vertexShader =
+                'varying vec2 vMacroUv;\n' +
+                shader.vertexShader.replace(
+                    '#include <uv_vertex>',
+                    '#include <uv_vertex>\n\tvMacroUv = uv;',
+                );
+            let inject = '';
+            let extraUniforms =
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\n';
+            if (sand && sandMask) {
+                shader.uniforms.uSand = { value: sand };
+                shader.uniforms.uSandMask = { value: sandMask };
+                extraUniforms += 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n';
+                inject +=
+                    '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
+                    '\tfloat sandLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n' +
+                    '\tfloat scorchM = smoothstep(0.12, 0.45, wear.b);\n' +
+                    '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
+                    '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n' +
+                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
+            }
+            // oil / fire — always, gameplay-readable on every quality setting
+            inject +=
+                '\tvec3 haz = texture2D(uHazardMask, vMacroUv).rgb;\n' +
+                '\tfloat oilM = smoothstep(0.06, 0.4, haz.r);\n' +
+                '\tfloat fireM = smoothstep(0.08, 0.45, haz.g);\n' +
+                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.04, 0.03, 0.015), oilM * 0.92);\n' +
+                '\tfloat flicker = 0.65 + 0.35 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
+                '\tvec3 fireCol = mix(vec3(0.08, 0.02, 0.0), vec3(1.0, 0.35, 0.05), flicker);\n' +
+                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, fireCol, fireM * 0.9);\n';
+            inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
+            shader.fragmentShader =
+                'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
+                extraUniforms +
+                shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
+        };
+        material.customProgramCacheKey = () =>
+            `ground-hazard${sand && sandMask ? '-wear-rgb' : ''}`;
+    }
+
     /**
      * Softly fade all wear toward clean grass. `keep` is how much remains
      * (0.7 ≈ 30% fade). Call once per new round so scars heal over time.
@@ -567,6 +744,7 @@ export class BattleMap {
             this.sandMask = null;
             this.sandCtx = null;
         }
+        const hazardMask = this.ensureHazardMask();
 
         const material = new MeshStandardMaterial({
             map: albedo,
@@ -575,43 +753,11 @@ export class BattleMap {
             roughness: THEME.terrain.groundRoughness,
             metalness: 0,
         });
-        material.onBeforeCompile = (shader) => {
-            shader.uniforms.uMacro = { value: macro };
-            shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
-            shader.vertexShader =
-                'varying vec2 vMacroUv;\n' +
-                shader.vertexShader.replace(
-                    '#include <uv_vertex>',
-                    '#include <uv_vertex>\n\tvMacroUv = uv;',
-                );
-            // wear mask RGB: scorch → blood → sand (sand last = walking restores sand over gore)
-            let inject = '';
-            if (sand && sandMask) {
-                shader.uniforms.uSand = { value: sand };
-                shader.uniforms.uSandMask = { value: sandMask };
-                inject +=
-                    '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
-                    '\tfloat sandLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n' +
-                    '\tfloat scorchM = smoothstep(0.12, 0.45, wear.b);\n' +
-                    '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
-                    // low threshold so light footprints still read (stamps are weak by design)
-                    '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
-                    // nearly black crimson puddles — not bright scarlet
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n' +
-                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
-            }
-            // full macro modulation to the very rim — the outer meadow starts
-            // at the field's average brightness, so the border blends anyway
-            inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
-            shader.fragmentShader =
-                'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
-                (sand && sandMask ? 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n' : '') +
-                shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
-        };
-        material.customProgramCacheKey = () =>
-            `ground-macro-detail-edgefade${sand && sandMask ? '-wear-rgb' : ''}`;
+        this.attachGroundShader(material, macro, {
+            hazardMask,
+            sand: sandMask ? sand : null,
+            sandMask,
+        });
 
         const previous = mesh.material as MeshStandardMaterial;
         mesh.material = material;

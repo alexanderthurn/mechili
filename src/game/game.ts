@@ -371,7 +371,7 @@ export class Game {
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles);
-        this.oilVisuals = new OilVisuals(this.scene, this.map);
+        this.oilVisuals = new OilVisuals(this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
         this.battleRangeMesh = createRangeRing(this.scene);
@@ -878,6 +878,8 @@ export class Game {
         this.oilField.expireOilBefore(this.round);
         this.oilBaseline.oilExpires.set(this.oilField.oilExpires);
         this.oilStamps.length = 0;
+        this.oilVisuals.setDraft(null, null);
+        this.oilVisuals.sync(this.oilField, 0);
         this.syncTacticVisuals();
         // flanks and the neutral strip open up after the first round
         const unlocked = this.round >= 2;
@@ -1627,7 +1629,6 @@ export class Game {
 
     private syncTacticVisuals(): void {
         this.syncRallyVisuals();
-        this.oilVisuals.sync(this.oilField);
         const pointer = this.placement.lastPointer;
         if (this.armedTactic === OIL_SPILL_ID && pointer) {
             const pos = this.groundAtLocal(pointer.x, pointer.y);
@@ -1635,6 +1636,7 @@ export class Game {
         } else {
             this.oilVisuals.setDraft(null, null);
         }
+        this.oilVisuals.sync(this.oilField, 0);
     }
 
     private syncRallyVisuals(): void {
@@ -1982,7 +1984,8 @@ export class Game {
         this.sim = null;
         this.selectedActor = null;
         this.projectileRenderer.clear();
-        this.oilVisuals.sync(this.oilField);
+        this.oilVisuals.setDraft(null, null);
+        this.oilVisuals.sync(this.oilField, 0);
         if (this.playerHp <= 0 || this.enemyHp <= 0) {
             this.finishMatch();
             return;
@@ -2153,6 +2156,9 @@ export class Game {
                 this.particles.spawnFromEvents(battleEvents);
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
+                this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed);
+                this.map.setHazardTime(this.time);
+                this.map.flushHazardMask();
                 if (profile) cpu.begin();
                 this.sim.syncMeshes(); // per-frame interpolated positions
                 if (profile) cpu.end('syncMeshes');

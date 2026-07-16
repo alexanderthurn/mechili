@@ -1,5 +1,5 @@
 import type { Group } from 'three';
-import { applyBurnStatus, HazardField, type FireProfile } from './fire';
+import { applyBurnStatus, HazardField, OIL_SPEED_MULT, type FireProfile } from './fire';
 import { ITEMS } from './items';
 import { groundSupportAt, simGroundHeightAt, simGroundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
@@ -1022,7 +1022,10 @@ export class BattleSim {
         if (steerLen > 1e-4) {
             steerX /= steerLen;
             steerZ /= steerLen;
-            const speed = stats.speed * this.debuff(a, d.speedMult);
+            const speed =
+                stats.speed *
+                this.debuff(a, d.speedMult) *
+                (a.altitude === 0 && this.hazards.hasOilAt(a.x, a.z) ? OIL_SPEED_MULT : 1);
             const move = Math.min(speed * dt, Math.max(0, goalDist - stopMargin));
             a.x += steerX * move;
             a.z += steerZ * move;

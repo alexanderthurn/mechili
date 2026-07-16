@@ -57,10 +57,23 @@ export class FireFx {
         if (this.emitAcc < period) return;
         this.emitAcc = 0;
 
-        let n = 0;
+        // Cap particle cost, but spread across the whole blaze — old code took
+        // the first N cells in row-major order, so big oil fires only sparked
+        // on one corner of the puddle.
         const budget = this.quality === 'high' ? 48 : 12;
+        let total = 0;
+        field.forEachFireCell(now, () => {
+            total++;
+        });
+        if (total === 0) return;
+
+        const stride = Math.max(1, Math.ceil(total / budget));
+        const phase = Math.floor(now / period) % stride;
+        let i = 0;
+        let n = 0;
         field.forEachFireCell(now, (x, z) => {
             if (n >= budget) return;
+            if (i++ % stride !== phase) return;
             if (this.quality === 'low' && ((Math.floor(x) + Math.floor(z)) & 1) === 0) return;
             const y = groundSupportAt(x, z) + 0.15;
             this.particles.burst(x, y, z, {

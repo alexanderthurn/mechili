@@ -21,14 +21,14 @@ export interface Prefs {
      */
     scenery: SceneryQuality;
     /**
-     * Ground wear (sand footprints, blood, scorch). Independent of scenery
-     * when scenery is medium/high; no-op on low (no detail ground).
+     * Cosmetic ground wear (sand footprints, blood, scorch). Does not gate
+     * oil/fire puddles — those are always drawn (gameplay-relevant).
      * - full: footprints + blood + scorch, ~12 Hz mask upload
      * - medium: footprints + scorch, lighter / slower updates
-     * - off: no wear mask work
+     * - low / off: no wear mask work
      */
     groundEffects: GroundEffectsQuality;
-    /** Flame particle density for ground fire / burn VFX */
+    /** Optional flame particles on top of always-on oil/fire ground tint */
     fireVfx: FireVfxQuality;
     /**
      * Cap on `devicePixelRatio` for the WebGL canvas.
