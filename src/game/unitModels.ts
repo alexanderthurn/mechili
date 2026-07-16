@@ -1,5 +1,6 @@
 import {
     Box3,
+    BufferAttribute,
     BufferGeometry,
     Color,
     Group,
@@ -43,7 +44,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     dwarf: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3 },
     archer: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
-    crowRider: { url: new URL('../../assets/models/crow-rider-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
+    crowRider: { url: new URL('../../assets/models/crow-rider-fantasy-low.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(100) },
     shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
@@ -167,7 +168,9 @@ function bakeInstanceAsset(root: Group): InstanceAsset {
         // multi-material meshes are rare on these assets; use the first slot
         const mat = mats[0];
         if (!(mat instanceof MeshStandardMaterial)) return;
-        const geo = mesh.geometry.clone();
+        // Quantized GLBs (gltf-transform) store i16/u16 normalized attrs —
+        // applyMatrix4 on those corrupts the mesh. Dequantize to float first.
+        const geo = dequantizeGeometry(mesh.geometry);
         scratch.multiplyMatrices(rootInv, mesh.matrixWorld);
         geo.applyMatrix4(scratch);
         let list = byMat.get(mat);
@@ -196,6 +199,40 @@ function bakeInstanceAsset(root: Group): InstanceAsset {
         });
     }
     return { parts };
+}
+
+const _dq = new Vector3();
+
+/** Clone geometry with float32 (non-normalized) position/normal/uv for safe baking. */
+function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
+    const geo = source.clone();
+    for (const name of Object.keys(geo.attributes)) {
+        const attr = geo.getAttribute(name);
+        if (!attr) continue;
+        if (attr.array instanceof Float32Array && !attr.normalized) continue;
+        const itemSize = attr.itemSize;
+        const count = attr.count;
+        const out = new Float32Array(count * itemSize);
+        if (itemSize === 3 || itemSize === 2) {
+            for (let i = 0; i < count; i++) {
+                if (itemSize === 3) {
+                    _dq.fromBufferAttribute(attr, i);
+                    out[i * 3] = _dq.x;
+                    out[i * 3 + 1] = _dq.y;
+                    out[i * 3 + 2] = _dq.z;
+                } else {
+                    out[i * 2] = attr.getX(i);
+                    out[i * 2 + 1] = attr.getY(i);
+                }
+            }
+        } else {
+            for (let i = 0; i < count; i++) {
+                for (let k = 0; k < itemSize; k++) out[i * itemSize + k] = attr.getComponent(i, k);
+            }
+        }
+        geo.setAttribute(name, new BufferAttribute(out, itemSize));
+    }
+    return geo;
 }
 
 /**

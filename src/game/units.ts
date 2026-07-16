@@ -579,8 +579,13 @@ export class Unit {
                 if (animated) {
                     mesh.userData.animated = true;
                     mesh.add(animated);
-                } else if (UnitInstanceRenderer.canInstance(type.id) && getUnitInstanceRenderer()) {
+                } else if (
+                    !type.structure &&
+                    UnitInstanceRenderer.canInstance(type.id) &&
+                    getUnitInstanceRenderer()
+                ) {
                     // empty proxy — UnitInstanceRenderer draws the shared mesh
+                    // (structures stay as clones: one each, often quantized/heavy)
                     getUnitInstanceRenderer()!.register(mesh, type.id, team);
                 } else {
                     const model = hasUnitModel(type.id) ? cloneUnitModel(type.id, team) : null;

@@ -101,18 +101,12 @@ export function worldHeightAt(x: number, z: number): number {
 }
 
 /**
- * Height that keeps a footprint clear of the relief: the max of the center
- * and a ring of samples at `radius`. Use this for seating units so they don't
- * sink into the uphill side of a mound.
+ * Height that keeps a footprint clear of the relief. Uses a single center
+ * sample (cheap enough for per-frame battle seating); steep mounds may clip
+ * the uphill edge slightly.
  */
-export function groundSupportAt(x: number, z: number, radius = 0.7): number {
-    let h = groundHeightFn(x, z);
-    if (radius <= 0) return h;
-    for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        h = Math.max(h, groundHeightFn(x + Math.cos(a) * radius, z + Math.sin(a) * radius));
-    }
-    return h;
+export function groundSupportAt(x: number, z: number, _radius = 0.7): number {
+    return groundHeightFn(x, z);
 }
 
 function smooth01(t: number): number {
