@@ -530,7 +530,8 @@ export class BattleMap {
 
     /**
      * Rebuild oil (R) + fire (G) from the sim hazard field. Optional draft
-     * stamps the same cell silhouette as a real oil spill (visual only).
+     * stamps the same capsule silhouette as a real oil spill (visual only),
+     * skipping cells inside ward-stone discs.
      */
     syncHazardFromField(
         field: {
@@ -539,16 +540,25 @@ export class BattleMap {
                 now: number,
                 fn: (x: number, z: number, dps: number, until: number) => void,
             ) => void;
-            forEachDiscCells: (
-                x: number,
-                z: number,
+            forEachCapsuleCells: (
+                ax: number,
+                az: number,
+                bx: number,
+                bz: number,
                 radius: number,
                 fn: (wx: number, wz: number) => void,
             ) => void;
             cellSize: number;
         },
         now = 0,
-        draft: { x: number; z: number; radius: number } | null = null,
+        draft: {
+            startX: number;
+            startZ: number;
+            endX: number;
+            endZ: number;
+            radius: number;
+        } | null = null,
+        blockedBy: readonly { x: number; z: number; radius: number }[] = [],
     ): void {
         this.ensureHazardMask();
         const ctx = this.hazardCtx;
@@ -566,10 +576,23 @@ export class BattleMap {
             this.stampHazardChannel(x, z, cellR * 1.4, 0.3, 'g');
         });
         if (draft) {
-            // identical cell stamps to stampOil — WYSIWYG placement preview
-            field.forEachDiscCells(draft.x, draft.z, draft.radius, (x, z) => {
-                stampOilCell(x, z);
-            });
+            field.forEachCapsuleCells(
+                draft.startX,
+                draft.startZ,
+                draft.endX,
+                draft.endZ,
+                draft.radius,
+                (x, z) => {
+                    if (blockedBy.length > 0) {
+                        for (const s of blockedBy) {
+                            const dx = x - s.x;
+                            const dz = z - s.z;
+                            if (dx * dx + dz * dz <= s.radius * s.radius) return;
+                        }
+                    }
+                    stampOilCell(x, z);
+                },
+            );
         }
         this.hazardDirty = true;
         this.flushHazardMask(performance.now(), true);

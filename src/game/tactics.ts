@@ -5,6 +5,12 @@ import { OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 export const RALLY_ROUTE_ID = 'rallyRoute';
 export const OIL_SPILL_ID = 'oilSpill';
 
+/**
+ * Max center-to-center distance for two-point tactics (rally corridor / oil capsule).
+ * Keeps placements readable and stops a single charge from covering the whole board.
+ */
+export const TACTIC_MAX_SPAN = 14 * CELL;
+
 export const TACTICS: Record<
     string,
     {
@@ -29,7 +35,7 @@ export const TACTICS: Record<
         name: 'Oil Spill',
         icon: '🛢',
         description:
-            'Stamp oil onto the shared ground layer. Connected oil ignites as one field when fire touches it. Lasts a few rounds until burned or expired.',
+            'Place two oil circles — everything in both circles and along the strip between fills with oil (ward stone domes stay clear). Connected oil ignites as one field when fire touches it.',
         oilRadius: OIL_SPILL_RADIUS,
         oilDurationRounds: OIL_SPILL_DURATION_ROUNDS,
     },
@@ -51,14 +57,46 @@ export interface RallyRoute {
     endZ: number;
 }
 
-/** one oil stamp action record (the field itself merges stamps) */
+/** one oil stamp action record (capsule: two circles + strip between) */
 export interface OilStamp {
     id: number;
     team: import('./units').Team;
-    x: number;
-    z: number;
+    startX: number;
+    startZ: number;
+    endX: number;
+    endZ: number;
     radius: number;
     /** last inclusive round this stamp's oil remains */
     expiresRound: number;
     placedRound: number;
+}
+
+/** pull `end` toward `start` so center distance ≤ maxSpan */
+export function clampTacticEnd(
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+    maxSpan = TACTIC_MAX_SPAN,
+): { x: number; z: number } {
+    const dx = endX - startX;
+    const dz = endZ - startZ;
+    const len = Math.hypot(dx, dz);
+    if (len <= maxSpan || len < 1e-9) return { x: endX, z: endZ };
+    const s = maxSpan / len;
+    return { x: startX + dx * s, z: startZ + dz * s };
+}
+
+/** keep a tactic circle fully on the board (margin = circle radius) */
+export function clampTacticPoint(
+    x: number,
+    z: number,
+    halfW: number,
+    halfH: number,
+    radius: number,
+): { x: number; z: number } {
+    return {
+        x: Math.max(-halfW + radius, Math.min(halfW - radius, x)),
+        z: Math.max(-halfH + radius, Math.min(halfH - radius, z)),
+    };
 }

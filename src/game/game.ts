@@ -38,7 +38,7 @@ import {
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
-import { HazardField } from './fire';
+import { HazardField, OIL_SPILL_RADIUS, livingShieldDisks } from './fire';
 import { FireFx } from './fireFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
@@ -63,7 +63,16 @@ import { createRangeRing, placeRangeRing, PlacementController } from './placemen
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
-import { OIL_SPILL_ID, RALLY_ROUTE_ID, TACTICS, type OilStamp, type RallyRoute } from './tactics';
+import {
+    OIL_SPILL_ID,
+    RALLY_ROUTE_ID,
+    RALLY_ROUTE_RADIUS,
+    TACTICS,
+    clampTacticEnd,
+    clampTacticPoint,
+    type OilStamp,
+    type RallyRoute,
+} from './tactics';
 import { TechTree } from './tech';
 import {
     COMMAND_TOWER,
@@ -219,8 +228,8 @@ export class Game {
     private armedItem: string | null = null;
     /** the tactic currently being placed on the map */
     private armedTactic: string | null = null;
-    /** first click of an in-progress rally route */
-    private rallyDraftStart: { x: number; z: number } | null = null;
+    /** first click of an in-progress two-point tactic (rally or oil) */
+    private tacticDraftStart: { x: number; z: number } | null = null;
     /** whether each side already took/skipped this round's card */
     private readonly roundCardTaken: Record<Team, boolean> = { player: false, enemy: false };
     /** the game idles behind the card overlay until the loadout is picked */
@@ -533,7 +542,7 @@ export class Game {
             this.armedItem = null;
             this.placement.deselect();
             this.armedTactic = tacticId;
-            this.rallyDraftStart = null;
+            this.tacticDraftStart = null;
             this.placement.inputLocked = true;
             this.syncTacticVisuals();
         };
@@ -874,12 +883,14 @@ export class Game {
         this.hpBars.clear();
         this.rallyRoutes.length = 0;
         this.cancelRallyPlacement();
-        // oil: expire old cells, snapshot baseline for this deployment's undo, clear stamps
+        // oil: expire old cells, ward stones keep their discs clear, snapshot
+        // baseline for this deployment's undo, clear stamps
         this.oilField.expireOilBefore(this.round);
+        this.oilField.clearOilInsideShields(livingShieldDisks(this.placement.allUnits()));
         this.oilBaseline.oilExpires.set(this.oilField.oilExpires);
         this.oilStamps.length = 0;
-        this.oilVisuals.setDraft(null, null);
-        this.oilVisuals.sync(this.oilField, 0);
+        this.oilVisuals.setDraft(null);
+        this.oilVisuals.sync(this.oilField, 0, livingShieldDisks(this.placement.allUnits()));
         this.syncTacticVisuals();
         // flanks and the neutral strip open up after the first round
         const unlocked = this.round >= 2;
@@ -1620,40 +1631,61 @@ export class Game {
         }
     }
 
-    private groundAtLocal(x: number, y: number): { x: number; z: number } | null {
+    private groundAtLocal(
+        x: number,
+        y: number,
+        margin = RALLY_ROUTE_RADIUS,
+    ): { x: number; z: number } | null {
         const rect = this.pixiApp.canvas.getBoundingClientRect();
         const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
         if (!ground) return null;
-        return this.rallyVisuals.clamp(ground.x, ground.z);
+        return clampTacticPoint(ground.x, ground.z, this.map.halfW, this.map.halfH, margin);
     }
 
     private syncTacticVisuals(): void {
         this.syncRallyVisuals();
         const pointer = this.placement.lastPointer;
         if (this.armedTactic === OIL_SPILL_ID && pointer) {
-            const pos = this.groundAtLocal(pointer.x, pointer.y);
-            this.oilVisuals.setDraft(
-                pos ? quantizeWorld(pos.x) : null,
-                pos ? quantizeWorld(pos.z) : null,
-            );
+            const pos = this.groundAtLocal(pointer.x, pointer.y, OIL_SPILL_RADIUS);
+            if (pos) {
+                const start = this.tacticDraftStart ?? pos;
+                const end = this.tacticDraftStart
+                    ? clampTacticEnd(start.x, start.z, pos.x, pos.z)
+                    : pos;
+                this.oilVisuals.setDraft({
+                    startX: quantizeWorld(start.x),
+                    startZ: quantizeWorld(start.z),
+                    endX: quantizeWorld(end.x),
+                    endZ: quantizeWorld(end.z),
+                    radius: OIL_SPILL_RADIUS,
+                });
+            } else {
+                this.oilVisuals.setDraft(null);
+            }
         } else {
-            this.oilVisuals.setDraft(null, null);
+            this.oilVisuals.setDraft(null);
         }
-        this.oilVisuals.sync(this.oilField, 0);
+        this.oilVisuals.sync(this.oilField, 0, livingShieldDisks(this.placement.allUnits()));
     }
 
     private syncRallyVisuals(): void {
         const pointer = this.placement.lastPointer;
         let draft: RallyDraft | null = null;
         if (this.armedTactic === RALLY_ROUTE_ID && pointer) {
-            const pos = this.groundAtLocal(pointer.x, pointer.y);
+            const pos = this.groundAtLocal(pointer.x, pointer.y, RALLY_ROUTE_RADIUS);
             if (pos) {
-                if (this.rallyDraftStart) {
+                if (this.tacticDraftStart) {
+                    const end = clampTacticEnd(
+                        this.tacticDraftStart.x,
+                        this.tacticDraftStart.z,
+                        pos.x,
+                        pos.z,
+                    );
                     draft = {
-                        startX: this.rallyDraftStart.x,
-                        startZ: this.rallyDraftStart.z,
-                        endX: pos.x,
-                        endZ: pos.z,
+                        startX: this.tacticDraftStart.x,
+                        startZ: this.tacticDraftStart.z,
+                        endX: end.x,
+                        endZ: end.z,
                         mode: 'full',
                     };
                 } else {
@@ -1683,9 +1715,9 @@ export class Game {
 
     /** aborts in-progress tactic placement; returns true when something was cancelled */
     private cancelRallyPlacement(): boolean {
-        const had = this.armedTactic !== null || this.rallyDraftStart !== null;
+        const had = this.armedTactic !== null || this.tacticDraftStart !== null;
         this.armedTactic = null;
-        this.rallyDraftStart = null;
+        this.tacticDraftStart = null;
         this.placement.inputLocked = false;
         this.syncTacticVisuals();
         return had;
@@ -1694,19 +1726,33 @@ export class Game {
     /** swallows map clicks while a tactic is being placed */
     private handleTacticGroundClick(x: number, y: number): boolean {
         if (!this.playerCanAct || !this.armedTactic) return false;
-        const ground = this.groundAtLocal(x, y);
-        if (!ground) return true;
 
         if (this.armedTactic === OIL_SPILL_ID) {
+            const ground = this.groundAtLocal(x, y, OIL_SPILL_RADIUS);
+            if (!ground) return true;
+            if (!this.tacticDraftStart) {
+                this.tacticDraftStart = ground;
+                this.syncTacticVisuals();
+                return true;
+            }
+            const end = clampTacticEnd(
+                this.tacticDraftStart.x,
+                this.tacticDraftStart.z,
+                ground.x,
+                ground.z,
+            );
             if (
                 this.dispatchPlayer({
                     kind: 'placeOilSpill',
                     team: 'player',
-                    x: quantizeWorld(ground.x),
-                    z: quantizeWorld(ground.z),
+                    startX: quantizeWorld(this.tacticDraftStart.x),
+                    startZ: quantizeWorld(this.tacticDraftStart.z),
+                    endX: quantizeWorld(end.x),
+                    endZ: quantizeWorld(end.z),
                 })
             ) {
                 this.armedTactic = null;
+                this.tacticDraftStart = null;
                 this.placement.inputLocked = false;
                 this.syncTacticVisuals();
             }
@@ -1714,23 +1760,31 @@ export class Game {
         }
 
         if (this.armedTactic !== RALLY_ROUTE_ID) return false;
-        if (!this.rallyDraftStart) {
-            this.rallyDraftStart = ground;
+        const ground = this.groundAtLocal(x, y, RALLY_ROUTE_RADIUS);
+        if (!ground) return true;
+        if (!this.tacticDraftStart) {
+            this.tacticDraftStart = ground;
             this.syncTacticVisuals();
             return true;
         }
+        const end = clampTacticEnd(
+            this.tacticDraftStart.x,
+            this.tacticDraftStart.z,
+            ground.x,
+            ground.z,
+        );
         if (
             this.dispatchPlayer({
                 kind: 'placeRallyRoute',
                 team: 'player',
-                startX: this.rallyDraftStart.x,
-                startZ: this.rallyDraftStart.z,
-                endX: ground.x,
-                endZ: ground.z,
+                startX: this.tacticDraftStart.x,
+                startZ: this.tacticDraftStart.z,
+                endX: end.x,
+                endZ: end.z,
             })
         ) {
             this.armedTactic = null;
-            this.rallyDraftStart = null;
+            this.tacticDraftStart = null;
             this.placement.inputLocked = false;
             this.syncTacticVisuals();
         }
@@ -1987,7 +2041,7 @@ export class Game {
         this.sim = null;
         this.selectedActor = null;
         this.projectileRenderer.clear();
-        this.oilVisuals.setDraft(null, null);
+        this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0);
         if (this.playerHp <= 0 || this.enemyHp <= 0) {
             this.finishMatch();

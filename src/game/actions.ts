@@ -1,7 +1,7 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
-import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
+import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS, livingShieldDisks } from './fire';
 import { ITEMS } from './items';
-import { OIL_SPILL_ID, RALLY_ROUTE_ID, TACTICS, type OilStamp, type RallyRoute } from './tactics';
+import { OIL_SPILL_ID, RALLY_ROUTE_ID, TACTICS, clampTacticEnd, type OilStamp, type RallyRoute } from './tactics';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
 import type {
@@ -152,13 +152,15 @@ export interface RemoveRallyRouteAction {
     team: Team;
     routeId: number;
 }
-/** stamps oil into the shared hazard layer — consumes one Oil Spill charge */
+/** stamps an oil capsule (two circles + strip) — consumes one Oil Spill charge */
 export interface PlaceOilSpillAction {
     kind: 'placeOilSpill';
     team: Team;
     /** quantized world coords (peers must agree exactly) */
-    x: number;
-    z: number;
+    startX: number;
+    startZ: number;
+    endX: number;
+    endZ: number;
 }
 /** undoes one oil stamp (rebuilds the oil layer from remaining stamps) */
 export interface RemoveOilSpillAction {
@@ -413,13 +415,16 @@ export class ActionDispatcher {
                 entry.unit = unit;
                 if (type.extra) deploy.extrasSpent[action.team] += economy.costOf(type);
                 else deploy.used[action.team]++;
+                if (type.shield) rebuildOilField(this.ctx);
                 return true;
             }
             case 'move': {
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
-                return placement.moveUnit(unit, action.anchor);
+                if (!placement.moveUnit(unit, action.anchor)) return false;
+                if (unit.type.shield) rebuildOilField(this.ctx);
+                return true;
             }
             case 'moveGroup': {
                 const units = action.unitIds.map((id) => placement.unitById(id));
@@ -427,13 +432,17 @@ export class ActionDispatcher {
                     (u): u is Unit => !!u && u.team === action.team && placement.canReposition(u),
                 );
                 if (!valid) return false;
-                return placement.moveUnits(units as Unit[], action.dc, action.dr);
+                if (!placement.moveUnits(units as Unit[], action.dc, action.dr)) return false;
+                if ((units as Unit[]).some((u) => u.type.shield)) rebuildOilField(this.ctx);
+                return true;
             }
             case 'rotate': {
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
-                return placement.rotateUnit(unit, action.anchor);
+                if (!placement.rotateUnit(unit, action.anchor)) return false;
+                if (unit.type.shield) rebuildOilField(this.ctx);
+                return true;
             }
             case 'buyTech': {
                 const type = unitTypeById(action.typeId);
@@ -642,13 +651,19 @@ export class ActionDispatcher {
                     this.ctx.tactics[action.team].filter((id) => id === RALLY_ROUTE_ID).length;
                 const placed = this.ctx.rallyRoutes.filter((r) => r.team === action.team).length;
                 if (max < 1 || placed >= max) return false;
+                const end = clampTacticEnd(
+                    action.startX,
+                    action.startZ,
+                    action.endX,
+                    action.endZ,
+                );
                 const route: RallyRoute = {
                     id: this.ctx.rallyRouteIds.next++,
                     team: action.team,
                     startX: action.startX,
                     startZ: action.startZ,
-                    endX: action.endX,
-                    endZ: action.endZ,
+                    endX: end.x,
+                    endZ: end.z,
                 };
                 this.ctx.rallyRoutes.push(route);
                 entry.rallyRoute = route;
@@ -673,11 +688,19 @@ export class ActionDispatcher {
                 const duration =
                     TACTICS[OIL_SPILL_ID]!.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
                 const radius = TACTICS[OIL_SPILL_ID]!.oilRadius ?? OIL_SPILL_RADIUS;
+                const end = clampTacticEnd(
+                    action.startX,
+                    action.startZ,
+                    action.endX,
+                    action.endZ,
+                );
                 const stamp: OilStamp = {
                     id: this.ctx.oilStampIds.next++,
                     team: action.team,
-                    x: action.x,
-                    z: action.z,
+                    startX: action.startX,
+                    startZ: action.startZ,
+                    endX: end.x,
+                    endZ: end.z,
                     radius,
                     placedRound: round,
                     expiresRound: round + duration - 1,
@@ -713,9 +736,11 @@ export class ActionDispatcher {
                 } else {
                     this.ctx.deployState.used[action.team]--;
                 }
+                if (e.unit!.type.shield) rebuildOilField(this.ctx);
                 break;
             case 'move':
                 placement.moveUnit(placement.unitById(action.unitId)!, e.from!);
+                if (placement.unitById(action.unitId)?.type.shield) rebuildOilField(this.ctx);
                 break;
             case 'moveGroup':
                 placement.moveUnits(
@@ -723,9 +748,13 @@ export class ActionDispatcher {
                     -action.dc,
                     -action.dr,
                 );
+                if (action.unitIds.some((id) => placement.unitById(id)?.type.shield)) {
+                    rebuildOilField(this.ctx);
+                }
                 break;
             case 'rotate':
                 placement.rotateUnit(placement.unitById(action.unitId)!, e.from);
+                if (placement.unitById(action.unitId)?.type.shield) rebuildOilField(this.ctx);
                 break;
             case 'buyTech':
                 techTree.remove(action.team, action.typeId, action.techId);
@@ -822,13 +851,25 @@ export class ActionDispatcher {
 
 /** rebuild oil = baseline (post-battle / expired) + this-deployment stamps */
 export function rebuildOilField(
-    ctx: Pick<ActionContext, 'oilStamps' | 'oilField' | 'oilBaseline'>,
+    ctx: Pick<ActionContext, 'oilStamps' | 'oilField' | 'oilBaseline' | 'placement'>,
 ): void {
     ctx.oilField.oilExpires.set(ctx.oilBaseline.oilExpires);
     ctx.oilField.clearFire();
+    const units = ctx.placement.allUnits();
+    const shields = livingShieldDisks(units);
+    // ward stones keep their discs clear (baseline oil under a dome is wiped)
+    ctx.oilField.clearOilInsideShields(shields);
     const stamps = [...ctx.oilStamps].sort((a, b) => a.id - b.id);
     for (const s of stamps) {
-        ctx.oilField.stampOil(s.x, s.z, s.radius, s.expiresRound);
+        ctx.oilField.stampOilCapsule(
+            s.startX,
+            s.startZ,
+            s.endX,
+            s.endZ,
+            s.radius,
+            s.expiresRound,
+            shields,
+        );
     }
 }
 

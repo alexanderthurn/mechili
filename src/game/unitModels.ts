@@ -45,7 +45,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     archer: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
     crowRider: { url: new URL('../../assets/models/crow-rider-fantasy-low.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(100) },
-    shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ward stone
+    shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 0.5 }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
     'command-tower': { url: new URL('../../assets/models/command-tower-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower

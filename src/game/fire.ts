@@ -25,6 +25,37 @@ export const DEFAULT_GROUND_FIRE_INTENSITY = 14;
 /** ground units on oil cells move at this fraction of normal speed */
 export const OIL_SPEED_MULT = 0.55;
 
+/** ground circle of an active ward stone (blocks oil stamps into its disc) */
+export type ShieldDisk = { x: number; z: number; radius: number };
+
+/** every living ward stone disc (oil cannot enter any dome) */
+export function livingShieldDisks(
+    units: readonly {
+        consumed: boolean;
+        destroyed: boolean;
+        world: { x: number; z: number };
+        type: { shield?: { radius: number } };
+    }[],
+): ShieldDisk[] {
+    const out: ShieldDisk[] = [];
+    for (const u of units) {
+        if (u.consumed || u.destroyed) continue;
+        const spec = u.type.shield;
+        if (!spec) continue;
+        out.push({ x: u.world.x, z: u.world.z, radius: spec.radius });
+    }
+    return out;
+}
+
+export function insideAnyShield(x: number, z: number, shields: readonly ShieldDisk[]): boolean {
+    for (const s of shields) {
+        const dx = x - s.x;
+        const dz = z - s.z;
+        if (dx * dx + dz * dz <= s.radius * s.radius) return true;
+    }
+    return false;
+}
+
 export interface FireBurnSpec {
     /** damage per second while burning */
     dps: number;
@@ -41,10 +72,39 @@ export interface FireGroundSpec {
     intensity: number;
 }
 
-/** weapon / rocket profile — burn victims and/or ignite the ground */
+/** weapon / rocket profile — burn victims, ignite ground, and/or stamp oil */
 export interface FireProfile {
     burn?: FireBurnSpec;
     ground?: FireGroundSpec;
+    /** splash oil onto the shared hazard layer at impact (shield discs stay clear) */
+    oil?: { radius: number };
+}
+
+/**
+ * UnitType.fire plus any owned tech `fire` profiles. Tech fields overlay
+ * (tech oil/ground/burn replace missing base fields; both present → tech wins).
+ */
+export function resolveFireProfile(
+    type: { id: string; fire?: FireProfile; techs: { id: string; fire?: FireProfile }[] },
+    team: string,
+    hasTech: (team: string, typeId: string, techId: string) => boolean,
+): FireProfile | undefined {
+    let profile: FireProfile | undefined = type.fire
+        ? {
+              burn: type.fire.burn ? { ...type.fire.burn } : undefined,
+              ground: type.fire.ground ? { ...type.fire.ground } : undefined,
+              oil: type.fire.oil ? { ...type.fire.oil } : undefined,
+          }
+        : undefined;
+    for (const tech of type.techs) {
+        if (!tech.fire || !hasTech(team, type.id, tech.id)) continue;
+        if (!profile) profile = {};
+        if (tech.fire.burn) profile.burn = { ...tech.fire.burn };
+        if (tech.fire.ground) profile.ground = { ...tech.fire.ground };
+        if (tech.fire.oil) profile.oil = { ...tech.fire.oil };
+    }
+    if (!profile?.burn && !profile?.ground && !profile?.oil) return undefined;
+    return profile;
 }
 
 /** how strongly a unit type takes burn damage (1 = normal, 0 = immune) */
@@ -144,6 +204,19 @@ export class HazardField {
         this.oilExpires.fill(0);
     }
 
+    /** wipe oil cells that sit inside any of the given ward discs */
+    clearOilInsideShields(shields: readonly ShieldDisk[]): void {
+        if (shields.length === 0) return;
+        for (let cz = 0; cz < this.cellRows; cz++) {
+            for (let cx = 0; cx < this.cellCols; cx++) {
+                const i = this.index(cx, cz);
+                if (this.oilExpires[i]! === 0) continue;
+                const c = this.cellCenter(cx, cz);
+                if (insideAnyShield(c.x, c.z, shields)) this.oilExpires[i] = 0;
+            }
+        }
+    }
+
     /** drop oil that has expired before `round` (inclusive last round already passed) */
     expireOilBefore(round: number): void {
         for (let i = 0; i < this.oilExpires.length; i++) {
@@ -192,12 +265,82 @@ export class HazardField {
     }
 
     /**
+     * Stadium / capsule: cells within `radius` of either endpoint or the
+     * segment between them. Same silhouette as a two-circle oil spill.
+     */
+    forEachCapsuleCells(
+        ax: number,
+        az: number,
+        bx: number,
+        bz: number,
+        radius: number,
+        fn: (wx: number, wz: number, cx: number, cz: number) => void,
+    ): void {
+        if (radius <= 0) return;
+        const r2 = radius * radius;
+        const minX = Math.min(ax, bx) - radius;
+        const maxX = Math.max(ax, bx) + radius;
+        const minZ = Math.min(az, bz) - radius;
+        const maxZ = Math.max(az, bz) + radius;
+        const { cx: c0 } = this.worldToCell(minX, minZ);
+        const { cx: c1 } = this.worldToCell(maxX, maxZ);
+        const { cz: z0 } = this.worldToCell(minX, minZ);
+        const { cz: z1 } = this.worldToCell(maxX, maxZ);
+        const abx = bx - ax;
+        const abz = bz - az;
+        const ab2 = abx * abx + abz * abz;
+        for (let cz = z0; cz <= z1; cz++) {
+            for (let cx = c0; cx <= c1; cx++) {
+                if (!this.inBounds(cx, cz)) continue;
+                const c = this.cellCenter(cx, cz);
+                let d2: number;
+                if (ab2 < 1e-12) {
+                    const dx = c.x - ax;
+                    const dz = c.z - az;
+                    d2 = dx * dx + dz * dz;
+                } else {
+                    let t = ((c.x - ax) * abx + (c.z - az) * abz) / ab2;
+                    if (t < 0) t = 0;
+                    else if (t > 1) t = 1;
+                    const qx = ax + abx * t;
+                    const qz = az + abz * t;
+                    const dx = c.x - qx;
+                    const dz = c.z - qz;
+                    d2 = dx * dx + dz * dz;
+                }
+                if (d2 > r2) continue;
+                fn(c.x, c.z, cx, cz);
+            }
+        }
+    }
+
+    /**
      * Stamp a disc of oil. Overlapping cells keep the later expiry
      * (`Math.max`). Order of cell writes is row-major ix, iz — deterministic.
      */
     stampOil(x: number, z: number, radius: number, expiresRound: number): void {
         if (expiresRound <= 0) return;
         this.forEachDiscCells(x, z, radius, (_wx, _wz, cx, cz) => {
+            const i = this.index(cx, cz);
+            const prev = this.oilExpires[i]!;
+            this.oilExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
+        });
+    }
+
+    /** stamp oil into a two-circle capsule (strip + both discs) */
+    stampOilCapsule(
+        ax: number,
+        az: number,
+        bx: number,
+        bz: number,
+        radius: number,
+        expiresRound: number,
+        /** cells inside these discs are skipped (enemy ward stones) */
+        blockedBy: readonly ShieldDisk[] = [],
+    ): void {
+        if (expiresRound <= 0) return;
+        this.forEachCapsuleCells(ax, az, bx, bz, radius, (wx, wz, cx, cz) => {
+            if (blockedBy.length > 0 && insideAnyShield(wx, wz, blockedBy)) return;
             const i = this.index(cx, cz);
             const prev = this.oilExpires[i]!;
             this.oilExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
