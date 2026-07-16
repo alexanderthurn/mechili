@@ -83,6 +83,8 @@ export interface TechDef {
     cost: number;
     /** multipliers applied to the base stats (attackInterval < 1 = faster) */
     mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
+    /** optional fire / oil on hit — applied when this tech is owned */
+    fire?: import('./fire').FireProfile;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** glyph for the action tile; auto-derived from `mods` when omitted */
@@ -481,6 +483,19 @@ export const UNIT_TYPES: UnitType[] = [
         techs: [
             { id: 'barrel', name: 'Longbow', cost: 200, mods: { range: 1.3 } },
             { id: 'ap', name: 'Piercing Arrows', cost: 250, mods: { damage: 1.4 } },
+            {
+                id: 'fireArrows',
+                name: 'Fire Arrows',
+                cost: 250,
+                mods: {},
+                icon: '🔥',
+                description:
+                    'Arrows leave a brief ground fire and burn — enough to ignite oil puddles.',
+                fire: {
+                    burn: { dps: 14, duration: 8 },
+                    ground: { radius: 2.5, duration: 8, intensity: 14 },
+                },
+            },
         ],
         build: buildArcher,
     },
@@ -546,6 +561,17 @@ export const UNIT_TYPES: UnitType[] = [
                 mods: {},
                 icon: '✨',
                 description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
+            },
+            {
+                id: 'pitchBolts',
+                name: 'Pitch Bolts',
+                cost: 350,
+                mods: {},
+                icon: '🛢',
+                description: 'Bolts splash oil on impact (does not ignite — pair with fire arrows or a Fire Bolt).',
+                fire: {
+                    oil: { radius: 10 },
+                },
             },
         ],
         build: buildBallista,

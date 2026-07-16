@@ -87,7 +87,7 @@ export interface FireProfile {
 export function resolveFireProfile(
     type: { id: string; fire?: FireProfile; techs: { id: string; fire?: FireProfile }[] },
     team: string,
-    hasTech: (team: string, typeId: string, techId: string) => boolean,
+    hasTech: (team: 'player' | 'enemy', typeId: string, techId: string) => boolean,
 ): FireProfile | undefined {
     let profile: FireProfile | undefined = type.fire
         ? {
@@ -97,7 +97,7 @@ export function resolveFireProfile(
           }
         : undefined;
     for (const tech of type.techs) {
-        if (!tech.fire || !hasTech(team, type.id, tech.id)) continue;
+        if (!tech.fire || !hasTech(team as 'player' | 'enemy', type.id, tech.id)) continue;
         if (!profile) profile = {};
         if (tech.fire.burn) profile.burn = { ...tech.fire.burn };
         if (tech.fire.ground) profile.ground = { ...tech.fire.ground };
@@ -317,14 +317,26 @@ export class HazardField {
     /**
      * Stamp a disc of oil. Overlapping cells keep the later expiry
      * (`Math.max`). Order of cell writes is row-major ix, iz — deterministic.
+     * Pass battle `now` so oil cannot land under (or stay next to) live flame.
      */
-    stampOil(x: number, z: number, radius: number, expiresRound: number): void {
+    stampOil(
+        x: number,
+        z: number,
+        radius: number,
+        expiresRound: number,
+        blockedBy: readonly ShieldDisk[] = [],
+        now?: number,
+    ): void {
         if (expiresRound <= 0) return;
-        this.forEachDiscCells(x, z, radius, (_wx, _wz, cx, cz) => {
+        this.forEachDiscCells(x, z, radius, (wx, wz, cx, cz) => {
+            if (blockedBy.length > 0 && insideAnyShield(wx, wz, blockedBy)) return;
             const i = this.index(cx, cz);
+            // flame already owns this cell — oil would be burned instantly
+            if (now !== undefined && this.fireUntil[i]! > now) return;
             const prev = this.oilExpires[i]!;
             this.oilExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
         });
+        if (now !== undefined) this.igniteOilTouchingFire(now);
     }
 
     /** stamp oil into a two-circle capsule (strip + both discs) */
@@ -370,7 +382,55 @@ export class HazardField {
             if (this.oilExpires[i]! !== 0) seedOil.push(i);
         });
 
-        return this.igniteConnectedOil(seedOil, until, intensity);
+        const consumed = this.igniteConnectedOil(seedOil, until, intensity);
+        // any oil that somehow still sits under the new blaze is gone
+        this.consumeOilUnderFire(now);
+        return consumed;
+    }
+
+    /** oil cannot remain under active flame — burned away immediately */
+    consumeOilUnderFire(now: number): void {
+        for (let i = 0; i < this.oilExpires.length; i++) {
+            if (this.fireUntil[i]! > now && this.oilExpires[i]! !== 0) {
+                this.oilExpires[i] = 0;
+            }
+        }
+    }
+
+    /**
+     * Oil that touches a live fire cell ignites as one connected component
+     * (e.g. pitch bolted next to an existing blaze).
+     */
+    igniteOilTouchingFire(now: number): number {
+        const seeds: number[] = [];
+        let until = now;
+        let intensity = 0;
+        const neigh = [-1, 1, -this.cellCols, this.cellCols];
+        for (let i = 0; i < this.fireUntil.length; i++) {
+            const fireUntil = this.fireUntil[i]!;
+            if (fireUntil <= now) continue;
+            until = Math.max(until, fireUntil);
+            intensity = Math.max(intensity, this.fireDps[i]!);
+            if (this.oilExpires[i]! !== 0) seeds.push(i);
+            const cx = i % this.cellCols;
+            const cz = (i / this.cellCols) | 0;
+            for (const d of neigh) {
+                const j = i + d;
+                if (j < 0 || j >= this.oilExpires.length) continue;
+                if (d === -1 && cx === 0) continue;
+                if (d === 1 && cx === this.cellCols - 1) continue;
+                if (d === -this.cellCols && cz === 0) continue;
+                if (d === this.cellCols && cz === this.cellRows - 1) continue;
+                if (this.oilExpires[j]! !== 0) seeds.push(j);
+            }
+        }
+        if (seeds.length === 0 || intensity <= 0) {
+            this.consumeOilUnderFire(now);
+            return 0;
+        }
+        const consumed = this.igniteConnectedOil(seeds, until, intensity);
+        this.consumeOilUnderFire(now);
+        return consumed;
     }
 
     private setFireCell(i: number, until: number, intensity: number): void {

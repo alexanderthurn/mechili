@@ -35,7 +35,7 @@ export const TACTICS: Record<
         name: 'Oil Spill',
         icon: '🛢',
         description:
-            'Place two oil circles — everything in both circles and along the strip between fills with oil (ward stone domes stay clear). Connected oil ignites as one field when fire touches it.',
+            'Place two oil circles — outline during deploy; oil lands at battle start (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
         oilRadius: OIL_SPILL_RADIUS,
         oilDurationRounds: OIL_SPILL_DURATION_ROUNDS,
     },

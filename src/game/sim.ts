@@ -1,5 +1,12 @@
 import type { Group } from 'three';
-import { applyBurnStatus, HazardField, OIL_SPEED_MULT, type FireProfile } from './fire';
+import {
+    applyBurnStatus,
+    HazardField,
+    OIL_SPEED_MULT,
+    livingShieldDisks,
+    resolveFireProfile,
+    type FireProfile,
+} from './fire';
 import { ITEMS } from './items';
 import { groundSupportAt, simGroundHeightAt, simGroundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
@@ -60,6 +67,8 @@ export interface SimConfig {
      * battle-local. Remaining oil is read back via {@link BattleSim.hazards}.
      */
     oilField?: HazardField;
+    /** round index used when weapons stamp oil mid-battle (expiry inclusive) */
+    oilExpiresRound?: number;
 }
 
 export interface Actor {
@@ -461,6 +470,18 @@ export class BattleSim {
         profile: FireProfile | undefined,
     ): void {
         if (!profile) return;
+        if (profile.oil) {
+            const shields = livingShieldDisks(this.actors.map((a) => a.unit));
+            const expires = this.config.oilExpiresRound ?? 9999;
+            this.hazards.stampOil(
+                x,
+                z,
+                profile.oil.radius,
+                expires,
+                shields,
+                this.elapsed,
+            );
+        }
         if (profile.ground) {
             const g = profile.ground;
             const oilCells = this.hazards.stampFire(
@@ -481,8 +502,12 @@ export class BattleSim {
                 oilCells,
             });
         }
+        // oil-only hits next to an existing blaze still catch
+        if (profile.oil && !profile.ground) {
+            this.hazards.igniteOilTouchingFire(this.elapsed);
+        }
         if (!profile.burn) return;
-        const r = Math.max(radius, profile.ground?.radius ?? 0);
+        const r = Math.max(radius, profile.ground?.radius ?? profile.oil?.radius ?? 0);
         for (const a of this.actors) {
             if (!a.alive) continue;
             if (hypot(a.x - x, a.z - z) > r + a.radius) continue;
@@ -490,9 +515,16 @@ export class BattleSim {
         }
     }
 
+    private fireProfileOf(source: Unit): FireProfile | undefined {
+        return resolveFireProfile(source.type, source.team, this.config.hasTech);
+    }
+
     /** burn DoT + standing in ground fire (both friendly-fire) */
     private stepHazards(dt: number): void {
         this.hazards.tickFire(this.elapsed);
+        // burning cells never leave oil behind when the flames go out
+        this.hazards.consumeOilUnderFire(this.elapsed);
+        this.hazards.igniteOilTouchingFire(this.elapsed);
         for (const a of this.actors) {
             if (!a.alive) continue;
             if (a.altitude > 0) {
@@ -1309,7 +1341,7 @@ export class BattleSim {
                     const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(p.source, hit, dealt);
                     this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
-                    this.applyFireAt(p.source, ix, iz, hit.radius, p.source.type.fire);
+                    this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
                 }
                 continue; // bullet consumed
             }
@@ -1322,7 +1354,7 @@ export class BattleSim {
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
                 } else {
                     this.events.push({ kind: 'impact', x: nx, y: groundY + 0.15, z: nz });
-                    this.applyFireAt(p.source, nx, nz, 0, p.source.type.fire);
+                    this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));
                 }
                 continue;
             }
@@ -1357,7 +1389,7 @@ export class BattleSim {
             this.applyDamage(p.source, a, dealt);
         }
         // burn + ground fire (friendly fire) — after kinetic hits
-        this.applyFireAt(p.source, x, z, radius, p.source.type.fire);
+        this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source));
     }
 
     /** mass-based push-out: heavy units shove light ones aside, structures never move */

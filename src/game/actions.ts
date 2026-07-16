@@ -415,16 +415,13 @@ export class ActionDispatcher {
                 entry.unit = unit;
                 if (type.extra) deploy.extrasSpent[action.team] += economy.costOf(type);
                 else deploy.used[action.team]++;
-                if (type.shield) rebuildOilField(this.ctx);
                 return true;
             }
             case 'move': {
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
-                if (!placement.moveUnit(unit, action.anchor)) return false;
-                if (unit.type.shield) rebuildOilField(this.ctx);
-                return true;
+                return placement.moveUnit(unit, action.anchor);
             }
             case 'moveGroup': {
                 const units = action.unitIds.map((id) => placement.unitById(id));
@@ -432,17 +429,13 @@ export class ActionDispatcher {
                     (u): u is Unit => !!u && u.team === action.team && placement.canReposition(u),
                 );
                 if (!valid) return false;
-                if (!placement.moveUnits(units as Unit[], action.dc, action.dr)) return false;
-                if ((units as Unit[]).some((u) => u.type.shield)) rebuildOilField(this.ctx);
-                return true;
+                return placement.moveUnits(units as Unit[], action.dc, action.dr);
             }
             case 'rotate': {
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
-                if (!placement.rotateUnit(unit, action.anchor)) return false;
-                if (unit.type.shield) rebuildOilField(this.ctx);
-                return true;
+                return placement.rotateUnit(unit, action.anchor);
             }
             case 'buyTech': {
                 const type = unitTypeById(action.typeId);
@@ -707,7 +700,8 @@ export class ActionDispatcher {
                 };
                 this.ctx.oilStamps.push(stamp);
                 entry.oilStamp = stamp;
-                rebuildOilField(this.ctx);
+                // stamps are intent-only until battle start — keep field on baseline
+                resetOilFieldToBaseline(this.ctx);
                 return true;
             }
             case 'removeOilSpill': {
@@ -717,7 +711,7 @@ export class ActionDispatcher {
                 if (i < 0) return false;
                 entry.oilStamp = this.ctx.oilStamps[i];
                 this.ctx.oilStamps.splice(i, 1);
-                rebuildOilField(this.ctx);
+                resetOilFieldToBaseline(this.ctx);
                 return true;
             }
         }
@@ -736,11 +730,9 @@ export class ActionDispatcher {
                 } else {
                     this.ctx.deployState.used[action.team]--;
                 }
-                if (e.unit!.type.shield) rebuildOilField(this.ctx);
                 break;
             case 'move':
                 placement.moveUnit(placement.unitById(action.unitId)!, e.from!);
-                if (placement.unitById(action.unitId)?.type.shield) rebuildOilField(this.ctx);
                 break;
             case 'moveGroup':
                 placement.moveUnits(
@@ -748,13 +740,9 @@ export class ActionDispatcher {
                     -action.dc,
                     -action.dr,
                 );
-                if (action.unitIds.some((id) => placement.unitById(id)?.type.shield)) {
-                    rebuildOilField(this.ctx);
-                }
                 break;
             case 'rotate':
                 placement.rotateUnit(placement.unitById(action.unitId)!, e.from);
-                if (placement.unitById(action.unitId)?.type.shield) rebuildOilField(this.ctx);
                 break;
             case 'buyTech':
                 techTree.remove(action.team, action.typeId, action.techId);
@@ -825,12 +813,12 @@ export class ActionDispatcher {
                 const stamp = e.oilStamp!;
                 const i = this.ctx.oilStamps.findIndex((s) => s.id === stamp.id);
                 if (i >= 0) this.ctx.oilStamps.splice(i, 1);
-                rebuildOilField(this.ctx);
+                resetOilFieldToBaseline(this.ctx);
                 break;
             }
             case 'removeOilSpill': {
                 this.ctx.oilStamps.push(e.oilStamp!);
-                rebuildOilField(this.ctx);
+                resetOilFieldToBaseline(this.ctx);
                 break;
             }
             case 'chooseCard':
@@ -849,15 +837,23 @@ export class ActionDispatcher {
     }
 }
 
-/** rebuild oil = baseline (post-battle / expired) + this-deployment stamps */
-export function rebuildOilField(
-    ctx: Pick<ActionContext, 'oilStamps' | 'oilField' | 'oilBaseline' | 'placement'>,
+/**
+ * Build-phase oil field = baseline only. This round's stamps are intent until
+ * {@link commitOilStamps} at battle start (ward stones cut holes then).
+ */
+export function resetOilFieldToBaseline(
+    ctx: Pick<ActionContext, 'oilField' | 'oilBaseline'>,
 ): void {
     ctx.oilField.oilExpires.set(ctx.oilBaseline.oilExpires);
     ctx.oilField.clearFire();
-    const units = ctx.placement.allUnits();
-    const shields = livingShieldDisks(units);
-    // ward stones keep their discs clear (baseline oil under a dome is wiped)
+}
+
+/** Materialize oil stamps into the field, punching living ward discs. */
+export function commitOilStamps(
+    ctx: Pick<ActionContext, 'oilStamps' | 'oilField' | 'oilBaseline' | 'placement'>,
+): void {
+    resetOilFieldToBaseline(ctx);
+    const shields = livingShieldDisks(ctx.placement.allUnits());
     ctx.oilField.clearOilInsideShields(shields);
     const stamps = [...ctx.oilStamps].sort((a, b) => a.id - b.id);
     for (const s of stamps) {

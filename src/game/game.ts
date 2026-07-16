@@ -17,7 +17,7 @@ import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, levelCost, quantizeWorld, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, commitOilStamps, levelCost, quantizeWorld, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
@@ -38,7 +38,7 @@ import {
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
-import { HazardField, OIL_SPILL_RADIUS, livingShieldDisks } from './fire';
+import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { FireFx } from './fireFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
@@ -380,7 +380,7 @@ export class Game {
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles);
-        this.oilVisuals = new OilVisuals(this.map);
+        this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
         this.battleRangeMesh = createRangeRing(this.scene);
@@ -883,14 +883,13 @@ export class Game {
         this.hpBars.clear();
         this.rallyRoutes.length = 0;
         this.cancelRallyPlacement();
-        // oil: expire old cells, ward stones keep their discs clear, snapshot
-        // baseline for this deployment's undo, clear stamps
+        // oil: expire old cells, snapshot baseline for this deployment's undo,
+        // clear stamps (this round's oil is outline-only until battle)
         this.oilField.expireOilBefore(this.round);
-        this.oilField.clearOilInsideShields(livingShieldDisks(this.placement.allUnits()));
         this.oilBaseline.oilExpires.set(this.oilField.oilExpires);
         this.oilStamps.length = 0;
         this.oilVisuals.setDraft(null);
-        this.oilVisuals.sync(this.oilField, 0, livingShieldDisks(this.placement.allUnits()));
+        this.oilVisuals.sync(this.oilField, 0, [], true);
         this.syncTacticVisuals();
         // flanks and the neutral strip open up after the first round
         const unlocked = this.round >= 2;
@@ -1665,7 +1664,7 @@ export class Game {
         } else {
             this.oilVisuals.setDraft(null);
         }
-        this.oilVisuals.sync(this.oilField, 0, livingShieldDisks(this.placement.allUnits()));
+        this.oilVisuals.sync(this.oilField, 0, this.visibleOilStamps(), true);
     }
 
     private syncRallyVisuals(): void {
@@ -1700,6 +1699,15 @@ export class Game {
             }
         }
         this.rallyVisuals.sync(this.visibleRallyRoutes(), draft);
+    }
+
+    /** own oil stamps always; opponent stamps only after we lock in (like rally) */
+    private visibleOilStamps(): readonly OilStamp[] {
+        const revealEnemy =
+            this.phase === 'battle' ||
+            this.deployReady.player ||
+            this.net === null;
+        return this.oilStamps.filter((s) => s.team === 'player' || revealEnemy);
     }
 
     /** own routes always; opponent routes only after we lock in (multiplayer fog) */
@@ -2003,6 +2011,15 @@ export class Game {
         this.gridOverlay.visible = false;
         this.enemyIntelSnapshot = null;
         this.placement.revealAll();
+        // oil "falls": materialize stamps with ward discs cut out
+        commitOilStamps({
+            oilStamps: this.oilStamps,
+            oilField: this.oilField,
+            oilBaseline: this.oilBaseline,
+            placement: this.placement,
+        });
+        this.oilVisuals.setDraft(null);
+        this.oilVisuals.sync(this.oilField, 0, [], false);
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
@@ -2021,6 +2038,7 @@ export class Game {
                 this.placement.isOnFlank(unit),
             rallyRoutes: this.rallyRoutes.filter((r) => r.team === 'player' || r.team === 'enemy'),
             oilField: this.oilField,
+            oilExpiresRound: this.round + OIL_SPILL_DURATION_ROUNDS - 1,
         });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
@@ -2042,7 +2060,7 @@ export class Game {
         this.selectedActor = null;
         this.projectileRenderer.clear();
         this.oilVisuals.setDraft(null);
-        this.oilVisuals.sync(this.oilField, 0);
+        this.oilVisuals.sync(this.oilField, 0, [], false);
         if (this.playerHp <= 0 || this.enemyHp <= 0) {
             this.finishMatch();
             return;
@@ -2213,7 +2231,7 @@ export class Game {
                 this.particles.spawnFromEvents(battleEvents);
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
-                this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed);
+                this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed, [], false);
                 this.map.setHazardTime(this.time);
                 this.map.flushHazardMask();
                 if (profile) cpu.begin();
