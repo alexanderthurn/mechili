@@ -61,7 +61,7 @@ import {
     type Unit,
     type UnitType,
 } from './units';
-import { DebugOverlay } from '../ui/debug';
+import { DebugOverlay, CpuSampler } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
@@ -95,6 +95,7 @@ export class Game {
     private readonly placement: PlacementController;
     private readonly hud: Hud;
     private readonly debug: DebugOverlay;
+    private readonly cpuSampler = new CpuSampler();
     private readonly hpBars = new HpBars();
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
@@ -1915,10 +1916,17 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        const profile = this.debug.isEnabled;
+        const cpu = this.cpuSampler;
+        if (profile) cpu.reset();
+
         // battle can be fast-forwarded (or slowed); build always runs at 1x
         const gameDt =
             this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;
         this.time += gameDt;
+
+        let simSteps = 0;
+        let simCpu: Record<string, number> | undefined;
 
         if (!this.matchOver && !this.suspended) {
             const waitingForStarterPeer =
@@ -1931,12 +1939,26 @@ export class Game {
             if (this.phase === 'build') {
                 if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
             } else if (this.sim) {
+                if (profile) {
+                    this.sim.profileEnabled = true;
+                    cpu.begin();
+                }
                 this.sim.update(gameDt);
+                if (profile) {
+                    cpu.end('sim');
+                    simSteps = this.sim.lastProfileSteps;
+                    simCpu = this.sim.lastProfile;
+                    this.sim.profileEnabled = false;
+                }
                 const battleEvents = this.sim.consumeEvents();
                 this.particles.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
+                if (profile) cpu.begin();
                 this.sim.syncMeshes(); // per-frame interpolated positions
+                if (profile) cpu.end('syncMeshes');
+                if (profile) cpu.begin();
                 this.sim.syncBattleVisuals(this.time);
+                if (profile) cpu.end('battleVisuals');
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
@@ -1944,6 +1966,7 @@ export class Game {
                 if (this.sim.finished) this.endBattlePhase();
             }
         }
+        if (profile) cpu.begin();
         this.particles.update(gameDt);
 
         this.controls.update(dtSeconds);
@@ -1952,7 +1975,11 @@ export class Game {
         this.scenery.update(dtSeconds, this.rig.camera.position);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
+        if (profile) cpu.end('world/ui');
+        if (profile) cpu.begin();
         this.unitInstances.sync();
+        if (profile) cpu.end('instances');
+        if (profile) cpu.begin();
         this.updateSandWear();
         this.updateSelectionUi();
         this.drainRemoteQueue();
@@ -1979,7 +2006,10 @@ export class Game {
         this.refreshShopHud();
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
+        if (profile) cpu.end('hud');
+        if (profile) cpu.begin();
         this.renderer.render(this.scene, this.rig.camera);
+        if (profile) cpu.end('render');
         let mechs = 0;
         if (this.sim) mechs = this.sim.actors.length;
         else for (const u of this.placement.allUnits()) mechs += u.members.length;
@@ -1992,6 +2022,9 @@ export class Game {
             instanceCount: instSnap.instances,
             instancePools: instSnap.pools,
             instanceLines: instSnap.lines,
+            cpu: profile ? cpu.snapshot() : undefined,
+            simCpu: simCpu,
+            simSteps: simSteps || undefined,
         }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.net && !this.matchOver && !this.hydrating) {

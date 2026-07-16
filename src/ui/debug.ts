@@ -2,6 +2,9 @@ import type { Application } from 'pixi.js';
 import type { Object3D, Scene, WebGLRenderer } from 'three';
 import { THEME } from '../theme';
 
+/** Named CPU timings in milliseconds (one frame or a rolling window). */
+export type CpuTimings = Record<string, number>;
+
 export interface DebugPerfStats {
     /** packs on the board */
     units: number;
@@ -14,6 +17,70 @@ export interface DebugPerfStats {
     instanceLines?: string[];
     instanceCount?: number;
     instancePools?: number;
+    /** frame CPU breakdown (ms), e.g. sim / render / instances */
+    cpu?: CpuTimings;
+    /** battle-sim internal breakdown when in combat */
+    simCpu?: CpuTimings;
+    simSteps?: number;
+}
+
+/**
+ * Accumulates labeled `performance.now()` spans. Used by the debug overlay
+ * to show where a frame's CPU time goes.
+ */
+export class CpuSampler {
+    private readonly sums: Record<string, number> = {};
+    private mark = 0;
+
+    reset(): void {
+        for (const k of Object.keys(this.sums)) delete this.sums[k];
+    }
+
+    /** Start a timed span (pairs with {@link end}). */
+    begin(): void {
+        this.mark = performance.now();
+    }
+
+    /** End the current span and add elapsed ms under `label`. */
+    end(label: string): void {
+        const dt = performance.now() - this.mark;
+        this.sums[label] = (this.sums[label] ?? 0) + dt;
+        this.mark = performance.now();
+    }
+
+    /** Time a synchronous block. */
+    time<T>(label: string, fn: () => T): T {
+        const t0 = performance.now();
+        try {
+            return fn();
+        } finally {
+            this.sums[label] = (this.sums[label] ?? 0) + (performance.now() - t0);
+        }
+    }
+
+    /** Snapshot of accumulated ms (does not clear). */
+    snapshot(): CpuTimings {
+        return { ...this.sums };
+    }
+
+    /** Total ms across all labels. */
+    total(): number {
+        let s = 0;
+        for (const v of Object.values(this.sums)) s += v;
+        return s;
+    }
+}
+
+/** Format timings as `label 1.2ms 34%` lines, sorted by cost. */
+export function formatCpuLines(timings: CpuTimings, indent = ''): string[] {
+    const entries = Object.entries(timings).filter(([, ms]) => ms > 0.01);
+    if (entries.length === 0) return [];
+    entries.sort((a, b) => b[1]! - a[1]!);
+    const total = entries.reduce((s, [, ms]) => s + ms, 0) || 1;
+    return entries.map(([name, ms]) => {
+        const pct = (ms / total) * 100;
+        return `${indent}${name.padEnd(14)} ${ms.toFixed(1)}ms  ${pct.toFixed(0)}%`;
+    });
 }
 
 /** Top-left performance readout — only shown when `?debug` is in the URL. */
@@ -24,6 +91,9 @@ export class DebugOverlay {
     /** last full report — what a click copies */
     private lastReport = '';
     private flashTimer = 0;
+    /** rolling averages so the HUD doesn't flicker every frame */
+    private readonly cpuAvg: Record<string, number> = {};
+    private readonly simCpuAvg: Record<string, number> = {};
 
     constructor(parent: HTMLElement, enabled = false) {
         this.el = document.createElement('div');
@@ -58,6 +128,10 @@ export class DebugOverlay {
         this.setEnabled(enabled);
     }
 
+    get isEnabled(): boolean {
+        return this.enabled;
+    }
+
     setEnabled(enabled: boolean): void {
         this.enabled = enabled;
         this.el.style.display = enabled ? 'block' : 'none';
@@ -82,6 +156,10 @@ export class DebugOverlay {
             if (this.flashTimer <= 0) this.el.style.borderColor = 'rgba(168,216,120,0.35)';
         }
 
+        // smooth CPU bars every frame; refresh text on the usual cadence
+        if (stats.cpu) blendTimings(this.cpuAvg, stats.cpu);
+        if (stats.simCpu) blendTimings(this.simCpuAvg, stats.simCpu);
+
         this.accumulator += dtSeconds;
         if (this.accumulator < 0.25) return;
         this.accumulator = 0;
@@ -99,6 +177,16 @@ export class DebugOverlay {
         const mem = (performance as Performance & { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } })
             .memory;
 
+        const cpuLines = formatCpuLines(this.cpuAvg);
+        const simLines = formatCpuLines(this.simCpuAvg, '  ');
+        const cpuBlock =
+            cpuLines.length > 0
+                ? `\n-- cpu frame --\n${cpuLines.join('\n')}` +
+                  (simLines.length
+                      ? `\n-- sim step ×${stats.simSteps ?? '?'} --\n${simLines.join('\n')}`
+                      : '')
+                : '';
+
         const hud =
             `fps ${fps.toFixed(0)}  ${ms.toFixed(1)}ms  dpr ${dpr}\n` +
             `units ${stats.units}  mechs ${stats.mechs}  objs ${sceneStats.drawables}\n` +
@@ -107,6 +195,7 @@ export class DebugOverlay {
             (stats.instanceCount !== undefined
                 ? `\ninst ${stats.instanceCount} in ${stats.instancePools ?? 0} pools`
                 : '') +
+            cpuBlock +
             `\n(click to copy)`;
 
         this.el.textContent = hud;
@@ -124,7 +213,13 @@ export class DebugOverlay {
             `scene drawables=${sceneStats.drawables}  meshes=${sceneStats.meshes}  instancedMeshes=${sceneStats.instanced}  sprites=${sceneStats.sprites}`,
             `inst  count=${stats.instanceCount ?? 0}  pools=${stats.instancePools ?? 0}`,
             ...(stats.instanceLines ?? []),
+            '--- cpu frame (avg) ---',
+            ...formatCpuLines(this.cpuAvg),
         ];
+        if (Object.keys(this.simCpuAvg).length) {
+            lines.push(`--- sim internals (avg, per update / ${stats.simSteps ?? '?'} steps) ---`);
+            lines.push(...formatCpuLines(this.simCpuAvg, '  '));
+        }
         if (mem) {
             lines.push(
                 `heap  used=${(mem.usedJSHeapSize / 1e6).toFixed(1)}MB  limit=${(mem.jsHeapSizeLimit / 1e6).toFixed(0)}MB`,
@@ -152,6 +247,17 @@ export class DebugOverlay {
         this.flashTimer = 1.2;
         const base = this.el.textContent ?? '';
         this.el.textContent = base.replace(/\n\(click to copy\)$/, '\n(copied!)');
+    }
+}
+
+function blendTimings(avg: Record<string, number>, sample: CpuTimings, alpha = 0.25): void {
+    for (const [k, v] of Object.entries(sample)) {
+        avg[k] = avg[k] === undefined ? v : avg[k]! * (1 - alpha) + v * alpha;
+    }
+    // decay labels that disappeared this frame
+    for (const k of Object.keys(avg)) {
+        if (sample[k] === undefined) avg[k]! *= 1 - alpha;
+        if (avg[k]! < 0.005) delete avg[k];
     }
 }
 

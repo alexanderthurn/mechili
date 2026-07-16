@@ -19,6 +19,7 @@ import {
     type UnitType,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
+import type { CpuTimings } from '../ui/debug';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
 export const GOLDEN_AURA_DURATION = 30;
@@ -211,6 +212,12 @@ export class BattleSim {
     private goldenAuraApplied = false;
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
     private prevStepDt = 1 / 30;
+    /** when true, step() accumulates timings into {@link lastProfile} */
+    profileEnabled = false;
+    /** ms spent in the last {@link update} call (summed across catch-up steps) */
+    lastProfile: CpuTimings = {};
+    /** how many fixed steps the last update() ran */
+    lastProfileSteps = 0;
 
     constructor(
         units: readonly Unit[],
@@ -401,6 +408,11 @@ export class BattleSim {
     }
 
     update(dtSeconds: number): void {
+        const profiling = this.profileEnabled;
+        if (profiling) {
+            this.lastProfile = {};
+            this.lastProfileSteps = 0;
+        }
         this.accumulator += Math.min(dtSeconds, 0.25);
         let steps = 0;
         while (this.accumulator >= BattleSim.STEP && steps < MAX_STEPS_PER_UPDATE) {
@@ -411,6 +423,7 @@ export class BattleSim {
             if (this.finished) break;
             this.step(BattleSim.STEP);
         }
+        if (profiling) this.lastProfileSteps = steps;
     }
 
     private hasMobileMechs(team: Team): boolean {
@@ -629,6 +642,16 @@ export class BattleSim {
     }
 
     private step(dt: number): void {
+        const profiling = this.profileEnabled;
+        let t0 = 0;
+        const mark = (): void => {
+            if (profiling) t0 = performance.now();
+        };
+        const add = (label: string): void => {
+            if (!profiling) return;
+            this.lastProfile[label] = (this.lastProfile[label] ?? 0) + (performance.now() - t0);
+        };
+
         this.elapsed += dt;
         // remember where everything stood — rendering interpolates prev -> current
         for (const a of this.actors) {
@@ -658,11 +681,14 @@ export class BattleSim {
         if (this.elapsed < BATTLE_START_FREEZE) return;
 
         const d = this.config.towers.debuffPerLostTower;
+        mark();
         this.rebuildHash();
         this.rebuildTargetHash();
         this.rebuildStructureList();
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
+        add('hash');
 
+        mark();
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
             if (this.isSpawning(a)) continue;
@@ -750,16 +776,22 @@ export class BattleSim {
 
             this.steerToward(a, dx / dist, dz / dist, dist, dt, stats, d, target, bigs, reach * 0.95);
         }
+        add('ai');
 
+        mark();
         this.resolveOverlaps();
+        add('overlaps');
+
         // seat hit volumes on the terrain before bullets fly this step
         for (const a of this.actors) {
             if (a.alive) a.footY = this.feetY(a);
         }
+        mark();
         this.stepRockets(dt);
         // refresh target cells after everyone has moved — bullet hits need current seats
         this.rebuildTargetHash();
         this.stepProjectiles(dt);
+        add('projectiles');
         this.prevStepDt = dt;
     }
 
