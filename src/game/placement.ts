@@ -446,6 +446,7 @@ export class PlacementController {
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
+        this.stampSandUnder(unit);
         return true;
     }
 
@@ -502,7 +503,28 @@ export class PlacementController {
         // could be aware of — from snapshotted enemy intel, or the enemy's
         // command towers when nothing else is visible
         unit.faceClosestOf(this.opponentMechPositions(team, unit));
+        this.stampSandUnder(unit);
         return unit;
+    }
+
+    /** Soft sand courtyard under ground packs (visual only — skip flyers/structures/extras). */
+    private stampSandUnder(unit: Unit): void {
+        const t = unit.type;
+        if (t.flying || t.structure || t.extra) return;
+        const fp = this.footprintOf(t, unit.rotated);
+        const w = this.map.sandStampWeight(t);
+        this.map.stampSand(
+            unit.world.x,
+            unit.world.z,
+            this.map.packSandRadius(fp.cols, fp.rows) * Math.sqrt(w),
+            0.12 * w,
+        );
+    }
+
+    /** Re-stamp every ground pack (after clearing sand wear at round start). */
+    restampGroundSand(): void {
+        for (const u of this.units) this.stampSandUnder(u);
+        this.map.flushSandMask(performance.now(), true);
     }
 
     /**
@@ -553,6 +575,7 @@ export class PlacementController {
             for (const c of this.coveredCells(fp, unit.cell)!) this.occupied.set(cellKey(c), unit);
         }
         this.scene.add(unit.view);
+        this.stampSandUnder(unit);
     }
 
     /** Removes a unit from the board entirely (buy-action undo). */
@@ -1124,6 +1147,7 @@ export class PlacementController {
         });
         for (const u of units) {
             u.faceClosestOf(this.opponentMechPositions(u.team, u));
+            this.stampSandUnder(u);
         }
         return true;
     }
@@ -1139,6 +1163,7 @@ export class PlacementController {
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
+        this.stampSandUnder(unit);
         return true;
     }
 

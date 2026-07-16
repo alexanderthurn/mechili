@@ -207,6 +207,10 @@ export class Game {
     /** throttled hook for persisting single-player state to session storage */
     onStateCheckpoint: (() => void) | null = null;
     private persistTimer = 0;
+    /** last stamped battle positions for wear trails (visual only) */
+    private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
+    /** restamp once when the async sand mask finishes loading */
+    private sandBootstrapped = false;
     private readonly boundTick = (ticker: { deltaMS: number }) => this.tick(ticker.deltaMS / 1000);
     private readonly onEscapeKey = (e: KeyboardEvent) => {
         const t = e.target as HTMLElement | null;
@@ -1762,6 +1766,7 @@ export class Game {
         this.scenery.update(dtSeconds, this.rig.camera.position);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
+        this.updateSandWear();
         this.updateSelectionUi();
         this.drainRemoteQueue();
         const waitingForPeer =
@@ -1798,6 +1803,36 @@ export class Game {
                 this.onStateCheckpoint();
             }
         }
+    }
+
+    /**
+     * Visual-only: ground mechs stamp sandy wear as they walk. Throttled via
+     * the map's mask flush; flyers/structures/extras leave no trail.
+     */
+    private updateSandWear(): void {
+        if (!this.sandBootstrapped && this.map.sandReady) {
+            this.placement.restampGroundSand();
+            this.sandBootstrapped = true;
+        }
+        if (this.phase === 'battle' && this.sim) {
+            for (const a of this.sim.actors) {
+                if (!a.alive || a.altitude > 0) continue;
+                const t = a.unit.type;
+                if (t.structure || t.extra || t.flying) continue;
+                const prev = this.sandLastPos.get(a);
+                if (!prev) {
+                    this.sandLastPos.set(a, { x: a.x, z: a.z });
+                    continue;
+                }
+                const dist = Math.hypot(a.x - prev.x, a.z - prev.z);
+                if (dist < 0.75) continue;
+                const w = this.map.sandStampWeight(t);
+                this.map.stampSand(a.x, a.z, Math.max(a.radius * 1.35, 0.9) * Math.sqrt(w), 0.055 * w);
+                prev.x = a.x;
+                prev.z = a.z;
+            }
+        }
+        this.map.flushSandMask();
     }
 
     /** the living mech whose on-screen position is closest to the click */

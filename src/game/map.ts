@@ -151,6 +151,20 @@ export class BattleMap {
      */
     ownAtFar = false;
 
+    /** live sand-wear mask is ready for stamping */
+    get sandReady(): boolean {
+        return this.sandMask !== null;
+    }
+
+    /** live sand-wear mask (null until ground textures finish loading) */
+    private sandMask: CanvasTexture | null = null;
+    private sandCtx: CanvasRenderingContext2D | null = null;
+    private sandW = 0;
+    private sandH = 0;
+    private sandSeed = 0;
+    private sandDirty = false;
+    private sandFlushAt = 0;
+
     constructor(readonly size: MapSize = STANDARD_MAP) {
         this.cols = size.zoneCols + 2 * size.flankCols;
         this.rows = 2 * size.zoneRows + size.neutralRows;
@@ -292,107 +306,117 @@ export class BattleMap {
     }
 
     /**
-     * Where the sand shows through the grass: a low-frequency blob mask over
-     * the whole field. Clusters of overlapping soft circles make organic
-     * patches; the shader adds the high-frequency ragged edge.
+     * Where the sand shows through the grass. Starts as a few light random
+     * patches; unit stamping accumulates wear into the same canvas at runtime.
      */
     private createSandMask(seed: number): CanvasTexture {
         const w = 512;
         const h = Math.round((w * this.height) / this.width);
-        const rng = mulberry32(seed ^ 0x5eed);
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d')!;
+        this.sandW = w;
+        this.sandH = h;
+        this.sandSeed = seed;
+        this.sandCtx = ctx;
+        this.paintBaseSand(ctx, w, h, seed);
+        const tex = new CanvasTexture(canvas);
+        this.sandMask = tex;
+        return tex;
+    }
+
+    /** faint loose patches only — no building courtyards or path networks */
+    private paintBaseSand(
+        ctx: CanvasRenderingContext2D,
+        w: number,
+        h: number,
+        seed: number,
+    ): void {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, w, h);
-
+        const rng = mulberry32(seed ^ 0x5eed);
         const pxPerUnit = w / this.width;
-        const blob = (x: number, y: number, r: number, alpha: number) => {
-            const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-            grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
-            grad.addColorStop(1, 'rgba(255,255,255,0)');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.fill();
-        };
-
-        // Helper to draw a sandy path between two pixel points
-        const drawPath = (x1: number, y1: number, x2: number, y2: number) => {
-            const dx = x2 - x1;
-            const dy = y2 - y1;
-            const dist = Math.hypot(dx, dy);
-            if (dist < 1e-3) return;
-            const steps = Math.max(10, Math.ceil(dist / (0.8 * pxPerUnit)));
-            const nx = -dy / dist;
-            const ny = dx / dist;
-            for (let s = 0; s <= steps; s++) {
-                const t = s / steps;
-                const px = x1 + dx * t;
-                const py = y1 + dy * t;
-                const wobbleDist = (rng() - 0.5) * 0.8 * pxPerUnit;
-                const bx = px + nx * wobbleDist;
-                const by = py + ny * wobbleDist;
-                const r = (1.5 + rng() * 1.0) * pxPerUnit;
-                blob(bx, by, r, 0.4 + rng() * 0.2);
-            }
-        };
-
-        // Draw paths between base buildings for each side
-        const { flankCols, zoneCols, zoneRows } = this.size;
-        const toCanvas = (wx: number, wz: number) => {
-            const cx = ((wx + this.halfW) / this.width) * w;
-            const cy = ((wz + this.halfH) / this.height) * h;
-            return { cx, cy };
-        };
-        const drawSidePaths = (sign: number) => {
-            const getPt = (a: { xFrac: number; rowFrac: number }) => {
-                const x = -this.halfW + (flankCols + zoneCols * a.xFrac) * CELL;
-                const z = this.halfH - zoneRows * a.rowFrac * CELL;
-                return toCanvas(x * sign, z * sign);
-            };
-            const research = getPt(BASE_ANCHORS.research);
-            const command = getPt(BASE_ANCHORS.command);
-            const stronghold = getPt(BASE_ANCHORS.stronghold);
-
-            // Paths from stronghold to towers
-            drawPath(stronghold.cx, stronghold.cy, research.cx, research.cy);
-            drawPath(stronghold.cx, stronghold.cy, command.cx, command.cy);
-        };
-
-        drawSidePaths(1);
-        drawSidePaths(-1);
-
-        // sand courtyards under the base buildings (canvas top = -z, far side)
-        for (const a of this.baseAnchors()) {
-            const cx = ((a.x + this.halfW) / this.width) * w;
-            const cy = ((a.z + this.halfH) / this.height) * h;
-            const isStronghold = Math.abs(a.r - BASE_ANCHORS.stronghold.r) < 0.1;
-            const mult = isStronghold ? 1.2 : 1.0;
-            for (let b = 0; b < 8; b++) {
-                const r = a.r * mult * (0.55 + rng() * 0.5) * pxPerUnit;
-                blob(
-                    cx + (rng() - 0.5) * a.r * mult * 0.9 * pxPerUnit,
-                    cy + (rng() - 0.5) * a.r * mult * 0.9 * pxPerUnit,
+        const patches = Math.round((this.width * this.height) / 22000);
+        for (let i = 0; i < patches; i++) {
+            const cx = w * (0.08 + rng() * 0.84);
+            const cy = h * (0.08 + rng() * 0.84);
+            const blobs = 2 + Math.floor(rng() * 3);
+            for (let b = 0; b < blobs; b++) {
+                const r = (2.5 + rng() * 5) * pxPerUnit;
+                this.drawSandBlob(
+                    ctx,
+                    cx + (rng() - 0.5) * r * 1.4,
+                    cy + (rng() - 0.5) * r * 1.4,
                     r,
-                    0.8 + rng() * 0.2,
+                    0.35 + rng() * 0.25,
                 );
             }
         }
+    }
 
-        // a few loose patches elsewhere for variety
-        const patches = Math.round((this.width * this.height) / 14000);
-        for (let i = 0; i < patches; i++) {
-            const cx = w * (0.06 + rng() * 0.88);
-            const cy = h * (0.06 + rng() * 0.88);
-            const blobs = 3 + Math.floor(rng() * 5);
-            for (let b = 0; b < blobs; b++) {
-                const r = (3.5 + rng() * 8) * pxPerUnit;
-                blob(cx + (rng() - 0.5) * r * 1.6, cy + (rng() - 0.5) * r * 1.6, r, 0.55 + rng() * 0.3);
-            }
-        }
-        return new CanvasTexture(canvas);
+    private drawSandBlob(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        r: number,
+        alpha: number,
+    ): void {
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+        grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    /**
+     * Stamp a soft sandy blob at a world position (visual only). Batches GPU
+     * uploads via {@link flushSandMask}.
+     */
+    stampSand(x: number, z: number, radius: number, strength = 0.09): void {
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const r = Math.max(0.5, radius) * (this.sandW / this.width);
+        this.drawSandBlob(ctx, cx, cy, r, Math.min(1, Math.max(0.05, strength)));
+        this.sandDirty = true;
+    }
+
+    /** Push pending canvas stamps to the GPU (throttled ~12 Hz unless `force`). */
+    flushSandMask(now = performance.now(), force = false): void {
+        if (!this.sandDirty || !this.sandMask) return;
+        if (!force && now - this.sandFlushAt < 80) return;
+        this.sandMask.needsUpdate = true;
+        this.sandDirty = false;
+        this.sandFlushAt = now;
+    }
+
+    /** Wipe unit wear and reseed light base patches (new match only — wear persists across rounds). */
+    clearSandWear(): void {
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        this.paintBaseSand(ctx, this.sandW, this.sandH, this.sandSeed);
+        this.sandMask.needsUpdate = true;
+        this.sandDirty = false;
+        this.sandFlushAt = performance.now();
+    }
+
+    /** Radius for a pack courtyard stamp from its tile footprint. */
+    packSandRadius(cols: number, rows: number): number {
+        return Math.max(cols, rows) * CELL * 0.38;
+    }
+
+    /**
+     * How hard a ground unit presses into the sand (1 ≈ archer/dwarf).
+     * Heavier siege (ballista) leaves deeper, wider wear.
+     */
+    sandStampWeight(type: { cost: number; collisionRadius: number; meshScale: number }): number {
+        const costW = type.cost / 100;
+        const bulkW = (type.collisionRadius * type.meshScale) / 2.5;
+        return Math.max(0.55, Math.min(4.5, 0.5 * costW + 0.5 * bulkW));
     }
 
     /**
