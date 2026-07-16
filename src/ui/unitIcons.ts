@@ -4,14 +4,18 @@ import {
     DirectionalLight,
     HemisphereLight,
     Mesh,
+    PMREMGenerator,
     PerspectiveCamera,
     Scene,
     Vector3,
     WebGLRenderTarget,
+    type Texture,
     type WebGLRenderer,
 } from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { THEME } from '../theme';
 import { UNIT_TYPES, buildUnitPreviewMesh, type UnitType } from '../game/units';
+import { cloneUnitModel } from '../game/unitModels';
 
 const ICON_SIZE = 128;
 /** bright plate behind each thumbnail so dark hulls stay readable on HUD tiles */
@@ -24,9 +28,12 @@ function disposePreview(root: ReturnType<typeof buildUnitPreviewMesh>): void {
 }
 
 /** Renders a single unit type's mesh into a PNG data URL (opaque bright background). */
-export function renderUnitIcon(renderer: WebGLRenderer, type: UnitType): string {
+function renderUnitIcon(renderer: WebGLRenderer, type: UnitType, envMap: Texture): string {
     const scene = new Scene();
     scene.background = new Color(ICON_BG);
+    scene.environment = envMap;
+    scene.environmentIntensity = 0.55;
+
     scene.add(new HemisphereLight(THEME.hemiSky, THEME.hemiGround, THEME.hemiIntensity * 1.1));
     const key = new DirectionalLight(THEME.sun, THEME.sunIntensity);
     key.position.set(3, 5, 4);
@@ -35,8 +42,9 @@ export function renderUnitIcon(renderer: WebGLRenderer, type: UnitType): string 
     fill.position.set(-2, 2, -3);
     scene.add(fill);
 
-    const mesh = buildUnitPreviewMesh(type, 'player');
-    mesh.scale.multiplyScalar(2);
+    const glb = cloneUnitModel(type.id, 'player');
+    const mesh = glb ?? buildUnitPreviewMesh(type, 'player');
+    if (!glb) mesh.scale.multiplyScalar(2);
     scene.add(mesh);
 
     const box = new Box3().setFromObject(mesh);
@@ -88,7 +96,15 @@ export function renderUnitIcon(renderer: WebGLRenderer, type: UnitType): string 
 
 /** One thumbnail per buyable unit type, keyed by id. */
 export function renderAllUnitIcons(renderer: WebGLRenderer): Map<string, string> {
+    // PBR environment: metallic models need something to reflect (mirrors game.ts).
+    // Generated once and shared across all icon renders.
+    const pmrem = new PMREMGenerator(renderer);
+    const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+
     const icons = new Map<string, string>();
-    for (const type of UNIT_TYPES) icons.set(type.id, renderUnitIcon(renderer, type));
+    for (const type of UNIT_TYPES) icons.set(type.id, renderUnitIcon(renderer, type, envMap));
+
+    envMap.dispose();
     return icons;
 }

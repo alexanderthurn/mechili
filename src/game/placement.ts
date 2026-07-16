@@ -47,6 +47,9 @@ const MOVABLE_PLATE_OPACITY = 0.52;
  * The attack-range ring visual, shared by deployment selection and the
  * battle-phase mech selection. Unit scale = range in world units.
  */
+/** big flat rings can't follow the relief per-vertex — float just above the tallest mound */
+const RANGE_RING_Y = THEME.terrain.reliefDepth + 0.06;
+
 export function createRangeRing(scene: Scene): Mesh {
     const ringGeo = new RingGeometry(0.985, 1, 96);
     ringGeo.rotateX(-Math.PI / 2);
@@ -60,7 +63,7 @@ export function createRangeRing(scene: Scene): Mesh {
             depthWrite: false,
         }),
     );
-    mesh.position.y = 0.05;
+    mesh.position.y = RANGE_RING_Y;
     mesh.visible = false;
     scene.add(mesh);
     return mesh;
@@ -159,7 +162,7 @@ export class PlacementController {
         private readonly surface: HTMLElement,
     ) {
         const makeMarker = (color: number, opacity: number) => {
-            const geo = new PlaneGeometry(1, 1); // scaled per footprint each frame
+            const geo = new PlaneGeometry(1, 1); // rebuilt per footprint by placeFootprintPlate
             geo.rotateX(-Math.PI / 2);
             const material = new MeshBasicMaterial({
                 color,
@@ -169,6 +172,7 @@ export class PlacementController {
                 depthWrite: false,
             });
             const mesh = new Mesh(geo, material);
+            mesh.renderOrder = 10; // after the other transparent ground overlays
             mesh.visible = false;
             scene.add(mesh);
             return mesh;
@@ -615,8 +619,26 @@ export class PlacementController {
     ): void {
         const pulse = this.pulse(timeSeconds);
         const edge = animated ? 0.96 + 0.04 * pulse : 0.94;
-        mesh.position.set(center.x, y, center.z);
-        mesh.scale.set(fp.cols * CELL * edge, 1, fp.rows * CELL * edge);
+        // tessellated per tile on the same lattice as the ground mesh, then
+        // draped over the relief — so it hugs the terrain and units occlude it
+        const fpKey = `${fp.cols}x${fp.rows}`;
+        if (mesh.userData.fpKey !== fpKey) {
+            mesh.geometry.dispose();
+            const geo = new PlaneGeometry(fp.cols * CELL, fp.rows * CELL, fp.cols * 2, fp.rows * 2);
+            geo.rotateX(-Math.PI / 2);
+            mesh.geometry = geo;
+            mesh.userData.fpKey = fpKey;
+        }
+        const pos = mesh.geometry.attributes.position!;
+        for (let i = 0; i < pos.count; i++) {
+            pos.setY(
+                i,
+                this.map.heightAt(center.x + pos.getX(i) * edge, center.z + pos.getZ(i) * edge),
+            );
+        }
+        pos.needsUpdate = true;
+        mesh.position.set(center.x, y + 0.04, center.z);
+        mesh.scale.set(edge, 1, edge);
         material.color.setHex(color);
         material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
         mesh.visible = true;
@@ -1182,14 +1204,19 @@ export class PlacementController {
             const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type));
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             this.pendingUnit.view.position.set(center.x, 0, center.z);
-            this.hoverMesh.position.set(center.x, 0.04, center.z);
-            this.hoverMesh.scale.set(fp.cols * CELL * 0.98, 1, fp.rows * CELL * 0.98);
-            this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
-            this.hoverMesh.visible = true;
+            this.placeFootprintPlate(
+                this.hoverMesh,
+                this.hoverMaterial,
+                center,
+                fp,
+                valid ? VALID_COLOR : INVALID_COLOR,
+                timeSeconds,
+                true,
+            );
             // show what it will cover: dome radius, or the rocket's trigger range
             const radius = type.shield?.radius ?? type.rocket?.range;
             if (radius) {
-                this.rangeMesh.position.set(center.x, 0.05, center.z);
+                this.rangeMesh.position.set(center.x, RANGE_RING_Y, center.z);
                 this.rangeMesh.scale.set(radius, 1, radius);
                 this.rangeMesh.visible = true;
             }
@@ -1245,8 +1272,6 @@ export class PlacementController {
                 timeSeconds,
                 true,
             );
-            const edge = 0.96 + 0.04 * this.pulse(timeSeconds);
-            this.hoverMesh.scale.set(fp.cols * CELL * edge, 1, fp.rows * CELL * edge);
             markerCenter = center;
         } else {
             sel.view.position.copy(sel.world);
@@ -1266,7 +1291,7 @@ export class PlacementController {
         // attack range ring for own packs (follows the carried position)
         if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
-            this.rangeMesh.position.set(markerCenter.x, 0.05, markerCenter.z);
+            this.rangeMesh.position.set(markerCenter.x, RANGE_RING_Y, markerCenter.z);
             this.rangeMesh.scale.set(radius, 1, radius);
             this.rangeMesh.visible = true;
         }

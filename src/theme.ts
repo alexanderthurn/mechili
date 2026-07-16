@@ -79,6 +79,8 @@ export const THEME = {
         sunWashTop: 'rgba(255, 248, 200, 0.18)',
         sunWashBottom: 'rgba(255, 248, 200, 0)',
         groundRoughness: 0.88,
+        // deepest visual hollow of the battlefield relief (gameplay stays flat)
+        reliefDepth: 0.8,
     },
 
     scenery: {
@@ -95,6 +97,7 @@ export const THEME = {
         leaf: 0x4c9a3e,
         leafLight: 0x74bc52,
         rock: 0x8a8d82,
+        snow: 0xeef3f0,
         // drifting clouds + their shadows on the field
         cloudOpacity: 0.85,
         cloudShadowOpacity: 0.1,

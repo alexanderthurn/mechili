@@ -1,6 +1,7 @@
 import {
     AdditiveBlending,
     BackSide,
+    BufferAttribute,
     CanvasTexture,
     ConeGeometry,
     CylinderGeometry,
@@ -21,7 +22,12 @@ import {
     Vector3,
 } from 'three';
 import { THEME } from '../theme';
-import { mulberry32, type BattleMap } from './map';
+import { makeValueNoise, mulberry32, type BattleMap } from './map';
+
+function smooth01(t: number): number {
+    const c = Math.min(1, Math.max(0, t));
+    return c * c * (3 - 2 * c);
+}
 
 /**
  * Everything around and above the battlefield, generated in code: sky dome,
@@ -37,9 +43,25 @@ export class Scenery {
     private readonly cloudShadow: Mesh;
     private readonly cloudBoundsX: number;
 
+    /** outer-world height: flat meadow band, then slopes rising into a mountain ring */
+    private readonly terrainHeight: (x: number, z: number) => number;
+
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
         this.cloudBoundsX = map.halfW + 600;
+
+        const noise = makeValueNoise(31337);
+        this.terrainHeight = (x, z) => {
+            const d = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+            if (d <= 55) return 0;
+            // rise into the ring, then settle back down toward the horizon
+            const rise = smooth01((d - 55) / 380) * (1 - smooth01((d - 640) / 260));
+            const n =
+                noise(x / 170 + 3.7, z / 170 + 8.1) * 0.65 +
+                noise(x / 62 + 51.2, z / 62 + 17.9) * 0.35;
+            const ridge = Math.pow(Math.max(0, n - 0.35) / 0.65, 1.4);
+            return rise * (16 + 135 * ridge);
+        };
 
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
@@ -115,13 +137,45 @@ export class Scenery {
         return sprite;
     }
 
-    /** endless meadow beyond the field, fading into the fog */
+    /**
+     * The world beyond the field: a meadow band ringed by low-poly mountains.
+     * One displaced plane with height-based vertex colors (grass, rock, snow).
+     */
     private createOuterGround(): Mesh {
-        const geometry = new PlaneGeometry(3000, 3000);
+        const s = THEME.scenery;
+        const SIZE = 3000;
+        const SEGS = 150;
+        const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
         geometry.rotateX(-Math.PI / 2);
+
+        const pos = geometry.attributes.position!;
+        const colors = new Float32Array(pos.count * 3);
+        const grass = new Color(s.outerGround);
+        const rock = new Color(s.rock);
+        const snow = new Color(s.snow);
+        const c = new Color();
+        for (let i = 0; i < pos.count; i++) {
+            const h = this.terrainHeight(pos.getX(i), pos.getZ(i));
+            pos.setY(i, h);
+            c.copy(grass)
+                .lerp(rock, smooth01((h - 8) / 38))
+                .lerp(snow, smooth01((h - 88) / 32));
+            colors[i * 3] = c.r;
+            colors[i * 3 + 1] = c.g;
+            colors[i * 3 + 2] = c.b;
+        }
+        pos.needsUpdate = true;
+        geometry.setAttribute('color', new BufferAttribute(colors, 3));
+
         const mesh = new Mesh(
             geometry,
-            new MeshStandardMaterial({ color: THEME.scenery.outerGround, roughness: 1, metalness: 0 }),
+            new MeshStandardMaterial({
+                color: 0xffffff,
+                vertexColors: true,
+                roughness: 1,
+                metalness: 0,
+                flatShading: true,
+            }),
         );
         mesh.position.y = -0.05;
         mesh.receiveShadow = true;
@@ -178,8 +232,8 @@ export class Scenery {
         let coneI = 0;
         let blobI = 0;
 
-        const placeTrunk = (x: number, z: number, sc: number) => {
-            dummy.position.set(x, 1.7 * sc, z);
+        const placeTrunk = (x: number, z: number, sc: number, h: number) => {
+            dummy.position.set(x, h + 1.7 * sc, z);
             dummy.scale.setScalar(sc);
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
             dummy.updateMatrix();
@@ -188,14 +242,15 @@ export class Scenery {
 
         for (let i = 0; i < PINES; i++) {
             const { x, z } = spot();
+            const h = this.terrainHeight(x, z);
             const sc = 0.8 + rng() * 1.1;
-            placeTrunk(x, z, sc);
+            placeTrunk(x, z, sc, h);
             color.set(s.pine).lerp(new Color(s.pineLight), rng());
             for (const [ty, tsc] of [
                 [3.2, 1],
                 [6.2, 0.62],
             ] as const) {
-                dummy.position.set(x, (3.4 * 0.5 + ty) * sc, z);
+                dummy.position.set(x, h + (3.4 * 0.5 + ty) * sc, z);
                 dummy.scale.setScalar(sc * tsc);
                 dummy.rotation.set(0, rng() * Math.PI * 2, 0);
                 dummy.updateMatrix();
@@ -206,14 +261,15 @@ export class Scenery {
 
         for (let i = 0; i < LEAFY; i++) {
             const { x, z } = spot();
+            const h = this.terrainHeight(x, z);
             const sc = 0.9 + rng() * 1.2;
-            placeTrunk(x, z, sc);
+            placeTrunk(x, z, sc, h);
             color.set(s.leaf).lerp(new Color(s.leafLight), rng());
             for (const [ox, oy, oz, bsc] of [
                 [0, 4.6, 0, 1.15],
                 [1.4, 3.6, 0.9, 0.7],
             ] as const) {
-                dummy.position.set(x + ox * sc, oy * sc, z + oz * sc);
+                dummy.position.set(x + ox * sc, h + oy * sc, z + oz * sc);
                 dummy.scale.set(sc * bsc, sc * bsc * 0.85, sc * bsc);
                 dummy.rotation.set(0, rng() * Math.PI * 2, 0);
                 dummy.updateMatrix();
@@ -225,7 +281,7 @@ export class Scenery {
         for (let i = 0; i < ROCKS; i++) {
             const { x, z } = spot();
             const sc = 0.5 + rng() * 1.3;
-            dummy.position.set(x, 0.4 * sc, z);
+            dummy.position.set(x, this.terrainHeight(x, z) + 0.4 * sc, z);
             dummy.scale.set(sc, sc * 0.55, sc);
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
             dummy.updateMatrix();
@@ -277,7 +333,7 @@ export class Scenery {
                 depthWrite: false,
             }),
         );
-        mesh.position.y = 0.06;
+        mesh.position.y = THEME.terrain.reliefDepth + 0.1; // clears the ground-relief mounds
         return mesh;
     }
 

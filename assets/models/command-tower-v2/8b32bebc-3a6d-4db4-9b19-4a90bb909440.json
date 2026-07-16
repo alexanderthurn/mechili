@@ -1,0 +1,37 @@
+{
+  "task_id": "8b32bebc-3a6d-4db4-9b19-4a90bb909440",
+  "type": "text_to_model",
+  "status": "success",
+  "input": {
+    "prompt": "game-ready medieval fantasy castle keep, RTS command building: sturdy square stone keep with a taller round corner watchtower, crenellated battlements, red heraldic banner hanging over an arched wooden gate with iron bands, small torch sconces, layered stone brickwork with moss and weathering at the base, wooden roof shingles on the watchtower, strong readable silhouette from an elevated 3/4 RTS camera, stylized hand-painted PBR textures, crisp texel density, centered pivot sitting on flat ground, no text",
+    "model_version": "v3.1-20260211",
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "detailed",
+    "texture_alignment": "geometry",
+    "export_uv": true,
+    "geometry_quality": "detailed"
+  },
+  "output": {
+    "pbr_model": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260716/8b32bebc-3a6d-4db4-9b19-4a90bb909440/tripo_pbr_model_8b32bebc-3a6d-4db4-9b19-4a90bb909440.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTYvOGIzMmJlYmMtM2E2ZC00ZGI0LTliMTktNGE5MGJiOTA5NDQwL3RyaXBvX3Bicl9tb2RlbF84YjMyYmViYy0zYTZkLTRkYjQtOWIxOS00YTkwYmI5MDk0NDAuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MjQ2NDAwfX19XX0_&Signature=oMYP-wE1xUdqsVfb-97mdNm9e9fVHmpwpkbJcQd2a-ne9atpOyDfjdMjDgHs~acaAw0LD-YoZ8qBfprhDjyrIPFrGyGnHIvLQpjmb828pzwN84q-ldNahYQjKfDJaaYy~o45JZscC2MBvjvgueka8JWucU9fBsSrL8UO3k367yEMNRQmbBRurlEEpuMwo3YmV~yIJ~AwwnLO0PPQiryE51slxyHqcSQpbhDSwqpy3DohYnSl~q4BLziRy6ByK5vDR~INtjV6Osp6xYVfs5WI6i1x4rHoSTQpKGC8IdZts7H8eTZ5TXhRI1mbnVfz~2CfTCtnV65GryK5UThs6o1bUg__",
+    "generated_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260716/8b32bebc-3a6d-4db4-9b19-4a90bb909440/text2image_8b32bebc-3a6d-4db4-9b19-4a90bb909440.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTYvOGIzMmJlYmMtM2E2ZC00ZGI0LTliMTktNGE5MGJiOTA5NDQwL3RleHQyaW1hZ2VfOGIzMmJlYmMtM2E2ZC00ZGI0LTliMTktNGE5MGJiOTA5NDQwLmpwZWciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQyNDY0MDB9fX1dfQ__&Signature=LumxojzZfBZ-XfvGVuWDdZdqs0EzdrjCyox~S0XcYAQ2v~giO8Vyje8i16s8KxyC5rrx7D912vPJxFIOJTEyxZLYndvx0hL3AO9PFZBRoWWtrFdITnFa2MBI0RhE9Bc~j~ArqI82Lpi9Q8muraIhX7lv1x9P~lpsZkAT4258uuyugm5poqVkxIH3okoW1QI56fmGH3fkB4sExIeEOOngD0d1fufzwOvEQfjYzeo0Vgx5mzGFNUVUQZG-jzCpXomJztJzIwUf212Rfqs1~-IOJ86~dHWUs6SioZf83kia96tihuslLhbs8T-G9Ocl~DcJwR7225SHdclmUli2q26~ww__",
+    "rendered_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260716/8b32bebc-3a6d-4db4-9b19-4a90bb909440/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTYvOGIzMmJlYmMtM2E2ZC00ZGI0LTliMTktNGE5MGJiOTA5NDQwL2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQyNDY0MDB9fX1dfQ__&Signature=DuQ0MoqYVloHYMvGAenceUD48fumMajZcvV4BaqrVhrXvpLW9h327ltIxcc2LWEIATP-Pkg5vAGPOBm4C3uT2HCgRVP9yGw8yYQhPywri1M3FeBswZ~dz0H39ynfeRoY0B48ANBUD~8L4xBww9C~73gcFYHHPRKU6AMYpcJZf8~xLbLMtI-IAHsKlYe55T~CIVPfugFcTAs0Hk25vEzufjee36g1H-Pzt2fG8eKjPUpNzofeuJhFBpa~LFvwonDdKY8lTfiNXIZOMZ1EclqMXJyJ0RvwwdK1yfiCWYVuKgejyzSo7oPLVmnbrceMviUpia9XKPl5QtEmzrfI7UQyEA__"
+  },
+  "progress": 100,
+  "create_time": 1784188630,
+  "consumed_credit": 50,
+  "prompt": "game-ready medieval fantasy castle keep, RTS command building: sturdy square stone keep with a taller round corner watchtower, crenellated battlements, red heraldic banner hanging over an arched wooden gate with iron bands, small torch sconces, layered stone brickwork with moss and weathering at the base, wooden roof shingles on the watchtower, strong readable silhouette from an elevated 3/4 RTS camera, stylized hand-painted PBR textures, crisp texel density, centered pivot sitting on flat ground, no text",
+  "thumbnail": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260716/8b32bebc-3a6d-4db4-9b19-4a90bb909440/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTYvOGIzMmJlYmMtM2E2ZC00ZGI0LTliMTktNGE5MGJiOTA5NDQwL2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQyNDY0MDB9fX1dfQ__&Signature=DuQ0MoqYVloHYMvGAenceUD48fumMajZcvV4BaqrVhrXvpLW9h327ltIxcc2LWEIATP-Pkg5vAGPOBm4C3uT2HCgRVP9yGw8yYQhPywri1M3FeBswZ~dz0H39ynfeRoY0B48ANBUD~8L4xBww9C~73gcFYHHPRKU6AMYpcJZf8~xLbLMtI-IAHsKlYe55T~CIVPfugFcTAs0Hk25vEzufjee36g1H-Pzt2fG8eKjPUpNzofeuJhFBpa~LFvwonDdKY8lTfiNXIZOMZ1EclqMXJyJ0RvwwdK1yfiCWYVuKgejyzSo7oPLVmnbrceMviUpia9XKPl5QtEmzrfI7UQyEA__",
+  "queuing_num": -1,
+  "running_left_time": -1,
+  "result": {
+    "pbr_model": {
+      "type": "glb",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260716/8b32bebc-3a6d-4db4-9b19-4a90bb909440/tripo_pbr_model_8b32bebc-3a6d-4db4-9b19-4a90bb909440.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTYvOGIzMmJlYmMtM2E2ZC00ZGI0LTliMTktNGE5MGJiOTA5NDQwL3RyaXBvX3Bicl9tb2RlbF84YjMyYmViYy0zYTZkLTRkYjQtOWIxOS00YTkwYmI5MDk0NDAuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MjQ2NDAwfX19XX0_&Signature=oMYP-wE1xUdqsVfb-97mdNm9e9fVHmpwpkbJcQd2a-ne9atpOyDfjdMjDgHs~acaAw0LD-YoZ8qBfprhDjyrIPFrGyGnHIvLQpjmb828pzwN84q-ldNahYQjKfDJaaYy~o45JZscC2MBvjvgueka8JWucU9fBsSrL8UO3k367yEMNRQmbBRurlEEpuMwo3YmV~yIJ~AwwnLO0PPQiryE51slxyHqcSQpbhDSwqpy3DohYnSl~q4BLziRy6ByK5vDR~INtjV6Osp6xYVfs5WI6i1x4rHoSTQpKGC8IdZts7H8eTZ5TXhRI1mbnVfz~2CfTCtnV65GryK5UThs6o1bUg__"
+    },
+    "rendered_image": {
+      "type": "webp",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260716/8b32bebc-3a6d-4db4-9b19-4a90bb909440/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTYvOGIzMmJlYmMtM2E2ZC00ZGI0LTliMTktNGE5MGJiOTA5NDQwL2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQyNDY0MDB9fX1dfQ__&Signature=DuQ0MoqYVloHYMvGAenceUD48fumMajZcvV4BaqrVhrXvpLW9h327ltIxcc2LWEIATP-Pkg5vAGPOBm4C3uT2HCgRVP9yGw8yYQhPywri1M3FeBswZ~dz0H39ynfeRoY0B48ANBUD~8L4xBww9C~73gcFYHHPRKU6AMYpcJZf8~xLbLMtI-IAHsKlYe55T~CIVPfugFcTAs0Hk25vEzufjee36g1H-Pzt2fG8eKjPUpNzofeuJhFBpa~LFvwonDdKY8lTfiNXIZOMZ1EclqMXJyJ0RvwwdK1yfiCWYVuKgejyzSo7oPLVmnbrceMviUpia9XKPl5QtEmzrfI7UQyEA__"
+    }
+  }
+}

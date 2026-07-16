@@ -14,10 +14,14 @@ import {
 import { teamColors } from './colors';
 import type { BattleMap } from './map';
 import { RALLY_ROUTE_RADIUS, type RallyRoute } from './tactics';
+import { THEME } from '../theme';
 
-const Y_FILL = 0.032;
-const Y_LINE = 0.04;
-const Y_ARROW = 0.045;
+// lifted above the tallest ground-relief mound — long straight lines can't
+// follow the terrain per-vertex, so the whole layer floats just over it
+const Y_RELIEF = THEME.terrain.reliefDepth;
+const Y_FILL = Y_RELIEF + 0.032;
+const Y_LINE = Y_RELIEF + 0.04;
+const Y_ARROW = Y_RELIEF + 0.045;
 const ARROW_SPACING = 10;
 
 export type RallyDraft = {

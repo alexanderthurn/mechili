@@ -1,5 +1,6 @@
 import type { Group } from 'three';
 import { ITEMS } from './items';
+import { groundHeightAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     RALLY_ROUTE_RADIUS,
@@ -478,11 +479,17 @@ export class BattleSim {
         // ground units stride, roll, and lean forward as they walk; flyers keep
         // their own altitude handling. Skinned/animated units get their gait
         // from the skeleton, so only apply the procedural bob to the rest.
-        if (a.altitude === 0 && !a.mesh.userData.animated) {
-            const gait = Math.sin(timeSeconds * 9 + a.index);
-            a.mesh.position.y = 0.05 + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
-            a.mesh.rotation.z = gait * 0.06 * moving; // side-to-side roll
-            a.mesh.rotation.x = -0.1 * moving; // lean into the walk
+        if (a.altitude === 0) {
+            // visual ground height under the actor — the sim itself stays flat
+            const groundY = groundHeightAt(a.x, a.z) + 0.05;
+            if (!a.mesh.userData.animated) {
+                const gait = Math.sin(timeSeconds * 9 + a.index);
+                a.mesh.position.y = groundY + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
+                a.mesh.rotation.z = gait * 0.06 * moving; // side-to-side roll
+                a.mesh.rotation.x = -0.1 * moving; // lean into the walk
+            } else {
+                a.mesh.position.y = groundY;
+            }
         }
 
         // recoil kicks the unit backward along its facing, then decays
@@ -564,7 +571,7 @@ export class BattleSim {
             // tip over and stay as a battlefield wreck until the round resets
             // (air units crash to the ground)
             target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
-            target.mesh.position.y = 0.05;
+            target.mesh.position.y = groundHeightAt(target.x, target.z) + 0.05;
             target.mesh.userData.dead = true;
         }
     }

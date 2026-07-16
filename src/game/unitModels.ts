@@ -29,14 +29,15 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     // fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
     // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
     crawler: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3,offset: { x: 0, y: -0.1, z: 0 }  },
-    marksman: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
+    marksman: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW,offset: { x: 0, y: -0.1, z: 0 }  },
     fortress: { url: new URL('../../assets/models/fortress-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ballista
     wasp: { url: new URL('../../assets/models/wasp-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // crow rider
     shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
-    'command-tower': { url: new URL('../../assets/models/command-tower-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep
-    'research-center': { url: new URL('../../assets/models/research-center-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // wizard tower
+    'command-tower': { url: new URL('../../assets/models/command-tower-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower
+    stronghold: { url: new URL('../../assets/models/command-tower-keep.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep (Tripo v3.1, gltf-transform-optimized)
+    'research-center': { url: new URL('../../assets/models/research-center-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 1.25 }, // wizard tower
 };
 
 /** how strongly the neutral gunmetal model is tinted toward its team color (0..1) */

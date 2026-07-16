@@ -1,5 +1,6 @@
 import { Graphics } from 'pixi.js';
 import { Vector3, type PerspectiveCamera } from 'three';
+import { groundHeightAt } from '../game/map';
 import { HURT_BAR_SECONDS, type Actor } from '../game/sim';
 import { THEME } from '../theme';
 
@@ -48,7 +49,8 @@ export class HpBars {
         selected: boolean,
     ): void {
         const t = a.unit.type;
-        const barY = a.altitude + (t.structure ? t.meshScale * 4.2 : t.meshScale * 2.2 + 1);
+        const ground = a.altitude > 0 ? 0 : groundHeightAt(a.rx, a.rz);
+        const barY = ground + a.altitude + (t.structure ? t.meshScale * 4.2 : t.meshScale * 2.2 + 1);
         // rx/rz = interpolated render position, so bars stay glued to meshes
         this.tmp.set(a.rx, barY, a.rz).project(camera);
         if (this.tmp.z > 1 || this.tmp.z < -1) return;

@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { THEME } from '../theme';
 import { teamColors } from './colors';
-import { CELL, type Cell } from './map';
+import { CELL, groundHeightAt, type Cell } from './map';
 import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 
@@ -290,24 +290,24 @@ function buildTower(parts: PartFactory): void {
  * each carries its own role (and upgrade level). The Command Tower hosts the
  * recruit-level switch; the Research Center's role is still open.
  */
-function makeTower(id: string, name: string): UnitType {
+function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 800): UnitType {
     return {
         id,
         name,
         cost: 0,
-        // collision on the grid is 3x3; the mesh is a bit bigger and overlaps it visually
-        footprint: { cols: 3, rows: 3 },
+        // grid collision footprint; the mesh is a bit bigger and overlaps it visually
+        footprint: { cols: tiles, rows: tiles },
         formation: { cols: 1, rows: 1 },
-        meshScale: 3.6,
+        meshScale,
         structure: true,
         targets: { ground: false, air: false }, // towers don't shoot
-        collisionRadius: 6.8,
+        collisionRadius: tiles * CELL * 0.57,
         colliders: [
             { y: 0.5, r: 1.6 },
             { y: 1.9, r: 1.1 },
             { y: 3.5, r: 0.8 },
         ],
-        hp: 800,
+        hp,
         damage: 0,
         range: 0,
         attackInterval: 1,
@@ -319,6 +319,8 @@ function makeTower(id: string, name: string): UnitType {
 
 export const COMMAND_TOWER = makeTower('command-tower', 'Command Tower');
 export const RESEARCH_CENTER = makeTower('research-center', 'Research Center');
+/** each side's main castle at the back of its territory — bigger and sturdier */
+export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 1600);
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
@@ -533,20 +535,24 @@ export class Unit {
                 if (model) mesh.add(model);
                 else type.build(new PartFactory(mesh, team));
                 mesh.scale.setScalar(type.meshScale);
+                const ox = (i - (formation.cols - 1) / 2) * spacingX;
+                const oz = (j - (formation.rows - 1) / 2) * spacingZ;
                 mesh.position.set(
-                    (i - (formation.cols - 1) / 2) * spacingX,
-                    type.flying ? DEPLOY_AIR_Y : 0,
-                    (j - (formation.rows - 1) / 2) * spacingZ,
+                    ox,
+                    type.flying
+                        ? DEPLOY_AIR_Y
+                        : groundHeightAt(this.world.x + ox, this.world.z + oz),
+                    oz,
                 );
                 this.view.add(mesh);
                 this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: mesh.position.clone() });
             }
         }
-        // default facing until a target is known: straight at the opposing edge
+        // default facing until a target is known: straight at the opposing
+        // edge — structures too (a castle's gate looks at the enemy), they
+        // just never turn again afterwards
         this.facing = team === 'enemy' ? Math.PI : 0;
-        if (!type.structure || type.rocket) {
-            for (const m of this.members) m.mesh.rotation.y = this.facing;
-        }
+        for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
     }
 
@@ -575,6 +581,15 @@ export class Unit {
         this.cell = cell;
         this.world.copy(world);
         this.view.position.copy(world);
+        // re-seat every member on the relief at the new spot (structures get
+        // no per-frame update, so this is their only chance)
+        if (!this.type.flying) {
+            for (const m of this.members) {
+                m.mesh.position.y =
+                    this.memberBaseY() +
+                    groundHeightAt(world.x + m.home.x, world.z + m.home.z);
+            }
+        }
     }
 
     /** Re-arranges the formation for the new orientation, in place. */
@@ -638,7 +653,11 @@ export class Unit {
         for (const m of this.members) {
             clearBattleTint(m.mesh);
             m.mesh.position.copy(m.home);
-            m.mesh.position.y = this.memberBaseY();
+            m.mesh.position.y =
+                this.memberBaseY() +
+                (this.type.flying
+                    ? 0
+                    : groundHeightAt(this.world.x + m.home.x, this.world.z + m.home.z));
             m.mesh.visible = true;
             if (!this.type.structure) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
@@ -692,7 +711,10 @@ export class Unit {
         const amplitude = this.type.flying && !this.inDeployment ? 0.35 : 0.04;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
-            m.mesh.position.y = base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;
+            const ground = this.type.flying
+                ? 0
+                : groundHeightAt(this.world.x + m.home.x, this.world.z + m.home.z);
+            m.mesh.position.y = ground + base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;
         }
     }
 }
@@ -825,7 +847,7 @@ export function preloadUnitVisuals(): Promise<void> {
     visualsPromise = (async () => {
         try {
             const heights: Record<string, number> = {};
-            for (const type of [...UNIT_TYPES, COMMAND_TOWER, RESEARCH_CENTER]) {
+            for (const type of [...UNIT_TYPES, COMMAND_TOWER, RESEARCH_CENTER, STRONGHOLD]) {
                 const probe = new Group();
                 type.build(new PartFactory(probe, 'player'));
                 heights[type.id] = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;

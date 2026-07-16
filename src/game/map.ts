@@ -61,6 +61,54 @@ export function mulberry32(seed: number): () => number {
 }
 
 /**
+ * Where each side's base buildings sit: `xFrac` across the zone width,
+ * `rowFrac` into the zone depth (0 = own edge, 1 = toward the neutral strip),
+ * `r` the flat-relief radius around the building. Shared by game.ts
+ * (spawning) and BattleMap (keeping the ground flat underneath).
+ */
+export const BASE_ANCHORS = {
+    research: { xFrac: 0.25, rowFrac: 0.62, r: 9 },
+    command: { xFrac: 0.75, rowFrac: 0.62, r: 9 },
+    stronghold: { xFrac: 0.5, rowFrac: 0.22, r: 14 },
+} as const;
+
+let groundHeightFn: (x: number, z: number) => number = () => 0;
+
+/**
+ * Visual terrain height under a world position. Unit MESHES ride this so they
+ * stand on the relief; the sim itself keeps walking on the flat y=0 plane.
+ * Wired to the active BattleMap when it is constructed.
+ */
+export function groundHeightAt(x: number, z: number): number {
+    return groundHeightFn(x, z);
+}
+
+function smooth01(t: number): number {
+    const c = Math.min(1, Math.max(0, t));
+    return c * c * (3 - 2 * c);
+}
+
+/** seeded smooth 2D value noise in [0, 1] — cheap terrain-shaping building block */
+export function makeValueNoise(seed: number): (x: number, y: number) => number {
+    const lattice = (ix: number, iy: number): number => {
+        let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(seed, 69069)) | 0;
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    };
+    return (x, y) => {
+        const ix = Math.floor(x);
+        const iy = Math.floor(y);
+        const sx = smooth01(x - ix);
+        const sy = smooth01(y - iy);
+        const a = lattice(ix, iy);
+        const b = lattice(ix + 1, iy);
+        const c = lattice(ix, iy + 1);
+        const d = lattice(ix + 1, iy + 1);
+        return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+    };
+}
+
+/**
  * A battlefield built from a {@link MapSize}. Owns the grid math
  * (world x: -halfW..+halfW with +x screen-right; world z: -halfH at the enemy
  * edge (far) to +halfH at the player edge (near); rows counted from the
@@ -91,6 +139,7 @@ export class BattleMap {
         this.height = this.rows * CELL;
         this.halfW = this.width / 2;
         this.halfH = this.height / 2;
+        groundHeightFn = (x, z) => this.heightAt(x, z);
     }
 
     cellCenter(col: number, row: number): Vector3 {
@@ -163,10 +212,57 @@ export class BattleMap {
     /** world units covered by one repeat of the grass detail texture */
     private static readonly DETAIL_TILE = 20;
 
+    private readonly reliefNoise = makeValueNoise(9241);
+
+    /**
+     * Visual-only relief: gentle mounds rising up to `reliefDepth`, never
+     * below 0. The sim keeps walking on the flat y=0 plane — feet wade a bit
+     * into a mound, which the grass hides (better than hovering over dips).
+     * Flat near the borders (to meet the outer meadow) and under the four
+     * base buildings (so the castles sit cleanly).
+     */
+    heightAt(x: number, z: number): number {
+        const WAVE = 46;
+        const n =
+            this.reliefNoise(x / WAVE + 37.2, z / WAVE + 11.7) * 0.72 +
+            this.reliefNoise(x / (WAVE * 0.41) + 5.1, z / (WAVE * 0.41) + 91.3) * 0.28;
+        const hill = smooth01((n - 0.44) / 0.42); // the higher part of the noise mounds up
+        const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
+        let fade = smooth01(edge / 14);
+        for (const a of this.baseAnchors()) {
+            const d = Math.hypot(x - a.x, z - a.z);
+            fade = Math.min(fade, smooth01((d - a.r) / 10));
+        }
+        return THEME.terrain.reliefDepth * hill * fade;
+    }
+
+    /** approximate centers of the base buildings on both sides (see game.ts spawnTowers) */
+    private baseAnchors(): { x: number; z: number; r: number }[] {
+        const { flankCols, zoneCols, zoneRows } = this.size;
+        const anchors: { x: number; z: number; r: number }[] = [];
+        for (const a of Object.values(BASE_ANCHORS)) {
+            const x = -this.halfW + (flankCols + zoneCols * a.xFrac) * CELL;
+            const z = this.halfH - zoneRows * a.rowFrac * CELL;
+            anchors.push({ x, z, r: a.r }, { x: -x, z: -z, r: a.r });
+        }
+        return anchors;
+    }
+
+    /** displace a ground-aligned plane's vertices by the relief height */
+    private applyRelief(geometry: PlaneGeometry): void {
+        const pos = geometry.attributes.position!;
+        for (let i = 0; i < pos.count; i++) {
+            pos.setY(i, this.heightAt(pos.getX(i), pos.getZ(i)));
+        }
+        pos.needsUpdate = true;
+    }
+
     /** The ground plane: a code-generated texture on a real 3D plane mesh. */
     createMesh(seed = 1337): Mesh {
-        const geometry = new PlaneGeometry(this.width, this.height);
+        const geometry = new PlaneGeometry(this.width, this.height, this.cols * 2, this.rows * 2);
         geometry.rotateX(-Math.PI / 2); // lie flat; texture top edge faces -z (enemy side)
+        this.applyRelief(geometry);
+        geometry.computeVertexNormals();
         const macro = this.createGroundTexture(seed);
         const material = new MeshStandardMaterial({
             map: macro,
@@ -196,22 +292,40 @@ export class BattleMap {
         ctx.fillRect(0, 0, w, h);
 
         const pxPerUnit = w / this.width;
-        const patches = Math.round((this.width * this.height) / 5500);
+        const blob = (x: number, y: number, r: number, alpha: number) => {
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+            grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+        };
+
+        // sand courtyards under the base buildings (canvas top = -z, far side)
+        for (const a of this.baseAnchors()) {
+            const cx = ((a.x + this.halfW) / this.width) * w;
+            const cy = ((a.z + this.halfH) / this.height) * h;
+            for (let b = 0; b < 8; b++) {
+                const r = a.r * (0.55 + rng() * 0.5) * pxPerUnit;
+                blob(
+                    cx + (rng() - 0.5) * a.r * 0.9 * pxPerUnit,
+                    cy + (rng() - 0.5) * a.r * 0.9 * pxPerUnit,
+                    r,
+                    0.8 + rng() * 0.2,
+                );
+            }
+        }
+
+        // a few loose patches elsewhere for variety
+        const patches = Math.round((this.width * this.height) / 14000);
         for (let i = 0; i < patches; i++) {
             const cx = w * (0.06 + rng() * 0.88);
             const cy = h * (0.06 + rng() * 0.88);
             const blobs = 3 + Math.floor(rng() * 5);
             for (let b = 0; b < blobs; b++) {
                 const r = (3.5 + rng() * 8) * pxPerUnit;
-                const x = cx + (rng() - 0.5) * r * 1.6;
-                const y = cy + (rng() - 0.5) * r * 1.6;
-                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-                grad.addColorStop(0, `rgba(255,255,255,${0.55 + rng() * 0.3})`);
-                grad.addColorStop(1, 'rgba(255,255,255,0)');
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(x, y, r, 0, Math.PI * 2);
-                ctx.fill();
+                blob(cx + (rng() - 0.5) * r * 1.6, cy + (rng() - 0.5) * r * 1.6, r, 0.55 + rng() * 0.3);
             }
         }
         return new CanvasTexture(canvas);
@@ -502,8 +616,10 @@ export class BattleMap {
         texture.colorSpace = SRGBColorSpace;
         texture.anisotropy = 8;
 
-        const geometry = new PlaneGeometry(this.width, this.height);
+        // follows the ground relief so grid lines hug the terrain
+        const geometry = new PlaneGeometry(this.width, this.height, this.cols * 2, this.rows * 2);
         geometry.rotateX(-Math.PI / 2);
+        this.applyRelief(geometry);
         const mesh = new Mesh(
             geometry,
             new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),

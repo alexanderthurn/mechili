@@ -34,7 +34,7 @@ import {
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { ITEMS } from './items';
-import { BattleMap, CELL, mulberry32, type Cell } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, type Cell } from './map';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import { createRangeRing, PlacementController } from './placement';
@@ -46,6 +46,7 @@ import { TechTree } from './tech';
 import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
+    STRONGHOLD,
     techDescription,
     techIcon,
     unitTypeById,
@@ -56,7 +57,7 @@ import {
 import { DebugOverlay } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
-import { unitThumbnails } from '../ui/unitThumbs';
+import { renderAllUnitIcons } from '../ui/unitIcons';
 import { updateAnimatedUnits } from './unitAnimated';
 
 /** how long the both-specialists reveal stays up before deployment takes over */
@@ -410,7 +411,7 @@ export class Game {
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
         );
-        this.hud.setUnitIcons(unitThumbnails());
+        this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.onQuitToMenu = () => this.quitToMenu();
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
@@ -595,19 +596,22 @@ export class Game {
     }
 
     /**
-     * Each side's two base buildings, centered in its territory's depth:
-     * the Research Center on the left, the Command Tower on the right.
+     * Each side's three base buildings (anchors shared with BattleMap so the
+     * ground relief stays flat underneath): the Research Center left and the
+     * Command Tower right, both pushed toward the enemy, plus the big
+     * Stronghold at the back center.
      */
     private spawnTowers(): void {
         const { flankCols, zoneCols, zoneRows } = this.map.size;
         const buildings = [
-            { frac: 0.25, type: RESEARCH_CENTER },
-            { frac: 0.75, type: COMMAND_TOWER },
+            { anchor: BASE_ANCHORS.research, type: RESEARCH_CENTER },
+            { anchor: BASE_ANCHORS.command, type: COMMAND_TOWER },
+            { anchor: BASE_ANCHORS.stronghold, type: STRONGHOLD },
         ];
-        for (const { frac, type } of buildings) {
+        for (const { anchor, type } of buildings) {
             const fp = type.footprint;
-            const centerRow = Math.round((zoneRows - fp.rows) / 2);
-            const col = flankCols + Math.round(zoneCols * frac) - Math.floor(fp.cols / 2);
+            const centerRow = Math.round(zoneRows * anchor.rowFrac - fp.rows / 2);
+            const col = flankCols + Math.round(zoneCols * anchor.xFrac) - Math.floor(fp.cols / 2);
             // the far side's base is the near layout rotated 180°, so each
             // player sees their own research center left, command tower right
             const near = { col, row: centerRow };
@@ -1786,7 +1790,8 @@ export class Game {
         for (const a of this.sim.actors) {
             if (!a.alive) continue;
             const t = a.unit.type;
-            const screen = this.rig.worldToScreen(a.rx, a.altitude + t.meshScale * 0.55, a.rz, w, h);
+            const groundY = a.altitude > 0 ? 0 : groundHeightAt(a.rx, a.rz);
+            const screen = this.rig.worldToScreen(a.rx, groundY + a.altitude + t.meshScale * 0.55, a.rz, w, h);
             if (!screen) continue;
             const d = Math.hypot(screen.x - sx, screen.y - sy);
             const pickRadius = Math.max(20, t.meshScale * 16);
