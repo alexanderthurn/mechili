@@ -24,7 +24,7 @@ export class CameraRig {
     readonly minZoom = 18;
     /** derived from the map dimensions via {@link fitMap} */
     maxZoom = 280;
-    readonly minPitch = (20 * Math.PI) / 180;
+    readonly minPitch = (1 * Math.PI) / 180;
     readonly maxPitch = (85 * Math.PI) / 180;
     readonly defaultPitch = (55 * Math.PI) / 180;
 

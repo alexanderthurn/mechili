@@ -374,8 +374,8 @@ export const UNIT_TYPES: UnitType[] = [
         name: 'Crow Rider',
         cost: 200,
         footprint: { cols: 5, rows: 2 }, // same pack size as crawlers
-        formation: { cols: 6, rows: 2 }, // a swarm of 12 drones, two wide rows
-        meshScale: 1.35, // slightly smaller so the tighter columns don't touch
+        formation: { cols: 4, rows: 1 }, // a swarm of 12 drones, two wide rows
+        meshScale: 4.35, // slightly smaller so the tighter columns don't touch
         flying: 18,
         targets: { ground: true, air: true },
         collisionRadius: 0.75,

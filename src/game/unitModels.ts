@@ -1,4 +1,4 @@
-import { Box3, Color, Group, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three';
+import { Box3, Color, Group,MathUtils, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { teamColors } from './colors';
 import type { Team } from './units';
@@ -15,10 +15,19 @@ import type { Team } from './units';
  */
 export const MODEL_FWD_YAW = Math.PI / 2;
 
-export const MODEL_SPECS: Record<string, { url: string; yaw: number; scale?: number }> = {
+export interface ModelSpec {
+    url: string;
+    yaw: number;
+    pitch?: number;
+    roll?: number;
+    offset?: { x?: number; y?: number; z?: number };
+    scale?: number;
+}
+
+export const MODEL_SPECS: Record<string, ModelSpec> = {
     // fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
     // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
-    crawler: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3 },
+    crawler: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3,offset: { x: 0, y: -0.1, z: 0 }  },
     marksman: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     fortress: { url: new URL('../../assets/models/fortress-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // ballista
     wasp: { url: new URL('../../assets/models/wasp-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // crow rider
@@ -72,9 +81,18 @@ function tintedClone(scene: Object3D, team: Team): Object3D {
 }
 
 /** Yaw, scale to `height`, center on x/z, and sit the base at y=0. */
-function normalize(scene: Object3D, height: number, yaw: number): Group {
+function normalize(
+    scene: Object3D,
+    height: number,
+    yaw: number,
+    pitch?: number,
+    roll?: number,
+    offset?: { x?: number; y?: number; z?: number },
+): Group {
     const holder = new Group();
     scene.rotation.y = yaw;
+    if (pitch !== undefined) scene.rotation.x = pitch;
+    if (roll !== undefined) scene.rotation.z = roll;
     holder.add(scene);
     let box = new Box3().setFromObject(holder);
     const size = box.getSize(new Vector3());
@@ -85,6 +103,12 @@ function normalize(scene: Object3D, height: number, yaw: number): Group {
     scene.position.x -= center.x;
     scene.position.z -= center.z;
     scene.position.y -= box.min.y;
+
+    if (offset) {
+        if (offset.x !== undefined) scene.position.x += offset.x;
+        if (offset.y !== undefined) scene.position.y += offset.y;
+        if (offset.z !== undefined) scene.position.z += offset.z;
+    }
     return holder;
 }
 
@@ -100,8 +124,8 @@ export async function loadUnitModels(heights: Record<string, number>): Promise<v
                 const gltf = await loader.loadAsync(spec.url);
                 const h = (heights[id] || 1) * (spec.scale ?? 1);
                 templates.set(id, {
-                    player: normalize(tintedClone(gltf.scene, 'player'), h, spec.yaw),
-                    enemy: normalize(tintedClone(gltf.scene, 'enemy'), h, spec.yaw),
+                    player: normalize(tintedClone(gltf.scene, 'player'), h, spec.yaw, spec.pitch, spec.roll, spec.offset),
+                    enemy: normalize(tintedClone(gltf.scene, 'enemy'), h, spec.yaw, spec.pitch, spec.roll, spec.offset),
                 });
                 console.info(`[unitModels] loaded '${id}' from ${spec.url} (height ${h.toFixed(2)})`);
             } catch (e) {
