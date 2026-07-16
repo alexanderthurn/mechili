@@ -53,6 +53,7 @@ import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
     STRONGHOLD,
+    UNIT_TYPES,
     techDescription,
     techIcon,
     unitTypeById,
@@ -236,6 +237,11 @@ export class Game {
             // single-player: +1000 supply to both sides, each press
             this.economy.credit('player', 1000);
             this.economy.credit('enemy', 1000);
+            return;
+        }
+        if (e.code === 'KeyU' && !this.net) {
+            // single-player: one of every unit type on both sides + huge HP
+            this.cheatSpawnAllUnits();
             return;
         }
 
@@ -710,6 +716,35 @@ export class Game {
             this.placement.spawn(type, ownFar ? far : near, 'player');
             this.placement.spawn(type, ownFar ? near : far, 'enemy');
         }
+    }
+
+    /**
+     * SP cheat (U): free-spawn every unit type on both sides during
+     * deployment (3 dwarf packs, 1 of each other type), bump player HP
+     * sky-high, and lift intel fog so both armies are visible for draw-call /
+     * instancing tests. Press again for another full set.
+     */
+    private cheatSpawnAllUnits(): void {
+        if (this.phase !== 'build' || this.matchOver) return;
+
+        const CHEAT_HP = 999_999;
+        this.playerHp = CHEAT_HP;
+        this.enemyHp = CHEAT_HP;
+        this.hud.setHp(this.playerHp, this.enemyHp);
+
+        for (const team of ['player', 'enemy'] as const) {
+            for (const type of UNIT_TYPES) {
+                const copies = type.id === 'dwarf' ? 3 : 1;
+                for (let i = 0; i < copies; i++) {
+                    const spot = this.placement.findStartSpot(team, type);
+                    if (!spot) break;
+                    this.placement.spawn(type, spot, team, false, true);
+                }
+            }
+        }
+        // newly spawned enemy packs aren't in the phase-start intel snapshot —
+        // show the live board so the test army is actually visible
+        this.placement.setIntelFog(false);
     }
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */
