@@ -25,6 +25,7 @@ export const CELL = 4;
 
 import { THEME } from '../theme';
 import { teamColors } from './colors';
+import { prefs } from './prefs';
 
 export interface Cell {
     col: number;
@@ -168,6 +169,9 @@ export class BattleMap {
     private sandDirty = false;
     private sandFlushAt = 0;
 
+    /** false with the 'minimal' scenery pref: flat board, no detail textures */
+    private readonly detailed = prefs().scenery !== 'minimal';
+
     constructor(readonly size: MapSize = STANDARD_MAP) {
         this.cols = size.zoneCols + 2 * size.flankCols;
         this.rows = 2 * size.zoneRows + size.neutralRows;
@@ -255,6 +259,7 @@ export class BattleMap {
      * base buildings (so the castles sit cleanly).
      */
     heightAt(x: number, z: number): number {
+        if (!this.detailed) return 0; // minimal scenery: perfectly flat board
         const WAVE = 46;
         const n =
             this.reliefNoise(x / WAVE + 37.2, z / WAVE + 11.7) * 0.72 +
@@ -305,7 +310,7 @@ export class BattleMap {
         });
         const mesh = new Mesh(geometry, material);
         mesh.receiveShadow = true;
-        void this.upgradeGroundMaterial(mesh, macro, seed);
+        if (this.detailed) void this.upgradeGroundMaterial(mesh, macro, seed);
         return mesh;
     }
 

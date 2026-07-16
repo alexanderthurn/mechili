@@ -69,6 +69,11 @@ export function statsUrl(): string {
     return new URL('stats.php', matchUrl()).href;
 }
 
+/** open-track profiles / soft MMR — player.php next to matchmaking.php */
+export function playerUrl(): string {
+    return new URL('player.php', matchUrl()).href;
+}
+
 export interface GlobalChatState {
     sticky: string | null;
     messages: { name: string; text: string; ts: number }[];

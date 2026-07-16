@@ -1,36 +1,94 @@
-import { Text, type Application } from 'pixi.js';
-import type { CameraRig } from '../engine/cameraRig';
+import type { Application } from 'pixi.js';
+import type { Object3D, Scene, WebGLRenderer } from 'three';
 import { THEME } from '../theme';
 
-/** Top-left FPS / camera readout — only shown when `?debug` is in the URL. */
-export class DebugOverlay {
-    readonly view = new Text({
-        text: '',
-        style: { fill: THEME.ui.debug, fontSize: 13, fontFamily: 'monospace' },
-    });
-    private accumulator = 0;
+export interface DebugPerfStats {
+    /** packs on the board */
+    units: number;
+    /** individual mechs (pack members / battle actors) */
+    mechs: number;
+}
 
-    constructor(private readonly hudMode: string, enabled = false) {
-        this.view.position.set(10, 8);
-        this.view.visible = enabled;
+/** Top-left performance readout — only shown when `?debug` is in the URL. */
+export class DebugOverlay {
+    readonly el: HTMLDivElement;
+    private accumulator = 0;
+    private enabled = false;
+
+    constructor(parent: HTMLElement, enabled = false) {
+        this.el = document.createElement('div');
+        this.el.className = 'mechili-debug';
+        this.el.style.cssText = [
+            'position:absolute',
+            'left:10px',
+            'top:78px', // sits under the player fighter card
+            'z-index:50',
+            'pointer-events:none',
+            'padding:6px 8px',
+            'border-radius:6px',
+            'background:rgba(8,12,6,0.72)',
+            'border:1px solid rgba(168,216,120,0.35)',
+            'color:' + THEME.ui.debug,
+            'font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace',
+            'white-space:pre',
+            'text-shadow:0 1px 2px rgba(0,0,0,0.9)',
+            'display:none',
+        ].join(';');
+        parent.appendChild(this.el);
+        this.setEnabled(enabled);
     }
 
     setEnabled(enabled: boolean): void {
-        this.view.visible = enabled;
-        if (!enabled) this.view.text = '';
+        this.enabled = enabled;
+        this.el.style.display = enabled ? 'block' : 'none';
+        if (!enabled) this.el.textContent = '';
     }
 
-    update(app: Application, rig: CameraRig, unitCount: number, dtSeconds: number): void {
-        if (!this.view.visible) return;
+    destroy(): void {
+        this.el.remove();
+    }
+
+    update(
+        app: Application,
+        renderer: WebGLRenderer,
+        scene: Scene,
+        stats: DebugPerfStats,
+        dtSeconds: number,
+    ): void {
+        if (!this.enabled) return;
         this.accumulator += dtSeconds;
         if (this.accumulator < 0.25) return;
         this.accumulator = 0;
-        const t = rig.target;
-        const deg = (rad: number) => ((rad * 180) / Math.PI).toFixed(0);
-        this.view.text =
-            `fps ${app.ticker.FPS.toFixed(0)}  ` +
-            `cam (${t.x.toFixed(1)}, ${t.z.toFixed(1)}) zoom ${rig.zoom.toFixed(0)} ` +
-            `heading ${deg(rig.heading)}° pitch ${deg(rig.pitch)}°  ` +
-            `units ${unitCount}  hud ${this.hudMode}`;
+
+        const fps = app.ticker.FPS;
+        const ms = fps > 0 ? 1000 / fps : 0;
+        const info = renderer.info;
+        const objs = countSceneObjects(scene);
+        const tris =
+            info.render.triangles >= 1000
+                ? `${(info.render.triangles / 1000).toFixed(1)}k`
+                : String(info.render.triangles);
+
+        this.el.textContent =
+            `fps ${fps.toFixed(0)}  ${ms.toFixed(1)}ms  dpr ${renderer.getPixelRatio()}\n` +
+            `units ${stats.units}  mechs ${stats.mechs}  objs ${objs}\n` +
+            `calls ${info.render.calls}  tris ${tris}\n` +
+            `geo ${info.memory.geometries}  tex ${info.memory.textures}`;
     }
+}
+
+/** meshes + points + lines + sprites currently in the scene graph */
+function countSceneObjects(root: Object3D): number {
+    let n = 0;
+    root.traverse((o) => {
+        const any = o as Object3D & {
+            isMesh?: boolean;
+            isPoints?: boolean;
+            isLine?: boolean;
+            isSprite?: boolean;
+            isInstancedMesh?: boolean;
+        };
+        if (any.isMesh || any.isPoints || any.isLine || any.isSprite || any.isInstancedMesh) n++;
+    });
+    return n;
 }

@@ -1070,6 +1070,11 @@ export class Hud {
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle');
+        // last 5s of deployment — pulse so the player knows to hurry
+        this.timerEl.classList.toggle(
+            'urgent',
+            phase === 'build' && !waitingForPeer && s > 0 && s <= 5,
+        );
         // locked in: only spectating remains — no buying, no ending twice
         this.topBar.classList.toggle('waiting', waitingForPeer);
         this.fightBar.classList.toggle('battle', phase === 'battle');

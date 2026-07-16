@@ -18,6 +18,7 @@ import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type Act
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
+import { matchResultId, reportMatchResult } from './account';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -36,6 +37,7 @@ import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, type Cell } from './map';
+import { prefs } from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
@@ -298,7 +300,8 @@ export class Game {
         const sun = new DirectionalLight(THEME.sun, THEME.sunIntensity);
         sun.position.set(120, 160, 80);
         sun.castShadow = true;
-        sun.shadow.mapSize.set(4096, 4096);
+        const shadowRes = prefs().scenery === 'minimal' ? 1024 : 4096;
+        sun.shadow.mapSize.set(shadowRes, shadowRes);
         // a bit stronger than the Three default (1) so packs/towers read clearly on the grass
         sun.shadow.intensity = 1.55;
         // frustum reaches past the field so the tree ring casts onto its edges
@@ -551,10 +554,10 @@ export class Game {
             });
         };
         this.debug = new DebugOverlay(
-            this.hud.mode,
+            wrapper,
             new URLSearchParams(location.search).has('debug'),
         );
-        pixiApp.stage.addChild(this.hpBars.view, this.debug.view);
+        pixiApp.stage.addChild(this.hpBars.view);
 
         // battle phase: left click selects a single mech, own or enemy
         const listen = (type: string, handler: EventListener) => {
@@ -609,9 +612,8 @@ export class Game {
         this.controls.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
-        this.pixiApp.stage.removeChild(this.debug.view);
         this.hpBars.view.destroy({ children: true });
-        this.debug.view.destroy({ children: true });
+        this.debug.destroy();
         // drop any HTML HUD nodes still attached to the pixi canvas (html-in-canvas mode)
         for (const node of [...this.pixiApp.canvas.children]) {
             if (node instanceof HTMLElement) node.remove();
@@ -1696,7 +1698,32 @@ export class Game {
             return;
         }
         this.reportMatchTelemetry(result);
+        this.reportOpenRating(result);
         this.hud.showGameOver(result);
+    }
+
+    /**
+     * Soft open-ladder Elo (honor system). Host-only in MP; AI games count
+     * W/L but do not change MMR. Failures are ignored.
+     */
+    private reportOpenRating(result: 'victory' | 'defeat' | 'draw'): void {
+        if (this.net && this.side !== 'a') return;
+        try {
+            const mode = this.net ? 'mp' : 'ai';
+            reportMatchResult({
+                matchId: matchResultId(
+                    this.seed,
+                    this.playerNames.local,
+                    this.playerNames.opponent,
+                    this.round,
+                ),
+                mode,
+                result,
+                names: { ...this.playerNames },
+            });
+        } catch {
+            // rating must never affect the game-over flow
+        }
     }
 
     /**
@@ -1831,8 +1858,14 @@ export class Game {
         this.refreshShopHud();
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.hud.layout();
-        this.debug.update(this.pixiApp, this.rig, this.placement.unitCount, dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);
+        let mechs = 0;
+        if (this.sim) mechs = this.sim.actors.length;
+        else for (const u of this.placement.allUnits()) mechs += u.members.length;
+        this.debug.update(this.pixiApp, this.renderer, this.scene, {
+            units: this.placement.unitCount,
+            mechs,
+        }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.net && !this.matchOver && !this.hydrating) {
             this.persistTimer += dtSeconds;

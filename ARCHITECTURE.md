@@ -23,8 +23,9 @@ to prevent exactly that.
 | `src/game/colors.ts` | canonical side colors (host blue, guest red, on both screens) |
 | `src/ui/hud.ts` | the whole in-match UI (DOM overlay), incl. combat chat |
 | `src/theme.ts` | every color and all CSS |
-| `backend/*.php` | matchmaking lobby, global chat, match telemetry (plain JSON files) |
+| `backend/*.php` | matchmaking, chat, match telemetry, open player/MMR (JSON files) |
 | `src/game/telemetry.ts` | fire-and-forget match upload; analysis stays in clients |
+| `src/game/account.ts` / `channel.ts` | open-track soft Elo; `BUILD_CHANNEL` seam for future Steam |
 
 ## The action system
 
@@ -115,6 +116,18 @@ atomic write, content-hash dedupe. Failures are ignored. Bulk download
 (`?action=bulk`) feeds client-side analysis (`backend/stats.html`). Bump
 `BALANCE_PATCH_ID` in `telemetry.ts` when tuning costs/stats for patches.
 The FTP deploy excludes `backend/stats/` so collected matches survive releases.
+
+## Open player profiles & soft MMR
+
+`BUILD_CHANNEL = 'open'` (see `channel.ts`). Username is identity. Optional
+password (bcrypt via PHP `password_hash`); no email reset — forget it and
+the name is gone. Session token in localStorage (90 days). `player.php`
+stores sharded profiles under `players/open/`, sessions under
+`players/sessions/`, Elo on multiplayer results (host submit, protected
+names need a valid token). AI games update W/L only. Steam builds will use
+a separate stack and must not call this API. Menu shows `Name · MMR` (or
+🔒 when locked). Ladder via `?action=ladder` / `stats.html`.
+FTP deploy excludes `backend/players/`.
 
 ## Adding a unit type — checklist
 

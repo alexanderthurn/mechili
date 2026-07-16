@@ -4,10 +4,16 @@ export interface Prefs {
     combatChat: boolean;
     /** show the global chat panel in the main menu */
     globalChat: boolean;
+    /**
+     * 'full' = mountains, lakes, forests, grass, relief, big shadows.
+     * 'minimal' = flat board + flat green world, no decoration — for old
+     * machines. Applies when the next match starts.
+     */
+    scenery: 'full' | 'minimal';
 }
 
 const KEY = 'mechili-prefs';
-const DEFAULTS: Prefs = { combatChat: true, globalChat: true };
+const DEFAULTS: Prefs = { combatChat: true, globalChat: true, scenery: 'full' };
 
 let cached: Prefs | null = null;
 const listeners: (() => void)[] = [];

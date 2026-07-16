@@ -123,6 +123,8 @@ jobs:
             --exclude-glob .htpasswd \
             --exclude-glob "stats/" \
             --exclude-glob "backend/stats/" \
+            --exclude-glob "players/" \
+            --exclude-glob "backend/players/" \
             --verbose
           quit
           EOF

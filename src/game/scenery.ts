@@ -6,6 +6,7 @@ import {
     CircleGeometry,
     ConeGeometry,
     CylinderGeometry,
+    DoubleSide,
     Group,
     IcosahedronGeometry,
     InstancedMesh,
@@ -27,8 +28,10 @@ import {
     type HemisphereLight,
     type Scene,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather } from './weather';
 import { THEME } from '../theme';
+import { prefs } from './prefs';
 
 const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
 const foliageUrl = new URL('../../assets/textures/foliage.webp', import.meta.url).href;
@@ -67,7 +70,7 @@ export class Scenery {
     private readonly map: BattleMap;
     private weather: Weather | null = null;
 
-    private waterTexture!: CanvasTexture;
+    private waterTexture: CanvasTexture | null = null;
 
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
@@ -81,6 +84,9 @@ export class Scenery {
     private readonly lakeAt: (x: number, z: number) => number;
     /** shared value noise for height + vertex color variation */
     private readonly noise: (x: number, z: number) => number;
+
+    /** false with the 'minimal' scenery pref: flat green world, no decoration */
+    private readonly detailed = prefs().scenery !== 'minimal';
 
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
@@ -138,12 +144,22 @@ export class Scenery {
             return (rolling + mountain) * (1 - lake) + depth * lake;
         };
 
+        // minimal scenery: flat terrain heights (the closures above return
+        // real values, but heightAt/lakeAt get bypassed below) + no decoration
+        if (!this.detailed) {
+            this.terrainHeight = () => 0;
+            this.lakeAt = () => 0;
+        }
+
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
         this.group.add(this.createOuterGround(map));
-        this.group.add(this.createWater());
-        this.createLakeDetails(rng);
-        this.createForest(map, rng);
+        if (this.detailed) {
+            this.group.add(this.createWater());
+            this.createLakeDetails(rng);
+            this.createForest(map, rng);
+            this.createMeadowDetails(map, rng);
+        }
         this.cloudShadow = this.createCloudShadow(map);
         this.group.add(this.cloudShadow);
         this.createClouds(map, rng);
@@ -185,8 +201,13 @@ export class Scenery {
             p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
         }
         // slow ripple drift on the lakes
-        this.waterTexture.offset.x += dtSeconds * 0.006;
-        this.waterTexture.offset.y += dtSeconds * 0.0035;
+        if (this.waterTexture) {
+            this.waterTexture.offset.x += dtSeconds * 0.006;
+            this.waterTexture.offset.y += dtSeconds * 0.0035;
+        }
+        if (this.tuftMaterial?.userData.shader) {
+            this.tuftMaterial.userData.shader.uniforms.uTime!.value = this.time;
+        }
     }
 
     /**
@@ -245,6 +266,151 @@ export class Scenery {
         mesh.position.y = -1.1;
         mesh.receiveShadow = true;
         return mesh;
+    }
+
+    private tuftMaterial: MeshStandardMaterial | null = null;
+
+    /**
+     * Small-scale life on the outer meadow: wind-swaying grass tufts, small
+     * stones, fallen logs and mushrooms. Four instanced draw calls.
+     */
+    private createMeadowDetails(map: BattleMap, rng: () => number): void {
+        const dummy = new Object3D();
+        const color = new Color();
+
+        /** random meadow-band point (outside board, on grass, not in water) */
+        const meadowSpot = (maxH: number): { x: number; z: number; h: number } | null => {
+            for (let attempt = 0; attempt < 60; attempt++) {
+                const x = (rng() * 2 - 1) * (map.halfW + 320);
+                const z = (rng() * 2 - 1) * (map.halfH + 320);
+                if (Math.abs(x) <= map.halfW + 6 && Math.abs(z) <= map.halfH + 6) continue;
+                const h = this.terrainHeight(x, z);
+                if (h < -0.3 || h > maxH) continue;
+                return { x, z, h };
+            }
+            return null;
+        };
+
+        // --- grass tufts: crossed alpha-tested quads, swaying in the wind
+        const TUFTS = 4200;
+        const quadA = new PlaneGeometry(1.3, 1).translate(0, 0.5, 0);
+        const quadB = quadA.clone().rotateY(Math.PI / 2);
+        const tuftGeo = mergeGeometries([quadA, quadB])!;
+        this.tuftMaterial = new MeshStandardMaterial({
+            map: makeTuftTexture(),
+            transparent: true,
+            alphaTest: 0.35,
+            side: DoubleSide,
+            roughness: 1,
+        });
+        this.tuftMaterial.onBeforeCompile = (shader) => {
+            shader.uniforms.uTime = { value: 0 };
+            this.tuftMaterial!.userData.shader = shader;
+            shader.vertexShader =
+                'uniform float uTime;\n' +
+                shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    `#include <begin_vertex>
+    #ifdef USE_INSTANCING
+    float phase = instanceMatrix[3].x + instanceMatrix[3].z;
+    #else
+    float phase = 0.0;
+    #endif
+    float sway = max(position.y, 0.0); // roots stay planted, tips move
+    transformed.x += sin(uTime * 1.6 + phase) * 0.14 * sway;
+    transformed.z += cos(uTime * 1.1 + phase) * 0.09 * sway;`,
+                );
+        };
+        this.tuftMaterial.customProgramCacheKey = () => 'meadow-tuft-wind';
+        const tufts = new InstancedMesh(tuftGeo, this.tuftMaterial, TUFTS);
+        let tuftI = 0;
+        for (let i = 0; i < TUFTS; i++) {
+            const spot = meadowSpot(20);
+            if (!spot) break;
+            const sc = 0.7 + rng() * 1.1;
+            dummy.position.set(spot.x, spot.h, spot.z);
+            dummy.scale.setScalar(sc);
+            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+            dummy.updateMatrix();
+            tufts.setMatrixAt(tuftI, dummy.matrix);
+            color.set(0x55a244).lerp(new Color(0x7cc44e), rng()).lerp(new Color(0xffffff), 0.15);
+            tufts.setColorAt(tuftI++, color);
+        }
+        tufts.count = tuftI;
+
+        // --- small stones
+        const STONES = 240;
+        const stones = new InstancedMesh(
+            new IcosahedronGeometry(0.3, 0),
+            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
+            STONES,
+        );
+        let stoneI = 0;
+        for (let i = 0; i < STONES; i++) {
+            const spot = meadowSpot(40);
+            if (!spot) break;
+            const sc = 0.5 + rng() * 1.1;
+            dummy.position.set(spot.x, spot.h + 0.12 * sc, spot.z);
+            dummy.scale.set(sc, sc * 0.6, sc);
+            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+            dummy.updateMatrix();
+            stones.setMatrixAt(stoneI, dummy.matrix);
+            color.set(THEME.scenery.rock).lerp(new Color(0x6a6d64), rng() * 0.6);
+            stones.setColorAt(stoneI++, color);
+        }
+        stones.count = stoneI;
+
+        // --- fallen logs
+        const LOGS = 26;
+        const logs = new InstancedMesh(
+            new CylinderGeometry(0.28, 0.36, 3.2, 6),
+            new MeshStandardMaterial({ color: THEME.scenery.trunk, roughness: 0.9 }),
+            LOGS,
+        );
+        let logI = 0;
+        for (let i = 0; i < LOGS; i++) {
+            const spot = meadowSpot(24);
+            if (!spot) break;
+            const sc = 0.7 + rng() * 0.8;
+            dummy.position.set(spot.x, spot.h + 0.3 * sc, spot.z);
+            dummy.scale.setScalar(sc);
+            dummy.rotation.set((rng() - 0.5) * 0.15, rng() * Math.PI * 2, Math.PI / 2);
+            dummy.updateMatrix();
+            logs.setMatrixAt(logI++, dummy.matrix);
+        }
+        logs.count = logI;
+        logs.castShadow = true;
+
+        // --- mushrooms (stem + cap merged), often in small groups
+        const MUSHROOMS = 90;
+        const stem = new CylinderGeometry(0.09, 0.13, 0.5, 5).translate(0, 0.25, 0);
+        const cap = new ConeGeometry(0.32, 0.34, 6).translate(0, 0.62, 0);
+        const mushrooms = new InstancedMesh(
+            mergeGeometries([stem, cap])!,
+            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
+            MUSHROOMS,
+        );
+        let mushI = 0;
+        while (mushI < MUSHROOMS) {
+            const spot = meadowSpot(36);
+            if (!spot) break;
+            const group = 1 + Math.floor(rng() * 3);
+            for (let g = 0; g < group && mushI < MUSHROOMS; g++) {
+                const x = spot.x + (rng() - 0.5) * 2.5;
+                const z = spot.z + (rng() - 0.5) * 2.5;
+                const sc = 0.6 + rng() * 0.9;
+                dummy.position.set(x, this.terrainHeight(x, z), z);
+                dummy.scale.setScalar(sc);
+                dummy.rotation.set(0, rng() * Math.PI * 2, (rng() - 0.5) * 0.15);
+                dummy.updateMatrix();
+                mushrooms.setMatrixAt(mushI, dummy.matrix);
+                color.set(rng() < 0.4 ? 0xb84a34 : 0xc8a878).lerp(new Color(0xffffff), rng() * 0.25);
+                mushrooms.setColorAt(mushI++, color);
+            }
+        }
+        mushrooms.count = mushI;
+
+        this.group.add(tufts, stones, logs, mushrooms);
     }
 
     /**
@@ -409,7 +575,7 @@ export class Scenery {
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
         const SIZE = 3000;
-        const SEGS = 300;
+        const SEGS = this.detailed ? 300 : 1;
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
         geometry.rotateX(-Math.PI / 2);
 
@@ -464,7 +630,7 @@ export class Scenery {
         const mesh = new Mesh(geometry, material);
         mesh.position.y = -0.05;
         mesh.receiveShadow = true;
-        void this.applyMeadowTexture(material, map, SIZE);
+        if (this.detailed) void this.applyMeadowTexture(material, map, SIZE);
         return mesh;
     }
 
@@ -754,16 +920,25 @@ export class Scenery {
                 if (h > -0.4 && h < 5) return { x, z }; // meadow only, not in lakes
             }
         };
-        for (let i = 0; i < FLOWERS; i++) {
-            const { x, z } = meadowSpot();
-            const sc = 0.7 + rng() * 0.9;
-            dummy.position.set(x, groundY(x, z) + 0.08, z);
-            dummy.scale.setScalar(sc);
-            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-            dummy.updateMatrix();
-            flowers.setMatrixAt(i, dummy.matrix);
-            color.set(flowerTones[Math.floor(rng() * flowerTones.length)]!);
-            flowers.setColorAt(i, color);
+        // flowers grow in clumps (a cluster center + a handful around it),
+        // and each clump leans toward one color — like real wildflowers
+        let flowerI = 0;
+        while (flowerI < FLOWERS) {
+            const center = meadowSpot();
+            const clumpTone = flowerTones[Math.floor(rng() * flowerTones.length)]!;
+            const clump = 4 + Math.floor(rng() * 6);
+            for (let f = 0; f < clump && flowerI < FLOWERS; f++) {
+                const x = center.x + (rng() - 0.5) * 9;
+                const z = center.z + (rng() - 0.5) * 9;
+                const sc = 0.7 + rng() * 0.9;
+                dummy.position.set(x, groundY(x, z) + 0.08, z);
+                dummy.scale.setScalar(sc);
+                dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+                dummy.updateMatrix();
+                flowers.setMatrixAt(flowerI, dummy.matrix);
+                color.set(rng() < 0.75 ? clumpTone : flowerTones[Math.floor(rng() * flowerTones.length)]!);
+                flowers.setColorAt(flowerI++, color);
+            }
         }
         this.group.add(flowers);
 
@@ -905,6 +1080,7 @@ export class Scenery {
         // summit wisps: parked just below the white peaks, swaying in place.
         // They share the horizon clouds' material, so every weather scenario
         // tints and fades them automatically.
+        if (!this.detailed) return; // flat world has no summits
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < 12; attempt++) {
             const x = (rng() * 2 - 1) * 1300;
@@ -929,6 +1105,31 @@ export class Scenery {
             placed++;
         }
     }
+}
+
+/** a handful of tapered grass blades, white — tinted green per instance */
+function makeTuftTexture(): CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    const rng = mulberry32(777);
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    for (let b = 0; b < 7; b++) {
+        const baseX = 8 + rng() * 48;
+        const tipX = baseX + (rng() - 0.5) * 18;
+        const topY = 4 + rng() * 20;
+        const w = 2 + rng() * 2;
+        ctx.beginPath();
+        ctx.moveTo(baseX - w, 64);
+        ctx.lineTo(tipX, topY);
+        ctx.lineTo(baseX + w, 64);
+        ctx.closePath();
+        ctx.fill();
+    }
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
 }
 
 /** a little cluster of petal flowers on transparent ground — tinted per instance */

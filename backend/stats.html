@@ -113,10 +113,26 @@
     <tbody id="specs"></tbody>
   </table>
 
+  <h2>Open ladder (soft Elo)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th class="num">MMR</th>
+        <th class="num">W</th>
+        <th class="num">L</th>
+        <th class="num">MP games</th>
+      </tr>
+    </thead>
+    <tbody id="ladder"></tbody>
+  </table>
+
   <p class="hint">
     Presence = unit type appears on that side’s final board. Win rate is from the
-    submitting player’s perspective (host in multiplayer). Complex balance
-    questions belong in richer clients — this page is a smoke-check dashboard.
+    submitting player’s perspective (host in multiplayer). Open ladder is
+    honor-system (no passwords). Complex balance questions belong in richer
+    clients — this page is a smoke-check dashboard.
   </p>
 
   <script>
@@ -125,6 +141,7 @@
     const cardsEl = document.getElementById('cards');
     const unitsEl = document.getElementById('units');
     const specsEl = document.getElementById('specs');
+    const ladderEl = document.getElementById('ladder');
 
     // default: same folder as this page
     apiInput.value = new URL('stats.php', location.href).href;
@@ -132,6 +149,29 @@
     document.getElementById('load').addEventListener('click', () => loadAll().catch((e) => {
       statusEl.textContent = 'Failed: ' + (e.message || e);
     }));
+
+    async function fetchLadder(statsBase) {
+      const playerBase = new URL('player.php', statsBase).href.replace(/\?.*$/, '');
+      try {
+        const res = await fetch(`${playerBase}?action=ladder&limit=50`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.ladder || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function renderLadder(rows) {
+      ladderEl.innerHTML = rows.map((r, i) => `<tr>
+        <td class="num">${i + 1}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td class="num">${r.mmr}</td>
+        <td class="num">${r.wins}</td>
+        <td class="num">${r.losses}</td>
+        <td class="num">${r.games}</td>
+      </tr>`).join('') || '<tr><td colspan="6">No rated players yet</td></tr>';
+    }
 
     async function fetchBulk(base) {
       const matches = [];
@@ -254,8 +294,10 @@
       btn.disabled = true;
       statusEl.textContent = 'Downloading…';
       try {
-        const matches = await fetchBulk(apiInput.value.replace(/\?.*$/, ''));
+        const base = apiInput.value.replace(/\?.*$/, '');
+        const [matches, ladder] = await Promise.all([fetchBulk(base), fetchLadder(base)]);
         analyze(matches);
+        renderLadder(ladder);
       } finally {
         btn.disabled = false;
       }

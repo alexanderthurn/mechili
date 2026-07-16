@@ -427,7 +427,9 @@ export function menuStyles(): string {
     border: 2px solid ${u.border};
     border-radius: 12px;
     min-width: 280px;
+    max-width: min(360px, 92vw);
 }
+.mechili-name-edit .title { font-weight: bold; letter-spacing: 0.5px; }
 .mechili-name-edit input {
     padding: 10px 12px;
     background: ${u.panelBg};
@@ -436,9 +438,21 @@ export function menuStyles(): string {
     color: ${u.text};
     font-size: 15px;
     letter-spacing: 1px;
+    width: 100%;
+}
+.mechili-name-edit .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: ${u.textMuted};
+}
+.mechili-name-edit .error {
+    font-size: 12px;
+    color: #e87868;
 }
 .mechili-name-edit .hint { font-size: 12px; color: ${u.textMuted}; }
-.mechili-name-edit .actions { display: flex; gap: 8px; justify-content: flex-end; }
+.mechili-name-edit .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .mechili-name-edit button {
     padding: 8px 14px;
     background: ${u.panelBgDark};
@@ -448,9 +462,10 @@ export function menuStyles(): string {
     font-weight: bold;
     cursor: pointer;
 }
+.mechili-name-edit button:disabled { opacity: 0.5; cursor: wait; }
 .mechili-name-edit button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-name-edit button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
-.mechili-name-edit button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-name-edit button:hover:not(:disabled) { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-name-edit button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
 .mechili-name-edit input:focus-visible { outline: none; border-color: ${u.hover}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.25); }
 
@@ -1605,6 +1620,13 @@ export function hudStyles(): string {
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .phase { font-size: 12px; color: ${u.phase}; letter-spacing: 1px; text-transform: uppercase; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
+.mechili-topbar .timer.urgent {
+    animation: mechili-timer-pulse 0.7s ease-in-out infinite;
+}
+@keyframes mechili-timer-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 200, 60, 0.35); }
+    50% { opacity: 0.55; transform: scale(1.12); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8), 0 0 18px rgba(255, 216, 64, 0.85); }
+}
 .mechili-topbar .end-deploy {
     padding: 10px 24px;
     background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
@@ -1629,7 +1651,6 @@ export function hudStyles(): string {
 .mechili-topbar.waiting .end-deploy { display: none; }
 /* a card overlay is up (specialist pick, reveal, round card) — can't end yet */
 .mechili-topbar.overlay-open .end-deploy { display: none; }
-.mechili-topbar.battle .timer { color: ${ec}; }
 .mechili-topbar .speed {
     display: none;
     min-width: 52px;

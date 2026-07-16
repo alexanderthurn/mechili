@@ -7,3 +7,8 @@ dist-electron/
 # runtime match telemetry (kept on the server, not in git)
 backend/stats/matches/*.json
 backend/stats/matches/.*.tmp
+
+# open-track player profiles + result dedupe
+backend/players/open/**/*.json
+backend/players/results/*.json
+backend/players/sessions/*.json

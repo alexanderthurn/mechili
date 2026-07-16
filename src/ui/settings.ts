@@ -14,12 +14,22 @@ export function openSettings(parent: HTMLElement): void {
         `<div class="s-title">Settings</div>` +
         `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
         `<label class="s-row"><input type="checkbox" class="s-global" /> Show global chat (menu)</label>` +
+        `<label class="s-row">Scenery <select class="s-scenery">` +
+        `<option value="full">Full</option>` +
+        `<option value="minimal">Minimal (old computers)</option>` +
+        `</select> <span class="s-hint">applies to the next match</span></label>` +
         `<div class="actions"><button type="button" class="primary" data-act="close">Close</button></div>` +
         `</div>`;
 
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     combat.checked = prefs().combatChat;
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
+
+    const scenery = overlay.querySelector<HTMLSelectElement>('.s-scenery')!;
+    scenery.value = prefs().scenery;
+    scenery.addEventListener('change', () =>
+        updatePrefs({ scenery: scenery.value as 'full' | 'minimal' }),
+    );
 
     const global = overlay.querySelector<HTMLInputElement>('.s-global')!;
     global.checked = prefs().globalChat;
