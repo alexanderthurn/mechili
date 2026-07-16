@@ -411,11 +411,15 @@ export class Hud {
         const enemyPortrait = document.createElement('div');
         enemyPortrait.className = 'portrait';
         enemyPortrait.textContent = '◆';
-        enemyFighter.append(this.enemyHpVal, enemyInfo, enemyPortrait);
+        enemyFighter.append(enemyPortrait, enemyInfo, this.enemyHpVal);
 
-        // clicking a commander frame opens its specialist card (once known)
+        // clicking or hovering a commander frame opens its specialist card (once known)
         playerFighter.addEventListener('click', () => this.showSpecialistDetail('player'));
         enemyFighter.addEventListener('click', () => this.showSpecialistDetail('enemy'));
+        playerFighter.addEventListener('mouseenter', () => this.showSpecialistDetail('player'));
+        enemyFighter.addEventListener('mouseenter', () => this.showSpecialistDetail('enemy'));
+        playerFighter.addEventListener('mouseleave', () => this.hideSpecialistDetail());
+        enemyFighter.addEventListener('mouseleave', () => this.hideSpecialistDetail());
 
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';

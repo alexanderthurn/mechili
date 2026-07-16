@@ -222,6 +222,10 @@ export class Scenery {
 
         const dummy = new Object3D();
         const color = new Color();
+        // the foliage texture carries the base green; instance tints stay
+        // bright so the multiply keeps the leaf pattern readable
+        const white = new Color(0xffffff);
+        const lighten = (c: Color) => c.lerp(white, 0.45);
         const PINES = 55;
         const LEAFY = 35;
         const FIELD_PINES = 5;
@@ -273,7 +277,7 @@ export class Scenery {
             const h = groundY(x, z);
             const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
             placeTrunk(x, z, sc, h);
-            color.set(s.pine).lerp(new Color(s.pineLight), rng());
+            lighten(color.set(s.pine).lerp(new Color(s.pineLight), rng()));
             for (const [ty, tsc] of [
                 [3.2, 1],
                 [6.2, 0.62],
@@ -292,7 +296,7 @@ export class Scenery {
             const h = groundY(x, z);
             const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
             placeTrunk(x, z, sc, h);
-            color.set(s.leaf).lerp(new Color(s.leafLight), rng());
+            lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng()));
             for (const [ox, oy, oz, bsc] of [
                 [0, 4.6, 0, 1.15],
                 [1.4, 3.6, 0.9, 0.7],
@@ -324,7 +328,7 @@ export class Scenery {
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
             dummy.updateMatrix();
             bushes.setMatrixAt(i, dummy.matrix);
-            color.set(s.leaf).lerp(new Color(s.leafLight), rng() * 0.8);
+            lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng() * 0.8));
             bushes.setColorAt(i, color);
         }
 
@@ -353,10 +357,11 @@ export class Scenery {
             loader.loadAsync(barkUrl).catch(() => null),
             loader.loadAsync(foliageUrl).catch(() => null),
         ]);
+        console.info(`[scenery] forest textures: bark=${!!bark} foliage=${!!foliage}`);
         if (bark) {
             bark.colorSpace = SRGBColorSpace;
             bark.wrapS = bark.wrapT = RepeatWrapping;
-            bark.repeat.set(2, 1.5);
+            bark.repeat.set(1.5, 1);
             trunkMat.map = bark;
             trunkMat.color.set(0xffffff); // the texture carries the brown now
             trunkMat.needsUpdate = true;
@@ -365,7 +370,7 @@ export class Scenery {
             foliage.colorSpace = SRGBColorSpace;
             foliage.wrapS = foliage.wrapT = RepeatWrapping;
             const coneFoliage = foliage.clone();
-            coneFoliage.repeat.set(3, 2);
+            coneFoliage.repeat.set(1.5, 1);
             coneMat.map = coneFoliage;
             coneMat.needsUpdate = true;
             for (const m of leafMats) {
