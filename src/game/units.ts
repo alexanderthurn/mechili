@@ -144,6 +144,13 @@ export interface UnitType {
      * Ground stain / death particles. Omit = ash if structure, else blood.
      */
     deathWear?: DeathWear;
+    /**
+     * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets).
+     * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
+     */
+    fire?: import('./fire').FireProfile;
+    /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
+    burn?: import('./fire').BurnAffinity;
     /** combat stats, per individual mech */
     hp: number;
     damage: number;
@@ -334,6 +341,7 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
         formation: { cols: 1, rows: 1 },
         meshScale,
         structure: true,
+        burn: { takenMult: 0.35 }, // stone / masonry resists
         targets: { ground: false, air: false }, // towers don't shoot
         collisionRadius: tiles * CELL * 0.57,
         colliders: [
@@ -368,6 +376,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a pack of 24 fighters
         meshScale: 1,
+        burn: { takenMult: 1.25 }, // cloth & leather catch readily
         targets: { ground: true, air: false }, // can't reach the sky
         collisionRadius: 0.5,
         colliders: [{ y: 0.35, r: 0.55 }],
@@ -389,6 +398,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
+        burn: { takenMult: 1.1 },
         targets: { ground: true, air: true }, // picks off anything
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
@@ -414,6 +424,7 @@ export const UNIT_TYPES: UnitType[] = [
         formation: { cols: 4, rows: 1 }, // a flock of 12 riders, two wide rows
         meshScale: 4.35, // slightly smaller so the tighter columns don't touch
         flying: 18,
+        burn: { takenMult: 1 }, // air: burn status ignored while aloft
         targets: { ground: true, air: true },
         collisionRadius: 0.75,
         colliders: [{ y: 0.1, r: 0.75 }],
@@ -451,6 +462,7 @@ export const UNIT_TYPES: UnitType[] = [
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
+        burn: { takenMult: 1.4 }, // timber frame catches easily
         hp: 500,
         damage: 500,
         range: 84,
@@ -479,6 +491,7 @@ export const UNIT_TYPES: UnitType[] = [
         meshScale: 1,
         structure: true,
         extra: true,
+        burn: { takenMult: 0 },
         shield: { radius: SHIELD_RADIUS, height: SHIELD_HEIGHT },
         targets: { ground: false, air: false },
         collisionRadius: 1.3, // only the emitter pylon blocks walking
@@ -503,6 +516,12 @@ export const UNIT_TYPES: UnitType[] = [
         flying: 36, // always at combat altitude (unlike crow riders)
         rocket: { range: 35, speed: 30, damage: 5000, splash: 8 }, // wipes a close-packed swarm
         splashRadius: 8, // display only — the blast itself comes from `rocket.splash`
+        // splash + lingering burn + ground fire (oil connected to this ignites)
+        fire: {
+            burn: { dps: 55, duration: 6 },
+            ground: { radius: 8, duration: 10, intensity: 35 },
+        },
+        burn: { takenMult: 0 }, // the bolt itself doesn't cook
         targets: { ground: true, air: true }, // what it may home onto / hurt
         collisionRadius: 0.8,
         colliders: [],

@@ -31,7 +31,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather } from './weather';
 import { THEME } from '../theme';
-import { prefs, sceneryDetailed, type SceneryQuality } from './prefs';
+import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 
 const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
 
@@ -134,6 +134,9 @@ export class Scenery {
     private readonly clouds: { mesh: Mesh; speed: number }[] = [];
     /** wisps clinging to the snowy summits — they sway in place, never leave */
     private readonly peakClouds: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
+    /** low fog cards drifting between the forest trees */
+    private readonly fogCards: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
+    private forestFogMaterial: MeshBasicMaterial | null = null;
     private time = 0;
     private readonly cloudShadow: Mesh;
     private readonly cloudBoundsX: number;
@@ -237,6 +240,54 @@ export class Scenery {
         this.cloudShadow = this.createCloudShadow(map);
         this.group.add(this.cloudShadow);
         this.createClouds(map, rng);
+        if (this.detailed) this.createForestFog(map, rng);
+        if (this.quality === 'off') {
+            // scenery 'off' = no weather FX at all: hide every cloud layer
+            this.cloudShadow.visible = false;
+            for (const c of this.clouds) c.mesh.visible = false;
+        }
+    }
+
+    /**
+     * Volumetric-looking forest fog: soft translucent cards hovering low
+     * between the trees, swaying in place. One shared material — the weather
+     * system drives its opacity and tint (thick grey in rain, faint at noon).
+     */
+    private createForestFog(map: BattleMap, rng: () => number): void {
+        const material = new MeshBasicMaterial({
+            map: this.cloudTexture,
+            transparent: true,
+            depthWrite: false,
+            opacity: 0,
+        });
+        this.forestFogMaterial = material;
+        const geometry = new PlaneGeometry(1, 0.55);
+        geometry.rotateX(-Math.PI / 2);
+
+        const count = Math.round(14 + this.density.peakClouds);
+        const beltMax = Math.min(this.density.beltFar, 360);
+        let placed = 0;
+        for (let attempt = 0; attempt < 4000 && placed < count; attempt++) {
+            const x = (rng() * 2 - 1) * (map.halfW + beltMax);
+            const z = (rng() * 2 - 1) * (map.halfH + beltMax);
+            const d = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+            if (d < this.density.beltNear + 6 || d > beltMax) continue;
+            const h = this.terrainHeight(x, z);
+            if (h < -0.5 || h > 60 || !this.isGrassy(x, z)) continue;
+            const mesh = new Mesh(geometry, material);
+            mesh.position.set(x, h + 2 + rng() * 2.5, z);
+            const s = 35 + rng() * 45;
+            mesh.scale.set(s, 1, s * (0.5 + rng() * 0.3));
+            mesh.rotation.y = rng() * Math.PI * 2;
+            this.fogCards.push({
+                mesh,
+                baseX: x,
+                phase: rng() * Math.PI * 2,
+                speed: 0.03 + rng() * 0.05,
+            });
+            this.group.add(mesh);
+            placed++;
+        }
     }
 
     /**
@@ -273,6 +324,8 @@ export class Scenery {
                 cloudMaterial: this.cloudMaterial,
                 cloudShadowMaterial: this.cloudShadow.material as MeshBasicMaterial,
                 cloudTexture: this.cloudTexture,
+                forestFogMaterial: this.forestFogMaterial,
+                forestFogScale: Math.min(1.2, sceneryHeightFog(this.quality)),
                 skyGroup: this.skyGroup,
                 worldGroup: this.group,
                 map: this.map,
@@ -295,6 +348,10 @@ export class Scenery {
         this.time += dtSeconds;
         for (const p of this.peakClouds) {
             p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
+        }
+        for (const f of this.fogCards) {
+            f.mesh.position.x = f.baseX + Math.sin(this.time * f.speed + f.phase) * 8;
+            f.mesh.visible = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
         }
         // slow ripple drift on the lakes
         if (this.waterTexture) {

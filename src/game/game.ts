@@ -12,11 +12,12 @@ import {
     type Object3D,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, levelCost, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, levelCost, quantizeWorld, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
@@ -37,8 +38,11 @@ import {
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
+import { HazardField } from './fire';
+import { FireFx } from './fireFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
+import { OilVisuals } from './oilVisuals';
 import {
     onPrefsChange,
     prefs,
@@ -46,6 +50,9 @@ import {
     sceneryDetailed,
     sceneryShadowMapSize,
     sceneryCameraFar,
+    sceneryHeightFog,
+    sceneryWeatherFx,
+    type FireVfxQuality,
     type GroundEffectsQuality,
     type SceneryQuality,
 } from './prefs';
@@ -56,7 +63,7 @@ import { createRangeRing, placeRangeRing, PlacementController } from './placemen
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
-import { RALLY_ROUTE_ID, TACTICS, type RallyRoute } from './tactics';
+import { OIL_SPILL_ID, RALLY_ROUTE_ID, TACTICS, type OilStamp, type RallyRoute } from './tactics';
 import { TechTree } from './tech';
 import {
     COMMAND_TOWER,
@@ -108,9 +115,16 @@ export class Game {
     private readonly hpBars = new HpBars();
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
+    private readonly fireFx: FireFx;
+    private readonly oilVisuals: OilVisuals;
+    private readonly oilField = new HazardField();
+    private readonly oilBaseline = new HazardField();
+    private readonly oilStamps: OilStamp[] = [];
+    private readonly oilStampIds = { next: 1 };
+    private appliedFireVfx: FireVfxQuality = prefs().fireVfx;
     private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
-    private weather: Weather;
+    private weather: Weather | null;
     private groundMesh: Mesh;
     private readonly sun: DirectionalLight;
     private readonly hemi: HemisphereLight;
@@ -190,6 +204,7 @@ export class Game {
     private readonly rallyRouteIds = { next: 1 };
     /** true once the test rally-route charge has been granted */
     private testRallyRouteGranted = false;
+    private testOilSpillGranted = false;
     /** unit types buyable in the shop this match */
     private readonly unlockedUnits: Record<Team, string[]> = { player: [], enemy: [] };
     /** at most one shop unlock per deployment round */
@@ -243,7 +258,7 @@ export class Game {
         // cheats / debug hotkeys (visual or single-player only)
         if (e.code === 'KeyN') {
             // cycle weather: sunny → rain → night → …
-            this.weather.next();
+            this.weather?.next();
             return;
         }
         if (e.code === 'KeyM' && !this.net) {
@@ -311,7 +326,11 @@ export class Game {
         this.renderer.shadowMap.type = PCFSoftShadowMap;
 
         this.scene.background = new Color(THEME.sky);
-        this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
+        // scenery 'off' plays without any fog or weather
+        this.scene.fog = sceneryWeatherFx() ? new Fog(THEME.sky, THEME.fogNear, THEME.fogFar) : null;
+        // ground-mist strength for the current scenery tier (baked into the
+        // fog shader chunk before the first material compiles)
+        setHeightFogStrength(sceneryHeightFog());
 
         // PBR environment: metallic (Tripo) models render near-black with nothing
         // to reflect, so give the scene a neutral image-based light. Kept subtle so
@@ -351,6 +370,8 @@ export class Game {
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
+        this.fireFx = new FireFx(this.particles);
+        this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
         this.battleRangeMesh = createRangeRing(this.scene);
@@ -371,7 +392,9 @@ export class Game {
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-        this.weather = this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'));
+        this.weather = sceneryWeatherFx()
+            ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
+            : null;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // card streams are keyed by canonical side, so both peers compute the
         // same offers for the same player regardless of local perspective
@@ -405,6 +428,10 @@ export class Game {
             tactics: this.tacticInventory,
             rallyRoutes: this.rallyRoutes,
             rallyRouteIds: this.rallyRouteIds,
+            oilField: this.oilField,
+            oilBaseline: this.oilBaseline,
+            oilStamps: this.oilStamps,
+            oilStampIds: this.oilStampIds,
             roundCardTaken: this.roundCardTaken,
             deployReady: this.deployReady,
             unlockedUnits: this.unlockedUnits,
@@ -456,7 +483,7 @@ export class Game {
             if (!this.armedItem) return;
             if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
         };
-        this.placement.groundClickInterceptor = (x, y) => this.handleRallyGroundClick(x, y);
+        this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
         this.controls.onMiddleClick = () => {
             if (this.armedTactic) return;
             this.placement.rotateSelected();
@@ -508,13 +535,18 @@ export class Game {
             this.armedTactic = tacticId;
             this.rallyDraftStart = null;
             this.placement.inputLocked = true;
-            this.syncRallyVisuals();
+            this.syncTacticVisuals();
         };
         this.hud.onCancelTactic = () => {
             this.cancelRallyPlacement();
         };
         this.hud.onResetPlacedTactic = (routeId) => {
-            this.resetPlacedRallyRoute(routeId);
+            // routeId doubles as oil stamp id when the strip entry is oil
+            if (this.oilStamps.some((s) => s.id === routeId && s.team === 'player')) {
+                this.resetPlacedOilSpill(routeId);
+            } else {
+                this.resetPlacedRallyRoute(routeId);
+            }
         };
         this.hud.onRecruitLevel = () => {
             // offered in the Research Center's menu
@@ -647,6 +679,11 @@ export class Game {
         }
         this.unitInstances.applyShadowPref(prefs().unitShadows);
         this.unitInstances.applyDeadPref(prefs().renderDeadUnits);
+        const fireVfx = prefs().fireVfx;
+        if (fireVfx !== this.appliedFireVfx) {
+            this.appliedFireVfx = fireVfx;
+            this.fireFx.setQuality(fireVfx);
+        }
     }
 
     /**
@@ -665,8 +702,6 @@ export class Game {
         if (this.disposed) return;
         this.appliedScenery = scenery;
         this.appliedGroundEffects = groundEffects;
-        const detailed = sceneryDetailed(scenery);
-        this.map.setDetailed(detailed);
         this.map.setGroundEffects(groundEffects);
         this.sandBootstrapped = false;
 
@@ -691,13 +726,27 @@ export class Game {
         this.scene.add(this.gridOverlay);
 
         // outer world + weather (restore the current scenario)
-        const currentWeather = this.weather.currentId;
+        const currentWeather = this.weather?.currentId ?? 'sunny';
         this.scene.remove(this.scenery.group);
         disposeTree(this.scenery.group);
         this.scenery = new Scenery(this.map);
         this.scene.add(this.scenery.group);
-        this.weather = this.scenery.createWeather(this.scene, this.sun, this.hemi, seedFrom(this.seed, 'weather'));
-        this.weather.setTarget(currentWeather);
+        if (sceneryWeatherFx(scenery)) {
+            if (!this.scene.fog) this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
+            this.weather = this.scenery.createWeather(this.scene, this.sun, this.hemi, seedFrom(this.seed, 'weather'));
+            this.weather.setTarget(currentWeather);
+        } else {
+            // weather off: no fog and the default calm daylight
+            this.weather = null;
+            this.scene.fog = null;
+            (this.scene.background as Color).setHex(THEME.sky);
+            this.sun.color.setHex(THEME.sun);
+            this.sun.intensity = THEME.sunIntensity;
+            this.sun.position.set(120, 160, 80);
+            this.hemi.color.setHex(THEME.hemiSky);
+            this.hemi.groundColor.setHex(THEME.hemiGround);
+            this.hemi.intensity = THEME.hemiIntensity;
+        }
 
         // shadow resolution (force the render target to reallocate)
         const res = sceneryShadowMapSize(scenery);
@@ -706,6 +755,16 @@ export class Game {
         this.sun.shadow.map = null;
 
         this.rig.setWorldFar(sceneryCameraFar(scenery));
+
+        // ground-mist strength is baked into the fog shader chunk — re-bake
+        // for the new tier and recompile every fogged material still alive
+        // (the rebuilt ground/scenery materials compile fresh anyway)
+        setHeightFogStrength(sceneryHeightFog(scenery));
+        this.scene.traverse((o) => {
+            const m = (o as Mesh).material as import('three').Material | import('three').Material[] | undefined;
+            if (!m) return;
+            for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
+        });
     }
 
     destroy(): void {
@@ -802,7 +861,7 @@ export class Game {
     private startBuildPhase(): void {
         this.resetSpeed();
         this.round++;
-        this.weather.onRound(this.round);
+        this.weather?.onRound(this.round);
         this.phase = 'build';
         this.phaseRemaining = this.settings.buildTimeSeconds;
         // scars fade each round so the field heals over a few battles
@@ -815,7 +874,11 @@ export class Game {
         this.hpBars.clear();
         this.rallyRoutes.length = 0;
         this.cancelRallyPlacement();
-        this.syncRallyVisuals();
+        // oil: expire old cells, snapshot baseline for this deployment's undo, clear stamps
+        this.oilField.expireOilBefore(this.round);
+        this.oilBaseline.oilExpires.set(this.oilField.oilExpires);
+        this.oilStamps.length = 0;
+        this.syncTacticVisuals();
         // flanks and the neutral strip open up after the first round
         const unlocked = this.round >= 2;
         if (unlocked !== this.map.flanksUnlocked) {
@@ -879,7 +942,10 @@ export class Game {
         // from round 2 on, both sides get a card offer at the round's start
         if (this.round >= 2) this.offerRoundCards();
 
-        if (this.round === 1 && !this.hydrating) this.ensureTestRallyRoute();
+        if (this.round === 1 && !this.hydrating) {
+            this.ensureTestRallyRoute();
+            this.ensureTestOilSpill();
+        }
     }
 
     /**
@@ -894,6 +960,18 @@ export class Game {
         for (const team of teams) {
             if (!this.tacticInventory[team].includes(RALLY_ROUTE_ID)) {
                 this.tacticInventory[team].push(RALLY_ROUTE_ID);
+            }
+        }
+    }
+
+    /** Dev/testing: one free Oil Spill charge (both sides in MP). */
+    private ensureTestOilSpill(): void {
+        if (this.testOilSpillGranted) return;
+        this.testOilSpillGranted = true;
+        const teams: Team[] = this.net ? ['player', 'enemy'] : ['player'];
+        for (const team of teams) {
+            if (!this.tacticInventory[team].includes(OIL_SPILL_ID)) {
+                this.tacticInventory[team].push(OIL_SPILL_ID);
             }
         }
     }
@@ -1079,7 +1157,10 @@ export class Game {
         }
         this.hydrating = false;
 
-        if (!this.matchOver) this.ensureTestRallyRoute();
+        if (!this.matchOver) {
+            this.ensureTestRallyRoute();
+            this.ensureTestOilSpill();
+        }
 
         // reopen whatever decision was pending when the state was captured
         if (this.speciality.player === null) {
@@ -1159,6 +1240,15 @@ export class Game {
             mix(a.z);
             mix(a.hp);
             mix(a.unit.level);
+        }
+        // shared oil layer — must match on both peers before battle
+        const oil = this.oilField.oilExpires;
+        for (let i = 0; i < oil.length; i++) {
+            const v = oil[i]!;
+            if (v !== 0) {
+                mix(i);
+                mix(v);
+            }
         }
         return h >>> 0;
     }
@@ -1384,7 +1474,7 @@ export class Game {
         });
     }
 
-    /** the left-side tactics strip: placed routes + remaining slots this round */
+    /** the left-side tactics strip: placed routes/oil + remaining slots */
     private tacticsView(): {
         id: string;
         icon: string;
@@ -1394,30 +1484,66 @@ export class Game {
         routeId?: number;
     }[] {
         if (!this.playerCanAct) return [];
-        const tactic = TACTICS[RALLY_ROUTE_ID];
-        const maxCharges = this.tacticInventory.player.filter((id) => id === RALLY_ROUTE_ID).length;
-        if (maxCharges === 0) return [];
+        const out: {
+            id: string;
+            icon: string;
+            name: string;
+            armed: boolean;
+            placed?: boolean;
+            routeId?: number;
+        }[] = [];
 
-        const placed = this.rallyRoutes
-            .filter((r) => r.team === 'player')
-            .map((r) => ({
-                id: RALLY_ROUTE_ID,
-                icon: tactic?.icon ?? '⚑',
-                name: tactic ? `${tactic.name} — placed` : 'Rally Route — placed',
-                armed: false,
-                placed: true as const,
-                routeId: r.id,
-            }));
+        const rally = TACTICS[RALLY_ROUTE_ID];
+        const rallyMax = this.tacticInventory.player.filter((id) => id === RALLY_ROUTE_ID).length;
+        if (rallyMax > 0) {
+            const placed = this.rallyRoutes.filter((r) => r.team === 'player');
+            for (const r of placed) {
+                out.push({
+                    id: RALLY_ROUTE_ID,
+                    icon: rally?.icon ?? '⚑',
+                    name: rally ? `${rally.name} — placed` : 'Rally Route — placed',
+                    armed: false,
+                    placed: true,
+                    routeId: r.id,
+                });
+            }
+            const avail = rallyMax - placed.length;
+            for (let i = 0; i < avail; i++) {
+                out.push({
+                    id: RALLY_ROUTE_ID,
+                    icon: rally?.icon ?? '⚑',
+                    name: rally ? `${rally.name} — ${rally.description}` : RALLY_ROUTE_ID,
+                    armed: this.armedTactic === RALLY_ROUTE_ID,
+                });
+            }
+        }
 
-        const availableCount = maxCharges - placed.length;
-        const available = Array.from({ length: availableCount }, () => ({
-            id: RALLY_ROUTE_ID,
-            icon: tactic?.icon ?? '⚑',
-            name: tactic ? `${tactic.name} — ${tactic.description}` : RALLY_ROUTE_ID,
-            armed: this.armedTactic === RALLY_ROUTE_ID,
-        }));
+        const oil = TACTICS[OIL_SPILL_ID];
+        const oilMax = this.tacticInventory.player.filter((id) => id === OIL_SPILL_ID).length;
+        if (oilMax > 0) {
+            const stamps = this.oilStamps.filter((s) => s.team === 'player');
+            for (const s of stamps) {
+                out.push({
+                    id: OIL_SPILL_ID,
+                    icon: oil?.icon ?? '🛢',
+                    name: oil ? `${oil.name} — placed` : 'Oil Spill — placed',
+                    armed: false,
+                    placed: true,
+                    routeId: s.id,
+                });
+            }
+            const avail = oilMax - stamps.length;
+            for (let i = 0; i < avail; i++) {
+                out.push({
+                    id: OIL_SPILL_ID,
+                    icon: oil?.icon ?? '🛢',
+                    name: oil ? `${oil.name} — ${oil.description}` : OIL_SPILL_ID,
+                    armed: this.armedTactic === OIL_SPILL_ID,
+                });
+            }
+        }
 
-        return [...placed, ...available];
+        return out;
     }
 
     /** Records the enemy's unequipped items/tactics at deployment-phase start. */
@@ -1478,11 +1604,37 @@ export class Game {
         }
     }
 
+    private resetPlacedOilSpill(stampId: number): void {
+        if (!this.playerCanAct) return;
+        this.cancelRallyPlacement();
+        if (
+            this.dispatchPlayer({
+                kind: 'removeOilSpill',
+                team: 'player',
+                stampId,
+            })
+        ) {
+            this.syncTacticVisuals();
+        }
+    }
+
     private groundAtLocal(x: number, y: number): { x: number; z: number } | null {
         const rect = this.pixiApp.canvas.getBoundingClientRect();
         const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
         if (!ground) return null;
         return this.rallyVisuals.clamp(ground.x, ground.z);
+    }
+
+    private syncTacticVisuals(): void {
+        this.syncRallyVisuals();
+        this.oilVisuals.sync(this.oilField);
+        const pointer = this.placement.lastPointer;
+        if (this.armedTactic === OIL_SPILL_ID && pointer) {
+            const pos = this.groundAtLocal(pointer.x, pointer.y);
+            this.oilVisuals.setDraft(pos?.x ?? null, pos?.z ?? null);
+        } else {
+            this.oilVisuals.setDraft(null, null);
+        }
     }
 
     private syncRallyVisuals(): void {
@@ -1524,24 +1676,42 @@ export class Game {
         );
     }
 
-    /** aborts in-progress rally placement; returns true when something was cancelled */
+    /** aborts in-progress tactic placement; returns true when something was cancelled */
     private cancelRallyPlacement(): boolean {
         const had = this.armedTactic !== null || this.rallyDraftStart !== null;
         this.armedTactic = null;
         this.rallyDraftStart = null;
         this.placement.inputLocked = false;
-        this.syncRallyVisuals();
+        this.syncTacticVisuals();
         return had;
     }
 
     /** swallows map clicks while a tactic is being placed */
-    private handleRallyGroundClick(x: number, y: number): boolean {
-        if (!this.playerCanAct || this.armedTactic !== RALLY_ROUTE_ID) return false;
+    private handleTacticGroundClick(x: number, y: number): boolean {
+        if (!this.playerCanAct || !this.armedTactic) return false;
         const ground = this.groundAtLocal(x, y);
         if (!ground) return true;
+
+        if (this.armedTactic === OIL_SPILL_ID) {
+            if (
+                this.dispatchPlayer({
+                    kind: 'placeOilSpill',
+                    team: 'player',
+                    x: quantizeWorld(ground.x),
+                    z: quantizeWorld(ground.z),
+                })
+            ) {
+                this.armedTactic = null;
+                this.placement.inputLocked = false;
+                this.syncTacticVisuals();
+            }
+            return true;
+        }
+
+        if (this.armedTactic !== RALLY_ROUTE_ID) return false;
         if (!this.rallyDraftStart) {
             this.rallyDraftStart = ground;
-            this.syncRallyVisuals();
+            this.syncTacticVisuals();
             return true;
         }
         if (
@@ -1557,7 +1727,7 @@ export class Game {
             this.armedTactic = null;
             this.rallyDraftStart = null;
             this.placement.inputLocked = false;
-            this.syncRallyVisuals();
+            this.syncTacticVisuals();
         }
         return true;
     }
@@ -1724,7 +1894,7 @@ export class Game {
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
-        this.syncRallyVisuals();
+        this.syncTacticVisuals();
     }
 
     private unlockUnit(typeId: string): void {
@@ -1791,6 +1961,7 @@ export class Game {
                 !unit.type.extra &&
                 this.placement.isOnFlank(unit),
             rallyRoutes: this.rallyRoutes.filter((r) => r.team === 'player' || r.team === 'enemy'),
+            oilField: this.oilField,
         });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
@@ -1803,10 +1974,15 @@ export class Game {
 
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
     private endBattlePhase(): void {
-        if (this.sim) this.applyBattleResult(this.sim);
+        if (this.sim) {
+            // flames die with the battle; remaining oil (unburned) carries over
+            this.oilField.adoptOilFrom(this.sim.hazards);
+            this.applyBattleResult(this.sim);
+        }
         this.sim = null;
         this.selectedActor = null;
         this.projectileRenderer.clear();
+        this.oilVisuals.sync(this.oilField);
         if (this.playerHp <= 0 || this.enemyHp <= 0) {
             this.finishMatch();
             return;
@@ -1975,6 +2151,7 @@ export class Game {
                 }
                 const battleEvents = this.sim.consumeEvents();
                 this.particles.spawnFromEvents(battleEvents);
+                this.fireFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
                 if (profile) cpu.begin();
                 this.sim.syncMeshes(); // per-frame interpolated positions
@@ -1983,6 +2160,7 @@ export class Game {
                 this.sim.syncBattleVisuals(this.time);
                 if (profile) cpu.end('battleVisuals');
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+                this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
                 this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
@@ -1998,6 +2176,7 @@ export class Game {
         this.scenery.update(dtSeconds, this.rig.camera.position);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
+        if (this.phase === 'build') this.syncTacticVisuals();
         if (profile) cpu.end('world/ui');
         if (profile) cpu.begin();
         this.unitInstances.sync();
@@ -2023,7 +2202,8 @@ export class Game {
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
         });
-        this.syncRallyVisuals();
+        // rally sync is folded into syncTacticVisuals during build; battle needs routes gone
+        if (this.phase === 'battle') this.rallyVisuals.sync([], null);
         this.hud.setSupply(this.economy.balance('player'));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();
@@ -2130,6 +2310,8 @@ export class Game {
                 }
             } else if (e.kind === 'explosion') {
                 this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.9, 2), 0.16);
+            } else if (e.kind === 'groundFire') {
+                this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.85, 2), e.oilCells > 0 ? 0.35 : 0.22);
             }
         }
     }

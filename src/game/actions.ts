@@ -1,6 +1,7 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
+import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { ITEMS } from './items';
-import { RALLY_ROUTE_ID, TACTICS, type RallyRoute } from './tactics';
+import { OIL_SPILL_ID, RALLY_ROUTE_ID, TACTICS, type OilStamp, type RallyRoute } from './tactics';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
 import type {
@@ -151,6 +152,20 @@ export interface RemoveRallyRouteAction {
     team: Team;
     routeId: number;
 }
+/** stamps oil into the shared hazard layer — consumes one Oil Spill charge */
+export interface PlaceOilSpillAction {
+    kind: 'placeOilSpill';
+    team: Team;
+    /** quantized world coords (peers must agree exactly) */
+    x: number;
+    z: number;
+}
+/** undoes one oil stamp (rebuilds the oil layer from remaining stamps) */
+export interface RemoveOilSpillAction {
+    kind: 'removeOilSpill';
+    team: Team;
+    stampId: number;
+}
 
 export type Action =
     | BuyAction
@@ -173,7 +188,9 @@ export type Action =
     | EndDeploymentAction
     | UnlockUnitAction
     | PlaceRallyRouteAction
-    | RemoveRallyRouteAction;
+    | RemoveRallyRouteAction
+    | PlaceOilSpillAction
+    | RemoveOilSpillAction;
 
 /** one applied action as stored in a replay */
 export interface LoggedAction {
@@ -201,6 +218,8 @@ interface LogEntry extends LoggedAction {
     grantedTactics?: string[];
     /** placeRallyRoute: the spawned route */
     rallyRoute?: RallyRoute;
+    /** placeOilSpill / removeOilSpill */
+    oilStamp?: OilStamp;
 }
 
 export interface ActionContext {
@@ -243,6 +262,15 @@ export interface ActionContext {
     rallyRoutes: RallyRoute[];
     /** monotonic id source for rally routes */
     rallyRouteIds: { next: number };
+    /**
+     * Persistent oil grid (shared, both teams). `oilBaseline` is the field at
+     * the start of the current build phase; `oilStamps` are this deployment's
+     * placements (undo rebuilds baseline + stamps).
+     */
+    oilField: HazardField;
+    oilBaseline: HazardField;
+    oilStamps: OilStamp[];
+    oilStampIds: { next: number };
     /** whether each side already took (or skipped) this round's card */
     roundCardTaken: Record<Team, boolean>;
     /** which sides have locked in this deployment — battle needs BOTH */
@@ -635,6 +663,40 @@ export class ActionDispatcher {
                 this.ctx.rallyRoutes.splice(i, 1);
                 return true;
             }
+            case 'placeOilSpill': {
+                if (!TACTICS[OIL_SPILL_ID]) return false;
+                const max =
+                    this.ctx.tactics[action.team].filter((id) => id === OIL_SPILL_ID).length;
+                const placed = this.ctx.oilStamps.filter((s) => s.team === action.team).length;
+                if (max < 1 || placed >= max) return false;
+                const { round } = this.ctx.clock();
+                const duration =
+                    TACTICS[OIL_SPILL_ID]!.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
+                const radius = TACTICS[OIL_SPILL_ID]!.oilRadius ?? OIL_SPILL_RADIUS;
+                const stamp: OilStamp = {
+                    id: this.ctx.oilStampIds.next++,
+                    team: action.team,
+                    x: action.x,
+                    z: action.z,
+                    radius,
+                    placedRound: round,
+                    expiresRound: round + duration - 1,
+                };
+                this.ctx.oilStamps.push(stamp);
+                entry.oilStamp = stamp;
+                rebuildOilField(this.ctx);
+                return true;
+            }
+            case 'removeOilSpill': {
+                const i = this.ctx.oilStamps.findIndex(
+                    (s) => s.id === action.stampId && s.team === action.team,
+                );
+                if (i < 0) return false;
+                entry.oilStamp = this.ctx.oilStamps[i];
+                this.ctx.oilStamps.splice(i, 1);
+                rebuildOilField(this.ctx);
+                return true;
+            }
         }
     }
 
@@ -730,6 +792,18 @@ export class ActionDispatcher {
                 this.ctx.rallyRoutes.push(e.rallyRoute!);
                 break;
             }
+            case 'placeOilSpill': {
+                const stamp = e.oilStamp!;
+                const i = this.ctx.oilStamps.findIndex((s) => s.id === stamp.id);
+                if (i >= 0) this.ctx.oilStamps.splice(i, 1);
+                rebuildOilField(this.ctx);
+                break;
+            }
+            case 'removeOilSpill': {
+                this.ctx.oilStamps.push(e.oilStamp!);
+                rebuildOilField(this.ctx);
+                break;
+            }
             case 'chooseCard':
             case 'roundCard':
             case 'endDeployment':
@@ -744,4 +818,21 @@ export class ActionDispatcher {
             }
         }
     }
+}
+
+/** rebuild oil = baseline (post-battle / expired) + this-deployment stamps */
+export function rebuildOilField(
+    ctx: Pick<ActionContext, 'oilStamps' | 'oilField' | 'oilBaseline'>,
+): void {
+    ctx.oilField.oilExpires.set(ctx.oilBaseline.oilExpires);
+    ctx.oilField.clearFire();
+    const stamps = [...ctx.oilStamps].sort((a, b) => a.id - b.id);
+    for (const s of stamps) {
+        ctx.oilField.stampOil(s.x, s.z, s.radius, s.expiresRound);
+    }
+}
+
+/** quantize world coords so peers never disagree on float noise */
+export function quantizeWorld(v: number): number {
+    return Math.round(v * 20) / 20;
 }

@@ -19,12 +19,19 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="high">High (dense forests)</option>` +
         `<option value="medium">Medium</option>` +
         `<option value="low">Low (flat world)</option>` +
+        `<option value="off">Off (no weather)</option>` +
         `</select> <span class="s-hint">trees &amp; mountains</span></label>` +
         `<label class="s-row">Ground effects <select class="s-ground">` +
         `<option value="full">Full (sand &amp; blood)</option>` +
         `<option value="medium">Medium (sand &amp; scorch)</option>` +
-        `<option value="off">Off</option>` +
+        `<option value="low">Low (texture only)</option>` +
+        `<option value="off">Off (plain ground)</option>` +
         `</select> <span class="s-hint">battlefield wear</span></label>` +
+        `<label class="s-row">Fire effects <select class="s-fire">` +
+        `<option value="high">High</option>` +
+        `<option value="low">Low</option>` +
+        `<option value="off">Off</option>` +
+        `</select> <span class="s-hint">flames (visual)</span></label>` +
         `<label class="s-row">Resolution <select class="s-dpr">` +
         `<option value="2">High (retina)</option>` +
         `<option value="1.5">Medium</option>` +
@@ -53,6 +60,12 @@ export function openSettings(parent: HTMLElement): void {
     ground.value = prefs().groundEffects;
     ground.addEventListener('change', () =>
         updatePrefs({ groundEffects: ground.value as Prefs['groundEffects'] }),
+    );
+
+    const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
+    fire.value = prefs().fireVfx;
+    fire.addEventListener('change', () =>
+        updatePrefs({ fireVfx: fire.value as Prefs['fireVfx'] }),
     );
 
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;

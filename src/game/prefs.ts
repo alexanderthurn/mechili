@@ -1,9 +1,11 @@
 /** Player preferences, persisted in localStorage (not match state). */
 
-/** Outer world / forests / terrain detail. */
-export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low';
-/** Battlefield sand / blood / scorch wear on the ground. */
-export type GroundEffectsQuality = 'full' | 'medium' | 'off';
+/** Outer world / forests / terrain detail ('off' also disables all weather FX). */
+export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low' | 'off';
+/** Battlefield ground texture + sand / blood / scorch wear. */
+export type GroundEffectsQuality = 'full' | 'medium' | 'low' | 'off';
+/** Combat fire particle density (visual only — never affects sim). */
+export type FireVfxQuality = 'high' | 'low' | 'off';
 
 export interface Prefs {
     /** show the in-match (combat) chat at all: bar, bubbles, messages */
@@ -26,6 +28,8 @@ export interface Prefs {
      * - off: no wear mask work
      */
     groundEffects: GroundEffectsQuality;
+    /** Flame particle density for ground fire / burn VFX */
+    fireVfx: FireVfxQuality;
     /**
      * Cap on `devicePixelRatio` for the WebGL canvas.
      * 2 = current default (retina), 1.5 = medium, 1 = 1:1 CSS pixels.
@@ -46,6 +50,7 @@ const DEFAULTS: Prefs = {
     globalChat: true,
     scenery: 'medium',
     groundEffects: 'full',
+    fireVfx: 'high',
     dprCap: 2,
     unitShadows: 'all',
     renderDeadUnits: true,
@@ -55,7 +60,9 @@ let cached: Prefs | null = null;
 const listeners: (() => void)[] = [];
 
 function migrateScenery(raw: unknown): SceneryQuality {
-    if (raw === 'ultra' || raw === 'high' || raw === 'medium' || raw === 'low') return raw;
+    if (raw === 'ultra' || raw === 'high' || raw === 'medium' || raw === 'low' || raw === 'off') {
+        return raw;
+    }
     if (raw === 'full') return 'medium'; // former default look
     if (raw === 'minimal') return 'low';
     return DEFAULTS.scenery;
@@ -63,8 +70,16 @@ function migrateScenery(raw: unknown): SceneryQuality {
 
 function normalizePrefs(p: Prefs): Prefs {
     p.scenery = migrateScenery(p.scenery);
-    if (p.groundEffects !== 'full' && p.groundEffects !== 'medium' && p.groundEffects !== 'off') {
+    if (
+        p.groundEffects !== 'full' &&
+        p.groundEffects !== 'medium' &&
+        p.groundEffects !== 'low' &&
+        p.groundEffects !== 'off'
+    ) {
         p.groundEffects = DEFAULTS.groundEffects;
+    }
+    if (p.fireVfx !== 'high' && p.fireVfx !== 'low' && p.fireVfx !== 'off') {
+        p.fireVfx = DEFAULTS.fireVfx;
     }
     if (p.dprCap !== 2 && p.dprCap !== 1.5 && p.dprCap !== 1) p.dprCap = 2;
     if (p.unitShadows !== 'all' && p.unitShadows !== 'structures' && p.unitShadows !== 'off') {
@@ -76,7 +91,12 @@ function normalizePrefs(p: Prefs): Prefs {
 
 /** True when mountains / forests / textured ground are enabled. */
 export function sceneryDetailed(quality: SceneryQuality = prefs().scenery): boolean {
-    return quality !== 'low';
+    return quality !== 'low' && quality !== 'off';
+}
+
+/** True when the weather system runs (fog, clouds, rain, stars, day/night). */
+export function sceneryWeatherFx(quality: SceneryQuality = prefs().scenery): boolean {
+    return quality !== 'off';
 }
 
 /** Shadow-map edge length for the current scenery tier. */
@@ -103,6 +123,17 @@ export function sceneryFogScale(quality: SceneryQuality = prefs().scenery): numb
     if (quality === 'ultra' || quality === 'high') return 1.9;
     if (quality === 'medium') return 1.2;
     return 1;
+}
+
+/**
+ * Strength of the ground-mist height fog (0 disables it entirely) and of the
+ * forest fog cards.
+ */
+export function sceneryHeightFog(quality: SceneryQuality = prefs().scenery): number {
+    if (quality === 'ultra') return 1.15;
+    if (quality === 'high') return 1;
+    if (quality === 'medium') return 0.55;
+    return 0;
 }
 
 export function prefs(): Prefs {

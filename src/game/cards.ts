@@ -113,6 +113,14 @@ export const ROUND_CARDS: RoundCard[] = [
         tactics: ['rallyRoute'],
         description: 'Place a march route: units in the start zone head to the end zone, fighting along the way.',
     },
+    {
+        id: 'oilSpill',
+        title: 'Oil Spill',
+        cost: 50,
+        tactics: ['oilSpill'],
+        description:
+            'Stamp oil on the shared ground layer. Connected oil ignites together when fire touches it (lasts 2 rounds).',
+    },
 ];
 
 /** buyable army types in the deployment shop (not board extras) */

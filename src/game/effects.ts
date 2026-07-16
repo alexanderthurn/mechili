@@ -224,7 +224,8 @@ class ParticlePool {
             this.positions[i * 3]! += this.velocities[i * 3]! * dt;
             this.positions[i * 3 + 1]! += this.velocities[i * 3 + 1]! * dt;
             this.positions[i * 3 + 2]! += this.velocities[i * 3 + 2]! * dt;
-            if (this.positions[i * 3 + 1]! < 0.05) this.positions[i * 3 + 1] = 0.05;
+            // soft floor only for near-zero spawns — don't yank hill-anchored flames to y≈0
+            if (this.positions[i * 3 + 1]! < -50) this.positions[i * 3 + 1] = -50;
             const fade = this.life[i]! / this.maxLife[i]!;
             this.colors[i * 3] = this.baseColors[i * 3]! * fade;
             this.colors[i * 3 + 1] = this.baseColors[i * 3 + 1]! * fade;

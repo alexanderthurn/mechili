@@ -51,6 +51,8 @@ export interface WeatherPreset {
     cloudOpacity: number;
     cloudShadowOpacity: number;
     nearCloudOpacity: number;
+    /** opacity of the fog cards drifting between the forest trees */
+    forestFog: number;
     stars: number;
     rain: number;
 }
@@ -77,6 +79,7 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         cloudOpacity: 0.85,
         cloudShadowOpacity: 0.1,
         nearCloudOpacity: 0.16,
+        forestFog: 0.14,
         stars: 0,
         rain: 0,
     },
@@ -101,6 +104,7 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         cloudOpacity: 0.95,
         cloudShadowOpacity: 0.2,
         nearCloudOpacity: 0.42,
+        forestFog: 0.55,
         stars: 0,
         rain: 1,
     },
@@ -125,6 +129,7 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         cloudOpacity: 0.3,
         cloudShadowOpacity: 0.03,
         nearCloudOpacity: 0.12,
+        forestFog: 0.28,
         stars: 1,
         rain: 0,
     },
@@ -149,6 +154,10 @@ export interface WeatherHandles {
     cloudMaterial: MeshBasicMaterial;
     cloudShadowMaterial: MeshBasicMaterial;
     cloudTexture: Texture;
+    /** shared material of the forest fog cards (null on low scenery) */
+    forestFogMaterial: MeshBasicMaterial | null;
+    /** scenery-tier multiplier on the fog cards' opacity */
+    forestFogScale: number;
     /** camera-following group (sky dome home) — stars live here */
     skyGroup: Group;
     /** world-space scenery group — rain + near clouds live here */
@@ -176,6 +185,7 @@ class WeatherState {
     cloudOpacity = 0;
     cloudShadowOpacity = 0;
     nearCloudOpacity = 0;
+    forestFog = 0;
     stars = 0;
     rain = 0;
 
@@ -202,6 +212,7 @@ class WeatherState {
         this.cloudOpacity += (p.cloudOpacity - this.cloudOpacity) * k;
         this.cloudShadowOpacity += (p.cloudShadowOpacity - this.cloudShadowOpacity) * k;
         this.nearCloudOpacity += (p.nearCloudOpacity - this.nearCloudOpacity) * k;
+        this.forestFog += (p.forestFog - this.forestFog) * k;
         this.stars += (p.stars - this.stars) * k;
         this.rain += (p.rain - this.rain) * k;
     }
@@ -455,6 +466,12 @@ export class Weather {
 
         this.starMaterial.opacity = s.stars;
         this.starsMesh.visible = s.stars > 0.02;
+
+        if (h.forestFogMaterial) {
+            // fog cards blend toward the horizon/fog color of the scenario
+            h.forestFogMaterial.opacity = s.forestFog * h.forestFogScale;
+            h.forestFogMaterial.color.copy(s.skyHorizon);
+        }
 
         this.nearCloudMaterial.opacity = s.nearCloudOpacity;
         for (const c of this.nearClouds) {

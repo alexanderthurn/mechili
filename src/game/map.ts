@@ -25,7 +25,7 @@ export const CELL = 4;
 
 import { THEME } from '../theme';
 import { teamColors } from './colors';
-import { prefs, sceneryDetailed, type GroundEffectsQuality } from './prefs';
+import { prefs, type GroundEffectsQuality } from './prefs';
 
 export interface Cell {
     col: number;
@@ -109,6 +109,20 @@ export function groundSupportAt(x: number, z: number, _radius = 0.7): number {
     return groundHeightFn(x, z);
 }
 
+/**
+ * SIM-side alias of {@link groundHeightAt}. The board height is never gated
+ * by graphics settings, so both names return the same value — the sim code
+ * uses this name to make its determinism requirement explicit.
+ */
+export function simGroundHeightAt(x: number, z: number): number {
+    return groundHeightFn(x, z);
+}
+
+/** sim-side alias of {@link groundSupportAt} */
+export function simGroundSupportAt(x: number, z: number, _radius = 0.7): number {
+    return groundHeightFn(x, z);
+}
+
 function smooth01(t: number): number {
     const c = Math.min(1, Math.max(0, t));
     return c * c * (3 - 2 * c);
@@ -175,18 +189,16 @@ export class BattleMap {
     private sandDirty = false;
     private sandFlushAt = 0;
 
-    /** false with the 'low' scenery pref: flat board, no detail textures */
-    private detailed = sceneryDetailed();
-    /** wear mask quality — independent of scenery when detailed */
+    /** ground texture + wear quality (the board's SHAPE is never gated) */
     private groundEffects: GroundEffectsQuality = prefs().groundEffects;
-
-    /** live-switch for the scenery setting; the game rebuilds the meshes after */
-    setDetailed(detailed: boolean): void {
-        this.detailed = detailed;
-    }
 
     setGroundEffects(quality: GroundEffectsQuality): void {
         this.groundEffects = quality;
+    }
+
+    /** wear stamping runs on full/medium; 'low' keeps the texture only */
+    private wearEnabled(): boolean {
+        return this.groundEffects === 'full' || this.groundEffects === 'medium';
     }
 
     constructor(readonly size: MapSize = STANDARD_MAP) {
@@ -275,8 +287,12 @@ export class BattleMap {
      * Flat near the borders (to meet the outer meadow) and under the four
      * base buildings (so the castles sit cleanly).
      */
+    /**
+     * The board's relief. ALWAYS on — never gated by graphics settings: the
+     * sim's ballistics read it, so it must be identical on every machine in a
+     * match, and the visuals simply show the same truth.
+     */
     heightAt(x: number, z: number): number {
-        if (!this.detailed) return 0; // minimal scenery: perfectly flat board
         const WAVE = 46;
         const n =
             this.reliefNoise(x / WAVE + 37.2, z / WAVE + 11.7) * 0.72 +
@@ -327,7 +343,10 @@ export class BattleMap {
         });
         const mesh = new Mesh(geometry, material);
         mesh.receiveShadow = true;
-        if (this.detailed) void this.upgradeGroundMaterial(mesh, macro, seed);
+        // ground effects 'off' keeps the plain macro canvas — no detail textures
+        if (this.groundEffects !== 'off') {
+            void this.upgradeGroundMaterial(mesh, macro, seed);
+        }
         return mesh;
     }
 
@@ -426,7 +445,7 @@ export class BattleMap {
 
     /** Stamp sandy wear (R). Also scrubs blood/scorch underfoot. */
     stampSand(x: number, z: number, radius: number, strength = 0.09): void {
-        if (this.groundEffects === 'off') return;
+        if (!this.wearEnabled()) return;
         const s = this.groundEffects === 'medium' ? strength * 0.55 : strength;
         this.stampWearChannel(x, z, radius, s, 'r');
     }
@@ -440,7 +459,7 @@ export class BattleMap {
 
     /** Stamp scorched earth under explosions / big breaks (B). */
     stampScorch(x: number, z: number, radius: number, strength = 0.16): void {
-        if (this.groundEffects === 'off') return;
+        if (!this.wearEnabled()) return;
         const s = this.groundEffects === 'medium' ? strength * 0.65 : strength;
         this.stampWearChannel(x, z, radius, s, 'b');
     }
@@ -542,7 +561,7 @@ export class BattleMap {
             tile(sand);
             sand.colorSpace = SRGBColorSpace;
         }
-        const wearOn = this.groundEffects !== 'off';
+        const wearOn = this.wearEnabled();
         const sandMask = sand && wearOn ? this.createSandMask(seed) : null;
         if (!sandMask) {
             this.sandMask = null;

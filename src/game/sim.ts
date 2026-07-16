@@ -1,6 +1,7 @@
 import type { Group } from 'three';
+import { applyBurnStatus, HazardField, type FireProfile } from './fire';
 import { ITEMS } from './items';
-import { groundHeightAt, groundSupportAt } from './map';
+import { groundSupportAt, simGroundHeightAt, simGroundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     RALLY_ROUTE_RADIUS,
@@ -54,6 +55,11 @@ export interface SimConfig {
     needsFlankSpawn: (unit: Unit) => boolean;
     /** rally routes placed this deployment (player tactics only for now) */
     rallyRoutes?: readonly RallyRoute[];
+    /**
+     * Match oil layer snapshot at battle start. The sim clones it; fire is
+     * battle-local. Remaining oil is read back via {@link BattleSim.hazards}.
+     */
+    oilField?: HazardField;
 }
 
 export interface Actor {
@@ -105,6 +111,10 @@ export interface Actor {
     mvZ: number;
     /** sticky attack target — held while in range; closest search when not */
     cachedEnemy: Actor | null;
+    /** burn DoT: sim time when it expires (0 = not burning) */
+    burnUntil: number;
+    /** burn damage per second while burnUntil > elapsed */
+    burnDps: number;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
@@ -145,7 +155,9 @@ export type SimEvent =
     | { kind: 'impact'; x: number; y: number; z: number }
     | { kind: 'explosion'; x: number; y: number; z: number; radius: number }
     | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear }
-    | { kind: 'levelup'; x: number; y: number; z: number };
+    | { kind: 'levelup'; x: number; y: number; z: number }
+    /** ground fire stamped / oil ignited — y is sim terrain height */
+    | { kind: 'groundFire'; x: number; y: number; z: number; radius: number; oilCells: number };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
@@ -194,6 +206,11 @@ export class BattleSim {
 
     readonly actors: Actor[] = [];
     readonly projectiles: Projectile[] = [];
+    /**
+     * Working oil+fire layer for this battle (cloned from match oil).
+     * After the battle, the game adopts remaining oil via {@link hazards}.
+     */
+    readonly hazards: HazardField;
     /** fixed-step time simulated so far — the deterministic battle clock */
     elapsed = 0;
     private events: SimEvent[] = [];
@@ -237,6 +254,7 @@ export class BattleSim {
         units: readonly Unit[],
         private readonly config: SimConfig,
     ) {
+        this.hazards = config.oilField?.cloneForBattle() ?? new HazardField();
         for (const unit of units) {
             if (unit.destroyed) {
                 if (this.isCommandTower(unit)) {
@@ -279,6 +297,8 @@ export class BattleSim {
                     mvX: 0,
                     mvZ: 0,
                     cachedEnemy: null,
+                    burnUntil: 0,
+                    burnDps: 0,
                 });
             }
         }
@@ -405,6 +425,111 @@ export class BattleSim {
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
         if (target.hp <= 0) this.kill(target, source);
+    }
+
+    /**
+     * Apply burn DoT to a ground actor. Air (`altitude > 0`) is never burned.
+     * Friendly fire: no team filter. Refresh timer + keep strongest DPS.
+     */
+    private applyBurn(target: Actor, profile: FireProfile | undefined): void {
+        const burn = profile?.burn;
+        if (!burn || !target.alive) return;
+        if (target.altitude > 0) return; // air units ignore burn
+        if (target.unit.type.extra) return;
+        const aff = target.unit.type.burn;
+        const taken = aff?.takenMult ?? 1;
+        if (taken <= 0) return;
+        const durMult = aff?.durationMult ?? 1;
+        applyBurnStatus(
+            target,
+            this.elapsed,
+            burn.dps * taken,
+            burn.duration * durMult,
+        );
+    }
+
+    /**
+     * Stamp ground fire (optional) and splash burn onto victims in radius.
+     * Kinetic HP damage stays separate (enemy-only via explode). Burn hits
+     * everyone on the ground — including allies.
+     */
+    private applyFireAt(
+        source: Unit,
+        x: number,
+        z: number,
+        radius: number,
+        profile: FireProfile | undefined,
+    ): void {
+        if (!profile) return;
+        if (profile.ground) {
+            const g = profile.ground;
+            const oilCells = this.hazards.stampFire(
+                x,
+                z,
+                g.radius,
+                this.elapsed,
+                g.duration,
+                g.intensity,
+            );
+            const y = simGroundHeightAt(x, z);
+            this.events.push({
+                kind: 'groundFire',
+                x,
+                y,
+                z,
+                radius: g.radius,
+                oilCells,
+            });
+        }
+        if (!profile.burn) return;
+        const r = Math.max(radius, profile.ground?.radius ?? 0);
+        for (const a of this.actors) {
+            if (!a.alive) continue;
+            if (hypot(a.x - x, a.z - z) > r + a.radius) continue;
+            this.applyBurn(a, profile);
+        }
+    }
+
+    /** burn DoT + standing in ground fire (both friendly-fire) */
+    private stepHazards(dt: number): void {
+        this.hazards.tickFire(this.elapsed);
+        for (const a of this.actors) {
+            if (!a.alive) continue;
+            if (a.altitude > 0) {
+                // air: clear any burn that somehow stuck (e.g. landed then took off)
+                continue;
+            }
+            if (a.unit.type.extra) continue;
+
+            // standing in fire refreshes burn from cell intensity
+            const cellDps = this.hazards.fireDpsAt(a.x, a.z, this.elapsed);
+            if (cellDps > 0) {
+                const aff = a.unit.type.burn;
+                const taken = aff?.takenMult ?? 1;
+                if (taken > 0) {
+                    applyBurnStatus(a, this.elapsed, cellDps * taken, 0.4);
+                }
+            }
+
+            if (a.burnUntil > this.elapsed + 1e-9 && a.burnDps > 0) {
+                const dealt = a.burnDps * dt * this.damageTakenMult(a);
+                // attribute burn kills to nobody's pack XP cleanly — use a
+                // synthetic path: damage without a killer pack for XP purposes
+                this.applyBurnDamage(a, dealt);
+            } else {
+                a.burnUntil = 0;
+                a.burnDps = 0;
+            }
+        }
+    }
+
+    /** DoT damage: no pack XP attribution (environmental) */
+    private applyBurnDamage(target: Actor, amount: number): void {
+        if (amount <= 0 || !target.alive) return;
+        target.hp -= amount;
+        target.hurtTimer = HURT_BAR_SECONDS;
+        if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
+        if (target.hp <= 0) this.kill(target, null);
     }
 
     /** hands the accumulated visual events to the renderer and forgets them */
@@ -823,17 +948,19 @@ export class BattleSim {
         // refresh target cells after everyone has moved — bullet hits need current seats
         this.rebuildTargetHash();
         this.stepProjectiles(dt);
+        this.stepHazards(dt);
         add('projectiles');
         this.prevStepDt = dt;
     }
 
     /**
-     * World Y of an actor's feet. Ground units ride the relief; flyers use the
-     * absolute air layer. Optional xz overrides sample a lead/aim point.
+     * World Y of an actor's feet — GAMEPLAY value (trajectories, aim): always
+     * uses the settings-independent relief so all machines agree. Flyers use
+     * the absolute air layer. Optional xz overrides sample a lead/aim point.
      */
     private feetY(a: Actor, x = a.x, z = a.z): number {
         if (a.altitude > 0) return a.altitude;
-        return groundSupportAt(x, z, a.radius * 0.65) + 0.08;
+        return simGroundSupportAt(x, z, a.radius * 0.65) + 0.08;
     }
 
     /** seek toward a direction with obstacle avoidance and crowd separation */
@@ -1179,10 +1306,12 @@ export class BattleSim {
                     const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(p.source, hit, dealt);
                     this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
+                    this.applyFireAt(p.source, ix, iz, hit.radius, p.source.type.fire);
                 }
                 continue; // bullet consumed
             }
-            const groundY = groundHeightAt(nx, nz);
+            // gameplay collision — must be identical on all machines
+            const groundY = simGroundHeightAt(nx, nz);
             if (ny <= groundY) {
                 // splash shells detonate on the ground too — a miss still hurts
                 if (splash > 0) {
@@ -1190,6 +1319,7 @@ export class BattleSim {
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
                 } else {
                     this.events.push({ kind: 'impact', x: nx, y: groundY + 0.15, z: nz });
+                    this.applyFireAt(p.source, nx, nz, 0, p.source.type.fire);
                 }
                 continue;
             }
@@ -1223,6 +1353,8 @@ export class BattleSim {
             const dealt = p.damage * this.damageTakenMult(a);
             this.applyDamage(p.source, a, dealt);
         }
+        // burn + ground fire (friendly fire) — after kinetic hits
+        this.applyFireAt(p.source, x, z, radius, p.source.type.fire);
     }
 
     /** mass-based push-out: heavy units shove light ones aside, structures never move */
