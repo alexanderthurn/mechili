@@ -19,7 +19,7 @@ import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, commitOilStamps, levelCost, quantizeWorld, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, commitAcidStamps, commitOilStamps, levelCost, quantizeWorld, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
@@ -81,6 +81,7 @@ import {
     clampTacticEnd,
     clampTacticPoint,
     pointInSafeZone,
+    usesSpellPlacement,
     type OilStamp,
     type RallyRoute,
     type SpellStamp,
@@ -585,7 +586,8 @@ export class Game {
         };
         this.hud.onResetPlacedTactic = (tacticId, routeId) => {
             // ids come from per-tactic counters — the tactic id disambiguates
-            if (TACTICS[tacticId]?.spell) this.resetPlacedSpell(routeId);
+            const tactic = TACTICS[tacticId];
+            if (tactic && usesSpellPlacement(tactic)) this.resetPlacedSpell(routeId);
             else if (tacticId === OIL_SPILL_ID) this.resetPlacedOilSpill(routeId);
             else this.resetPlacedRallyRoute(routeId);
         };
@@ -1013,10 +1015,14 @@ export class Game {
         this.hpBars.clear();
         this.rallyRoutes.length = 0;
         this.cancelTacticPlacement();
-        // oil: expire old cells, snapshot baseline for this deployment's undo,
-        // clear stamps (this round's oil is outline-only until battle)
+        // oil + acid: expire old cells, snapshot baseline for this deployment's
+        // undo, clear stamps (this round's oil is outline-only until battle;
+        // acid's spellStamps persist across rounds already — only its expiry
+        // and baseline snapshot need to run here)
         this.oilField.expireOilBefore(this.round);
+        this.oilField.expireAcidBefore(this.round);
         this.oilBaseline.oilExpires.set(this.oilField.oilExpires);
+        this.oilBaseline.acidExpires.set(this.oilField.acidExpires);
         this.oilStamps.length = 0;
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], true);
@@ -1652,7 +1658,7 @@ export class Game {
             let avail: number;
             if (tactic.kind === 'placement') {
                 // charge stays in the inventory; placements are right-click resettable
-                const placements = tactic.spell
+                const placements = usesSpellPlacement(tactic)
                     ? this.spellStamps.filter(
                           (s) =>
                               s.team === 'player' &&
@@ -1661,7 +1667,7 @@ export class Game {
                       )
                     : (placementsOf[tactic.id]?.() ?? []);
                 // spells fired in past rounds still cool their charge down
-                const cooling = tactic.spell
+                const cooling = usesSpellPlacement(tactic)
                     ? this.spellStamps.filter(
                           (s) =>
                               s.team === 'player' &&
@@ -1897,7 +1903,8 @@ export class Game {
         const armed = this.armedTactic ? TACTICS[this.armedTactic] : null;
         let draft: SpellDraft | null = null;
         if (
-            armed?.spell &&
+            armed &&
+            usesSpellPlacement(armed) &&
             (armed.targeting === 'point' || armed.targeting === 'two-point') &&
             pointer &&
             this.playerCanAct
@@ -2018,9 +2025,12 @@ export class Game {
                     endX: quantizeWorld(target.end!.x),
                     endZ: quantizeWorld(target.end!.z),
                 });
-            default:
-                // every battle spell shares the placeSpell action
-                if (TACTICS[tacticId]?.spell && target.point) {
+            default: {
+                // every battle spell AND acid (ground-hazard commit) share
+                // the placeSpell action for placement/aim/cooldown tracking
+                const tactic = TACTICS[tacticId];
+                if (!tactic || !usesSpellPlacement(tactic)) return false;
+                if (target.point) {
                     return this.dispatchPlayer({
                         kind: 'placeSpell',
                         team: 'player',
@@ -2029,7 +2039,7 @@ export class Game {
                         z: quantizeWorld(target.point.z),
                     });
                 }
-                if (TACTICS[tacticId]?.spell && target.start && target.end) {
+                if (target.start && target.end) {
                     return this.dispatchPlayer({
                         kind: 'placeSpell',
                         team: 'player',
@@ -2041,6 +2051,7 @@ export class Game {
                     });
                 }
                 return false;
+            }
         }
     }
 
@@ -2311,6 +2322,11 @@ export class Game {
             oilBaseline: this.oilBaseline,
             placement: this.placement,
         });
+        // acid lands the SAME instant, the same way — no scheduled delay
+        commitAcidStamps(
+            { spellStamps: this.spellStamps, oilField: this.oilField, placement: this.placement },
+            this.round,
+        );
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
         // battle spells: summons join the board BEFORE the sim snapshots units;
@@ -2361,24 +2377,6 @@ export class Game {
                   ]
                 : [];
         });
-        const spellAcid = pendingSpells.flatMap((s) => {
-            const spell = TACTICS[s.tacticId]?.spell;
-            const acid = spell?.acidCapsule;
-            return acid && s.endX !== undefined && s.endZ !== undefined
-                ? [
-                      {
-                          x: s.x,
-                          z: s.z,
-                          x2: s.endX,
-                          z2: s.endZ,
-                          radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
-                          delaySeconds: spell.delaySeconds,
-                          duration: acid.duration,
-                          dpsPercent: acid.dpsPercent,
-                      },
-                  ]
-                : [];
-        });
         const spellIgnites = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             const ignite = spell?.igniteCapsule;
@@ -2420,7 +2418,6 @@ export class Game {
             spellStrikes,
             spellZones,
             spellIgnites,
-            spellAcid,
             summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
         });
         // the sync point: both peers hash the identical battle-start state

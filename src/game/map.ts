@@ -540,7 +540,7 @@ export class BattleMap {
                 now: number,
                 fn: (x: number, z: number, dps: number, until: number) => void,
             ) => void;
-            forEachAcidCell: (now: number, fn: (x: number, z: number, dpsPercent: number) => void) => void;
+            forEachAcidCell: (fn: (x: number, z: number, expiresRound: number) => void) => void;
             forEachCapsuleCells: (
                 ax: number,
                 az: number,
@@ -576,7 +576,7 @@ export class BattleMap {
             this.stampHazardChannel(x, z, cellR, 0.7, 'g');
             this.stampHazardChannel(x, z, cellR * 1.4, 0.3, 'g');
         });
-        field.forEachAcidCell(now, (x, z) => {
+        field.forEachAcidCell((x, z) => {
             this.stampHazardChannel(x, z, cellR, 0.6, 'b');
             this.stampHazardChannel(x, z, cellR * 1.35, 0.25, 'b');
         });

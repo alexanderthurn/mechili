@@ -128,12 +128,21 @@ units march out of (or into!) the marked area, which is the counterplay.
    Note: surviving summons DO count toward the end-of-battle HP bite.
 3. **Hammer + Crow Riders — DONE** (pure registry entries on the rails).
 4. **Acid + Poison Cloud — DONE.** Poison = per-tick gas zone (ignores
-   wards, `poisonImmune` unit flag, toxic-green marker). Acid = two-point
-   capsule (placeSpell carries endX/endZ; per-tactic `maxSpan`), % of max
-   HP per tick + `corrodedUntil` debuff (CORRODE_TAKEN_MULT stacks in
-   `damageTakenMult`, so weapons AND burn hit harder). Burning units are
-   visible (FireFx.updateBurningActors). Still open from W5: corroded /
-   poisoned VFX on units (visual pass).
+   wards, `poisonImmune` unit flag, toxic-green marker). Acid ended up
+   NOT a battle spell at all: after two revisions it's now a genuine
+   third HazardField channel (`acidExpires`, round-based expiry) —
+   technically identical to oil (same capsule stamp, same commit-at-
+   battle-start moment, no delay, ward-stone blocking, ground texture
+   channel), just a different per-step effect (percent-of-max-HP damage
+   instead of a speed penalty) plus the `corrodedUntil` debuff
+   (CORRODE_TAKEN_MULT stacks in `damageTakenMult`, so weapons AND burn
+   hit harder). Its placement/aim/cooldown still ride the generic
+   placeSpell/SpellStamp system (`usesSpellPlacement()` gate in
+   tactics.ts) — only what happens at battle-start commit changed. Both
+   oil and acid currently default to 1 round (`OIL_SPILL_DURATION_ROUNDS`
+   / `ACID_SPILL_DURATION_ROUNDS` in fire.ts — tune there). Burning units
+   are visible (FireFx.updateBurningActors). Still open from W5: corroded
+   / poisoned VFX on units (visual pass).
 5. **Storm + Meteor Shower — DONE** (SpellZone ticking effects, per-effect
    seeded rng; storm bolts pick random units, wards absorb per bolt;
    shower drops mini-strikes + ground fire).

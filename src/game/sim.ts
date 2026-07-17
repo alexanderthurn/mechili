@@ -1,5 +1,6 @@
 import type { Group } from 'three';
 import {
+    ACID_DPS_PERCENT,
     applyBurnStatus,
     HazardField,
     OIL_SPEED_MULT,
@@ -80,8 +81,6 @@ export interface SimConfig {
     spellZones?: readonly SpellZone[];
     /** one-shot capsule ignitions (dragon breath along its flight path) */
     spellIgnites?: readonly SpellIgnite[];
-    /** one-shot acid capsule stamps — same HazardField mechanism as oil */
-    spellAcid?: readonly SpellAcidStamp[];
     /** summoned packs materialize this many seconds after the freeze (0 = normal) */
     summonDelayOf?: (unit: Unit) => number;
 }
@@ -123,24 +122,6 @@ export interface SpellIgnite {
     delaySeconds: number;
     burnSeconds: number;
     intensity: number;
-}
-
-/**
- * Acid capsule: stamped ONCE into the HazardField (same technical mechanism
- * as an oil spill — same capsule geometry, same "continuous per-step field
- * read" model as oil's speed-slow) at BATTLE_START_FREEZE + delaySeconds.
- * Not a ticking zone: the field itself carries the effect for `duration`.
- */
-export interface SpellAcidStamp {
-    x: number;
-    z: number;
-    x2: number;
-    z2: number;
-    radius: number;
-    delaySeconds: number;
-    duration: number;
-    /** percent of max HP per second while standing in the acid */
-    dpsPercent: number;
 }
 
 /** corroded (acid) victims take this much extra damage from everything */
@@ -357,8 +338,6 @@ export class BattleSim {
     })[];
     /** scheduled capsule ignitions; each fires exactly once */
     private readonly ignites: (SpellIgnite & { at: number; fired: boolean })[];
-    /** scheduled acid capsule stamps; each fires exactly once */
-    private readonly acidStamps: (SpellAcidStamp & { at: number; fired: boolean })[];
 
     constructor(
         units: readonly Unit[],
@@ -466,12 +445,6 @@ export class BattleSim {
             at: BATTLE_START_FREEZE + f.delaySeconds,
             fired: false,
         }));
-        this.acidStamps = (config.spellAcid ?? []).map((a) => ({
-            ...a,
-            at: BATTLE_START_FREEZE + a.delaySeconds,
-            fired: false,
-        }));
-
         // canonical battle order: both peers sort into the SAME sequence
         // (host units first, each side by spawn counter, members in pack
         // order via sort stability), so every order-dependent computation —
@@ -680,7 +653,6 @@ export class BattleSim {
     /** burn DoT + standing in ground fire (both friendly-fire) */
     private stepHazards(dt: number): void {
         this.hazards.tickFire(this.elapsed);
-        this.hazards.tickAcid(this.elapsed);
         // burning cells never leave oil behind when the flames go out
         this.hazards.consumeOilUnderFire(this.elapsed);
         this.hazards.igniteOilTouchingFire(this.elapsed);
@@ -717,13 +689,10 @@ export class BattleSim {
             // field read, gone the instant the unit steps off), no lingering
             // DoT of its own. The corroded debuff (extra damage taken from
             // EVERYTHING) is what lingers, via CORRODE_LINGER_SECONDS below.
-            if (!a.unit.type.structure) {
-                const acidPercent = this.hazards.acidPercentAt(a.x, a.z, this.elapsed);
-                if (acidPercent > 0) {
-                    const dealt = ((a.maxHp * acidPercent) / 100) * dt * this.damageTakenMult(a);
-                    this.applyBurnDamage(a, dealt);
-                    a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
-                }
+            if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
+                const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
+                this.applyBurnDamage(a, dealt);
+                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
             }
         }
     }
@@ -755,7 +724,7 @@ export class BattleSim {
     }
 
     /** advances every scheduled spell effect whose time has come: one-shot
-     *  strikes/ignites/acid stamps (exactly once each), plus zone ticks */
+     *  strikes/ignites (exactly once each), plus zone ticks */
     private stepSpellStrikes(): void {
         for (const s of this.strikes) {
             if (s.fired || this.elapsed < s.at) continue;
@@ -773,22 +742,6 @@ export class BattleSim {
             if (f.fired || this.elapsed < f.at) continue;
             f.fired = true;
             this.resolveIgnite(f);
-        }
-        for (const a of this.acidStamps) {
-            if (a.fired || this.elapsed < a.at) continue;
-            a.fired = true;
-            const shields = livingShieldDisks(this.actors.map((act) => act.unit));
-            this.hazards.stampAcidCapsule(
-                a.x,
-                a.z,
-                a.x2,
-                a.z2,
-                a.radius,
-                this.elapsed,
-                a.duration,
-                a.dpsPercent,
-                shields,
-            );
         }
     }
 

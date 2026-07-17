@@ -1,5 +1,11 @@
 import { CELL } from './map';
-import { OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
+import {
+    ACID_DPS_PERCENT,
+    ACID_SPILL_DURATION_ROUNDS,
+    ACID_SPILL_RADIUS,
+    OIL_SPILL_DURATION_ROUNDS,
+    OIL_SPILL_RADIUS,
+} from './fire';
 
 /** tactical orders (not pack items) — granted by round cards, consumed per placement */
 export const RALLY_ROUTE_ID = 'rallyRoute';
@@ -112,16 +118,14 @@ export const TACTICS: Record<
             /** two-point: set the whole capsule ablaze once at the delay
              *  (dragon breath — the capsule is the flight path) */
             igniteCapsule?: { burnSeconds: number; intensity: number };
-            /**
-             * two-point: stamp the capsule into the GROUND HAZARD FIELD once
-             * at the delay — the exact same technical mechanism as an oil
-             * spill (same capsule geometry, same continuous per-step field
-             * read as oil's speed-slow), just a different per-step effect:
-             * percent-of-max-HP damage instead of a speed penalty, plus the
-             * corroded debuff (extra damage taken from everything) while in it.
-             */
-            acidCapsule?: { duration: number; dpsPercent: number };
         };
+        /**
+         * Acid: NOT a scheduled battle spell — committed straight into the
+         * persistent hazard field (HazardField.acidExpires) the instant
+         * battle starts, same moment and same mechanism as oil, no delay.
+         * Expires by ROUND like oil, not by battle-seconds.
+         */
+        acidCapsule?: { durationRounds: number };
         /** oil spill only */
         oilRadius?: number;
         oilDurationRounds?: number;
@@ -256,16 +260,15 @@ export const TACTICS: Record<
         icon: '🧪',
         kind: 'placement',
         targeting: 'two-point',
-        cooldownRounds: 1,
-        radius: OIL_SPILL_RADIUS,
-        spell: {
-            delaySeconds: 1,
-            // stamped into the ground hazard field ONCE, same as oil — 3% of
-            // max HP per second while standing in it, plus the corroded debuff
-            acidCapsule: { duration: 10, dpsPercent: 3 },
-        },
-        description:
-            'Pour an acid capsule like an oil spill — it lands on the ground exactly like oil. Units standing in it sizzle for a share of their max HP every second and turn corroded — taking extra damage from everything.',
+        // charge cooldown mirrors oil's (both currently 1 round: the charge
+        // is available again as soon as the puddle itself has expired)
+        cooldownRounds: ACID_SPILL_DURATION_ROUNDS,
+        radius: ACID_SPILL_RADIUS,
+        // lands on the ground the instant battle starts, expires by ROUND —
+        // technically identical to oil, just a different per-step effect
+        // (percent-of-max-HP damage + corroded, instead of a speed penalty)
+        acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS },
+        description: `Pour an acid capsule like an oil spill — it lands on the ground exactly like oil, no delay. Units standing in it sizzle for ${ACID_DPS_PERCENT}% of their max HP every second and turn corroded — taking extra damage from everything. Gone after ${ACID_SPILL_DURATION_ROUNDS} round.`,
     },
     [DRAGON_ID]: {
         id: DRAGON_ID,
@@ -299,6 +302,16 @@ export const TACTICS: Record<
             'Mark a circle anywhere. A toxic cloud settles there and gnaws at every unit inside — gas seeps under ward domes; only poison-proof creatures ignore it.',
     },
 };
+
+/**
+ * True for any tactic whose placement/aim/cooldown flows through the generic
+ * `placeSpell`/`SpellStamp` system — scheduled battle spells (`spell`) AND
+ * instant ground-hazard commits (`acidCapsule`) alike. Oil and rally have
+ * their own dedicated actions and are NOT included.
+ */
+export function usesSpellPlacement(tactic: (typeof TACTICS)[string]): boolean {
+    return !!(tactic.spell || tactic.acidCapsule);
+}
 
 /** how close a mech must get to its personal destination */
 export const RALLY_ROUTE_REACH = CELL * 0.5;

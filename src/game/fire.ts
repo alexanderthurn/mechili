@@ -4,12 +4,11 @@
  * Deterministic: no randomness, fixed neighbor order, integer cell indices.
  * Both peers must build the same field from the same actions + sim steps.
  *
- * - Oil persists across rounds (per-cell expiresRound).
- * - Fire and acid are battle-only (cleared when the battle ends).
+ * - Oil AND acid persist across rounds (per-cell expiresRound) — same
+ *   mechanism, same commit-at-battle-start timing, no mid-battle delay.
+ * - Fire is battle-only (cleared when the battle ends); it's the only
+ *   channel with ignition/spread behavior.
  * - Igniting any oil cell flood-fills the whole connected oil component.
- * - Acid is a simple timer channel (stampAcidCapsule/acidPercentAt/tickAcid)
- *   with no ignition behavior — same capsule geometry as oil, no fire
- *   interaction, no cross-round persistence.
  */
 
 import { CELL, STANDARD_MAP, type MapSize } from './map';
@@ -19,7 +18,13 @@ export const HAZARD_CELL = 2;
 
 /** default Oil Spill tactic stamp */
 export const OIL_SPILL_RADIUS = 4 * CELL;
-export const OIL_SPILL_DURATION_ROUNDS = 2;
+export const OIL_SPILL_DURATION_ROUNDS = 1;
+
+/** default Acid Spill tactic stamp — same shape as oil, different per-step effect */
+export const ACID_SPILL_RADIUS = 4 * CELL;
+export const ACID_SPILL_DURATION_ROUNDS = 1;
+/** percent of MAX HP per second while standing in acid (a global rate, like OIL_SPEED_MULT) */
+export const ACID_DPS_PERCENT = 3;
 
 /** Fire Bolt / weapon ground-fire defaults (can be overridden per UnitType.fire) */
 export const DEFAULT_GROUND_FIRE_DURATION = 16;
@@ -147,10 +152,8 @@ export class HazardField {
     readonly fireUntil: Float32Array;
     /** DPS while standing in this fire cell */
     readonly fireDps: Float32Array;
-    /** sim elapsed when acid in this cell ends (0 = empty) — battle-local, like fire */
-    readonly acidUntil: Float32Array;
-    /** percent of MAX HP per second while standing in this acid cell */
-    readonly acidDpsPercent: Float32Array;
+    /** last inclusive round the acid cell remains (0 = empty) — same model as oilExpires */
+    readonly acidExpires: Uint16Array;
 
     constructor(mapSize: MapSize = STANDARD_MAP, cellSize = HAZARD_CELL) {
         const m = mapHazardSize(mapSize);
@@ -163,8 +166,7 @@ export class HazardField {
         this.oilExpires = new Uint16Array(n);
         this.fireUntil = new Float32Array(n);
         this.fireDps = new Float32Array(n);
-        this.acidUntil = new Float32Array(n);
-        this.acidDpsPercent = new Float32Array(n);
+        this.acidExpires = new Uint16Array(n);
     }
 
     /** empty field with the same dimensions (used by clone helpers) */
@@ -179,8 +181,7 @@ export class HazardField {
         (f as { oilExpires: Uint16Array }).oilExpires = new Uint16Array(n);
         (f as { fireUntil: Float32Array }).fireUntil = new Float32Array(n);
         (f as { fireDps: Float32Array }).fireDps = new Float32Array(n);
-        (f as { acidUntil: Float32Array }).acidUntil = new Float32Array(n);
-        (f as { acidDpsPercent: Float32Array }).acidDpsPercent = new Float32Array(n);
+        (f as { acidExpires: Uint16Array }).acidExpires = new Uint16Array(n);
         return f;
     }
 
@@ -211,14 +212,12 @@ export class HazardField {
         this.fireDps.fill(0);
     }
 
-    /** acid never carries between battles — always cleared alongside fire */
-    clearAcid(): void {
-        this.acidUntil.fill(0);
-        this.acidDpsPercent.fill(0);
-    }
-
     clearOil(): void {
         this.oilExpires.fill(0);
+    }
+
+    clearAcid(): void {
+        this.acidExpires.fill(0);
     }
 
     /** wipe oil cells that sit inside any of the given ward discs */
@@ -234,6 +233,19 @@ export class HazardField {
         }
     }
 
+    /** wipe acid cells that sit inside any of the given ward discs */
+    clearAcidInsideShields(shields: readonly ShieldDisk[]): void {
+        if (shields.length === 0) return;
+        for (let cz = 0; cz < this.cellRows; cz++) {
+            for (let cx = 0; cx < this.cellCols; cx++) {
+                const i = this.index(cx, cz);
+                if (this.acidExpires[i]! === 0) continue;
+                const c = this.cellCenter(cx, cz);
+                if (insideAnyShield(c.x, c.z, shields)) this.acidExpires[i] = 0;
+            }
+        }
+    }
+
     /** drop oil that has expired before `round` (inclusive last round already passed) */
     expireOilBefore(round: number): void {
         for (let i = 0; i < this.oilExpires.length; i++) {
@@ -242,16 +254,26 @@ export class HazardField {
         }
     }
 
-    /** copy oil (+ empty fire) for a new battle — fire never carries over */
+    /** drop acid that has expired before `round` — same rule as expireOilBefore */
+    expireAcidBefore(round: number): void {
+        for (let i = 0; i < this.acidExpires.length; i++) {
+            const exp = this.acidExpires[i]!;
+            if (exp !== 0 && exp < round) this.acidExpires[i] = 0;
+        }
+    }
+
+    /** copy oil + acid (+ empty fire) for a new battle — fire never carries over */
     cloneForBattle(): HazardField {
         const copy = HazardField.blankLike(this);
         copy.oilExpires.set(this.oilExpires);
+        copy.acidExpires.set(this.acidExpires);
         return copy;
     }
 
-    /** replace match oil with post-battle remaining oil (fire discarded) */
+    /** replace match oil + acid with post-battle remainders (fire discarded) */
     adoptOilFrom(battle: HazardField): void {
         this.oilExpires.set(battle.oilExpires);
+        this.acidExpires.set(battle.acidExpires);
         this.clearFire();
     }
 
@@ -377,10 +399,10 @@ export class HazardField {
     }
 
     /**
-     * Stamp acid into a two-circle capsule (same silhouette as an oil spill).
-     * Battle-local and timer-based like fire, not round-based like oil — it
-     * never carries between battles. Overlapping stamps keep the stronger/
-     * longer effect (`Math.max`, mirroring stampOil's expiry rule).
+     * Stamp acid into a two-circle capsule — technically identical to
+     * {@link stampOilCapsule} (same geometry, same round-based expiry, same
+     * ward-stone blocking). Committed once at battle start, same moment as
+     * oil; no mid-battle delay, no cross-round difference from oil.
      */
     stampAcidCapsule(
         ax: number,
@@ -388,50 +410,34 @@ export class HazardField {
         bx: number,
         bz: number,
         radius: number,
-        now: number,
-        duration: number,
-        dpsPercent: number,
+        expiresRound: number,
         /** cells inside these discs are skipped (enemy ward stones) */
         blockedBy: readonly ShieldDisk[] = [],
     ): void {
-        if (duration <= 0 || dpsPercent <= 0) return;
-        const until = now + duration;
+        if (expiresRound <= 0) return;
         this.forEachCapsuleCells(ax, az, bx, bz, radius, (wx, wz, cx, cz) => {
             if (blockedBy.length > 0 && insideAnyShield(wx, wz, blockedBy)) return;
             const i = this.index(cx, cz);
-            const prevUntil = this.acidUntil[i]!;
-            if (prevUntil === 0 || until > prevUntil) this.acidUntil[i] = until;
-            this.acidDpsPercent[i] = Math.max(this.acidDpsPercent[i]!, dpsPercent);
+            const prev = this.acidExpires[i]!;
+            this.acidExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
         });
     }
 
-    /** expire finished acid cells (call each sim step, alongside tickFire) */
-    tickAcid(now: number): void {
-        for (let i = 0; i < this.acidUntil.length; i++) {
-            if (this.acidUntil[i]! !== 0 && this.acidUntil[i]! <= now) {
-                this.acidUntil[i] = 0;
-                this.acidDpsPercent[i] = 0;
-            }
-        }
-    }
-
-    /** percent of max HP per second under a world point (0 if no active acid) */
-    acidPercentAt(x: number, z: number, now: number): number {
+    hasAcidAt(x: number, z: number): boolean {
         const { cx, cz } = this.worldToCell(x, z);
-        if (!this.inBounds(cx, cz)) return 0;
-        const i = this.index(cx, cz);
-        if (this.acidUntil[i]! <= now) return 0;
-        return this.acidDpsPercent[i]!;
+        if (!this.inBounds(cx, cz)) return false;
+        return this.acidExpires[this.index(cx, cz)]! !== 0;
     }
 
     /** iterate active acid cell centers (for VFX — order is deterministic) */
-    forEachAcidCell(now: number, fn: (x: number, z: number, dpsPercent: number) => void): void {
+    forEachAcidCell(fn: (x: number, z: number, expiresRound: number) => void): void {
         for (let cz = 0; cz < this.cellRows; cz++) {
             for (let cx = 0; cx < this.cellCols; cx++) {
                 const i = this.index(cx, cz);
-                if (this.acidUntil[i]! <= now) continue;
+                const exp = this.acidExpires[i]!;
+                if (exp === 0) continue;
                 const c = this.cellCenter(cx, cz);
-                fn(c.x, c.z, this.acidDpsPercent[i]!);
+                fn(c.x, c.z, exp);
             }
         }
     }

@@ -1,5 +1,11 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
-import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS, livingShieldDisks } from './fire';
+import {
+    ACID_SPILL_RADIUS,
+    HazardField,
+    OIL_SPILL_DURATION_ROUNDS,
+    OIL_SPILL_RADIUS,
+    livingShieldDisks,
+} from './fire';
 import { ITEMS } from './items';
 import {
     OIL_SPILL_ID,
@@ -8,6 +14,7 @@ import {
     TACTICS,
     clampTacticEnd,
     pointInSafeZone,
+    usesSpellPlacement,
     type OilStamp,
     type RallyRoute,
     type SpellStamp,
@@ -799,7 +806,7 @@ export class ActionDispatcher {
             }
             case 'placeSpell': {
                 const tactic = TACTICS[action.tacticId];
-                if (!tactic?.spell) return false;
+                if (!tactic || !usesSpellPlacement(tactic)) return false;
                 if (tactic.targeting !== 'point' && tactic.targeting !== 'two-point') {
                     return false;
                 }
@@ -1008,11 +1015,13 @@ export class ActionDispatcher {
 /**
  * Build-phase oil field = baseline only. This round's stamps are intent until
  * {@link commitOilStamps} at battle start (ward stones cut holes then).
+ * Also resets acid to baseline — the two channels share one HazardField.
  */
 export function resetOilFieldToBaseline(
     ctx: Pick<ActionContext, 'oilField' | 'oilBaseline'>,
 ): void {
     ctx.oilField.oilExpires.set(ctx.oilBaseline.oilExpires);
+    ctx.oilField.acidExpires.set(ctx.oilBaseline.acidExpires);
     ctx.oilField.clearFire();
 }
 
@@ -1032,6 +1041,36 @@ export function commitOilStamps(
             s.endZ,
             s.radius,
             s.expiresRound,
+            shields,
+        );
+    }
+}
+
+/**
+ * Materialize this round's acid-capsule spell stamps into the field, exactly
+ * like {@link commitOilStamps} — same moment (battle start, no delay), same
+ * ward-stone punching. Call right after commitOilStamps (shares the field).
+ */
+export function commitAcidStamps(
+    ctx: Pick<ActionContext, 'spellStamps' | 'oilField' | 'placement'>,
+    round: number,
+): void {
+    const shields = livingShieldDisks(ctx.placement.allUnits());
+    ctx.oilField.clearAcidInsideShields(shields);
+    const stamps = ctx.spellStamps
+        .filter((s) => s.placedRound === round && TACTICS[s.tacticId]?.acidCapsule)
+        .sort((a, b) => a.id - b.id);
+    for (const s of stamps) {
+        const tactic = TACTICS[s.tacticId]!;
+        const radius = tactic.radius ?? ACID_SPILL_RADIUS;
+        const durationRounds = tactic.acidCapsule!.durationRounds;
+        ctx.oilField.stampAcidCapsule(
+            s.x,
+            s.z,
+            s.endX ?? s.x,
+            s.endZ ?? s.z,
+            radius,
+            round + durationRounds - 1,
             shields,
         );
     }
