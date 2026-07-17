@@ -76,10 +76,12 @@ export interface SimConfig {
      * takes environmental damage.
      */
     spellStrikes?: readonly SpellStrike[];
-    /** ticking spell zones (storm bolts, meteor shower, poison gas, acid) */
+    /** ticking spell zones (storm bolts, meteor shower, poison gas) */
     spellZones?: readonly SpellZone[];
     /** one-shot capsule ignitions (dragon breath along its flight path) */
     spellIgnites?: readonly SpellIgnite[];
+    /** one-shot acid capsule stamps — same HazardField mechanism as oil */
+    spellAcid?: readonly SpellAcidStamp[];
     /** summoned packs materialize this many seconds after the freeze (0 = normal) */
     summonDelayOf?: (unit: Unit) => number;
 }
@@ -99,16 +101,13 @@ export interface SpellZone {
     tacticId: string;
     x: number;
     z: number;
-    /** capsule zones (acid): second endpoint — effect covers the whole capsule */
-    x2?: number;
-    z2?: number;
     radius: number;
     delaySeconds: number;
     duration: number;
     interval: number;
-    /** flat damage per tick — except 'acid': % of max HP per tick */
+    /** flat damage per tick */
     damage: number;
-    mode: 'storm' | 'meteorShower' | 'poison' | 'acid';
+    mode: 'storm' | 'meteorShower' | 'poison';
     impactRadius?: number;
     igniteRadius?: number;
     seed: number;
@@ -124,6 +123,24 @@ export interface SpellIgnite {
     delaySeconds: number;
     burnSeconds: number;
     intensity: number;
+}
+
+/**
+ * Acid capsule: stamped ONCE into the HazardField (same technical mechanism
+ * as an oil spill — same capsule geometry, same "continuous per-step field
+ * read" model as oil's speed-slow) at BATTLE_START_FREEZE + delaySeconds.
+ * Not a ticking zone: the field itself carries the effect for `duration`.
+ */
+export interface SpellAcidStamp {
+    x: number;
+    z: number;
+    x2: number;
+    z2: number;
+    radius: number;
+    delaySeconds: number;
+    duration: number;
+    /** percent of max HP per second while standing in the acid */
+    dpsPercent: number;
 }
 
 /** corroded (acid) victims take this much extra damage from everything */
@@ -340,6 +357,8 @@ export class BattleSim {
     })[];
     /** scheduled capsule ignitions; each fires exactly once */
     private readonly ignites: (SpellIgnite & { at: number; fired: boolean })[];
+    /** scheduled acid capsule stamps; each fires exactly once */
+    private readonly acidStamps: (SpellAcidStamp & { at: number; fired: boolean })[];
 
     constructor(
         units: readonly Unit[],
@@ -447,6 +466,11 @@ export class BattleSim {
             at: BATTLE_START_FREEZE + f.delaySeconds,
             fired: false,
         }));
+        this.acidStamps = (config.spellAcid ?? []).map((a) => ({
+            ...a,
+            at: BATTLE_START_FREEZE + a.delaySeconds,
+            fired: false,
+        }));
 
         // canonical battle order: both peers sort into the SAME sequence
         // (host units first, each side by spawn counter, members in pack
@@ -542,19 +566,12 @@ export class BattleSim {
      * meteor-shower actually show something on the ground while active,
      * the same way oil's hazard mask stays visible for its own lifetime).
      */
-    activeZoneMarkers(): {
-        tacticId: string;
-        x: number;
-        z: number;
-        x2?: number;
-        z2?: number;
-        radius: number;
-    }[] {
+    activeZoneMarkers(): { tacticId: string; x: number; z: number; radius: number }[] {
         const out: ReturnType<BattleSim['activeZoneMarkers']> = [];
         for (const z of this.zones) {
             const startAt = BATTLE_START_FREEZE + z.delaySeconds;
             if (this.elapsed < startAt || this.elapsed > z.endAt) continue;
-            out.push({ tacticId: z.tacticId, x: z.x, z: z.z, x2: z.x2, z2: z.z2, radius: z.radius });
+            out.push({ tacticId: z.tacticId, x: z.x, z: z.z, radius: z.radius });
         }
         return out;
     }
@@ -663,6 +680,7 @@ export class BattleSim {
     /** burn DoT + standing in ground fire (both friendly-fire) */
     private stepHazards(dt: number): void {
         this.hazards.tickFire(this.elapsed);
+        this.hazards.tickAcid(this.elapsed);
         // burning cells never leave oil behind when the flames go out
         this.hazards.consumeOilUnderFire(this.elapsed);
         this.hazards.igniteOilTouchingFire(this.elapsed);
@@ -693,6 +711,20 @@ export class BattleSim {
                 a.burnUntil = 0;
                 a.burnDps = 0;
             }
+
+            // acid: continuous percent-of-max-HP damage while standing in the
+            // cell — same technical mechanism as oil's speed-slow (a per-step
+            // field read, gone the instant the unit steps off), no lingering
+            // DoT of its own. The corroded debuff (extra damage taken from
+            // EVERYTHING) is what lingers, via CORRODE_LINGER_SECONDS below.
+            if (!a.unit.type.structure) {
+                const acidPercent = this.hazards.acidPercentAt(a.x, a.z, this.elapsed);
+                if (acidPercent > 0) {
+                    const dealt = ((a.maxHp * acidPercent) / 100) * dt * this.damageTakenMult(a);
+                    this.applyBurnDamage(a, dealt);
+                    a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
+                }
+            }
         }
     }
 
@@ -722,7 +754,8 @@ export class BattleSim {
         }
     }
 
-    /** fires every scheduled spell strike whose time has come (exactly once) */
+    /** advances every scheduled spell effect whose time has come: one-shot
+     *  strikes/ignites/acid stamps (exactly once each), plus zone ticks */
     private stepSpellStrikes(): void {
         for (const s of this.strikes) {
             if (s.fired || this.elapsed < s.at) continue;
@@ -740,6 +773,22 @@ export class BattleSim {
             if (f.fired || this.elapsed < f.at) continue;
             f.fired = true;
             this.resolveIgnite(f);
+        }
+        for (const a of this.acidStamps) {
+            if (a.fired || this.elapsed < a.at) continue;
+            a.fired = true;
+            const shields = livingShieldDisks(this.actors.map((act) => act.unit));
+            this.hazards.stampAcidCapsule(
+                a.x,
+                a.z,
+                a.x2,
+                a.z2,
+                a.radius,
+                this.elapsed,
+                a.duration,
+                a.dpsPercent,
+                shields,
+            );
         }
     }
 
@@ -774,34 +823,8 @@ export class BattleSim {
         this.hazards.igniteOilTouchingFire(this.elapsed);
     }
 
-    /** distance from a point to the zone's center (point) or spine (capsule) */
-    private zoneDistance(z: SpellZone, x: number, zz: number): number {
-        if (z.x2 === undefined || z.z2 === undefined) {
-            return hypot(x - z.x, zz - z.z);
-        }
-        const dx = z.x2 - z.x;
-        const dz = z.z2 - z.z;
-        const len2 = dx * dx + dz * dz;
-        const t =
-            len2 < 1e-9
-                ? 0
-                : Math.max(0, Math.min(1, ((x - z.x) * dx + (zz - z.z) * dz) / len2));
-        return hypot(x - (z.x + dx * t), zz - (z.z + dz * t));
-    }
-
-    /** one tick of a storm / meteor shower / poison / acid zone */
+    /** one tick of a storm / meteor shower / poison zone (all point-targeted) */
     private tickSpellZone(z: (typeof this.zones)[number]): void {
-        if (z.mode === 'acid') {
-            // % of max HP per tick + the corroded debuff (extra damage taken)
-            for (const a of this.actors) {
-                if (!a.alive || a.unit.type.extra || a.unit.type.structure) continue;
-                if (a.altitude > 0) continue; // acid pools on the ground
-                if (this.zoneDistance(z, a.x, a.z) > z.radius + a.radius) continue;
-                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
-                this.applyBurnDamage(a, (a.maxHp * z.damage) / 100);
-            }
-            return;
-        }
         if (z.mode === 'storm') {
             // one lightning bolt at a random unit inside — canonical actor
             // order + the zone's own rng keep the pick deterministic

@@ -2361,6 +2361,24 @@ export class Game {
                   ]
                 : [];
         });
+        const spellAcid = pendingSpells.flatMap((s) => {
+            const spell = TACTICS[s.tacticId]?.spell;
+            const acid = spell?.acidCapsule;
+            return acid && s.endX !== undefined && s.endZ !== undefined
+                ? [
+                      {
+                          x: s.x,
+                          z: s.z,
+                          x2: s.endX,
+                          z2: s.endZ,
+                          radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
+                          delaySeconds: spell.delaySeconds,
+                          duration: acid.duration,
+                          dpsPercent: acid.dpsPercent,
+                      },
+                  ]
+                : [];
+        });
         const spellIgnites = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             const ignite = spell?.igniteCapsule;
@@ -2402,6 +2420,7 @@ export class Game {
             spellStrikes,
             spellZones,
             spellIgnites,
+            spellAcid,
             summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
         });
         // the sync point: both peers hash the identical battle-start state

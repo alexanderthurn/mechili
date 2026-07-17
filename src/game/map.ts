@@ -517,7 +517,7 @@ export class BattleMap {
         z: number,
         radius: number,
         strength: number,
-        channel: 'r' | 'g',
+        channel: 'r' | 'g' | 'b',
     ): void {
         const ctx = this.hazardCtx;
         if (!ctx || !this.hazardMask) return;
@@ -540,6 +540,7 @@ export class BattleMap {
                 now: number,
                 fn: (x: number, z: number, dps: number, until: number) => void,
             ) => void;
+            forEachAcidCell: (now: number, fn: (x: number, z: number, dpsPercent: number) => void) => void;
             forEachCapsuleCells: (
                 ax: number,
                 az: number,
@@ -574,6 +575,10 @@ export class BattleMap {
         field.forEachFireCell(now, (x, z) => {
             this.stampHazardChannel(x, z, cellR, 0.7, 'g');
             this.stampHazardChannel(x, z, cellR * 1.4, 0.3, 'g');
+        });
+        field.forEachAcidCell(now, (x, z) => {
+            this.stampHazardChannel(x, z, cellR, 0.6, 'b');
+            this.stampHazardChannel(x, z, cellR * 1.35, 0.25, 'b');
         });
         if (draft) {
             field.forEachCapsuleCells(
@@ -664,15 +669,19 @@ export class BattleMap {
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
             }
-            // oil / fire — always, gameplay-readable on every quality setting
+            // oil / fire / acid — always, gameplay-readable on every quality setting
             inject +=
                 '\tvec3 haz = texture2D(uHazardMask, vMacroUv).rgb;\n' +
                 '\tfloat oilM = smoothstep(0.06, 0.4, haz.r);\n' +
                 '\tfloat fireM = smoothstep(0.08, 0.45, haz.g);\n' +
+                '\tfloat acidM = smoothstep(0.06, 0.4, haz.b);\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.04, 0.03, 0.015), oilM * 0.92);\n' +
                 '\tfloat flicker = 0.65 + 0.35 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
                 '\tvec3 fireCol = mix(vec3(0.08, 0.02, 0.0), vec3(1.0, 0.35, 0.05), flicker);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, fireCol, fireM * 0.9);\n';
+                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, fireCol, fireM * 0.9);\n' +
+                '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
+                '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
+                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
             inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
             shader.fragmentShader =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +

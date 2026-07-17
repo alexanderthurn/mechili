@@ -115,26 +115,23 @@ export class SpellVisuals {
     }
 
     /**
-     * Battle-time ground marker for zone spells CURRENTLY ticking (acid,
-     * poison, storm, meteor shower) — called every battle frame, same as
-     * oil's hazard mask stays visible for its own active lifetime. Point
-     * strikes (hammer/meteor/dragon) don't need this: strikes read from their
-     * impact burst, and dragon's capsule already shows via the fire/oil
-     * hazard mask once it ignites.
+     * Battle-time ground marker for zone spells CURRENTLY ticking (poison,
+     * storm, meteor shower) — called every battle frame, same as oil's
+     * hazard mask stays visible for its own active lifetime. Acid doesn't
+     * need this: it's a real HazardField channel now (same mechanism as
+     * oil), so it already paints onto the ground texture itself every
+     * frame via map.syncHazardFromField. Point strikes (hammer/meteor/
+     * dragon) don't need this either: strikes read from their impact
+     * burst, and dragon's capsule shows via the fire/oil hazard mask.
      */
     syncActiveZones(
-        markers: readonly { tacticId: string; x: number; z: number; x2?: number; z2?: number; radius: number }[],
+        markers: readonly { tacticId: string; x: number; z: number; radius: number }[],
         now: number,
     ): void {
         this.clear();
         // gentle pulse so an active zone reads as "alive", not a flat decal
         const pulse = 0.75 + 0.25 * Math.sin(now * 3.2);
         for (const m of markers) {
-            if (m.tacticId === ACID_ID && m.x2 !== undefined && m.z2 !== undefined) {
-                const tint = CAPSULE_TINTS[ACID_ID]!;
-                addCapsuleOutline(this.group, m.x, m.z, m.x2, m.z2, m.radius, false, tint.fill, tint.line);
-                continue;
-            }
             if (m.tacticId === POISON_CLOUD_ID) {
                 this.addCircle(m.x, m.z, m.radius, 0x7ec850, 0.26 * pulse, 0.9);
                 continue;

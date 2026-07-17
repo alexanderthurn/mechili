@@ -91,20 +91,18 @@ export const TACTICS: Record<
             /** battle-only summons scattered in the circle */
             spawn?: { typeId: string; count: number };
             /**
-             * Ticking area effect running `duration` seconds after the delay:
-             * 'storm' zaps one random unit per tick (wards absorb per bolt);
-             * 'meteorShower' drops a small strike on a random spot per tick
-             * (+ ignites fire); 'poison' damages every unit inside per tick —
-             * gas ignores wards, unit types with `poisonImmune` shrug it off;
-             * 'acid' burns a PERCENT of max HP per tick and leaves victims
-             * corroded (taking bonus damage). Two-point tactics run the zone
-             * over the whole capsule.
+             * Ticking area effect running `duration` seconds after the delay,
+             * point-targeted only: 'storm' zaps one random unit per tick
+             * (wards absorb per bolt); 'meteorShower' drops a small strike on
+             * a random spot per tick (+ ignites fire); 'poison' damages every
+             * unit inside per tick — gas ignores wards, unit types with
+             * `poisonImmune` shrug it off.
              */
             zone?: {
-                mode: 'storm' | 'meteorShower' | 'poison' | 'acid';
+                mode: 'storm' | 'meteorShower' | 'poison';
                 duration: number;
                 interval: number;
-                /** flat damage per tick — except 'acid': % of max HP per tick */
+                /** flat damage per tick */
                 damage: number;
                 /** meteorShower: splash radius per impact */
                 impactRadius?: number;
@@ -114,6 +112,15 @@ export const TACTICS: Record<
             /** two-point: set the whole capsule ablaze once at the delay
              *  (dragon breath — the capsule is the flight path) */
             igniteCapsule?: { burnSeconds: number; intensity: number };
+            /**
+             * two-point: stamp the capsule into the GROUND HAZARD FIELD once
+             * at the delay — the exact same technical mechanism as an oil
+             * spill (same capsule geometry, same continuous per-step field
+             * read as oil's speed-slow), just a different per-step effect:
+             * percent-of-max-HP damage instead of a speed penalty, plus the
+             * corroded debuff (extra damage taken from everything) while in it.
+             */
+            acidCapsule?: { duration: number; dpsPercent: number };
         };
         /** oil spill only */
         oilRadius?: number;
@@ -253,11 +260,12 @@ export const TACTICS: Record<
         radius: OIL_SPILL_RADIUS,
         spell: {
             delaySeconds: 1,
-            // 1.5% of max HP per 0.5s tick = 3%/s, plus the corroded debuff
-            zone: { mode: 'acid', duration: 10, interval: 0.5, damage: 1.5 },
+            // stamped into the ground hazard field ONCE, same as oil — 3% of
+            // max HP per second while standing in it, plus the corroded debuff
+            acidCapsule: { duration: 10, dpsPercent: 3 },
         },
         description:
-            'Pour an acid capsule like an oil spill. Units inside sizzle for a share of their max HP every second and turn corroded — taking extra damage from everything.',
+            'Pour an acid capsule like an oil spill — it lands on the ground exactly like oil. Units standing in it sizzle for a share of their max HP every second and turn corroded — taking extra damage from everything.',
     },
     [DRAGON_ID]: {
         id: DRAGON_ID,
