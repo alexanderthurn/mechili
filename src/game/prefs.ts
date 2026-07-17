@@ -52,20 +52,27 @@ export interface Prefs {
      */
     dprCap: 2 | 1.5 | 1;
     /**
-     * Who casts unit shadows from the instance pools.
-     * Scenery / ground shadows are unchanged.
+     * Sun shadow quality (visual only).
+     * - off: no shadows
+     * - low: blob discs under units (no shadow-map pass)
+     * - medium: 1024 hard map, structures only
+     * - high: 2048 soft map, all units
+     * - ultra: up to 4096 soft map, all units, wider penumbra
      */
-    unitShadows: 'all' | 'structures' | 'off';
+    shadows: ShadowQuality;
     /** When false, dead/wrecked mechs are not drawn (still revive next round). */
     renderDeadUnits: boolean;
 }
+
+/** Sun shadow map quality (visual only). */
+export type ShadowQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 
 /** One-click graphics bundles (common game pattern: Low → Ultra). */
 export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
 
 export type GraphicsPresetValues = Pick<
     Prefs,
-    'scenery' | 'groundEffects' | 'fireVfx' | 'dprCap' | 'unitShadows' | 'renderDeadUnits'
+    'scenery' | 'groundEffects' | 'fireVfx' | 'dprCap' | 'shadows' | 'renderDeadUnits'
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
@@ -74,7 +81,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'low',
         fireVfx: 'low',
         dprCap: 1,
-        unitShadows: 'off',
+        shadows: 'low',
         renderDeadUnits: false,
     },
     medium: {
@@ -82,7 +89,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'medium',
         fireVfx: 'medium',
         dprCap: 1.5,
-        unitShadows: 'all',
+        shadows: 'medium',
         renderDeadUnits: false,
     },
     high: {
@@ -90,7 +97,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'high',
         fireVfx: 'medium',
         dprCap: 2,
-        unitShadows: 'all',
+        shadows: 'high',
         renderDeadUnits: true,
     },
     ultra: {
@@ -98,7 +105,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'high',
         fireVfx: 'high',
         dprCap: 2,
-        unitShadows: 'all',
+        shadows: 'ultra',
         renderDeadUnits: true,
     },
 };
@@ -112,7 +119,7 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
             p.groundEffects === v.groundEffects &&
             p.fireVfx === v.fireVfx &&
             p.dprCap === v.dprCap &&
-            p.unitShadows === v.unitShadows &&
+            p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits
         ) {
             return id;
@@ -133,7 +140,7 @@ const DEFAULTS: Prefs = {
     groundEffects: 'high',
     fireVfx: 'medium',
     dprCap: 2,
-    unitShadows: 'all',
+    shadows: 'high',
     renderDeadUnits: true,
 };
 
@@ -161,10 +168,24 @@ function migrateFireVfx(raw: unknown): FireVfxQuality {
     return DEFAULTS.fireVfx;
 }
 
-function normalizePrefs(p: Prefs): Prefs {
+function migrateShadowQuality(raw: unknown): ShadowQuality {
+    if (raw === 'off' || raw === 'low' || raw === 'medium' || raw === 'high' || raw === 'ultra') {
+        return raw;
+    }
+    if (raw === 'structures') return 'low';
+    if (raw === 'all') return 'high';
+    return DEFAULTS.shadows;
+}
+
+function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.scenery = migrateScenery(p.scenery);
     p.groundEffects = migrateGroundEffects(p.groundEffects);
     p.fireVfx = migrateFireVfx(p.fireVfx);
+    if (p.shadows === undefined && p.unitShadows !== undefined) {
+        p.shadows = migrateShadowQuality(p.unitShadows);
+    }
+    p.shadows = migrateShadowQuality(p.shadows);
+    delete p.unitShadows;
     if (
         p.fireVfx !== 'high' &&
         p.fireVfx !== 'medium' &&
@@ -174,8 +195,14 @@ function normalizePrefs(p: Prefs): Prefs {
         p.fireVfx = DEFAULTS.fireVfx;
     }
     if (p.dprCap !== 2 && p.dprCap !== 1.5 && p.dprCap !== 1) p.dprCap = 2;
-    if (p.unitShadows !== 'all' && p.unitShadows !== 'structures' && p.unitShadows !== 'off') {
-        p.unitShadows = 'all';
+    if (
+        p.shadows !== 'off' &&
+        p.shadows !== 'low' &&
+        p.shadows !== 'medium' &&
+        p.shadows !== 'high' &&
+        p.shadows !== 'ultra'
+    ) {
+        p.shadows = DEFAULTS.shadows;
     }
     if (typeof p.renderDeadUnits !== 'boolean') p.renderDeadUnits = true;
     return p;
@@ -191,11 +218,50 @@ export function sceneryWeatherFx(quality: SceneryQuality = prefs().scenery): boo
     return quality !== 'off';
 }
 
-/** Shadow-map edge length for the current scenery tier. */
+/** Shadow-map edge length for the current scenery tier (upper cap for shadows). */
 export function sceneryShadowMapSize(quality: SceneryQuality = prefs().scenery): number {
     if (quality === 'ultra' || quality === 'high') return 4096;
     if (quality === 'medium') return 2048;
     return 1024;
+}
+
+/** Effective sun shadow-map resolution for a shadow tier + scenery cap. */
+export function shadowMapSize(
+    tier: ShadowQuality = prefs().shadows,
+    scenery: SceneryQuality = prefs().scenery,
+): number {
+    const cap = sceneryShadowMapSize(scenery);
+    switch (tier) {
+        case 'medium':
+            return Math.min(1024, cap);
+        case 'high':
+            return Math.min(2048, cap);
+        case 'ultra':
+            return cap;
+        default:
+            return 512;
+    }
+}
+
+/** True when units get cheap ground discs (low: all units; medium: units the
+ *  shadow map skips — only structures cast there). */
+export function shadowUsesBlobs(tier: ShadowQuality = prefs().shadows): boolean {
+    return tier === 'low' || tier === 'medium';
+}
+
+/** True when the directional-light shadow map is rendered. */
+export function shadowUsesMap(tier: ShadowQuality = prefs().shadows): boolean {
+    return tier === 'medium' || tier === 'high' || tier === 'ultra';
+}
+
+/** PCF soft penumbra radius (high / ultra only). */
+export function shadowSoftRadius(tier: ShadowQuality = prefs().shadows): number {
+    return tier === 'ultra' ? 4 : 2;
+}
+
+/** Shadow-map refresh stride — medium updates every other frame to save GPU. */
+export function shadowUpdateStride(tier: ShadowQuality = prefs().shadows): number {
+    return tier === 'medium' ? 2 : 1;
 }
 
 /**
@@ -237,11 +303,15 @@ export function prefs(): Prefs {
                 const stored = JSON.parse(raw) as Partial<Prefs> & {
                     muteChat?: boolean;
                     scenery?: unknown;
+                    unitShadows?: unknown;
                 };
                 Object.assign(cached, stored);
                 cached.scenery = migrateScenery(stored.scenery);
                 cached.groundEffects = migrateGroundEffects(stored.groundEffects);
                 cached.fireVfx = migrateFireVfx(stored.fireVfx);
+                if (stored.shadows === undefined && stored.unitShadows !== undefined) {
+                    cached.shadows = migrateShadowQuality(stored.unitShadows);
+                }
                 // migrate the old "mute opponent chat" flag
                 if (stored.muteChat !== undefined && stored.combatChat === undefined) {
                     cached.combatChat = !stored.muteChat;

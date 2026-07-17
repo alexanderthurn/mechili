@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
 import {
+    BasicShadowMap,
     Color,
     DirectionalLight,
     Fog,
@@ -10,6 +11,7 @@ import {
     WebGLRenderer,
     type Mesh,
     type Object3D,
+    type ShadowMapType,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
@@ -39,6 +41,7 @@ import {
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
+import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
@@ -48,13 +51,18 @@ import {
     prefs,
     effectiveDpr,
     sceneryDetailed,
-    sceneryShadowMapSize,
     sceneryCameraFar,
     sceneryHeightFog,
     sceneryWeatherFx,
+    shadowMapSize,
+    shadowSoftRadius,
+    shadowUpdateStride,
+    shadowUsesBlobs,
+    shadowUsesMap,
     type FireVfxQuality,
     type GroundEffectsQuality,
     type SceneryQuality,
+    type ShadowQuality,
 } from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
 import { Scenery } from './scenery';
@@ -144,6 +152,9 @@ export class Game {
     /** currently APPLIED scenery / ground-effects prefs (may differ until rebuild) */
     private appliedScenery: SceneryQuality = prefs().scenery;
     private appliedGroundEffects: GroundEffectsQuality = prefs().groundEffects;
+    private appliedShadows: ShadowQuality = prefs().shadows;
+    private readonly blobShadows: BlobShadows;
+    private shadowMapFrame = 0;
     private readonly rallyVisuals: RallyVisuals;
     private gridOverlay;
     private time = 0;
@@ -334,8 +345,6 @@ export class Game {
         this.enemyHp = settings.startingHp;
         this.renderer = new WebGLRenderer({ canvas: threeCanvas, antialias: true });
         this.renderer.setPixelRatio(effectiveDpr());
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = PCFSoftShadowMap;
 
         this.scene.background = new Color(THEME.sky);
         // scenery 'off' plays without any fog or weather
@@ -356,9 +365,6 @@ export class Game {
         this.scene.add(hemi);
         const sun = new DirectionalLight(THEME.sun, THEME.sunIntensity);
         sun.position.set(120, 160, 80);
-        sun.castShadow = true;
-        const shadowRes = sceneryShadowMapSize();
-        sun.shadow.mapSize.set(shadowRes, shadowRes);
         // a bit stronger than the Three default (1) so packs/towers read clearly on the grass
         sun.shadow.intensity = 1.55;
         // frustum reaches past the field so the tree ring casts onto its edges
@@ -372,6 +378,7 @@ export class Game {
 
         this.sun = sun;
         this.hemi = hemi;
+        this.blobShadows = new BlobShadows(this.scene);
         this.groundMesh = this.map.createMesh();
         this.scene.add(this.groundMesh);
         this.scenery = new Scenery(this.map);
@@ -386,6 +393,7 @@ export class Game {
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
+        this.applyShadowQuality();
         this.battleRangeMesh = createRangeRing(this.scene);
 
         // input listens on the Pixi canvas — it's the top-most surface
@@ -684,12 +692,116 @@ export class Game {
             this.renderer.setPixelRatio(dpr);
             this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
         }
-        this.unitInstances.applyShadowPref(prefs().unitShadows);
+        this.unitInstances.applyShadowPref(prefs().shadows);
         this.unitInstances.applyDeadPref(prefs().renderDeadUnits);
+        this.applyShadowQuality();
         const fireVfx = prefs().fireVfx;
         if (fireVfx !== this.appliedFireVfx) {
             this.appliedFireVfx = fireVfx;
             this.fireFx.setQuality(fireVfx);
+        }
+    }
+
+    /** Live-applies sun shadow map type, resolution, blob discs, and unit casters. */
+    private applyShadowQuality(): void {
+        const tier = prefs().shadows;
+        const scenery = prefs().scenery;
+        const useMap = shadowUsesMap(tier);
+        const useBlobs = shadowUsesBlobs(tier);
+        const wasMap = this.renderer.shadowMap.enabled;
+        const prevType = this.renderer.shadowMap.type;
+
+        this.renderer.shadowMap.enabled = useMap;
+        this.sun.castShadow = useMap;
+        this.blobShadows.setEnabled(useBlobs);
+        this.shadowMapFrame = 0;
+
+        if (useMap) {
+            const type: ShadowMapType =
+                tier === 'medium' ? BasicShadowMap : PCFSoftShadowMap;
+            this.renderer.shadowMap.type = type;
+
+            const res = shadowMapSize(tier, scenery);
+            if (this.sun.shadow.mapSize.x !== res) {
+                this.sun.shadow.mapSize.set(res, res);
+                this.sun.shadow.map?.dispose();
+                this.sun.shadow.map = null;
+            }
+
+            this.sun.shadow.radius =
+                tier === 'high' || tier === 'ultra' ? shadowSoftRadius(tier) : 1;
+            // stronger than the constructor default so unit shadows read
+            // clearly on the bright grass (blob discs set the reference look)
+            this.sun.shadow.intensity = 1.85;
+            this.sun.shadow.autoUpdate = shadowUpdateStride(tier) === 1;
+            this.sun.shadow.needsUpdate = true;
+        }
+
+        // three bakes shadow receiving/filtering into compiled shaders — a
+        // pass on/off toggle or filter change needs a material recompile
+        if (wasMap !== useMap || (useMap && prevType !== this.renderer.shadowMap.type)) {
+            this.scene.traverse((o) => {
+                const m = (o as Mesh).material as
+                    | import('three').Material
+                    | import('three').Material[]
+                    | undefined;
+                if (!m) return;
+                for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
+            });
+        }
+
+        this.unitInstances.applyShadowPref(tier);
+        this.appliedShadows = tier;
+    }
+
+    private updateBlobShadows(): void {
+        if (!shadowUsesBlobs()) {
+            return;
+        }
+        const sources: BlobShadowSource[] = [];
+        if (this.sim && this.phase === 'battle') {
+            for (const a of this.sim.actors) {
+                if (!a.alive) continue;
+                const t = a.unit.type;
+                if (t.structure || t.extra) continue;
+                // flyers keep a (smaller) disc projected onto the ground below them
+                const flying = a.altitude > 0;
+                sources.push({
+                    x: a.rx,
+                    z: a.rz,
+                    radius: Math.max(0.7, a.radius * (flying ? 0.9 : 1.15)),
+                });
+            }
+        } else {
+            for (const unit of this.placement.allUnits()) {
+                if (!unit.revealed || unit.consumed || unit.destroyed) continue;
+                const t = unit.type;
+                if (t.structure || t.extra) continue;
+                // packs are several mechs — one disc per member, not per pack
+                for (const p of unit.memberWorldPositions()) {
+                    sources.push({
+                        x: p.x,
+                        z: p.z,
+                        radius: Math.max(0.7, t.collisionRadius * 1.15),
+                    });
+                }
+            }
+        }
+        this.blobShadows.sync(sources);
+    }
+
+    /** Throttled shadow-map refresh for the Medium tier. */
+    private tickShadowMapUpdate(): void {
+        if (!shadowUsesMap()) return;
+        const stride = shadowUpdateStride();
+        if (stride === 1) {
+            this.sun.shadow.autoUpdate = true;
+            return;
+        }
+        this.sun.shadow.autoUpdate = false;
+        this.shadowMapFrame = (this.shadowMapFrame + 1) % stride;
+        if (this.shadowMapFrame === 0) {
+            this.sun.shadow.needsUpdate = true;
         }
     }
 
@@ -756,10 +868,7 @@ export class Game {
         }
 
         // shadow resolution (force the render target to reallocate)
-        const res = sceneryShadowMapSize(scenery);
-        this.sun.shadow.mapSize.set(res, res);
-        this.sun.shadow.map?.dispose();
-        this.sun.shadow.map = null;
+        this.applyShadowQuality();
 
         this.rig.setWorldFar(sceneryCameraFar(scenery));
 
@@ -786,6 +895,7 @@ export class Game {
         for (const dispose of this.inputDisposers) dispose();
         this.inputDisposers.length = 0;
         this.placement.dispose();
+        this.blobShadows.dispose();
         this.unitInstances.dispose();
         setUnitInstanceRenderer(null);
         this.rallyVisuals.dispose();
@@ -2287,6 +2397,8 @@ export class Game {
         this.unitInstances.sync();
         if (profile) cpu.end('instances');
         if (profile) cpu.begin();
+        this.updateBlobShadows();
+        this.tickShadowMapUpdate();
         this.updateSandWear();
         this.updateSelectionUi();
         this.drainRemoteQueue();

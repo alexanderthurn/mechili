@@ -192,11 +192,11 @@ export class UnitInstanceRenderer {
         return { pools: lines.length, instances, lines };
     }
 
-    /** Live-apply the unit-shadows pref to every pool (and new pools pick it up). */
-    applyShadowPref(mode: Prefs['unitShadows'] = prefs().unitShadows): void {
+    /** Live-apply the shadows pref to every pool (and new pools pick it up). */
+    applyShadowPref(tier: Prefs['shadows'] = prefs().shadows): void {
         for (const [key, pool] of this.pools) {
             const typeId = key.split(':')[0]!;
-            const cast = unitShadowCast(typeId, mode);
+            const cast = unitShadowCast(typeId, tier);
             for (const mesh of pool.parts) mesh.castShadow = cast;
         }
     }
@@ -284,10 +284,10 @@ function poolKey(typeId: string, team: Team, life: 'alive' | 'dead'): PoolKey {
     return `${typeId}:${team}:${life}`;
 }
 
-function unitShadowCast(typeId: string, mode: Prefs['unitShadows']): boolean {
-    if (mode === 'off') return false;
-    if (mode === 'all') return true;
-    return STRUCTURE_IDS.has(typeId);
+function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
+    if (tier === 'off' || tier === 'low') return false;
+    if (tier === 'medium') return STRUCTURE_IDS.has(typeId);
+    return true;
 }
 
 function makeInstanced(part: InstancePart, typeId: string): InstancedMesh {
@@ -296,7 +296,7 @@ function makeInstanced(part: InstancePart, typeId: string): InstancedMesh {
     const mesh = new InstancedMesh(part.geometry.clone(), mat, POOL_CAPACITY);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
-    mesh.castShadow = unitShadowCast(typeId, prefs().unitShadows);
+    mesh.castShadow = unitShadowCast(typeId, prefs().shadows);
     mesh.receiveShadow = true;
     mesh.count = 0;
     // allocate instanceColor buffer up front

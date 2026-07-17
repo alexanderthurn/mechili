@@ -59,11 +59,13 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="1.5">Medium</option>` +
         `<option value="1">Low</option>` +
         `</select> <span class="s-hint">pixel density</span></label>` +
-        `<label class="s-row">Unit shadows <select class="s-unit-shadows">` +
-        `<option value="all">All</option>` +
-        `<option value="structures">Structures</option>` +
+        `<label class="s-row">Shadows <select class="s-shadows">` +
+        `<option value="ultra">Ultra</option>` +
+        `<option value="high">High</option>` +
+        `<option value="medium">Medium</option>` +
+        `<option value="low">Low</option>` +
         `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">cast shadows</span></label>` +
+        `</select> <span class="s-hint">blobs / sun map</span></label>` +
         `<label class="s-row"><input type="checkbox" class="s-dead" /> Show dead units</label>` +
         `</section>` +
         `<div class="actions"><button type="button" class="primary" data-act="close">Close</button></div>` +
@@ -75,7 +77,7 @@ export function openSettings(parent: HTMLElement): void {
     const ground = overlay.querySelector<HTMLSelectElement>('.s-ground')!;
     const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;
-    const unitShadows = overlay.querySelector<HTMLSelectElement>('.s-unit-shadows')!;
+    const shadows = overlay.querySelector<HTMLSelectElement>('.s-shadows')!;
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
     const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset')];
 
@@ -87,7 +89,7 @@ export function openSettings(parent: HTMLElement): void {
         ground.value = p.groundEffects;
         fire.value = p.fireVfx;
         dpr.value = String(p.dprCap);
-        unitShadows.value = p.unitShadows;
+        shadows.value = p.shadows;
         dead.checked = p.renderDeadUnits;
         const active = detectGraphicsPreset(p);
         for (const button of presetButtons) {
@@ -119,8 +121,8 @@ export function openSettings(parent: HTMLElement): void {
         updatePrefs({ dprCap: Number(dpr.value) as Prefs['dprCap'] });
         syncFromPrefs();
     });
-    unitShadows.addEventListener('change', () => {
-        updatePrefs({ unitShadows: unitShadows.value as Prefs['unitShadows'] });
+    shadows.addEventListener('change', () => {
+        updatePrefs({ shadows: shadows.value as Prefs['shadows'] });
         syncFromPrefs();
     });
     dead.addEventListener('change', () => {
