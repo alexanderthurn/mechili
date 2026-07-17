@@ -26,6 +26,8 @@ const EXIT_SEC = 0.9;
 const DROP_HEIGHT = 128;
 /** visual size of the mesh (independent of the zone rect — tune separately) */
 const MESH_SCALE = 96;
+/** rest height above terrain — keeps the head from burying (local y=0 is bbox bottom) */
+const LAND_LIFT = MESH_SCALE * 0.42;
 
 type Phase = 'fall' | 'hold' | 'exit';
 
@@ -90,22 +92,23 @@ export class HammerFx {
             if (s.phase === 'fall') {
                 const u = MathUtils.clamp((simElapsed - fallStart) / HAMMER_SWING_SEC, 0, 1);
                 const e = u * u * u;
-                s.root.position.y = s.groundY + DROP_HEIGHT * (1 - e);
+                s.root.position.y = s.groundY + LAND_LIFT + (DROP_HEIGHT - LAND_LIFT) * (1 - e);
                 s.root.scale.setScalar(MESH_SCALE);
                 if (u >= 1) {
                     s.phase = 'hold';
-                    s.root.position.y = s.groundY;
+                    s.root.position.y = s.groundY + LAND_LIFT;
                 }
             } else if (s.phase === 'hold') {
                 const holdT = MathUtils.clamp((simElapsed - s.cue.at) / HOLD_SEC, 0, 1);
                 const squash = 1 - 0.12 * Math.sin(holdT * Math.PI);
                 s.root.scale.set(MESH_SCALE * (2 - squash), MESH_SCALE * squash, MESH_SCALE * (2 - squash));
-                s.root.position.y = s.groundY;
+                // squash toward the ground contact — don't let Y-scale pull the head underground
+                s.root.position.y = s.groundY + LAND_LIFT * squash;
                 if (holdT >= 1) s.phase = 'exit';
             } else {
                 const exitT = MathUtils.clamp((simElapsed - s.cue.at - HOLD_SEC) / EXIT_SEC, 0, 1);
                 const lift = exitT * exitT;
-                s.root.position.y = s.groundY + lift * 28;
+                s.root.position.y = s.groundY + LAND_LIFT + lift * 28;
                 s.root.scale.setScalar(MESH_SCALE * (1 - 0.35 * exitT));
                 const opacity = 1 - exitT;
                 for (const m of s.materials) {

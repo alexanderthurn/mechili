@@ -43,7 +43,10 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
+import { CloudFx } from './cloudFx';
+import { DragonFx, DRAGON_APPROACH_SEC } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
+import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
@@ -74,6 +77,8 @@ import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVi
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
 import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
+    BIG_METEOR_ID,
+    DRAGON_ID,
     HAMMER_ID,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
@@ -157,6 +162,9 @@ export class Game {
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly hammerFx: HammerFx;
+    private readonly meteorFx: MeteorFx;
+    private readonly cloudFx: CloudFx;
+    private readonly dragonFx: DragonFx;
     private readonly oilVisuals: OilVisuals;
     private readonly oilField = new HazardField();
     private readonly oilBaseline = new HazardField();
@@ -418,6 +426,9 @@ export class Game {
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
         this.hammerFx = new HammerFx(this.scene);
+        this.meteorFx = new MeteorFx(this.scene);
+        this.cloudFx = new CloudFx(this.scene);
+        this.dragonFx = new DragonFx(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
@@ -930,6 +941,9 @@ export class Game {
         this.rallyVisuals.dispose();
         this.spellVisuals.dispose();
         this.hammerFx.dispose();
+        this.meteorFx.dispose();
+        this.cloudFx.dispose();
+        this.dragonFx.dispose();
         this.controls.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
@@ -1637,6 +1651,7 @@ export class Game {
             armed: boolean;
             placed?: boolean;
             routeId?: number;
+            cooldown?: number;
             hint?: string;
         }[] = [];
 
@@ -1684,7 +1699,9 @@ export class Game {
                       )
                     : [];
                 placedEntries = [
-                    ...placements.map((p) => ({ routeId: p.id })),
+                    ...placements.map((p) => ({
+                        routeId: p.id,
+                    })),
                     ...cooling.map((s) => {
                         const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
                         return {
@@ -1728,6 +1745,7 @@ export class Game {
                     name: `${tactic.name} — ${tactic.kind === 'placement' ? 'placed' : 'used'}`,
                     armed: false,
                     placed: true,
+                    cooldown: tactic.cooldownRounds,
                     ...p,
                 });
             }
@@ -1738,10 +1756,11 @@ export class Game {
                     name: `${tactic.name} — ${tactic.description}`,
                     // only ONE entry lights up — a click arms a single charge
                     armed: this.armedTactic === tactic.id && i === 0,
+                    cooldown: tactic.cooldownRounds,
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
                         tactic.kind === 'oneShot'
-                            ? `${tactic.name}\n${tactic.description} Right-click to cancel.`
+                            ? `${tactic.name}\n${tactic.description}\nRight-click to cancel.`
                             : undefined,
                 });
             }
@@ -2395,6 +2414,8 @@ export class Game {
         );
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
+        // drop deploy-phase stamps — battle uses charge/zone markers instead
+        this.spellVisuals.clear();
         // battle spells: summons join the board BEFORE the sim snapshots units;
         // strikes go into the sim's schedule. Sorted by stamp id so both peers
         // spawn in the same order (unit ids must match exactly).
@@ -2421,7 +2442,7 @@ export class Game {
                   ]
                 : [];
         });
-        // visual-only: drop anticipates the sim strike so impact coincides with damage
+        // visual-only: hammer drop anticipates the sim strike so impact coincides
         const hammerCues = pendingSpells
             .filter((s) => s.tacticId === HAMMER_ID)
             .map((s) => {
@@ -2430,15 +2451,132 @@ export class Game {
                 return { x: s.x, z: s.z, at, yaw: s.yaw ?? 0 };
             });
         this.hammerFx.schedule(hammerCues);
-        this.spellChargeMarkers = hammerCues.map((c) => ({
-            tacticId: HAMMER_ID,
-            x: c.x,
-            z: c.z,
-            radius: TACTICS[HAMMER_ID]!.radius ?? 24,
-            at: c.at,
-            readyAt: c.at - HAMMER_SWING_SEC,
-            yaw: c.yaw,
-        }));
+        // Great Meteor drop
+        this.meteorFx.scheduleGreat(
+            pendingSpells
+                .filter((s) => s.tacticId === BIG_METEOR_ID)
+                .map((s) => {
+                    const spell = TACTICS[BIG_METEOR_ID]!.spell!;
+                    return {
+                        x: s.x,
+                        z: s.z,
+                        at: BATTLE_START_FREEZE + spell.delaySeconds,
+                    };
+                }),
+        );
+        // Storm / poison hovering clouds for the zone lifetime
+        this.cloudFx.schedule(
+            pendingSpells.flatMap((s) => {
+                const spell = TACTICS[s.tacticId]?.spell;
+                const zone = spell?.zone;
+                if (!zone || (zone.mode !== 'storm' && zone.mode !== 'poison')) return [];
+                const startAt = BATTLE_START_FREEZE + spell.delaySeconds;
+                return [
+                    {
+                        kind: zone.mode,
+                        x: s.x,
+                        z: s.z,
+                        radius: TACTICS[s.tacticId]?.radius ?? 28,
+                        startAt,
+                        endAt: startAt + zone.duration,
+                    },
+                ];
+            }),
+        );
+        // Dragon flyover along the capsule
+        this.dragonFx.schedule(
+            pendingSpells.flatMap((s) => {
+                if (s.tacticId !== DRAGON_ID || s.endX === undefined || s.endZ === undefined) {
+                    return [];
+                }
+                const spell = TACTICS[DRAGON_ID]!.spell!;
+                return [
+                    {
+                        x: s.x,
+                        z: s.z,
+                        x2: s.endX,
+                        z2: s.endZ,
+                        at: BATTLE_START_FREEZE + spell.delaySeconds,
+                    },
+                ];
+            }),
+        );
+        // charge markers: outer + growing inner until readyAt, then gone
+        // (zones keep a pulsing ring via activeZoneMarkers after readyAt)
+        this.spellChargeMarkers = pendingSpells.flatMap((s) => {
+            const tactic = TACTICS[s.tacticId];
+            const spell = tactic?.spell;
+            if (!spell) return [];
+            const at = BATTLE_START_FREEZE + spell.delaySeconds;
+            const radius = tactic.radius ?? 8;
+            if (s.tacticId === HAMMER_ID) {
+                return [
+                    {
+                        tacticId: HAMMER_ID,
+                        x: s.x,
+                        z: s.z,
+                        radius,
+                        at,
+                        readyAt: at - HAMMER_SWING_SEC,
+                        yaw: s.yaw ?? 0,
+                    },
+                ];
+            }
+            if (s.tacticId === BIG_METEOR_ID) {
+                return [
+                    {
+                        tacticId: BIG_METEOR_ID,
+                        x: s.x,
+                        z: s.z,
+                        radius,
+                        at,
+                        readyAt: at - GREAT_METEOR_FALL_SEC,
+                    },
+                ];
+            }
+            if (s.tacticId === DRAGON_ID && s.endX !== undefined && s.endZ !== undefined) {
+                return [
+                    {
+                        tacticId: DRAGON_ID,
+                        x: s.x,
+                        z: s.z,
+                        radius,
+                        at,
+                        readyAt: at - DRAGON_APPROACH_SEC,
+                        endX: s.endX,
+                        endZ: s.endZ,
+                    },
+                ];
+            }
+            if (spell.igniteCapsule && s.endX !== undefined && s.endZ !== undefined) {
+                return [
+                    {
+                        tacticId: s.tacticId,
+                        x: s.x,
+                        z: s.z,
+                        radius,
+                        at,
+                        readyAt: at,
+                        endX: s.endX,
+                        endZ: s.endZ,
+                    },
+                ];
+            }
+            // strikes, spawns, and zones all charge until the effect begins
+            if (spell.strike || spell.spawn || spell.zone) {
+                return [
+                    {
+                        tacticId: s.tacticId,
+                        x: s.x,
+                        z: s.z,
+                        radius,
+                        at,
+                        readyAt: at,
+                    },
+                ];
+            }
+            return [];
+        });
         const spellZones = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             const zone = spell?.zone;
@@ -2573,6 +2711,9 @@ export class Game {
         this.projectileRenderer.clear();
         this.fireFx.clear(); // instanced flame tongues are battle-only
         this.hammerFx.clear();
+        this.meteorFx.clear();
+        this.cloudFx.clear();
+        this.dragonFx.clear();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
@@ -2748,6 +2889,13 @@ export class Game {
                 this.particles.spawnFromEvents(battleEvents);
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
+                for (const ev of battleEvents) {
+                    if (ev.kind === 'spellMeteor') {
+                        this.meteorFx.spawnShardImpact(ev.x, ev.z, ev.at);
+                    } else if (ev.kind === 'spellLightning') {
+                        this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed);
+                    }
+                }
                 this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed, [], false);
                 this.map.setHazardTime(this.time);
                 this.map.flushHazardMask();
@@ -2761,6 +2909,9 @@ export class Game {
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
                 this.hammerFx.update(this.sim.elapsed);
+                this.meteorFx.update(this.sim.elapsed);
+                this.cloudFx.update(this.sim.elapsed);
+                this.dragonFx.update(this.sim.elapsed);
                 // acid/poison/storm/meteor-shower zones + hammer charge rings
                 this.spellVisuals.syncBattleMarkers(
                     this.sim.activeZoneMarkers(),

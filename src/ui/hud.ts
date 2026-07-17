@@ -11,7 +11,11 @@ export type Phase = 'build' | 'battle';
 
 /** escapes a string for safe use inside a double-quoted HTML attribute */
 function escapeAttr(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/\n/g, '&#10;');
 }
 
 /** one buyable/owned action in the detail panel, rendered as a square tile */
@@ -593,6 +597,8 @@ export class Hud {
             armed: boolean;
             placed?: boolean;
             routeId?: number;
+            /** rounds of cooldown (shown as a corner badge) */
+            cooldown?: number;
             /** overrides the default click/right-click tooltip line */
             hint?: string;
         }[] = [],
@@ -621,14 +627,29 @@ export class Hud {
                           `inv-item tactic` +
                           (t.placed ? ' placed' : '') +
                           (t.armed ? ' armed' : '');
-                      const hint =
+                      const baseHint =
                           t.hint ??
                           (t.placed
                               ? `${t.name}\nRight-click to clear and place again.`
                               : `${t.name}\nClick to place on the map. Right-click to cancel.`);
+                      const cdLine =
+                          t.cooldown === undefined
+                              ? ''
+                              : t.cooldown <= 0
+                                ? '\nNo cooldown.'
+                                : `\n${t.cooldown} round${t.cooldown === 1 ? '' : 's'} cooldown.`;
+                      const hint = baseHint + cdLine;
+                      const cd =
+                          t.cooldown !== undefined
+                              ? `<span class="inv-cd" title="${
+                                    t.cooldown <= 0
+                                        ? 'No cooldown'
+                                        : `${t.cooldown} round${t.cooldown === 1 ? '' : 's'} cooldown`
+                                }">${t.cooldown}</span>`
+                              : '';
                       return (
-                          `<button class="${cls}" data-tactic="${t.id}"${routeAttr} title="${hint}">` +
-                          `<span class="i">${t.icon}</span></button>`
+                          `<button class="${cls}" data-tactic="${t.id}"${routeAttr} title="${escapeAttr(hint)}">` +
+                          `<span class="i">${t.icon}</span>${cd}</button>`
                       );
                   })
                   .join('')

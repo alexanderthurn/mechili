@@ -107,8 +107,8 @@ export class DebugOverlay {
         this.el.title = 'Click to copy perf report';
         this.el.style.cssText = [
             'position:absolute',
-            'left:10px',
-            'top:78px', // sits under the player fighter card
+            'left:140px',
+            'top:108px', // clear of fighter card + left tactics strip
             'z-index:50',
             'pointer-events:auto',
             'cursor:pointer',

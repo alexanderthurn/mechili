@@ -1139,6 +1139,23 @@ export function hudStyles(): string {
     cursor: default;
 }
 .mechili-sidebar .inv-item.placed .i { opacity: 0.85; }
+.mechili-sidebar .inv-item .inv-cd {
+    position: absolute;
+    right: 2px;
+    bottom: 1px;
+    min-width: 12px;
+    padding: 0 3px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 12px;
+    text-align: center;
+    color: ${u.brassLight};
+    background: rgba(12, 18, 10, 0.85);
+    border: 1px solid ${u.border};
+    border-radius: 4px;
+    pointer-events: none;
+}
+.mechili-sidebar .inv-item.placed .inv-cd { color: ${u.techOwned}; }
 .mechili-sidebar .inv-item.readonly { cursor: default; pointer-events: none; }
 .inv-drag {
     position: fixed;

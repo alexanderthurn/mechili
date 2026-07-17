@@ -19,6 +19,8 @@ export const SPAWN_CROWS_ID = 'spawnCrows';
 export const HAMMER_ID = 'hammerOfGods';
 export const STORM_ID = 'storm';
 export const METEOR_SHOWER_ID = 'meteorShower';
+/** shared by sim (impact timing) and meteorFx (visual fall) — keep in sync */
+export const METEOR_SHARD_FALL_SEC = 0.55;
 export const POISON_CLOUD_ID = 'poisonCloud';
 export const ACID_ID = 'acidSpill';
 export const DRAGON_ID = 'dragonAttack';
@@ -161,7 +163,8 @@ export const TACTICS: Record<
         icon: '🛢',
         kind: 'placement',
         targeting: 'two-point',
-        cooldownRounds: 1,
+        // TEMP playtest: every round (restore to 1 before release)
+        cooldownRounds: 0,
         radius: OIL_SPILL_RADIUS,
         description:
             'Place two oil circles — outline during deploy; oil lands at battle start (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
@@ -184,7 +187,8 @@ export const TACTICS: Record<
         icon: '⚒',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 1,
+        // TEMP playtest: every round (restore to 1 before release)
+        cooldownRounds: 0,
         radius: 4 * CELL,
         respectsSafeZone: true,
         // count = PACKS (a dwarf pack is 24 fighters — 2 packs ≈ 48 dwarves)
@@ -198,7 +202,8 @@ export const TACTICS: Record<
         icon: '☄',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 3,
+        // TEMP playtest: every round (restore to 3 before release)
+        cooldownRounds: 0,
         radius: 3 * CELL,
         spell: { delaySeconds: 4, strike: { damage: 3000, radius: 3 * CELL } },
         description:
@@ -210,7 +215,8 @@ export const TACTICS: Record<
         icon: '🐦',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 1,
+        // TEMP playtest: every round (restore to 1 before release)
+        cooldownRounds: 0,
         radius: 4 * CELL,
         respectsSafeZone: true,
         // count = PACKS (a crow-rider flock is 12 riders)
@@ -238,7 +244,8 @@ export const TACTICS: Record<
         icon: '🌩',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 2,
+        // TEMP playtest: every round (restore to 2 before release)
+        cooldownRounds: 0,
         radius: 7 * CELL,
         spell: {
             delaySeconds: 3,
@@ -253,14 +260,16 @@ export const TACTICS: Record<
         icon: '🌠',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 2,
-        radius: 7 * CELL,
+        // TEMP playtest: every round (restore to 2 before release)
+        cooldownRounds: 0,
+        radius: 10.5 * CELL,
         spell: {
             delaySeconds: 3,
             zone: {
                 mode: 'meteorShower',
-                duration: 8,
-                interval: 0.6,
+                // 3× duration; interval scaled so total meteor count stays ~same
+                duration: 24,
+                interval: 1.8,
                 damage: 140,
                 impactRadius: 1.5 * CELL,
                 igniteRadius: 1 * CELL,
@@ -275,9 +284,8 @@ export const TACTICS: Record<
         icon: '🧪',
         kind: 'placement',
         targeting: 'two-point',
-        // charge cooldown mirrors oil's (both currently 1 round: the charge
-        // is available again as soon as the puddle itself has expired)
-        cooldownRounds: ACID_SPILL_DURATION_ROUNDS,
+        // TEMP playtest: every round (restore to ACID_SPILL_DURATION_ROUNDS before release)
+        cooldownRounds: 0,
         radius: ACID_SPILL_RADIUS,
         // lands on the ground the instant battle starts, expires by ROUND —
         // technically identical to oil, just a different per-step effect
@@ -291,7 +299,8 @@ export const TACTICS: Record<
         icon: '🐉',
         kind: 'placement',
         targeting: 'two-point',
-        cooldownRounds: 3,
+        // TEMP playtest: every round (restore to 3 before release)
+        cooldownRounds: 0,
         radius: 5 * CELL,
         maxSpan: 24 * CELL,
         spell: {
@@ -307,7 +316,8 @@ export const TACTICS: Record<
         icon: '☠',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 2,
+        // TEMP playtest: every round (restore to 2 before release)
+        cooldownRounds: 0,
         radius: 5 * CELL,
         spell: {
             delaySeconds: 2,

@@ -58,4 +58,8 @@ Raw Tripo downloads (pbr + preview + json) kept in matching subfolders under
 - [x] `poison-cloud.glb`
 - [ ] `acid-puddle.glb` (optional / deferred)
 - [x] Wire hammer stamp cinematic (`hammerFx.ts`)
-- [ ] Wire loaders + remaining spell cinematics / FX (director pass)
+- [x] Wire Great Meteor + Meteor Shower (`meteorFx.ts`)
+- [x] Wire Storm + Poison clouds + lightning (`cloudFx.ts`)
+- [x] Wire Dragon flyover (`dragonFx.ts`)
+- [ ] Polish scales / trails / lightning integration with weather
+- [ ] Acid puddle mesh (optional / deferred)

@@ -1,24 +1,25 @@
 import {
-    BufferGeometry,
-    CanvasTexture,
-    CircleGeometry,
-    DoubleSide,
     Group,
-    Line,
     LineBasicMaterial,
     MathUtils,
     Mesh,
     MeshBasicMaterial,
-    PlaneGeometry,
-    Vector3,
     type Scene,
-    type Texture,
 } from 'three';
 import { teamColors } from './colors';
-import { groundHeightAt } from './map';
+import {
+    addDrapedCapsule,
+    addDrapedCircle,
+    addDrapedCircleFill,
+    addDrapedIconDecal,
+    addDrapedRect,
+    addDrapedRectFill,
+} from './groundMarkers';
 import { addCapsuleOutline } from './oilVisuals';
+import { SpellIconTextures } from './spellMarkerIcons';
 import {
     ACID_ID,
+    BIG_METEOR_ID,
     DRAGON_ID,
     HAMMER_ID,
     HAMMER_ZONE,
@@ -28,14 +29,6 @@ import {
     TACTICS,
     type SpellStamp,
 } from './tactics';
-import { THEME } from '../theme';
-
-// flat overlays (circles / capsules) sit above the tallest relief mound
-const Y_RELIEF = THEME.terrain.reliefDepth;
-const Y_FILL = Y_RELIEF + 0.03;
-const Y_LINE = Y_RELIEF + 0.038;
-/** small lift on draped hammer plates (same idea as unit footprint plates) */
-const DRAPE_LIFT = 0.08;
 
 /** the aim preview riding the cursor while a spell is armed; two-point drafts
  *  additionally carry the already-placed start */
@@ -51,17 +44,20 @@ export type SpellDraft = {
     startZ?: number;
 };
 
-/** pending point-strike charge marker (hammer, …) during battle */
+/** pending charge marker during battle (fills until readyAt, then clears) */
 export type SpellChargeMarker = {
     tacticId: string;
     x: number;
     z: number;
     radius: number;
-    /** sim.elapsed when the strike resolves */
+    /** sim.elapsed when the effect resolves / zone starts */
     at: number;
-    /** sim.elapsed when the charge rect hits 100% and the FX begins */
+    /** sim.elapsed when the charge hits 100% and the marker clears */
     readyAt: number;
     yaw?: number;
+    /** dragon / capsule charges */
+    endX?: number;
+    endZ?: number;
 };
 
 const BLOCKED_COLOR = 0xff3b30;
@@ -69,43 +65,64 @@ const HAMMER_MARK_COLOR = 0xc9a227;
 
 /** capsule tints per tactic — the oil deploy look, recolored */
 const CAPSULE_TINTS: Record<string, { fill: number; line: number }> = {
-    [ACID_ID]: { fill: 0x2e3a08, line: 0xc9e34a }, // sludgy acid green
-    [DRAGON_ID]: { fill: 0x3a140a, line: 0xe07a2e }, // scorched fire path
+    [ACID_ID]: { fill: 0x2e3a08, line: 0xc9e34a },
+    [DRAGON_ID]: { fill: 0x3a140a, line: 0xe07a2e },
+};
+
+/** circle marker colors (deploy + charge + zones); summons use team tint */
+const CIRCLE_COLORS: Record<string, number> = {
+    [POISON_CLOUD_ID]: 0x7ec850,
+    [STORM_ID]: 0x6a6ab0,
+    [METEOR_SHOWER_ID]: 0xe0762e,
+    [BIG_METEOR_ID]: 0xe0762e,
+};
+
+type ZonePulse = {
+    fill?: MeshBasicMaterial;
+    line: LineBasicMaterial;
+    fillBase: number;
+    lineBase: number;
+};
+
+/** inner charge fill — scaled each frame from 0.5 → 1.0 */
+type ChargeInner = {
+    mesh: Mesh;
+    readyAt: number;
 };
 
 /** Ground markers for placed battle spells + the aim preview. */
 export class SpellVisuals {
     readonly group = new Group();
-    private hammerTex: Texture | null = null;
+    /** long-lived zone rings — rebuilt only when the active-zone set changes */
+    private readonly zoneGroup = new Group();
+    /** charge outer+icon — rebuilt when the active charge set changes */
+    private readonly chargeGroup = new Group();
+    private readonly icons = new SpellIconTextures();
+    private zoneKey = '';
+    private zonePulse: ZonePulse[] = [];
+    private chargeKey = '';
+    private chargeInners: ChargeInner[] = [];
 
     constructor(private readonly scene: Scene) {
         scene.add(this.group);
-        this.hammerTex = makeHammerFlatTexture();
+        this.group.add(this.zoneGroup);
+        this.group.add(this.chargeGroup);
     }
 
     dispose(): void {
         this.clear();
-        this.hammerTex?.dispose();
-        this.hammerTex = null;
+        this.icons.dispose();
         this.scene.remove(this.group);
     }
 
     clear(): void {
-        for (const child of [...this.group.children]) {
-            child.traverse((o) => {
-                const mesh = o as Mesh;
-                mesh.geometry?.dispose();
-                const mat = mesh.material;
-                if (mat && !Array.isArray(mat)) {
-                    // shared hammer texture — don't dispose the map here
-                    if ((mat as MeshBasicMaterial).map === this.hammerTex) {
-                        (mat as MeshBasicMaterial).map = null;
-                    }
-                    mat.dispose();
-                }
-            });
-            this.group.remove(child);
-        }
+        this.clearGroup(this.zoneGroup);
+        this.clearGroup(this.chargeGroup);
+        this.clearDeployMarkers();
+        this.zoneKey = '';
+        this.chargeKey = '';
+        this.zonePulse = [];
+        this.chargeInners = [];
     }
 
     sync(stamps: readonly SpellStamp[], draft: SpellDraft | null): void {
@@ -117,23 +134,19 @@ export class SpellVisuals {
                     fill: s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex,
                     line: s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex,
                 };
-                addCapsuleOutline(
-                    this.group, s.x, s.z, s.endX, s.endZ, radius, false, tint.fill, tint.line,
+                this.addCapsuleSpellMarker(
+                    s.tacticId, s.x, s.z, s.endX, s.endZ, radius, tint.fill, tint.line, false,
                 );
                 continue;
             }
             if (s.tacticId === HAMMER_ID) {
-                // deploy: outer rect from HAMMER_ZONE (not the old circle)
                 this.addHammerMarker(s.x, s.z, null, s.yaw ?? 0);
                 continue;
             }
             const color =
-                s.tacticId === POISON_CLOUD_ID
-                    ? 0x7ec850
-                    : s.team === 'player'
-                      ? teamColors.player.hex
-                      : teamColors.enemy.hex;
-            this.addCircle(s.x, s.z, radius, color, 0.24, 0.9);
+                CIRCLE_COLORS[s.tacticId] ??
+                (s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex);
+            this.addCircleSpellMarker(s.tacticId, s.x, s.z, radius, color, 0.24, 0.9);
         }
         if (!draft) return;
         if (draft.startX !== undefined && draft.startZ !== undefined) {
@@ -143,15 +156,15 @@ export class SpellVisuals {
                       fill: teamColors.player.hex,
                       line: teamColors.player.hex,
                   });
-            addCapsuleOutline(
-                this.group, draft.startX, draft.startZ, draft.x, draft.z,
-                draft.radius, true, tint.fill, tint.line,
+            this.addCapsuleSpellMarker(
+                draft.tacticId, draft.startX, draft.startZ, draft.x, draft.z,
+                draft.radius, tint.fill, tint.line, true,
             );
         } else if (draft.tacticId === HAMMER_ID) {
             const yaw = draft.yaw ?? 0;
             if (draft.blocked) {
-                this.addRect(
-                    draft.x, draft.z,
+                addDrapedRect(
+                    this.group, draft.x, draft.z,
                     HAMMER_ZONE.halfWidth, HAMMER_ZONE.halfDepth, yaw,
                     BLOCKED_COLOR, 0.18, 0.75,
                 );
@@ -159,268 +172,270 @@ export class SpellVisuals {
                 this.addHammerMarker(draft.x, draft.z, 0.5, yaw);
             }
         } else {
-            const color = draft.blocked ? BLOCKED_COLOR : teamColors.player.hex;
-            this.addCircle(draft.x, draft.z, draft.radius, color, 0.18, 0.75);
+            const color = draft.blocked
+                ? BLOCKED_COLOR
+                : (CIRCLE_COLORS[draft.tacticId] ?? teamColors.player.hex);
+            this.addCircleSpellMarker(
+                draft.tacticId, draft.x, draft.z, draft.radius, color,
+                draft.blocked ? 0.18 : 0.18, draft.blocked ? 0.55 : 0.75,
+            );
         }
     }
 
     /**
-     * Battle-time markers: ticking zones + hammer charge rect.
-     * TEMP: hammer rect STAYS after the smash so we can finetune HAMMER_ZONE.
+     * Battle-time markers: ticking zones (cached) + charge fills.
+     * Outer shape + icon are static; inner fill scales 50%→100% smoothly.
+     * At readyAt (scale hits 1.0) the whole charge marker is removed.
      */
     syncBattleMarkers(
         zones: readonly { tacticId: string; x: number; z: number; radius: number }[],
         charges: readonly SpellChargeMarker[],
         now: number,
     ): void {
-        this.clear();
+        // never leave deploy/draft stamps under the battle markers
+        this.clearDeployMarkers();
+
+        const zKey = zones
+            .map((m) => `${m.tacticId}:${m.x.toFixed(1)},${m.z.toFixed(1)},${m.radius.toFixed(1)}`)
+            .join('|');
+        if (zKey !== this.zoneKey) {
+            this.clearGroup(this.zoneGroup);
+            this.zonePulse = [];
+            this.zoneKey = zKey;
+            for (const m of zones) {
+                if (m.tacticId === POISON_CLOUD_ID) {
+                    this.zonePulse.push(this.addZoneRing(m.x, m.z, m.radius, 0x7ec850, 0.26, 0.9));
+                } else if (m.tacticId === STORM_ID) {
+                    this.zonePulse.push(this.addZoneRing(m.x, m.z, m.radius, 0x6a6ab0, 0, 0.55));
+                } else if (m.tacticId === METEOR_SHOWER_ID) {
+                    this.zonePulse.push(this.addZoneRing(m.x, m.z, m.radius, 0xe0762e, 0, 0.55));
+                }
+            }
+        }
         const pulse = 0.75 + 0.25 * Math.sin(now * 3.2);
-        for (const m of zones) {
-            if (m.tacticId === POISON_CLOUD_ID) {
-                this.addCircle(m.x, m.z, m.radius, 0x7ec850, 0.26 * pulse, 0.9);
-                continue;
-            }
-            if (m.tacticId === STORM_ID) {
-                this.addCircle(m.x, m.z, m.radius, 0x6a6ab0, 0, 0.55 * pulse);
-                continue;
-            }
-            if (m.tacticId === METEOR_SHOWER_ID) {
-                this.addCircle(m.x, m.z, m.radius, 0xe0762e, 0, 0.55 * pulse);
-                continue;
-            }
+        for (const p of this.zonePulse) {
+            if (p.fill) p.fill.opacity = p.fillBase * pulse;
+            p.line.opacity = p.lineBase * (p.fillBase > 0 ? 1 : pulse);
         }
-        for (const c of charges) {
-            if (c.tacticId !== HAMMER_ID) continue;
-            // gone once the hammer drop begins (charge rect has filled)
-            if (now >= c.readyAt) continue;
-            const progress = MathUtils.clamp(c.readyAt > 0 ? now / c.readyAt : 1, 0, 1);
-            this.addHammerMarker(c.x, c.z, 0.5 + 0.5 * progress, c.yaw ?? 0);
-        }
-    }
 
-    /**
-     * Hammer target = rectangle from HAMMER_ZONE (+ decal + optional inner charge).
-     * Tune halfWidth / halfDepth in tactics.ts → HAMMER_ZONE; yaw comes from placement.
-     */
-    private addHammerMarker(x: number, z: number, innerFrac: number | null, yaw: number): void {
-        const { halfWidth: hw, halfDepth: hd } = HAMMER_ZONE;
-        this.addRect(x, z, hw, hd, yaw, HAMMER_MARK_COLOR, 0.16, 0.95);
-        this.addHammerDecal(x, z, Math.max(hw, hd), yaw);
-        if (innerFrac !== null) {
-            const f = MathUtils.clamp(innerFrac, 0.5, 1);
-            this.addRect(x, z, hw * f, hd * f, yaw, 0xffe08a, 0.12, 1);
+        const active = charges.filter((c) => now < c.readyAt);
+        const cKey = active
+            .map(
+                (c) =>
+                    `${c.tacticId}:${c.x.toFixed(1)},${c.z.toFixed(1)},${c.radius.toFixed(1)},${c.yaw ?? 0},${c.endX ?? ''},${c.endZ ?? ''},${c.readyAt.toFixed(2)}`,
+            )
+            .join('|');
+        if (cKey !== this.chargeKey) {
+            this.chargeKey = cKey;
+            this.clearGroup(this.chargeGroup);
+            this.chargeInners = [];
+            for (const c of active) {
+                this.spawnChargeMarker(c);
+            }
+        }
+
+        for (const inner of this.chargeInners) {
+            const progress = MathUtils.clamp(
+                inner.readyAt > 0 ? now / inner.readyAt : 1,
+                0,
+                1,
+            );
+            // 50% → 100% scale; gone once readyAt (filtered out of active set)
+            const s = 0.5 + 0.5 * progress;
+            inner.mesh.scale.set(s, 1, s);
         }
     }
 
-    private addHammerDecal(x: number, z: number, size: number, yaw: number): void {
-        if (!this.hammerTex) return;
-        const half = size * 0.5;
-        const mesh = new Mesh(
-            drapeRectGeometry(half, half, yaw, x, z),
-            new MeshBasicMaterial({
-                map: this.hammerTex,
-                transparent: true,
-                opacity: 0.72,
-                side: DoubleSide,
-                depthWrite: false,
-            }),
-        );
-        mesh.position.set(x, DRAPE_LIFT + 0.02, z);
-        mesh.frustumCulled = false;
-        this.group.add(mesh);
+    /** remove leftover build-phase stamps sitting as siblings of zone/charge groups */
+    private clearDeployMarkers(): void {
+        for (const child of [...this.group.children]) {
+            if (child === this.zoneGroup || child === this.chargeGroup) continue;
+            child.traverse((o) => {
+                const mesh = o as Mesh;
+                mesh.geometry?.dispose();
+                const mat = mesh.material;
+                if (mat && !Array.isArray(mat)) {
+                    const map = (mat as MeshBasicMaterial).map;
+                    if (this.icons.owns(map)) {
+                        (mat as MeshBasicMaterial).map = null;
+                    }
+                    mat.dispose();
+                }
+            });
+            this.group.remove(child);
+        }
     }
 
-    private addRect(
+    private spawnChargeMarker(c: SpellChargeMarker): void {
+        if (c.tacticId === HAMMER_ID) {
+            const yaw = c.yaw ?? 0;
+            const { halfWidth: hw, halfDepth: hd } = HAMMER_ZONE;
+            addDrapedRect(this.chargeGroup, c.x, c.z, hw, hd, yaw, HAMMER_MARK_COLOR, 0.16, 0.95);
+            this.addHammerDecal(c.x, c.z, Math.max(hw, hd), yaw, this.chargeGroup);
+            const fill = addDrapedRectFill(
+                this.chargeGroup, c.x, c.z, hw, hd, yaw, 0xffe08a, 0.12,
+            );
+            fill.scale.set(0.5, 1, 0.5);
+            this.chargeInners.push({ mesh: fill, readyAt: c.readyAt });
+            return;
+        }
+        if (c.endX !== undefined && c.endZ !== undefined) {
+            const tint = CAPSULE_TINTS[c.tacticId] ?? {
+                fill: teamColors.player.hex,
+                line: teamColors.player.hex,
+            };
+            addDrapedCapsule(
+                this.chargeGroup, c.x, c.z, c.endX, c.endZ, c.radius,
+                tint.fill, tint.line, 0.16, 0.9,
+            );
+            this.addCapsuleIcon(c.tacticId, c.x, c.z, c.endX, c.endZ, c.radius, this.chargeGroup);
+            // growing disc at path midpoint (capsule verts aren't locally centered)
+            const mx = (c.x + c.endX) * 0.5;
+            const mz = (c.z + c.endZ) * 0.5;
+            const fill = addDrapedCircleFill(this.chargeGroup, mx, mz, c.radius, 0xffa060, 0.14);
+            fill.scale.set(0.5, 1, 0.5);
+            this.chargeInners.push({ mesh: fill, readyAt: c.readyAt });
+            return;
+        }
+        const color = CIRCLE_COLORS[c.tacticId] ?? teamColors.player.hex;
+        addDrapedCircle(this.chargeGroup, c.x, c.z, c.radius, color, 0.16, 0.9);
+        this.addCircleIcon(c.tacticId, c.x, c.z, c.radius, this.chargeGroup);
+        const fill = addDrapedCircleFill(this.chargeGroup, c.x, c.z, c.radius, 0xffe08a, 0.12);
+        fill.scale.set(0.5, 1, 0.5);
+        this.chargeInners.push({ mesh: fill, readyAt: c.readyAt });
+    }
+
+    private addZoneRing(
         x: number,
         z: number,
-        halfW: number,
-        halfD: number,
-        yaw: number,
+        radius: number,
         color: number,
-        fillOpacity: number,
-        lineOpacity: number,
-    ): void {
-        if (fillOpacity > 0) {
-            const fill = new Mesh(
-                drapeRectGeometry(halfW, halfD, yaw, x, z),
-                new MeshBasicMaterial({
-                    color,
-                    transparent: true,
-                    opacity: fillOpacity,
-                    side: DoubleSide,
-                    depthWrite: false,
-                }),
-            );
-            fill.position.set(x, DRAPE_LIFT, z);
-            fill.frustumCulled = false;
-            this.group.add(fill);
-        }
-        this.group.add(
-            new Line(
-                drapeRectOutline(x, z, halfW, halfD, yaw),
-                new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
-            ),
+        fillBase: number,
+        lineBase: number,
+    ): ZonePulse {
+        const { fill, line } = addDrapedCircle(
+            this.zoneGroup, x, z, radius, color, fillBase, lineBase,
         );
+        return {
+            fill: fillBase > 0 ? (fill?.material as MeshBasicMaterial) : undefined,
+            line: line.material as LineBasicMaterial,
+            fillBase,
+            lineBase,
+        };
     }
 
-    private addCircle(
+    private clearGroup(group: Group): void {
+        for (const child of [...group.children]) {
+            child.traverse((o) => {
+                const mesh = o as Mesh;
+                mesh.geometry?.dispose();
+                const mat = mesh.material;
+                if (mat && !Array.isArray(mat)) {
+                    const map = (mat as MeshBasicMaterial).map;
+                    if (this.icons.owns(map)) {
+                        (mat as MeshBasicMaterial).map = null;
+                    }
+                    mat.dispose();
+                }
+            });
+            group.remove(child);
+        }
+    }
+
+    private addCircleSpellMarker(
+        tacticId: string,
         x: number,
         z: number,
         radius: number,
         color: number,
         fillOpacity: number,
         lineOpacity: number,
+        innerFrac?: number,
+        target: Group = this.group,
     ): void {
-        if (fillOpacity > 0) {
-            const disc = new Mesh(
-                new CircleGeometry(radius, 48),
-                new MeshBasicMaterial({
-                    color,
-                    transparent: true,
-                    opacity: fillOpacity,
-                    side: DoubleSide,
-                    depthWrite: false,
-                }),
-            );
-            disc.rotation.x = -Math.PI / 2;
-            disc.position.set(x, Y_FILL, z);
-            this.group.add(disc);
+        addDrapedCircle(target, x, z, radius, color, fillOpacity, lineOpacity);
+        this.addCircleIcon(tacticId, x, z, radius, target);
+        if (innerFrac !== undefined) {
+            const f = MathUtils.clamp(innerFrac, 0.5, 1);
+            addDrapedCircle(target, x, z, radius * f, 0xffe08a, 0.12, 1);
         }
-        this.group.add(
-            new Line(
-                new BufferGeometry().setFromPoints(
-                    Array.from({ length: 49 }, (_, i) => {
-                        const a = (i / 48) * Math.PI * 2;
-                        return new Vector3(
-                            x + Math.cos(a) * radius,
-                            Y_LINE,
-                            z + Math.sin(a) * radius,
-                        );
-                    }),
-                ),
-                new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
-            ),
+    }
+
+    private addCapsuleSpellMarker(
+        tacticId: string,
+        startX: number,
+        startZ: number,
+        endX: number,
+        endZ: number,
+        radius: number,
+        fillColor: number,
+        lineColor: number,
+        draft: boolean,
+    ): void {
+        addCapsuleOutline(
+            this.group, startX, startZ, endX, endZ, radius, draft, fillColor, lineColor,
         );
+        this.addCapsuleIcon(tacticId, startX, startZ, endX, endZ, radius);
     }
-}
 
-/**
- * Tessellated ground-aligned rect, yawed in XZ, draped over board relief
- * (same approach as unit footprint plates in placement.ts).
- * Vertices are local to the stamp center — caller sets mesh.position to (x, lift, z).
- */
-function drapeRectGeometry(
-    halfW: number,
-    halfD: number,
-    yaw: number,
-    cx: number,
-    cz: number,
-): PlaneGeometry {
-    const segsW = Math.max(2, Math.ceil((halfW * 2) / 2));
-    const segsD = Math.max(2, Math.ceil((halfD * 2) / 2));
-    const geo = new PlaneGeometry(halfW * 2, halfD * 2, segsW, segsD);
-    geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position!;
-    const c = Math.cos(yaw);
-    const s = Math.sin(yaw);
-    for (let i = 0; i < pos.count; i++) {
-        const lx = pos.getX(i);
-        const lz = pos.getZ(i);
-        const wx = lx * c - lz * s;
-        const wz = lx * s + lz * c;
-        pos.setXYZ(i, wx, groundHeightAt(cx + wx, cz + wz), wz);
+    private addCircleIcon(
+        tacticId: string,
+        x: number,
+        z: number,
+        radius: number,
+        target: Group = this.group,
+    ): void {
+        const tex = this.icons.textureFor(tacticId);
+        if (!tex) return;
+        addDrapedIconDecal(target, tex, x, z, radius * 0.72);
     }
-    pos.needsUpdate = true;
-    geo.computeVertexNormals();
-    return geo;
-}
 
-/** Closed outline of a yawed rect, sampled densely and draped on the relief. */
-function drapeRectOutline(
-    cx: number,
-    cz: number,
-    halfW: number,
-    halfD: number,
-    yaw: number,
-): BufferGeometry {
-    const c = Math.cos(yaw);
-    const s = Math.sin(yaw);
-    const edge = (ax: number, az: number, bx: number, bz: number, steps: number) => {
-        const out: Vector3[] = [];
-        for (let i = 0; i < steps; i++) {
-            const t = i / steps;
-            const lx = ax + (bx - ax) * t;
-            const lz = az + (bz - az) * t;
-            const wx = cx + lx * c - lz * s;
-            const wz = cz + lx * s + lz * c;
-            out.push(new Vector3(wx, groundHeightAt(wx, wz) + DRAPE_LIFT + 0.01, wz));
+    private addCapsuleIcon(
+        tacticId: string,
+        startX: number,
+        startZ: number,
+        endX: number,
+        endZ: number,
+        radius: number,
+        target: Group = this.group,
+    ): void {
+        const tex = this.icons.textureFor(tacticId);
+        if (!tex) return;
+        const mx = (startX + endX) * 0.5;
+        const mz = (startZ + endZ) * 0.5;
+        const yaw = Math.atan2(endX - startX, endZ - startZ);
+        addDrapedIconDecal(target, tex, mx, mz, radius * 0.85, yaw);
+    }
+
+    /**
+     * Hammer target = rectangle from HAMMER_ZONE (+ decal + optional inner charge).
+     * Tune halfWidth / halfDepth in tactics.ts → HAMMER_ZONE; yaw comes from placement.
+     */
+    private addHammerMarker(
+        x: number,
+        z: number,
+        innerFrac: number | null,
+        yaw: number,
+        target: Group = this.group,
+    ): void {
+        const { halfWidth: hw, halfDepth: hd } = HAMMER_ZONE;
+        addDrapedRect(target, x, z, hw, hd, yaw, HAMMER_MARK_COLOR, 0.16, 0.95);
+        this.addHammerDecal(x, z, Math.max(hw, hd), yaw, target);
+        if (innerFrac !== null) {
+            const f = MathUtils.clamp(innerFrac, 0.5, 1);
+            addDrapedRect(target, x, z, hw * f, hd * f, yaw, 0xffe08a, 0.12, 1);
         }
-        return out;
-    };
-    const steps = Math.max(4, Math.ceil(Math.max(halfW, halfD)));
-    const pts = [
-        ...edge(-halfW, -halfD, halfW, -halfD, steps),
-        ...edge(halfW, -halfD, halfW, halfD, steps),
-        ...edge(halfW, halfD, -halfW, halfD, steps),
-        ...edge(-halfW, halfD, -halfW, -halfD, steps),
-    ];
-    // close the loop
-    pts.push(pts[0]!.clone());
-    return new BufferGeometry().setFromPoints(pts);
-}
+    }
 
-/** Flat golden warhammer silhouette for the ground charge marker. */
-function makeHammerFlatTexture(): Texture {
-    const size = 256;
-    const c = document.createElement('canvas');
-    c.width = size;
-    c.height = size;
-    const ctx = c.getContext('2d')!;
-    ctx.clearRect(0, 0, size, size);
-    ctx.translate(size / 2, size / 2);
-    ctx.scale(size / 256, size / 256);
-
-    const glow = ctx.createRadialGradient(0, 0, 20, 0, 0, 110);
-    glow.addColorStop(0, 'rgba(40, 28, 8, 0.55)');
-    glow.addColorStop(1, 'rgba(40, 28, 8, 0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(0, 0, 110, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#d4b24a';
-    ctx.strokeStyle = '#5a4010';
-    ctx.lineWidth = 5;
-    ctx.lineJoin = 'round';
-
-    ctx.beginPath();
-    ctx.moveTo(-70, -78);
-    ctx.lineTo(70, -78);
-    ctx.lineTo(62, -28);
-    ctx.lineTo(-62, -28);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#f0d47a';
-    ctx.fillRect(-18, -72, 36, 38);
-
-    ctx.fillStyle = '#c9a227';
-    ctx.beginPath();
-    ctx.moveTo(-12, -28);
-    ctx.lineTo(12, -28);
-    ctx.lineTo(10, 88);
-    ctx.lineTo(-10, 88);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(0, 96, 16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    const tex = new CanvasTexture(c);
-    tex.needsUpdate = true;
-    return tex;
+    private addHammerDecal(
+        x: number,
+        z: number,
+        size: number,
+        yaw: number,
+        target: Group = this.group,
+    ): void {
+        const tex = this.icons.textureFor(HAMMER_ID);
+        if (!tex) return;
+        addDrapedIconDecal(target, tex, x, z, size * 0.5, yaw);
+    }
 }

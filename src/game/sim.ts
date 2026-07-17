@@ -14,6 +14,7 @@ import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './s
 import {
     HAMMER_ID,
     HAMMER_ZONE,
+    METEOR_SHARD_FALL_SEC,
     RALLY_ROUTE_RADIUS,
     RALLY_ROUTE_REACH,
     RALLY_ROUTE_STUCK_SEC,
@@ -242,7 +243,11 @@ export type SimEvent =
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
     | { kind: 'groundFire'; x: number; y: number; z: number; radius: number; oilCells: number }
-    | { kind: 'summon'; x: number; y: number; z: number; flying: boolean };
+    | { kind: 'summon'; x: number; y: number; z: number; flying: boolean }
+    /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
+    | { kind: 'spellMeteor'; x: number; z: number; at: number }
+    /** storm lightning bolt cue (render-only) */
+    | { kind: 'spellLightning'; x: number; z: number };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
@@ -362,6 +367,16 @@ export class BattleSim {
     })[];
     /** scheduled capsule ignitions; each fires exactly once */
     private readonly ignites: (SpellIgnite & { at: number; fired: boolean })[];
+    /** meteor-shower impacts delayed until the visual fall completes */
+    private readonly pendingMeteors: {
+        at: number;
+        x: number;
+        z: number;
+        radius: number;
+        damage: number;
+        igniteRadius?: number;
+        fired: boolean;
+    }[] = [];
 
     constructor(
         units: readonly Unit[],
@@ -713,6 +728,7 @@ export class BattleSim {
             // field read, gone the instant the unit steps off), no lingering
             // DoT of its own. The corroded debuff (extra damage taken from
             // EVERYTHING) is what lingers, via CORRODE_LINGER_SECONDS below.
+            // Ground hazard like oil/fire: ward domes do not block it.
             if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
                 const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
                 this.applyBurnDamage(a, dealt);
@@ -758,9 +774,15 @@ export class BattleSim {
         for (const z of this.zones) {
             // fixed-step ticks: identical on both peers regardless of frame rate
             while (z.nextAt <= this.elapsed && z.nextAt <= z.endAt) {
+                const tickAt = z.nextAt;
                 z.nextAt += z.interval;
-                this.tickSpellZone(z);
+                this.tickSpellZone(z, tickAt);
             }
+        }
+        for (const m of this.pendingMeteors) {
+            if (m.fired || this.elapsed < m.at) continue;
+            m.fired = true;
+            this.resolveMeteorImpact(m);
         }
         for (const f of this.ignites) {
             if (f.fired || this.elapsed < f.at) continue;
@@ -801,7 +823,7 @@ export class BattleSim {
     }
 
     /** one tick of a storm / meteor shower / poison zone (all point-targeted) */
-    private tickSpellZone(z: (typeof this.zones)[number]): void {
+    private tickSpellZone(z: (typeof this.zones)[number], tickAt: number): void {
         if (z.mode === 'storm') {
             // one lightning bolt at a random unit inside — canonical actor
             // order + the zone's own rng keep the pick deterministic
@@ -824,6 +846,7 @@ export class BattleSim {
                 dome.hurtTimer = HURT_BAR_SECONDS;
                 if (dome.hp <= 0) this.breakShield(dome);
                 this.events.push({ kind: 'impact', x: dome.x, y: 3, z: dome.z });
+                this.events.push({ kind: 'spellLightning', x: dome.x, z: dome.z });
             } else {
                 this.applyBurnDamage(target, z.damage);
                 this.events.push({
@@ -833,6 +856,7 @@ export class BattleSim {
                     z: target.z,
                     radius: 2.5,
                 });
+                this.events.push({ kind: 'spellLightning', x: target.x, z: target.z });
             }
             return;
         }
@@ -853,32 +877,18 @@ export class BattleSim {
             }
             const px = z.x + ox;
             const pz = z.z + oz;
-            const impactRadius = z.impactRadius ?? 4;
-            this.resolveStrike({
+            const impactAt = tickAt + METEOR_SHARD_FALL_SEC;
+            // visual starts now; strike + ground fire resolve when the shard lands
+            this.events.push({ kind: 'spellMeteor', x: px, z: pz, at: impactAt });
+            this.pendingMeteors.push({
+                at: impactAt,
                 x: px,
                 z: pz,
-                radius: impactRadius,
+                radius: z.impactRadius ?? 4,
                 damage: z.damage,
-                delaySeconds: 0,
+                igniteRadius: z.igniteRadius,
+                fired: false,
             });
-            if (z.igniteRadius) {
-                const oilCells = this.hazards.stampFire(
-                    px,
-                    pz,
-                    z.igniteRadius,
-                    this.elapsed,
-                    3,
-                    12,
-                );
-                this.events.push({
-                    kind: 'groundFire',
-                    x: px,
-                    y: simGroundHeightAt(px, pz),
-                    z: pz,
-                    radius: z.igniteRadius,
-                    oilCells,
-                });
-            }
             return;
         }
         // poison: gas gnaws at EVERY unit inside — seeps under ward domes;
@@ -887,6 +897,41 @@ export class BattleSim {
             if (!a.alive || a.unit.type.extra || a.unit.type.poisonImmune) continue;
             if (hypot(a.x - z.x, a.z - z.z) > z.radius + a.radius) continue;
             this.applyBurnDamage(a, z.damage);
+        }
+    }
+
+    /** meteor-shower land: splash damage (wards apply) + ground fire */
+    private resolveMeteorImpact(m: {
+        x: number;
+        z: number;
+        radius: number;
+        damage: number;
+        igniteRadius?: number;
+    }): void {
+        this.resolveStrike({
+            x: m.x,
+            z: m.z,
+            radius: m.radius,
+            damage: m.damage,
+            delaySeconds: 0,
+        });
+        if (m.igniteRadius) {
+            const oilCells = this.hazards.stampFire(
+                m.x,
+                m.z,
+                m.igniteRadius,
+                this.elapsed,
+                3,
+                12,
+            );
+            this.events.push({
+                kind: 'groundFire',
+                x: m.x,
+                y: simGroundHeightAt(m.x, m.z),
+                z: m.z,
+                radius: m.igniteRadius,
+                oilCells,
+            });
         }
     }
 
