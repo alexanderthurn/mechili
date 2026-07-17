@@ -120,6 +120,8 @@ const TEST_TACTIC_GRANTS = [
     'storm',
     'meteorShower',
     'poisonCloud',
+    'acidSpill',
+    'dragonAttack',
 ];
 
 /** derives an independent, label-specific seed for a named rng stream */
@@ -1894,16 +1896,38 @@ export class Game {
         const pointer = this.placement.lastPointer;
         const armed = this.armedTactic ? TACTICS[this.armedTactic] : null;
         let draft: SpellDraft | null = null;
-        if (armed?.spell && armed.targeting === 'point' && pointer && this.playerCanAct) {
+        if (
+            armed?.spell &&
+            (armed.targeting === 'point' || armed.targeting === 'two-point') &&
+            pointer &&
+            this.playerCanAct
+        ) {
             const radius = armed.radius ?? 0;
             const pos = this.groundAtLocal(pointer.x, pointer.y, radius);
             if (pos) {
+                const hover =
+                    armed.targeting === 'two-point' && this.tacticDraftStart
+                        ? clampTacticEnd(
+                              this.tacticDraftStart.x,
+                              this.tacticDraftStart.z,
+                              pos.x,
+                              pos.z,
+                              armed.maxSpan,
+                          )
+                        : pos;
                 draft = {
-                    x: pos.x,
-                    z: pos.z,
+                    x: hover.x,
+                    z: hover.z,
                     radius,
                     blocked:
-                        !!armed.respectsSafeZone && this.inSafeZone(pos.x, pos.z, radius),
+                        !!armed.respectsSafeZone &&
+                        this.inSafeZone(hover.x, hover.z, radius),
+                    ...(armed.targeting === 'two-point' && this.tacticDraftStart
+                        ? {
+                              startX: this.tacticDraftStart.x,
+                              startZ: this.tacticDraftStart.z,
+                          }
+                        : {}),
                 };
             }
         }
@@ -1994,7 +2018,7 @@ export class Game {
                     endZ: quantizeWorld(target.end!.z),
                 });
             default:
-                // every point-targeted battle spell shares the placeSpell action
+                // every battle spell shares the placeSpell action
                 if (TACTICS[tacticId]?.spell && target.point) {
                     return this.dispatchPlayer({
                         kind: 'placeSpell',
@@ -2002,6 +2026,17 @@ export class Game {
                         tacticId,
                         x: quantizeWorld(target.point.x),
                         z: quantizeWorld(target.point.z),
+                    });
+                }
+                if (TACTICS[tacticId]?.spell && target.start && target.end) {
+                    return this.dispatchPlayer({
+                        kind: 'placeSpell',
+                        team: 'player',
+                        tacticId,
+                        x: quantizeWorld(target.start.x),
+                        z: quantizeWorld(target.start.z),
+                        endX: quantizeWorld(target.end.x),
+                        endZ: quantizeWorld(target.end.z),
                     });
                 }
                 return false;
@@ -2048,6 +2083,7 @@ export class Game {
             this.tacticDraftStart.z,
             ground.x,
             ground.z,
+            tactic.maxSpan,
         );
         if (this.dispatchTacticUse(tactic.id, { start: this.tacticDraftStart, end })) {
             this.cancelTacticPlacement();
@@ -2308,6 +2344,8 @@ export class Game {
                       {
                           x: s.x,
                           z: s.z,
+                          x2: s.endX,
+                          z2: s.endZ,
                           radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
                           delaySeconds: spell.delaySeconds,
                           duration: zone.duration,
@@ -2317,6 +2355,24 @@ export class Game {
                           impactRadius: zone.impactRadius,
                           igniteRadius: zone.igniteRadius,
                           seed: seedFrom(this.seed, `spell:${s.id}`),
+                      },
+                  ]
+                : [];
+        });
+        const spellIgnites = pendingSpells.flatMap((s) => {
+            const spell = TACTICS[s.tacticId]?.spell;
+            const ignite = spell?.igniteCapsule;
+            return ignite && s.endX !== undefined && s.endZ !== undefined
+                ? [
+                      {
+                          x: s.x,
+                          z: s.z,
+                          x2: s.endX,
+                          z2: s.endZ,
+                          radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
+                          delaySeconds: spell.delaySeconds,
+                          burnSeconds: ignite.burnSeconds,
+                          intensity: ignite.intensity,
                       },
                   ]
                 : [];
@@ -2343,6 +2399,7 @@ export class Game {
             oilExpiresRound: this.round + OIL_SPILL_DURATION_ROUNDS - 1,
             spellStrikes,
             spellZones,
+            spellIgnites,
             summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
         });
         // the sync point: both peers hash the identical battle-start state

@@ -76,8 +76,10 @@ export interface SimConfig {
      * takes environmental damage.
      */
     spellStrikes?: readonly SpellStrike[];
-    /** ticking spell zones (storm bolts, meteor shower, poison gas) */
+    /** ticking spell zones (storm bolts, meteor shower, poison gas, acid) */
     spellZones?: readonly SpellZone[];
+    /** one-shot capsule ignitions (dragon breath along its flight path) */
+    spellIgnites?: readonly SpellIgnite[];
     /** summoned packs materialize this many seconds after the freeze (0 = normal) */
     summonDelayOf?: (unit: Unit) => number;
 }
@@ -95,16 +97,37 @@ export interface SpellStrike {
 export interface SpellZone {
     x: number;
     z: number;
+    /** capsule zones (acid): second endpoint — effect covers the whole capsule */
+    x2?: number;
+    z2?: number;
     radius: number;
     delaySeconds: number;
     duration: number;
     interval: number;
+    /** flat damage per tick — except 'acid': % of max HP per tick */
     damage: number;
-    mode: 'storm' | 'meteorShower' | 'poison';
+    mode: 'storm' | 'meteorShower' | 'poison' | 'acid';
     impactRadius?: number;
     igniteRadius?: number;
     seed: number;
 }
+
+/** the whole capsule catches fire once at BATTLE_START_FREEZE + delaySeconds */
+export interface SpellIgnite {
+    x: number;
+    z: number;
+    x2: number;
+    z2: number;
+    radius: number;
+    delaySeconds: number;
+    burnSeconds: number;
+    intensity: number;
+}
+
+/** corroded (acid) victims take this much extra damage from everything */
+export const CORRODE_TAKEN_MULT = 1.25;
+/** how long the corroded debuff lingers after the last acid tick */
+const CORRODE_LINGER_SECONDS = 2;
 
 export interface Actor {
     unit: Unit;
@@ -159,6 +182,8 @@ export interface Actor {
     burnUntil: number;
     /** burn damage per second while burnUntil > elapsed */
     burnDps: number;
+    /** acid debuff: takes CORRODE_TAKEN_MULT damage while this > elapsed */
+    corrodedUntil: number;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
@@ -301,6 +326,8 @@ export class BattleSim {
         nextAt: number;
         endAt: number;
     })[];
+    /** scheduled capsule ignitions; each fires exactly once */
+    private readonly ignites: (SpellIgnite & { at: number; fired: boolean })[];
 
     constructor(
         units: readonly Unit[],
@@ -351,6 +378,7 @@ export class BattleSim {
                     cachedEnemy: null,
                     burnUntil: 0,
                     burnDps: 0,
+                    corrodedUntil: 0,
                 });
             }
         }
@@ -392,6 +420,11 @@ export class BattleSim {
             rng: mulberry32(z.seed),
             nextAt: BATTLE_START_FREEZE + z.delaySeconds,
             endAt: BATTLE_START_FREEZE + z.delaySeconds + z.duration,
+        }));
+        this.ignites = (config.spellIgnites ?? []).map((f) => ({
+            ...f,
+            at: BATTLE_START_FREEZE + f.delaySeconds,
+            fired: false,
         }));
 
         // canonical battle order: both peers sort into the SAME sequence
@@ -642,10 +675,72 @@ export class BattleSim {
                 this.tickSpellZone(z);
             }
         }
+        for (const f of this.ignites) {
+            if (f.fired || this.elapsed < f.at) continue;
+            f.fired = true;
+            this.resolveIgnite(f);
+        }
     }
 
-    /** one tick of a storm / meteor shower / poison zone */
+    /** dragon breath: stamp overlapping fire circles along the capsule spine */
+    private resolveIgnite(f: SpellIgnite): void {
+        const dx = f.x2 - f.x;
+        const dz = f.z2 - f.z;
+        const len = hypot(dx, dz);
+        const steps = Math.max(1, Math.ceil(len / (f.radius * 0.7)));
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const px = f.x + dx * t;
+            const pz = f.z + dz * t;
+            const oilCells = this.hazards.stampFire(
+                px,
+                pz,
+                f.radius,
+                this.elapsed,
+                f.burnSeconds,
+                f.intensity,
+            );
+            // one visual burst per stamp keeps the sweep readable
+            this.events.push({
+                kind: 'groundFire',
+                x: px,
+                y: simGroundHeightAt(px, pz),
+                z: pz,
+                radius: f.radius,
+                oilCells,
+            });
+        }
+        this.hazards.igniteOilTouchingFire(this.elapsed);
+    }
+
+    /** distance from a point to the zone's center (point) or spine (capsule) */
+    private zoneDistance(z: SpellZone, x: number, zz: number): number {
+        if (z.x2 === undefined || z.z2 === undefined) {
+            return hypot(x - z.x, zz - z.z);
+        }
+        const dx = z.x2 - z.x;
+        const dz = z.z2 - z.z;
+        const len2 = dx * dx + dz * dz;
+        const t =
+            len2 < 1e-9
+                ? 0
+                : Math.max(0, Math.min(1, ((x - z.x) * dx + (zz - z.z) * dz) / len2));
+        return hypot(x - (z.x + dx * t), zz - (z.z + dz * t));
+    }
+
+    /** one tick of a storm / meteor shower / poison / acid zone */
     private tickSpellZone(z: (typeof this.zones)[number]): void {
+        if (z.mode === 'acid') {
+            // % of max HP per tick + the corroded debuff (extra damage taken)
+            for (const a of this.actors) {
+                if (!a.alive || a.unit.type.extra || a.unit.type.structure) continue;
+                if (a.altitude > 0) continue; // acid pools on the ground
+                if (this.zoneDistance(z, a.x, a.z) > z.radius + a.radius) continue;
+                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
+                this.applyBurnDamage(a, (a.maxHp * z.damage) / 100);
+            }
+            return;
+        }
         if (z.mode === 'storm') {
             // one lightning bolt at a random unit inside — canonical actor
             // order + the zone's own rng keep the pick deterministic
@@ -833,13 +928,20 @@ export class BattleSim {
         return factor;
     }
 
-    /** incoming damage: golden = −30%; tower debuff only while its timer runs */
+    /** incoming damage: golden = −30%; tower debuff only while its timer runs;
+     *  the acid corroded debuff stacks on top of everything */
     private damageTakenMult(actor: Actor): number {
-        if (this.isGolden(actor)) return GOLDEN_DAMAGE_TAKEN_MULT;
-        if (!this.isDebuffed(actor)) return 1;
-        const mult = this.config.towers.debuffPerLostTower.damageTakenMult;
-        let factor = 1;
-        for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
+        let factor: number;
+        if (this.isGolden(actor)) {
+            factor = GOLDEN_DAMAGE_TAKEN_MULT;
+        } else if (!this.isDebuffed(actor)) {
+            factor = 1;
+        } else {
+            const mult = this.config.towers.debuffPerLostTower.damageTakenMult;
+            factor = 1;
+            for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
+        }
+        if (actor.corrodedUntil > this.elapsed) factor *= CORRODE_TAKEN_MULT;
         return factor;
     }
 

@@ -184,6 +184,22 @@ export const ROUND_CARDS: RoundCard[] = [
         description:
             'Battle spell: a toxic cloud gnaws at every unit inside for a while — gas seeps under ward domes.',
     },
+    {
+        id: 'acidSpill',
+        title: 'Acid Spill',
+        cost: 100,
+        tactics: ['acidSpill'],
+        description:
+            'Battle spell: pour an acid capsule (placed like oil) — units inside lose max-HP percent per second and take extra damage while corroded.',
+    },
+    {
+        id: 'dragonAttack',
+        title: 'Dragon Attack',
+        cost: 200,
+        tactics: ['dragonAttack'],
+        description:
+            'Battle spell: draw the dragon’s strafing path — seconds into the battle it sets the whole corridor ablaze.',
+    },
 ];
 
 /** buyable army types in the deployment shop (not board extras) */

@@ -11,7 +11,7 @@ import {
     type Scene,
 } from 'three';
 import { teamColors } from './colors';
-import { POISON_CLOUD_ID, TACTICS, type SpellStamp } from './tactics';
+import { ACID_ID, POISON_CLOUD_ID, TACTICS, type SpellStamp } from './tactics';
 import { THEME } from '../theme';
 
 // floats just above the tallest board-relief mound, like the rally overlay
@@ -19,8 +19,16 @@ const Y_RELIEF = THEME.terrain.reliefDepth;
 const Y_FILL = Y_RELIEF + 0.03;
 const Y_LINE = Y_RELIEF + 0.038;
 
-/** the aim circle riding the cursor while a point spell is armed */
-export type SpellDraft = { x: number; z: number; radius: number; blocked: boolean };
+/** the aim circle riding the cursor while a spell is armed; two-point drafts
+ *  additionally carry the already-placed start circle */
+export type SpellDraft = {
+    x: number;
+    z: number;
+    radius: number;
+    blocked: boolean;
+    startX?: number;
+    startZ?: number;
+};
 
 const BLOCKED_COLOR = 0xff3b30;
 
@@ -56,15 +64,37 @@ export class SpellVisuals {
             const color =
                 s.tacticId === POISON_CLOUD_ID
                     ? 0x7ec850 // toxic green regardless of team
-                    : s.team === 'player'
-                      ? teamColors.player.hex
-                      : teamColors.enemy.hex;
+                    : s.tacticId === ACID_ID
+                      ? 0xd7e34a // sickly acid yellow
+                      : s.team === 'player'
+                        ? teamColors.player.hex
+                        : teamColors.enemy.hex;
             this.addCircle(s.x, s.z, radius, color, 0.24, 0.9);
+            if (s.endX !== undefined && s.endZ !== undefined) {
+                this.addCircle(s.endX, s.endZ, radius, color, 0.24, 0.9);
+                this.addLink(s.x, s.z, s.endX, s.endZ, color);
+            }
         }
         if (draft) {
             const color = draft.blocked ? BLOCKED_COLOR : teamColors.player.hex;
             this.addCircle(draft.x, draft.z, draft.radius, color, 0.18, 0.75);
+            if (draft.startX !== undefined && draft.startZ !== undefined) {
+                this.addCircle(draft.startX, draft.startZ, draft.radius, color, 0.18, 0.75);
+                this.addLink(draft.startX, draft.startZ, draft.x, draft.z, color);
+            }
         }
+    }
+
+    private addLink(x0: number, z0: number, x1: number, z1: number, color: number): void {
+        this.group.add(
+            new Line(
+                new BufferGeometry().setFromPoints([
+                    new Vector3(x0, Y_LINE, z0),
+                    new Vector3(x1, Y_LINE, z1),
+                ]),
+                new LineBasicMaterial({ color, transparent: true, opacity: 0.7 }),
+            ),
+        );
     }
 
     private addCircle(

@@ -14,6 +14,8 @@ export const HAMMER_ID = 'hammerOfGods';
 export const STORM_ID = 'storm';
 export const METEOR_SHOWER_ID = 'meteorShower';
 export const POISON_CLOUD_ID = 'poisonCloud';
+export const ACID_ID = 'acidSpill';
+export const DRAGON_ID = 'dragonAttack';
 
 /**
  * Max center-to-center distance for two-point tactics (rally corridor / oil capsule).
@@ -73,6 +75,8 @@ export const TACTICS: Record<
         cooldownRounds: number;
         /** aim radius (point circle / capsule margin); board clamp + previews */
         radius?: number;
+        /** two-point: max start→end distance (default TACTIC_MAX_SPAN) */
+        maxSpan?: number;
         /** true = may not land inside the enemy-base safe zone (spawn-likes) */
         respectsSafeZone?: boolean;
         /**
@@ -91,18 +95,25 @@ export const TACTICS: Record<
              * 'storm' zaps one random unit per tick (wards absorb per bolt);
              * 'meteorShower' drops a small strike on a random spot per tick
              * (+ ignites fire); 'poison' damages every unit inside per tick —
-             * gas ignores wards, unit types with `poisonImmune` shrug it off.
+             * gas ignores wards, unit types with `poisonImmune` shrug it off;
+             * 'acid' burns a PERCENT of max HP per tick and leaves victims
+             * corroded (taking bonus damage). Two-point tactics run the zone
+             * over the whole capsule.
              */
             zone?: {
-                mode: 'storm' | 'meteorShower' | 'poison';
+                mode: 'storm' | 'meteorShower' | 'poison' | 'acid';
                 duration: number;
                 interval: number;
+                /** flat damage per tick — except 'acid': % of max HP per tick */
                 damage: number;
                 /** meteorShower: splash radius per impact */
                 impactRadius?: number;
                 /** meteorShower: ground-fire radius per impact */
                 igniteRadius?: number;
             };
+            /** two-point: set the whole capsule ablaze once at the delay
+             *  (dragon breath — the capsule is the flight path) */
+            igniteCapsule?: { burnSeconds: number; intensity: number };
         };
         /** oil spill only */
         oilRadius?: number;
@@ -230,6 +241,38 @@ export const TACTICS: Record<
         description:
             'Mark a wide circle anywhere. Meteors rain onto random spots inside for a while, each blast burning the ground it hits.',
     },
+    [ACID_ID]: {
+        id: ACID_ID,
+        name: 'Acid Spill',
+        icon: '🧪',
+        kind: 'placement',
+        targeting: 'two-point',
+        cooldownRounds: 1,
+        radius: OIL_SPILL_RADIUS,
+        spell: {
+            delaySeconds: 1,
+            // 1.5% of max HP per 0.5s tick = 3%/s, plus the corroded debuff
+            zone: { mode: 'acid', duration: 10, interval: 0.5, damage: 1.5 },
+        },
+        description:
+            'Pour an acid capsule like an oil spill. Units inside sizzle for a share of their max HP every second and turn corroded — taking extra damage from everything.',
+    },
+    [DRAGON_ID]: {
+        id: DRAGON_ID,
+        name: 'Dragon Attack',
+        icon: '🐉',
+        kind: 'placement',
+        targeting: 'two-point',
+        cooldownRounds: 3,
+        radius: 5 * CELL,
+        maxSpan: 24 * CELL,
+        spell: {
+            delaySeconds: 5,
+            igniteCapsule: { burnSeconds: 4, intensity: 14 },
+        },
+        description:
+            'Draw the dragon’s strafing path (wider and longer than oil). Seconds into the battle it sweeps over and sets the whole corridor ablaze.',
+    },
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,
         name: 'Poison Cloud',
@@ -261,13 +304,16 @@ export interface RallyRoute {
     endZ: number;
 }
 
-/** one placed battle spell (point stamp): intent during deploy, fires in battle */
+/** one placed battle spell: intent during deploy, fires in battle.
+ *  Two-point spells (acid) carry an end — the effect covers the capsule. */
 export interface SpellStamp {
     id: number;
     tacticId: string;
     team: import('./units').Team;
     x: number;
     z: number;
+    endX?: number;
+    endZ?: number;
     placedRound: number;
 }
 

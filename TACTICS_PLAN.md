@@ -126,12 +126,20 @@ units march out of (or into!) the marked area, which is the counterplay.
    spellVisuals.ts markers + aim circle (red when safe-zone-blocked).
    Placeholder impact = existing explosion event (particles + scorch).
    Note: surviving summons DO count toward the end-of-battle HP bite.
-3. Hammer of the Gods, Spawn Crow Riders.
-4. Acid + Poison Cloud (W5 status effects + W7 channels; includes making
-   `burning` visible on units — wanted anyway for the existing fire).
-5. Storm + Meteor Shower (ticking random strikes).
-6. Dragon Attack (mechanically just delayed area fire — its value is the
-   flyover, so it pairs with the visual pass).
+3. **Hammer + Crow Riders — DONE** (pure registry entries on the rails).
+4. **Acid + Poison Cloud — DONE.** Poison = per-tick gas zone (ignores
+   wards, `poisonImmune` unit flag, toxic-green marker). Acid = two-point
+   capsule (placeSpell carries endX/endZ; per-tactic `maxSpan`), % of max
+   HP per tick + `corrodedUntil` debuff (CORRODE_TAKEN_MULT stacks in
+   `damageTakenMult`, so weapons AND burn hit harder). Burning units are
+   visible (FireFx.updateBurningActors). Still open from W5: corroded /
+   poisoned VFX on units (visual pass).
+5. **Storm + Meteor Shower — DONE** (SpellZone ticking effects, per-effect
+   seeded rng; storm bolts pick random units, wards absorb per bolt;
+   shower drops mini-strikes + ground fire).
+6. **Dragon Attack — DONE mechanically** (SpellIgnite: capsule catches
+   fire at the delay via overlapping fire stamps). The flyover cinematic
+   is the visual pass's job.
 7. **Visual pass (threejs-game-director):** hammer model + stamp anim,
    dragon flyover cinematic (mountain descent → fire breath → climb),
    storm clouds/lightning integrated with the weather system, meteor

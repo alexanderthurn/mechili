@@ -179,7 +179,7 @@ export interface RemoveOilSpillAction {
     team: Team;
     stampId: number;
 }
-/** stamps a battle spell (point tactic) — intent until battle start fires it */
+/** stamps a battle spell — intent until battle start fires it */
 export interface PlaceSpellAction {
     kind: 'placeSpell';
     team: Team;
@@ -187,6 +187,9 @@ export interface PlaceSpellAction {
     /** quantized world coords (peers must agree exactly) */
     x: number;
     z: number;
+    /** two-point spells only (acid capsule) */
+    endX?: number;
+    endZ?: number;
 }
 /** clears a spell stamp placed THIS round (fired stamps are history) */
 export interface RemoveSpellAction {
@@ -796,7 +799,14 @@ export class ActionDispatcher {
             }
             case 'placeSpell': {
                 const tactic = TACTICS[action.tacticId];
-                if (!tactic?.spell || tactic.targeting !== 'point') return false;
+                if (!tactic?.spell) return false;
+                if (tactic.targeting !== 'point' && tactic.targeting !== 'two-point') {
+                    return false;
+                }
+                if (tactic.targeting === 'two-point' &&
+                    (action.endX === undefined || action.endZ === undefined)) {
+                    return false;
+                }
                 const { round } = this.ctx.clock();
                 // charges: inventory minus stamps still pending or cooling down
                 const inventory = this.ctx.tactics[action.team].filter(
@@ -822,12 +832,24 @@ export class ActionDispatcher {
                 ) {
                     return false;
                 }
+                // capsule end pulled toward start so peers agree on the span
+                const end =
+                    action.endX !== undefined && action.endZ !== undefined
+                        ? clampTacticEnd(
+                              action.x,
+                              action.z,
+                              action.endX,
+                              action.endZ,
+                              tactic.maxSpan,
+                          )
+                        : null;
                 const stamp: SpellStamp = {
                     id: this.ctx.spellStampIds.next++,
                     tacticId: action.tacticId,
                     team: action.team,
                     x: action.x,
                     z: action.z,
+                    ...(end ? { endX: end.x, endZ: end.z } : {}),
                     placedRound: round,
                 };
                 this.ctx.spellStamps.push(stamp);
