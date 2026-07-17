@@ -345,23 +345,47 @@ function buildDrapedCapsuleFill(
     ez: number,
     px: number,
     pz: number,
-    ux: number,
-    uz: number,
+    _ux: number,
+    _uz: number,
     r: number,
 ): BufferGeometry {
+    const dx = ex - sx;
+    const dz = ez - sz;
+    const len = Math.hypot(dx, dz);
+    // tessellate along the strip so the fill hugs hills (a single quad clips terrain)
+    const along = Math.max(4, Math.ceil(len / 2));
+    const across = Math.max(2, Math.ceil(r / 2));
     const positions: number[] = [];
     const indices: number[] = [];
     const push = (x: number, z: number): number => {
-        positions.push(x, groundHeightAt(x, z), z);
+        positions.push(x, groundHeightAt(x, z) + DRAPE_LIFT, z);
         return positions.length / 3 - 1;
     };
-    const q0 = push(sx + px, sz + pz);
-    const q1 = push(ex + px, ez + pz);
-    const q2 = push(ex - px, ez - pz);
-    const q3 = push(sx - px, sz - pz);
-    indices.push(q0, q1, q2, q0, q2, q3);
-    appendSemicircleCap(push, indices, ex, ez, ux, uz, px, pz, r);
-    appendSemicircleCap(push, indices, sx, sz, -ux, -uz, px, pz, r);
+
+    const cols = across + 1;
+    for (let i = 0; i <= along; i++) {
+        const t = i / along;
+        const cx = sx + dx * t;
+        const cz = sz + dz * t;
+        for (let j = 0; j <= across; j++) {
+            const s = (j / across) * 2 - 1; // -1 … +1 across the strip
+            push(cx + px * s, cz + pz * s);
+        }
+    }
+    for (let i = 0; i < along; i++) {
+        for (let j = 0; j < across; j++) {
+            const a = i * cols + j;
+            const b = a + 1;
+            const c = a + cols;
+            const d = c + 1;
+            indices.push(a, c, b, b, c, d);
+        }
+    }
+
+    // semicircle caps at each end (already sampled densely)
+    appendSemicircleCap(push, indices, ex, ez, dx / len, dz / len, px, pz, r);
+    appendSemicircleCap(push, indices, sx, sz, -dx / len, -dz / len, px, pz, r);
+
     const geo = new BufferGeometry();
     geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
     geo.setIndex(indices);

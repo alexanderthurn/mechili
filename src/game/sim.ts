@@ -396,6 +396,7 @@ export class BattleSim {
         landAt: number;
         announced: boolean;
         stamped: boolean;
+        silent: boolean;
     }[] = [];
 
     constructor(
@@ -823,7 +824,8 @@ export class BattleSim {
             const pourStart = BATTLE_START_FREEZE + pour.delaySeconds;
             for (let i = 0; i <= steps; i++) {
                 const t = i / steps;
-                const landAt = pourStart + t * pour.durationSeconds + HAZARD_DRIP_FALL_SEC;
+                const fallSec = pour.fallSeconds ?? HAZARD_DRIP_FALL_SEC;
+                const landAt = pourStart + t * pour.durationSeconds + fallSec;
                 this.drips.push({
                     kind: pour.kind,
                     x: pour.x + dx * t,
@@ -832,10 +834,12 @@ export class BattleSim {
                     expiresRound: pour.expiresRound,
                     burnSeconds: pour.burnSeconds ?? 0,
                     intensity: pour.intensity ?? 0,
-                    fallStart: landAt - HAZARD_DRIP_FALL_SEC,
+                    fallStart: landAt - fallSec,
                     landAt,
                     announced: false,
                     stamped: false,
+                    /** skip air-drip VFX when fall is instant (dragon ray) */
+                    silent: fallSec <= 1e-6,
                 });
             }
         }
@@ -847,13 +851,15 @@ export class BattleSim {
         for (const d of this.drips) {
             if (!d.announced && this.elapsed >= d.fallStart) {
                 d.announced = true;
-                this.events.push({
-                    kind: 'hazardDrip',
-                    hazard: d.kind,
-                    x: d.x,
-                    z: d.z,
-                    at: d.landAt,
-                });
+                if (!d.silent) {
+                    this.events.push({
+                        kind: 'hazardDrip',
+                        hazard: d.kind,
+                        x: d.x,
+                        z: d.z,
+                        at: d.landAt,
+                    });
+                }
             }
             if (d.stamped || this.elapsed < d.landAt) continue;
             d.stamped = true;

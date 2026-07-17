@@ -28,6 +28,13 @@ export const POISON_CLOUD_ID = 'poisonCloud';
 export const ACID_ID = 'acidSpill';
 export const FIRE_SPILL_ID = 'fireSpill';
 export const DRAGON_ID = 'dragonAttack';
+/**
+ * Charge marker clears this many seconds before breath/pour (`at`), when the
+ * spit begins. The dragon model itself is visible from battle start.
+ */
+export const DRAGON_APPROACH_SEC = 0.38;
+/** start→end breath / ground-fire pour while strafing */
+export const DRAGON_POUR_DURATION_SEC = 1.55;
 
 /**
  * Hammer of the Gods ground footprint (world units), centered on the stamp.
@@ -134,8 +141,8 @@ export const TACTICS: Record<
                 /** meteorShower: ground-fire radius per impact */
                 igniteRadius?: number;
             };
-            /** two-point: set the whole capsule ablaze once at the delay
-             *  (dragon breath — the capsule is the flight path) */
+            /** two-point: progressive fire pour along the capsule (dragon breath) —
+             *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot */
             igniteCapsule?: { burnSeconds: number; intensity: number };
         };
         /**
@@ -322,7 +329,7 @@ export const TACTICS: Record<
             igniteCapsule: { burnSeconds: 4, intensity: 14 },
         },
         description:
-            'Draw the dragon’s strafing path (wider and longer than oil). Seconds into the battle it sweeps over and sets the whole corridor ablaze.',
+            'Draw the dragon’s strafing path (wider and longer than oil). Seconds into the battle it dives in and breathes fire along the corridor — flame paints the ground start→end under the beam.',
     },
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,

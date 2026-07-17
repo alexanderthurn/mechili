@@ -56,6 +56,11 @@ export interface HazardPour {
     burnSeconds?: number;
     /** fire only: DPS intensity for the stamped disc */
     intensity?: number;
+    /**
+     * Air-fall before stamp (defaults to {@link HAZARD_DRIP_FALL_SEC}).
+     * Use 0 for an instant ground paint (dragon breath ray).
+     */
+    fallSeconds?: number;
 }
 
 /** Fire Bolt / weapon ground-fire defaults (can be overridden per UnitType.fire) */

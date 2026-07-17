@@ -206,7 +206,7 @@ export const ROUND_CARDS: RoundCard[] = [
         cost: 200,
         tactics: ['dragonAttack'],
         description:
-            'Battle spell: draw the dragon’s strafing path — seconds into the battle it sets the whole corridor ablaze.',
+            'Battle spell: draw the dragon’s strafing path — it dives in and breathes fire along the corridor, painting the ground start→end.',
     },
 ];
 

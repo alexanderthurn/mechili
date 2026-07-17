@@ -12,6 +12,7 @@ import {
 } from './fire';
 import { ITEMS } from './items';
 import {
+    DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
     SELL_UNIT_ID,
@@ -1109,6 +1110,35 @@ export function prepareHazardPours(
             expiresRound: 0,
             burnSeconds: fire.burnSeconds,
             intensity: fire.intensity,
+        });
+    }
+    // dragon breath: same progressive fire paint, timed to the spell delay (no air-drip lag)
+    const dragons = ctx.spellStamps
+        .filter(
+            (s) =>
+                s.placedRound === round &&
+                TACTICS[s.tacticId]?.spell?.igniteCapsule &&
+                s.endX !== undefined &&
+                s.endZ !== undefined,
+        )
+        .sort((a, b) => a.id - b.id);
+    for (const s of dragons) {
+        const tactic = TACTICS[s.tacticId]!;
+        const spell = tactic.spell!;
+        const ignite = spell.igniteCapsule!;
+        pours.push({
+            kind: 'fire',
+            x: s.x,
+            z: s.z,
+            x2: s.endX!,
+            z2: s.endZ!,
+            radius: tactic.radius ?? FIRE_SPILL_RADIUS,
+            delaySeconds: spell.delaySeconds,
+            durationSeconds: DRAGON_POUR_DURATION_SEC,
+            expiresRound: 0,
+            burnSeconds: ignite.burnSeconds,
+            intensity: ignite.intensity,
+            fallSeconds: 0,
         });
     }
     return pours;

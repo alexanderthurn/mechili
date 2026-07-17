@@ -45,7 +45,7 @@ import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
 import { CloudFx } from './cloudFx';
-import { DragonFx, DRAGON_APPROACH_SEC } from './dragonFx';
+import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { ITEMS } from './items';
@@ -79,7 +79,9 @@ import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } f
 import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
     BIG_METEOR_ID,
+    DRAGON_APPROACH_SEC,
     DRAGON_ID,
+    DRAGON_POUR_DURATION_SEC,
     HAMMER_ID,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
@@ -2487,7 +2489,7 @@ export class Game {
                 ];
             }),
         );
-        // Dragon flyover along the capsule
+        // Dragon flyover: breath starts at delay; pour paints start→end with the strafe
         this.dragonFx.schedule(
             pendingSpells.flatMap((s) => {
                 if (s.tacticId !== DRAGON_ID || s.endX === undefined || s.endZ === undefined) {
@@ -2501,6 +2503,7 @@ export class Game {
                         x2: s.endX,
                         z2: s.endZ,
                         at: BATTLE_START_FREEZE + spell.delaySeconds,
+                        pourDuration: DRAGON_POUR_DURATION_SEC,
                     },
                 ];
             }),
@@ -2582,7 +2585,13 @@ export class Game {
                         },
                     ];
                 }
-                if (spell.igniteCapsule && s.endX !== undefined && s.endZ !== undefined) {
+                // igniteCapsule (dragon) uses progressive pour — charge handled above
+                if (
+                    spell.igniteCapsule &&
+                    s.tacticId !== DRAGON_ID &&
+                    s.endX !== undefined &&
+                    s.endZ !== undefined
+                ) {
                     return [
                         {
                             tacticId: s.tacticId,
@@ -2636,24 +2645,17 @@ export class Game {
                   ]
                 : [];
         });
-        const spellIgnites = pendingSpells.flatMap((s) => {
-            const spell = TACTICS[s.tacticId]?.spell;
-            const ignite = spell?.igniteCapsule;
-            return ignite && s.endX !== undefined && s.endZ !== undefined
-                ? [
-                      {
-                          x: s.x,
-                          z: s.z,
-                          x2: s.endX,
-                          z2: s.endZ,
-                          radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
-                          delaySeconds: spell.delaySeconds,
-                          burnSeconds: ignite.burnSeconds,
-                          intensity: ignite.intensity,
-                      },
-                  ]
-                : [];
-        });
+        const spellIgnites: {
+            x: number;
+            z: number;
+            x2: number;
+            z2: number;
+            radius: number;
+            delaySeconds: number;
+            burnSeconds: number;
+            intensity: number;
+        }[] = [];
+        // dragon breath is a progressive fire pour (hazardPours), not a one-shot ignite
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
