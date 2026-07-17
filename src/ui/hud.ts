@@ -134,6 +134,7 @@ export class Hud {
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
     private lastShopKey = '';
+    private lastShopOrderKey = '';
     private lastLevelAllKey = '';
     private readonly fightBar: HTMLDivElement;
     private playerFighterEl!: HTMLDivElement;
@@ -753,9 +754,28 @@ export class Hud {
         this.shopUnlockAvailable = unlockAvailable;
         this.shopBalance = balance;
 
-        for (const id of SHOP_UNIT_IDS) {
-            const tile = this.shopUnitTiles.get(id);
-            if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
+        // only reshuffle the grid when unlock order changes — appending every
+        // frame (setSupply clears the cache) cancels in-flight unlock clicks
+        const orderKey = unlocked.join(',');
+        if (orderKey !== this.lastShopOrderKey) {
+            this.lastShopOrderKey = orderKey;
+            for (const id of unlocked) {
+                const tile = this.shopUnitTiles.get(id);
+                if (!tile) continue;
+                tile.style.display = '';
+                this.shopGrid.appendChild(tile);
+            }
+            for (const id of SHOP_UNIT_IDS) {
+                if (unlocked.includes(id)) continue;
+                const tile = this.shopUnitTiles.get(id);
+                if (tile) tile.style.display = 'none';
+            }
+            this.shopGrid.appendChild(this.unlockTile);
+        } else {
+            for (const id of SHOP_UNIT_IDS) {
+                const tile = this.shopUnitTiles.get(id);
+                if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
+            }
         }
         const specialistChosen = unlocked.length > 0;
         const hasLocked = SHOP_UNIT_IDS.some((id) => !unlocked.includes(id));
@@ -817,15 +837,15 @@ export class Hud {
         overlay.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('.cards-skip')) {
-                overlay.remove();
+                this.hideCardOverlay();
                 return;
             }
             const button = target.closest<HTMLButtonElement>('.unlock-pick');
             if (!button?.dataset.unit || button.disabled) return;
-            overlay.remove();
+            this.hideCardOverlay();
             this.onUnlockPick?.(button.dataset.unit);
         });
-        this.mount(overlay);
+        this.showCardOverlay(overlay);
     }
 
     setSelection(info: SelectionInfo | null): void {
