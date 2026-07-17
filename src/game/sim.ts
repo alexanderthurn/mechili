@@ -2,11 +2,13 @@ import type { Group } from 'three';
 import {
     ACID_DPS_PERCENT,
     applyBurnStatus,
+    HAZARD_DRIP_FALL_SEC,
     HazardField,
     OIL_SPEED_MULT,
     livingShieldDisks,
     resolveFireProfile,
     type FireProfile,
+    type HazardPour,
 } from './fire';
 import { ITEMS } from './items';
 import { groundSupportAt, mulberry32, simGroundHeightAt, simGroundSupportAt } from './map';
@@ -84,6 +86,8 @@ export interface SimConfig {
     spellZones?: readonly SpellZone[];
     /** one-shot capsule ignitions (dragon breath along its flight path) */
     spellIgnites?: readonly SpellIgnite[];
+    /** oil/acid capsules that pour left→right as drips after the freeze */
+    hazardPours?: readonly HazardPour[];
     /** summoned packs materialize this many seconds after the freeze (0 = normal) */
     summonDelayOf?: (unit: Unit) => number;
 }
@@ -246,6 +250,8 @@ export type SimEvent =
     | { kind: 'summon'; x: number; y: number; z: number; flying: boolean }
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
+    /** oil/acid drip cue — blob falls until `at`, then that disc stamps on the ground */
+    | { kind: 'hazardDrip'; hazard: 'oil' | 'acid'; x: number; z: number; at: number }
     /** storm lightning bolt cue (render-only) */
     | { kind: 'spellLightning'; x: number; z: number };
 
@@ -377,6 +383,18 @@ export class BattleSim {
         igniteRadius?: number;
         fired: boolean;
     }[] = [];
+    /** oil/acid drips along capsule paths — announce fall, then stamp on land */
+    private readonly drips: {
+        kind: 'oil' | 'acid';
+        x: number;
+        z: number;
+        radius: number;
+        expiresRound: number;
+        fallStart: number;
+        landAt: number;
+        announced: boolean;
+        stamped: boolean;
+    }[] = [];
 
     constructor(
         units: readonly Unit[],
@@ -484,6 +502,7 @@ export class BattleSim {
             at: BATTLE_START_FREEZE + f.delaySeconds,
             fired: false,
         }));
+        this.buildHazardDrips(config.hazardPours ?? []);
         // canonical battle order: both peers sort into the SAME sequence
         // (host units first, each side by spawn counter, members in pack
         // order via sort stability), so every order-dependent computation —
@@ -788,6 +807,57 @@ export class BattleSim {
             if (f.fired || this.elapsed < f.at) continue;
             f.fired = true;
             this.resolveIgnite(f);
+        }
+    }
+
+    /** expand each oil/acid capsule into overlapping drip landings along the spine */
+    private buildHazardDrips(pours: readonly HazardPour[]): void {
+        for (const pour of pours) {
+            const dx = pour.x2 - pour.x;
+            const dz = pour.z2 - pour.z;
+            const len = hypot(dx, dz);
+            const step = pour.radius * 0.55;
+            const steps = Math.max(1, Math.ceil(len / Math.max(step, 1e-6)));
+            const pourStart = BATTLE_START_FREEZE + pour.delaySeconds;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const landAt = pourStart + t * pour.durationSeconds + HAZARD_DRIP_FALL_SEC;
+                this.drips.push({
+                    kind: pour.kind,
+                    x: pour.x + dx * t,
+                    z: pour.z + dz * t,
+                    radius: pour.radius,
+                    expiresRound: pour.expiresRound,
+                    fallStart: landAt - HAZARD_DRIP_FALL_SEC,
+                    landAt,
+                    announced: false,
+                    stamped: false,
+                });
+            }
+        }
+    }
+
+    /** announce falling drips, then stamp each disc on impact (wards block) */
+    private stepHazardDrips(): void {
+        const shields = livingShieldDisks(this.actors.map((a) => a.unit));
+        for (const d of this.drips) {
+            if (!d.announced && this.elapsed >= d.fallStart) {
+                d.announced = true;
+                this.events.push({
+                    kind: 'hazardDrip',
+                    hazard: d.kind,
+                    x: d.x,
+                    z: d.z,
+                    at: d.landAt,
+                });
+            }
+            if (d.stamped || this.elapsed < d.landAt) continue;
+            d.stamped = true;
+            if (d.kind === 'oil') {
+                this.hazards.stampOil(d.x, d.z, d.radius, d.expiresRound, shields, this.elapsed);
+            } else {
+                this.hazards.stampAcid(d.x, d.z, d.radius, d.expiresRound, shields);
+            }
         }
     }
 
@@ -1309,6 +1379,7 @@ export class BattleSim {
 
         this.stepSummonAppearances();
         this.stepSpellStrikes();
+        this.stepHazardDrips();
 
         this.stepIndex++;
         let mobile = 0;

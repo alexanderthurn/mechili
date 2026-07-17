@@ -1,10 +1,13 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
 import {
     ACID_SPILL_RADIUS,
+    HAZARD_POUR_DELAY_SEC,
+    HAZARD_POUR_DURATION_SEC,
     HazardField,
     OIL_SPILL_DURATION_ROUNDS,
     OIL_SPILL_RADIUS,
     livingShieldDisks,
+    type HazardPour,
 } from './fire';
 import { ITEMS } from './items';
 import {
@@ -1024,8 +1027,8 @@ export class ActionDispatcher {
 
 /**
  * Build-phase oil field = baseline only. This round's stamps are intent until
- * {@link commitOilStamps} at battle start (ward stones cut holes then).
- * Also resets acid to baseline — the two channels share one HazardField.
+ * {@link prepareHazardPours} at battle start (drips land mid-battle; ward
+ * discs stay clear). Also resets acid to baseline — shared HazardField.
  */
 export function resetOilFieldToBaseline(
     ctx: Pick<ActionContext, 'oilField' | 'oilBaseline'>,
@@ -1035,55 +1038,58 @@ export function resetOilFieldToBaseline(
     ctx.oilField.clearFire();
 }
 
-/** Materialize oil stamps into the field, punching living ward discs. */
-export function commitOilStamps(
-    ctx: Pick<ActionContext, 'oilStamps' | 'oilField' | 'oilBaseline' | 'placement'>,
-): void {
+/**
+ * Reset the hazard field to the cross-round baseline, punch living ward
+ * discs out of carry-over oil/acid, and return pour schedules for the sim
+ * (left→right drips). Does NOT stamp the new capsules yet.
+ */
+export function prepareHazardPours(
+    ctx: Pick<
+        ActionContext,
+        'oilStamps' | 'spellStamps' | 'oilField' | 'oilBaseline' | 'placement'
+    >,
+    round: number,
+): HazardPour[] {
     resetOilFieldToBaseline(ctx);
     const shields = livingShieldDisks(ctx.placement.allUnits());
     ctx.oilField.clearOilInsideShields(shields);
-    const stamps = [...ctx.oilStamps].sort((a, b) => a.id - b.id);
-    for (const s of stamps) {
-        ctx.oilField.stampOilCapsule(
-            s.startX,
-            s.startZ,
-            s.endX,
-            s.endZ,
-            s.radius,
-            s.expiresRound,
-            shields,
-        );
-    }
-}
-
-/**
- * Materialize this round's acid-capsule spell stamps into the field, exactly
- * like {@link commitOilStamps} — same moment (battle start, no delay), same
- * ward-stone punching. Call right after commitOilStamps (shares the field).
- */
-export function commitAcidStamps(
-    ctx: Pick<ActionContext, 'spellStamps' | 'oilField' | 'placement'>,
-    round: number,
-): void {
-    const shields = livingShieldDisks(ctx.placement.allUnits());
     ctx.oilField.clearAcidInsideShields(shields);
-    const stamps = ctx.spellStamps
+
+    const pours: HazardPour[] = [];
+    const oils = [...ctx.oilStamps].sort((a, b) => a.id - b.id);
+    for (const s of oils) {
+        pours.push({
+            kind: 'oil',
+            x: s.startX,
+            z: s.startZ,
+            x2: s.endX,
+            z2: s.endZ,
+            radius: s.radius,
+            delaySeconds: HAZARD_POUR_DELAY_SEC,
+            durationSeconds: HAZARD_POUR_DURATION_SEC,
+            expiresRound: s.expiresRound,
+        });
+    }
+    const acids = ctx.spellStamps
         .filter((s) => s.placedRound === round && TACTICS[s.tacticId]?.acidCapsule)
         .sort((a, b) => a.id - b.id);
-    for (const s of stamps) {
+    for (const s of acids) {
         const tactic = TACTICS[s.tacticId]!;
         const radius = tactic.radius ?? ACID_SPILL_RADIUS;
         const durationRounds = tactic.acidCapsule!.durationRounds;
-        ctx.oilField.stampAcidCapsule(
-            s.x,
-            s.z,
-            s.endX ?? s.x,
-            s.endZ ?? s.z,
+        pours.push({
+            kind: 'acid',
+            x: s.x,
+            z: s.z,
+            x2: s.endX ?? s.x,
+            z2: s.endZ ?? s.z,
             radius,
-            round + durationRounds - 1,
-            shields,
-        );
+            delaySeconds: HAZARD_POUR_DELAY_SEC,
+            durationSeconds: HAZARD_POUR_DURATION_SEC,
+            expiresRound: round + durationRounds - 1,
+        });
     }
+    return pours;
 }
 
 /** quantize world coords so peers never disagree on float noise */

@@ -19,7 +19,7 @@ import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, commitAcidStamps, commitOilStamps, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
@@ -40,7 +40,8 @@ import {
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
-import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
+import { HazardField, HAZARD_POUR_DELAY_SEC, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
+import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
 import { CloudFx } from './cloudFx';
@@ -165,6 +166,7 @@ export class Game {
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
     private readonly dragonFx: DragonFx;
+    private readonly oilDripFx: OilDripFx;
     private readonly oilVisuals: OilVisuals;
     private readonly oilField = new HazardField();
     private readonly oilBaseline = new HazardField();
@@ -429,6 +431,7 @@ export class Game {
         this.meteorFx = new MeteorFx(this.scene);
         this.cloudFx = new CloudFx(this.scene);
         this.dragonFx = new DragonFx(this.scene);
+        this.oilDripFx = new OilDripFx(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
@@ -944,6 +947,7 @@ export class Game {
         this.meteorFx.dispose();
         this.cloudFx.dispose();
         this.dragonFx.dispose();
+        this.oilDripFx.dispose();
         this.controls.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
@@ -2400,16 +2404,15 @@ export class Game {
         this.gridOverlay.visible = false;
         this.enemyIntelSnapshot = null;
         this.placement.revealAll();
-        // oil "falls": materialize stamps with ward discs cut out
-        commitOilStamps({
-            oilStamps: this.oilStamps,
-            oilField: this.oilField,
-            oilBaseline: this.oilBaseline,
-            placement: this.placement,
-        });
-        // acid lands the SAME instant, the same way — no scheduled delay
-        commitAcidStamps(
-            { spellStamps: this.spellStamps, oilField: this.oilField, placement: this.placement },
+        // oil/acid pour later as drips — baseline only for now (wards carve carry-over)
+        const hazardPours = prepareHazardPours(
+            {
+                oilStamps: this.oilStamps,
+                spellStamps: this.spellStamps,
+                oilField: this.oilField,
+                oilBaseline: this.oilBaseline,
+                placement: this.placement,
+            },
             this.round,
         );
         this.oilVisuals.setDraft(null);
@@ -2503,80 +2506,107 @@ export class Game {
         );
         // charge markers: outer + growing inner until readyAt, then gone
         // (zones keep a pulsing ring via activeZoneMarkers after readyAt)
-        this.spellChargeMarkers = pendingSpells.flatMap((s) => {
-            const tactic = TACTICS[s.tacticId];
-            const spell = tactic?.spell;
-            if (!spell) return [];
-            const at = BATTLE_START_FREEZE + spell.delaySeconds;
-            const radius = tactic.radius ?? 8;
-            if (s.tacticId === HAMMER_ID) {
-                return [
-                    {
-                        tacticId: HAMMER_ID,
-                        x: s.x,
-                        z: s.z,
-                        radius,
-                        at,
-                        readyAt: at - HAMMER_SWING_SEC,
-                        yaw: s.yaw ?? 0,
-                    },
-                ];
-            }
-            if (s.tacticId === BIG_METEOR_ID) {
-                return [
-                    {
-                        tacticId: BIG_METEOR_ID,
-                        x: s.x,
-                        z: s.z,
-                        radius,
-                        at,
-                        readyAt: at - GREAT_METEOR_FALL_SEC,
-                    },
-                ];
-            }
-            if (s.tacticId === DRAGON_ID && s.endX !== undefined && s.endZ !== undefined) {
-                return [
-                    {
-                        tacticId: DRAGON_ID,
-                        x: s.x,
-                        z: s.z,
-                        radius,
-                        at,
-                        readyAt: at - DRAGON_APPROACH_SEC,
-                        endX: s.endX,
-                        endZ: s.endZ,
-                    },
-                ];
-            }
-            if (spell.igniteCapsule && s.endX !== undefined && s.endZ !== undefined) {
-                return [
-                    {
-                        tacticId: s.tacticId,
-                        x: s.x,
-                        z: s.z,
-                        radius,
-                        at,
-                        readyAt: at,
-                        endX: s.endX,
-                        endZ: s.endZ,
-                    },
-                ];
-            }
-            // strikes, spawns, and zones all charge until the effect begins
-            if (spell.strike || spell.spawn || spell.zone) {
-                return [
-                    {
-                        tacticId: s.tacticId,
-                        x: s.x,
-                        z: s.z,
-                        radius,
-                        at,
-                        readyAt: at,
-                    },
-                ];
-            }
-            return [];
-        });
+        const pourReadyAt = BATTLE_START_FREEZE + HAZARD_POUR_DELAY_SEC;
+        this.spellChargeMarkers = [
+            ...this.oilStamps.map((s) => ({
+                tacticId: OIL_SPILL_ID,
+                x: s.startX,
+                z: s.startZ,
+                radius: s.radius,
+                at: pourReadyAt,
+                readyAt: pourReadyAt,
+                endX: s.endX,
+                endZ: s.endZ,
+            })),
+            ...pendingSpells.flatMap((s) => {
+                const tactic = TACTICS[s.tacticId];
+                const spell = tactic?.spell;
+                if (tactic?.acidCapsule && s.endX !== undefined && s.endZ !== undefined) {
+                    return [
+                        {
+                            tacticId: s.tacticId,
+                            x: s.x,
+                            z: s.z,
+                            radius: tactic.radius ?? 8,
+                            at: pourReadyAt,
+                            readyAt: pourReadyAt,
+                            endX: s.endX,
+                            endZ: s.endZ,
+                        },
+                    ];
+                }
+                if (!spell) return [];
+                const at = BATTLE_START_FREEZE + spell.delaySeconds;
+                const radius = tactic!.radius ?? 8;
+                if (s.tacticId === HAMMER_ID) {
+                    return [
+                        {
+                            tacticId: HAMMER_ID,
+                            x: s.x,
+                            z: s.z,
+                            radius,
+                            at,
+                            readyAt: at - HAMMER_SWING_SEC,
+                            yaw: s.yaw ?? 0,
+                        },
+                    ];
+                }
+                if (s.tacticId === BIG_METEOR_ID) {
+                    return [
+                        {
+                            tacticId: BIG_METEOR_ID,
+                            x: s.x,
+                            z: s.z,
+                            radius,
+                            at,
+                            readyAt: at - GREAT_METEOR_FALL_SEC,
+                        },
+                    ];
+                }
+                if (s.tacticId === DRAGON_ID && s.endX !== undefined && s.endZ !== undefined) {
+                    return [
+                        {
+                            tacticId: DRAGON_ID,
+                            x: s.x,
+                            z: s.z,
+                            radius,
+                            at,
+                            readyAt: at - DRAGON_APPROACH_SEC,
+                            endX: s.endX,
+                            endZ: s.endZ,
+                        },
+                    ];
+                }
+                if (spell.igniteCapsule && s.endX !== undefined && s.endZ !== undefined) {
+                    return [
+                        {
+                            tacticId: s.tacticId,
+                            x: s.x,
+                            z: s.z,
+                            radius,
+                            at,
+                            readyAt: at,
+                            endX: s.endX,
+                            endZ: s.endZ,
+                        },
+                    ];
+                }
+                // strikes, spawns, and zones all charge until the effect begins
+                if (spell.strike || spell.spawn || spell.zone) {
+                    return [
+                        {
+                            tacticId: s.tacticId,
+                            x: s.x,
+                            z: s.z,
+                            radius,
+                            at,
+                            readyAt: at,
+                        },
+                    ];
+                }
+                return [];
+            }),
+        ];
         const spellZones = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             const zone = spell?.zone;
@@ -2642,6 +2672,7 @@ export class Game {
             spellStrikes,
             spellZones,
             spellIgnites,
+            hazardPours,
             summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
         });
         // the sync point: both peers hash the identical battle-start state
@@ -2714,6 +2745,7 @@ export class Game {
         this.meteorFx.clear();
         this.cloudFx.clear();
         this.dragonFx.clear();
+        this.oilDripFx.clear();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
@@ -2894,6 +2926,8 @@ export class Game {
                         this.meteorFx.spawnShardImpact(ev.x, ev.z, ev.at);
                     } else if (ev.kind === 'spellLightning') {
                         this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed);
+                    } else if (ev.kind === 'hazardDrip') {
+                        this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at);
                     }
                 }
                 this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed, [], false);
@@ -2912,6 +2946,7 @@ export class Game {
                 this.meteorFx.update(this.sim.elapsed);
                 this.cloudFx.update(this.sim.elapsed);
                 this.dragonFx.update(this.sim.elapsed);
+                this.oilDripFx.update(this.sim.elapsed);
                 // acid/poison/storm/meteor-shower zones + hammer charge rings
                 this.spellVisuals.syncBattleMarkers(
                     this.sim.activeZoneMarkers(),

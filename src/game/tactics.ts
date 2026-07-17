@@ -167,7 +167,7 @@ export const TACTICS: Record<
         cooldownRounds: 0,
         radius: OIL_SPILL_RADIUS,
         description:
-            'Place two oil circles — outline during deploy; oil lands at battle start (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
+            'Place two oil circles — outline during deploy; shortly after battle starts oil drips left-to-right onto the path (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
         oilRadius: OIL_SPILL_RADIUS,
         oilDurationRounds: OIL_SPILL_DURATION_ROUNDS,
     },
@@ -287,11 +287,9 @@ export const TACTICS: Record<
         // TEMP playtest: every round (restore to ACID_SPILL_DURATION_ROUNDS before release)
         cooldownRounds: 0,
         radius: ACID_SPILL_RADIUS,
-        // lands on the ground the instant battle starts, expires by ROUND —
-        // technically identical to oil, just a different per-step effect
-        // (percent-of-max-HP damage + corroded, instead of a speed penalty)
+        // pours left→right shortly after battle start (same drip timing as oil)
         acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS },
-        description: `Pour an acid capsule like an oil spill — it lands on the ground exactly like oil, no delay. Units standing in it sizzle for ${ACID_DPS_PERCENT}% of their max HP every second and turn corroded — taking extra damage from everything. Gone after ${ACID_SPILL_DURATION_ROUNDS} round.`,
+        description: `Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Units standing in it sizzle for ${ACID_DPS_PERCENT}% of their max HP every second and turn corroded — taking extra damage from everything. Gone after ${ACID_SPILL_DURATION_ROUNDS} round.`,
     },
     [DRAGON_ID]: {
         id: DRAGON_ID,

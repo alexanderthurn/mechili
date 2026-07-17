@@ -24,6 +24,7 @@ import {
     HAMMER_ID,
     HAMMER_ZONE,
     METEOR_SHOWER_ID,
+    OIL_SPILL_ID,
     POISON_CLOUD_ID,
     STORM_ID,
     TACTICS,
@@ -65,6 +66,7 @@ const HAMMER_MARK_COLOR = 0xc9a227;
 
 /** capsule tints per tactic — the oil deploy look, recolored */
 const CAPSULE_TINTS: Record<string, { fill: number; line: number }> = {
+    [OIL_SPILL_ID]: { fill: 0x2a1c0a, line: 0x8a6a28 },
     [ACID_ID]: { fill: 0x2e3a08, line: 0xc9e34a },
     [DRAGON_ID]: { fill: 0x3a140a, line: 0xe07a2e },
 };

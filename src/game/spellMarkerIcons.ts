@@ -5,6 +5,7 @@ import {
     DRAGON_ID,
     HAMMER_ID,
     METEOR_SHOWER_ID,
+    OIL_SPILL_ID,
     POISON_CLOUD_ID,
     SPAWN_CROWS_ID,
     SPAWN_DWARVES_ID,
@@ -21,6 +22,7 @@ const MARKER_GLOW: Record<string, string> = {
     [STORM_ID]: 'rgba(20, 20, 48, 0.55)',
     [METEOR_SHOWER_ID]: 'rgba(48, 24, 8, 0.55)',
     [POISON_CLOUD_ID]: 'rgba(16, 40, 12, 0.55)',
+    [OIL_SPILL_ID]: 'rgba(40, 28, 8, 0.55)',
     [ACID_ID]: 'rgba(28, 36, 8, 0.55)',
     [DRAGON_ID]: 'rgba(48, 16, 8, 0.55)',
 };

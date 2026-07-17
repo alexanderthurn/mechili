@@ -4,8 +4,8 @@
  * Deterministic: no randomness, fixed neighbor order, integer cell indices.
  * Both peers must build the same field from the same actions + sim steps.
  *
- * - Oil AND acid persist across rounds (per-cell expiresRound) — same
- *   mechanism, same commit-at-battle-start timing, no mid-battle delay.
+ * - Oil AND acid persist across rounds (per-cell expiresRound). At battle
+ *   start they pour left→right as drips (shield discs stay clear).
  * - Fire is battle-only (cleared when the battle ends); it's the only
  *   channel with ignition/spread behavior.
  * - Igniting any oil cell flood-fills the whole connected oil component.
@@ -25,6 +25,28 @@ export const ACID_SPILL_RADIUS = 4 * CELL;
 export const ACID_SPILL_DURATION_ROUNDS = 1;
 /** percent of MAX HP per second while standing in acid (a global rate, like OIL_SPEED_MULT) */
 export const ACID_DPS_PERCENT = 3;
+
+/** after battle freeze, wait this long before the first drip starts falling */
+export const HAZARD_POUR_DELAY_SEC = 0.55;
+/** time to sweep drips from capsule start → end */
+export const HAZARD_POUR_DURATION_SEC = 1.35;
+/** how long each drip falls through the air before hitting the ground */
+export const HAZARD_DRIP_FALL_SEC = 0.4;
+
+/** one oil/acid capsule that pours left→right during battle */
+export interface HazardPour {
+    kind: 'oil' | 'acid';
+    x: number;
+    z: number;
+    x2: number;
+    z2: number;
+    radius: number;
+    /** seconds after battle freeze before the first drip starts falling */
+    delaySeconds: number;
+    /** seconds to sweep drips from start → end */
+    durationSeconds: number;
+    expiresRound: number;
+}
 
 /** Fire Bolt / weapon ground-fire defaults (can be overridden per UnitType.fire) */
 export const DEFAULT_GROUND_FIRE_DURATION = 16;
@@ -398,11 +420,27 @@ export class HazardField {
         });
     }
 
+    /** stamp a disc of acid (ward discs skipped) — used by progressive pour drips */
+    stampAcid(
+        x: number,
+        z: number,
+        radius: number,
+        expiresRound: number,
+        blockedBy: readonly ShieldDisk[] = [],
+    ): void {
+        if (expiresRound <= 0) return;
+        this.forEachDiscCells(x, z, radius, (wx, wz, cx, cz) => {
+            if (blockedBy.length > 0 && insideAnyShield(wx, wz, blockedBy)) return;
+            const i = this.index(cx, cz);
+            const prev = this.acidExpires[i]!;
+            this.acidExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
+        });
+    }
+
     /**
-     * Stamp acid into a two-circle capsule — technically identical to
-     * {@link stampOilCapsule} (same geometry, same round-based expiry, same
-     * ward-stone blocking). Committed once at battle start, same moment as
-     * oil; no mid-battle delay, no cross-round difference from oil.
+     * Stamp acid into a two-circle capsule — same geometry / expiry / ward
+     * blocking as {@link stampOilCapsule}. Prefer progressive drips in battle;
+     * this remains for any full-capsule commit helpers.
      */
     stampAcidCapsule(
         ax: number,
