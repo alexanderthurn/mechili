@@ -333,7 +333,7 @@ export function pointInSafeZone(
         const fp = u.type.footprint;
         const buildingRadius = (Math.max(fp.cols, fp.rows) / 2) * CELL;
         const keepOut = buildingRadius + TACTIC_SAFE_ZONE_MARGIN + margin;
-        if (Math.hypot(x - u.world.x, z - u.world.z) < keepOut) return true;
+        if (det2d(x - u.world.x, z - u.world.z) < keepOut) return true;
     }
     return false;
 }
@@ -352,6 +352,15 @@ export interface OilStamp {
     placedRound: number;
 }
 
+/**
+ * Deterministic 2D length: sqrt IS correctly rounded per IEEE-754 in every
+ * engine, Math.hypot is NOT — this feeds dispatcher-validated state (capsule
+ * ends, safe-zone accept/reject), so lockstep peers must agree exactly.
+ */
+function det2d(dx: number, dz: number): number {
+    return Math.sqrt(dx * dx + dz * dz);
+}
+
 /** pull `end` toward `start` so center distance ≤ maxSpan */
 export function clampTacticEnd(
     startX: number,
@@ -362,7 +371,7 @@ export function clampTacticEnd(
 ): { x: number; z: number } {
     const dx = endX - startX;
     const dz = endZ - startZ;
-    const len = Math.hypot(dx, dz);
+    const len = det2d(dx, dz);
     if (len <= maxSpan || len < 1e-9) return { x: endX, z: endZ };
     const s = maxSpan / len;
     return { x: startX + dx * s, z: startZ + dz * s };

@@ -776,11 +776,22 @@ export class BattleSim {
             return;
         }
         if (z.mode === 'meteorShower') {
-            // one small strike at a random spot inside, igniting the ground
-            const angle = z.rng() * Math.PI * 2;
-            const dist = Math.sqrt(z.rng()) * z.radius;
-            const px = z.x + Math.cos(angle) * dist;
-            const pz = z.z + Math.sin(angle) * dist;
+            // one small strike at a random spot inside, igniting the ground.
+            // Rejection sampling instead of cos/sin: transcendental results
+            // differ between engines and this position enters the sim state.
+            let ox = 0;
+            let oz = 0;
+            for (let tries = 0; tries < 16; tries++) {
+                const cx = (z.rng() * 2 - 1) * z.radius;
+                const cz = (z.rng() * 2 - 1) * z.radius;
+                if (cx * cx + cz * cz <= z.radius * z.radius) {
+                    ox = cx;
+                    oz = cz;
+                    break;
+                }
+            }
+            const px = z.x + ox;
+            const pz = z.z + oz;
             const impactRadius = z.impactRadius ?? 4;
             this.resolveStrike({
                 x: px,

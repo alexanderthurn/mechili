@@ -2425,12 +2425,23 @@ export class Game {
         const scatter = tactic.radius ?? 4 * CELL;
         const rng = mulberry32(seedFrom(this.seed, `spell:${stamp.id}`));
         for (let i = 0; i < spawn.count; i++) {
-            const angle = rng() * Math.PI * 2;
-            const dist = Math.sqrt(rng()) * scatter;
+            // rejection sampling instead of cos/sin — these positions become
+            // sim state, and transcendental results differ between engines
+            let ox = 0;
+            let oz = 0;
+            for (let tries = 0; tries < 16; tries++) {
+                const cx = (rng() * 2 - 1) * scatter;
+                const cz = (rng() * 2 - 1) * scatter;
+                if (cx * cx + cz * cz <= scatter * scatter) {
+                    ox = cx;
+                    oz = cz;
+                    break;
+                }
+            }
             const anchor = this.placement.findSpotNearWorld(
                 type,
-                stamp.x + Math.cos(angle) * dist,
-                stamp.z + Math.sin(angle) * dist,
+                stamp.x + ox,
+                stamp.z + oz,
             );
             if (!anchor) continue;
             const unit = this.placement.spawn(type, anchor, stamp.team, false, true);
