@@ -13,6 +13,31 @@ export const SELL_UNIT_ID = 'sellUnit';
  */
 export const TACTIC_MAX_SPAN = 14 * CELL;
 
+/**
+ * HOW TO ADD A TACTIC — the whole system in one checklist:
+ *  1. Register it here: an id constant + a TACTICS entry. `kind` decides how
+ *     the strip and charge accounting behave (see below) — nothing else in
+ *     the HUD needs touching, the strip renders every TACTICS entry generically.
+ *  2. Give it an action in actions.ts. Validate + consume charges there:
+ *     'placement' kinds count their placements against the inventory total;
+ *     'oneShot' kinds call consumeTacticCharge() so undo, save/reload and the
+ *     greyed-out strip entry all work automatically. NEW ACTION KINDS THAT
+ *     CARRY UNIT IDS MUST BE ADDED TO Game.swapPerspective (peer desync!).
+ *  3. Wire the targeting in Game.handleTacticGroundClick (the strip arms the
+ *     tactic for you) plus any draft/preview visuals.
+ *  4. Grant charges through a round card (`tactics: [id]` in cards.ts) —
+ *     cards are logged actions, so replay/reload handles them for free.
+ *     Grants OUTSIDE the action log (dev freebies) must exist before a
+ *     reload's replay: add the id to TEST_TACTIC_GRANTS in game.ts, done.
+ *
+ * `kind` semantics:
+ *  - 'placement': the charge stays in the inventory; using it creates a
+ *    placement on the board (rally route, oil stamp) that the player can
+ *    right-click in the strip to reset. Available = charges − placements.
+ *  - 'oneShot': using it removes the charge from the inventory; the log
+ *    entry records it (usedTactic) so undo restores it and the strip keeps
+ *    the spent charge visible greyed-out for the rest of the round.
+ */
 export const TACTICS: Record<
     string,
     {
@@ -20,6 +45,7 @@ export const TACTICS: Record<
         name: string;
         icon: string;
         description: string;
+        kind: 'placement' | 'oneShot';
         /** oil spill only */
         oilRadius?: number;
         oilDurationRounds?: number;
@@ -29,6 +55,7 @@ export const TACTICS: Record<
         id: RALLY_ROUTE_ID,
         name: 'Rally Route',
         icon: '⚑',
+        kind: 'placement',
         description:
             'Place a start and end zone. Units in the start circle march to matching positions at the end, fighting along the way.',
     },
@@ -36,6 +63,7 @@ export const TACTICS: Record<
         id: OIL_SPILL_ID,
         name: 'Oil Spill',
         icon: '🛢',
+        kind: 'placement',
         description:
             'Place two oil circles — outline during deploy; oil lands at battle start (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
         oilRadius: OIL_SPILL_RADIUS,
@@ -45,6 +73,7 @@ export const TACTICS: Record<
         id: SELL_UNIT_ID,
         name: 'Sell Pack',
         icon: '💰',
+        kind: 'oneShot',
         description:
             'Click to arm, then click one of your packs to sell it for a supply refund.',
     },

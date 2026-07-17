@@ -219,7 +219,7 @@ interface LogEntry extends LoggedAction {
     prevHp?: number;
     grantedItems?: string[];
     grantedTactics?: string[];
-    /** sellUnit: the one-shot tactic charge it consumed (absent = ability charge) */
+    /** the one-shot tactic charge this action consumed, if any (see consumeTacticCharge) */
     usedTactic?: string;
     /** placeRallyRoute: the spawned route */
     rallyRoute?: RallyRoute;
@@ -356,15 +356,12 @@ export class ActionDispatcher {
         return false;
     }
 
-    /** one-shot sell-tactic charges `team` consumed in `round` — keeps the
-     *  spent charge visible (greyed) in the tactics strip until the round ends */
-    usedSellTactics(round: number, team: Team): number {
+    /** one-shot charges of `tacticId` that `team` consumed in `round` — keeps
+     *  spent charges visible (greyed) in the tactics strip until the round ends */
+    usedTacticCharges(round: number, team: Team, tacticId: string): number {
         return this.log.filter(
             (e) =>
-                e.round === round &&
-                e.action.team === team &&
-                e.action.kind === 'sellUnit' &&
-                e.usedTactic !== undefined,
+                e.round === round && e.action.team === team && e.usedTactic === tacticId,
         ).length;
     }
 
@@ -515,11 +512,12 @@ export class ActionDispatcher {
                     ? this.ctx.sellSettings.maxPerRound
                     : 0;
                 const useAbility = sell.used[action.team] < abilityCharges;
-                const inventory = this.ctx.tactics[action.team];
-                const tacticIdx = inventory.indexOf(SELL_UNIT_ID);
-                if (!useAbility && tacticIdx < 0) return false;
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || unit.type.structure) return false;
+                if (useAbility) sell.used[action.team]++;
+                else if (!consumeTacticCharge(this.ctx, entry, action.team, SELL_UNIT_ID)) {
+                    return false;
+                }
                 const refund = Math.round(
                     economy.costOf(unit.type) * this.ctx.sellSettings.refundFactor,
                 );
@@ -527,12 +525,6 @@ export class ActionDispatcher {
                 entry.paid = refund;
                 placement.removeUnit(unit);
                 economy.credit(action.team, refund);
-                if (useAbility) {
-                    sell.used[action.team]++;
-                } else {
-                    inventory.splice(tacticIdx, 1);
-                    entry.usedTactic = SELL_UNIT_ID;
-                }
                 return true;
             }
             case 'buyDeploySlot': {
@@ -800,8 +792,9 @@ export class ActionDispatcher {
             case 'sellUnit':
                 placement.restoreUnit(e.unit!);
                 economy.spend(action.team, e.paid!); // take the refund back
-                if (e.usedTactic) this.ctx.tactics[action.team].push(e.usedTactic);
-                else this.ctx.sellState.used[action.team]--;
+                if (!restoreTacticCharge(this.ctx, e, action.team)) {
+                    this.ctx.sellState.used[action.team]--;
+                }
                 break;
             case 'buyDeploySlot':
                 this.ctx.deployState.extra[action.team]--;
@@ -862,6 +855,37 @@ export class ActionDispatcher {
             }
         }
     }
+}
+
+/**
+ * Spends one one-shot charge of `tacticId` from the team's inventory and
+ * records it on the log entry — undo, replay and the strip's greyed-out
+ * entry all derive from that record. Every 'oneShot' tactic action MUST
+ * consume its charge through this (and restore via {@link restoreTacticCharge}).
+ */
+function consumeTacticCharge(
+    ctx: Pick<ActionContext, 'tactics'>,
+    entry: LogEntry,
+    team: Team,
+    tacticId: string,
+): boolean {
+    const inventory = ctx.tactics[team];
+    const i = inventory.indexOf(tacticId);
+    if (i < 0) return false;
+    inventory.splice(i, 1);
+    entry.usedTactic = tacticId;
+    return true;
+}
+
+/** inverse of {@link consumeTacticCharge}; false = the entry spent no charge */
+function restoreTacticCharge(
+    ctx: Pick<ActionContext, 'tactics'>,
+    e: LogEntry,
+    team: Team,
+): boolean {
+    if (e.usedTactic === undefined) return false;
+    ctx.tactics[team].push(e.usedTactic);
+    return true;
 }
 
 /**
