@@ -1,10 +1,10 @@
-import type { Scene } from 'three';
+import { PointLight, type Scene } from 'three';
 import { groundSupportAt } from './map';
 import type { HazardField } from './fire';
 import { prefs, type FireVfxQuality } from './prefs';
 import type { Particles } from './effects';
 import { FlameRenderer } from './flameRenderer';
-import type { SimEvent } from './sim';
+import type { Actor, SimEvent } from './sim';
 
 function usesTongues(q: FireVfxQuality): boolean {
     return q === 'medium' || q === 'high';
@@ -18,7 +18,11 @@ export class FireFx {
     private quality: FireVfxQuality = prefs().fireVfx;
     private emitAcc = 0;
     private smokeAcc = 0;
+    private burnAcc = 0;
     private readonly flames: FlameRenderer;
+    /** ONE shared flickering light on the biggest blaze (medium/high tiers) */
+    private readonly fireLight: PointLight;
+    private lightTime = 0;
 
     constructor(
         private readonly particles: Particles,
@@ -26,11 +30,17 @@ export class FireFx {
     ) {
         this.flames = new FlameRenderer(scene);
         this.flames.setQuality(this.quality);
+        // castShadow stays off: a shadow-casting point light re-renders the
+        // scene 6× (cube map) — not worth it for a top-down view
+        this.fireLight = new PointLight(0xff7a28, 0, 46, 1.6);
+        this.fireLight.visible = false;
+        scene.add(this.fireLight);
     }
 
     setQuality(q: FireVfxQuality): void {
         this.quality = q;
         this.flames.setQuality(q);
+        if (!usesTongues(q)) this.fireLight.visible = false;
     }
 
     /** drop continuous fire VFX (call when the battle ends — flames are battle-only) */
@@ -38,6 +48,47 @@ export class FireFx {
         this.flames.clear();
         this.emitAcc = 0;
         this.smokeAcc = 0;
+        this.fireLight.visible = false;
+    }
+
+    /** Places the shared light on the blaze centroid (snapped to a real fire
+     *  cell so two separate fires don't light their empty midpoint). */
+    private updateFireLight(dt: number, field: HazardField, now: number): void {
+        if (!usesTongues(this.quality)) return;
+        let total = 0;
+        let cx = 0;
+        let cz = 0;
+        field.forEachFireCell(now, (x, z) => {
+            total++;
+            cx += x;
+            cz += z;
+        });
+        if (total === 0) {
+            this.fireLight.visible = false;
+            return;
+        }
+        cx /= total;
+        cz /= total;
+        let bestX = cx;
+        let bestZ = cz;
+        let bestD = Infinity;
+        field.forEachFireCell(now, (x, z) => {
+            const d = (x - cx) * (x - cx) + (z - cz) * (z - cz);
+            if (d < bestD) {
+                bestD = d;
+                bestX = x;
+                bestZ = z;
+            }
+        });
+        this.lightTime += dt;
+        const t = this.lightTime;
+        // two incommensurate sine waves ≈ organic flicker without randomness
+        const flicker = 0.82 + 0.12 * Math.sin(t * 11.3) + 0.06 * Math.sin(t * 27.7);
+        const size = Math.min(1, total / 24); // small fires glow less
+        this.fireLight.visible = true;
+        this.fireLight.position.set(bestX, groundSupportAt(bestX, bestZ) + 2.4, bestZ);
+        this.fireLight.intensity = (this.quality === 'high' ? 260 : 170) * size * flicker;
+        this.fireLight.distance = 30 + 26 * size;
     }
 
     spawnFromEvents(events: readonly SimEvent[]): void {
@@ -74,10 +125,54 @@ export class FireFx {
         }
     }
 
+    /**
+     * Flame licks on mechs whose burn DoT is running — the sim already tracks
+     * `burnUntil`/`burnDps`, this just makes it visible. Budgeted per tier.
+     */
+    updateBurningActors(dt: number, actors: readonly Actor[], now: number): void {
+        if (this.quality === 'off') return;
+        this.burnAcc += dt;
+        const maxTier = this.quality === 'high';
+        const period = maxTier ? 0.12 : 0.2;
+        if (this.burnAcc < period) return;
+        this.burnAcc = 0;
+        const burning: Actor[] = [];
+        for (const a of actors) {
+            if (a.alive && a.burnDps > 0 && a.burnUntil > now) burning.push(a);
+        }
+        if (burning.length === 0) return;
+        const budget = maxTier ? 14 : 8;
+        const stride = Math.max(1, Math.ceil(burning.length / budget));
+        for (let i = 0; i < burning.length; i += stride) {
+            const a = burning[i]!;
+            this.particles.burst(a.rx, a.footY + 0.9, a.rz, {
+                count: maxTier ? 3 : 2,
+                color: 0xff6a18,
+                speed: 1.6,
+                life: 0.45,
+                up: 5,
+            });
+            if (maxTier) {
+                this.particles.burst(a.rx, a.footY + 1.7, a.rz, {
+                    count: 1,
+                    color: 0x2c2824,
+                    speed: 0.6,
+                    life: 1.1,
+                    up: 2.2,
+                    blood: true,
+                });
+            }
+        }
+    }
+
     /** continuous fire visuals on active cells (throttled; visual-only) */
     update(dt: number, field: HazardField | null, now: number): void {
         if (usesTongues(this.quality)) this.flames.update(dt, field, now);
-        if (!field || this.quality === 'off') return;
+        if (!field || this.quality === 'off') {
+            this.fireLight.visible = false;
+            return;
+        }
+        this.updateFireLight(dt, field, now);
 
         const maxTier = this.quality === 'high';
         const rich = usesTongues(this.quality);

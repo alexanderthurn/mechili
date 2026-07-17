@@ -1,7 +1,17 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
 import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS, livingShieldDisks } from './fire';
 import { ITEMS } from './items';
-import { OIL_SPILL_ID, RALLY_ROUTE_ID, SELL_UNIT_ID, TACTICS, clampTacticEnd, type OilStamp, type RallyRoute } from './tactics';
+import {
+    OIL_SPILL_ID,
+    RALLY_ROUTE_ID,
+    SELL_UNIT_ID,
+    TACTICS,
+    clampTacticEnd,
+    pointInSafeZone,
+    type OilStamp,
+    type RallyRoute,
+    type SpellStamp,
+} from './tactics';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
 import type {
@@ -169,6 +179,21 @@ export interface RemoveOilSpillAction {
     team: Team;
     stampId: number;
 }
+/** stamps a battle spell (point tactic) — intent until battle start fires it */
+export interface PlaceSpellAction {
+    kind: 'placeSpell';
+    team: Team;
+    tacticId: string;
+    /** quantized world coords (peers must agree exactly) */
+    x: number;
+    z: number;
+}
+/** clears a spell stamp placed THIS round (fired stamps are history) */
+export interface RemoveSpellAction {
+    kind: 'removeSpell';
+    team: Team;
+    stampId: number;
+}
 
 export type Action =
     | BuyAction
@@ -193,7 +218,9 @@ export type Action =
     | PlaceRallyRouteAction
     | RemoveRallyRouteAction
     | PlaceOilSpillAction
-    | RemoveOilSpillAction;
+    | RemoveOilSpillAction
+    | PlaceSpellAction
+    | RemoveSpellAction;
 
 /** one applied action as stored in a replay */
 export interface LoggedAction {
@@ -225,6 +252,8 @@ interface LogEntry extends LoggedAction {
     rallyRoute?: RallyRoute;
     /** placeOilSpill / removeOilSpill */
     oilStamp?: OilStamp;
+    /** placeSpell / removeSpell */
+    spellStamp?: SpellStamp;
 }
 
 export interface ActionContext {
@@ -276,6 +305,13 @@ export interface ActionContext {
     oilBaseline: HazardField;
     oilStamps: OilStamp[];
     oilStampIds: { next: number };
+    /**
+     * Battle-spell stamps, kept FOREVER (not cleared per round): stamps of
+     * the running round are pending intent; older ones are the fired history
+     * that drives the per-tactic cooldown window.
+     */
+    spellStamps: SpellStamp[];
+    spellStampIds: { next: number };
     /** whether each side already took (or skipped) this round's card */
     roundCardTaken: Record<Team, boolean>;
     /** which sides have locked in this deployment — battle needs BOTH */
@@ -356,13 +392,39 @@ export class ActionDispatcher {
         return false;
     }
 
-    /** one-shot charges of `tacticId` that `team` consumed in `round` — keeps
-     *  spent charges visible (greyed) in the tactics strip until the round ends */
-    usedTacticCharges(round: number, team: Team, tacticId: string): number {
-        return this.log.filter(
-            (e) =>
-                e.round === round && e.action.team === team && e.usedTactic === tacticId,
-        ).length;
+    /**
+     * Rounds in which `team` spent a one-shot charge of `tacticId`, `since`
+     * or later. Cooldowns are DERIVED from these log records: a use in round
+     * R blocks one charge through round R + cooldownRounds. Undo removes the
+     * record, replay rebuilds it — availability needs no extra state.
+     */
+    tacticUseRounds(team: Team, tacticId: string, since: number): number[] {
+        return this.log
+            .filter(
+                (e) =>
+                    e.action.team === team && e.usedTactic === tacticId && e.round >= since,
+            )
+            .map((e) => e.round);
+    }
+
+    /** free one-shot charges of `tacticId` in `round`: inventory − cooling uses */
+    availableTacticCharges(team: Team, tacticId: string, round: number): number {
+        const cooldown = TACTICS[tacticId]?.cooldownRounds ?? 0;
+        const inventory = this.ctx.tactics[team].filter((id) => id === tacticId).length;
+        const cooling = this.tacticUseRounds(team, tacticId, round - cooldown).length;
+        return inventory - cooling;
+    }
+
+    /**
+     * Spends one one-shot charge of `tacticId` and records it on the log
+     * entry — cooldown, undo, replay and the strip's greyed-out entry all
+     * derive from that record. Every 'oneShot' tactic action MUST consume
+     * its charge through this.
+     */
+    private consumeTacticCharge(entry: LogEntry, team: Team, tacticId: string): boolean {
+        if (this.availableTacticCharges(team, tacticId, entry.round) < 1) return false;
+        entry.usedTactic = tacticId;
+        return true;
     }
 
     /** one side's applied actions of a round, in order — the network batch */
@@ -515,7 +577,7 @@ export class ActionDispatcher {
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || unit.type.structure) return false;
                 if (useAbility) sell.used[action.team]++;
-                else if (!consumeTacticCharge(this.ctx, entry, action.team, SELL_UNIT_ID)) {
+                else if (!this.consumeTacticCharge(entry, action.team, SELL_UNIT_ID)) {
                     return false;
                 }
                 const refund = Math.round(
@@ -732,6 +794,59 @@ export class ActionDispatcher {
                 resetOilFieldToBaseline(this.ctx);
                 return true;
             }
+            case 'placeSpell': {
+                const tactic = TACTICS[action.tacticId];
+                if (!tactic?.spell || tactic.targeting !== 'point') return false;
+                const { round } = this.ctx.clock();
+                // charges: inventory minus stamps still pending or cooling down
+                const inventory = this.ctx.tactics[action.team].filter(
+                    (id) => id === action.tacticId,
+                ).length;
+                const blocking = this.ctx.spellStamps.filter(
+                    (s) =>
+                        s.team === action.team &&
+                        s.tacticId === action.tacticId &&
+                        s.placedRound >= round - tactic.cooldownRounds,
+                ).length;
+                if (blocking >= inventory) return false;
+                // safe zone binds here, not only in the aiming UI
+                if (
+                    tactic.respectsSafeZone &&
+                    pointInSafeZone(
+                        this.ctx.placement.allUnits(),
+                        action.team,
+                        action.x,
+                        action.z,
+                        tactic.radius ?? 0,
+                    )
+                ) {
+                    return false;
+                }
+                const stamp: SpellStamp = {
+                    id: this.ctx.spellStampIds.next++,
+                    tacticId: action.tacticId,
+                    team: action.team,
+                    x: action.x,
+                    z: action.z,
+                    placedRound: round,
+                };
+                this.ctx.spellStamps.push(stamp);
+                entry.spellStamp = stamp;
+                return true;
+            }
+            case 'removeSpell': {
+                const { round } = this.ctx.clock();
+                const i = this.ctx.spellStamps.findIndex(
+                    (s) =>
+                        s.id === action.stampId &&
+                        s.team === action.team &&
+                        s.placedRound === round, // fired stamps are history
+                );
+                if (i < 0) return false;
+                entry.spellStamp = this.ctx.spellStamps[i];
+                this.ctx.spellStamps.splice(i, 1);
+                return true;
+            }
         }
     }
 
@@ -792,9 +907,10 @@ export class ActionDispatcher {
             case 'sellUnit':
                 placement.restoreUnit(e.unit!);
                 economy.spend(action.team, e.paid!); // take the refund back
-                if (!restoreTacticCharge(this.ctx, e, action.team)) {
-                    this.ctx.sellState.used[action.team]--;
-                }
+                // a spent one-shot charge frees up when undoLast drops the log
+                // entry (its use record IS the log entry) — only the per-round
+                // ability counter needs rolling back by hand
+                if (e.usedTactic === undefined) this.ctx.sellState.used[action.team]--;
                 break;
             case 'buyDeploySlot':
                 this.ctx.deployState.extra[action.team]--;
@@ -841,6 +957,16 @@ export class ActionDispatcher {
                 resetOilFieldToBaseline(this.ctx);
                 break;
             }
+            case 'placeSpell': {
+                const stamp = e.spellStamp!;
+                const i = this.ctx.spellStamps.findIndex((s) => s.id === stamp.id);
+                if (i >= 0) this.ctx.spellStamps.splice(i, 1);
+                break;
+            }
+            case 'removeSpell': {
+                this.ctx.spellStamps.push(e.spellStamp!);
+                break;
+            }
             case 'chooseCard':
             case 'roundCard':
             case 'endDeployment':
@@ -855,37 +981,6 @@ export class ActionDispatcher {
             }
         }
     }
-}
-
-/**
- * Spends one one-shot charge of `tacticId` from the team's inventory and
- * records it on the log entry — undo, replay and the strip's greyed-out
- * entry all derive from that record. Every 'oneShot' tactic action MUST
- * consume its charge through this (and restore via {@link restoreTacticCharge}).
- */
-function consumeTacticCharge(
-    ctx: Pick<ActionContext, 'tactics'>,
-    entry: LogEntry,
-    team: Team,
-    tacticId: string,
-): boolean {
-    const inventory = ctx.tactics[team];
-    const i = inventory.indexOf(tacticId);
-    if (i < 0) return false;
-    inventory.splice(i, 1);
-    entry.usedTactic = tacticId;
-    return true;
-}
-
-/** inverse of {@link consumeTacticCharge}; false = the entry spent no charge */
-function restoreTacticCharge(
-    ctx: Pick<ActionContext, 'tactics'>,
-    e: LogEntry,
-    team: Team,
-): boolean {
-    if (e.usedTactic === undefined) return false;
-    ctx.tactics[team].push(e.usedTactic);
-    return true;
 }
 
 /**

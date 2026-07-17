@@ -8,7 +8,7 @@ import {
     type FireProfile,
 } from './fire';
 import { ITEMS } from './items';
-import { groundSupportAt, simGroundHeightAt, simGroundSupportAt } from './map';
+import { groundSupportAt, mulberry32, simGroundHeightAt, simGroundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     RALLY_ROUTE_RADIUS,
@@ -69,6 +69,41 @@ export interface SimConfig {
     oilField?: HazardField;
     /** round index used when weapons stamp oil mid-battle (expiry inclusive) */
     oilExpiresRound?: number;
+    /**
+     * Committed spell strikes (both teams): each hits once at
+     * BATTLE_START_FREEZE + delaySeconds. Ward domes protect what's under
+     * them and absorb the hit (once per dome); everything else in the circle
+     * takes environmental damage.
+     */
+    spellStrikes?: readonly SpellStrike[];
+    /** ticking spell zones (storm bolts, meteor shower, poison gas) */
+    spellZones?: readonly SpellZone[];
+    /** summoned packs materialize this many seconds after the freeze (0 = normal) */
+    summonDelayOf?: (unit: Unit) => number;
+}
+
+/** one scheduled area strike (meteor, hammer, …) */
+export interface SpellStrike {
+    x: number;
+    z: number;
+    radius: number;
+    damage: number;
+    delaySeconds: number;
+}
+
+/** a ticking area effect; `seed` drives its private deterministic rng stream */
+export interface SpellZone {
+    x: number;
+    z: number;
+    radius: number;
+    delaySeconds: number;
+    duration: number;
+    interval: number;
+    damage: number;
+    mode: 'storm' | 'meteorShower' | 'poison';
+    impactRadius?: number;
+    igniteRadius?: number;
+    seed: number;
 }
 
 export interface Actor {
@@ -258,6 +293,14 @@ export class BattleSim {
     lastMobileCount = 0;
     /** whether soft crowd was enabled on the last step */
     lastSoftCrowd = true;
+    /** scheduled spell strikes; each fires exactly once at its `at` time */
+    private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
+    /** ticking spell zones with their private rng streams and tick clocks */
+    private readonly zones: (SpellZone & {
+        rng: () => number;
+        nextAt: number;
+        endAt: number;
+    })[];
 
     constructor(
         units: readonly Unit[],
@@ -329,6 +372,27 @@ export class BattleSim {
             a.hp = 1;
         }
         for (const unit of spawningUnits) unit.flankSpawnDone = true;
+
+        // summons ride the same spawn ramp, timed to their spell's delay
+        for (const a of this.actors) {
+            const delay = this.config.summonDelayOf?.(a.unit) ?? 0;
+            if (delay > 0) {
+                a.spawnUntil = BATTLE_START_FREEZE + delay;
+                a.hp = 1;
+            }
+        }
+
+        this.strikes = (config.spellStrikes ?? []).map((s) => ({
+            ...s,
+            at: BATTLE_START_FREEZE + s.delaySeconds,
+            fired: false,
+        }));
+        this.zones = (config.spellZones ?? []).map((z) => ({
+            ...z,
+            rng: mulberry32(z.seed),
+            nextAt: BATTLE_START_FREEZE + z.delaySeconds,
+            endAt: BATTLE_START_FREEZE + z.delaySeconds + z.duration,
+        }));
 
         // canonical battle order: both peers sort into the SAME sequence
         // (host units first, each side by spawn counter, members in pack
@@ -562,6 +626,134 @@ export class BattleSim {
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
         if (target.hp <= 0) this.kill(target, null);
+    }
+
+    /** fires every scheduled spell strike whose time has come (exactly once) */
+    private stepSpellStrikes(): void {
+        for (const s of this.strikes) {
+            if (s.fired || this.elapsed < s.at) continue;
+            s.fired = true;
+            this.resolveStrike(s);
+        }
+        for (const z of this.zones) {
+            // fixed-step ticks: identical on both peers regardless of frame rate
+            while (z.nextAt <= this.elapsed && z.nextAt <= z.endAt) {
+                z.nextAt += z.interval;
+                this.tickSpellZone(z);
+            }
+        }
+    }
+
+    /** one tick of a storm / meteor shower / poison zone */
+    private tickSpellZone(z: (typeof this.zones)[number]): void {
+        if (z.mode === 'storm') {
+            // one lightning bolt at a random unit inside — canonical actor
+            // order + the zone's own rng keep the pick deterministic
+            const candidates = this.actors.filter(
+                (a) =>
+                    a.alive &&
+                    !a.unit.type.extra &&
+                    hypot(a.x - z.x, a.z - z.z) <= z.radius,
+            );
+            if (candidates.length === 0) return;
+            const target = candidates[Math.floor(z.rng() * candidates.length)]!;
+            const dome = this.actors.find(
+                (d) =>
+                    d.alive &&
+                    d.unit.type.shield &&
+                    hypot(target.x - d.x, target.z - d.z) <= d.unit.type.shield.radius,
+            );
+            if (dome) {
+                dome.hp -= z.damage;
+                dome.hurtTimer = HURT_BAR_SECONDS;
+                if (dome.hp <= 0) this.breakShield(dome);
+                this.events.push({ kind: 'impact', x: dome.x, y: 3, z: dome.z });
+            } else {
+                this.applyBurnDamage(target, z.damage);
+                this.events.push({
+                    kind: 'explosion',
+                    x: target.x,
+                    y: target.footY + 0.8,
+                    z: target.z,
+                    radius: 2.5,
+                });
+            }
+            return;
+        }
+        if (z.mode === 'meteorShower') {
+            // one small strike at a random spot inside, igniting the ground
+            const angle = z.rng() * Math.PI * 2;
+            const dist = Math.sqrt(z.rng()) * z.radius;
+            const px = z.x + Math.cos(angle) * dist;
+            const pz = z.z + Math.sin(angle) * dist;
+            const impactRadius = z.impactRadius ?? 4;
+            this.resolveStrike({
+                x: px,
+                z: pz,
+                radius: impactRadius,
+                damage: z.damage,
+                delaySeconds: 0,
+            });
+            if (z.igniteRadius) {
+                const oilCells = this.hazards.stampFire(
+                    px,
+                    pz,
+                    z.igniteRadius,
+                    this.elapsed,
+                    3,
+                    12,
+                );
+                this.events.push({
+                    kind: 'groundFire',
+                    x: px,
+                    y: simGroundHeightAt(px, pz),
+                    z: pz,
+                    radius: z.igniteRadius,
+                    oilCells,
+                });
+            }
+            return;
+        }
+        // poison: gas gnaws at EVERY unit inside — seeps under ward domes;
+        // only poison-proof unit types ignore it
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.type.extra || a.unit.type.poisonImmune) continue;
+            if (hypot(a.x - z.x, a.z - z.z) > z.radius + a.radius) continue;
+            this.applyBurnDamage(a, z.damage);
+        }
+    }
+
+    /**
+     * One area strike: everything in the circle takes environmental damage
+     * (both teams, air included) — except targets under a living ward dome.
+     * Each dome involved eats the strike damage ONCE and can break.
+     */
+    private resolveStrike(s: SpellStrike): void {
+        const y = simGroundHeightAt(s.x, s.z);
+        this.events.push({ kind: 'explosion', x: s.x, y: y + 0.6, z: s.z, radius: s.radius });
+        const domes = this.actors.filter((a) => a.alive && a.unit.type.shield);
+        const hitDomes = new Set<Actor>();
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.type.extra) continue; // domes/rockets handled below
+            if (hypot(a.x - s.x, a.z - s.z) > s.radius + a.radius) continue;
+            const dome = domes.find(
+                (d) => hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield!.radius,
+            );
+            if (dome) {
+                hitDomes.add(dome);
+                continue;
+            }
+            this.applyBurnDamage(a, s.damage);
+        }
+        // domes inside the blast are struck even with nothing sheltering under them
+        for (const d of domes) {
+            if (hypot(d.x - s.x, d.z - s.z) <= s.radius) hitDomes.add(d);
+        }
+        for (const d of hitDomes) {
+            d.hp -= s.damage;
+            d.hurtTimer = HURT_BAR_SECONDS;
+            if (d.hp <= 0) this.breakShield(d);
+        }
     }
 
     /** hands the accumulated visual events to the renderer and forgets them */
@@ -859,6 +1051,8 @@ export class BattleSim {
 
         // opening beat: no movement, attacks, rockets, or projectiles yet
         if (this.elapsed < BATTLE_START_FREEZE) return;
+
+        this.stepSpellStrikes();
 
         this.stepIndex++;
         let mobile = 0;

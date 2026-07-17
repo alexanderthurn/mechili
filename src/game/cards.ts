@@ -128,6 +128,62 @@ export const ROUND_CARDS: RoundCard[] = [
         tactics: ['sellUnit'],
         description: 'One-shot tactic: sell one of your packs for a supply refund.',
     },
+    {
+        id: 'spawnDwarves',
+        title: 'Summon Dwarves',
+        cost: 100,
+        tactics: ['spawnDwarves'],
+        description:
+            'Battle spell: mark a spot — a dwarf war band bursts from the ground there shortly after battle start (this battle only).',
+    },
+    {
+        id: 'bigMeteor',
+        title: 'Great Meteor',
+        cost: 150,
+        tactics: ['bigMeteor'],
+        description:
+            'Battle spell: mark a small area — seconds into the battle a meteor obliterates everything there (ward domes protect).',
+    },
+    {
+        id: 'spawnCrows',
+        title: 'Summon Crow Riders',
+        cost: 125,
+        tactics: ['spawnCrows'],
+        description:
+            'Battle spell: mark a spot — crow riders swoop in there shortly after battle start (this battle only).',
+    },
+    {
+        id: 'hammerOfGods',
+        title: 'Hammer of the Gods',
+        cost: 200,
+        tactics: ['hammerOfGods'],
+        description:
+            'Battle spell: a divine hammer stamps a HUGE area flat — severe damage to everything not under a ward dome.',
+    },
+    {
+        id: 'storm',
+        title: 'Storm Call',
+        cost: 125,
+        tactics: ['storm'],
+        description:
+            'Battle spell: a storm hurls lightning at random units in a wide area for a while (ward domes absorb the bolts).',
+    },
+    {
+        id: 'meteorShower',
+        title: 'Meteor Shower',
+        cost: 125,
+        tactics: ['meteorShower'],
+        description:
+            'Battle spell: meteors rain onto random spots in a wide area, each blast burning the ground it hits.',
+    },
+    {
+        id: 'poisonCloud',
+        title: 'Poison Cloud',
+        cost: 100,
+        tactics: ['poisonCloud'],
+        description:
+            'Battle spell: a toxic cloud gnaws at every unit inside for a while — gas seeps under ward domes.',
+    },
 ];
 
 /** buyable army types in the deployment shop (not board extras) */

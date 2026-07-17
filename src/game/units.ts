@@ -205,6 +205,8 @@ export interface UnitType {
     fire?: import('./fire').FireProfile;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
     burn?: import('./fire').BurnAffinity;
+    /** immune to poison-cloud spells (default: affected) */
+    poisonImmune?: boolean;
     /** combat stats, per individual mech */
     hp: number;
     damage: number;
@@ -651,6 +653,10 @@ export class Unit {
     readonly items: string[] = [];
     /** flank spawn already happened once for this pack */
     flankSpawnDone = false;
+    /** battle-only summon (spawn spell): removed when the battle ends */
+    summoned = false;
+    /** seconds after the opening freeze until a summon materializes */
+    summonDelay = 0;
     /** lifetime EFFECTIVE damage dealt (capped at each victim's remaining hp) */
     damageDealt = 0;
     /** lifetime individual mechs killed (a wiped 24-dwarf pack counts 24) */

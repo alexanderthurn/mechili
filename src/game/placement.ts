@@ -420,6 +420,35 @@ export class PlacementController {
         return null;
     }
 
+    /**
+     * Nearest free anchor for `type` around a world point — deterministic
+     * ring search like {@link findStartSpot}, but ZONE-FREE: battle summons
+     * may materialize anywhere on the board (safe zone is validated at
+     * placement time, not here).
+     */
+    findSpotNearWorld(type: UnitType, x: number, z: number): Cell | null {
+        const fp = this.footprintOf(type, false);
+        const centerCol = Math.floor((x + this.map.halfW) / CELL);
+        const centerRow = Math.floor((this.map.halfH - z) / CELL);
+        const maxRadius = Math.max(this.map.cols, this.map.rows);
+        for (let radius = 0; radius < maxRadius; radius++) {
+            for (let dc = -radius; dc <= radius; dc++) {
+                for (let dr = -radius; dr <= radius; dr++) {
+                    if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
+                    const anchor = this.centeredAnchor(type, false, {
+                        col: centerCol + dc,
+                        row: centerRow + dr,
+                    });
+                    const cells = this.coveredCells(fp, anchor);
+                    if (cells && cells.every((c) => !this.occupied.has(cellKey(c)))) {
+                        return anchor;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     /** Middle click: pick up if needed, then rotate the selected movable pack. */
     rotateSelected(): void {
         if (this.selectedGroup.length > 1) return; // formations don't rotate

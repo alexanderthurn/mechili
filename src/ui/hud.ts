@@ -108,7 +108,7 @@ export class Hud {
     onArmItem: ((itemId: string) => void) | null = null;
     onArmTactic: ((tacticId: string) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
-    onResetPlacedTactic: ((routeId: number) => void) | null = null;
+    onResetPlacedTactic: ((tacticId: string, routeId: number) => void) | null = null;
     onUndo: (() => void) | null = null;
     /** the player sent a chat item (emote or text) */
     onSendChat: ((item: ChatItem) => void) | null = null;
@@ -349,8 +349,9 @@ export class Hud {
             if (!tacticBtn) return;
             e.preventDefault();
             const routeId = tacticBtn.dataset.routeId;
-            if (routeId) this.onResetPlacedTactic?.(Number(routeId));
-            else this.onCancelTactic?.();
+            if (routeId && tacticBtn.dataset.tactic) {
+                this.onResetPlacedTactic?.(tacticBtn.dataset.tactic, Number(routeId));
+            } else this.onCancelTactic?.();
         });
 
         // opponent items not yet placed (right edge; frozen to phase-start intel)

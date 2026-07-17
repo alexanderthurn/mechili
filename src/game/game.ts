@@ -69,6 +69,7 @@ import { Scenery } from './scenery';
 import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
+import { SpellVisuals, type SpellDraft } from './spellVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
 import { BattleSim, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
@@ -79,8 +80,10 @@ import {
     TACTICS,
     clampTacticEnd,
     clampTacticPoint,
+    pointInSafeZone,
     type OilStamp,
     type RallyRoute,
+    type SpellStamp,
 } from './tactics';
 import { TechTree } from './tech';
 import {
@@ -106,7 +109,18 @@ import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 const SPECIALIST_REVEAL_MS = 2000;
 
 /** dev/testing: free tactic charges granted at round 1 (see ensureTestTactics) */
-const TEST_TACTIC_GRANTS = [RALLY_ROUTE_ID, OIL_SPILL_ID, SELL_UNIT_ID];
+const TEST_TACTIC_GRANTS = [
+    RALLY_ROUTE_ID,
+    OIL_SPILL_ID,
+    SELL_UNIT_ID,
+    'spawnDwarves',
+    'bigMeteor',
+    'spawnCrows',
+    'hammerOfGods',
+    'storm',
+    'meteorShower',
+    'poisonCloud',
+];
 
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
@@ -142,6 +156,9 @@ export class Game {
     private readonly oilBaseline = new HazardField();
     private readonly oilStamps: OilStamp[] = [];
     private readonly oilStampIds = { next: 1 };
+    /** battle-spell stamps — NEVER cleared per round: old ones drive cooldowns */
+    private readonly spellStamps: SpellStamp[] = [];
+    private readonly spellStampIds = { next: 1 };
     private appliedFireVfx: FireVfxQuality = prefs().fireVfx;
     private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
@@ -156,6 +173,7 @@ export class Game {
     private readonly blobShadows: BlobShadows;
     private shadowMapFrame = 0;
     private readonly rallyVisuals: RallyVisuals;
+    private readonly spellVisuals: SpellVisuals;
     private gridOverlay;
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
@@ -303,7 +321,7 @@ export class Game {
             this.placement.deselect();
             this.selectedActor = null;
             this.armedItem = null;
-            this.cancelRallyPlacement();
+            this.cancelTacticPlacement();
         }
     };
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
@@ -385,6 +403,7 @@ export class Game {
         this.scene.add(this.scenery.group);
         this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
+        this.spellVisuals = new SpellVisuals(this.scene);
         this.gridOverlay = this.map.createOverlayMesh();
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
@@ -452,6 +471,8 @@ export class Game {
             oilBaseline: this.oilBaseline,
             oilStamps: this.oilStamps,
             oilStampIds: this.oilStampIds,
+            spellStamps: this.spellStamps,
+            spellStampIds: this.spellStampIds,
             roundCardTaken: this.roundCardTaken,
             deployReady: this.deployReady,
             unlockedUnits: this.unlockedUnits,
@@ -475,7 +496,7 @@ export class Game {
                     this.placement.deselect();
                     this.placement.enabled = false;
                     this.armedItem = null;
-                    this.cancelRallyPlacement();
+                    this.cancelTacticPlacement();
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
                     this.enemyIntelSnapshot = null;
@@ -510,7 +531,7 @@ export class Game {
         };
         this.placement.rangeOf = (unit) => this.resolvedStats(unit).range;
         this.controls.onRightClick = () => {
-            if (this.cancelRallyPlacement()) return;
+            if (this.cancelTacticPlacement()) return;
             this.placement.deselect();
             this.selectedActor = null;
             this.armedItem = null;
@@ -547,7 +568,7 @@ export class Game {
         this.hud.onArmTactic = (tacticId) => {
             if (!this.playerCanAct) return;
             if (this.armedTactic === tacticId) {
-                this.cancelRallyPlacement();
+                this.cancelTacticPlacement();
                 return;
             }
             this.armedItem = null;
@@ -558,15 +579,13 @@ export class Game {
             this.syncTacticVisuals();
         };
         this.hud.onCancelTactic = () => {
-            this.cancelRallyPlacement();
+            this.cancelTacticPlacement();
         };
-        this.hud.onResetPlacedTactic = (routeId) => {
-            // routeId doubles as oil stamp id when the strip entry is oil
-            if (this.oilStamps.some((s) => s.id === routeId && s.team === 'player')) {
-                this.resetPlacedOilSpill(routeId);
-            } else {
-                this.resetPlacedRallyRoute(routeId);
-            }
+        this.hud.onResetPlacedTactic = (tacticId, routeId) => {
+            // ids come from per-tactic counters — the tactic id disambiguates
+            if (TACTICS[tacticId]?.spell) this.resetPlacedSpell(routeId);
+            else if (tacticId === OIL_SPILL_ID) this.resetPlacedOilSpill(routeId);
+            else this.resetPlacedRallyRoute(routeId);
         };
         this.hud.onRecruitLevel = () => {
             // offered in the Research Center's menu
@@ -899,6 +918,7 @@ export class Game {
         this.unitInstances.dispose();
         setUnitInstanceRenderer(null);
         this.rallyVisuals.dispose();
+        this.spellVisuals.dispose();
         this.controls.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
@@ -990,7 +1010,7 @@ export class Game {
         this.selectedActor = null;
         this.hpBars.clear();
         this.rallyRoutes.length = 0;
-        this.cancelRallyPlacement();
+        this.cancelTacticPlacement();
         // oil: expire old cells, snapshot baseline for this deployment's undo,
         // clear stamps (this round's oil is outline-only until battle)
         this.oilField.expireOilBefore(this.round);
@@ -1630,21 +1650,61 @@ export class Game {
             let avail: number;
             if (tactic.kind === 'placement') {
                 // charge stays in the inventory; placements are right-click resettable
-                const placements = placementsOf[tactic.id]?.() ?? [];
-                placedEntries = placements.map((p) => ({ routeId: p.id }));
-                avail = inventory + ability.max - ability.used - placements.length;
+                const placements = tactic.spell
+                    ? this.spellStamps.filter(
+                          (s) =>
+                              s.team === 'player' &&
+                              s.tacticId === tactic.id &&
+                              s.placedRound === this.round,
+                      )
+                    : (placementsOf[tactic.id]?.() ?? []);
+                // spells fired in past rounds still cool their charge down
+                const cooling = tactic.spell
+                    ? this.spellStamps.filter(
+                          (s) =>
+                              s.team === 'player' &&
+                              s.tacticId === tactic.id &&
+                              s.placedRound < this.round &&
+                              s.placedRound >= this.round - tactic.cooldownRounds,
+                      )
+                    : [];
+                placedEntries = [
+                    ...placements.map((p) => ({ routeId: p.id })),
+                    ...cooling.map((s) => {
+                        const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
+                        return {
+                            hint: `${tactic.name} — cooling down.\nReady again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`,
+                        };
+                    }),
+                ];
+                avail =
+                    inventory +
+                    ability.max -
+                    ability.used -
+                    placements.length -
+                    cooling.length;
             } else {
-                // one-shot: spent charges left the inventory — the action log
-                // says how many, and undo brings them back
-                const usedOneShot = this.dispatcher.usedTacticCharges(
-                    this.round,
+                // one-shot: the charge stays in the inventory but cools down
+                // after use — both derived from the action log (undo restores)
+                const useRounds = this.dispatcher.tacticUseRounds(
                     'player',
                     tactic.id,
+                    this.round - tactic.cooldownRounds,
                 );
-                placedEntries = Array.from({ length: ability.used + usedOneShot }, () => ({
-                    hint: `${tactic.name} — used this round.\nUndo gives the charge back.`,
-                }));
-                avail = ability.max - ability.used + inventory;
+                const coolingHint = (usedRound: number): string => {
+                    const readyIn = usedRound + tactic.cooldownRounds + 1 - this.round;
+                    const ready = `Ready again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`;
+                    return usedRound === this.round
+                        ? `${tactic.name} — used this round.\nUndo gives it back. ${ready}`
+                        : `${tactic.name} — cooling down.\n${ready}`;
+                };
+                placedEntries = [
+                    ...Array.from({ length: ability.used }, () => ({
+                        hint: `${tactic.name} — used this round.\nUndo gives it back.`,
+                    })),
+                    ...useRounds.map((r) => ({ hint: coolingHint(r) })),
+                ];
+                avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
             }
             for (const p of placedEntries) {
                 out.push({
@@ -1721,7 +1781,7 @@ export class Game {
 
     private resetPlacedRallyRoute(routeId: number): void {
         if (!this.playerCanAct) return;
-        this.cancelRallyPlacement();
+        this.cancelTacticPlacement();
         if (
             this.dispatchPlayer({
                 kind: 'removeRallyRoute',
@@ -1735,7 +1795,7 @@ export class Game {
 
     private resetPlacedOilSpill(stampId: number): void {
         if (!this.playerCanAct) return;
-        this.cancelRallyPlacement();
+        this.cancelTacticPlacement();
         if (
             this.dispatchPlayer({
                 kind: 'removeOilSpill',
@@ -1743,6 +1803,14 @@ export class Game {
                 stampId,
             })
         ) {
+            this.syncTacticVisuals();
+        }
+    }
+
+    private resetPlacedSpell(stampId: number): void {
+        if (!this.playerCanAct) return;
+        this.cancelTacticPlacement();
+        if (this.dispatchPlayer({ kind: 'removeSpell', team: 'player', stampId })) {
             this.syncTacticVisuals();
         }
     }
@@ -1759,10 +1827,10 @@ export class Game {
     }
 
     private syncTacticVisuals(): void {
-        // armed sell mode reads as a targeting cursor over the whole board
-        this.pixiApp.canvas.style.cursor =
-            this.armedTactic === SELL_UNIT_ID ? 'crosshair' : '';
+        // any armed tactic reads as a targeting cursor over the whole board
+        this.pixiApp.canvas.style.cursor = this.armedTactic ? 'crosshair' : '';
         this.syncRallyVisuals();
+        this.syncSpellVisuals();
         const pointer = this.placement.lastPointer;
         if (this.armedTactic === OIL_SPILL_ID && pointer) {
             const pos = this.groundAtLocal(pointer.x, pointer.y, OIL_SPILL_RADIUS);
@@ -1821,6 +1889,36 @@ export class Game {
         this.rallyVisuals.sync(this.visibleRallyRoutes(), draft);
     }
 
+    /** the aim circle while a point spell is armed + this round's placed markers */
+    private syncSpellVisuals(): void {
+        const pointer = this.placement.lastPointer;
+        const armed = this.armedTactic ? TACTICS[this.armedTactic] : null;
+        let draft: SpellDraft | null = null;
+        if (armed?.spell && armed.targeting === 'point' && pointer && this.playerCanAct) {
+            const radius = armed.radius ?? 0;
+            const pos = this.groundAtLocal(pointer.x, pointer.y, radius);
+            if (pos) {
+                draft = {
+                    x: pos.x,
+                    z: pos.z,
+                    radius,
+                    blocked:
+                        !!armed.respectsSafeZone && this.inSafeZone(pos.x, pos.z, radius),
+                };
+            }
+        }
+        this.spellVisuals.sync(this.visibleSpellStamps(), draft);
+    }
+
+    /** this round's spell markers: own always; enemy only after we lock in */
+    private visibleSpellStamps(): readonly SpellStamp[] {
+        const revealEnemy =
+            this.phase === 'battle' || this.deployReady.player || this.net === null;
+        return this.spellStamps.filter(
+            (s) => s.placedRound === this.round && (s.team === 'player' || revealEnemy),
+        );
+    }
+
     /** own oil stamps always; opponent stamps only after we lock in (like rally) */
     private visibleOilStamps(): readonly OilStamp[] {
         const revealEnemy =
@@ -1842,7 +1940,7 @@ export class Game {
     }
 
     /** aborts in-progress tactic placement; returns true when something was cancelled */
-    private cancelRallyPlacement(): boolean {
+    private cancelTacticPlacement(): boolean {
         const had = this.armedTactic !== null || this.tacticDraftStart !== null;
         this.armedTactic = null;
         this.tacticDraftStart = null;
@@ -1851,58 +1949,95 @@ export class Game {
         return had;
     }
 
-    /** swallows map clicks while a tactic is being placed */
+    /** true inside the safe zone: circles around the ENEMY's base buildings */
+    private inSafeZone(x: number, z: number, margin = 0): boolean {
+        return pointInSafeZone(this.placement.allUnits(), 'player', x, z, margin);
+    }
+
+    /**
+     * Builds the tactic's action from a resolved target. THE only per-tactic
+     * part of the click flow — targeting, safe zone, drafts and disarming are
+     * generic in {@link handleTacticGroundClick}.
+     */
+    private dispatchTacticUse(
+        tacticId: string,
+        target: {
+            unit?: Unit;
+            point?: { x: number; z: number };
+            start?: { x: number; z: number };
+            end?: { x: number; z: number };
+        },
+    ): boolean {
+        switch (tacticId) {
+            case SELL_UNIT_ID:
+                return this.dispatchPlayer({
+                    kind: 'sellUnit',
+                    team: 'player',
+                    unitId: target.unit!.id,
+                });
+            case RALLY_ROUTE_ID:
+                return this.dispatchPlayer({
+                    kind: 'placeRallyRoute',
+                    team: 'player',
+                    startX: target.start!.x,
+                    startZ: target.start!.z,
+                    endX: target.end!.x,
+                    endZ: target.end!.z,
+                });
+            case OIL_SPILL_ID:
+                return this.dispatchPlayer({
+                    kind: 'placeOilSpill',
+                    team: 'player',
+                    startX: quantizeWorld(target.start!.x),
+                    startZ: quantizeWorld(target.start!.z),
+                    endX: quantizeWorld(target.end!.x),
+                    endZ: quantizeWorld(target.end!.z),
+                });
+            default:
+                // every point-targeted battle spell shares the placeSpell action
+                if (TACTICS[tacticId]?.spell && target.point) {
+                    return this.dispatchPlayer({
+                        kind: 'placeSpell',
+                        team: 'player',
+                        tacticId,
+                        x: quantizeWorld(target.point.x),
+                        z: quantizeWorld(target.point.z),
+                    });
+                }
+                return false;
+        }
+    }
+
+    /** swallows map clicks while a tactic is armed; targeting is data-driven */
     private handleTacticGroundClick(x: number, y: number): boolean {
         if (!this.playerCanAct || !this.armedTactic) return false;
+        const tactic = TACTICS[this.armedTactic];
+        if (!tactic) return false;
 
-        if (this.armedTactic === SELL_UNIT_ID) {
+        if (tactic.targeting === 'own-unit') {
             const unit = this.placement.unitAtPoint(x, y);
             if (unit && unit.team === 'player' && !unit.type.structure) {
-                if (this.dispatchPlayer({ kind: 'sellUnit', team: 'player', unitId: unit.id })) {
-                    this.armedTactic = null;
-                    this.placement.inputLocked = false;
-                    this.syncTacticVisuals();
-                }
+                if (this.dispatchTacticUse(tactic.id, { unit })) this.cancelTacticPlacement();
             }
             // anything else (enemy, structure, ground): stay armed, swallow the click
             return true;
         }
 
-        if (this.armedTactic === OIL_SPILL_ID) {
-            const ground = this.groundAtLocal(x, y, OIL_SPILL_RADIUS);
-            if (!ground) return true;
-            if (!this.tacticDraftStart) {
-                this.tacticDraftStart = ground;
-                this.syncTacticVisuals();
-                return true;
-            }
-            const end = clampTacticEnd(
-                this.tacticDraftStart.x,
-                this.tacticDraftStart.z,
-                ground.x,
-                ground.z,
-            );
-            if (
-                this.dispatchPlayer({
-                    kind: 'placeOilSpill',
-                    team: 'player',
-                    startX: quantizeWorld(this.tacticDraftStart.x),
-                    startZ: quantizeWorld(this.tacticDraftStart.z),
-                    endX: quantizeWorld(end.x),
-                    endZ: quantizeWorld(end.z),
-                })
-            ) {
-                this.armedTactic = null;
-                this.tacticDraftStart = null;
-                this.placement.inputLocked = false;
-                this.syncTacticVisuals();
+        const radius = tactic.radius ?? 0;
+        const ground = this.groundAtLocal(x, y, radius);
+        if (!ground) return true;
+        if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
+            return true; // blocked spot — stay armed so the player can re-aim
+        }
+
+        if (tactic.targeting === 'point') {
+            if (this.dispatchTacticUse(tactic.id, { point: ground })) {
+                this.cancelTacticPlacement();
             }
             return true;
         }
 
-        if (this.armedTactic !== RALLY_ROUTE_ID) return false;
-        const ground = this.groundAtLocal(x, y, RALLY_ROUTE_RADIUS);
-        if (!ground) return true;
+        // two-point: first click drafts the start, second commits the capsule
         if (!this.tacticDraftStart) {
             this.tacticDraftStart = ground;
             this.syncTacticVisuals();
@@ -1914,20 +2049,8 @@ export class Game {
             ground.x,
             ground.z,
         );
-        if (
-            this.dispatchPlayer({
-                kind: 'placeRallyRoute',
-                team: 'player',
-                startX: this.tacticDraftStart.x,
-                startZ: this.tacticDraftStart.z,
-                endX: end.x,
-                endZ: end.z,
-            })
-        ) {
-            this.armedTactic = null;
-            this.tacticDraftStart = null;
-            this.placement.inputLocked = false;
-            this.syncTacticVisuals();
+        if (this.dispatchTacticUse(tactic.id, { start: this.tacticDraftStart, end })) {
+            this.cancelTacticPlacement();
         }
         return true;
     }
@@ -2140,7 +2263,7 @@ export class Game {
         this.placement.hiddenPlacements = false;
         this.placement.deselect();
         this.armedItem = null;
-        this.cancelRallyPlacement();
+        this.cancelTacticPlacement();
         this.gridOverlay.visible = false;
         this.enemyIntelSnapshot = null;
         this.placement.revealAll();
@@ -2153,6 +2276,51 @@ export class Game {
         });
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
+        // battle spells: summons join the board BEFORE the sim snapshots units;
+        // strikes go into the sim's schedule. Sorted by stamp id so both peers
+        // spawn in the same order (unit ids must match exactly).
+        const pendingSpells = this.spellStamps
+            .filter((s) => s.placedRound === this.round)
+            .sort((a, b) => a.id - b.id);
+        for (const stamp of pendingSpells) {
+            const spawn = TACTICS[stamp.tacticId]?.spell?.spawn;
+            if (spawn) this.spawnSummons(stamp, spawn);
+        }
+        const spellStrikes = pendingSpells.flatMap((s) => {
+            const spell = TACTICS[s.tacticId]?.spell;
+            return spell?.strike
+                ? [
+                      {
+                          x: s.x,
+                          z: s.z,
+                          radius: spell.strike.radius,
+                          damage: spell.strike.damage,
+                          delaySeconds: spell.delaySeconds,
+                      },
+                  ]
+                : [];
+        });
+        const spellZones = pendingSpells.flatMap((s) => {
+            const spell = TACTICS[s.tacticId]?.spell;
+            const zone = spell?.zone;
+            return zone
+                ? [
+                      {
+                          x: s.x,
+                          z: s.z,
+                          radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
+                          delaySeconds: spell.delaySeconds,
+                          duration: zone.duration,
+                          interval: zone.interval,
+                          damage: zone.damage,
+                          mode: zone.mode,
+                          impactRadius: zone.impactRadius,
+                          igniteRadius: zone.igniteRadius,
+                          seed: seedFrom(this.seed, `spell:${s.id}`),
+                      },
+                  ]
+                : [];
+        });
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
@@ -2166,12 +2334,16 @@ export class Game {
             needsFlankSpawn: (unit) =>
                 // mechs on flank at battle start — not tied to a specific round, only to flank tiles
                 !unit.flankSpawnDone &&
+                !unit.summoned &&
                 !unit.type.structure &&
                 !unit.type.extra &&
                 this.placement.isOnFlank(unit),
             rallyRoutes: this.rallyRoutes.filter((r) => r.team === 'player' || r.team === 'enemy'),
             oilField: this.oilField,
             oilExpiresRound: this.round + OIL_SPILL_DURATION_ROUNDS - 1,
+            spellStrikes,
+            spellZones,
+            summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
         });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
@@ -2179,6 +2351,36 @@ export class Game {
             this.sentChecks.set(this.round, hash);
             this.net.send({ type: 'check', round: this.round, hash });
             this.verifyCheck(this.round);
+        }
+    }
+
+    /**
+     * Materializes one spawn-spell stamp as battle-only packs, scattered in
+     * the stamp's circle. Seeded per stamp id — identical on both peers.
+     */
+    private spawnSummons(
+        stamp: SpellStamp,
+        spawn: { typeId: string; count: number },
+    ): void {
+        const type = unitTypeById(spawn.typeId);
+        if (!type) return;
+        const tactic = TACTICS[stamp.tacticId]!;
+        const scatter = tactic.radius ?? 4 * CELL;
+        const rng = mulberry32(seedFrom(this.seed, `spell:${stamp.id}`));
+        for (let i = 0; i < spawn.count; i++) {
+            const angle = rng() * Math.PI * 2;
+            const dist = Math.sqrt(rng()) * scatter;
+            const anchor = this.placement.findSpotNearWorld(
+                type,
+                stamp.x + Math.cos(angle) * dist,
+                stamp.z + Math.sin(angle) * dist,
+            );
+            if (!anchor) continue;
+            const unit = this.placement.spawn(type, anchor, stamp.team, false, true);
+            if (!unit) continue;
+            unit.summoned = true;
+            unit.summonDelay = tactic.spell?.delaySeconds ?? 0;
+            unit.deployedRound = this.round;
         }
     }
 
@@ -2199,9 +2401,10 @@ export class Game {
             this.finishMatch();
             return;
         }
-        // spent extras (broken shields, fired rockets) leave the board for good
+        // spent extras (broken shields, fired rockets) and battle-only summons
+        // leave the board for good
         for (const unit of [...this.placement.allUnits()]) {
-            if (unit.consumed) this.placement.removeUnit(unit);
+            if (unit.consumed || unit.summoned) this.placement.removeUnit(unit);
             else unit.resetFormation();
         }
         this.placement.refaceAll();
@@ -2376,6 +2579,7 @@ export class Game {
                 if (profile) cpu.end('battleVisuals');
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
+                this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
                 this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;

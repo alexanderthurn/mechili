@@ -106,11 +106,26 @@ units march out of (or into!) the marked area, which is the counterplay.
 
 ## Build order
 
-1. **Rails:** W1 targeting + safe zone, W2 cooldowns (also migrates sell/
-   rally/oil onto the cooldown model: sell 0, rally 0, oil 1).
-2. **Validate rails with the two simplest spells:** Spawn Dwarves (W3+W6)
-   and Big Meteor (W3+W4). Placeholder visuals (marker decal, simple
-   impact particles — particle system + flame renderer exist).
+1. **Rails — DONE:** W1 targeting + safe zone, W2 cooldowns (sell/rally/oil
+   migrated: sell 0, rally 0, oil via stamp expiry). Implemented:
+   `targeting`/`cooldownRounds`/`radius`/`respectsSafeZone` in TACTICS;
+   generic armed-click machine + `dispatchTacticUse` switch in game.ts;
+   log-derived availability (`tacticUseRounds`/`availableTacticCharges` +
+   `consumeTacticCharge` in the dispatcher); `inSafeZone` helper (UI-side).
+   TODO with the first point-targeting action (W3): validate the safe zone
+   in the DISPATCHER too — UI-side checks don't bind a hostile peer — and
+   add the red safe-zone overlay while aiming.
+2. **First two spells — DONE:** Summon Dwarves (W3+W6) and Great Meteor
+   (W3+W4). Implemented: `spell` config in TACTICS (delay + spawn/strike);
+   `placeSpell`/`removeSpell` actions with dispatcher-side safe-zone +
+   cooldown validation; `spellStamps` history (never cleared — IS the
+   cooldown record); summons = real packs flagged `summoned`, spawned
+   seeded/sorted before the sim snapshot, riding the flank-spawn ramp
+   (`summonDelayOf`), removed at battle end; `SpellStrike` scheduler in the
+   sim with ward-dome absorption (dome eats the hit once, can break);
+   spellVisuals.ts markers + aim circle (red when safe-zone-blocked).
+   Placeholder impact = existing explosion event (particles + scorch).
+   Note: surviving summons DO count toward the end-of-battle HP bite.
 3. Hammer of the Gods, Spawn Crow Riders.
 4. Acid + Poison Cloud (W5 status effects + W7 channels; includes making
    `burning` visible on units — wanted anyway for the existing fire).
