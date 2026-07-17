@@ -193,6 +193,14 @@ export const ROUND_CARDS: RoundCard[] = [
             'Battle spell: pour an acid capsule (placed like oil) — units inside lose max-HP percent per second and take extra damage while corroded.',
     },
     {
+        id: 'fireSpill',
+        title: 'Fire Spill',
+        cost: 100,
+        tactics: ['fireSpill'],
+        description:
+            'Battle spell: pour a fire capsule (placed like oil) — drips left-to-right shortly after battle start and sets the path ablaze (ward discs stay clear).',
+    },
+    {
         id: 'dragonAttack',
         title: 'Dragon Attack',
         cost: 200,

@@ -251,7 +251,7 @@ export type SimEvent =
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
     /** oil/acid drip cue — blob falls until `at`, then that disc stamps on the ground */
-    | { kind: 'hazardDrip'; hazard: 'oil' | 'acid'; x: number; z: number; at: number }
+    | { kind: 'hazardDrip'; hazard: 'oil' | 'acid' | 'fire'; x: number; z: number; at: number }
     /** storm lightning bolt cue (render-only) */
     | { kind: 'spellLightning'; x: number; z: number };
 
@@ -383,13 +383,15 @@ export class BattleSim {
         igniteRadius?: number;
         fired: boolean;
     }[] = [];
-    /** oil/acid drips along capsule paths — announce fall, then stamp on land */
+    /** oil/acid/fire drips along capsule paths — announce fall, then stamp on land */
     private readonly drips: {
-        kind: 'oil' | 'acid';
+        kind: 'oil' | 'acid' | 'fire';
         x: number;
         z: number;
         radius: number;
         expiresRound: number;
+        burnSeconds: number;
+        intensity: number;
         fallStart: number;
         landAt: number;
         announced: boolean;
@@ -828,6 +830,8 @@ export class BattleSim {
                     z: pour.z + dz * t,
                     radius: pour.radius,
                     expiresRound: pour.expiresRound,
+                    burnSeconds: pour.burnSeconds ?? 0,
+                    intensity: pour.intensity ?? 0,
                     fallStart: landAt - HAZARD_DRIP_FALL_SEC,
                     landAt,
                     announced: false,
@@ -855,8 +859,26 @@ export class BattleSim {
             d.stamped = true;
             if (d.kind === 'oil') {
                 this.hazards.stampOil(d.x, d.z, d.radius, d.expiresRound, shields, this.elapsed);
-            } else {
+            } else if (d.kind === 'acid') {
                 this.hazards.stampAcid(d.x, d.z, d.radius, d.expiresRound, shields);
+            } else {
+                const oilCells = this.hazards.stampFire(
+                    d.x,
+                    d.z,
+                    d.radius,
+                    this.elapsed,
+                    d.burnSeconds,
+                    d.intensity,
+                    shields,
+                );
+                this.events.push({
+                    kind: 'groundFire',
+                    x: d.x,
+                    y: simGroundHeightAt(d.x, d.z),
+                    z: d.z,
+                    radius: d.radius,
+                    oilCells,
+                });
             }
         }
     }

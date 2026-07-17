@@ -130,6 +130,7 @@ const TEST_TACTIC_GRANTS = [
     'meteorShower',
     'poisonCloud',
     'acidSpill',
+    'fireSpill',
     'dragonAttack',
 ];
 
@@ -2521,7 +2522,11 @@ export class Game {
             ...pendingSpells.flatMap((s) => {
                 const tactic = TACTICS[s.tacticId];
                 const spell = tactic?.spell;
-                if (tactic?.acidCapsule && s.endX !== undefined && s.endZ !== undefined) {
+                if (
+                    (tactic?.acidCapsule || tactic?.fireCapsule) &&
+                    s.endX !== undefined &&
+                    s.endZ !== undefined
+                ) {
                     return [
                         {
                             tacticId: s.tacticId,

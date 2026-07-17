@@ -3,6 +3,9 @@ import {
     ACID_DPS_PERCENT,
     ACID_SPILL_DURATION_ROUNDS,
     ACID_SPILL_RADIUS,
+    FIRE_SPILL_BURN_SEC,
+    FIRE_SPILL_INTENSITY,
+    FIRE_SPILL_RADIUS,
     OIL_SPILL_DURATION_ROUNDS,
     OIL_SPILL_RADIUS,
 } from './fire';
@@ -23,6 +26,7 @@ export const METEOR_SHOWER_ID = 'meteorShower';
 export const METEOR_SHARD_FALL_SEC = 0.55;
 export const POISON_CLOUD_ID = 'poisonCloud';
 export const ACID_ID = 'acidSpill';
+export const FIRE_SPILL_ID = 'fireSpill';
 export const DRAGON_ID = 'dragonAttack';
 
 /**
@@ -135,12 +139,12 @@ export const TACTICS: Record<
             igniteCapsule?: { burnSeconds: number; intensity: number };
         };
         /**
-         * Acid: NOT a scheduled battle spell — committed straight into the
-         * persistent hazard field (HazardField.acidExpires) the instant
-         * battle starts, same moment and same mechanism as oil, no delay.
-         * Expires by ROUND like oil, not by battle-seconds.
+         * Acid / Fire Spill: two-point capsules that pour left→right as drips
+         * shortly after battle start (same pour timing as oil). Acid persists
+         * by ROUND; fire is battle-seconds only.
          */
         acidCapsule?: { durationRounds: number };
+        fireCapsule?: { burnSeconds: number; intensity: number };
         /** oil spill only */
         oilRadius?: number;
         oilDurationRounds?: number;
@@ -291,6 +295,18 @@ export const TACTICS: Record<
         acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS },
         description: `Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Units standing in it sizzle for ${ACID_DPS_PERCENT}% of their max HP every second and turn corroded — taking extra damage from everything. Gone after ${ACID_SPILL_DURATION_ROUNDS} round.`,
     },
+    [FIRE_SPILL_ID]: {
+        id: FIRE_SPILL_ID,
+        name: 'Fire Spill',
+        icon: '🔥',
+        kind: 'placement',
+        targeting: 'two-point',
+        // TEMP playtest: every round (restore to 1 before release)
+        cooldownRounds: 0,
+        radius: FIRE_SPILL_RADIUS,
+        fireCapsule: { burnSeconds: FIRE_SPILL_BURN_SEC, intensity: FIRE_SPILL_INTENSITY },
+        description: `Pour a fire capsule like oil — it drips left-to-right shortly after battle starts and sets the path ablaze (ward discs stay clear). Connected oil ignites with it. Flame lasts ${FIRE_SPILL_BURN_SEC}s this battle only.`,
+    },
     [DRAGON_ID]: {
         id: DRAGON_ID,
         name: 'Dragon Attack',
@@ -329,11 +345,11 @@ export const TACTICS: Record<
 /**
  * True for any tactic whose placement/aim/cooldown flows through the generic
  * `placeSpell`/`SpellStamp` system — scheduled battle spells (`spell`) AND
- * instant ground-hazard commits (`acidCapsule`) alike. Oil and rally have
+ * ground-hazard pours (`acidCapsule` / `fireCapsule`) alike. Oil and rally have
  * their own dedicated actions and are NOT included.
  */
 export function usesSpellPlacement(tactic: (typeof TACTICS)[string]): boolean {
-    return !!(tactic.spell || tactic.acidCapsule);
+    return !!(tactic.spell || tactic.acidCapsule || tactic.fireCapsule);
 }
 
 /** how close a mech must get to its personal destination */

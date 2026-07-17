@@ -14,9 +14,10 @@ const SPLASH_SEC = 0.18;
 
 const OIL_COLOR = 0x5a3a12;
 const ACID_COLOR = 0x9ccc3a;
+const FIRE_COLOR = 0xe0762e;
 
 type DripActive = {
-    hazard: 'oil' | 'acid';
+    hazard: 'oil' | 'acid' | 'fire';
     x: number;
     z: number;
     at: number;
@@ -27,8 +28,8 @@ type DripActive = {
 };
 
 /**
- * Render-only oil/acid drips: blobs fall from the air onto each pour landing
- * spot, then briefly splat. Timing matches sim `hazardDrip` events.
+ * Render-only oil/acid/fire drips: blobs fall from the air onto each pour
+ * landing spot, then briefly splat. Timing matches sim `hazardDrip` events.
  */
 export class OilDripFx {
     private readonly group = new Group();
@@ -45,6 +46,12 @@ export class OilDripFx {
         opacity: 0.88,
         depthWrite: false,
     });
+    private readonly fireMat = new MeshBasicMaterial({
+        color: FIRE_COLOR,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+    });
     private readonly active: DripActive[] = [];
     private readonly pool: Mesh[] = [];
 
@@ -52,9 +59,10 @@ export class OilDripFx {
         scene.add(this.group);
     }
 
-    spawnDrip(hazard: 'oil' | 'acid', x: number, z: number, at: number): void {
+    spawnDrip(hazard: 'oil' | 'acid' | 'fire', x: number, z: number, at: number): void {
         const root = this.pool.pop() ?? new Mesh(this.geo, this.oilMat);
-        root.material = hazard === 'oil' ? this.oilMat : this.acidMat;
+        root.material =
+            hazard === 'oil' ? this.oilMat : hazard === 'acid' ? this.acidMat : this.fireMat;
         const groundY = groundHeightAt(x, z);
         // slight left→right lean so the pour reads as a stream, not a column
         const lean = 4;
@@ -88,6 +96,7 @@ export class OilDripFx {
         this.geo.dispose();
         this.oilMat.dispose();
         this.acidMat.dispose();
+        this.fireMat.dispose();
         this.group.parent?.remove(this.group);
     }
 

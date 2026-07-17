@@ -6,8 +6,8 @@
  *
  * - Oil AND acid persist across rounds (per-cell expiresRound). At battle
  *   start they pour left→right as drips (shield discs stay clear).
- * - Fire is battle-only (cleared when the battle ends); it's the only
- *   channel with ignition/spread behavior.
+ * - Fire Spill pours the same way but is battle-only (cleared when the
+ *   battle ends); weapon/meteor fire shares that channel.
  * - Igniting any oil cell flood-fills the whole connected oil component.
  */
 
@@ -26,6 +26,11 @@ export const ACID_SPILL_DURATION_ROUNDS = 1;
 /** percent of MAX HP per second while standing in acid (a global rate, like OIL_SPEED_MULT) */
 export const ACID_DPS_PERCENT = 3;
 
+/** Fire Spill — same capsule as oil/acid; battle-seconds burn (not round expiry) */
+export const FIRE_SPILL_RADIUS = 4 * CELL;
+export const FIRE_SPILL_BURN_SEC = 12;
+export const FIRE_SPILL_INTENSITY = 14;
+
 /** after battle freeze, wait this long before the first drip starts falling */
 export const HAZARD_POUR_DELAY_SEC = 0.55;
 /** time to sweep drips from capsule start → end */
@@ -33,9 +38,9 @@ export const HAZARD_POUR_DURATION_SEC = 1.35;
 /** how long each drip falls through the air before hitting the ground */
 export const HAZARD_DRIP_FALL_SEC = 0.4;
 
-/** one oil/acid capsule that pours left→right during battle */
+/** one oil/acid/fire capsule that pours left→right during battle */
 export interface HazardPour {
-    kind: 'oil' | 'acid';
+    kind: 'oil' | 'acid' | 'fire';
     x: number;
     z: number;
     x2: number;
@@ -45,7 +50,12 @@ export interface HazardPour {
     delaySeconds: number;
     /** seconds to sweep drips from start → end */
     durationSeconds: number;
+    /** oil/acid: inclusive round expiry; unused for fire (0) */
     expiresRound: number;
+    /** fire only: ground-fire lifetime from impact */
+    burnSeconds?: number;
+    /** fire only: DPS intensity for the stamped disc */
+    intensity?: number;
 }
 
 /** Fire Bolt / weapon ground-fire defaults (can be overridden per UnitType.fire) */
@@ -484,6 +494,7 @@ export class HazardField {
      * Light a disc of ground fire at battle time `now`, lasting until
      * `now + duration`. Then ignite every oil cell connected to those seeds.
      * Returns how many oil cells were consumed (for VFX events).
+     * Cells inside `blockedBy` ward discs are skipped (Fire Spill / shields).
      */
     stampFire(
         x: number,
@@ -492,12 +503,14 @@ export class HazardField {
         now: number,
         duration: number,
         intensity: number,
+        blockedBy: readonly ShieldDisk[] = [],
     ): number {
         if (radius <= 0 || duration <= 0 || intensity <= 0) return 0;
         const until = now + duration;
         const seedOil: number[] = [];
 
-        this.forEachDiscCells(x, z, radius, (_wx, _wz, cx, cz) => {
+        this.forEachDiscCells(x, z, radius, (wx, wz, cx, cz) => {
+            if (blockedBy.length > 0 && insideAnyShield(wx, wz, blockedBy)) return;
             const i = this.index(cx, cz);
             this.setFireCell(i, until, intensity);
             if (this.oilExpires[i]! !== 0) seedOil.push(i);

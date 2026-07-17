@@ -1,6 +1,7 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
 import {
     ACID_SPILL_RADIUS,
+    FIRE_SPILL_RADIUS,
     HAZARD_POUR_DELAY_SEC,
     HAZARD_POUR_DURATION_SEC,
     HazardField,
@@ -1087,6 +1088,27 @@ export function prepareHazardPours(
             delaySeconds: HAZARD_POUR_DELAY_SEC,
             durationSeconds: HAZARD_POUR_DURATION_SEC,
             expiresRound: round + durationRounds - 1,
+        });
+    }
+    const fires = ctx.spellStamps
+        .filter((s) => s.placedRound === round && TACTICS[s.tacticId]?.fireCapsule)
+        .sort((a, b) => a.id - b.id);
+    for (const s of fires) {
+        const tactic = TACTICS[s.tacticId]!;
+        const radius = tactic.radius ?? FIRE_SPILL_RADIUS;
+        const fire = tactic.fireCapsule!;
+        pours.push({
+            kind: 'fire',
+            x: s.x,
+            z: s.z,
+            x2: s.endX ?? s.x,
+            z2: s.endZ ?? s.z,
+            radius,
+            delaySeconds: HAZARD_POUR_DELAY_SEC,
+            durationSeconds: HAZARD_POUR_DURATION_SEC,
+            expiresRound: 0,
+            burnSeconds: fire.burnSeconds,
+            intensity: fire.intensity,
         });
     }
     return pours;

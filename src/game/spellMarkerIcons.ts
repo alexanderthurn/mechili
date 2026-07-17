@@ -3,6 +3,7 @@ import {
     ACID_ID,
     BIG_METEOR_ID,
     DRAGON_ID,
+    FIRE_SPILL_ID,
     HAMMER_ID,
     METEOR_SHOWER_ID,
     OIL_SPILL_ID,
@@ -24,6 +25,7 @@ const MARKER_GLOW: Record<string, string> = {
     [POISON_CLOUD_ID]: 'rgba(16, 40, 12, 0.55)',
     [OIL_SPILL_ID]: 'rgba(40, 28, 8, 0.55)',
     [ACID_ID]: 'rgba(28, 36, 8, 0.55)',
+    [FIRE_SPILL_ID]: 'rgba(48, 20, 8, 0.55)',
     [DRAGON_ID]: 'rgba(48, 16, 8, 0.55)',
 };
 
