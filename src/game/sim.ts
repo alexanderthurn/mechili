@@ -12,6 +12,8 @@ import { ITEMS } from './items';
 import { groundSupportAt, mulberry32, simGroundHeightAt, simGroundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
+    HAMMER_ID,
+    HAMMER_ZONE,
     RALLY_ROUTE_RADIUS,
     RALLY_ROUTE_REACH,
     RALLY_ROUTE_STUCK_SEC,
@@ -92,6 +94,10 @@ export interface SpellStrike {
     radius: number;
     damage: number;
     delaySeconds: number;
+    /** which TACTICS entry — drives strike VFX (hammer ground bloom, …) */
+    tacticId?: string;
+    /** hammer footprint orientation (radians) */
+    yaw?: number;
 }
 
 /** a ticking area effect; `seed` drives its private deterministic rng stream */
@@ -231,7 +237,7 @@ export interface Projectile {
 export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     | { kind: 'impact'; x: number; y: number; z: number }
-    | { kind: 'explosion'; x: number; y: number; z: number; radius: number }
+    | { kind: 'explosion'; x: number; y: number; z: number; radius: number; heavy?: boolean }
     | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
@@ -250,6 +256,24 @@ const BALLISTIC_GRAVITY = 28;
  */
 function hypot(x: number, y: number, z = 0): number {
     return Math.sqrt(x * x + y * y + z * z);
+}
+
+/** circle (default) or hammer rectangle footprint — includes actor radius as padding */
+function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean {
+    if (s.tacticId === HAMMER_ID) {
+        const yaw = s.yaw ?? 0;
+        const c = Math.cos(yaw);
+        const sn = Math.sin(yaw);
+        const dx = x - s.x;
+        const dz = z - s.z;
+        const lx = dx * c + dz * sn;
+        const lz = -dx * sn + dz * c;
+        return (
+            Math.abs(lx) <= HAMMER_ZONE.halfWidth + pad &&
+            Math.abs(lz) <= HAMMER_ZONE.halfDepth + pad
+        );
+    }
+    return hypot(x - s.x, z - s.z) <= s.radius + pad;
 }
 
 // movement tuning
@@ -867,18 +891,31 @@ export class BattleSim {
     }
 
     /**
-     * One area strike: everything in the circle takes environmental damage
+     * One area strike: everything in the blast takes environmental damage
      * (both teams, air included) — except targets under a living ward dome.
      * Each dome involved eats the strike damage ONCE and can break.
+     * Hammer uses the HAMMER_ZONE rectangle; other strikes use a circle.
      */
     private resolveStrike(s: SpellStrike): void {
         const y = simGroundHeightAt(s.x, s.z);
-        this.events.push({ kind: 'explosion', x: s.x, y: y + 0.6, z: s.z, radius: s.radius });
+        const hammer = s.tacticId === HAMMER_ID;
+        // particles/scorch: cover the hammer footprint (approx half-diagonal)
+        const visualRadius = hammer
+            ? Math.sqrt(HAMMER_ZONE.halfWidth * HAMMER_ZONE.halfWidth + HAMMER_ZONE.halfDepth * HAMMER_ZONE.halfDepth)
+            : s.radius;
+        this.events.push({
+            kind: 'explosion',
+            x: s.x,
+            y: y + 0.6,
+            z: s.z,
+            radius: visualRadius,
+            heavy: hammer,
+        });
         const domes = this.actors.filter((a) => a.alive && a.unit.type.shield);
         const hitDomes = new Set<Actor>();
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.extra) continue; // domes/rockets handled below
-            if (hypot(a.x - s.x, a.z - s.z) > s.radius + a.radius) continue;
+            if (!strikeHits(s, a.x, a.z, a.radius)) continue;
             const dome = domes.find(
                 (d) => hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield!.radius,
             );
@@ -890,7 +927,7 @@ export class BattleSim {
         }
         // domes inside the blast are struck even with nothing sheltering under them
         for (const d of domes) {
-            if (hypot(d.x - s.x, d.z - s.z) <= s.radius) hitDomes.add(d);
+            if (strikeHits(s, d.x, d.z, 0)) hitDomes.add(d);
         }
         for (const d of hitDomes) {
             d.hp -= s.damage;

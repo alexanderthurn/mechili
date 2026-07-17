@@ -197,6 +197,8 @@ export interface PlaceSpellAction {
     /** two-point spells only (acid capsule) */
     endX?: number;
     endZ?: number;
+    /** point-yaw spells only (hammer footprint orientation), quantized radians */
+    yaw?: number;
 }
 /** clears a spell stamp placed THIS round (fired stamps are history) */
 export interface RemoveSpellAction {
@@ -807,11 +809,18 @@ export class ActionDispatcher {
             case 'placeSpell': {
                 const tactic = TACTICS[action.tacticId];
                 if (!tactic || !usesSpellPlacement(tactic)) return false;
-                if (tactic.targeting !== 'point' && tactic.targeting !== 'two-point') {
+                if (
+                    tactic.targeting !== 'point' &&
+                    tactic.targeting !== 'two-point' &&
+                    tactic.targeting !== 'point-yaw'
+                ) {
                     return false;
                 }
                 if (tactic.targeting === 'two-point' &&
                     (action.endX === undefined || action.endZ === undefined)) {
+                    return false;
+                }
+                if (tactic.targeting === 'point-yaw' && action.yaw === undefined) {
                     return false;
                 }
                 const { round } = this.ctx.clock();
@@ -857,6 +866,7 @@ export class ActionDispatcher {
                     x: action.x,
                     z: action.z,
                     ...(end ? { endX: end.x, endZ: end.z } : {}),
+                    ...(action.yaw !== undefined ? { yaw: action.yaw } : {}),
                     placedRound: round,
                 };
                 this.ctx.spellStamps.push(stamp);
@@ -1079,4 +1089,9 @@ export function commitAcidStamps(
 /** quantize world coords so peers never disagree on float noise */
 export function quantizeWorld(v: number): number {
     return Math.round(v * 20) / 20;
+}
+
+/** quantize yaw (radians) to ~0.5° steps for lockstep agreement */
+export function quantizeYaw(rad: number): number {
+    return Math.round(rad * (180 / Math.PI) * 2) / 2 * (Math.PI / 180);
 }

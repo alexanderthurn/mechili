@@ -1,0 +1,39 @@
+{
+  "task_id": "5feca8a4-bd39-4375-9ec2-849c497f3633",
+  "type": "text_to_model",
+  "status": "success",
+  "input": {
+    "prompt": "game-ready Melodan fantasy western dragon in mid-glide flight pose, wings fully spread open, body horizontal, four legs tucked slightly, long tail, horns, strong readable silhouette from above and side, stylized low-poly fantasy creature, PBR materials, red-brown scales with darker ridges, centered pivot at body center, clean topology for browser game, full body in frame, no rider, no fire breath, no text, isolated",
+    "model_version": "v3.1-20260211",
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "detailed",
+    "texture_alignment": "geometry",
+    "smart_low_poly": true,
+    "export_uv": true,
+    "face_limit": 16000,
+    "geometry_quality": "standard"
+  },
+  "output": {
+    "pbr_model": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/5feca8a4-bd39-4375-9ec2-849c497f3633/tripo_pbr_model_5feca8a4-bd39-4375-9ec2-849c497f3633.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNWZlY2E4YTQtYmQzOS00Mzc1LTllYzItODQ5YzQ5N2YzNjMzL3RyaXBvX3Bicl9tb2RlbF81ZmVjYThhNC1iZDM5LTQzNzUtOWVjMi04NDljNDk3ZjM2MzMuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=D6SaVjdSy87DrNZH5g2QxLM4Z6K90C28-ueLNsYN-XT7c95JhSVnaXTmiVi9C0hLPyG8RXwFp2CgyQ9mvnPFg8CxLm4vFZkG7jZFrBX7WfX7~gQKxtUFRi63hQ1EYiVYH~O6HH6z32lslkSP8--SZFvzsKiFoRQUT-OBMnJW0eIQoo43u~EoAaJQ2-p2-qTTPwN9oygBpuhDqN8ySoLyfLhTpQiACUk6e-USvfocDc~DdYcbQDdKvVVXcE-ed0Y~kKzp60hg5wVxtznHhXojNrKNo8~2IlHxeXI2LFGEBx3yoWngHF7gqvusqO3WslM5SEnxp86yXUlVW6HjhRZ9Ng__",
+    "generated_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/5feca8a4-bd39-4375-9ec2-849c497f3633/text2image_5feca8a4-bd39-4375-9ec2-849c497f3633.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNWZlY2E4YTQtYmQzOS00Mzc1LTllYzItODQ5YzQ5N2YzNjMzL3RleHQyaW1hZ2VfNWZlY2E4YTQtYmQzOS00Mzc1LTllYzItODQ5YzQ5N2YzNjMzLmpwZWciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=HwdndGWd1GbeFGGOwKjxBzJ7chMiXgS~XAwrp4YVU3jEHdAo17i6hUKIEElHphvREmdrDiy3f6DFXtPAIzBzysTatvK-sMvLogndJmihWDP8uRqycgQ95AhO8Oszkh7vHlU98J-QiLZu2MkRD938HgVbR1OQ6sYRvFh7~Mkoq7dxLLeqsOvNqRU5HBZd7CsYetsW6Rm81huMYkZQ5gcY1UL-SyTArPXZcV-qwT1TfVASvvXsotmc~B3lfYcZTKIv6ruX4~xDeDXXhd1~nEbgtaH0ez0ssAfnKSYa~qkXX14T3drqeIZuvSPdRPK8UD9R77UoGD7YLU8sANmEi6TryQ__",
+    "rendered_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/5feca8a4-bd39-4375-9ec2-849c497f3633/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNWZlY2E4YTQtYmQzOS00Mzc1LTllYzItODQ5YzQ5N2YzNjMzL2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=xgAILtBTytaWGssJ9LRPLoYhc5b5SONDYD2LN5~58~8RNHQFJMwvLshRBs6dfRyXlOsbLgidT6LlrtjvCE5iGoA~i48R7Xoc~kg26BS5e~V3Vt57~t66HAoWDfVoDGuVI-BTHnBTaBtYdo2yse6gi6j1IXsc9kJUgVGyimpFo-sgJA30gpe6pukKjKojrOOzNfk4T0pJTj2avaTfilJkG7m-yDF3TDGoW2wh461A8QMeqtkUvdIG-8bYvRWsO628Thefd7qiYo4iaP0PKDMisfti6wN52ka6w8esWkRNk6ylRlsn6IS9GaMAX5rdx5vyTLEvZQmREM0VCbInuTmIeA__"
+  },
+  "progress": 100,
+  "create_time": 1784313803,
+  "consumed_credit": 40,
+  "prompt": "game-ready Melodan fantasy western dragon in mid-glide flight pose, wings fully spread open, body horizontal, four legs tucked slightly, long tail, horns, strong readable silhouette from above and side, stylized low-poly fantasy creature, PBR materials, red-brown scales with darker ridges, centered pivot at body center, clean topology for browser game, full body in frame, no rider, no fire breath, no text, isolated",
+  "thumbnail": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/5feca8a4-bd39-4375-9ec2-849c497f3633/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNWZlY2E4YTQtYmQzOS00Mzc1LTllYzItODQ5YzQ5N2YzNjMzL2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=xgAILtBTytaWGssJ9LRPLoYhc5b5SONDYD2LN5~58~8RNHQFJMwvLshRBs6dfRyXlOsbLgidT6LlrtjvCE5iGoA~i48R7Xoc~kg26BS5e~V3Vt57~t66HAoWDfVoDGuVI-BTHnBTaBtYdo2yse6gi6j1IXsc9kJUgVGyimpFo-sgJA30gpe6pukKjKojrOOzNfk4T0pJTj2avaTfilJkG7m-yDF3TDGoW2wh461A8QMeqtkUvdIG-8bYvRWsO628Thefd7qiYo4iaP0PKDMisfti6wN52ka6w8esWkRNk6ylRlsn6IS9GaMAX5rdx5vyTLEvZQmREM0VCbInuTmIeA__",
+  "queuing_num": -1,
+  "running_left_time": -1,
+  "result": {
+    "pbr_model": {
+      "type": "glb",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/5feca8a4-bd39-4375-9ec2-849c497f3633/tripo_pbr_model_5feca8a4-bd39-4375-9ec2-849c497f3633.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNWZlY2E4YTQtYmQzOS00Mzc1LTllYzItODQ5YzQ5N2YzNjMzL3RyaXBvX3Bicl9tb2RlbF81ZmVjYThhNC1iZDM5LTQzNzUtOWVjMi04NDljNDk3ZjM2MzMuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=D6SaVjdSy87DrNZH5g2QxLM4Z6K90C28-ueLNsYN-XT7c95JhSVnaXTmiVi9C0hLPyG8RXwFp2CgyQ9mvnPFg8CxLm4vFZkG7jZFrBX7WfX7~gQKxtUFRi63hQ1EYiVYH~O6HH6z32lslkSP8--SZFvzsKiFoRQUT-OBMnJW0eIQoo43u~EoAaJQ2-p2-qTTPwN9oygBpuhDqN8ySoLyfLhTpQiACUk6e-USvfocDc~DdYcbQDdKvVVXcE-ed0Y~kKzp60hg5wVxtznHhXojNrKNo8~2IlHxeXI2LFGEBx3yoWngHF7gqvusqO3WslM5SEnxp86yXUlVW6HjhRZ9Ng__"
+    },
+    "rendered_image": {
+      "type": "webp",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/5feca8a4-bd39-4375-9ec2-849c497f3633/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNWZlY2E4YTQtYmQzOS00Mzc1LTllYzItODQ5YzQ5N2YzNjMzL2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=xgAILtBTytaWGssJ9LRPLoYhc5b5SONDYD2LN5~58~8RNHQFJMwvLshRBs6dfRyXlOsbLgidT6LlrtjvCE5iGoA~i48R7Xoc~kg26BS5e~V3Vt57~t66HAoWDfVoDGuVI-BTHnBTaBtYdo2yse6gi6j1IXsc9kJUgVGyimpFo-sgJA30gpe6pukKjKojrOOzNfk4T0pJTj2avaTfilJkG7m-yDF3TDGoW2wh461A8QMeqtkUvdIG-8bYvRWsO628Thefd7qiYo4iaP0PKDMisfti6wN52ka6w8esWkRNk6ylRlsn6IS9GaMAX5rdx5vyTLEvZQmREM0VCbInuTmIeA__"
+    }
+  }
+}

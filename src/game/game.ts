@@ -19,7 +19,7 @@ import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, commitAcidStamps, commitOilStamps, levelCost, quantizeWorld, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, commitAcidStamps, commitOilStamps, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
@@ -43,6 +43,7 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
+import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
@@ -69,10 +70,11 @@ import { Scenery } from './scenery';
 import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
-import { SpellVisuals, type SpellDraft } from './spellVisuals';
+import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
 import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
-import { BattleSim, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
+import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
+    HAMMER_ID,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
@@ -154,6 +156,7 @@ export class Game {
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
+    private readonly hammerFx: HammerFx;
     private readonly oilVisuals: OilVisuals;
     private readonly oilField = new HazardField();
     private readonly oilBaseline = new HazardField();
@@ -177,6 +180,8 @@ export class Game {
     private shadowMapFrame = 0;
     private readonly rallyVisuals: RallyVisuals;
     private readonly spellVisuals: SpellVisuals;
+    /** hammer charge rings for the current battle (visual countdown) */
+    private spellChargeMarkers: SpellChargeMarker[] = [];
     private gridOverlay;
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
@@ -412,6 +417,7 @@ export class Game {
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
+        this.hammerFx = new HammerFx(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
@@ -923,6 +929,7 @@ export class Game {
         setUnitInstanceRenderer(null);
         this.rallyVisuals.dispose();
         this.spellVisuals.dispose();
+        this.hammerFx.dispose();
         this.controls.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
@@ -1897,7 +1904,7 @@ export class Game {
         this.rallyVisuals.sync(this.visibleRallyRoutes(), draft);
     }
 
-    /** the aim circle while a point spell is armed + this round's placed markers */
+    /** the aim preview while a spell is armed + this round's placed markers */
     private syncSpellVisuals(): void {
         const pointer = this.placement.lastPointer;
         const armed = this.armedTactic ? TACTICS[this.armedTactic] : null;
@@ -1905,38 +1912,65 @@ export class Game {
         if (
             armed &&
             usesSpellPlacement(armed) &&
-            (armed.targeting === 'point' || armed.targeting === 'two-point') &&
+            (armed.targeting === 'point' ||
+                armed.targeting === 'two-point' ||
+                armed.targeting === 'point-yaw') &&
             pointer &&
             this.playerCanAct
         ) {
             const radius = armed.radius ?? 0;
             const pos = this.groundAtLocal(pointer.x, pointer.y, radius);
             if (pos) {
-                const hover =
-                    armed.targeting === 'two-point' && this.tacticDraftStart
-                        ? clampTacticEnd(
-                              this.tacticDraftStart.x,
-                              this.tacticDraftStart.z,
-                              pos.x,
-                              pos.z,
-                              armed.maxSpan,
-                          )
-                        : pos;
-                draft = {
-                    tacticId: armed.id,
-                    x: hover.x,
-                    z: hover.z,
-                    radius,
-                    blocked:
-                        !!armed.respectsSafeZone &&
-                        this.inSafeZone(hover.x, hover.z, radius),
-                    ...(armed.targeting === 'two-point' && this.tacticDraftStart
-                        ? {
-                              startX: this.tacticDraftStart.x,
-                              startZ: this.tacticDraftStart.z,
-                          }
-                        : {}),
-                };
+                if (armed.targeting === 'point-yaw' && this.tacticDraftStart) {
+                    // position locked — mouse aims yaw
+                    const yaw = yawToward(
+                        this.tacticDraftStart.x,
+                        this.tacticDraftStart.z,
+                        pos.x,
+                        pos.z,
+                    );
+                    draft = {
+                        tacticId: armed.id,
+                        x: this.tacticDraftStart.x,
+                        z: this.tacticDraftStart.z,
+                        radius,
+                        yaw,
+                        blocked:
+                            !!armed.respectsSafeZone &&
+                            this.inSafeZone(
+                                this.tacticDraftStart.x,
+                                this.tacticDraftStart.z,
+                                radius,
+                            ),
+                    };
+                } else {
+                    const hover =
+                        armed.targeting === 'two-point' && this.tacticDraftStart
+                            ? clampTacticEnd(
+                                  this.tacticDraftStart.x,
+                                  this.tacticDraftStart.z,
+                                  pos.x,
+                                  pos.z,
+                                  armed.maxSpan,
+                              )
+                            : pos;
+                    draft = {
+                        tacticId: armed.id,
+                        x: hover.x,
+                        z: hover.z,
+                        radius,
+                        yaw: 0,
+                        blocked:
+                            !!armed.respectsSafeZone &&
+                            this.inSafeZone(hover.x, hover.z, radius),
+                        ...(armed.targeting === 'two-point' && this.tacticDraftStart
+                            ? {
+                                  startX: this.tacticDraftStart.x,
+                                  startZ: this.tacticDraftStart.z,
+                              }
+                            : {}),
+                    };
+                }
             }
         }
         this.spellVisuals.sync(this.visibleSpellStamps(), draft);
@@ -1998,6 +2032,7 @@ export class Game {
             point?: { x: number; z: number };
             start?: { x: number; z: number };
             end?: { x: number; z: number };
+            yaw?: number;
         },
     ): boolean {
         switch (tacticId) {
@@ -2037,6 +2072,7 @@ export class Game {
                         tacticId,
                         x: quantizeWorld(target.point.x),
                         z: quantizeWorld(target.point.z),
+                        ...(target.yaw !== undefined ? { yaw: quantizeYaw(target.yaw) } : {}),
                     });
                 }
                 if (target.start && target.end) {
@@ -2073,18 +2109,48 @@ export class Game {
         const radius = tactic.radius ?? 0;
         const ground = this.groundAtLocal(x, y, radius);
         if (!ground) return true;
-        if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
-            return true; // blocked spot — stay armed so the player can re-aim
-        }
 
         if (tactic.targeting === 'point') {
+            if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
+                return true; // blocked spot — stay armed so the player can re-aim
+            }
             if (this.dispatchTacticUse(tactic.id, { point: ground })) {
                 this.cancelTacticPlacement();
             }
             return true;
         }
 
+        if (tactic.targeting === 'point-yaw') {
+            // first click locks position; second click commits with mouse yaw
+            if (!this.tacticDraftStart) {
+                if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
+                    return true;
+                }
+                this.tacticDraftStart = ground;
+                this.syncTacticVisuals();
+                return true;
+            }
+            const yaw = yawToward(
+                this.tacticDraftStart.x,
+                this.tacticDraftStart.z,
+                ground.x,
+                ground.z,
+            );
+            if (
+                this.dispatchTacticUse(tactic.id, {
+                    point: this.tacticDraftStart,
+                    yaw,
+                })
+            ) {
+                this.cancelTacticPlacement();
+            }
+            return true;
+        }
+
         // two-point: first click drafts the start, second commits the capsule
+        if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
+            return true; // blocked spot — stay armed so the player can re-aim
+        }
         if (!this.tacticDraftStart) {
             this.tacticDraftStart = ground;
             this.syncTacticVisuals();
@@ -2344,15 +2410,35 @@ export class Game {
             return spell?.strike
                 ? [
                       {
+                          tacticId: s.tacticId,
                           x: s.x,
                           z: s.z,
                           radius: spell.strike.radius,
                           damage: spell.strike.damage,
                           delaySeconds: spell.delaySeconds,
+                          yaw: s.yaw,
                       },
                   ]
                 : [];
         });
+        // visual-only: drop anticipates the sim strike so impact coincides with damage
+        const hammerCues = pendingSpells
+            .filter((s) => s.tacticId === HAMMER_ID)
+            .map((s) => {
+                const spell = TACTICS[HAMMER_ID]!.spell!;
+                const at = BATTLE_START_FREEZE + spell.delaySeconds;
+                return { x: s.x, z: s.z, at, yaw: s.yaw ?? 0 };
+            });
+        this.hammerFx.schedule(hammerCues);
+        this.spellChargeMarkers = hammerCues.map((c) => ({
+            tacticId: HAMMER_ID,
+            x: c.x,
+            z: c.z,
+            radius: TACTICS[HAMMER_ID]!.radius ?? 24,
+            at: c.at,
+            readyAt: c.at - HAMMER_SWING_SEC,
+            yaw: c.yaw,
+        }));
         const spellZones = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             const zone = spell?.zone;
@@ -2486,6 +2572,8 @@ export class Game {
         this.selectedActor = null;
         this.projectileRenderer.clear();
         this.fireFx.clear(); // instanced flame tongues are battle-only
+        this.hammerFx.clear();
+        this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
         this.spellVisuals.clear(); // active zone markers are battle-only
@@ -2672,8 +2760,13 @@ export class Game {
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
-                // acid/poison/storm/meteor-shower ground markers while active
-                this.spellVisuals.syncActiveZones(this.sim.activeZoneMarkers(), this.sim.elapsed);
+                this.hammerFx.update(this.sim.elapsed);
+                // acid/poison/storm/meteor-shower zones + hammer charge rings
+                this.spellVisuals.syncBattleMarkers(
+                    this.sim.activeZoneMarkers(),
+                    this.spellChargeMarkers,
+                    this.sim.elapsed,
+                );
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
                 this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
@@ -2824,7 +2917,12 @@ export class Game {
                     this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65);
                 }
             } else if (e.kind === 'explosion') {
-                this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.9, 2), 0.16);
+                const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);
+                this.map.stampScorch(e.x, e.z, scorchR, e.heavy ? 0.55 : 0.16);
+                if (e.heavy) {
+                    // second wider bloom so the divine stamp scars the board
+                    this.map.stampScorch(e.x, e.z, scorchR * 1.35, 0.28);
+                }
             } else if (e.kind === 'groundFire') {
                 this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.85, 2), e.oilCells > 0 ? 0.35 : 0.22);
             }
@@ -3055,4 +3153,13 @@ export class Game {
                     : undefined,
         };
     }
+}
+
+/** yaw so local +Z points from (ax,az) toward (bx,bz); 0 if the points coincide */
+function yawToward(ax: number, az: number, bx: number, bz: number): number {
+    const dx = bx - ax;
+    const dz = bz - az;
+    if (dx * dx + dz * dz < 1e-8) return 0;
+    // matches drapeRectGeometry: local +Z → (-sin(yaw), cos(yaw))
+    return Math.atan2(-dx, dz);
 }

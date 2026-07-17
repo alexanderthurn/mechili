@@ -1,0 +1,39 @@
+{
+  "task_id": "203dbb84-af0a-466d-8e14-074ce5c1fff8",
+  "type": "text_to_model",
+  "status": "success",
+  "input": {
+    "prompt": "game-ready Melodan fantasy toxic poison cloud mass, low-poly stylized billowy green-yellow gas cloud volume, sickly emerald and olive tones, soft rounded forms, strong readable silhouette, PBR materials, centered pivot, clean topology for browser game prop, no skull icon, no ground, no text, isolated cloud prop",
+    "model_version": "v3.1-20260211",
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "standard",
+    "texture_alignment": "geometry",
+    "smart_low_poly": true,
+    "export_uv": true,
+    "face_limit": 6000,
+    "geometry_quality": "standard"
+  },
+  "output": {
+    "pbr_model": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/203dbb84-af0a-466d-8e14-074ce5c1fff8/tripo_pbr_model_203dbb84-af0a-466d-8e14-074ce5c1fff8.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMjAzZGJiODQtYWYwYS00NjZkLThlMTQtMDc0Y2U1YzFmZmY4L3RyaXBvX3Bicl9tb2RlbF8yMDNkYmI4NC1hZjBhLTQ2NmQtOGUxNC0wNzRjZTVjMWZmZjguZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=oQksb-ZVizp~vmeyYFXCCW3F0XtlHzJr0xgC7o5bvgS13Cob3e32qIKx3~~Bn5FXWFA9Ihz9Fqa~HETxTxl8IdAUhobTfzDyOU2tHM0AqqoEmQDDQ3xTu0eia5rC04OQ2ucuhaXkKp1NT0a0LUDMMJbJ7aawIiGf9DbN3X7SRct8bzsah9WKT1pdcSCVt3McMZpFDnizS-nrgdA5FExZ~v2lJu1spzAlwp8JizfQs2jIV0Zb6bE9SyJwBVIXXN~olcujnAcfrGXG3HZpx57S6lNHDW-9omEEZl1NohQ~oGyyWESRODhr2zcWbGkjnBesDgNIgjSLp7uy~ZTgOJZrOQ__",
+    "generated_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/203dbb84-af0a-466d-8e14-074ce5c1fff8/text2image_203dbb84-af0a-466d-8e14-074ce5c1fff8.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMjAzZGJiODQtYWYwYS00NjZkLThlMTQtMDc0Y2U1YzFmZmY4L3RleHQyaW1hZ2VfMjAzZGJiODQtYWYwYS00NjZkLThlMTQtMDc0Y2U1YzFmZmY4LmpwZWciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=NnliFCyF3OZ0J5Ev3-c8rXGtCtLX4srGb5HVrD89AA8~mcpNa9bF2-6~1fQo3rwrPNnyqLXCbxqR06FGXHxREJf9JoJHqcRIliDYyq9l~qQRPKOeSTY4LJhJCtrE8DOPOrqRAX22KrOuaqpoqQPHe0Lh8iK07TYxL7e90jfqZgMk5FHgY~VAREVdr5EXL0IO6xD~G4KJi0pIsOshaXZzZ8W7lKnt-s8rA17yPlXWFCttZSqmLlUQAcKHVZQHwSsaj8AxeR4kWSQTNkmSh3u2aBIzVgWNjtthxoi6fZ4fIXNA7E-Sd64B7ik4Qfm3wX0oc-Qbww57VGygfrY9~OZyqg__",
+    "rendered_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/203dbb84-af0a-466d-8e14-074ce5c1fff8/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMjAzZGJiODQtYWYwYS00NjZkLThlMTQtMDc0Y2U1YzFmZmY4L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=cb7RL6-ObzDgxVHMHuxYlu7d6ClY6kGC2xEltdfDyXhyjBbirBSY9BjlkIQ5JM~TiDfTF8N2EWO7jGCQoJaC6q9G~JEXjF9JLVbhlukX1yOxCgAovoev8ESzSY7lsnm6W3UdPg8ghwZCkxMN~xZ02VJMSyAaMuwcItG859LdsVIXC-WZctcHSk2ChPd3Ci1zVbIOlgsqKCxPAZgIcP6UUR5SpRLyiQe2Zj~NmGvk~ubV1sI~fAN0RENGLSafiDdBU~LcvbVn2itJuFoHTsDjNiIO7OFqmfknL5IGBCSvSitrgMMJ7ezcCeYw2eZiRTq4CAAUcx4LO3Un0a5HjLBE0w__"
+  },
+  "progress": 100,
+  "create_time": 1784313804,
+  "consumed_credit": 30,
+  "prompt": "game-ready Melodan fantasy toxic poison cloud mass, low-poly stylized billowy green-yellow gas cloud volume, sickly emerald and olive tones, soft rounded forms, strong readable silhouette, PBR materials, centered pivot, clean topology for browser game prop, no skull icon, no ground, no text, isolated cloud prop",
+  "thumbnail": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/203dbb84-af0a-466d-8e14-074ce5c1fff8/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMjAzZGJiODQtYWYwYS00NjZkLThlMTQtMDc0Y2U1YzFmZmY4L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=cb7RL6-ObzDgxVHMHuxYlu7d6ClY6kGC2xEltdfDyXhyjBbirBSY9BjlkIQ5JM~TiDfTF8N2EWO7jGCQoJaC6q9G~JEXjF9JLVbhlukX1yOxCgAovoev8ESzSY7lsnm6W3UdPg8ghwZCkxMN~xZ02VJMSyAaMuwcItG859LdsVIXC-WZctcHSk2ChPd3Ci1zVbIOlgsqKCxPAZgIcP6UUR5SpRLyiQe2Zj~NmGvk~ubV1sI~fAN0RENGLSafiDdBU~LcvbVn2itJuFoHTsDjNiIO7OFqmfknL5IGBCSvSitrgMMJ7ezcCeYw2eZiRTq4CAAUcx4LO3Un0a5HjLBE0w__",
+  "queuing_num": -1,
+  "running_left_time": -1,
+  "result": {
+    "pbr_model": {
+      "type": "glb",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/203dbb84-af0a-466d-8e14-074ce5c1fff8/tripo_pbr_model_203dbb84-af0a-466d-8e14-074ce5c1fff8.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMjAzZGJiODQtYWYwYS00NjZkLThlMTQtMDc0Y2U1YzFmZmY4L3RyaXBvX3Bicl9tb2RlbF8yMDNkYmI4NC1hZjBhLTQ2NmQtOGUxNC0wNzRjZTVjMWZmZjguZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=oQksb-ZVizp~vmeyYFXCCW3F0XtlHzJr0xgC7o5bvgS13Cob3e32qIKx3~~Bn5FXWFA9Ihz9Fqa~HETxTxl8IdAUhobTfzDyOU2tHM0AqqoEmQDDQ3xTu0eia5rC04OQ2ucuhaXkKp1NT0a0LUDMMJbJ7aawIiGf9DbN3X7SRct8bzsah9WKT1pdcSCVt3McMZpFDnizS-nrgdA5FExZ~v2lJu1spzAlwp8JizfQs2jIV0Zb6bE9SyJwBVIXXN~olcujnAcfrGXG3HZpx57S6lNHDW-9omEEZl1NohQ~oGyyWESRODhr2zcWbGkjnBesDgNIgjSLp7uy~ZTgOJZrOQ__"
+    },
+    "rendered_image": {
+      "type": "webp",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/203dbb84-af0a-466d-8e14-074ce5c1fff8/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMjAzZGJiODQtYWYwYS00NjZkLThlMTQtMDc0Y2U1YzFmZmY4L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=cb7RL6-ObzDgxVHMHuxYlu7d6ClY6kGC2xEltdfDyXhyjBbirBSY9BjlkIQ5JM~TiDfTF8N2EWO7jGCQoJaC6q9G~JEXjF9JLVbhlukX1yOxCgAovoev8ESzSY7lsnm6W3UdPg8ghwZCkxMN~xZ02VJMSyAaMuwcItG859LdsVIXC-WZctcHSk2ChPd3Ci1zVbIOlgsqKCxPAZgIcP6UUR5SpRLyiQe2Zj~NmGvk~ubV1sI~fAN0RENGLSafiDdBU~LcvbVn2itJuFoHTsDjNiIO7OFqmfknL5IGBCSvSitrgMMJ7ezcCeYw2eZiRTq4CAAUcx4LO3Un0a5HjLBE0w__"
+    }
+  }
+}

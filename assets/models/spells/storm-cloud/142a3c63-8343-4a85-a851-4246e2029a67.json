@@ -1,0 +1,39 @@
+{
+  "task_id": "142a3c63-8343-4a85-a851-4246e2029a67",
+  "type": "text_to_model",
+  "status": "success",
+  "input": {
+    "prompt": "game-ready Melodan fantasy storm thundercloud mass, low-poly stylized storm cell, dark grey turbulent cloud volume with soft billows, subtle purple-blue lightning glow inside, strong readable silhouette, PBR materials, centered pivot, clean topology for browser game prop, no rain streaks, no ground, no text, isolated cloud prop",
+    "model_version": "v3.1-20260211",
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "standard",
+    "texture_alignment": "geometry",
+    "smart_low_poly": true,
+    "export_uv": true,
+    "face_limit": 6000,
+    "geometry_quality": "standard"
+  },
+  "output": {
+    "pbr_model": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/142a3c63-8343-4a85-a851-4246e2029a67/tripo_pbr_model_142a3c63-8343-4a85-a851-4246e2029a67.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMTQyYTNjNjMtODM0My00YTg1LWE4NTEtNDI0NmUyMDI5YTY3L3RyaXBvX3Bicl9tb2RlbF8xNDJhM2M2My04MzQzLTRhODUtYTg1MS00MjQ2ZTIwMjlhNjcuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=L~I23ygm1aR8sOKVRD-teAOaikarcnA5VDy26m-MOTwgSjH473B4q82rV8OVva~6H7BPqmbEAjo9bHYZmxiQOnjD~Ux9da4RpqsJtj~YSOFWntnGADgDw6QsEW2yktDpZUyL0SLDuC~qEYqvaVMkdpMdZPQ~N2s5zqNIh9WXGHXVN-JtUHPh4INiMhRKNsrNEl9oWkhILxTvrUX4lR0Im5aDHG-cHEWtddK~zdPyT4V5Gl2bsrfriRl8V2fByi7vBJH3OOY6FsS6G8KfYDNGi~Fq2-p6m1G89P3MORTrU6ppq~OrZhrmKvttnFPkAXuXUhn7sPp8Nqdkde5E5NcOAQ__",
+    "generated_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/142a3c63-8343-4a85-a851-4246e2029a67/text2image_142a3c63-8343-4a85-a851-4246e2029a67.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMTQyYTNjNjMtODM0My00YTg1LWE4NTEtNDI0NmUyMDI5YTY3L3RleHQyaW1hZ2VfMTQyYTNjNjMtODM0My00YTg1LWE4NTEtNDI0NmUyMDI5YTY3LmpwZWciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=SfRQbLxDAuODpoCU9o6XG1f1xm~2K61lFU3vE-pgdHmRv0Y88ryiaNzQyjyob-JQYo2xjmBcLT~71EBBEcgCFVqAf~yA7EgRu0L0Y3-v72Q14Ozp2gog13ijS3iJm8khovSJo4Ks699JbPrfhjlqgkH~EmOahWxHQdXBdKv8jaldN1izudak-~4SSBOOpzyeoMCwFfN4DeBaBfzeO66TPmSsbwcEU-8g5DCq2CjrpkTKGBu07W00CnGTbJZi9l7~~lwO1fTe1VXiv3szlNj-J15kZAvDdvpGuWXmSnLXCQXOpRgEM4dWoj9~tYhtbYdNA4S-4WeU2V4YYsVVCHP76g__",
+    "rendered_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/142a3c63-8343-4a85-a851-4246e2029a67/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMTQyYTNjNjMtODM0My00YTg1LWE4NTEtNDI0NmUyMDI5YTY3L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=m74FU4-17sjeJuGE4wuphZke9WPApcYDYg4GAUu8zXZqEU3PSvtalE0thb-31Y7A7NtOkL~3gJaAUJSf724eR1ZFvWVELS2WEQUurFiuY~L69xfVPlM1OILeOVeG6s2aZ~wfCY01cygEPtnYT9LQfYwBCqdMrTV3oC9Aiqr0LC66WVzkyzT0Rul5MrrlCA~1QJuQvziuMH1nAsRhN5A62neaiOf3ENkeLE80VpoODOMQ4xM~22lo27Ji6wEX2hR7YO5BxwAaPUOymHygGYdz6IAujQMq0~BWufx~UfD0OEZOeCCy6wmH-WuMyV9sNfmf4F5zffyICSbidLoUuS5f5Q__"
+  },
+  "progress": 100,
+  "create_time": 1784313804,
+  "consumed_credit": 30,
+  "prompt": "game-ready Melodan fantasy storm thundercloud mass, low-poly stylized storm cell, dark grey turbulent cloud volume with soft billows, subtle purple-blue lightning glow inside, strong readable silhouette, PBR materials, centered pivot, clean topology for browser game prop, no rain streaks, no ground, no text, isolated cloud prop",
+  "thumbnail": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/142a3c63-8343-4a85-a851-4246e2029a67/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMTQyYTNjNjMtODM0My00YTg1LWE4NTEtNDI0NmUyMDI5YTY3L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=m74FU4-17sjeJuGE4wuphZke9WPApcYDYg4GAUu8zXZqEU3PSvtalE0thb-31Y7A7NtOkL~3gJaAUJSf724eR1ZFvWVELS2WEQUurFiuY~L69xfVPlM1OILeOVeG6s2aZ~wfCY01cygEPtnYT9LQfYwBCqdMrTV3oC9Aiqr0LC66WVzkyzT0Rul5MrrlCA~1QJuQvziuMH1nAsRhN5A62neaiOf3ENkeLE80VpoODOMQ4xM~22lo27Ji6wEX2hR7YO5BxwAaPUOymHygGYdz6IAujQMq0~BWufx~UfD0OEZOeCCy6wmH-WuMyV9sNfmf4F5zffyICSbidLoUuS5f5Q__",
+  "queuing_num": -1,
+  "running_left_time": -1,
+  "result": {
+    "pbr_model": {
+      "type": "glb",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/142a3c63-8343-4a85-a851-4246e2029a67/tripo_pbr_model_142a3c63-8343-4a85-a851-4246e2029a67.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMTQyYTNjNjMtODM0My00YTg1LWE4NTEtNDI0NmUyMDI5YTY3L3RyaXBvX3Bicl9tb2RlbF8xNDJhM2M2My04MzQzLTRhODUtYTg1MS00MjQ2ZTIwMjlhNjcuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=L~I23ygm1aR8sOKVRD-teAOaikarcnA5VDy26m-MOTwgSjH473B4q82rV8OVva~6H7BPqmbEAjo9bHYZmxiQOnjD~Ux9da4RpqsJtj~YSOFWntnGADgDw6QsEW2yktDpZUyL0SLDuC~qEYqvaVMkdpMdZPQ~N2s5zqNIh9WXGHXVN-JtUHPh4INiMhRKNsrNEl9oWkhILxTvrUX4lR0Im5aDHG-cHEWtddK~zdPyT4V5Gl2bsrfriRl8V2fByi7vBJH3OOY6FsS6G8KfYDNGi~Fq2-p6m1G89P3MORTrU6ppq~OrZhrmKvttnFPkAXuXUhn7sPp8Nqdkde5E5NcOAQ__"
+    },
+    "rendered_image": {
+      "type": "webp",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/142a3c63-8343-4a85-a851-4246e2029a67/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvMTQyYTNjNjMtODM0My00YTg1LWE4NTEtNDI0NmUyMDI5YTY3L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=m74FU4-17sjeJuGE4wuphZke9WPApcYDYg4GAUu8zXZqEU3PSvtalE0thb-31Y7A7NtOkL~3gJaAUJSf724eR1ZFvWVELS2WEQUurFiuY~L69xfVPlM1OILeOVeG6s2aZ~wfCY01cygEPtnYT9LQfYwBCqdMrTV3oC9Aiqr0LC66WVzkyzT0Rul5MrrlCA~1QJuQvziuMH1nAsRhN5A62neaiOf3ENkeLE80VpoODOMQ4xM~22lo27Ji6wEX2hR7YO5BxwAaPUOymHygGYdz6IAujQMq0~BWufx~UfD0OEZOeCCy6wmH-WuMyV9sNfmf4F5zffyICSbidLoUuS5f5Q__"
+    }
+  }
+}

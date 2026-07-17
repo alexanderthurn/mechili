@@ -88,9 +88,38 @@ export class Particles {
                 case 'explosion': {
                     // dusty debris / scorched soil — not fire-yellow
                     const s = e.radius / 3;
-                    this.burst(e.x, e.y, e.z, { count: Math.round(32 * s), color: 0x6e6558, speed: 15 * s, life: 0.5, up: 5 });
-                    this.burst(e.x, e.y + 0.6, e.z, { count: Math.round(18 * s), color: 0x4a4338, speed: 9 * s, life: 0.7, up: 7 });
-                    this.burst(e.x, e.y, e.z, { count: 10, color: 0x9a8f7a, speed: 4, life: 0.4, up: 3 });
+                    const heavy = e.heavy ? 1.6 : 1;
+                    this.burst(e.x, e.y, e.z, {
+                        count: Math.round(32 * s * heavy),
+                        color: 0x6e6558,
+                        speed: 15 * s * heavy,
+                        life: 0.5 + (e.heavy ? 0.25 : 0),
+                        up: 5 * heavy,
+                    });
+                    this.burst(e.x, e.y + 0.6, e.z, {
+                        count: Math.round(18 * s * heavy),
+                        color: 0x4a4338,
+                        speed: 9 * s * heavy,
+                        life: 0.7 + (e.heavy ? 0.3 : 0),
+                        up: 7 * heavy,
+                    });
+                    this.burst(e.x, e.y, e.z, {
+                        count: Math.round(10 * heavy),
+                        color: 0x9a8f7a,
+                        speed: 4 * heavy,
+                        life: 0.4,
+                        up: 3,
+                    });
+                    if (e.heavy) {
+                        // extra dust ring for divine stamps
+                        this.burst(e.x, e.y + 0.2, e.z, {
+                            count: 40,
+                            color: 0xb8a888,
+                            speed: 22,
+                            life: 0.85,
+                            up: 3,
+                        });
+                    }
                     break;
                 }
                 case 'summon':

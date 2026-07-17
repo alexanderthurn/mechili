@@ -1,0 +1,39 @@
+{
+  "task_id": "6e4dfbbf-4d47-40b5-81db-27726f0f2e15",
+  "type": "text_to_model",
+  "status": "success",
+  "input": {
+    "prompt": "game-ready Melodan fantasy great meteor, single large chunky flaming iron rock meteorite, glowing molten cracks, scorched stone, strong readable silhouette, low-poly stylized fantasy prop, PBR materials, centered pivot, clean topology for browser game, no trail, no text, isolated prop",
+    "model_version": "v3.1-20260211",
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "detailed",
+    "texture_alignment": "geometry",
+    "smart_low_poly": true,
+    "export_uv": true,
+    "face_limit": 8000,
+    "geometry_quality": "standard"
+  },
+  "output": {
+    "pbr_model": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/6e4dfbbf-4d47-40b5-81db-27726f0f2e15/tripo_pbr_model_6e4dfbbf-4d47-40b5-81db-27726f0f2e15.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNmU0ZGZiYmYtNGQ0Ny00MGI1LTgxZGItMjc3MjZmMGYyZTE1L3RyaXBvX3Bicl9tb2RlbF82ZTRkZmJiZi00ZDQ3LTQwYjUtODFkYi0yNzcyNmYwZjJlMTUuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=Svm5pnacfMTMsH2Rtj~MGCADjZzyszgi~odaIb305oXICmQxcACER1V95L~e3RAl7z9jAETjIsUOZtKM9HqRFwvl7JtEpRSRZnnEpXdTNVeQNf-ehDNT5gbj8bM-5mc2V0jzUrogJ3jaMW~6DcthC8rsP8JKiLl2bGaSIVif9G7VIkJ7E7sD-4-UgQpYuiGXKu4AKrQxGAj0GZDFagGWYSm0YJ45QcCLSffD4o0o5xRmXJfaCZsMSzppQafr~Rxh1IKv0kYzpIfwTYgRl-YQ2GiZYnRtRMw7HWc~lMyQFRXj-q86IDFuvNBCuAYztESugKkmV2~KZRGHgFeweF1ebw__",
+    "generated_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/6e4dfbbf-4d47-40b5-81db-27726f0f2e15/text2image_6e4dfbbf-4d47-40b5-81db-27726f0f2e15.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNmU0ZGZiYmYtNGQ0Ny00MGI1LTgxZGItMjc3MjZmMGYyZTE1L3RleHQyaW1hZ2VfNmU0ZGZiYmYtNGQ0Ny00MGI1LTgxZGItMjc3MjZmMGYyZTE1LmpwZWciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=USvsw4HNhI1XJr-Fdn~Z6bwaZEBhu7ywpfTo0MYBPkiM6b64nbu6Zpt-3PHnDj9sIHTL2Q6nCHX6fs853y~c0wsbSBLQ-64TJ5gBqGCOGKEoO7NFkK47w7eJJlRlfC92Ur2LRLF1PgGj-nuj91OLnZYcRDX6rzFpo3jk5DYZyJmkBe8A9c139dgnGLpC2Yng9evG6AtlPz-w4A5sOP0H1ajmaQLq9fdXHW89AxnS53UHWbq01sen7IyuzmtLsGCn9tofcL-EexDL70OepYQEiKir7GJJezlmV~BRSwjDwauHT4X1AGHnV0YzVbrljY18wBhPjkpYUszU0kjeX2J98Q__",
+    "rendered_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/6e4dfbbf-4d47-40b5-81db-27726f0f2e15/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNmU0ZGZiYmYtNGQ0Ny00MGI1LTgxZGItMjc3MjZmMGYyZTE1L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=JrMMmv8aORG~3mRsRazs~uPzMRPONZRnozCZIPVqSC3LcZE24sbTnFMpfz6juC-PhlaXg9AIx~~B2qCBCtr6QGJ18y2molEqPYlYe1nDVj~DORssBryFCkGoR2RsMaELkcLDMrcmsO4F2Qzb4wm6stqiJYd4oaOOZ6YfopGBOJYpOrmd~ESv4GBOinolUWpbdyNE4PrU3oOVsKf-mTElAwVF-6Xc1s6MMCnm~XBbqpuVkJVCGHELrAuTIP9CvkfbFAup3-Q~Qyu9ZGemleOGnFBGEDpqjP9f7gmoNPstgiwB6i1PlphyaN-9yRFfQIvH3Bt3Oc12r1kVQUpc5FjDKg__"
+  },
+  "progress": 100,
+  "create_time": 1784313323,
+  "consumed_credit": 40,
+  "prompt": "game-ready Melodan fantasy great meteor, single large chunky flaming iron rock meteorite, glowing molten cracks, scorched stone, strong readable silhouette, low-poly stylized fantasy prop, PBR materials, centered pivot, clean topology for browser game, no trail, no text, isolated prop",
+  "thumbnail": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/6e4dfbbf-4d47-40b5-81db-27726f0f2e15/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNmU0ZGZiYmYtNGQ0Ny00MGI1LTgxZGItMjc3MjZmMGYyZTE1L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=JrMMmv8aORG~3mRsRazs~uPzMRPONZRnozCZIPVqSC3LcZE24sbTnFMpfz6juC-PhlaXg9AIx~~B2qCBCtr6QGJ18y2molEqPYlYe1nDVj~DORssBryFCkGoR2RsMaELkcLDMrcmsO4F2Qzb4wm6stqiJYd4oaOOZ6YfopGBOJYpOrmd~ESv4GBOinolUWpbdyNE4PrU3oOVsKf-mTElAwVF-6Xc1s6MMCnm~XBbqpuVkJVCGHELrAuTIP9CvkfbFAup3-Q~Qyu9ZGemleOGnFBGEDpqjP9f7gmoNPstgiwB6i1PlphyaN-9yRFfQIvH3Bt3Oc12r1kVQUpc5FjDKg__",
+  "queuing_num": -1,
+  "running_left_time": -1,
+  "result": {
+    "pbr_model": {
+      "type": "glb",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/6e4dfbbf-4d47-40b5-81db-27726f0f2e15/tripo_pbr_model_6e4dfbbf-4d47-40b5-81db-27726f0f2e15.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNmU0ZGZiYmYtNGQ0Ny00MGI1LTgxZGItMjc3MjZmMGYyZTE1L3RyaXBvX3Bicl9tb2RlbF82ZTRkZmJiZi00ZDQ3LTQwYjUtODFkYi0yNzcyNmYwZjJlMTUuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=Svm5pnacfMTMsH2Rtj~MGCADjZzyszgi~odaIb305oXICmQxcACER1V95L~e3RAl7z9jAETjIsUOZtKM9HqRFwvl7JtEpRSRZnnEpXdTNVeQNf-ehDNT5gbj8bM-5mc2V0jzUrogJ3jaMW~6DcthC8rsP8JKiLl2bGaSIVif9G7VIkJ7E7sD-4-UgQpYuiGXKu4AKrQxGAj0GZDFagGWYSm0YJ45QcCLSffD4o0o5xRmXJfaCZsMSzppQafr~Rxh1IKv0kYzpIfwTYgRl-YQ2GiZYnRtRMw7HWc~lMyQFRXj-q86IDFuvNBCuAYztESugKkmV2~KZRGHgFeweF1ebw__"
+    },
+    "rendered_image": {
+      "type": "webp",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/6e4dfbbf-4d47-40b5-81db-27726f0f2e15/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvNmU0ZGZiYmYtNGQ0Ny00MGI1LTgxZGItMjc3MjZmMGYyZTE1L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=JrMMmv8aORG~3mRsRazs~uPzMRPONZRnozCZIPVqSC3LcZE24sbTnFMpfz6juC-PhlaXg9AIx~~B2qCBCtr6QGJ18y2molEqPYlYe1nDVj~DORssBryFCkGoR2RsMaELkcLDMrcmsO4F2Qzb4wm6stqiJYd4oaOOZ6YfopGBOJYpOrmd~ESv4GBOinolUWpbdyNE4PrU3oOVsKf-mTElAwVF-6Xc1s6MMCnm~XBbqpuVkJVCGHELrAuTIP9CvkfbFAup3-Q~Qyu9ZGemleOGnFBGEDpqjP9f7gmoNPstgiwB6i1PlphyaN-9yRFfQIvH3Bt3Oc12r1kVQUpc5FjDKg__"
+    }
+  }
+}

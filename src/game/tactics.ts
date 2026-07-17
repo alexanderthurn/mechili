@@ -24,6 +24,17 @@ export const ACID_ID = 'acidSpill';
 export const DRAGON_ID = 'dragonAttack';
 
 /**
+ * Hammer of the Gods ground footprint (world units), centered on the stamp.
+ * Shared by aim marker, mesh facing, and strike damage.
+ *  halfWidth → X (across the head) · halfDepth → Z (thickness)
+ *  Player yaw is chosen at placement (point-yaw); this default is unused in play.
+ */
+export const HAMMER_ZONE = {
+    halfWidth: 17,
+    halfDepth: 34,
+};
+
+/**
  * Max center-to-center distance for two-point tactics (rally corridor / oil capsule).
  * Keeps placements readable and stops a single charge from covering the whole board.
  */
@@ -66,6 +77,8 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  * `targeting` (armed-click flow, all generic in Game):
  *  - 'point': one ground click (validated against the safe zone when
  *    `respectsSafeZone`); 'two-point': start + end capsule like oil/rally;
+ *  - 'point-yaw': first click locks position, move mouse to rotate, second
+ *    click commits (hammer footprint);
  *  - 'own-unit': click one of your packs (sell).
  */
 export const TACTICS: Record<
@@ -76,7 +89,7 @@ export const TACTICS: Record<
         icon: string;
         description: string;
         kind: 'placement' | 'oneShot';
-        targeting: 'point' | 'two-point' | 'own-unit';
+        targeting: 'point' | 'two-point' | 'point-yaw' | 'own-unit';
         /** rounds to wait after use before a oneShot charge returns (0 = next round) */
         cooldownRounds: number;
         /** aim radius (point circle / capsule margin); board clamp + previews */
@@ -210,12 +223,14 @@ export const TACTICS: Record<
         name: 'Hammer of the Gods',
         icon: '🔨',
         kind: 'placement',
-        targeting: 'point',
-        cooldownRounds: 2,
-        radius: 6 * CELL,
+        targeting: 'point-yaw',
+        // TEMP playtest: every round (restore to 2 before release)
+        cooldownRounds: 0,
+        // aim clamp approx — visual/damage zone is HAMMER_ZONE
+        radius: 18,
         spell: { delaySeconds: 4, strike: { damage: 1000, radius: 6 * CELL } },
         description:
-            'Mark a HUGE circle anywhere. A divine hammer stamps it flat seconds into the battle — everything not under a ward dome takes severe damage.',
+            'Click to place, move to rotate, click again to lock. A divine hammer drops onto the zone seconds into the battle.',
     },
     [STORM_ID]: {
         id: STORM_ID,
@@ -328,7 +343,8 @@ export interface RallyRoute {
 }
 
 /** one placed battle spell: intent during deploy, fires in battle.
- *  Two-point spells (acid) carry an end — the effect covers the capsule. */
+ *  Two-point spells (acid) carry an end — the effect covers the capsule.
+ *  point-yaw spells (hammer) carry yaw for the footprint orientation. */
 export interface SpellStamp {
     id: number;
     tacticId: string;
@@ -337,6 +353,8 @@ export interface SpellStamp {
     z: number;
     endX?: number;
     endZ?: number;
+    /** radians — footprint rotation (hammer); 0 = default local axes */
+    yaw?: number;
     placedRound: number;
 }
 

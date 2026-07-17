@@ -1,0 +1,39 @@
+{
+  "task_id": "d2968c11-be8b-42db-8568-3e91102e2355",
+  "type": "text_to_model",
+  "status": "success",
+  "input": {
+    "prompt": "game-ready Melodan fantasy divine warhammer of the gods, enormous vertical stamp hammer, massive stone and bronze head with glowing runes, thick shaft, strong readable silhouette from above, low-poly stylized fantasy prop, PBR materials, centered pivot at underside of hammer head for slam animation, clean topology for browser game, no text, no stand, isolated prop",
+    "model_version": "v3.1-20260211",
+    "texture": true,
+    "pbr": true,
+    "texture_quality": "detailed",
+    "texture_alignment": "geometry",
+    "smart_low_poly": true,
+    "export_uv": true,
+    "face_limit": 12000,
+    "geometry_quality": "standard"
+  },
+  "output": {
+    "pbr_model": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/d2968c11-be8b-42db-8568-3e91102e2355/tripo_pbr_model_d2968c11-be8b-42db-8568-3e91102e2355.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvZDI5NjhjMTEtYmU4Yi00MmRiLTg1NjgtM2U5MTEwMmUyMzU1L3RyaXBvX3Bicl9tb2RlbF9kMjk2OGMxMS1iZThiLTQyZGItODU2OC0zZTkxMTAyZTIzNTUuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=e6WN89Ej1Ctl-etgarRMT1dsecD8MPVoApMwK5nfYyP0WzHIHMQjmkHnezT8YS-7MsAApuxcTQqP51WteLYCUOXMIlShorAOkGa7U6uAUxx8qVrC-9xr0SCSmDmS8yroyAyja7pb-a6Mui1C01cjRzd75mMEjAg0JbdJ6yOZkyyoeiUykr1gDaTtKx8TR5Gfkx5pSlxSu54RJ4GN8rje7FNjo0bWyyWtfTL28LReNMj-YZ3AUyChR7VqvlwuGYzV2HXjL4ejDwkp2sxlISAi6Dzevlm~nLoKIqVRtXfrEaxFcc5-2QsTFOxPZ3pYja8D3wyrljTfPVT5xeUDdLVyIA__",
+    "generated_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/d2968c11-be8b-42db-8568-3e91102e2355/text2image_d2968c11-be8b-42db-8568-3e91102e2355.jpeg?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvZDI5NjhjMTEtYmU4Yi00MmRiLTg1NjgtM2U5MTEwMmUyMzU1L3RleHQyaW1hZ2VfZDI5NjhjMTEtYmU4Yi00MmRiLTg1NjgtM2U5MTEwMmUyMzU1LmpwZWciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=Q7TPbqM5XEkei3gHhcqQu7Q4KXEAUSbCNeslrQoXQhpbOt344zK3oEqfqhiQPtwxXeH710TifvcQRfCynW5HONzqhyhtCQ6QvXMLf9YKVwp1S6ULuJga2Hc9Q98u55FA0eSiMgHofwTdONbWrSdAIWIAA745U2h33ilMBTAuRJCGUEVhPBE1AX5p4MNyJdnOduydZmffHYNT5QGZkBHhYXMebF4s25juC0FgpczSvJvQc~bcfFJn4VM~ExBsPn6BsP3GFwSb4N~17V18ra3mwcYdrhubnBQbYyI1HglZ1pSjKZaoH4ACou5ksSrFHCLnYQhTJM-ku~i-2HPApTvNZA__",
+    "rendered_image": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/d2968c11-be8b-42db-8568-3e91102e2355/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvZDI5NjhjMTEtYmU4Yi00MmRiLTg1NjgtM2U5MTEwMmUyMzU1L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=U3mz~UyFpARtlZaIGsFhs8R9kSJh6jjisw0NA9r3nH55bTRjw3405A1uBwAXaW3Ppr07rb~84WPEeSu2gtRgbEtLHa8ojsLNMLH4dojXTGoAa-irNaJerfWq~NMnFyXCOgOn-1ndeTbL7xPSiGIpE8yYD9JuYysub4IFTfIFHX5pRWc66mJ2bWxDD2iavtIWO3HdrV7Kty0l8UnB0qiWClHnZxNgDHaBQmtFSGqOQQ8qC42oF~SJFdB7J8FFHWx7DK3PnRJLimmh2cnvF595vQZJYifSEDh-12aYQCxFmsble74gkvzMiVCoOgx8dnVOhBuDckeXgKDSDds1X0H8gQ__"
+  },
+  "progress": 100,
+  "create_time": 1784313322,
+  "consumed_credit": 40,
+  "prompt": "game-ready Melodan fantasy divine warhammer of the gods, enormous vertical stamp hammer, massive stone and bronze head with glowing runes, thick shaft, strong readable silhouette from above, low-poly stylized fantasy prop, PBR materials, centered pivot at underside of hammer head for slam animation, clean topology for browser game, no text, no stand, isolated prop",
+  "thumbnail": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/d2968c11-be8b-42db-8568-3e91102e2355/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvZDI5NjhjMTEtYmU4Yi00MmRiLTg1NjgtM2U5MTEwMmUyMzU1L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=U3mz~UyFpARtlZaIGsFhs8R9kSJh6jjisw0NA9r3nH55bTRjw3405A1uBwAXaW3Ppr07rb~84WPEeSu2gtRgbEtLHa8ojsLNMLH4dojXTGoAa-irNaJerfWq~NMnFyXCOgOn-1ndeTbL7xPSiGIpE8yYD9JuYysub4IFTfIFHX5pRWc66mJ2bWxDD2iavtIWO3HdrV7Kty0l8UnB0qiWClHnZxNgDHaBQmtFSGqOQQ8qC42oF~SJFdB7J8FFHWx7DK3PnRJLimmh2cnvF595vQZJYifSEDh-12aYQCxFmsble74gkvzMiVCoOgx8dnVOhBuDckeXgKDSDds1X0H8gQ__",
+  "queuing_num": -1,
+  "running_left_time": -1,
+  "result": {
+    "pbr_model": {
+      "type": "glb",
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/d2968c11-be8b-42db-8568-3e91102e2355/tripo_pbr_model_d2968c11-be8b-42db-8568-3e91102e2355.glb?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvZDI5NjhjMTEtYmU4Yi00MmRiLTg1NjgtM2U5MTEwMmUyMzU1L3RyaXBvX3Bicl9tb2RlbF9kMjk2OGMxMS1iZThiLTQyZGItODU2OC0zZTkxMTAyZTIzNTUuZ2xiIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzg0MzMyODAwfX19XX0_&Signature=e6WN89Ej1Ctl-etgarRMT1dsecD8MPVoApMwK5nfYyP0WzHIHMQjmkHnezT8YS-7MsAApuxcTQqP51WteLYCUOXMIlShorAOkGa7U6uAUxx8qVrC-9xr0SCSmDmS8yroyAyja7pb-a6Mui1C01cjRzd75mMEjAg0JbdJ6yOZkyyoeiUykr1gDaTtKx8TR5Gfkx5pSlxSu54RJ4GN8rje7FNjo0bWyyWtfTL28LReNMj-YZ3AUyChR7VqvlwuGYzV2HXjL4ejDwkp2sxlISAi6Dzevlm~nLoKIqVRtXfrEaxFcc5-2QsTFOxPZ3pYja8D3wyrljTfPVT5xeUDdLVyIA__"
+    },
+    "rendered_image": {
+      "url": "https://tripo-data.rg1.data.tripo3d.com/tcli_8e1357b005e74fcb81756b2c8d06c2b3/20260717/d2968c11-be8b-42db-8568-3e91102e2355/legacy_mesh.webp?Key-Pair-Id=K1676C64NMVM2J&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfOGUxMzU3YjAwNWU3NGZjYjgxNzU2YjJjOGQwNmMyYjMvMjAyNjA3MTcvZDI5NjhjMTEtYmU4Yi00MmRiLTg1NjgtM2U5MTEwMmUyMzU1L2xlZ2FjeV9tZXNoLndlYnAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODQzMzI4MDB9fX1dfQ__&Signature=U3mz~UyFpARtlZaIGsFhs8R9kSJh6jjisw0NA9r3nH55bTRjw3405A1uBwAXaW3Ppr07rb~84WPEeSu2gtRgbEtLHa8ojsLNMLH4dojXTGoAa-irNaJerfWq~NMnFyXCOgOn-1ndeTbL7xPSiGIpE8yYD9JuYysub4IFTfIFHX5pRWc66mJ2bWxDD2iavtIWO3HdrV7Kty0l8UnB0qiWClHnZxNgDHaBQmtFSGqOQQ8qC42oF~SJFdB7J8FFHWx7DK3PnRJLimmh2cnvF595vQZJYifSEDh-12aYQCxFmsble74gkvzMiVCoOgx8dnVOhBuDckeXgKDSDds1X0H8gQ__",
+      "type": "webp"
+    }
+  }
+}

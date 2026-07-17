@@ -77,7 +77,7 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         glowOpacity: 1,
         cloudTint: 0xffffff,
         cloudOpacity: 0.85,
-        cloudShadowOpacity: 0.1,
+        cloudShadowOpacity: 0.16,
         nearCloudOpacity: 0.16,
         forestFog: 0.14,
         stars: 0,
