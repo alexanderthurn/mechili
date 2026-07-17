@@ -22,14 +22,14 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="off">Off (no weather)</option>` +
         `</select> <span class="s-hint">trees &amp; mountains</span></label>` +
         `<label class="s-row">Ground effects <select class="s-ground">` +
-        `<option value="full">Full (sand &amp; blood)</option>` +
+        `<option value="high">High (sand &amp; blood)</option>` +
         `<option value="medium">Medium (sand &amp; scorch)</option>` +
         `<option value="low">Low (texture only)</option>` +
         `<option value="off">Off (plain ground)</option>` +
         `</select> <span class="s-hint">battlefield wear</span></label>` +
         `<label class="s-row">Fire effects <select class="s-fire">` +
-        `<option value="ultra">Ultra</option>` +
         `<option value="high">High</option>` +
+        `<option value="medium">Medium</option>` +
         `<option value="low">Low</option>` +
         `<option value="off">Off</option>` +
         `</select> <span class="s-hint">flames (visual)</span></label>` +

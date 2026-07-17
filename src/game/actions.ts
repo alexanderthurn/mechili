@@ -1,7 +1,7 @@
 import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
 import { HazardField, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS, livingShieldDisks } from './fire';
 import { ITEMS } from './items';
-import { OIL_SPILL_ID, RALLY_ROUTE_ID, TACTICS, clampTacticEnd, type OilStamp, type RallyRoute } from './tactics';
+import { OIL_SPILL_ID, RALLY_ROUTE_ID, SELL_UNIT_ID, TACTICS, clampTacticEnd, type OilStamp, type RallyRoute } from './tactics';
 import type { Cell } from './map';
 import type { PlacementController } from './placement';
 import type {
@@ -81,7 +81,8 @@ export interface BuySellAbilityAction {
     kind: 'buySellAbility';
     team: Team;
 }
-/** sells a pack for its refund — limited per deployment phase */
+/** sells a pack for its refund — spends an ability charge (per-round) or a
+ *  card-granted sell tactic (one-shot) */
 export interface SellUnitAction {
     kind: 'sellUnit';
     team: Team;
@@ -218,6 +219,8 @@ interface LogEntry extends LoggedAction {
     prevHp?: number;
     grantedItems?: string[];
     grantedTactics?: string[];
+    /** sellUnit: the one-shot tactic charge it consumed (absent = ability charge) */
+    usedTactic?: string;
     /** placeRallyRoute: the spawned route */
     rallyRoute?: RallyRoute;
     /** placeOilSpill / removeOilSpill */
@@ -351,6 +354,18 @@ export class ActionDispatcher {
             return true;
         }
         return false;
+    }
+
+    /** one-shot sell-tactic charges `team` consumed in `round` — keeps the
+     *  spent charge visible (greyed) in the tactics strip until the round ends */
+    usedSellTactics(round: number, team: Team): number {
+        return this.log.filter(
+            (e) =>
+                e.round === round &&
+                e.action.team === team &&
+                e.action.kind === 'sellUnit' &&
+                e.usedTactic !== undefined,
+        ).length;
     }
 
     /** one side's applied actions of a round, in order — the network batch */
@@ -494,9 +509,15 @@ export class ActionDispatcher {
                 return true;
             }
             case 'sellUnit': {
+                // per-round ability charges first, then one-shot card tactics
                 const sell = this.ctx.sellState;
-                if (!sell.owned[action.team]) return false;
-                if (sell.used[action.team] >= this.ctx.sellSettings.maxPerRound) return false;
+                const abilityCharges = sell.owned[action.team]
+                    ? this.ctx.sellSettings.maxPerRound
+                    : 0;
+                const useAbility = sell.used[action.team] < abilityCharges;
+                const inventory = this.ctx.tactics[action.team];
+                const tacticIdx = inventory.indexOf(SELL_UNIT_ID);
+                if (!useAbility && tacticIdx < 0) return false;
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || unit.type.structure) return false;
                 const refund = Math.round(
@@ -506,7 +527,12 @@ export class ActionDispatcher {
                 entry.paid = refund;
                 placement.removeUnit(unit);
                 economy.credit(action.team, refund);
-                sell.used[action.team]++;
+                if (useAbility) {
+                    sell.used[action.team]++;
+                } else {
+                    inventory.splice(tacticIdx, 1);
+                    entry.usedTactic = SELL_UNIT_ID;
+                }
                 return true;
             }
             case 'buyDeploySlot': {
@@ -774,7 +800,8 @@ export class ActionDispatcher {
             case 'sellUnit':
                 placement.restoreUnit(e.unit!);
                 economy.spend(action.team, e.paid!); // take the refund back
-                this.ctx.sellState.used[action.team]--;
+                if (e.usedTactic) this.ctx.tactics[action.team].push(e.usedTactic);
+                else this.ctx.sellState.used[action.team]--;
                 break;
             case 'buyDeploySlot':
                 this.ctx.deployState.extra[action.team]--;

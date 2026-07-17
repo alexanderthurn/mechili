@@ -215,6 +215,7 @@ export class Game {
     /** true once the test rally-route charge has been granted */
     private testRallyRouteGranted = false;
     private testOilSpillGranted = false;
+    private testSellTacticGranted = false;
     /** unit types buyable in the shop this match */
     private readonly unlockedUnits: Record<Team, string[]> = { player: [], enemy: [] };
     /** at most one shop unlock per deployment round */
@@ -953,6 +954,7 @@ export class Game {
         if (this.round === 1 && !this.hydrating) {
             this.ensureTestRallyRoute();
             this.ensureTestOilSpill();
+            this.ensureTestSellTactic();
         }
     }
 
@@ -980,6 +982,18 @@ export class Game {
         for (const team of teams) {
             if (!this.tacticInventory[team].includes(OIL_SPILL_ID)) {
                 this.tacticInventory[team].push(OIL_SPILL_ID);
+            }
+        }
+    }
+
+    /** Dev/testing: one free one-shot sell charge (both sides in MP). */
+    private ensureTestSellTactic(): void {
+        if (this.testSellTacticGranted) return;
+        this.testSellTacticGranted = true;
+        const teams: Team[] = this.net ? ['player', 'enemy'] : ['player'];
+        for (const team of teams) {
+            if (!this.tacticInventory[team].includes(SELL_UNIT_ID)) {
+                this.tacticInventory[team].push(SELL_UNIT_ID);
             }
         }
     }
@@ -1137,6 +1151,12 @@ export class Game {
         swapTeams = true,
     ): void {
         this.hydrating = true;
+        // the test grants are NOT in the action log — they must exist BEFORE
+        // the replay, or every logged action that spends one (placed oil,
+        // rally, one-shot sells) fails validation and silently vanishes
+        this.ensureTestRallyRoute();
+        this.ensureTestOilSpill();
+        this.ensureTestSellTactic();
         // foreign logs (peer export) flip teams; our own single-player save does not
         const log = swapTeams
             ? sourceLog.map((e) => ({ ...e, action: this.swapPerspective(e.action) }))
@@ -1164,11 +1184,6 @@ export class Game {
             }
         }
         this.hydrating = false;
-
-        if (!this.matchOver) {
-            this.ensureTestRallyRoute();
-            this.ensureTestOilSpill();
-        }
 
         // reopen whatever decision was pending when the state was captured
         if (this.speciality.player === null) {
@@ -1553,11 +1568,17 @@ export class Game {
             }
         }
 
-        // sell charges: unlocked at the Command Tower, maxPerRound per deployment
+        // sell charges: Command Tower ability (maxPerRound, resets each round)
+        // plus one-shot card-granted tactics; charges spent this round stay
+        // visible greyed out (undo brings them back)
         const sell = TACTICS[SELL_UNIT_ID];
-        if (this.sellState.owned.player) {
-            const max = this.settings.sell.maxPerRound;
-            const used = Math.min(this.sellState.used.player, max);
+        const sellCardCharges = this.tacticInventory.player.filter(
+            (id) => id === SELL_UNIT_ID,
+        ).length;
+        const usedCardCharges = this.dispatcher.usedSellTactics(this.round, 'player');
+        if (this.sellState.owned.player || sellCardCharges > 0 || usedCardCharges > 0) {
+            const max = this.sellState.owned.player ? this.settings.sell.maxPerRound : 0;
+            const used = Math.min(this.sellState.used.player, max) + usedCardCharges;
             for (let i = 0; i < used; i++) {
                 out.push({
                     id: SELL_UNIT_ID,
@@ -1568,7 +1589,8 @@ export class Game {
                     hint: `${sell?.name ?? 'Sell Pack'} — used this round.\nUndo gives the charge back.`,
                 });
             }
-            for (let i = 0; i < max - used; i++) {
+            const avail = max - used + sellCardCharges;
+            for (let i = 0; i < avail; i++) {
                 out.push({
                     id: SELL_UNIT_ID,
                     icon: sell?.icon ?? '💰',

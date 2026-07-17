@@ -3,19 +3,19 @@
 /** Outer world / forests / terrain detail ('off' also disables all weather FX). */
 export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low' | 'off';
 /** Battlefield ground texture + sand / blood / scorch wear. */
-export type GroundEffectsQuality = 'full' | 'medium' | 'low' | 'off';
+export type GroundEffectsQuality = 'high' | 'medium' | 'low' | 'off';
 /** Combat fire VFX density (visual only — never affects sim). */
-export type FireVfxQuality = 'ultra' | 'high' | 'low' | 'off';
+export type FireVfxQuality = 'high' | 'medium' | 'low' | 'off';
 
 /**
  * Fire VFX tiers (for tuning):
  *
- * | tier  | tongues (max) | fill rule | extras |
- * |-------|---------------|-----------|--------|
- * | off   | — | tint only | — |
- * | low   | — | particles | light sparks |
- * | high  | 1024 | **1+ tongue per fire cell** (extras if budget allows) | medium + smoke |
- * | ultra | 2048 | same, denser extras on small blazes | heavy + smoke |
+ * | tier   | tongues (max) | fill rule | extras |
+ * |--------|---------------|-----------|--------|
+ * | off    | — | tint only | — |
+ * | low    | — | particles | light sparks |
+ * | medium | 1024 | **1+ tongue per fire cell** (extras if budget allows) | smoke |
+ * | high   | 2048 | same, denser extras on small blazes | heavy + smoke |
  *
  * Coverage comes first: every burning hazard cell gets a billboard whenever
  * cell count ≤ maxTongues (typical oil spills fit). Only pathological mega-blazes
@@ -39,7 +39,7 @@ export interface Prefs {
     /**
      * Cosmetic ground wear (sand footprints, blood, scorch). Does not gate
      * oil/fire puddles — those are always drawn (gameplay-relevant).
-     * - full: footprints + blood + scorch, ~12 Hz mask upload
+     * - high: footprints + blood + scorch, ~12 Hz mask upload
      * - medium: footprints + scorch, lighter / slower updates
      * - low / off: no wear mask work
      */
@@ -65,8 +65,8 @@ const DEFAULTS: Prefs = {
     combatChat: true,
     globalChat: true,
     scenery: 'medium',
-    groundEffects: 'full',
-    fireVfx: 'high',
+    groundEffects: 'high',
+    fireVfx: 'medium',
     dprCap: 2,
     unitShadows: 'all',
     renderDeadUnits: true,
@@ -84,19 +84,25 @@ function migrateScenery(raw: unknown): SceneryQuality {
     return DEFAULTS.scenery;
 }
 
+function migrateGroundEffects(raw: unknown): GroundEffectsQuality {
+    if (raw === 'high' || raw === 'medium' || raw === 'low' || raw === 'off') return raw;
+    if (raw === 'ultra' || raw === 'full') return 'high'; // former top tier names
+    return DEFAULTS.groundEffects;
+}
+
+function migrateFireVfx(raw: unknown): FireVfxQuality {
+    if (raw === 'high' || raw === 'medium' || raw === 'low' || raw === 'off') return raw;
+    if (raw === 'ultra') return 'high'; // former top tier name
+    return DEFAULTS.fireVfx;
+}
+
 function normalizePrefs(p: Prefs): Prefs {
     p.scenery = migrateScenery(p.scenery);
+    p.groundEffects = migrateGroundEffects(p.groundEffects);
+    p.fireVfx = migrateFireVfx(p.fireVfx);
     if (
-        p.groundEffects !== 'full' &&
-        p.groundEffects !== 'medium' &&
-        p.groundEffects !== 'low' &&
-        p.groundEffects !== 'off'
-    ) {
-        p.groundEffects = DEFAULTS.groundEffects;
-    }
-    if (
-        p.fireVfx !== 'ultra' &&
         p.fireVfx !== 'high' &&
+        p.fireVfx !== 'medium' &&
         p.fireVfx !== 'low' &&
         p.fireVfx !== 'off'
     ) {
@@ -169,6 +175,8 @@ export function prefs(): Prefs {
                 };
                 Object.assign(cached, stored);
                 cached.scenery = migrateScenery(stored.scenery);
+                cached.groundEffects = migrateGroundEffects(stored.groundEffects);
+                cached.fireVfx = migrateFireVfx(stored.fireVfx);
                 // migrate the old "mute opponent chat" flag
                 if (stored.muteChat !== undefined && stored.combatChat === undefined) {
                     cached.combatChat = !stored.muteChat;

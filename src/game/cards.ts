@@ -121,6 +121,13 @@ export const ROUND_CARDS: RoundCard[] = [
         description:
             'Stamp oil on the shared ground layer. Connected oil ignites together when fire touches it (lasts 2 rounds).',
     },
+    {
+        id: 'sellPack',
+        title: 'Buyback Deal',
+        cost: 25,
+        tactics: ['sellUnit'],
+        description: 'One-shot tactic: sell one of your packs for a supply refund.',
+    },
 ];
 
 /** buyable army types in the deployment shop (not board extras) */

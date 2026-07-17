@@ -11,7 +11,7 @@ import type { HazardField } from './fire';
 import { groundSupportAt } from './map';
 import type { FireVfxQuality } from './prefs';
 
-/** allocate once at the ultra ceiling so tier switches don't rebuild the mesh */
+/** allocate once at the high-tier ceiling so tier switches don't rebuild the mesh */
 const POOL_MAX = 2048;
 
 type FlameTier = {
@@ -27,15 +27,15 @@ type FlameTier = {
     sizeScale: number;
 };
 
-const TIER: Record<'ultra' | 'high', FlameTier> = {
-    high: {
+const TIER: Record<'high' | 'medium', FlameTier> = {
+    medium: {
         maxTongues: 1024,
         lushCellCap: 56,
         lushTongues: 3,
         denseTongues: 2,
         sizeScale: 1.35,
     },
-    ultra: {
+    high: {
         maxTongues: 2048,
         lushCellCap: 96,
         lushTongues: 4,
@@ -55,7 +55,7 @@ export class FlameRenderer {
     private readonly phases: InstancedBufferAttribute;
     private readonly dummy = new Object3D();
     private time = 0;
-    private tier: FlameTier = TIER.high;
+    private tier: FlameTier = TIER.medium;
 
     constructor(scene: Scene) {
         // slightly larger base quad → softer silhouette when scaled up
@@ -128,7 +128,7 @@ export class FlameRenderer {
     }
 
     setQuality(q: FireVfxQuality): void {
-        if (q === 'ultra' || q === 'high') {
+        if (q === 'high' || q === 'medium') {
             this.tier = TIER[q];
             this.mesh.visible = true;
         } else {

@@ -209,9 +209,9 @@ export class BattleMap {
         this.groundEffects = quality;
     }
 
-    /** wear stamping runs on full/medium; 'low' keeps the texture only */
+    /** wear stamping runs on high/medium; 'low' keeps the texture only */
     private wearEnabled(): boolean {
-        return this.groundEffects === 'full' || this.groundEffects === 'medium';
+        return this.groundEffects === 'high' || this.groundEffects === 'medium';
     }
 
     constructor(readonly size: MapSize = STANDARD_MAP) {
@@ -470,7 +470,7 @@ export class BattleMap {
 
     /** Stamp blood under a hit/kill (G) — tight stain, short soft edge. */
     stampBlood(x: number, z: number, radius: number, strength = 0.14): void {
-        if (this.groundEffects !== 'full') return; // medium: sand + scorch only
+        if (this.groundEffects !== 'high') return; // medium: sand + scorch only
         this.stampWearChannel(x, z, radius, strength, 'g');
         this.stampWearChannel(x, z, radius * 1.35, strength * 0.35, 'g');
     }
