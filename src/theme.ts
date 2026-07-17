@@ -514,10 +514,53 @@ export function menuStyles(): string {
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
     border-radius: 12px;
-    min-width: 280px;
+    min-width: 320px;
     color: ${u.text};
 }
 .mechili-settings .s-title { font-size: 15px; font-weight: bold; letter-spacing: 2px; }
+.mechili-settings .s-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.mechili-settings .s-section-head {
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: ${u.brass};
+}
+.mechili-settings .s-presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.mechili-settings .s-preset {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.4px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 6px;
+    color: ${u.textMuted};
+    cursor: pointer;
+    transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+.mechili-settings .s-preset:hover {
+    border-color: ${u.hover};
+    color: ${u.text};
+    transform: translateY(-1px);
+}
+.mechili-settings .s-preset.active {
+    border-color: ${u.brass};
+    color: ${u.brassLight};
+}
+.mechili-settings .s-preset:focus-visible {
+    outline: none;
+    border-color: ${u.brassLight};
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
 .mechili-settings .s-row {
     display: flex;
     align-items: center;
@@ -527,6 +570,11 @@ export function menuStyles(): string {
     user-select: none;
 }
 .mechili-settings .s-row input { width: 16px; height: 16px; accent-color: ${u.brass}; }
+.mechili-settings .s-hint {
+    font-size: 12px;
+    color: ${u.textMuted};
+    white-space: nowrap;
+}
 .mechili-settings .actions { display: flex; justify-content: flex-end; }
 .mechili-settings button {
     padding: 8px 14px;

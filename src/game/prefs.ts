@@ -60,6 +60,71 @@ export interface Prefs {
     renderDeadUnits: boolean;
 }
 
+/** One-click graphics bundles (common game pattern: Low → Ultra). */
+export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
+
+export type GraphicsPresetValues = Pick<
+    Prefs,
+    'scenery' | 'groundEffects' | 'fireVfx' | 'dprCap' | 'unitShadows' | 'renderDeadUnits'
+>;
+
+export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
+    low: {
+        scenery: 'low',
+        groundEffects: 'low',
+        fireVfx: 'low',
+        dprCap: 1,
+        unitShadows: 'off',
+        renderDeadUnits: false,
+    },
+    medium: {
+        scenery: 'medium',
+        groundEffects: 'medium',
+        fireVfx: 'medium',
+        dprCap: 1.5,
+        unitShadows: 'all',
+        renderDeadUnits: false,
+    },
+    high: {
+        scenery: 'high',
+        groundEffects: 'high',
+        fireVfx: 'medium',
+        dprCap: 2,
+        unitShadows: 'all',
+        renderDeadUnits: true,
+    },
+    ultra: {
+        scenery: 'ultra',
+        groundEffects: 'high',
+        fireVfx: 'high',
+        dprCap: 2,
+        unitShadows: 'all',
+        renderDeadUnits: true,
+    },
+};
+
+/** Returns the matching preset, or null when the user has mixed custom values. */
+export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null {
+    for (const id of ['low', 'medium', 'high', 'ultra'] as const) {
+        const v = GRAPHICS_PRESETS[id];
+        if (
+            p.scenery === v.scenery &&
+            p.groundEffects === v.groundEffects &&
+            p.fireVfx === v.fireVfx &&
+            p.dprCap === v.dprCap &&
+            p.unitShadows === v.unitShadows &&
+            p.renderDeadUnits === v.renderDeadUnits
+        ) {
+            return id;
+        }
+    }
+    return null;
+}
+
+export function applyGraphicsPreset(preset: GraphicsPreset): void {
+    updatePrefs(GRAPHICS_PRESETS[preset]);
+}
+
 const KEY = 'mechili-prefs';
 const DEFAULTS: Prefs = {
     combatChat: true,
