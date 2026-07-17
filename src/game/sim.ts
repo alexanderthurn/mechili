@@ -128,6 +128,11 @@ export interface SpellIgnite {
 export const CORRODE_TAKEN_MULT = 1.25;
 /** how long the corroded debuff lingers after the last acid tick */
 const CORRODE_LINGER_SECONDS = 2;
+/** summoned mechs materialize one by one, this far apart */
+const SUMMON_STAGGER_SECONDS = 0.12;
+/** render-only entrance: ground summons rise, flyers dive, over this long */
+const SUMMON_RISE_SECONDS = 0.6;
+const SUMMON_DIVE_SECONDS = 0.9;
 
 export interface Actor {
     unit: Unit;
@@ -184,6 +189,10 @@ export interface Actor {
     burnDps: number;
     /** acid debuff: takes CORRODE_TAKEN_MULT damage while this > elapsed */
     corrodedUntil: number;
+    /** summons: sim time this mech materializes (0 = was there from the start) */
+    appearAt: number;
+    /** false while a summon is still dormant (not alive, hidden, untargetable) */
+    appeared: boolean;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
@@ -226,7 +235,8 @@ export type SimEvent =
     | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
-    | { kind: 'groundFire'; x: number; y: number; z: number; radius: number; oilCells: number };
+    | { kind: 'groundFire'; x: number; y: number; z: number; radius: number; oilCells: number }
+    | { kind: 'summon'; x: number; y: number; z: number; flying: boolean };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
@@ -379,6 +389,8 @@ export class BattleSim {
                     burnUntil: 0,
                     burnDps: 0,
                     corrodedUntil: 0,
+                    appearAt: 0,
+                    appeared: true,
                 });
             }
         }
@@ -401,13 +413,20 @@ export class BattleSim {
         }
         for (const unit of spawningUnits) unit.flankSpawnDone = true;
 
-        // summons ride the same spawn ramp, timed to their spell's delay
+        // summons start DORMANT (not alive → excluded from every system,
+        // hidden) and awaken one by one: appearAt is staggered per member so
+        // the war band materializes as a drumroll, not a wall. Member order
+        // here is creation order — fixed before the canonical sort below.
+        const summonMemberIdx = new Map<Unit, number>();
         for (const a of this.actors) {
             const delay = this.config.summonDelayOf?.(a.unit) ?? 0;
-            if (delay > 0) {
-                a.spawnUntil = BATTLE_START_FREEZE + delay;
-                a.hp = 1;
-            }
+            if (delay <= 0) continue;
+            const idx = summonMemberIdx.get(a.unit) ?? 0;
+            summonMemberIdx.set(a.unit, idx + 1);
+            a.appearAt = BATTLE_START_FREEZE + delay + idx * SUMMON_STAGGER_SECONDS;
+            a.appeared = false;
+            a.alive = false;
+            a.mesh.visible = false;
         }
 
         this.strikes = (config.spellStrikes ?? []).map((s) => ({
@@ -661,6 +680,23 @@ export class BattleSim {
         if (target.hp <= 0) this.kill(target, null);
     }
 
+    /** dormant summons materialize one by one at their appearAt time */
+    private stepSummonAppearances(): void {
+        for (const a of this.actors) {
+            if (a.appeared || a.appearAt <= 0 || this.elapsed < a.appearAt) continue;
+            a.appeared = true;
+            a.alive = true;
+            a.mesh.visible = true;
+            this.events.push({
+                kind: 'summon',
+                x: a.x,
+                y: a.altitude > 0 ? a.altitude : simGroundHeightAt(a.x, a.z),
+                z: a.z,
+                flying: a.altitude > 0,
+            });
+        }
+    }
+
     /** fires every scheduled spell strike whose time has come (exactly once) */
     private stepSpellStrikes(): void {
         for (const s of this.strikes) {
@@ -905,7 +941,14 @@ export class BattleSim {
     }
 
     private hasMobileMechs(team: Team): boolean {
-        return this.actors.some((a) => a.alive && a.unit.team === team && !a.unit.type.structure);
+        // dormant summons count — the battle must not end while reinforcements
+        // are still on their way in
+        return this.actors.some(
+            (a) =>
+                a.unit.team === team &&
+                !a.unit.type.structure &&
+                (a.alive || (a.appearAt > 0 && !a.appeared)),
+        );
     }
 
     private isCommandTower(unit: Unit): boolean {
@@ -1040,6 +1083,22 @@ export class BattleSim {
             a.mesh.position.y = y + Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
         }
 
+        // summon entrance (render-only): ground mechs rise out of the soil,
+        // flyers dive in from high above — eased over the first moments
+        if (a.appearAt > 0 && a.appeared) {
+            const dur = a.altitude > 0 ? SUMMON_DIVE_SECONDS : SUMMON_RISE_SECONDS;
+            const t = (this.elapsed - a.appearAt) / dur;
+            if (t >= 0 && t < 1) {
+                const ease = 1 - (1 - t) * (1 - t); // fast start, soft landing
+                if (a.altitude === 0) {
+                    a.mesh.position.y -= (1 - ease) * 2.6; // still buried below
+                    a.mesh.rotation.z = 0; // no walk roll while emerging
+                } else {
+                    a.mesh.position.y += (1 - ease) * 16; // swooping down
+                }
+            }
+        }
+
         // recoil kicks the unit backward along its facing, then decays
         if (recoil > 0.01) {
             a.mesh.position.x += Math.sin(yaw) * recoil * 0.3;
@@ -1165,6 +1224,7 @@ export class BattleSim {
         // opening beat: no movement, attacks, rockets, or projectiles yet
         if (this.elapsed < BATTLE_START_FREEZE) return;
 
+        this.stepSummonAppearances();
         this.stepSpellStrikes();
 
         this.stepIndex++;

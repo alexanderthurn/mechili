@@ -163,9 +163,10 @@ export const TACTICS: Record<
         cooldownRounds: 1,
         radius: 4 * CELL,
         respectsSafeZone: true,
-        spell: { delaySeconds: 2, spawn: { typeId: 'dwarf', count: 12 } },
+        // count = PACKS (a dwarf pack is 24 fighters — 2 packs ≈ 48 dwarves)
+        spell: { delaySeconds: 2, spawn: { typeId: 'dwarf', count: 2 } },
         description:
-            'Mark a circle anywhere outside the enemy base. Shortly after battle start, a war band of dwarves bursts from the ground there — they fight this battle only.',
+            'Mark a circle anywhere outside the enemy base. Shortly after battle start, a war band of dwarves bursts from the ground there, one by one — they fight this battle only.',
     },
     [BIG_METEOR_ID]: {
         id: BIG_METEOR_ID,
@@ -188,9 +189,10 @@ export const TACTICS: Record<
         cooldownRounds: 1,
         radius: 4 * CELL,
         respectsSafeZone: true,
-        spell: { delaySeconds: 2, spawn: { typeId: 'crowRider', count: 5 } },
+        // count = PACKS (a crow-rider flock is 12 riders)
+        spell: { delaySeconds: 2, spawn: { typeId: 'crowRider', count: 2 } },
         description:
-            'Mark a circle anywhere outside the enemy base. Shortly after battle start, crow riders swoop in there — they fight this battle only.',
+            'Mark a circle anywhere outside the enemy base. Shortly after battle start, crow riders dive in from the sky, one after another — they fight this battle only.',
     },
     [HAMMER_ID]: {
         id: HAMMER_ID,

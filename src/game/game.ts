@@ -1916,6 +1916,7 @@ export class Game {
                           )
                         : pos;
                 draft = {
+                    tacticId: armed.id,
                     x: hover.x,
                     z: hover.z,
                     radius,

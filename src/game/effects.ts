@@ -93,6 +93,17 @@ export class Particles {
                     this.burst(e.x, e.y, e.z, { count: 10, color: 0x9a8f7a, speed: 4, life: 0.4, up: 3 });
                     break;
                 }
+                case 'summon':
+                    if (e.flying) {
+                        // wind gust + feathers as the rider dives in
+                        this.burst(e.x, e.y + 1.5, e.z, { count: 8, color: 0xd8dde6, speed: 4, life: 0.5, up: 1 });
+                        this.burst(e.x, e.y, e.z, { count: 5, color: 0xf2f0e8, speed: 2.5, life: 0.6, up: 2 });
+                    } else {
+                        // soil bursting open as the mech climbs out
+                        this.burst(e.x, e.y + 0.3, e.z, { count: 12, color: 0x8a6a42, speed: 5, life: 0.55, up: 7 });
+                        this.burst(e.x, e.y + 0.1, e.z, { count: 8, color: 0x5c4a30, speed: 3, life: 0.7, up: 5, blood: true });
+                    }
+                    break;
                 case 'death':
                     if (e.wear === 'ash') {
                         // dark ash / debris — not blood

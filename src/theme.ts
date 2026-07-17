@@ -1082,6 +1082,10 @@ export function hudStyles(): string {
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
+    /* many tactics: wrap into extra columns instead of growing off-screen */
+    flex-wrap: wrap;
+    align-content: flex-start;
+    max-height: 78vh;
     align-items: center;
     gap: 6px;
     padding: 8px 6px;
