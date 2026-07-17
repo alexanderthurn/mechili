@@ -2450,6 +2450,11 @@ export class Game {
             unit.summoned = true;
             unit.summonDelay = tactic.spell?.delaySeconds ?? 0;
             unit.deployedRound = this.round;
+            // summons arrive AFTER placement.beginBattle() ran — give them the
+            // same battle prep, or they stay in deployment mode: flyers ramp
+            // their lift toward the ground and Unit.update() re-seats member
+            // meshes at the pack origin every frame, fighting the sim's Y
+            unit.setDeployment(false);
         }
     }
 
