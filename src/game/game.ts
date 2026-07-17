@@ -2343,6 +2343,7 @@ export class Game {
             return zone
                 ? [
                       {
+                          tacticId: s.tacticId,
                           x: s.x,
                           z: s.z,
                           x2: s.endX,
@@ -2471,6 +2472,7 @@ export class Game {
         this.fireFx.clear(); // instanced flame tongues are battle-only
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
+        this.spellVisuals.clear(); // active zone markers are battle-only
         if (this.playerHp <= 0 || this.enemyHp <= 0) {
             this.finishMatch();
             return;
@@ -2654,6 +2656,8 @@ export class Game {
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
+                // acid/poison/storm/meteor-shower ground markers while active
+                this.spellVisuals.syncActiveZones(this.sim.activeZoneMarkers(), this.sim.elapsed);
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
                 this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;

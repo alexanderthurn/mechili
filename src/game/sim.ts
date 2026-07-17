@@ -95,6 +95,8 @@ export interface SpellStrike {
 
 /** a ticking area effect; `seed` drives its private deterministic rng stream */
 export interface SpellZone {
+    /** which TACTICS entry this came from — drives the ground marker's look */
+    tacticId: string;
     x: number;
     z: number;
     /** capsule zones (acid): second endpoint — effect covers the whole capsule */
@@ -532,6 +534,29 @@ export class BattleSim {
     /** the round ends as soon as one side has no units left besides its towers */
     get isOver(): boolean {
         return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');
+    }
+
+    /**
+     * Ground markers for spell zones CURRENTLY ticking (render-only — the
+     * visual layer draws these every battle frame so acid/poison/storm/
+     * meteor-shower actually show something on the ground while active,
+     * the same way oil's hazard mask stays visible for its own lifetime).
+     */
+    activeZoneMarkers(): {
+        tacticId: string;
+        x: number;
+        z: number;
+        x2?: number;
+        z2?: number;
+        radius: number;
+    }[] {
+        const out: ReturnType<BattleSim['activeZoneMarkers']> = [];
+        for (const z of this.zones) {
+            const startAt = BATTLE_START_FREEZE + z.delaySeconds;
+            if (this.elapsed < startAt || this.elapsed > z.endAt) continue;
+            out.push({ tacticId: z.tacticId, x: z.x, z: z.z, x2: z.x2, z2: z.z2, radius: z.radius });
+        }
+        return out;
     }
 
     private recordDamage(attacker: Unit, amount: number): void {

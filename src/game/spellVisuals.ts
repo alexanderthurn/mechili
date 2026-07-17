@@ -12,7 +12,15 @@ import {
 } from 'three';
 import { teamColors } from './colors';
 import { addCapsuleOutline } from './oilVisuals';
-import { ACID_ID, DRAGON_ID, POISON_CLOUD_ID, TACTICS, type SpellStamp } from './tactics';
+import {
+    ACID_ID,
+    DRAGON_ID,
+    METEOR_SHOWER_ID,
+    POISON_CLOUD_ID,
+    STORM_ID,
+    TACTICS,
+    type SpellStamp,
+} from './tactics';
 import { THEME } from '../theme';
 
 // floats just above the tallest board-relief mound, like the rally overlay
@@ -106,6 +114,42 @@ export class SpellVisuals {
         }
     }
 
+    /**
+     * Battle-time ground marker for zone spells CURRENTLY ticking (acid,
+     * poison, storm, meteor shower) — called every battle frame, same as
+     * oil's hazard mask stays visible for its own active lifetime. Point
+     * strikes (hammer/meteor/dragon) don't need this: strikes read from their
+     * impact burst, and dragon's capsule already shows via the fire/oil
+     * hazard mask once it ignites.
+     */
+    syncActiveZones(
+        markers: readonly { tacticId: string; x: number; z: number; x2?: number; z2?: number; radius: number }[],
+        now: number,
+    ): void {
+        this.clear();
+        // gentle pulse so an active zone reads as "alive", not a flat decal
+        const pulse = 0.75 + 0.25 * Math.sin(now * 3.2);
+        for (const m of markers) {
+            if (m.tacticId === ACID_ID && m.x2 !== undefined && m.z2 !== undefined) {
+                const tint = CAPSULE_TINTS[ACID_ID]!;
+                addCapsuleOutline(this.group, m.x, m.z, m.x2, m.z2, m.radius, false, tint.fill, tint.line);
+                continue;
+            }
+            if (m.tacticId === POISON_CLOUD_ID) {
+                this.addCircle(m.x, m.z, m.radius, 0x7ec850, 0.26 * pulse, 0.9);
+                continue;
+            }
+            if (m.tacticId === STORM_ID) {
+                this.addCircle(m.x, m.z, m.radius, 0x6a6ab0, 0, 0.55 * pulse); // ring only
+                continue;
+            }
+            if (m.tacticId === METEOR_SHOWER_ID) {
+                this.addCircle(m.x, m.z, m.radius, 0xe0762e, 0, 0.55 * pulse); // ring only
+                continue;
+            }
+        }
+    }
+
     private addCircle(
         x: number,
         z: number,
@@ -114,19 +158,21 @@ export class SpellVisuals {
         fillOpacity: number,
         lineOpacity: number,
     ): void {
-        const disc = new Mesh(
-            new CircleGeometry(radius, 48),
-            new MeshBasicMaterial({
-                color,
-                transparent: true,
-                opacity: fillOpacity,
-                side: DoubleSide,
-                depthWrite: false,
-            }),
-        );
-        disc.rotation.x = -Math.PI / 2;
-        disc.position.set(x, Y_FILL, z);
-        this.group.add(disc);
+        if (fillOpacity > 0) {
+            const disc = new Mesh(
+                new CircleGeometry(radius, 48),
+                new MeshBasicMaterial({
+                    color,
+                    transparent: true,
+                    opacity: fillOpacity,
+                    side: DoubleSide,
+                    depthWrite: false,
+                }),
+            );
+            disc.rotation.x = -Math.PI / 2;
+            disc.position.set(x, Y_FILL, z);
+            this.group.add(disc);
+        }
         this.group.add(
             new Line(
                 new BufferGeometry().setFromPoints(
