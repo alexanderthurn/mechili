@@ -1271,10 +1271,40 @@ export function hudStyles(): string {
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
 .mechili-cards .cards-row { display: flex; gap: 18px; }
+.mechili-cards.unlock-dialog .unlock-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: min(92vw, 520px);
+}
+.mechili-cards .unlock-tier {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+.mechili-cards .unlock-tier-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+    color: ${u.brassLight};
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.mechili-cards .unlock-tier-head::before {
+    content: '⬢';
+    font-size: 18px;
+    line-height: 1;
+    color: ${u.brass};
+}
 .mechili-cards .cards-row.unlock-row {
     flex-wrap: wrap;
-    justify-content: center;
-    max-width: 420px;
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
 }
 .mechili-cards .unlock-pick {
     position: relative;

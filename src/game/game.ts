@@ -67,6 +67,7 @@ import {
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
+    SELL_UNIT_ID,
     TACTICS,
     clampTacticEnd,
     clampTacticPoint,
@@ -594,11 +595,6 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyRoundSpeedBoost', team: 'player' });
-        };
-        this.hud.onSellUnit = () => {
-            const unit = this.placement.selectedUnit;
-            if (!unit || this.phase !== 'build' || unit.team !== 'player' || unit.type.structure) return;
-            this.dispatchPlayer({ kind: 'sellUnit', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
@@ -1494,6 +1490,7 @@ export class Game {
         armed: boolean;
         placed?: boolean;
         routeId?: number;
+        hint?: string;
     }[] {
         if (!this.playerCanAct) return [];
         const out: {
@@ -1503,6 +1500,7 @@ export class Game {
             armed: boolean;
             placed?: boolean;
             routeId?: number;
+            hint?: string;
         }[] = [];
 
         const rally = TACTICS[RALLY_ROUTE_ID];
@@ -1551,6 +1549,32 @@ export class Game {
                     icon: oil?.icon ?? '🛢',
                     name: oil ? `${oil.name} — ${oil.description}` : OIL_SPILL_ID,
                     armed: this.armedTactic === OIL_SPILL_ID,
+                });
+            }
+        }
+
+        // sell charges: unlocked at the Command Tower, maxPerRound per deployment
+        const sell = TACTICS[SELL_UNIT_ID];
+        if (this.sellState.owned.player) {
+            const max = this.settings.sell.maxPerRound;
+            const used = Math.min(this.sellState.used.player, max);
+            for (let i = 0; i < used; i++) {
+                out.push({
+                    id: SELL_UNIT_ID,
+                    icon: sell?.icon ?? '💰',
+                    name: sell ? `${sell.name} — used` : 'Sell Pack — used',
+                    armed: false,
+                    placed: true,
+                    hint: `${sell?.name ?? 'Sell Pack'} — used this round.\nUndo gives the charge back.`,
+                });
+            }
+            for (let i = 0; i < max - used; i++) {
+                out.push({
+                    id: SELL_UNIT_ID,
+                    icon: sell?.icon ?? '💰',
+                    name: sell ? `${sell.name} — ${sell.description}` : SELL_UNIT_ID,
+                    armed: this.armedTactic === SELL_UNIT_ID,
+                    hint: `${sell?.name ?? 'Sell Pack'}\nClick to arm, then click one of your packs to sell it. Right-click to cancel.`,
                 });
             }
         }
@@ -1642,6 +1666,9 @@ export class Game {
     }
 
     private syncTacticVisuals(): void {
+        // armed sell mode reads as a targeting cursor over the whole board
+        this.pixiApp.canvas.style.cursor =
+            this.armedTactic === SELL_UNIT_ID ? 'crosshair' : '';
         this.syncRallyVisuals();
         const pointer = this.placement.lastPointer;
         if (this.armedTactic === OIL_SPILL_ID && pointer) {
@@ -1734,6 +1761,19 @@ export class Game {
     /** swallows map clicks while a tactic is being placed */
     private handleTacticGroundClick(x: number, y: number): boolean {
         if (!this.playerCanAct || !this.armedTactic) return false;
+
+        if (this.armedTactic === SELL_UNIT_ID) {
+            const unit = this.placement.unitAtPoint(x, y);
+            if (unit && unit.team === 'player' && !unit.type.structure) {
+                if (this.dispatchPlayer({ kind: 'sellUnit', team: 'player', unitId: unit.id })) {
+                    this.armedTactic = null;
+                    this.placement.inputLocked = false;
+                    this.syncTacticVisuals();
+                }
+            }
+            // anything else (enemy, structure, ground): stay armed, swallow the click
+            return true;
+        }
 
         if (this.armedTactic === OIL_SPILL_ID) {
             const ground = this.groundAtLocal(x, y, OIL_SPILL_RADIUS);
@@ -2598,19 +2638,6 @@ export class Game {
                           owned: this.sellState.owned.player,
                           affordable:
                               this.economy.balance('player') >= this.settings.sell.abilityCost,
-                      }
-                    : undefined,
-            // once unlocked, own packs can be sold (limited per round)
-            sell:
-                u.team === 'player' &&
-                this.phase === 'build' &&
-                !u.type.structure &&
-                this.sellState.owned.player
-                    ? {
-                          refund: Math.round(
-                              this.economy.costOf(u.type) * this.settings.sell.refundFactor,
-                          ),
-                          available: this.sellState.used.player < this.settings.sell.maxPerRound,
                       }
                     : undefined,
             // the next level is a purchase: needs banked XP and supply

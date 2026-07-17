@@ -982,6 +982,14 @@ export class PlacementController {
         });
     }
 
+    /** the pack under a surface point — for tactics that target units (e.g. sell) */
+    unitAtPoint(x: number, y: number): Unit | undefined {
+        const cell = this.cellAt(x, y);
+        if (!cell) return undefined;
+        const unit = this.occupied.get(cellKey(cell)) ?? this.extraAt(cell);
+        return unit && !unit.destroyed ? unit : undefined;
+    }
+
     private handleClick(x: number, y: number): void {
         if (this.groundClickInterceptor?.(x, y)) return;
         const cell = this.cellAt(x, y);

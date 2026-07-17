@@ -79,8 +79,6 @@ export interface SelectionInfo {
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Command Tower only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
-    /** selling this pack (once the ability is owned; limited per round) */
-    sell?: { refund: number; available: boolean };
 }
 
 /**
@@ -103,7 +101,6 @@ export class Hud {
     onRecruitLevel: (() => void) | null = null;
     onUpgradeTower: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
-    onSellUnit: (() => void) | null = null;
     onBuyDeploySlot: (() => void) | null = null;
     onBuyRoundRangeBoost: (() => void) | null = null;
     onBuyRoundSpeedBoost: (() => void) | null = null;
@@ -318,7 +315,6 @@ export class Hud {
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
             else if (button.dataset.speedboost) this.onBuyRoundSpeedBoost?.();
             else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
-            else if (button.dataset.sell) this.onSellUnit?.();
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
         // hovering a tile or equipped item pops the big info frame
@@ -596,6 +592,8 @@ export class Hud {
             armed: boolean;
             placed?: boolean;
             routeId?: number;
+            /** overrides the default click/right-click tooltip line */
+            hint?: string;
         }[] = [],
     ): void {
         const key = JSON.stringify({ items, tactics });
@@ -622,9 +620,11 @@ export class Hud {
                           `inv-item tactic` +
                           (t.placed ? ' placed' : '') +
                           (t.armed ? ' armed' : '');
-                      const hint = t.placed
-                          ? `${t.name}\nRight-click to clear and place again.`
-                          : `${t.name}\nClick to place on the map. Right-click to cancel.`;
+                      const hint =
+                          t.hint ??
+                          (t.placed
+                              ? `${t.name}\nRight-click to clear and place again.`
+                              : `${t.name}\nClick to place on the map. Right-click to cancel.`);
                       return (
                           `<button class="${cls}" data-tactic="${t.id}"${routeAttr} title="${hint}">` +
                           `<span class="i">${t.icon}</span></button>`
@@ -796,42 +796,74 @@ export class Hud {
         if (!this.shopUnlockAvailable || this.shopUnlocked.length === 0) return;
         const locked = SHOP_UNIT_IDS.filter((id) => !this.shopUnlocked.includes(id)).map((id) => {
             const type = UNIT_TYPES.find((t) => t.id === id)!;
-            const cost = unitUnlockCost(id);
+            const unlockCost = unitUnlockCost(id);
             return {
                 id,
                 name: type.name,
-                cost,
-                affordable: cost <= this.shopBalance,
+                unlockCost,
+                deployCost: this.costOf(type),
+                affordable: unlockCost <= this.shopBalance,
             };
         });
         if (locked.length === 0) return;
         this.showUnlockPicker(locked);
     }
 
+    private unlockTierLabel(unlockCost: number): string {
+        return String(unlockCost);
+    }
+
+    private renderUnlockPickTile(
+        o: { id: string; name: string; deployCost: number; affordable: boolean },
+    ): string {
+        const art = this.unitIcons.get(o.id);
+        const artStyle = art ? ` style="background-image:url(${art})"` : '';
+        return (
+            `<button class="shop-tile unlock-pick" data-unit="${o.id}"` +
+            `${o.affordable ? '' : ' disabled'}>` +
+            `<span class="title">${escapeAttr(o.name)}</span>` +
+            `<span class="art"${artStyle}></span>` +
+            `<span class="cost">${o.deployCost}</span>` +
+            `</button>`
+        );
+    }
+
     /** pick which locked unit type to add to the shop this round */
     showUnlockPicker(
-        options: readonly { id: string; name: string; cost: number; affordable: boolean }[],
+        options: readonly {
+            id: string;
+            name: string;
+            unlockCost: number;
+            deployCost: number;
+            affordable: boolean;
+        }[],
     ): void {
+        const tiers = new Map<number, typeof options[number][]>();
+        for (const option of options) {
+            const group = tiers.get(option.unlockCost) ?? [];
+            group.push(option);
+            tiers.set(option.unlockCost, group);
+        }
+        const tierCosts = [...tiers.keys()].sort((a, b) => a - b);
+        const tierHtml = tierCosts
+            .map((unlockCost) => {
+                const units = tiers.get(unlockCost)!;
+                return (
+                    `<section class="unlock-tier">` +
+                    `<div class="unlock-tier-head">${this.unlockTierLabel(unlockCost)}</div>` +
+                    `<div class="cards-row unlock-row">` +
+                    units.map((o) => this.renderUnlockPickTile(o)).join('') +
+                    `</div></section>`
+                );
+            })
+            .join('');
+
         const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards';
+        overlay.className = 'mechili-cards unlock-dialog';
         overlay.innerHTML =
             `<div class="cards-title">Unlock a unit</div>` +
-            `<div class="cards-row unlock-row">` +
-            options
-                .map((o) => {
-                    const art = this.unitIcons.get(o.id);
-                    const artStyle = art ? ` style="background-image:url(${art})"` : '';
-                    const costLabel = o.cost > 0 ? String(o.cost) : 'Free';
-                    return (
-                        `<button class="shop-tile unlock-pick" data-unit="${o.id}"` +
-                        `${o.affordable ? '' : ' disabled'}>` +
-                        `<span class="title">${o.name}</span>` +
-                        `<span class="art"${artStyle}></span>` +
-                        `<span class="cost">${costLabel}</span>` +
-                        `</button>`
-                    );
-                })
-                .join('') +
+            `<div class="unlock-picker">` +
+            tierHtml +
             `</div>` +
             `<button class="cards-skip">Cancel</button>`;
         overlay.addEventListener('click', (e) => {
@@ -896,17 +928,6 @@ export class Hud {
                 desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
                 cost: tu.maxed ? undefined : tu.cost,
                 state: tu.maxed ? 'owned' : tu.affordable ? 'buy' : 'locked',
-            });
-        }
-        if (info.sell) {
-            tiles.push({
-                data: 'data-sell="1"',
-                icon: '💰',
-                title: 'Sell Pack',
-                desc: 'Sell this pack for a supply refund. Once per deployment phase.',
-                cost: -info.sell.refund,
-                state: info.sell.available ? 'buy' : 'locked',
-                note: info.sell.available ? undefined : 'Already sold this round',
             });
         }
         for (const b of info.boosts ?? []) {

@@ -4,6 +4,8 @@ import { OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 /** tactical orders (not pack items) — granted by round cards, consumed per placement */
 export const RALLY_ROUTE_ID = 'rallyRoute';
 export const OIL_SPILL_ID = 'oilSpill';
+/** selling a pack — charges come from the Command Tower's sell ability, not cards */
+export const SELL_UNIT_ID = 'sellUnit';
 
 /**
  * Max center-to-center distance for two-point tactics (rally corridor / oil capsule).
@@ -38,6 +40,13 @@ export const TACTICS: Record<
             'Place two oil circles — outline during deploy; oil lands at battle start (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
         oilRadius: OIL_SPILL_RADIUS,
         oilDurationRounds: OIL_SPILL_DURATION_ROUNDS,
+    },
+    [SELL_UNIT_ID]: {
+        id: SELL_UNIT_ID,
+        name: 'Sell Pack',
+        icon: '💰',
+        description:
+            'Click to arm, then click one of your packs to sell it for a supply refund.',
     },
 };
 
