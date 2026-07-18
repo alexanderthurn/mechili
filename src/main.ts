@@ -227,13 +227,17 @@ gchatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') void sendGlobalChat();
 });
 
-// starts collapsed as a small "Chat" button; clicking anywhere outside
-// collapses it again (the input keeps whatever was typed)
-gchatEl.querySelector('.g-strip')!.addEventListener('click', () => {
+// starts collapsed as a small "Chat" button; click or hover opens it and
+// it stays open until a click outside (the input keeps whatever was typed)
+function openGlobalChat(): void {
+    if (gchatEl.classList.contains('open')) return;
     gchatEl.classList.add('open');
     void refreshGlobalChat();
     gchatInput.focus();
-});
+}
+const gchatStrip = gchatEl.querySelector('.g-strip')!;
+gchatStrip.addEventListener('click', openGlobalChat);
+gchatStrip.addEventListener('pointerenter', openGlobalChat);
 document.addEventListener('pointerdown', (e) => {
     if (gchatEl.classList.contains('open') && !gchatEl.contains(e.target as Node)) {
         gchatEl.classList.remove('open');

@@ -495,10 +495,14 @@ export class Hud {
             this.chatInput.value = '';
             this.chatInput.focus();
         };
-        bar.querySelector('.c-strip')!.addEventListener('click', () => {
-            bar.classList.toggle('open');
-            if (bar.classList.contains('open')) this.chatInput.focus();
-        });
+        const openChat = (focus: boolean) => {
+            if (bar.classList.contains('open')) return;
+            bar.classList.add('open');
+            if (focus) this.chatInput.focus();
+        };
+        const strip = bar.querySelector('.c-strip')!;
+        strip.addEventListener('click', () => openChat(true));
+        strip.addEventListener('pointerenter', () => openChat(false));
         bar.addEventListener('click', (e) => {
             const emote = (e.target as HTMLElement).closest<HTMLButtonElement>('.c-emote');
             if (emote?.dataset.emote) this.onSendChat?.({ kind: 'emote', id: emote.dataset.emote });
@@ -1237,7 +1241,7 @@ export class Hud {
         el.innerHTML =
             `<div class="pause-box">` +
             `<div class="pause-title">Menu</div>` +
-            `<button type="button" class="pause-resume">Close</button>` +
+            `<button type="button" class="pause-resume">Continue</button>` +
             `<button type="button" class="pause-settings">Settings</button>` +
             `<button type="button" class="pause-quit">Quit to menu</button>` +
             `</div>`;
