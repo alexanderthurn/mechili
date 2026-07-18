@@ -847,15 +847,25 @@ export class Unit {
     }
 
     /**
-     * Updates level visuals (mesh tint). Pass displayLevel for stale intel fog.
-     * Rank studs were removed — level reads from tint + the detail panel.
+     * Updates level visuals (tint + tower scale). Pass displayLevel for stale intel fog.
      */
     refreshLevelBadge(displayLevel = this.level): void {
         this.applyLevelLook(displayLevel);
     }
 
-    /** Mesh color by veterancy — level 1 untinted, 2 blue, 3+ yellow. */
+    /** Visual scale: base buildings grow with level; packs stay at type.meshScale. */
+    visualMeshScale(level = this.level): number {
+        if (!this.type.structure || this.type.extra) return this.type.meshScale;
+        // +10% per level above 1 → L5 ≈ 1.4× (tower upgrade max)
+        return this.type.meshScale * (1 + (level - 1) * 0.1);
+    }
+
+    /** Mesh tint by level; base buildings also scale up. */
     applyLevelLook(level = this.level): void {
+        const scale = this.visualMeshScale(level);
+        for (const m of this.members) {
+            if (!m.mesh.userData.dead) m.mesh.scale.setScalar(scale);
+        }
         if (level === this.lookDisplayLevel) return;
         this.lookDisplayLevel = level;
         for (const m of this.members) {
@@ -881,7 +891,7 @@ export class Unit {
             if (!this.type.structure) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
             m.mesh.rotation.x = 0;
-            m.mesh.scale.setScalar(this.type.meshScale); // un-squash tower rubble
+            m.mesh.scale.setScalar(this.visualMeshScale()); // un-squash tower rubble (+ level size)
             m.mesh.userData.dead = false;
             instances?.setAlive(m.mesh);
         }
