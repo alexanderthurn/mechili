@@ -119,8 +119,8 @@ import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 /** how long the both-specialists reveal stays up before deployment takes over */
 const SPECIALIST_REVEAL_MS = 2000;
 
-/** dev/testing: free tactic charges granted at round 1 (see ensureTestTactics) */
-const TEST_TACTIC_GRANTS = [
+/** SP cheat (U): tactic ids topped up for free testing (see cheatGrantAllTactics) */
+const CHEAT_TACTIC_GRANTS = [
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
     SELL_UNIT_ID,
@@ -268,8 +268,6 @@ export class Game {
     /** rally routes placed this deployment round */
     private readonly rallyRoutes: RallyRoute[] = [];
     private readonly rallyRouteIds = { next: 1 };
-    /** true once the test rally-route charge has been granted */
-    private testTacticsGranted = false;
     /** unit types buyable in the shop this match */
     private readonly unlockedUnits: Record<Team, string[]> = { player: [], enemy: [] };
     /** at most one shop unlock per deployment round */
@@ -1028,8 +1026,9 @@ export class Game {
     /**
      * SP cheat (U): free-spawn every unit type on both sides during
      * deployment (3 dwarf packs, 1 of each other type), bump player HP
-     * sky-high, and lift intel fog so both armies are visible for draw-call /
-     * instancing tests. Press again for another full set.
+     * sky-high, top up every tactic/spell charge so the whole strip is off
+     * cooldown, and lift intel fog so both armies are visible. Press again
+     * (any round) for another full top-up.
      */
     private cheatSpawnAllUnits(): void {
         if (this.phase !== 'build' || this.matchOver) return;
@@ -1038,6 +1037,7 @@ export class Game {
         this.playerHp = CHEAT_HP;
         this.enemyHp = CHEAT_HP;
         this.hud.setHp(this.playerHp, this.enemyHp);
+        this.cheatGrantAllTactics();
 
         for (const team of ['player', 'enemy'] as const) {
             for (const type of UNIT_TYPES) {
@@ -1148,28 +1148,23 @@ export class Game {
 
         // from round 2 on, both sides get a card offer at the round's start
         if (this.round >= 2) this.offerRoundCards();
-
-        if (this.round === 1 && !this.hydrating) {
-            this.ensureTestTactics();
-        }
     }
 
     /**
-     * Dev/testing: one free charge of each listed tactic for the match. These
-     * grants are NOT in the action log, so they must be applied both at round 1
-     * (live play) and BEFORE a reload's replay (hydrate) — otherwise replayed
-     * actions that spend them fail validation and silently vanish. In
-     * multiplayer both sides get them so peer validation stays aligned.
+     * SP cheat (U): top up every tactic's charge count so the whole strip is
+     * immediately usable with no cooldown wait — call again each round to
+     * keep testing a spell (e.g. dragon breath) back to back. NOT logged as
+     * an action, so it does not survive a reload/replay — press it again
+     * after one.
      */
-    private ensureTestTactics(): void {
-        if (this.testTacticsGranted) return;
-        this.testTacticsGranted = true;
-        const teams: Team[] = this.net ? ['player', 'enemy'] : ['player'];
-        for (const team of teams) {
-            for (const id of TEST_TACTIC_GRANTS) {
-                if (!this.tacticInventory[team].includes(id)) {
-                    this.tacticInventory[team].push(id);
-                }
+    private cheatGrantAllTactics(): void {
+        // comfortably above the highest cooldownRounds (3) so cooling charges
+        // never eat into the pool
+        const CHEAT_CHARGE_COUNT = 6;
+        for (const id of CHEAT_TACTIC_GRANTS) {
+            const have = this.tacticInventory.player.filter((t) => t === id).length;
+            for (let i = have; i < CHEAT_CHARGE_COUNT; i++) {
+                this.tacticInventory.player.push(id);
             }
         }
     }
@@ -1418,10 +1413,6 @@ export class Game {
         swapTeams = true,
     ): void {
         this.hydrating = true;
-        // the test grants are NOT in the action log — they must exist BEFORE
-        // the replay, or every logged action that spends one (placed oil,
-        // rally, one-shot sells) fails validation and silently vanishes
-        this.ensureTestTactics();
         // foreign logs (peer export) flip teams; our own single-player save does not
         const log = swapTeams
             ? sourceLog.map((e) => ({ ...e, action: this.swapPerspective(e.action) }))

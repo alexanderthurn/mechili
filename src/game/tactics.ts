@@ -74,8 +74,8 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  *     any draft/preview visuals. The targeting flow itself is generic.
  *  4. Grant charges through a round card (`tactics: [id]` in cards.ts) —
  *     cards are logged actions, so replay/reload handles them for free.
- *     Grants OUTSIDE the action log (dev freebies) must exist before a
- *     reload's replay: add the id to TEST_TACTIC_GRANTS in game.ts, done.
+ *     For the SP cheat's free-testing top-up, add the id to
+ *     CHEAT_TACTIC_GRANTS in game.ts too.
  *
  * `kind` (charge accounting):
  *  - 'placement': the charge stays bound to a standing placement (rally
@@ -142,8 +142,9 @@ export const TACTICS: Record<
                 igniteRadius?: number;
             };
             /** two-point: progressive fire pour along the capsule (dragon breath) —
-             *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot */
-            igniteCapsule?: { burnSeconds: number; intensity: number };
+             *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot.
+             *  `damage` is direct breath hit per pour disc (wards absorb like strikes). */
+            igniteCapsule?: { burnSeconds: number; intensity: number; damage?: number };
         };
         /**
          * Acid / Fire Spill: two-point capsules that pour left→right as drips
@@ -174,8 +175,7 @@ export const TACTICS: Record<
         icon: '🛢',
         kind: 'placement',
         targeting: 'two-point',
-        // TEMP playtest: every round (restore to 1 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 1,
         radius: OIL_SPILL_RADIUS,
         description:
             'Place two oil circles — outline during deploy; shortly after battle starts oil drips left-to-right onto the path (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
@@ -198,8 +198,7 @@ export const TACTICS: Record<
         icon: '⚒',
         kind: 'placement',
         targeting: 'point',
-        // TEMP playtest: every round (restore to 1 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 1,
         radius: 4 * CELL,
         respectsSafeZone: true,
         // count = PACKS (a dwarf pack is 24 fighters — 2 packs ≈ 48 dwarves)
@@ -213,8 +212,7 @@ export const TACTICS: Record<
         icon: '☄',
         kind: 'placement',
         targeting: 'point',
-        // TEMP playtest: every round (restore to 3 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 3,
         radius: 3 * CELL,
         spell: { delaySeconds: 4, strike: { damage: 3000, radius: 3 * CELL } },
         description:
@@ -226,8 +224,7 @@ export const TACTICS: Record<
         icon: '🐦',
         kind: 'placement',
         targeting: 'point',
-        // TEMP playtest: every round (restore to 1 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 1,
         radius: 4 * CELL,
         respectsSafeZone: true,
         // count = PACKS (a crow-rider flock is 12 riders)
@@ -241,8 +238,7 @@ export const TACTICS: Record<
         icon: '🔨',
         kind: 'placement',
         targeting: 'point-yaw',
-        // TEMP playtest: every round (restore to 2 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 2,
         // aim clamp approx — visual/damage zone is HAMMER_ZONE
         radius: 18,
         spell: { delaySeconds: 4, strike: { damage: 1000, radius: 6 * CELL } },
@@ -255,8 +251,7 @@ export const TACTICS: Record<
         icon: '🌩',
         kind: 'placement',
         targeting: 'point',
-        // TEMP playtest: every round (restore to 2 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 2,
         radius: 7 * CELL,
         spell: {
             delaySeconds: 3,
@@ -271,8 +266,7 @@ export const TACTICS: Record<
         icon: '🌠',
         kind: 'placement',
         targeting: 'point',
-        // TEMP playtest: every round (restore to 2 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 2,
         radius: 10.5 * CELL,
         spell: {
             delaySeconds: 3,
@@ -295,8 +289,7 @@ export const TACTICS: Record<
         icon: '🧪',
         kind: 'placement',
         targeting: 'two-point',
-        // TEMP playtest: every round (restore to ACID_SPILL_DURATION_ROUNDS before release)
-        cooldownRounds: 0,
+        cooldownRounds: ACID_SPILL_DURATION_ROUNDS,
         radius: ACID_SPILL_RADIUS,
         // pours left→right shortly after battle start (same drip timing as oil)
         acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS },
@@ -308,8 +301,7 @@ export const TACTICS: Record<
         icon: '🔥',
         kind: 'placement',
         targeting: 'two-point',
-        // TEMP playtest: every round (restore to 1 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 1,
         radius: FIRE_SPILL_RADIUS,
         fireCapsule: { burnSeconds: FIRE_SPILL_BURN_SEC, intensity: FIRE_SPILL_INTENSITY },
         description: `Pour a fire capsule like oil — it drips left-to-right shortly after battle starts and sets the path ablaze (ward discs stay clear). Connected oil ignites with it. Flame lasts ${FIRE_SPILL_BURN_SEC}s this battle only.`,
@@ -320,16 +312,15 @@ export const TACTICS: Record<
         icon: '🐉',
         kind: 'placement',
         targeting: 'two-point',
-        // TEMP playtest: every round (restore to 3 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 3,
         radius: 5 * CELL,
         maxSpan: 24 * CELL,
         spell: {
             delaySeconds: 5,
-            igniteCapsule: { burnSeconds: 4, intensity: 14 },
+            igniteCapsule: { burnSeconds: 4, intensity: 28, damage: 900 },
         },
         description:
-            'Draw the dragon’s strafing path (wider and longer than oil). Seconds into the battle it dives in and breathes fire along the corridor — flame paints the ground start→end under the beam.',
+            'Draw the dragon’s strafing path (wider and longer than oil). Seconds into the battle it dives in and breathes fire along the corridor — the beam scorches units as it passes and paints the ground ablaze. Ward domes absorb the breath (and pay for it).',
     },
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,
@@ -337,8 +328,7 @@ export const TACTICS: Record<
         icon: '☠',
         kind: 'placement',
         targeting: 'point',
-        // TEMP playtest: every round (restore to 2 before release)
-        cooldownRounds: 0,
+        cooldownRounds: 2,
         radius: 5 * CELL,
         spell: {
             delaySeconds: 2,

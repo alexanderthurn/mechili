@@ -206,7 +206,7 @@ export const ROUND_CARDS: RoundCard[] = [
         cost: 200,
         tactics: ['dragonAttack'],
         description:
-            'Battle spell: draw the dragon’s strafing path — it dives in and breathes fire along the corridor, painting the ground start→end.',
+            'Battle spell: draw the dragon’s strafing path — it dives in and scorches units along the corridor under the beam, then leaves the ground ablaze. Ward domes absorb the breath (and pay for it).',
     },
 ];
 

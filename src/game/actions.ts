@@ -1138,6 +1138,7 @@ export function prepareHazardPours(
             expiresRound: 0,
             burnSeconds: ignite.burnSeconds,
             intensity: ignite.intensity,
+            damage: ignite.damage,
             fallSeconds: 0,
         });
     }

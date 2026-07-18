@@ -392,6 +392,8 @@ export class BattleSim {
         expiresRound: number;
         burnSeconds: number;
         intensity: number;
+        /** dragon breath: direct disc damage on stamp (0 = paint only) */
+        damage: number;
         fallStart: number;
         landAt: number;
         announced: boolean;
@@ -834,6 +836,7 @@ export class BattleSim {
                     expiresRound: pour.expiresRound,
                     burnSeconds: pour.burnSeconds ?? 0,
                     intensity: pour.intensity ?? 0,
+                    damage: pour.damage ?? 0,
                     fallStart: landAt - fallSec,
                     landAt,
                     announced: false,
@@ -885,6 +888,9 @@ export class BattleSim {
                     radius: d.radius,
                     oilCells,
                 });
+                if (d.damage > 0) {
+                    this.applySpellDiscDamage(d.x, d.z, d.radius, d.damage);
+                }
             }
         }
     }
@@ -1054,11 +1060,34 @@ export class BattleSim {
             radius: visualRadius,
             heavy: hammer,
         });
+        this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+    }
+
+    /**
+     * Direct disc (or strike footprint) damage with Great Meteor shield rules:
+     * units under a living ward are spared; the dome takes the hit instead.
+     * Pass `strike` for hammer rectangles / exact strike hit tests; otherwise
+     * a plain circle of `radius` around (x, z) is used (dragon breath drips) —
+     * breath is ground-only (air ignored).
+     */
+    private applySpellDiscDamage(
+        x: number,
+        z: number,
+        radius: number,
+        damage: number,
+        strike?: SpellStrike,
+    ): void {
+        if (damage <= 0) return;
+        const groundOnly = !strike;
         const domes = this.actors.filter((a) => a.alive && a.unit.type.shield);
         const hitDomes = new Set<Actor>();
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.extra) continue; // domes/rockets handled below
-            if (!strikeHits(s, a.x, a.z, a.radius)) continue;
+            if (!a.alive || a.unit.type.extra) continue;
+            if (groundOnly && a.altitude > 0) continue;
+            const inArea = strike
+                ? strikeHits(strike, a.x, a.z, a.radius)
+                : hypot(a.x - x, a.z - z) <= radius + a.radius;
+            if (!inArea) continue;
             const dome = domes.find(
                 (d) => hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield!.radius,
             );
@@ -1066,14 +1095,16 @@ export class BattleSim {
                 hitDomes.add(dome);
                 continue;
             }
-            this.applyBurnDamage(a, s.damage);
+            this.applyBurnDamage(a, damage);
         }
-        // domes inside the blast are struck even with nothing sheltering under them
         for (const d of domes) {
-            if (strikeHits(s, d.x, d.z, 0)) hitDomes.add(d);
+            const domeHit = strike
+                ? strikeHits(strike, d.x, d.z, 0)
+                : hypot(d.x - x, d.z - z) <= radius;
+            if (domeHit) hitDomes.add(d);
         }
         for (const d of hitDomes) {
-            d.hp -= s.damage;
+            d.hp -= damage;
             d.hurtTimer = HURT_BAR_SECONDS;
             if (d.hp <= 0) this.breakShield(d);
         }
