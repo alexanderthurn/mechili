@@ -20,6 +20,10 @@ import type { Action } from './actions';
 import { ITEMS } from './items';
 import { CELL, cellKey, groundHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
+import {
+    TargetPreviewVisuals,
+    type TargetPreviewRoute,
+} from './targetPreviewVisuals';
 import { Unit, unitTypeById, type GridExtent, type Team, type UnitType } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 
@@ -172,6 +176,8 @@ export class PlacementController {
     private pointer: { x: number; y: number } | null = null;
     private downAt: { x: number; y: number } | null = null;
     private readonly disposers: (() => void)[] = [];
+    /** animated arrows: selected pack → packs its mechs would open on */
+    private readonly targetPreview: TargetPreviewVisuals;
 
     constructor(
         private readonly rig: CameraRig,
@@ -204,6 +210,7 @@ export class PlacementController {
 
         // attack range ring for the selected own pack (unit radius, scaled per unit)
         this.rangeMesh = createRangeRing(scene);
+        this.targetPreview = new TargetPreviewVisuals(scene);
 
         this.levelArrowMaterial = new MeshBasicMaterial({ color: SELECT_COLOR });
 
@@ -273,6 +280,7 @@ export class PlacementController {
         this.enabled = false;
         this.clearIntelGhosts();
         this.deselect();
+        this.targetPreview.dispose();
         for (const dispose of this.disposers) dispose();
         this.disposers.length = 0;
         this.rectEl.remove();
@@ -321,6 +329,15 @@ export class PlacementController {
         if (unit.team !== 'enemy') return true;
         if (!this.intelFog) return true;
         return this.intelSnapshot.has(unit.id);
+    }
+
+    /**
+     * Member ground positions as currently shown on screen.
+     * Empty when the pack is hidden by intel fog; fogged enemies use snapshot poses.
+     */
+    visibleMemberWorldPositions(unit: Unit): Vector3[] {
+        if (unit.destroyed || unit.consumed || !this.enemyIntelVisible(unit)) return [];
+        return this.memberPositionsAt(this.intelWorldOf(unit), unit);
     }
 
     /**
@@ -660,7 +677,7 @@ export class PlacementController {
         this.clearIntelGhosts();
         for (const u of this.units) {
             u.revealed = true;
-            u.view.visible = true;
+            this.setPackVisible(u, true);
             u.view.position.copy(u.world);
             this.restoreUnitFacing(u);
             u.refreshLevelBadge();
@@ -1004,9 +1021,9 @@ export class PlacementController {
     private applyIntelFog(): void {
         if (!this.enabled) return;
         if (!this.intelFog) {
-            for (const ghost of this.intelGhosts.values()) ghost.view.visible = false;
+            for (const ghost of this.intelGhosts.values()) this.setPackVisible(ghost, false);
             for (const u of this.units) {
-                u.view.visible = true;
+                this.setPackVisible(u, true);
                 u.view.position.copy(u.world);
                 this.restoreUnitFacing(u);
             }
@@ -1017,30 +1034,37 @@ export class PlacementController {
 
         for (const u of this.units) {
             if (u.team === 'player') {
-                u.view.visible = true;
+                this.setPackVisible(u, true);
                 u.view.position.copy(u.world);
                 continue;
             }
             const snap = this.intelSnapshot.get(u.id);
             if (snap) {
-                u.view.visible = true;
+                this.setPackVisible(u, true);
                 this.applySnapshotPose(u, snap);
                 u.refreshLevelBadge(snap.level);
             } else {
-                u.view.visible = false;
+                // newly placed enemy packs — hide mesh AND shadows until reveal
+                this.setPackVisible(u, false);
             }
         }
 
         for (const [id, snap] of this.intelSnapshot) {
             if (snap.team !== 'enemy' || liveEnemy.has(id)) continue;
             const ghost = this.ensureSoldGhost(snap);
-            ghost.view.visible = true;
+            this.setPackVisible(ghost, true);
             this.applySnapshotPose(ghost, snap);
         }
         for (const [id, ghost] of this.intelGhosts) {
             if (!liveEnemy.has(id) && this.intelSnapshot.has(id)) continue;
-            ghost.view.visible = false;
+            this.setPackVisible(ghost, false);
         }
+    }
+
+    /** Show/hide a pack's view and member proxies (instances honor parent visibility). */
+    private setPackVisible(unit: Unit, visible: boolean): void {
+        unit.view.visible = visible;
+        for (const m of unit.members) m.mesh.visible = visible;
     }
 
     /** extras aren't in the occupancy map — hit-test their footprints directly */
@@ -1326,6 +1350,7 @@ export class PlacementController {
         // an extra riding the cursor: ghost mesh + footprint plate + effect ring
         if (this.pendingType && this.pendingUnit && this.enabled) {
             this.showGroupPlates([], null, false, timeSeconds);
+            this.targetPreview.clear();
             const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
             if (!cell) {
                 this.pendingUnit.view.position.set(0, -9999, 0);
@@ -1359,6 +1384,7 @@ export class PlacementController {
         // while rubber-banding: highlight what the rect would select
         if (this.rectActive) {
             this.showGroupPlates(this.rectPreview, null, false, timeSeconds);
+            this.targetPreview.clear();
             return;
         }
         // a formation is carried as one rigid shape, each pack showing its own validity
@@ -1367,10 +1393,14 @@ export class PlacementController {
             const center = this.groupCenterCell();
             const delta = cell ? { dc: cell.col - center.col, dr: cell.row - center.row } : null;
             this.showGroupPlates(this.selectedGroup, delta, true, timeSeconds);
+            this.targetPreview.clear();
             return;
         }
         this.showGroupPlates([], null, false, timeSeconds);
-        if (!sel || !this.enabled) return;
+        if (!sel || !this.enabled) {
+            this.targetPreview.clear();
+            return;
+        }
 
         const fp = this.footprintOf(sel.type, sel.rotated);
         const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
@@ -1427,6 +1457,145 @@ export class PlacementController {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
             placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
         }
+
+        const origin =
+            this.carryingSelected && this.isMovable(sel) ? markerCenter : this.intelWorldOf(sel);
+        this.syncTargetPreview(sel, origin, timeSeconds);
+    }
+
+    /**
+     * Marching arrows from the selected pack to every opposing pack / building
+     * its mechs would open on. Always from the local player's knowledge: own
+     * packs are live (so a newly bought pack next to an enemy is counted),
+     * fogged enemies stay at their phase-start poses.
+     */
+    private syncTargetPreview(
+        sel: Unit,
+        fromCenter: { x: number; z: number },
+        timeSeconds: number,
+    ): void {
+        const wantAir = sel.type.targets.air;
+        const wantGround = sel.type.targets.ground;
+        if (!wantAir && !wantGround) {
+            this.targetPreview.clear();
+            return;
+        }
+
+        const foes = this.playerVisibleFoes(sel);
+        if (foes.length === 0) {
+            this.targetPreview.clear();
+            return;
+        }
+
+        const rocketRange = sel.type.rocket?.range;
+        /** pack id → destination center as the player sees it */
+        const targeted = new Map<number, { toX: number; toZ: number }>();
+        for (const m of sel.members) {
+            const mx = fromCenter.x + m.home.x;
+            const mz = fromCenter.z + m.home.z;
+            let best: (typeof foes)[number] | null = null;
+            let bestD = Infinity;
+            for (const foe of foes) {
+                if (foe.isAir ? !wantAir : !wantGround) continue;
+                const d = (foe.x - mx) ** 2 + (foe.z - mz) ** 2;
+                if (d < bestD || (d === bestD && best !== null && foe.packId < best.packId)) {
+                    bestD = d;
+                    best = foe;
+                }
+            }
+            if (!best) continue;
+            // rockets only lock once something is in trigger range
+            if (rocketRange != null && bestD > rocketRange * rocketRange) continue;
+            targeted.set(best.packId, { toX: best.packX, toZ: best.packZ });
+        }
+
+        const routes: TargetPreviewRoute[] = [];
+        for (const dest of targeted.values()) {
+            routes.push({
+                fromX: fromCenter.x,
+                fromZ: fromCenter.z,
+                toX: dest.toX,
+                toZ: dest.toZ,
+            });
+        }
+        this.targetPreview.sync(routes, timeSeconds, SELECT_COLOR);
+    }
+
+    /**
+     * Opposing mechs as the local player sees them right now.
+     * - Player packs (when inspecting an enemy): always live — new buys/moves count.
+     * - Enemy packs (when inspecting own): intel-fog poses while fogged.
+     */
+    private playerVisibleFoes(sel: Unit): {
+        packId: number;
+        x: number;
+        z: number;
+        packX: number;
+        packZ: number;
+        isAir: boolean;
+    }[] {
+        const out: {
+            packId: number;
+            x: number;
+            z: number;
+            packX: number;
+            packZ: number;
+            isAir: boolean;
+        }[] = [];
+        const opponent: Team = sel.team === 'player' ? 'enemy' : 'player';
+
+        for (const u of this.units) {
+            if (u.team !== opponent || u.destroyed || u.consumed || u.type.extra) continue;
+
+            let world: Vector3;
+            if (opponent === 'player') {
+                // own army is always known live
+                world = u.world;
+            } else if (this.intelFog) {
+                const snap = this.intelSnapshot.get(u.id);
+                if (!snap) continue; // enemy pack not in phase-start intel
+                world = snap.world;
+            } else {
+                if (!u.revealed) continue;
+                world = u.world;
+            }
+
+            const isAir = (u.type.flying ?? 0) > 0;
+            for (const m of u.members) {
+                out.push({
+                    packId: u.id,
+                    x: world.x + m.home.x,
+                    z: world.z + m.home.z,
+                    packX: world.x,
+                    packZ: world.z,
+                    isAir,
+                });
+            }
+        }
+
+        // sold enemies still visible as intel ghosts
+        if (opponent === 'enemy' && this.intelFog) {
+            for (const [id, snap] of this.intelSnapshot) {
+                if (snap.team !== 'enemy') continue;
+                if (this.units.some((u) => u.id === id)) continue;
+                const ghost = this.intelGhosts.get(id);
+                if (!ghost || ghost.type.extra) continue;
+                const world = snap.world;
+                const isAir = (ghost.type.flying ?? 0) > 0;
+                for (const m of ghost.members) {
+                    out.push({
+                        packId: id,
+                        x: world.x + m.home.x,
+                        z: world.z + m.home.z,
+                        packX: world.x,
+                        packZ: world.z,
+                        isAir,
+                    });
+                }
+            }
+        }
+
+        return out;
     }
 
     /**

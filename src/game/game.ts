@@ -878,11 +878,12 @@ export class Game {
             }
         } else {
             for (const unit of this.placement.allUnits()) {
-                if (!unit.revealed || unit.consumed || unit.destroyed) continue;
+                if (unit.consumed || unit.destroyed) continue;
+                if (!this.placement.enemyIntelVisible(unit)) continue;
                 const t = unit.type;
                 if (t.structure || t.extra) continue;
                 // packs are several mechs — one disc per member, not per pack
-                for (const p of unit.memberWorldPositions()) {
+                for (const p of this.placement.visibleMemberWorldPositions(unit)) {
                     sources.push({
                         x: p.x,
                         z: p.z,
