@@ -240,9 +240,15 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
  * `heights` gives each unit's procedural local height. Failures fall back to
  * the procedural mesh (the unit id simply stays absent from the template map).
  */
-export async function loadUnitModels(heights: Record<string, number>): Promise<void> {
+export async function loadUnitModels(
+    heights: Record<string, number>,
+    onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+    const entries = Object.entries(MODEL_SPECS);
+    const total = entries.length;
+    let done = 0;
     await Promise.all(
-        Object.entries(MODEL_SPECS).map(async ([id, spec]) => {
+        entries.map(async ([id, spec]) => {
             try {
                 const gltf = await loader.loadAsync(spec.url);
                 const h = (heights[id] || 1) * (spec.scale ?? 1);
@@ -256,6 +262,9 @@ export async function loadUnitModels(heights: Record<string, number>): Promise<v
                 console.info(`[unitModels] loaded '${id}' from ${spec.url} (height ${h.toFixed(2)})`);
             } catch (e) {
                 console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);
+            } finally {
+                done += 1;
+                onProgress?.(done, total);
             }
         }),
     );

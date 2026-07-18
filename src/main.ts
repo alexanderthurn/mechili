@@ -25,7 +25,7 @@ import {
 } from './game/net';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
-import { preloadUnitVisuals } from './game/units';
+import { bootGameAssets } from './game/bootAssets';
 import { onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
@@ -181,6 +181,39 @@ const gchatSticky = gchatEl.querySelector<HTMLDivElement>('.g-sticky')!;
 const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
 const gchatInput = gchatEl.querySelector<HTMLInputElement>('.g-input')!;
 let gchatPoll: ReturnType<typeof setInterval> | null = null;
+
+const feuerwareLogoUrl = new URL('../assets/marketing/feuerware.png', import.meta.url).href;
+const loadingEl = document.createElement('div');
+loadingEl.className = 'mechili-loading';
+loadingEl.innerHTML =
+    `<div class="load-bar"><div class="hp-track">` +
+    `<div class="hp-fill" style="width:0%"></div>` +
+    `<span class="hp-val">0%</span>` +
+    `</div></div>` +
+    `<div class="load-status">Loading…</div>` +
+    `<img class="load-feuerware" src="${feuerwareLogoUrl}" alt="Feuerware" width="165" height="33" />`;
+wrapper.appendChild(loadingEl);
+const loadFill = loadingEl.querySelector<HTMLDivElement>('.hp-fill')!;
+const loadVal = loadingEl.querySelector<HTMLSpanElement>('.hp-val')!;
+const loadStatus = loadingEl.querySelector<HTMLDivElement>('.load-status')!;
+
+function setBootProgress(fraction: number, label: string): void {
+    const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+    loadFill.style.width = `${pct}%`;
+    loadVal.textContent = `${pct}%`;
+    loadStatus.textContent = label;
+}
+
+function setMenuChromeVisible(visible: boolean): void {
+    const display = visible ? '' : 'none';
+    menu.style.display = display;
+    usernameEl.style.display = display;
+    settingsCornerEl.style.display = display;
+    gchatEl.style.display = display;
+}
+
+// hide interactive menu until assets are ready (logo + version stay visible)
+setMenuChromeVisible(false);
 
 async function refreshGlobalChat(): Promise<void> {
     if (!gchatEl.isConnected || !prefs().globalChat) return;
@@ -852,8 +885,10 @@ menu.addEventListener('click', (e) => {
     }
 });
 
-// load generated unit models (Ballista GLB, etc.) before any match can start
-await preloadUnitVisuals();
+// load all shared game assets before the menu is interactive
+await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
+loadingEl.remove();
+setMenuChromeVisible(true);
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
 setGameLayerVisible(false);

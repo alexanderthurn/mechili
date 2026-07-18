@@ -13,7 +13,6 @@ import {
     SpriteMaterial,
     SRGBColorSpace,
     Sprite,
-    TextureLoader,
     Vector3,
     type DirectionalLight,
     type Fog,
@@ -23,8 +22,7 @@ import {
 } from 'three';
 import { mulberry32, type BattleMap } from './map';
 import { sceneryFogScale } from './prefs';
-
-const moonUrl = new URL('../../assets/textures/moon.webp', import.meta.url).href;
+import { loadWorldTexture, moonUrl } from './worldTextures';
 
 export type WeatherId = 'sunny' | 'rain' | 'night';
 
@@ -346,14 +344,12 @@ export class Weather {
         this.moon.visible = false;
         h.skyGroup.add(this.moon);
         // upgrade to the painted moon once (if) it loads
-        void new TextureLoader().loadAsync(moonUrl).then(
-            (t) => {
-                t.colorSpace = SRGBColorSpace;
-                this.moon.material.map = t;
-                this.moon.material.needsUpdate = true;
-            },
-            () => undefined,
-        );
+        void loadWorldTexture(moonUrl).then((t) => {
+            if (!t) return;
+            t.colorSpace = SRGBColorSpace;
+            this.moon.material.map = t;
+            this.moon.material.needsUpdate = true;
+        });
 
         // --- near clouds: translucent wisps drifting over the battlefield
         this.nearCloudMaterial = new MeshBasicMaterial({

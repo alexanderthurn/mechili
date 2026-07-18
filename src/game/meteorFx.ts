@@ -1,15 +1,12 @@
 import { Group, MathUtils, type MeshStandardMaterial, type Scene } from 'three';
 import { groundHeightAt } from './map';
+import { ensureSpellTemplate } from './spellAssets';
 import {
     cloneSpellInstance,
     disposeObject,
-    loadSpellTemplate,
     setSpellOpacity,
 } from './spellMeshes';
 import { METEOR_SHARD_FALL_SEC } from './tactics';
-
-const GREAT_URL = new URL('../../assets/models/spells/meteor-great.glb', import.meta.url).href;
-const SHARD_URL = new URL('../../assets/models/spells/meteor-shard.glb', import.meta.url).href;
 
 /** fall time so impact lines up with the sim strike */
 export const GREAT_METEOR_FALL_SEC = 1.1;
@@ -129,8 +126,7 @@ export class MeteorFx {
         for (const p of this.shardPool) disposeObject(p.root);
         this.shardPool.length = 0;
         this.group.removeFromParent();
-        if (this.greatTpl) disposeObject(this.greatTpl);
-        if (this.shardTpl) disposeObject(this.shardTpl);
+        // shared boot templates — do not dispose
         this.greatTpl = this.shardTpl = null;
     }
 
@@ -227,28 +223,25 @@ export class MeteorFx {
     }
 
     private async load(): Promise<void> {
-        try {
-            const [great, shard] = await Promise.all([
-                loadSpellTemplate(GREAT_URL, { bakeEuler: { x: 0.3 } }),
-                loadSpellTemplate(SHARD_URL, { bakeEuler: { x: 0.35 } }),
-            ]);
-            this.greatTpl = great;
-            this.shardTpl = shard;
-            // warm a few pooled shards so the first impacts don't hitch
-            for (let i = 0; i < 4; i++) {
-                const inst = cloneSpellInstance(shard);
-                inst.root.traverse((o) => {
-                    const mesh = o as import('three').Mesh;
-                    if (mesh.isMesh) {
-                        mesh.castShadow = false;
-                        mesh.receiveShadow = false;
-                    }
-                });
-                this.shardPool.push(inst);
-            }
-            console.info('[meteorFx] loaded great + shard');
-        } catch (e) {
-            console.error('[meteorFx] failed to load meteor models', e);
+        const [great, shard] = await Promise.all([
+            ensureSpellTemplate('meteor-great'),
+            ensureSpellTemplate('meteor-shard'),
+        ]);
+        this.greatTpl = great;
+        this.shardTpl = shard;
+        if (!shard) return;
+        // warm a few pooled shards so the first impacts don't hitch
+        for (let i = 0; i < 4; i++) {
+            const inst = cloneSpellInstance(shard);
+            inst.root.traverse((o) => {
+                const mesh = o as import('three').Mesh;
+                if (mesh.isMesh) {
+                    mesh.castShadow = false;
+                    mesh.receiveShadow = false;
+                }
+            });
+            this.shardPool.push(inst);
         }
+        console.info('[meteorFx] templates ready');
     }
 }

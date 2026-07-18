@@ -7,14 +7,16 @@ import {
     PlaneGeometry,
     RepeatWrapping,
     SRGBColorSpace,
-    TextureLoader,
     Vector2,
     Vector3,
 } from 'three';
 
-const grassAlbedoUrl = new URL('../../assets/textures/grass-albedo.webp', import.meta.url).href;
-const grassNormalUrl = new URL('../../assets/textures/grass-normal.webp', import.meta.url).href;
-const sandAlbedoUrl = new URL('../../assets/textures/sand-albedo.webp', import.meta.url).href;
+import {
+    grassAlbedoUrl,
+    grassNormalUrl,
+    sandAlbedoUrl,
+    loadWorldTexture,
+} from './worldTextures';
 
 /** world units covered by one repeat of the grass detail texture (field AND outer meadow) */
 export const DETAIL_TILE = 20;
@@ -751,18 +753,13 @@ export class BattleMap {
      * files are missing) the ground keeps the plain macro look.
      */
     private async upgradeGroundMaterial(mesh: Mesh, macro: CanvasTexture, seed: number): Promise<void> {
-        const loader = new TextureLoader();
-        let albedo, normal;
-        try {
-            [albedo, normal] = await Promise.all([
-                loader.loadAsync(grassAlbedoUrl),
-                loader.loadAsync(grassNormalUrl),
-            ]);
-        } catch {
-            return;
-        }
+        const [albedo, normal] = await Promise.all([
+            loadWorldTexture(grassAlbedoUrl),
+            loadWorldTexture(grassNormalUrl),
+        ]);
+        if (!albedo || !normal) return;
         // sand is optional garnish — without it the ground is plain grass
-        const sand = await loader.loadAsync(sandAlbedoUrl).catch(() => null);
+        const sand = await loadWorldTexture(sandAlbedoUrl);
         const repeat = new Vector2(
             this.width / DETAIL_TILE,
             this.height / DETAIL_TILE,
@@ -773,6 +770,7 @@ export class BattleMap {
             t.anisotropy = 8;
         };
         tile(albedo);
+        // boot preload may already have set this; keep local path correct too
         albedo.colorSpace = SRGBColorSpace;
         tile(normal);
         if (sand) {

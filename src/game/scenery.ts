@@ -20,7 +20,6 @@ import {
     Sprite,
     SpriteMaterial,
     SRGBColorSpace,
-    TextureLoader,
     Color,
     Vector2,
     Vector3,
@@ -32,8 +31,22 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather } from './weather';
 import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
-
-const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
+import {
+    DETAIL_TILE,
+    makeValueNoise,
+    mulberry32,
+    registerOuterHeight,
+    type BattleMap,
+} from './map';
+import {
+    barkUrl,
+    foliageUrl,
+    grassAlbedoUrl,
+    grassNormalUrl,
+    rockUrl,
+    sandAlbedoUrl,
+    loadWorldTexture,
+} from './worldTextures';
 
 /** Instance / mesh density for scenery tiers (trees stay InstancedMesh). */
 function sceneryDensity(quality: SceneryQuality): {
@@ -103,18 +116,6 @@ function sceneryDensity(quality: SceneryQuality): {
 function scaleCount(n: number, mult: number): number {
     return Math.max(1, Math.round(n * mult));
 }
-const foliageUrl = new URL('../../assets/textures/foliage.webp', import.meta.url).href;
-const rockUrl = new URL('../../assets/textures/rock.webp', import.meta.url).href;
-import {
-    DETAIL_TILE,
-    grassAlbedoUrl,
-    grassNormalUrl,
-    sandAlbedoUrl,
-    makeValueNoise,
-    mulberry32,
-    registerOuterHeight,
-    type BattleMap,
-} from './map';
 
 function smooth01(t: number): number {
     const c = Math.min(1, Math.max(0, t));
@@ -800,12 +801,11 @@ export class Scenery {
         size: number,
     ): Promise<void> {
         const BOARD_TONE = 0.93;
-        const loader = new TextureLoader();
         const [albedo, normal, rock, sand] = await Promise.all([
-            loader.loadAsync(grassAlbedoUrl).catch(() => null),
-            loader.loadAsync(grassNormalUrl).catch(() => null),
-            loader.loadAsync(rockUrl).catch(() => null),
-            loader.loadAsync(sandAlbedoUrl).catch(() => null),
+            loadWorldTexture(grassAlbedoUrl),
+            loadWorldTexture(grassNormalUrl),
+            loadWorldTexture(rockUrl),
+            loadWorldTexture(sandAlbedoUrl),
         ]);
         if (!albedo) return;
         const frac = (v: number) => ((v % 1) + 1) % 1;
@@ -1137,10 +1137,9 @@ export class Scenery {
         coneMat: MeshStandardMaterial,
         leafMats: MeshStandardMaterial[],
     ): Promise<void> {
-        const loader = new TextureLoader();
         const [bark, foliage] = await Promise.all([
-            loader.loadAsync(barkUrl).catch(() => null),
-            loader.loadAsync(foliageUrl).catch(() => null),
+            loadWorldTexture(barkUrl),
+            loadWorldTexture(foliageUrl),
         ]);
         console.info(`[scenery] forest textures: bark=${!!bark} foliage=${!!foliage}`);
         if (bark) {

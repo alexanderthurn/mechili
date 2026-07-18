@@ -1,19 +1,15 @@
 import {
-    Box3,
     Group,
     MathUtils,
     Mesh,
     MeshStandardMaterial,
-    Vector3,
     type Object3D,
     type Scene,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { ensureSpellTemplate } from './spellAssets';
 import { groundHeightAt } from './map';
 import { HAMMER_ZONE } from './tactics';
-
-const HAMMER_URL = new URL('../../assets/models/spells/hammer-of-gods.glb', import.meta.url).href;
 
 /** @deprecated import from tactics — re-exported for existing tweak notes */
 export { HAMMER_ZONE };
@@ -128,7 +124,7 @@ export class HammerFx {
     dispose(): void {
         this.clear();
         this.group.removeFromParent();
-        if (this.template) disposeObject(this.template);
+        // shared boot template — do not dispose
         this.template = null;
     }
 
@@ -165,50 +161,9 @@ export class HammerFx {
     }
 
     private async loadTemplate(): Promise<void> {
-        try {
-            const gltf = await new GLTFLoader().loadAsync(HAMMER_URL);
-            this.template = prepareHammerTemplate(gltf.scene);
-            console.info(`[hammerFx] loaded ${HAMMER_URL}`);
-        } catch (e) {
-            console.error('[hammerFx] failed to load hammer model', e);
-        }
+        this.template = await ensureSpellTemplate('hammer');
+        if (this.template) console.info('[hammerFx] template ready');
     }
-}
-
-/**
- * Upside-down (+Y face into ground), centered on XZ, face on y=0.
- * Flip is baked into geometry so runtime only sets rotation.y = yaw.
- */
-function prepareHammerTemplate(scene: Object3D): Group {
-    const stage = new Group();
-    const model = skeletonClone(scene);
-    model.rotation.x = Math.PI;
-    stage.add(model);
-    stage.updateMatrixWorld(true);
-
-    const holder = new Group();
-    model.traverse((o) => {
-        const mesh = o as Mesh;
-        if (!mesh.isMesh || !mesh.geometry) return;
-        const geo = mesh.geometry.clone();
-        geo.applyMatrix4(mesh.matrixWorld);
-        const baked = new Mesh(geo, mesh.material);
-        baked.castShadow = true;
-        baked.receiveShadow = true;
-        holder.add(baked);
-    });
-
-    let box = new Box3().setFromObject(holder);
-    const size = box.getSize(new Vector3());
-    const longest = Math.max(size.x, size.y, size.z, 1e-3);
-    holder.scale.setScalar(1 / longest);
-
-    box = new Box3().setFromObject(holder);
-    const center = box.getCenter(new Vector3());
-    holder.position.x -= center.x;
-    holder.position.z -= center.z;
-    holder.position.y -= box.min.y;
-    return holder;
 }
 
 function disposeObject(root: Object3D): void {

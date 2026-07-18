@@ -1069,7 +1069,9 @@ export function clearBattleTint(mesh: Group): void {
  * without a model (or whose model fails to load) keep their procedural mesh.
  */
 let visualsPromise: Promise<void> | null = null;
-export function preloadUnitVisuals(): Promise<void> {
+export function preloadUnitVisuals(
+    onProgress?: (done: number, total: number) => void,
+): Promise<void> {
     if (visualsPromise) return visualsPromise;
     visualsPromise = (async () => {
         try {
@@ -1079,17 +1081,13 @@ export function preloadUnitVisuals(): Promise<void> {
                 type.build(new PartFactory(probe, 'player'));
                 heights[type.id] = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
             }
-            await Promise.all([loadUnitModels(heights), loadAnimatedModels(heights)]);
+            await Promise.all([loadUnitModels(heights, onProgress), loadAnimatedModels(heights)]);
         } catch (e) {
             console.error('[unitModels] preloadUnitVisuals failed', e);
         }
     })();
     return visualsPromise;
 }
-// kick off model loading as soon as this module is imported (belt-and-suspenders
-// with main.ts's await, so it runs even if the entry module isn't re-executed)
-void preloadUnitVisuals();
-
 /** one mech mesh for UI thumbnails — same builders as in-game, preview-sized */
 export function buildUnitPreviewMesh(type: UnitType, team: Team = 'player'): Group {
     const group = new Group();

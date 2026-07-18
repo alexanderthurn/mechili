@@ -14,15 +14,14 @@ import {
     type Scene,
 } from 'three';
 import { groundHeightAt } from './map';
+import { ensureSpellTemplate } from './spellAssets';
 import {
     cloneSpellInstance,
     disposeObject,
-    loadSpellTemplate,
     setSpellOpacity,
 } from './spellMeshes';
 import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC } from './tactics';
 
-const DRAGON_URL = new URL('../../assets/models/spells/dragon.glb', import.meta.url).href;
 /** authored empty in dragon.glb — fire tube origin in the mouth */
 const MOUTH_SPAWN_NAME = 'MouthFireSpawn';
 
@@ -253,7 +252,7 @@ export class DragonFx {
         this.tubeMat.dispose();
         this.flameTex.dispose();
         this.group.removeFromParent();
-        if (this.template) disposeObject(this.template);
+        // shared boot template — do not dispose
         this.template = null;
     }
 
@@ -288,22 +287,19 @@ export class DragonFx {
     }
 
     private async load(): Promise<void> {
-        try {
-            // asset is authored with +X forward — no bake flip
-            this.template = await loadSpellTemplate(DRAGON_URL);
-            console.info('[dragonFx] loaded dragon');
-            for (const a of this.active) {
-                if (a.materials.length > 0) continue;
-                const { root, materials } = cloneSpellInstance(this.template);
-                root.visible = false;
-                this.group.remove(a.root);
-                this.group.add(root);
-                a.root = root;
-                a.materials = materials;
-                a.mouthSpawn = root.getObjectByName(MOUTH_SPAWN_NAME) ?? null;
-            }
-        } catch (e) {
-            console.error('[dragonFx] failed to load dragon model', e);
+        // asset is authored with +X forward — no bake flip
+        this.template = await ensureSpellTemplate('dragon');
+        if (!this.template) return;
+        console.info('[dragonFx] template ready');
+        for (const a of this.active) {
+            if (a.materials.length > 0) continue;
+            const { root, materials } = cloneSpellInstance(this.template);
+            root.visible = false;
+            this.group.remove(a.root);
+            this.group.add(root);
+            a.root = root;
+            a.materials = materials;
+            a.mouthSpawn = root.getObjectByName(MOUTH_SPAWN_NAME) ?? null;
         }
     }
 }

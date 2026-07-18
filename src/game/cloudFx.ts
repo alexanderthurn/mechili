@@ -9,15 +9,12 @@ import {
     type Scene,
 } from 'three';
 import { groundHeightAt } from './map';
+import { ensureSpellTemplate } from './spellAssets';
 import {
     cloneSpellInstance,
     disposeObject,
-    loadSpellTemplate,
     setSpellOpacity,
 } from './spellMeshes';
-
-const STORM_URL = new URL('../../assets/models/spells/storm-cloud.glb', import.meta.url).href;
-const POISON_URL = new URL('../../assets/models/spells/poison-cloud.glb', import.meta.url).href;
 
 const CLOUD_HEIGHT = 18;
 const STORM_SCALE = 28;
@@ -159,8 +156,7 @@ export class CloudFx {
     dispose(): void {
         this.clear();
         this.group.removeFromParent();
-        if (this.stormTpl) disposeObject(this.stormTpl);
-        if (this.poisonTpl) disposeObject(this.poisonTpl);
+        // shared boot templates — do not dispose
         this.stormTpl = this.poisonTpl = null;
     }
 
@@ -186,16 +182,12 @@ export class CloudFx {
     }
 
     private async load(): Promise<void> {
-        try {
-            const [storm, poison] = await Promise.all([
-                loadSpellTemplate(STORM_URL),
-                loadSpellTemplate(POISON_URL),
-            ]);
-            this.stormTpl = storm;
-            this.poisonTpl = poison;
-            console.info('[cloudFx] loaded storm + poison clouds');
-        } catch (e) {
-            console.error('[cloudFx] failed to load cloud models', e);
-        }
+        const [storm, poison] = await Promise.all([
+            ensureSpellTemplate('storm'),
+            ensureSpellTemplate('poison'),
+        ]);
+        this.stormTpl = storm;
+        this.poisonTpl = poison;
+        if (storm && poison) console.info('[cloudFx] templates ready');
     }
 }

@@ -142,6 +142,7 @@ export const THEME = {
 /** CSS for the pre-game main menu (exists before the HUD does). */
 export function menuStyles(): string {
     const u = THEME.ui;
+    const pc = teamColors.player.css;
     return `
 .mechili-menu {
     position: absolute;
@@ -432,6 +433,81 @@ export function menuStyles(): string {
 }
 .mechili-version.link:hover { color: ${u.brassLight}; opacity: 1; }
 .mechili-version.link:focus-visible { outline: none; color: ${u.brassLight}; opacity: 1; }
+
+/* boot loading — same track/fill look as fightbar HP bars (tune together) */
+.mechili-loading {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, 12%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    width: min(520px, calc(100vw - 48px));
+    z-index: 35;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    pointer-events: none;
+}
+.mechili-loading .load-feuerware {
+    display: block;
+    width: min(165px, 41vw);
+    height: auto;
+    margin-top: 4px;
+    opacity: 0;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+    animation: mechili-fw-in 1.4s ease-out 0.35s forwards;
+}
+@keyframes mechili-fw-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 0.85; transform: translateY(0); }
+}
+.mechili-loading .load-bar {
+    width: 100%;
+}
+.mechili-loading .hp-track {
+    height: 36px;
+    background: ${u.barTrack};
+    border: 2px solid ${u.border};
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5), 0 4px 18px rgba(0, 0, 0, 0.35);
+    position: relative;
+}
+.mechili-loading .hp-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, ${pc}, ${u.hpBar});
+    transition: width 0.2s ease-out;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.mechili-loading .hp-val {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+    z-index: 2;
+}
+.mechili-loading .load-status {
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
 .mechili-name-edit {
     position: absolute;
     inset: 0;
