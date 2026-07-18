@@ -292,6 +292,16 @@ body {
         grid-template-columns: repeat(2, 1fr);
         gap: 8px;
     }
+
+    .mh-shot {
+        margin: 45px;
+    }
+}
+
+@media (max-width: 520px) {
+    .mh-shot {
+        margin: 5px;
+    }
 }
 .mh-shot {
     aspect-ratio: 16 / 10;
@@ -393,6 +403,40 @@ body {
     flex-direction: column;
     gap: 14px;
     min-height: 0;
+}
+
+.mh-card-select {
+    display: none;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto 18px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+}
+/* Below this width, cards/tactics/units pile up too tall to browse — swap the
+   full gallery for a <select> that shows one item (.mh-active) at a time. */
+@media (max-width: 720px) {
+    .mh-card-select {
+        display: block;
+    }
+    #mh-specialists-row > .card:not(.mh-active),
+    #mh-round-cards-row > .card:not(.mh-active),
+    #mh-tactics-grid > .mh-tactic:not(.mh-active) {
+        display: none;
+    }
+    #mh-specialists-row,
+    #mh-round-cards-row {
+        justify-content: center;
+    }
+    .mh-unit-picks {
+        display: none;
+    }
 }
 
 .mh-unit-picks {

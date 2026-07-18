@@ -194,7 +194,7 @@ function shotCard(shot: { src: string; label: string }, index: number): string {
 </figure>`;
 }
 
-function tacticCard(t: (typeof TACTICS)[string]): string {
+function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     const art = TACTIC_ART[t.id];
     const kindLabel = t.kind === 'placement' ? 'Placement' : 'One-shot';
     const stats = formatTacticStats(t);
@@ -205,7 +205,7 @@ function tacticCard(t: (typeof TACTICS)[string]): string {
         ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
         : '';
     return `
-<article class="mh-tactic">
+<article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
   ${media}
   <div class="mh-tactic-body">
     <div class="mh-tactic-head">
@@ -284,6 +284,14 @@ app.innerHTML = `
         <div class="mh-showcase-hint" id="mh-showcase-hint">Drag to rotate · Scroll to zoom</div>
       </div>
       <div class="mh-showcase-side">
+        <select class="mh-card-select" id="mh-unit-select" aria-label="Choose a unit or building">
+          <optgroup label="Buildings">
+            ${BUILDINGS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+          </optgroup>
+          <optgroup label="Units">
+            ${UNITS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+          </optgroup>
+        </select>
         <div class="mh-unit-picks" role="listbox" aria-label="Units and buildings">
           <div class="mh-pick-group">
             <div class="mh-pick-label">Buildings</div>
@@ -302,9 +310,15 @@ app.innerHTML = `
   <section class="mh-section" id="specialists">
     <h2>Specialists</h2>
     <p class="mh-sub">Before round one, each player picks a specialist. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.</p>
+    <select class="mh-card-select" id="mh-specialists-select" aria-label="Choose a specialist">
+      ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
+    </select>
     <div class="mechili-cards">
-      <div class="cards-row">
-        ${START_CARDS.map((c) => `<div class="card static">${startCardFace(c)}</div>`).join('')}
+      <div class="cards-row" id="mh-specialists-row">
+        ${START_CARDS.map(
+            (c, i) =>
+                `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${startCardFace(c)}</div>`,
+        ).join('')}
       </div>
     </div>
   </section>
@@ -312,9 +326,15 @@ app.innerHTML = `
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
     <p class="mh-sub">From round two onward there is a chance to draft from a random offer. Cards grant packs, items, or tactic charges.</p>
+    <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
+      ${ROUND_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
+    </select>
     <div class="mechili-cards">
-      <div class="cards-row">
-        ${ROUND_CARDS.map((c) => `<div class="card static">${roundCardFace(c)}</div>`).join('')}
+      <div class="cards-row" id="mh-round-cards-row">
+        ${ROUND_CARDS.map(
+            (c, i) =>
+                `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
+        ).join('')}
       </div>
     </div>
   </section>
@@ -322,8 +342,11 @@ app.innerHTML = `
   <section class="mh-section" id="tactics">
     <h2>Tactics &amp; spells</h2>
     <p class="mh-sub">These are the skills on your tactics strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle spells like the dragon’s fire breath. Some arrive as round cards; others come from buildings or specialities. Icons match what you see in-game.</p>
-    <div class="mh-tactics">
-      ${ALL_TACTICS.map(tacticCard).join('')}
+    <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a tactic">
+      ${ALL_TACTICS.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
+    </select>
+    <div class="mh-tactics" id="mh-tactics-grid">
+      ${ALL_TACTICS.map((t, i) => tacticCard(t, i === 0)).join('')}
     </div>
   </section>
   <section class="mh-section mh-together" id="suggest">
@@ -473,18 +496,40 @@ void preloadUnitVisuals().then(() => {
     canvas.addEventListener('pointerdown', hideHint, { once: true });
     canvas.addEventListener('wheel', hideHint, { once: true, passive: true });
 
+    const unitSelect = app.querySelector<HTMLSelectElement>('#mh-unit-select');
+
+    function selectUnit(id: string): void {
+        const type = SHOWCASE_UNITS.find((t) => t.id === id);
+        if (!type) return;
+        for (const p of picks) {
+            p.classList.toggle('active', p.dataset.unitId === id);
+            p.setAttribute('aria-selected', p.dataset.unitId === id ? 'true' : 'false');
+        }
+        if (unitSelect) unitSelect.value = id;
+        viewer.show(type.id, type.meshScale);
+        statsEl.innerHTML = statsHtml(type);
+    }
+
     for (const btn of picks) {
         btn.addEventListener('click', () => {
             const id = btn.dataset.unitId;
-            if (!id) return;
-            const type = SHOWCASE_UNITS.find((t) => t.id === id);
-            if (!type) return;
-            for (const p of picks) {
-                p.classList.toggle('active', p === btn);
-                p.setAttribute('aria-selected', p === btn ? 'true' : 'false');
-            }
-            viewer.show(type.id, type.meshScale);
-            statsEl.innerHTML = statsHtml(type);
+            if (id) selectUnit(id);
         });
     }
+    unitSelect?.addEventListener('change', () => selectUnit(unitSelect.value));
 });
+
+/** Mobile-only: a <select> drives which single card/tactic stays visible (see .mh-card-select CSS). */
+function wireCardSelect(selectId: string, cardSelector: string): void {
+    const select = document.getElementById(selectId) as HTMLSelectElement | null;
+    if (!select) return;
+    const cards = document.querySelectorAll<HTMLElement>(cardSelector);
+    select.addEventListener('change', () => {
+        for (const card of cards) {
+            card.classList.toggle('mh-active', card.dataset.key === select.value);
+        }
+    });
+}
+wireCardSelect('mh-specialists-select', '#mh-specialists-row > .card');
+wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
+wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
