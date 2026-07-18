@@ -1292,6 +1292,10 @@ export class Game {
      *  the peer hasn't reconnected by the time it hits zero */
     beginReconnectGrace(seconds: number): void {
         if (this.disposed || this.matchOver) return;
+        // a second onConnectionLost for the same drop (belt-and-suspenders
+        // alongside NetSession's own single-fire guard) shouldn't restart
+        // an already-running countdown
+        if (this.reconnectGraceRemaining !== null) return;
         this.suspended = true;
         this.localReady = false;
         this.peerReady = false;

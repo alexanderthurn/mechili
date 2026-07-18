@@ -15,6 +15,7 @@ import {
     loadSinglePlayer,
     postGlobalChat,
     quickMatch,
+    raceReconnectStrategies,
     resumeSession,
     saveResumeMarker,
     saveSinglePlayer,
@@ -628,7 +629,7 @@ function startGame(
             side,
             names,
             remotePeerId: net.remoteId,
-            ownRoomId: net.ownId.startsWith('mechili-room-') ? net.ownId : null,
+            ownPeerId: net.ownId,
         });
     } else {
         clearResumeMarker();
@@ -691,16 +692,19 @@ function wireReconnect(
         game.beginReconnectGrace(RECONNECT_GRACE_SECONDS);
         void (async () => {
             try {
-                // deterministic tie-break by match-lifetime side, NOT by
-                // whether the peer id happens to look like a hosted room —
-                // in Matchmaking mode NEITHER side has a stable room id, so
-                // that check used to send both sides into redial() and
-                // leave nobody listening, a silent hang. Side 'a' always
-                // waits on its own (still-live) Peer object; side 'b'
-                // always redials — this only needs the connection to still
-                // be alive locally, not a specific id format.
-                const next =
-                    side === 'a' ? await session.awaitReconnect(ac.signal) : await session.redial(ac.signal);
+                // race both strategies instead of guessing who should dial
+                // vs listen: our own Peer object is still alive either way
+                // (we never reloaded), so waiting on it costs nothing, and
+                // redialing the peer's last-known id costs nothing either —
+                // whichever one actually connects first wins. This also
+                // means it doesn't matter whether the OTHER side is doing a
+                // live reconnect or a full reload (attemptResume races the
+                // same two strategies on its end).
+                const next = await raceReconnectStrategies(
+                    (s) => session.awaitReconnect(s),
+                    (s) => session.redial(s),
+                    ac.signal,
+                );
                 if (activeGame !== game) return;
                 const first = await next.once();
                 if (activeGame !== game) return;
@@ -718,7 +722,7 @@ function wireReconnect(
                     side,
                     names,
                     remotePeerId: next.remoteId,
-                    ownRoomId: next.ownId.startsWith('mechili-room-') ? next.ownId : null,
+                    ownPeerId: next.ownId,
                 });
             } catch (e) {
                 if (activeGame !== game) return;

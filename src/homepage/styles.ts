@@ -36,10 +36,30 @@ body {
     padding: 48px 12px 36px;
 }
 
+.mh-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
 .mh-logo {
     width: min(520px, 88vw);
     height: auto;
+    display: block;
     filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.45));
+}
+
+/* logo.webp is 1500×818 with ~258px empty alpha under the wordmark */
+.mh-version {
+    margin: calc(min(520px, 88vw) * -258 / 1500 + 4px) 0 0;
+    margin-bottom: 50px;
+    color: ${u.textMuted};
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    opacity: 0.9;
+    position: relative;
+    z-index: 1;
 }
 
 .mh-tagline {
@@ -113,28 +133,55 @@ body {
     opacity: 0.95;
 }
 
-.mh-version {
-    margin: 4px 0 0;
-    color: ${u.textMuted};
-    font-size: 12px;
-    letter-spacing: 0.4px;
-    opacity: 0.9;
-}
-
 .mh-section {
-    margin: 40px 0;
+    margin: 40px 0 56px;
+    padding-top: 80px;
+    position: relative;
+}
+.mh-section::before {
+    content: '⬢';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    color: ${u.brass};
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.9;
+    pointer-events: none;
+}
+.mh-section::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: min(280px, 55vw);
+    height: 1px;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 208, 64, 0.15) 18%,
+        rgba(255, 208, 64, 0.45) 50%,
+        rgba(255, 208, 64, 0.15) 82%,
+        transparent
+    );
+    pointer-events: none;
 }
 .mh-section h2 {
     margin: 0 0 8px;
     font-size: clamp(1.35rem, 3vw, 1.75rem);
     letter-spacing: 0.06em;
     color: ${u.brassLight};
+    text-align: center;
 }
 .mh-section .mh-sub {
-    margin: 0 0 20px;
+    margin: 0 auto 20px;
     color: ${u.textMuted};
     max-width: 40rem;
     line-height: 1.5;
+    text-align: center;
 }
 
 .mh-sep {
@@ -343,12 +390,12 @@ body {
     gap: 16px;
     user-select: text;
     justify-content: flex-start;
-    align-items: stretch;
+    align-items: center;
 }
 .melodan-home .mechili-cards .cards-title {
     letter-spacing: 0.12em;
     font-size: 1.1rem;
-    text-align: left;
+    text-align: center;
     text-shadow: none;
     color: ${u.brassLight};
 }
@@ -356,7 +403,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 14px;
-    justify-content: flex-start;
+    justify-content: center;
 }
 .melodan-home .mechili-cards .card.static {
     user-select: text;
@@ -432,10 +479,13 @@ body {
 }
 
 .mh-about {
-    max-width: 40rem;
+    max-width: 42rem;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 1rem;
+    text-align: center;
 }
 .mh-about-brand {
     display: inline-block;

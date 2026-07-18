@@ -57,9 +57,14 @@ const PLAY_URL =
         ? 'https://play.melodan.com/'
         : new URL('./index.html', location.href).href;
 
-const SCREENSHOTS = [1, 2, 3, 4].map((n) => ({
-    src: new URL(`../../assets/marketing/screenshots/0${n}.webp`, import.meta.url).href,
-    label: `Screenshot ${n}`,
+const SCREENSHOTS = [
+    { file: '01.webp', label: 'Screenshot 1' },
+    { file: '02.webp', label: 'Screenshot 2' },
+    { file: '03.webp', label: 'Screenshot 3' },
+    { file: '04.webp', label: 'Screenshot 4' },
+].map((s) => ({
+    src: new URL(`../../assets/marketing/screenshots/${s.file}`, import.meta.url).href,
+    label: s.label,
 }));
 
 const SHOWCASE_UNITS: UnitType[] = [
@@ -219,9 +224,12 @@ document.head.appendChild(style);
 
 app.innerHTML = `
 <header class="mh-hero mh-wrap">
-  <img class="mh-logo" src="${esc(logoUrl)}" alt="MELODAN" width="520" height="180" />
+  <div class="mh-brand">
+    <img class="mh-logo" src="${esc(logoUrl)}" alt="MELODAN" width="520" height="180" />
+    <p class="mh-version">${esc(versionLabel)}</p>
+  </div>
   <p class="mh-tagline">FANTASY AUTO·BATTLER</p>
-  <p class="mh-lead">Deploy in secret, watch the round play out, adapt, repeat <span class="mh-sep">⬢</span> until one commander runs out of HP.</p>
+  <p class="mh-lead">Deploy armies in secret and watch the round play out. Your enemy does the same. Adapt, repeat until one of you runs out of HP.</p>
   <div class="mh-play">
     <a class="mh-play-btn primary" href="${PLAY_URL}">
       <span class="mh-play-title">Play in Browser</span>
@@ -235,7 +243,6 @@ app.innerHTML = `
       <span class="mh-play-note">Ranked Multiplayer · Play with your Friends</span>
     </a>
   </div>
-  <p class="mh-version">${esc(versionLabel)}</p>
 </header>
 
 <main class="mh-wrap">
@@ -282,7 +289,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward you draft from a random offer each round. Cards grant packs, items, or tactic charges <span class="mh-sep">⬢</span> or skip for a small supply payout.</p>
+    <p class="mh-sub">From round two onward there is a chance to draft from a random offer. Cards grant packs, items, or tactic charges.</p>
     <div class="mechili-cards">
       <div class="cards-row">
         ${ROUND_CARDS.map((c) => `<div class="card static">${roundCardFace(c)}</div>`).join('')}

@@ -168,9 +168,19 @@ export class NetSession {
             if (this.handler) this.handler(msg);
             else this.backlog.push(msg);
         });
-        conn.on('close', () => this.onClose?.());
-        conn.on('error', () => this.onClose?.());
-        peer.on('error', () => this.onClose?.());
+        // 'close'/'error' on the connection AND 'error' on the peer can all
+        // fire for the same underlying drop — without this guard each one
+        // re-invokes the caller's onClose (e.g. restarting the reconnect
+        // grace countdown mid-count)
+        let closed = false;
+        const fireClose = () => {
+            if (closed) return;
+            closed = true;
+            this.onClose?.();
+        };
+        conn.on('close', fireClose);
+        conn.on('error', fireClose);
+        peer.on('error', fireClose);
     }
 
     /** installs the message handler and drains anything that arrived early */
@@ -253,10 +263,15 @@ const RESUME_KEY = 'mechili-resume';
 export interface ResumeMarker {
     side: 'a' | 'b';
     names: { local: string; opponent: string };
-    /** the opponent's PeerJS id (redialed directly after our reload) */
+    /** the opponent's last-known PeerJS id (redialed after our reload) */
     remotePeerId: string;
-    /** our own id IF it is a recreatable room id, else null */
-    ownRoomId: string | null;
+    /**
+     * our own last-known PeerJS id — reopened verbatim after a reload,
+     * regardless of whether it's a human-readable room id (Host Room) or an
+     * auto-generated one (Matchmaking). Nothing about *which side* reloaded
+     * changes this: either side's id can always be reclaimed the same way.
+     */
+    ownPeerId: string;
 }
 
 export function saveResumeMarker(marker: ResumeMarker): void {
@@ -324,44 +339,102 @@ export function clearSinglePlayer(): void {
     }
 }
 
+/** re-registers `id` with the signaling server, riding out the brief window
+ *  where it may not have released our pre-reload registration yet */
+async function reopenOwnId(id: string, signal?: AbortSignal, attempts = 6, delayMs = 2000): Promise<Peer> {
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await openPeer(id, signal);
+        } catch (e) {
+            if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
+            if (i === attempts - 1) throw e;
+            await delay(delayMs, signal);
+        }
+    }
+    throw new Error('Could not reopen connection');
+}
+
+/** repeatedly dials `remoteId` until it connects or `signal` fires */
+async function redialUntilConnected(
+    peer: Peer,
+    remoteId: string,
+    localName: string,
+    remoteName: string,
+    signal?: AbortSignal,
+    delayMs = 3000,
+): Promise<NetSession> {
+    for (;;) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        try {
+            return await connectTo(peer, remoteId, localName, remoteName, signal);
+        } catch (e) {
+            if (e instanceof DOMException && e.name === 'AbortError') throw e;
+            await delay(delayMs, signal);
+        }
+    }
+}
+
 /**
- * After a reload: reopen our side of the connection. If we owned a room id
- * we re-host it (the survivor redials it); otherwise we dial the survivor.
+ * After a reload: reopen our OWN previous peer id (remembered regardless of
+ * whether it happens to look like a hosted room — an auto-generated
+ * Matchmaking id is just as reclaimable) and race two strategies at once:
+ * wait for the peer to dial back in, or dial them ourselves at their last-
+ * known id. We can't know in advance which side needs to be "the listener"
+ * this time — either side could be the one that just reloaded — so trying
+ * both and taking whichever connects first works regardless.
  */
 export async function resumeSession(marker: ResumeMarker, signal?: AbortSignal): Promise<NetSession> {
     let peer: Peer | null = null;
     const abort = () => peer?.destroy();
     signal?.addEventListener('abort', abort, { once: true });
     try {
-        if (marker.ownRoomId) {
-            peer = await openPeer(marker.ownRoomId, signal);
-            const session = await Promise.race([
-                awaitConnection(peer, marker.names.local, signal),
-                delay(60_000, signal).then(() => {
-                    throw new Error('Opponent did not reconnect');
-                }),
-            ]);
-            session.setRemoteName(marker.names.opponent);
-            return session;
-        }
-        peer = await openPeer(undefined, signal);
-        for (let i = 0; i < 15; i++) {
-            try {
-                return await connectTo(
-                    peer,
-                    marker.remotePeerId,
-                    marker.names.local,
-                    marker.names.opponent,
-                    signal,
-                );
-            } catch (e) {
-                if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
-                await delay(3000, signal);
-            }
-        }
-        throw new Error('Could not reach the opponent');
+        peer = await reopenOwnId(marker.ownPeerId, signal);
+        const p = peer;
+        const session = await raceReconnectStrategies(
+            (s) => awaitConnection(p, marker.names.local, s),
+            (s) => redialUntilConnected(p, marker.remotePeerId, marker.names.local, marker.names.opponent, s),
+            signal,
+        );
+        session.setRemoteName(marker.names.opponent);
+        return session;
     } finally {
         signal?.removeEventListener('abort', abort);
+    }
+}
+
+/**
+ * Races "wait for the peer to dial us" against "we dial the peer" — takes
+ * whichever connects first, then cancels the other so it doesn't leave a
+ * dangling listener (or keep redialing) that could double-wrap some LATER,
+ * unrelated reconnect on the same Peer object. Both strategies get their
+ * OWN abort signal (chained to the caller's) so cancelling one never touches
+ * the other. Exported: `wireReconnect` (main.ts) races
+ * `NetSession.awaitReconnect`/`redial` the same way for a live (non-reload)
+ * disconnect.
+ */
+export async function raceReconnectStrategies(
+    listen: (signal: AbortSignal) => Promise<NetSession>,
+    dial: (signal: AbortSignal) => Promise<NetSession>,
+    signal?: AbortSignal,
+): Promise<NetSession> {
+    const listenAbort = new AbortController();
+    const dialAbort = new AbortController();
+    const onOuterAbort = () => {
+        listenAbort.abort();
+        dialAbort.abort();
+    };
+    signal?.addEventListener('abort', onOuterAbort, { once: true });
+    const listening = listen(listenAbort.signal);
+    const dialing = dial(dialAbort.signal);
+    listening.catch(() => undefined);
+    dialing.catch(() => undefined);
+    try {
+        const session = await Promise.race([listening, dialing]);
+        listenAbort.abort();
+        dialAbort.abort();
+        return session;
+    } finally {
+        signal?.removeEventListener('abort', onOuterAbort);
     }
 }
 
@@ -434,14 +507,22 @@ function awaitConnection(peer: Peer, localName: string, signal?: AbortSignal): P
             reject(new DOMException('Aborted', 'AbortError'));
             return;
         }
-        const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
-        signal?.addEventListener('abort', onAbort, { once: true });
-        peer.on('connection', (conn) => {
+        // detach on EITHER outcome — left registered, a losing race attempt
+        // (see resumeSession/wireReconnect) would still be listening for a
+        // NEXT incoming connection and could double-wrap a later reconnect
+        const onConnection = (conn: DataConnection) => {
             conn.on('open', () => {
                 signal?.removeEventListener('abort', onAbort);
+                peer.off('connection', onConnection);
                 resolve(new NetSession('host', peer, conn, localName, ''));
             });
-        });
+        };
+        const onAbort = () => {
+            peer.off('connection', onConnection);
+            reject(new DOMException('Aborted', 'AbortError'));
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+        peer.on('connection', onConnection);
     });
 }
 

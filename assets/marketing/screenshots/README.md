@@ -1,10 +1,19 @@
 # Marketing screenshots
 
-Replace the four placeholder WebPs with real stills (same names):
+Shipped files (used by `web.html`):
 
-- `01.webp`
-- `02.webp`
-- `03.webp`
-- `04.webp`
+| Slot | Source | Shipped |
+| --- | --- | --- |
+| 01 | `01.jpg` (still) | `01.webp` |
+| 02 | `02.gif` (animated) | `02.webp` (animated) |
+| 03 | `03.jpg` (still) | `03.webp` |
+| 04 | `04.gif` (animated) | `04.webp` (animated) |
 
-They appear in the homepage gallery (`web.html`).
+Keep jpg/gif as edit masters. Re-encode after changes:
+
+```bash
+cwebp -q 82 -m 6 01.jpg -o 01.webp
+cwebp -q 82 -m 6 03.jpg -o 03.webp
+gif2webp -q 50 -m 6 -lossy -min_size 02.gif -o 02.webp
+gif2webp -q 50 -m 6 -lossy -min_size 04.gif -o 04.webp
+```
