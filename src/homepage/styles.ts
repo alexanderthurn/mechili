@@ -111,6 +111,14 @@ body {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
     border-color: ${u.brassDark};
 }
+.mh-steam-link.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    pointer-events: none;
+}
+.mh-footer-links .mh-steam-link.disabled {
+    opacity: 0.5;
+}
 .mh-play-title {
     font-weight: 900;
     font-size: 1.15rem;
@@ -308,6 +316,7 @@ body {
 }
 
 .mh-showcase-view {
+    position: relative;
     aspect-ratio: 1;
     width: 100%;
     max-width: none;
@@ -323,6 +332,54 @@ body {
     width: 100%;
     height: 100%;
     display: block;
+}
+.mh-showcase-view canvas.mh-draggable {
+    cursor: grab;
+    touch-action: none;
+}
+.mh-showcase-view canvas.mh-draggable.dragging {
+    cursor: grabbing;
+}
+.mh-showcase-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: ${u.textMuted};
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.mh-showcase-hint.visible {
+    opacity: 1;
+}
+.mh-showcase-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: ${u.textMuted};
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+}
+.mh-showcase-spin {
+    color: ${u.brass};
+    font-size: 22px;
+    animation: mh-showcase-spin-anim 1.1s linear infinite;
+}
+@keyframes mh-showcase-spin-anim {
+    to { transform: rotate(360deg); }
 }
 
 .mh-showcase-side {
@@ -732,6 +789,9 @@ body {
     text-decoration: none;
 }
 .mh-footer a:hover { text-decoration: underline; }
+.mh-footer .mh-steam-link.disabled {
+    color: ${u.textMuted};
+}
 .mh-footer-links {
     display: flex;
     flex-wrap: wrap;

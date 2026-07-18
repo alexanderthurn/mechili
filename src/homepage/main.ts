@@ -21,7 +21,7 @@ import { homepageStyles } from './styles';
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
 const menuBgUrl = new URL('../../assets/ui/menu-bg.webp', import.meta.url).href;
 const iconUrl = new URL('../../icon.png', import.meta.url).href;
-const feuerwareLogoUrl = new URL('../../assets/marketing/feuerware.png', import.meta.url).href;
+const feuerwareLogoUrl = new URL('../../assets/marketing/feuerware.webp', import.meta.url).href;
 const steamLogoUrl = new URL('../../assets/marketing/steam-logo.png', import.meta.url).href;
 
 /** Optional art for battle spells that have Tripo stills */
@@ -52,7 +52,8 @@ const TACTIC_ART: Partial<Record<string, string>> = {
     ).href,
 };
 
-const STEAM_URL = 'https://store.steampowered.com/app/480/'; // placeholder app id until store page exists
+/** No Steam store page yet — buttons render disabled (no href) until this is a real app id. */
+const STEAM_URL: string | null = null;
 const PLAY_URL =
     location.hostname === 'melodan.com' || location.hostname === 'www.melodan.com'
         ? 'https://play.melodan.com/'
@@ -85,6 +86,15 @@ function pickButtons(list: UnitType[], activeId: string): string {
                 `<button type="button" class="mh-pick${t.id === activeId ? ' active' : ''}" role="option" aria-selected="${t.id === activeId}" data-unit-id="${esc(t.id)}" data-mesh-scale="${t.meshScale}">${esc(t.name)}</button>`,
         )
         .join('');
+}
+
+/** Renders a real link when STEAM_URL is set, otherwise an inert placeholder. */
+function steamLink(className: string, inner: string): string {
+    const cls = (className ? `${className} ` : '') + 'mh-steam-link';
+    if (STEAM_URL) {
+        return `<a class="${esc(cls)}" href="${esc(STEAM_URL)}" rel="noopener noreferrer" target="_blank">${inner}</a>`;
+    }
+    return `<span class="${esc(cls)} disabled" aria-disabled="true" title="Steam page coming soon">${inner}</span>`;
 }
 
 function esc(s: string): string {
@@ -241,13 +251,14 @@ app.innerHTML = `
       <span class="mh-play-title">Play in Browser</span>
       <span class="mh-play-note">Free to play · Single & Multiplayer</span>
     </a>
-    <a class="mh-play-btn steam" href="${STEAM_URL}" rel="noopener noreferrer" target="_blank">
-      <span class="mh-play-title">
+    ${steamLink(
+        'mh-play-btn steam',
+        `<span class="mh-play-title">
         <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="" width="56" height="56" />
         Coming Soon
       </span>
-      <span class="mh-play-note">Ranked Multiplayer · Play with your Friends</span>
-    </a>
+      <span class="mh-play-note">Ranked Multiplayer · Play with your Friends</span>`,
+    )}
   </div>
 </header>
 
@@ -266,6 +277,11 @@ app.innerHTML = `
     <div class="mh-showcase">
       <div class="mh-showcase-view">
         <canvas id="mh-unit-canvas" aria-label="Unit 3D preview"></canvas>
+        <div class="mh-showcase-loading" id="mh-showcase-loading" aria-hidden="true">
+          <span class="mh-showcase-spin" aria-hidden="true">⬢</span>
+          Loading model&hellip;
+        </div>
+        <div class="mh-showcase-hint" id="mh-showcase-hint">Drag to rotate · Scroll to zoom</div>
       </div>
       <div class="mh-showcase-side">
         <div class="mh-unit-picks" role="listbox" aria-label="Units and buildings">
@@ -371,7 +387,7 @@ app.innerHTML = `
 <footer class="mh-wrap mh-footer">
   <div class="mh-footer-links">
     <a href="${PLAY_URL}">Play</a>
-    <a href="${STEAM_URL}" rel="noopener noreferrer" target="_blank">Steam</a>
+    ${steamLink('', 'Steam')}
     <a href="#suggest" id="mh-footer-suggest">Suggest</a>
     <a href="https://feuerware.com/2025/imprint.html" rel="noopener noreferrer" target="_blank">Imprint</a>
     <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">Data privacy</a>
@@ -382,10 +398,11 @@ app.innerHTML = `
 <aside class="mh-sticky-play" id="mh-sticky-play" aria-hidden="true">
   <button type="button" class="mh-sticky-btn suggest" id="mh-sticky-suggest">Suggest</button>
   <a class="mh-sticky-btn primary" href="${PLAY_URL}">Play in Browser</a>
-  <a class="mh-sticky-btn steam" href="${STEAM_URL}" rel="noopener noreferrer" target="_blank">
-    <img class="mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="28" height="28" />
-    Buy
-  </a>
+  ${steamLink(
+      'mh-sticky-btn steam',
+      `<img class="mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="28" height="28" />
+    Buy`,
+  )}
 </aside>
 `;
 
@@ -444,9 +461,17 @@ const canvas = app.querySelector<HTMLCanvasElement>('#mh-unit-canvas')!;
 const statsEl = app.querySelector<HTMLElement>('#mh-unit-stats')!;
 const picks = app.querySelectorAll<HTMLButtonElement>('.mh-pick');
 
+const showcaseLoading = app.querySelector<HTMLElement>('#mh-showcase-loading')!;
+const showcaseHint = app.querySelector<HTMLElement>('#mh-showcase-hint')!;
+
 void preloadUnitVisuals().then(() => {
     const viewer = createShowcaseViewer(canvas);
     viewer.show(first.id, first.meshScale);
+    showcaseLoading.remove();
+    showcaseHint.classList.add('visible');
+    const hideHint = () => showcaseHint.classList.remove('visible');
+    canvas.addEventListener('pointerdown', hideHint, { once: true });
+    canvas.addEventListener('wheel', hideHint, { once: true, passive: true });
 
     for (const btn of picks) {
         btn.addEventListener('click', () => {

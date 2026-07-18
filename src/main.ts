@@ -88,7 +88,7 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
-const feuerwareLogoUrl = new URL('../assets/marketing/feuerware.png', import.meta.url).href;
+const feuerwareLogoUrl = new URL('../assets/marketing/feuerware.webp', import.meta.url).href;
 const feuerwareEl = document.createElement('img');
 feuerwareEl.className = 'mechili-feuerware';
 feuerwareEl.src = feuerwareLogoUrl;
