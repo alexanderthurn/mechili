@@ -890,9 +890,14 @@ menu.addEventListener('click', (e) => {
     }
 
     switch (button.dataset.mode) {
-        case 'single':
-            startGame(settingsFromUrl());
+        case 'single': {
+            // same fog rules as multiplayer; only timers are relaxed so you can think
+            const settings = settingsFromUrl();
+            settings.buildTimeSeconds = 60 * 60;
+            settings.specialistTimeSeconds = 60 * 60;
+            startGame(settings);
             break;
+        }
         case 'quick':
             lobbyEl.style.display = 'none';
             stopRoomPoll();

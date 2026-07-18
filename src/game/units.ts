@@ -666,6 +666,8 @@ export class Unit {
     /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */
     level = 1;
     xp = 0;
+    /** last level rendered on the rank insignia (avoids rebuilding every frame under intel fog) */
+    private badgeDisplayLevel = -1;
     /** rotation around y the unit currently faces (0 = toward -z / the enemy edge) */
     facing: number;
     /** individual mechs; `home` is each one's formation slot (local offset from the unit center) */
@@ -841,17 +843,19 @@ export class Unit {
     /**
      * Rebuilds the rank insignia on every mech of the pack: a small totem of
      * glowing studs above the hull, one per level above 1 (up to 8). Call
-     * after every level change.
+     * after every level change. Pass displayLevel to show stale intel badges.
      */
-    refreshLevelBadge(): void {
+    refreshLevelBadge(displayLevel = this.level): void {
+        if (displayLevel === this.badgeDisplayLevel) return;
+        this.badgeDisplayLevel = displayLevel;
         const topY = Math.max(...this.type.colliders.map((c) => c.y + c.r), 1) + 0.35;
         for (const m of this.members) {
             const old = m.mesh.getObjectByName('level-badge');
             if (old) m.mesh.remove(old);
-            if (this.level <= 1) continue;
+            if (displayLevel <= 1) continue;
             const badge = new Group();
             badge.name = 'level-badge';
-            for (let i = 0; i < this.level - 1; i++) {
+            for (let i = 0; i < displayLevel - 1; i++) {
                 const stud = new Mesh(levelStudGeometry(), levelStudMaterial(i));
                 stud.position.y = topY + i * 0.16;
                 badge.add(stud);

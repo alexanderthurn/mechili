@@ -33,6 +33,9 @@ interface IntelEntry {
     facing: number;
     world: Vector3;
     level: number;
+    xp: number;
+    /** pack was ready to buy a level at snapshot time (stale upgrade arrow) */
+    upgradeReady: boolean;
     items: string[];
 }
 
@@ -117,6 +120,8 @@ export class PlacementController {
     dispatch: ((action: Action) => boolean) | null = null;
     /** set by the game: which packs can buy their next level right now */
     levelReady: ((unit: Unit) => boolean) | null = null;
+    /** set by the game: whether a pack should keep a stale upgrade arrow in the intel snapshot */
+    upgradeReadyAtCapture: ((unit: Unit) => boolean) | null = null;
     /** fires on every click that lands on a unit (used for item application) */
     onSelect: ((unit: Unit) => void) | null = null;
     /** when set, left clicks are offered here first; return true to swallow */
@@ -295,6 +300,8 @@ export class PlacementController {
                 facing: u.facing,
                 world: u.world.clone(),
                 level: u.level,
+                xp: u.xp,
+                upgradeReady: this.upgradeReadyAtCapture?.(u) ?? false,
                 items: [...u.items],
             });
         }
@@ -302,7 +309,11 @@ export class PlacementController {
 
     /** Turns enemy intel fog on or off (off = live board). */
     setIntelFog(on: boolean): void {
+        const was = this.intelFog;
         this.intelFog = on;
+        if (was && !on) {
+            for (const u of this.units) u.refreshLevelBadge();
+        }
     }
 
     /** true when the opponent may see this enemy pack (snapshot or live reveal). */
@@ -310,6 +321,17 @@ export class PlacementController {
         if (unit.team !== 'enemy') return true;
         if (!this.intelFog) return true;
         return this.intelSnapshot.has(unit.id);
+    }
+
+    /**
+     * Stale enemy veterancy/items while intel fog is on.
+     * null = use the live unit (own packs, or fog off / not yet snapshotted).
+     */
+    intelOf(unit: Unit): { level: number; xp: number; items: readonly string[] } | null {
+        if (!this.intelFog || unit.team !== 'enemy') return null;
+        const snap = this.intelSnapshot.get(unit.id);
+        if (!snap) return null;
+        return { level: snap.level, xp: snap.xp, items: snap.items };
     }
 
     deselect(): void {
@@ -641,6 +663,7 @@ export class PlacementController {
             u.view.visible = true;
             u.view.position.copy(u.world);
             this.restoreUnitFacing(u);
+            u.refreshLevelBadge();
         }
     }
 
@@ -803,15 +826,14 @@ export class PlacementController {
     }
 
     /**
-     * A small solid gold up-arrow bobbing over the center of every pack —
-     * own only during intel fog; enemy arrows appear after reveal.
+     * A small solid gold up-arrow bobbing over packs ready to level —
+     * own packs use live readiness; enemies use phase-start intel while fogged
+     * (including sold ghosts), then live readiness after reveal.
      */
     private updateLevelArrows(timeSeconds: number): void {
         let used = 0;
-        if (this.enabled && this.levelReady) {
-            for (const unit of this.units) {
-                if (!this.levelReady(unit)) continue;
-                if (unit.team !== 'player' && this.intelFog) continue;
+        if (this.enabled) {
+            const place = (unit: Unit, seed: number) => {
                 let arrow = this.levelArrows[used];
                 if (!arrow) {
                     arrow = new Group();
@@ -826,7 +848,7 @@ export class PlacementController {
                     this.scene.add(arrow);
                     this.levelArrows.push(arrow);
                 }
-                const bob = Math.sin(timeSeconds * 3 + unit.id) * 0.2;
+                const bob = Math.sin(timeSeconds * 3 + seed) * 0.2;
                 const top =
                     unit.view.position.y +
                     unit.memberBaseY() +
@@ -835,6 +857,28 @@ export class PlacementController {
                 arrow.position.set(unit.view.position.x, top + bob, unit.view.position.z);
                 arrow.visible = true;
                 used++;
+            };
+
+            for (const unit of this.units) {
+                if (unit.team === 'enemy' && this.intelFog) {
+                    const snap = this.intelSnapshot.get(unit.id);
+                    if (!snap?.upgradeReady) continue;
+                    place(unit, unit.id);
+                    continue;
+                }
+                if (!this.levelReady?.(unit)) continue;
+                place(unit, unit.id);
+            }
+
+            // sold snapshotted enemies keep their stale upgrade arrow on the ghost
+            if (this.intelFog) {
+                for (const [id, snap] of this.intelSnapshot) {
+                    if (snap.team !== 'enemy' || !snap.upgradeReady) continue;
+                    if (this.units.some((u) => u.id === id)) continue;
+                    const ghost = this.intelGhosts.get(id);
+                    if (!ghost) continue;
+                    place(ghost, id);
+                }
             }
         }
         for (let i = used; i < this.levelArrows.length; i++) this.levelArrows[i]!.visible = false;
@@ -981,6 +1025,7 @@ export class PlacementController {
             if (snap) {
                 u.view.visible = true;
                 this.applySnapshotPose(u, snap);
+                u.refreshLevelBadge(snap.level);
             } else {
                 u.view.visible = false;
             }

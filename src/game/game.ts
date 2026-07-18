@@ -19,7 +19,7 @@ import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import {
     clearResumeMarker,
@@ -581,6 +581,8 @@ export class Game {
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
         // gold pulse under packs whose next level is buyable right now
         this.placement.levelReady = (unit) => this.canLevel(unit);
+        // freeze upgrade-arrow intel at phase start (survives enemy leveling mid-deploy)
+        this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit) => {
             if (!this.armedItem) return;
@@ -2286,7 +2288,7 @@ export class Game {
     /** this round's spell markers: own always; enemy only after we lock in */
     private visibleSpellStamps(): readonly SpellStamp[] {
         const revealEnemy =
-            this.phase === 'battle' || this.deployReady.player || this.net === null;
+            this.phase === 'battle' || this.deployReady.player;
         return this.spellStamps.filter(
             (s) => s.placedRound === this.round && (s.team === 'player' || revealEnemy),
         );
@@ -2296,8 +2298,7 @@ export class Game {
     private visibleOilStamps(): readonly OilStamp[] {
         const revealEnemy =
             this.phase === 'battle' ||
-            this.deployReady.player ||
-            this.net === null;
+            this.deployReady.player;
         return this.oilStamps.filter((s) => s.team === 'player' || revealEnemy);
     }
 
@@ -2305,8 +2306,7 @@ export class Game {
     private visibleRallyRoutes(): readonly RallyRoute[] {
         const revealEnemy =
             this.phase === 'battle' ||
-            this.deployReady.player ||
-            this.net === null;
+            this.deployReady.player;
         return this.rallyRoutes.filter(
             (r) => r.team === 'player' || revealEnemy,
         );
@@ -2494,11 +2494,15 @@ export class Game {
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
     private canLevel(unit: Unit): boolean {
+        return this.playerCanAct && this.packUpgradeReady(unit, unit.level, unit.xp);
+    }
+
+    /** XP banked for the next level at a given veterancy (no phase / team gates) */
+    private packUpgradeReady(unit: Unit, level: number, xp: number): boolean {
         return (
-            this.playerCanAct &&
             !unit.type.structure &&
-            unit.level < this.settings.leveling.maxLevel &&
-            unit.xp >= xpForNextLevel(unit, this.economy, this.settings.leveling)
+            level < this.settings.leveling.maxLevel &&
+            xp >= xpThresholdFor(unit.type, level, this.economy, this.settings.leveling)
         );
     }
 
@@ -3518,12 +3522,17 @@ export class Game {
         }
     }
 
-    /** veterancy display values for a pack, from the leveling settings */
+    /** veterancy display values for a pack (enemy uses phase-start intel while fogged) */
     private levelInfo(u: Unit): { level: number; xp: number; xpNext: number; statMult: number } {
+        const intel = this.placement.intelOf(u);
+        const level = intel?.level ?? u.level;
+        const xp = intel?.xp ?? u.xp;
         const { statBonusPerLevel, maxLevel } = this.settings.leveling;
         const xpNext =
-            u.level >= maxLevel ? -1 : xpForNextLevel(u, this.economy, this.settings.leveling);
-        return { level: u.level, xp: u.xp, xpNext, statMult: 1 + (u.level - 1) * statBonusPerLevel };
+            level >= maxLevel
+                ? -1
+                : xpThresholdFor(u.type, level, this.economy, this.settings.leveling);
+        return { level, xp, xpNext, statMult: 1 + (level - 1) * statBonusPerLevel };
     }
 
     private actorInfo(a: Actor): SelectionInfo {
@@ -3558,6 +3567,7 @@ export class Game {
     private unitInfo(u: Unit): SelectionInfo {
         const rs = this.resolvedStats(u);
         const lv = this.levelInfo(u);
+        const itemIds = this.placement.intelOf(u)?.items ?? u.items;
         return {
             name: u.type.name,
             team: u.team,
@@ -3574,8 +3584,8 @@ export class Game {
             xp: lv.xp,
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
-            items: u.items.length
-                ? u.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id, desc: ITEMS[id]?.description ?? '' }))
+            items: itemIds.length
+                ? itemIds.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id, desc: ITEMS[id]?.description ?? '' }))
                 : undefined,
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
@@ -3648,7 +3658,7 @@ export class Game {
     /**
      * Research Center ability tiles for the selection panel.
      * Own building: buyable while acting. Enemy building: read-only once intel
-     * is live (locked in / battle / singleplayer) — same fog as spells & inventory.
+     * is live (locked in / battle) — same fog as spells & inventory.
      */
     private researchCenterSelection(u: Unit): Pick<
         SelectionInfo,
@@ -3658,7 +3668,7 @@ export class Game {
         const ownInteractive = u.team === 'player' && this.playerCanAct;
         const enemyIntel =
             u.team === 'enemy' &&
-            (this.phase === 'battle' || this.deployReady.player || this.net === null);
+            (this.phase === 'battle' || this.deployReady.player);
         if (!ownInteractive && !enemyIntel) return {};
 
         const team = u.team;

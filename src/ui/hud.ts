@@ -1067,8 +1067,8 @@ export class Hud {
                 info.structure
                     ? `${info.level}${info.towerUpgrade ? ` / ${info.towerUpgrade.maxLevel}` : ''}`
                     : info.xpNext < 0
-                      ? `${info.level} (max)`
-                      : `${info.level} · ${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`,
+                      ? 'max'
+                      : `${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`,
             ) +
             row('Damage', String(Math.round(info.damage))) +
             row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +

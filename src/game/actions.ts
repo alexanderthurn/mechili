@@ -360,9 +360,19 @@ export function levelCost(type: UnitType, economy: Economy, leveling: LevelingSe
     return Math.round(economy.costOf(type) * leveling.levelCostFactor);
 }
 
+/** banked XP needed to buy the next level at a given veterancy */
+export function xpThresholdFor(
+    type: UnitType,
+    level: number,
+    economy: Economy,
+    leveling: LevelingSettings,
+): number {
+    return economy.costOf(type) * leveling.xpThresholdFactor * level;
+}
+
 /** banked XP a pack needs before its next level can be bought */
 export function xpForNextLevel(unit: Unit, economy: Economy, leveling: LevelingSettings): number {
-    return economy.costOf(unit.type) * leveling.xpThresholdFactor * unit.level;
+    return xpThresholdFor(unit.type, unit.level, economy, leveling);
 }
 
 /** supply price of a base building's next level: baseCost, then +costStep per level taken */
