@@ -1570,6 +1570,9 @@ export function hudStyles(): string {
 .mechili-gameover.victory .go-title { color: ${pc}; }
 .mechili-gameover.defeat .go-title { color: ${ec}; }
 .mechili-gameover.draw .go-title { color: ${u.brassLight}; }
+.mechili-gameover .go-sub { font-size: 14px; letter-spacing: 1px; color: ${u.text}; opacity: 0.75; margin-top: -10px; }
+.mechili-cards .reconnect-timer { font-size: 32px; font-variant-numeric: tabular-nums; }
+.mechili-cards .reconnect-timer.urgent { animation: mechili-timer-pulse 0.7s ease-in-out infinite; }
 .mechili-gameover .go-restart {
     padding: 10px 26px;
     background: ${u.alliedBtnBg};

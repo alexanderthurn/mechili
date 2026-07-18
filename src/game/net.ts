@@ -107,7 +107,9 @@ export type NetMessage =
     /** a reloaded/rejoining peer asks for the full match state */
     | { type: 'resume' }
     /** the survivor's answer: seed + full action log (in the SENDER's perspective);
-     *  battleElapsed = how far its currently RUNNING battle has played (null in build) */
+     *  battleElapsed = how far its currently RUNNING battle has played (null in build);
+     *  phaseRemaining = the sender's live build-phase clock (replay can't
+     *  reconstruct it — it isn't a logged action) */
     | {
           type: 'state';
           version: number;
@@ -115,11 +117,15 @@ export type NetMessage =
           settings: GameSettings;
           actions: LoggedAction[];
           battleElapsed: number | null;
+          phaseRemaining: number;
       }
     /** battle playback speed — kept in sync so both players finish together */
     | { type: 'speed'; multiplier: number }
     /** chat: emote or short text — never part of game state */
-    | { type: 'chat'; item: ChatItem };
+    | { type: 'chat'; item: ChatItem }
+    /** local battle sim finished — the peer may still be watching theirs
+     *  (fast-forward speed is per-client); the next build phase waits for both */
+    | { type: 'battleEnd'; round: number };
 
 /** the remote player as an Opponent: it acts via received messages, so the
  *  local hooks are all no-ops */
@@ -200,24 +206,33 @@ export class NetSession {
         return this.conn.peer;
     }
 
-    /** survivor who OWNS the room id: keep the peer open, wait for the rejoin */
-    awaitReconnect(): Promise<NetSession> {
-        return awaitConnection(this.peer, this.localName).then((s) => {
+    /** survivor who OWNS the room id: keep the peer open, wait for the rejoin.
+     *  Bounded by `signal` — the caller times this out (reconnect grace window). */
+    awaitReconnect(signal: AbortSignal): Promise<NetSession> {
+        return awaitConnection(this.peer, this.localName, signal).then((s) => {
             s.setRemoteName(this.remoteName);
             return s;
         });
     }
 
-    /** survivor on the other end: redial the dropped peer until it comes back */
-    async redial(attempts = 20, delayMs = 3000): Promise<NetSession> {
-        for (let i = 0; i < attempts; i++) {
+    /** survivor on the other end: redial the dropped peer until it comes back,
+     *  or `signal` fires (the caller's reconnect grace window elapsed). */
+    async redial(signal: AbortSignal, delayMs = 3000): Promise<NetSession> {
+        for (;;) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             try {
-                return await connectTo(this.peer, this.remoteId, this.localName, this.remoteName);
-            } catch {
-                await new Promise((r) => setTimeout(r, delayMs));
+                return await connectTo(
+                    this.peer,
+                    this.remoteId,
+                    this.localName,
+                    this.remoteName,
+                    signal,
+                );
+            } catch (e) {
+                if (e instanceof DOMException && e.name === 'AbortError') throw e;
+                await delay(delayMs, signal);
             }
         }
-        throw new Error('Opponent did not come back');
     }
 }
 
@@ -269,6 +284,8 @@ export interface SinglePlayerSave {
     settings: GameSettings;
     actions: LoggedAction[];
     battleElapsed: number | null;
+    /** optional: older saves predate this field, hydrate falls back to a full timer */
+    phaseRemaining?: number;
     localName: string;
 }
 

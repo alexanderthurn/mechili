@@ -228,6 +228,9 @@ export class Game {
     private readonly opponent: Opponent;
     /** which sides locked in the current deployment — battle starts at both */
     private readonly deployReady: Record<Team, boolean> = { player: false, enemy: false };
+    /** which sides finished watching this round's battle — the next build
+     *  phase starts once both have (fast-forward speed is per-client) */
+    private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
     /** streamed peer events, applied in order once our game reaches their round */
     private readonly remoteQueue: { round: number; action?: Action; undo?: boolean }[] = [];
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
@@ -291,6 +294,10 @@ export class Game {
     private hydrating = false;
     /** connection lost: everything pauses until the peer is back */
     private suspended = false;
+    /** seconds left before an unreturned opponent forfeits (null = no active grace window) */
+    private reconnectGraceRemaining: number | null = null;
+    /** set by main: fired the instant the grace window elapses, to cancel the in-flight redial */
+    onReconnectTimeout: (() => void) | null = null;
     /** the round-card offer drawn during hydration, shown once it finishes */
     private pendingOffer: RoundCard[] | null = null;
     /** the four specialist cards currently offered to the player (for auto-pick) */
@@ -367,7 +374,14 @@ export class Game {
             opponent: 'AI',
         },
         /** recorded state to rebuild from — reconnect/resync/reload */
-        resume: { actions: LoggedAction[]; battleElapsed: number | null; local?: boolean } | null = null,
+        resume: {
+            actions: LoggedAction[];
+            battleElapsed: number | null;
+            local?: boolean;
+            /** the exporting side's live build-phase clock — replay always
+             *  resets it to a fresh full timer, so it's restored separately */
+            phaseRemaining?: number;
+        } | null = null,
     ) {
         this.settings = normalizeGameSettings(settingsInput);
         const settings = this.settings;
@@ -707,6 +721,13 @@ export class Game {
         this.placement.enabled = false;
         if (resume) {
             this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
+            // replay always resets the round's clock to a fresh full timer
+            // (it isn't logged as an action) — restore the true remaining
+            // time from whoever exported, so a rebuild can't hand either
+            // side extra deployment time
+            if (resume.phaseRemaining !== undefined && this.phase === 'build') {
+                this.phaseRemaining = resume.phaseRemaining;
+            }
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
@@ -1080,6 +1101,8 @@ export class Game {
         this.deployState.extrasSpent.enemy = 0;
         this.deployReady.player = false;
         this.deployReady.enemy = false;
+        this.battleReady.player = false;
+        this.battleReady.enemy = false;
         this.unlockUsedThisRound.player = false;
         this.unlockUsedThisRound.enemy = false;
         this.hud.refreshCosts();
@@ -1262,12 +1285,49 @@ export class Game {
         this.onReturnToMenu?.();
     }
 
+    /** connection lost: pause behind a live countdown; forfeitWin() fires if
+     *  the peer hasn't reconnected by the time it hits zero */
+    beginReconnectGrace(seconds: number): void {
+        if (this.disposed || this.matchOver) return;
+        this.suspended = true;
+        this.hud.hidePauseMenu();
+        this.placement.deselect();
+        this.armedItem = null;
+        this.reconnectGraceRemaining = seconds;
+        this.hud.showReconnectWait(() => this.quitToMenu());
+        this.hud.updateReconnectWait(seconds);
+    }
+
     /** the peer is back on a fresh session — continue exactly where we were */
     resumeWith(session: NetSession): void {
-        if (this.disposed) return;
+        if (this.disposed || this.matchOver) {
+            session.close();
+            return;
+        }
+        this.reconnectGraceRemaining = null;
+        this.onReconnectTimeout = null;
         this.wireSession(session);
         this.suspended = false;
+        this.hud.hideReconnectWait();
         this.hud.hideNotice();
+        this.verifyAfterReconnect();
+    }
+
+    /**
+     * After ANY reconnect (not just a page reload) — not only the initial
+     * page-reload/attemptResume path already covered by `hydrate`. A message
+     * dropped exactly at the moment the connection died (e.g. a missed
+     * endDeployment) would otherwise never be noticed, since the existing
+     * check only runs at battle start. Reusing the same check/verify plumbing
+     * here means any such gap self-heals through the existing guest-reloads
+     * recovery instead of silently stalling the match.
+     */
+    private verifyAfterReconnect(): void {
+        if (!this.net || this.hydrating) return;
+        const hash = this.stateHash();
+        this.sentChecks.set(this.round, hash);
+        this.net.send({ type: 'check', round: this.round, hash });
+        this.verifyCheck(this.round);
     }
 
     /** everything a rejoining peer needs to rebuild the match (our perspective) */
@@ -1276,12 +1336,14 @@ export class Game {
         settings: GameSettings;
         actions: LoggedAction[];
         battleElapsed: number | null;
+        phaseRemaining: number;
     } {
         return {
             seed: this.seed,
             settings: this.settings,
             actions: this.dispatcher.serializable(),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
+            phaseRemaining: this.phaseRemaining,
         };
     }
 
@@ -1384,7 +1446,12 @@ export class Game {
         }
     }
 
-    /** canonical state fingerprint, exchanged at battle start to catch desyncs */
+    /**
+     * Canonical state fingerprint. Originally exchanged only at battle start;
+     * also used post-reconnect (see {@link verifyAfterReconnect}), so it must
+     * be meaningful during build phase too — deployReady/speciality/round-card
+     * picks and the units on the board all feed in when there's no running sim.
+     */
     private stateHash(): number {
         const buffer = new DataView(new ArrayBuffer(8));
         let h = 0x811c9dc5;
@@ -1393,19 +1460,48 @@ export class Game {
             h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
             h = Math.imul(h ^ buffer.getUint32(4), 0x9e3779b1);
         };
+        const mixStr = (s: string | null) => {
+            if (s === null) {
+                mix(-1);
+                return;
+            }
+            let acc = 0;
+            for (let i = 0; i < s.length; i++) acc = (Math.imul(acc, 131) + s.charCodeAt(i)) | 0;
+            mix(acc);
+        };
         const hostParity = this.side === 'a' ? 0 : 1;
-        const hostFirst = (player: number, enemy: number) =>
+        const hostFirst = <T>(player: T, enemy: T): T[] =>
             this.side === 'a' ? [player, enemy] : [enemy, player];
         mix(this.round);
+        mix(this.phase === 'build' ? 0 : 1);
         for (const v of hostFirst(this.playerHp, this.enemyHp)) mix(v);
         for (const v of hostFirst(this.economy.balance('player'), this.economy.balance('enemy'))) mix(v);
-        for (const a of this.sim?.actors ?? []) {
-            const id = a.unit.id;
-            mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
-            mix(a.x);
-            mix(a.z);
-            mix(a.hp);
-            mix(a.unit.level);
+        for (const v of hostFirst(this.deployReady.player, this.deployReady.enemy)) mix(v ? 1 : 0);
+        for (const v of hostFirst(this.battleReady.player, this.battleReady.enemy)) mix(v ? 1 : 0);
+        for (const v of hostFirst(this.roundCardTaken.player, this.roundCardTaken.enemy)) mix(v ? 1 : 0);
+        for (const v of hostFirst(this.speciality.player, this.speciality.enemy)) mixStr(v);
+        if (this.sim) {
+            for (const a of this.sim.actors) {
+                const id = a.unit.id;
+                mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
+                mix(a.x);
+                mix(a.z);
+                mix(a.hp);
+                mix(a.unit.level);
+            }
+        } else {
+            // allUnits() order tracks local dispatch interleaving, which can
+            // legitimately differ between peers — sort by id like sim.ts does
+            const units = [...this.placement.allUnits()].sort((a, b) => a.id - b.id);
+            for (const u of units) {
+                const id = u.id;
+                mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
+                mix(u.cell.col);
+                mix(u.cell.row);
+                mix(u.level);
+                mix(u.destroyed ? 1 : 0);
+                mix(u.consumed ? 1 : 0);
+            }
         }
         // shared oil layer — must match on both peers before battle
         const oil = this.oilField.oilExpires;
@@ -1504,6 +1600,11 @@ export class Game {
         } else if (msg.type === 'resume') {
             // the peer reloaded and rebuilt mid-session (rare direct path)
             this.net?.send({ type: 'state', version: GAME_VERSION, ...this.exportResume() });
+        } else if (msg.type === 'battleEnd') {
+            if (msg.round === this.round) {
+                this.battleReady.enemy = true;
+                this.maybeStartNextRound();
+            }
         }
     }
 
@@ -2768,7 +2869,29 @@ export class Game {
             else unit.resetFormation();
         }
         this.placement.refaceAll();
-        this.startBuildPhase();
+        this.announceBattleEnd();
+    }
+
+    /** local battle sim finished — tell the peer, then wait for theirs too
+     *  before starting the next build phase (fast-forward speed is per-client,
+     *  so the two sides don't necessarily finish watching at the same time) */
+    private announceBattleEnd(): void {
+        this.battleReady.player = true;
+        if (this.net && !this.hydrating) {
+            this.net.send({ type: 'battleEnd', round: this.round });
+        }
+        this.maybeStartNextRound();
+    }
+
+    /** starts the next build phase once both sides are ready — no peer (AI
+     *  match) or a replay rebuild (hydrate already knows the true history)
+     *  skip the wait entirely */
+    private maybeStartNextRound(): void {
+        if (!this.net || this.hydrating) {
+            this.startBuildPhase();
+            return;
+        }
+        if (this.battleReady.player && this.battleReady.enemy) this.startBuildPhase();
     }
 
     /** someone hit 0 HP — freeze the game and show the result */
@@ -2797,12 +2920,33 @@ export class Game {
         this.hud.showGameOver(result);
     }
 
+    /** the opponent never reconnected within the grace window — win by forfeit */
+    private forfeitWin(): void {
+        if (this.matchOver) return;
+        this.matchOver = true;
+        this.suspended = false;
+        clearResumeMarker();
+        clearSinglePlayer();
+        // report before tearing down net — mode/side derive from it still being set
+        this.reportOpenRating('victory', true);
+        this.net?.close();
+        this.net = null;
+        this.hud.hidePauseMenu();
+        this.placement.enabled = false;
+        this.placement.deselect();
+        this.gridOverlay.visible = false;
+        this.hpBars.clear();
+        this.hud.showForfeitWin();
+    }
+
     /**
      * Soft open-ladder Elo (honor system). Host-only in MP; AI games count
-     * W/L but do not change MMR. Failures are ignored.
+     * W/L but do not change MMR. `forceReport` bypasses the host-only gate for
+     * a forfeit win, since the reporting side may be either host or guest —
+     * whichever one is still connected. Failures are ignored.
      */
-    private reportOpenRating(result: 'victory' | 'defeat' | 'draw'): void {
-        if (this.net && this.side !== 'a') return;
+    private reportOpenRating(result: 'victory' | 'defeat' | 'draw', forceReport = false): void {
+        if (this.net && this.side !== 'a' && !forceReport) return;
         try {
             const mode = this.net ? 'mp' : 'ai';
             reportMatchResult({
@@ -2890,6 +3034,20 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        // reconnect grace ticks in real time, independent of phase/suspend —
+        // an unreturned opponent forfeits once it hits zero
+        if (this.reconnectGraceRemaining !== null) {
+            this.reconnectGraceRemaining -= dtSeconds;
+            if (this.reconnectGraceRemaining <= 0) {
+                this.reconnectGraceRemaining = null;
+                const onTimeout = this.onReconnectTimeout;
+                this.onReconnectTimeout = null;
+                onTimeout?.();
+                this.forfeitWin();
+            } else {
+                this.hud.updateReconnectWait(this.reconnectGraceRemaining);
+            }
+        }
         const profile = this.debug.isEnabled;
         const cpu = this.cpuSampler;
         if (profile) cpu.reset();
@@ -2990,7 +3148,8 @@ export class Game {
             this.net !== null &&
             !this.matchOver &&
             ((this.phase === 'build' && this.deployReady.player && !this.deployReady.enemy) ||
-                (this.awaitingCards && this.round === 0 && this.speciality.player !== null));
+                (this.awaitingCards && this.round === 0 && this.speciality.player !== null) ||
+                (this.battleReady.player && !this.battleReady.enemy));
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer);
         this.hud.setUndoVisible(this.canUndo());
         this.hud.setDeploys(

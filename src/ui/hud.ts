@@ -1410,6 +1410,50 @@ export class Hud {
         this.notice = null;
     }
 
+    private reconnectWait: HTMLDivElement | null = null;
+
+    /** connection lost: blocking notice with a live countdown to forfeit */
+    showReconnectWait(onGiveUp: () => void): void {
+        this.hideNotice();
+        this.reconnectWait?.remove();
+        const el = document.createElement('div');
+        el.className = 'mechili-cards';
+        el.innerHTML =
+            `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">Connection lost — reconnecting…</div>` +
+            `<div class="cards-title reconnect-timer"></div>` +
+            `<button class="cards-skip">Give up</button>`;
+        el.querySelector('.cards-skip')!.addEventListener('click', onGiveUp);
+        this.reconnectWait = el;
+        this.mount(el);
+    }
+
+    /** ticks the reconnect countdown — pulses in the last 5s, same as the round timer */
+    updateReconnectWait(secondsRemaining: number): void {
+        const el = this.reconnectWait?.querySelector<HTMLDivElement>('.reconnect-timer');
+        if (!el) return;
+        const s = Math.max(0, Math.ceil(secondsRemaining));
+        el.textContent = `Opponent has ${s}s to return`;
+        el.classList.toggle('urgent', s <= 5);
+    }
+
+    hideReconnectWait(): void {
+        this.reconnectWait?.remove();
+        this.reconnectWait = null;
+    }
+
+    /** the grace window elapsed with no reconnect — we win by forfeit */
+    showForfeitWin(): void {
+        this.hideReconnectWait();
+        const el = document.createElement('div');
+        el.className = 'mechili-gameover victory';
+        el.innerHTML =
+            `<div class="go-title">VICTORY</div>` +
+            `<div class="go-sub">Opponent disconnected</div>` +
+            `<button class="go-restart">Back to main menu</button>`;
+        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+        this.mount(el);
+    }
+
     /** the peer connection died — nothing to do but return to the menu */
     showDisconnect(): void {
         const el = document.createElement('div');

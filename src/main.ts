@@ -263,7 +263,12 @@ let resumeAbort: AbortController | null = null;
 let activeGame: Game | null = null;
 let stopSinglePlayerPersist: (() => void) | null = null;
 
-type MatchResume = { actions: LoggedAction[]; battleElapsed: number | null; local?: boolean };
+type MatchResume = {
+    actions: LoggedAction[];
+    battleElapsed: number | null;
+    local?: boolean;
+    phaseRemaining?: number;
+};
 
 function hideResumeOverlay(): void {
     resumeOverlay?.remove();
@@ -593,6 +598,7 @@ function wireSinglePlayerPersist(game: Game): () => void {
             settings: data.settings,
             actions: data.actions,
             battleElapsed: data.battleElapsed,
+            phaseRemaining: data.phaseRemaining,
             localName: getPlayerName(),
         });
     };
@@ -609,22 +615,28 @@ function wireSinglePlayerPersist(game: Game): () => void {
     };
 }
 
+/** how long the still-connected player waits before winning by forfeit */
+const RECONNECT_GRACE_SECONDS = 30;
+
 /**
- * Survivor side of a dropped connection: pause the game, wait for the peer
- * to come back (re-hosting our room, or redialing theirs), answer their
- * resume request with the full match state, then continue.
+ * Survivor side of a dropped connection: pause behind a live countdown, wait
+ * for the peer to come back (re-hosting our room, or redialing theirs),
+ * answer their resume request with the full match state, then continue. If
+ * the peer hasn't returned within the grace window, we win by forfeit.
  */
 function wireReconnect(game: Game, initial: NetSession): void {
     let session = initial;
     game.onConnectionLost = () => {
-        game.suspend('Connection lost — waiting for the opponent to reconnect…');
+        const ac = new AbortController();
+        game.onReconnectTimeout = () => ac.abort();
+        game.beginReconnectGrace(RECONNECT_GRACE_SECONDS);
         void (async () => {
             try {
                 // if the dropped peer owned a room id it will RE-HOST it (we
                 // redial); otherwise it knows our id and dials us (we wait)
                 const next = session.remoteId.startsWith('mechili-room-')
-                    ? await session.redial()
-                    : await session.awaitReconnect();
+                    ? await session.redial(ac.signal)
+                    : await session.awaitReconnect(ac.signal);
                 if (activeGame !== game) return;
                 const first = await next.once();
                 if (activeGame !== game) return;
@@ -633,8 +645,11 @@ function wireReconnect(game: Game, initial: NetSession): void {
                 }
                 session = next;
                 game.resumeWith(next);
-            } catch {
+            } catch (e) {
                 if (activeGame !== game) return;
+                // grace window already elapsed — forfeitWin() has the result,
+                // nothing more to show here
+                if (e instanceof DOMException && e.name === 'AbortError') return;
                 clearResumeMarker();
                 game.suspend('The opponent did not come back.');
             }
@@ -682,6 +697,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
         startGame(settings, session, marker.side, marker.names, {
             actions: msg.actions,
             battleElapsed: msg.battleElapsed,
+            phaseRemaining: msg.phaseRemaining,
         });
     } catch (e) {
         session?.close();
@@ -707,6 +723,7 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
     startGame(settings, null, 'a', { local: save.localName, opponent: 'AI' }, {
         actions: save.actions,
         battleElapsed: save.battleElapsed,
+        phaseRemaining: save.phaseRemaining,
         local: true,
     });
 }
