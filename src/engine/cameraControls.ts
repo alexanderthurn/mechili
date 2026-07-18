@@ -8,6 +8,14 @@ const ORBIT_PITCH_PER_PX = 0.004;
 
 /** single-finger drags shorter than this stay taps (placement clicks) */
 const TOUCH_PAN_SLOP = 9;
+/**
+ * Two-finger gestures are winner-takes-all: the first intent to cross its
+ * threshold locks the gesture until a finger lifts, so zooming never also
+ * rotates and twisting never also zooms.
+ */
+const PINCH_ZOOM_THRESHOLD = 24; // px of finger-distance change
+const TWIST_THRESHOLD = 0.12; // rad of finger-pair rotation (~7°)
+const TILT_THRESHOLD = 20; // px of midpoint travel up/down
 
 /**
  * Typical RTS camera input on top of {@link CameraRig}:
@@ -21,7 +29,9 @@ const TOUCH_PAN_SLOP = 9;
  * Touch (no mouse buttons — gestures instead):
  *  - one-finger drag: grab the ground and pan (taps stay placement clicks;
  *    suppressed while a ghost/carried pack rides the finger)
- *  - two fingers: pinch to zoom at the midpoint, move together to orbit
+ *  - pinch: zoom at the midpoint
+ *  - two-finger twist: rotate the heading (map-app style)
+ *  - two fingers dragged up/down together: tilt
  */
 export class CameraControls {
     /** set to false to disable edge scrolling (e.g. in windowed dev) */
@@ -43,7 +53,9 @@ export class CameraControls {
     private touchPanGround: Vector3 | null = null;
     private touchPanActive = false;
     private touchDown: { x: number; y: number } | null = null;
-    private pinchLast: { dist: number; midX: number; midY: number } | null = null;
+    private pinchLast: { dist: number; midX: number; midY: number; angle: number } | null = null;
+    private pinchStart: { dist: number; midX: number; midY: number; angle: number } | null = null;
+    private pinchMode: 'idle' | 'zoom' | 'twist' | 'tilt' = 'idle';
     private readonly disposers: (() => void)[] = [];
 
     constructor(
@@ -162,10 +174,12 @@ export class CameraControls {
             this.touchPanGround = this.pickAt(e.clientX, e.clientY);
             this.touchPanActive = false;
         } else if (this.touches.size === 2) {
-            // second finger: abandon panning, start pinch/orbit
+            // second finger: abandon panning, start pinch/twist/tilt
             this.touchPanGround = null;
             this.touchPanActive = false;
             this.pinchLast = this.pinchState();
+            this.pinchStart = this.pinchLast;
+            this.pinchMode = 'idle';
         } else {
             this.pinchLast = null;
         }
@@ -189,28 +203,50 @@ export class CameraControls {
             return;
         }
 
-        if (this.touches.size === 2 && this.pinchLast) {
+        if (this.touches.size === 2 && this.pinchLast && this.pinchStart) {
             const pinch = this.pinchState();
             if (!pinch) return;
-            if (pinch.dist > 0 && this.pinchLast.dist > 0) {
+            let angleDelta = pinch.angle - this.pinchLast.angle;
+            if (angleDelta > Math.PI) angleDelta -= 2 * Math.PI;
+            else if (angleDelta < -Math.PI) angleDelta += 2 * Math.PI;
+
+            if (this.pinchMode === 'idle') {
+                // first intent past its threshold wins the whole gesture
+                let angleFromStart = pinch.angle - this.pinchStart.angle;
+                if (angleFromStart > Math.PI) angleFromStart -= 2 * Math.PI;
+                else if (angleFromStart < -Math.PI) angleFromStart += 2 * Math.PI;
+                if (Math.abs(pinch.dist - this.pinchStart.dist) > PINCH_ZOOM_THRESHOLD) {
+                    this.pinchMode = 'zoom';
+                } else if (Math.abs(angleFromStart) > TWIST_THRESHOLD) {
+                    this.pinchMode = 'twist';
+                } else if (Math.abs(pinch.midY - this.pinchStart.midY) > TILT_THRESHOLD) {
+                    this.pinchMode = 'tilt';
+                }
+            }
+
+            if (this.pinchMode === 'zoom' && pinch.dist > 0 && this.pinchLast.dist > 0) {
                 const rect = this.surface.getBoundingClientRect();
                 this.rig.zoomAt(
                     this.pinchLast.dist / pinch.dist,
                     pinch.midX - rect.left,
                     pinch.midY - rect.top,
                 );
+            } else if (this.pinchMode === 'twist') {
+                this.rig.orbit(angleDelta, 0);
+            } else if (this.pinchMode === 'tilt') {
+                this.rig.orbit(0, (pinch.midY - this.pinchLast.midY) * ORBIT_PITCH_PER_PX);
             }
-            this.rig.orbit(
-                -(pinch.midX - this.pinchLast.midX) * ORBIT_HEADING_PER_PX,
-                (pinch.midY - this.pinchLast.midY) * ORBIT_PITCH_PER_PX,
-            );
             this.pinchLast = pinch;
         }
     }
 
     private onTouchEnd(e: PointerEvent): void {
         this.touches.delete(e.pointerId);
-        if (this.touches.size < 2) this.pinchLast = null;
+        if (this.touches.size < 2) {
+            this.pinchLast = null;
+            this.pinchStart = null;
+            this.pinchMode = 'idle';
+        }
         if (this.touches.size === 1) {
             // hand the pan over to the remaining finger
             const [rest] = this.touches.values();
@@ -224,13 +260,14 @@ export class CameraControls {
         }
     }
 
-    private pinchState(): { dist: number; midX: number; midY: number } | null {
+    private pinchState(): { dist: number; midX: number; midY: number; angle: number } | null {
         if (this.touches.size < 2) return null;
         const [a, b] = [...this.touches.values()];
         return {
             dist: Math.hypot(a!.x - b!.x, a!.y - b!.y),
             midX: (a!.x + b!.x) / 2,
             midY: (a!.y + b!.y) / 2,
+            angle: Math.atan2(b!.y - a!.y, b!.x - a!.x),
         };
     }
 
