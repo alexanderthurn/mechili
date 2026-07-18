@@ -1,0 +1,13 @@
+# Host-based front door for Melodan on Feuerware.
+# Upload this next to index.html / web.html (production folder).
+# The FTP deploy excludes .htaccess so redeploys should leave it alone.
+
+RewriteEngine On
+
+# melodan.com / www.melodan.com → marketing site
+RewriteCond %{HTTP_HOST} ^(www\.)?melodan\.com$ [NC]
+RewriteRule ^$ web.html [L]
+
+# play.melodan.com → game
+RewriteCond %{HTTP_HOST} ^play\.melodan\.com$ [NC]
+RewriteRule ^$ index.html [L]
