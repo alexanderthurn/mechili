@@ -1,7 +1,7 @@
 import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { GAME_VERSION } from '../game/net';
-import { TACTICS } from '../game/tactics';
+import { TACTICS, formatTacticStats } from '../game/tactics';
 import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
@@ -187,9 +187,13 @@ function shotCard(shot: { src: string; label: string }, index: number): string {
 function tacticCard(t: (typeof TACTICS)[string]): string {
     const art = TACTIC_ART[t.id];
     const kindLabel = t.kind === 'placement' ? 'Placement' : 'One-shot';
+    const stats = formatTacticStats(t);
     const media = art
         ? `<img class="mh-tactic-art" src="${esc(art)}" alt="" loading="lazy" />`
         : `<div class="mh-tactic-icon" aria-hidden="true">${t.icon}</div>`;
+    const statsHtml = stats.length
+        ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
+        : '';
     return `
 <article class="mh-tactic">
   ${media}
@@ -200,6 +204,7 @@ function tacticCard(t: (typeof TACTICS)[string]): string {
     </div>
     <p class="mh-tactic-meta">${kindLabel} · ${esc(t.targeting)}</p>
     <p class="mh-tactic-desc">${esc(t.description)}</p>
+    ${statsHtml}
   </div>
 </article>`;
 }

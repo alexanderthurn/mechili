@@ -561,6 +561,25 @@ body {
     line-height: 1.5;
     color: ${u.phase};
 }
+.mh-tactic-stats {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.mh-tactic-stats li {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: ${u.brassLight};
+    line-height: 1.3;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 208, 64, 0.2);
+    background: rgba(0, 0, 0, 0.28);
+}
 
 .mh-about {
     max-width: 42rem;

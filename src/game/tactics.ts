@@ -6,9 +6,11 @@ import {
     FIRE_SPILL_BURN_SEC,
     FIRE_SPILL_INTENSITY,
     FIRE_SPILL_RADIUS,
+    OIL_SPEED_MULT,
     OIL_SPILL_DURATION_ROUNDS,
     OIL_SPILL_RADIUS,
 } from './fire';
+import { UNIT_TYPES } from './units';
 
 /** tactical orders (not pack items) — granted by round cards, consumed per placement */
 export const RALLY_ROUTE_ID = 'rallyRoute';
@@ -151,7 +153,7 @@ export const TACTICS: Record<
          * shortly after battle start (same pour timing as oil). Acid persists
          * by ROUND; fire is battle-seconds only.
          */
-        acidCapsule?: { durationRounds: number };
+        acidCapsule?: { durationRounds: number; dpsPercent: number };
         fireCapsule?: { burnSeconds: number; intensity: number };
         /** oil spill only */
         oilRadius?: number;
@@ -292,8 +294,9 @@ export const TACTICS: Record<
         cooldownRounds: ACID_SPILL_DURATION_ROUNDS,
         radius: ACID_SPILL_RADIUS,
         // pours left→right shortly after battle start (same drip timing as oil)
-        acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS },
-        description: `Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Units standing in it sizzle for ${ACID_DPS_PERCENT}% of their max HP every second and turn corroded — taking extra damage from everything. Gone after ${ACID_SPILL_DURATION_ROUNDS} round.`,
+        acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS, dpsPercent: ACID_DPS_PERCENT },
+        description:
+            'Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Units standing in it sizzle and turn corroded — taking extra damage from everything.',
     },
     [FIRE_SPILL_ID]: {
         id: FIRE_SPILL_ID,
@@ -304,7 +307,8 @@ export const TACTICS: Record<
         cooldownRounds: 1,
         radius: FIRE_SPILL_RADIUS,
         fireCapsule: { burnSeconds: FIRE_SPILL_BURN_SEC, intensity: FIRE_SPILL_INTENSITY },
-        description: `Pour a fire capsule like oil — it drips left-to-right shortly after battle starts and sets the path ablaze (ward discs stay clear). Connected oil ignites with it. Flame lasts ${FIRE_SPILL_BURN_SEC}s this battle only.`,
+        description:
+            'Pour a fire capsule like oil — it drips left-to-right shortly after battle starts and sets the path ablaze (ward discs stay clear). Connected oil ignites with it. Flame lasts this battle only.',
     },
     [DRAGON_ID]: {
         id: DRAGON_ID,
@@ -320,7 +324,7 @@ export const TACTICS: Record<
             igniteCapsule: { burnSeconds: 4, intensity: 28, damage: 900 },
         },
         description:
-            'Draw the dragon’s strafing path (wider and longer than oil). Seconds into the battle it dives in and breathes fire along the corridor — the beam scorches units as it passes and paints the ground ablaze. Ward domes absorb the breath (and pay for it).',
+            'Draw the dragon’s strafing path (wider and longer than oil). It dives in and breathes fire along the corridor — the beam scorches units as it passes and paints the ground ablaze. Ward domes absorb the breath (and pay for it).',
     },
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,
@@ -347,6 +351,90 @@ export const TACTICS: Record<
  */
 export function usesSpellPlacement(tactic: (typeof TACTICS)[string]): boolean {
     return !!(tactic.spell || tactic.acidCapsule || tactic.fireCapsule);
+}
+
+/** world radius → board cells (CELL-sized tiles) for readable UI */
+function cellsLabel(world: number): string {
+    const n = Math.round((world / CELL) * 10) / 10;
+    return `${n} cell${n === 1 ? '' : 's'}`;
+}
+
+function roundsLabel(n: number): string {
+    return `${n} round${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * Numeric / rule stats derived from the tactic payload (single source of truth).
+ * Flavor `description` should stay number-free; UIs render these lines instead.
+ */
+export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
+    const lines: string[] = [];
+
+    if (t.cooldownRounds > 0) {
+        lines.push(`Cooldown ${roundsLabel(t.cooldownRounds)}`);
+    }
+
+    if (t.radius != null && (t.spell || t.acidCapsule || t.fireCapsule || t.oilRadius)) {
+        lines.push(`Aim ${cellsLabel(t.radius)}`);
+    }
+    if (t.maxSpan != null) {
+        lines.push(`Max path ${cellsLabel(t.maxSpan)}`);
+    }
+
+    const spell = t.spell;
+    if (spell) {
+        lines.push(`Delay ${spell.delaySeconds}s`);
+        if (spell.strike) {
+            lines.push(`Damage ${spell.strike.damage}`);
+            lines.push(`Blast ${cellsLabel(spell.strike.radius)}`);
+        }
+        if (spell.spawn) {
+            const unit = UNIT_TYPES.find((u) => u.id === spell.spawn!.typeId);
+            const label = unit?.name ?? spell.spawn.typeId;
+            lines.push(`Summon ${spell.spawn.count}× ${label}`);
+        }
+        if (spell.zone) {
+            const z = spell.zone;
+            if (z.mode === 'storm') {
+                lines.push(`Lightning ${z.damage} every ${z.interval}s`);
+            } else if (z.mode === 'poison') {
+                lines.push(`Poison ${z.damage} every ${z.interval}s`);
+            } else if (z.mode === 'meteorShower') {
+                lines.push(`Meteor ${z.damage} every ${z.interval}s`);
+                if (z.impactRadius != null) lines.push(`Impact ${cellsLabel(z.impactRadius)}`);
+                if (z.igniteRadius != null) {
+                    lines.push(`Ignite ${cellsLabel(z.igniteRadius)}`);
+                }
+            }
+            lines.push(`Duration ${z.duration}s`);
+        }
+        if (spell.igniteCapsule) {
+            const c = spell.igniteCapsule;
+            if (c.damage != null && c.damage > 0) {
+                lines.push(`Breath damage ${c.damage}`);
+            }
+            lines.push(`Ground fire DPS ${c.intensity}`);
+            lines.push(`Ground burn ${c.burnSeconds}s`);
+        }
+    }
+
+    if (t.fireCapsule) {
+        lines.push(`Fire DPS ${t.fireCapsule.intensity}`);
+        lines.push(`Burn ${t.fireCapsule.burnSeconds}s`);
+    }
+
+    if (t.acidCapsule) {
+        lines.push(`Acid ${t.acidCapsule.dpsPercent}% max HP / s`);
+        lines.push(`Lasts ${roundsLabel(t.acidCapsule.durationRounds)}`);
+        lines.push('Applies corroded');
+    }
+
+    if (t.oilDurationRounds != null) {
+        lines.push(`Oil ${OIL_SPEED_MULT}× move speed`);
+        lines.push(`Lasts ${roundsLabel(t.oilDurationRounds)}`);
+    }
+
+    return lines;
 }
 
 /** how close a mech must get to its personal destination */
