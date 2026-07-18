@@ -1640,11 +1640,19 @@ export class Game {
     /**
      * Applies streamed peer events strictly in order, holding at the head
      * until our game reaches the event's round (our battle may lag theirs).
+     * NOT gated on our own `awaitingCards`: that's purely "is my own round-
+     * card overlay still open" — it has no bearing on whether the peer's
+     * independent, already-completed actions are safe to log. Gating on it
+     * used to leave the peer's actions stuck in the queue (never reaching
+     * `dispatcher`'s log, so never part of `exportResume()`) for as long as
+     * our own overlay stayed open — if the peer reloaded during that window,
+     * their own already-submitted pick/buys would silently vanish from the
+     * rebuild.
      */
     private drainRemoteQueue(): void {
         while (this.remoteQueue.length > 0) {
             const head = this.remoteQueue[0]!;
-            if (head.round !== this.round || this.phase !== 'build' || this.awaitingCards) return;
+            if (head.round !== this.round || this.phase !== 'build') return;
             this.remoteQueue.shift();
             if (head.undo) {
                 this.dispatcher.undoLast(head.round, 'enemy');

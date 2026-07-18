@@ -3,9 +3,9 @@ import {
     Group,
     Mesh,
     MeshStandardMaterial,
+    Object3D,
     Vector3,
     type Material,
-    type Object3D,
 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
@@ -21,7 +21,8 @@ export async function loadSpellTemplate(
 
 /**
  * Clone meshes into a holder, bake world transforms, normalize longest axis to 1,
- * sit the bottom on y=0, center XZ.
+ * sit the bottom on y=0, center XZ. Named leaf empties (e.g. MouthFireSpawn) are
+ * kept as Object3D markers in the same baked space.
  */
 export function prepareSpellTemplate(
     scene: Object3D,
@@ -40,15 +41,24 @@ export function prepareSpellTemplate(
     stage.updateMatrixWorld(true);
 
     const holder = new Group();
+    const markers: { name: string; position: Vector3 }[] = [];
+    const _wp = new Vector3();
     model.traverse((o) => {
         const mesh = o as Mesh;
-        if (!mesh.isMesh || !mesh.geometry) return;
-        const geo = mesh.geometry.clone();
-        geo.applyMatrix4(mesh.matrixWorld);
-        const baked = new Mesh(geo, mesh.material);
-        baked.castShadow = true;
-        baked.receiveShadow = true;
-        holder.add(baked);
+        if (mesh.isMesh && mesh.geometry) {
+            const geo = mesh.geometry.clone();
+            geo.applyMatrix4(mesh.matrixWorld);
+            const baked = new Mesh(geo, mesh.material);
+            baked.castShadow = true;
+            baked.receiveShadow = true;
+            holder.add(baked);
+            return;
+        }
+        // leaf empties — sockets like MouthFireSpawn (added after normalize)
+        if (o.name && o.children.length === 0 && !(o as Mesh).isMesh) {
+            o.getWorldPosition(_wp);
+            markers.push({ name: o.name, position: _wp.clone() });
+        }
     });
 
     let box = new Box3().setFromObject(holder);
@@ -61,6 +71,14 @@ export function prepareSpellTemplate(
     holder.position.x -= center.x;
     holder.position.z -= center.z;
     holder.position.y -= box.min.y;
+
+    // same baked stage space as mesh vertices; holder scale/position applies
+    for (const m of markers) {
+        const marker = new Object3D();
+        marker.name = m.name;
+        marker.position.copy(m.position);
+        holder.add(marker);
+    }
     return holder;
 }
 

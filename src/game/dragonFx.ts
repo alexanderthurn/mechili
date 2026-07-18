@@ -6,6 +6,7 @@ import {
     MathUtils,
     Mesh,
     MeshBasicMaterial,
+    Object3D,
     RepeatWrapping,
     SRGBColorSpace,
     Vector3,
@@ -22,6 +23,8 @@ import {
 import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC } from './tactics';
 
 const DRAGON_URL = new URL('../../assets/models/spells/dragon.glb', import.meta.url).href;
+/** authored empty in dragon.glb — fire tube origin in the mouth */
+const MOUTH_SPAWN_NAME = 'MouthFireSpawn';
 
 /** re-export — also the spit wind-up (charge clears when spit begins) */
 export { DRAGON_APPROACH_SEC };
@@ -67,6 +70,8 @@ type Active = {
     cue: DragonCue;
     root: Group;
     materials: MeshStandardMaterial[];
+    /** MouthFireSpawn marker, or null if the model has none */
+    mouthSpawn: Object3D | null;
     tube: Mesh;
     len: number;
     ux: number;
@@ -80,11 +85,13 @@ const _mouth = new Vector3();
 const _hit = new Vector3();
 const _dir = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _mouthActual = new Vector3();
 
 /**
  * Constant-speed flight along the capsule axis. Fire tube aims forward from
- * the dragon to a ground hit ahead (fire cursor). Shrink stays planted at
- * path end while the dragon keeps going.
+ * MouthFireSpawn (dragon mouth) to a ground hit ahead. The model is shifted so
+ * that empty sits on the tube’s sky end. Shrink stays planted at path end while
+ * the dragon keeps going.
  */
 export class DragonFx {
     private readonly group = new Group();
@@ -182,11 +189,15 @@ export class DragonFx {
                 );
             }
 
-            // mouth slightly ahead of the mesh center along flight (+X on model)
-            _mouth.set(dx + a.ux * MESH_SCALE * 0.35, skyY - height * 0.08, dz + a.uz * MESH_SCALE * 0.35);
+            // Flight mouth follows the dragon; tube may plant separately during shrink.
+            const flightMouthX = dx + a.ux * MESH_SCALE * 0.35;
+            const flightMouthY = skyY - height * 0.08;
+            const flightMouthZ = dz + a.uz * MESH_SCALE * 0.35;
+            _mouth.set(flightMouthX, flightMouthY, flightMouthZ);
+
             if (mode === 'shrink') {
                 _hit.set(a.cue.x2, groundHeightAt(a.cue.x2, a.cue.z2) + 0.3, a.cue.z2);
-                // keep a stable mouth above the end while shrinking into the dirt
+                // tube stays planted at path end while the dragon keeps flying
                 _mouth.set(
                     a.cue.x2 - a.ux * aimAhead * 0.35,
                     groundHeightAt(a.cue.x2, a.cue.z2) + HEIGHT_BREATH * 0.85,
@@ -195,7 +206,6 @@ export class DragonFx {
             } else {
                 _hit.set(hx, hitGy + 0.3, hz);
             }
-            placeBreathTube(a.tube, mode, _mouth, _hit, spitU, shrinkU);
 
             a.root.visible = true;
             a.root.position.set(dx, skyY, dz);
@@ -210,6 +220,18 @@ export class DragonFx {
             // tip nose toward the ground hit ahead
             a.root.rotation.z = -0.12 - low * 0.2;
             a.root.scale.setScalar(MESH_SCALE);
+
+            // Always pin to the *flight* mouth so the path stays continuous.
+            // Shrink only redirects the tube — it must not freeze the model.
+            if (a.mouthSpawn) {
+                a.root.updateMatrixWorld(true);
+                a.mouthSpawn.getWorldPosition(_mouthActual);
+                a.root.position.x += flightMouthX - _mouthActual.x;
+                a.root.position.y += flightMouthY - _mouthActual.y;
+                a.root.position.z += flightMouthZ - _mouthActual.z;
+            }
+
+            placeBreathTube(a.tube, mode, _mouth, _hit, spitU, shrinkU);
 
             let fade = 1;
             if (hitDist > a.len) {
@@ -253,6 +275,7 @@ export class DragonFx {
             materials = [];
         }
         root.visible = false;
+        const mouthSpawn = root.getObjectByName(MOUTH_SPAWN_NAME) ?? null;
 
         const tube = new Mesh(this.tubeGeo, this.tubeMat);
         tube.visible = false;
@@ -261,7 +284,7 @@ export class DragonFx {
 
         this.group.add(root);
         this.group.add(tube);
-        this.active.push({ cue, root, materials, tube, len, ux, uz, done: false });
+        this.active.push({ cue, root, materials, mouthSpawn, tube, len, ux, uz, done: false });
     }
 
     private async load(): Promise<void> {
@@ -277,6 +300,7 @@ export class DragonFx {
                 this.group.add(root);
                 a.root = root;
                 a.materials = materials;
+                a.mouthSpawn = root.getObjectByName(MOUTH_SPAWN_NAME) ?? null;
             }
         } catch (e) {
             console.error('[dragonFx] failed to load dragon model', e);
