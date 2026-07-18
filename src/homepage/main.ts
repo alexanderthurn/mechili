@@ -361,6 +361,7 @@ if (heroPlay && stickyPlay && typeof IntersectionObserver !== 'undefined') {
     };
     new IntersectionObserver(
         ([entry]) => {
+            if (!entry) return;
             pastHero = !entry.isIntersecting;
             syncSticky();
         },
@@ -369,6 +370,7 @@ if (heroPlay && stickyPlay && typeof IntersectionObserver !== 'undefined') {
     if (footerEl) {
         new IntersectionObserver(
             ([entry]) => {
+                if (!entry) return;
                 footerVisible = entry.isIntersecting;
                 syncSticky();
             },
