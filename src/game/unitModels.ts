@@ -2,7 +2,6 @@ import {
     Box3,
     BufferAttribute,
     BufferGeometry,
-    Color,
     Group,
     MathUtils,
     Matrix4,
@@ -14,7 +13,6 @@ import {
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-import { teamColors } from './colors';
 import type { Team } from './units';
 
 /**
@@ -53,14 +51,11 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     'research-center': { url: new URL('../../assets/models/research-center-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 1.25 }, // wizard tower
 };
 
-/** how strongly the neutral gunmetal model is tinted toward its team color (0..1) */
-const TEAM_TINT = 0.32;
-
-type Template = { player: Group; enemy: Group };
+type Template = Group;
 const templates = new Map<string, Template>();
 const loader = new GLTFLoader();
 
-/** Shared geometry + team material for InstancedMesh pools (one entry per material). */
+/** Shared geometry + material for InstancedMesh pools (one entry per material). */
 export interface InstancePart {
     geometry: BufferGeometry;
     material: MeshStandardMaterial;
@@ -70,7 +65,7 @@ export interface InstanceAsset {
     parts: InstancePart[];
 }
 
-const instanceAssets = new Map<string, { player: InstanceAsset; enemy: InstanceAsset }>();
+const instanceAssets = new Map<string, InstanceAsset>();
 
 export function hasUnitModel(id: string): boolean {
     return templates.has(id);
@@ -80,39 +75,53 @@ export function hasUnitInstanceAsset(id: string): boolean {
     return instanceAssets.has(id);
 }
 
-export function getUnitInstanceAsset(id: string, team: Team): InstanceAsset | null {
-    const a = instanceAssets.get(id);
-    return a ? a[team] : null;
+export function getUnitInstanceAsset(id: string): InstanceAsset | null {
+    return instanceAssets.get(id) ?? null;
 }
 
 /**
- * A fresh, team-tinted, normalized clone of the model — or null if none loaded.
+ * A fresh, untinted, normalized clone of the model — or null if none loaded.
+ * Materials are unique per clone so level tinting can change them safely.
  * Sized to the unit's procedural LOCAL height, so the caller applying
  * `meshScale` yields the same world size the game already expects.
+ * `@deprecated team` kept optional for call sites that still pass it.
  */
-export function cloneUnitModel(id: string, team: Team): Group | null {
+export function cloneUnitModel(id: string, _team?: Team): Group | null {
     const t = templates.get(id);
-    return t ? (skeletonClone(t[team]) as Group) : null;
+    if (!t) return null;
+    const clone = skeletonClone(t) as Group;
+    uniquifyMaterials(clone);
+    return clone;
 }
 
-/** Deep-clone the scene and tint each material toward the team color. */
-function tintedClone(scene: Object3D, team: Team): Object3D {
+/** Clone materials so per-pack level tint does not leak across instances. */
+function uniquifyMaterials(root: Object3D): void {
+    root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        const cloned = mats.map((m) => {
+            const c = (m as MeshStandardMaterial).clone();
+            return c;
+        });
+        mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]!;
+    });
+}
+
+/** Prep a GLB scene: metalness caps, shadows — no team tint (level tint is live). */
+function prepareClone(scene: Object3D): Object3D {
     const clone = skeletonClone(scene);
-    const col = new Color(teamColors[team].hex);
     clone.traverse((o) => {
         const mesh = o as Mesh;
         if (!mesh.isMesh) return;
         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        const tinted = mats.map((m) => {
+        const prepared = mats.map((m) => {
             const c = (m as MeshStandardMaterial).clone();
-            if (c.color) c.color.lerp(col, TEAM_TINT);
-            // Tripo often bakes metalness near 1; combined with a subtle env map
-            // that reads too dark. Cap it so the diffuse light carries the form.
             if (typeof c.metalness === 'number') c.metalness = Math.min(c.metalness, 0.6);
             c.envMapIntensity = 1.1;
             return c;
         });
-        mesh.material = Array.isArray(mesh.material) ? tinted : tinted[0]!;
+        mesh.material = Array.isArray(mesh.material) ? prepared : prepared[0]!;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
     });
@@ -236,9 +245,9 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
 }
 
 /**
- * Load every spec'd model and bake team-tinted, normalized templates.
- * `heights` gives each unit's procedural local height. Failures fall back to
- * the procedural mesh (the unit id simply stays absent from the template map).
+ * Load every spec'd model and bake untinted, normalized templates.
+ * Level tint is applied live per pack. `heights` gives each unit's procedural
+ * local height. Failures fall back to the procedural mesh.
  */
 export async function loadUnitModels(
     heights: Record<string, number>,
@@ -252,13 +261,16 @@ export async function loadUnitModels(
             try {
                 const gltf = await loader.loadAsync(spec.url);
                 const h = (heights[id] || 1) * (spec.scale ?? 1);
-                const player = normalize(tintedClone(gltf.scene, 'player'), h, spec.yaw, spec.pitch, spec.roll, spec.offset);
-                const enemy = normalize(tintedClone(gltf.scene, 'enemy'), h, spec.yaw, spec.pitch, spec.roll, spec.offset);
-                templates.set(id, { player, enemy });
-                instanceAssets.set(id, {
-                    player: bakeInstanceAsset(player),
-                    enemy: bakeInstanceAsset(enemy),
-                });
+                const root = normalize(
+                    prepareClone(gltf.scene),
+                    h,
+                    spec.yaw,
+                    spec.pitch,
+                    spec.roll,
+                    spec.offset,
+                );
+                templates.set(id, root);
+                instanceAssets.set(id, bakeInstanceAsset(root));
                 console.info(`[unitModels] loaded '${id}' from ${spec.url} (height ${h.toFixed(2)})`);
             } catch (e) {
                 console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);

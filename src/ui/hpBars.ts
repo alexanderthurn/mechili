@@ -63,12 +63,6 @@ export class HpBars {
         const w = t.structure ? 42 : selected ? 26 : 18;
         const h = selected ? 5 : 3;
         const color = teamColors[a.unit.team].hex;
-        // veterancy pips above the bar
-        for (let i = 0; i < a.unit.level - 1; i++) {
-            this.view
-                .circle(sx - ((a.unit.level - 2) * 5) / 2 + i * 5, sy - h - 5, 1.8)
-                .fill({ color: THEME.veteran, alpha });
-        }
 
         if (selected) {
             // the ground shows the 3D attack-range ring instead of a marker here

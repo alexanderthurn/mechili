@@ -1,3 +1,5 @@
+import type { Color } from 'three';
+
 /**
  * Team colors are keyed by CANONICAL side, not by local perspective: the
  * host ('a') is blue on both screens, the guest ('b') red. The palette is a
@@ -26,4 +28,50 @@ export const teamColors: { player: SideColor; enemy: SideColor } = {
 export function assignTeamColors(side: 'a' | 'b'): void {
     teamColors.player = SIDE_COLORS[side === 'a' ? 0 : 1]!;
     teamColors.enemy = SIDE_COLORS[side === 'a' ? 1 : 0]!;
+}
+
+/**
+ * Pack veterancy tint on the 3D mesh (level 1 = untinted).
+ * 2 blue, 3+ yellow.
+ */
+export const LEVEL_TINT_COLORS: readonly (number | null)[] = [
+    null,
+    null, // 1 — natural model colors
+    0x1a6ad8, // 2 blue
+    0xd4a810, // 3+ yellow
+    0xd4a810,
+    0xd4a810,
+    0xd4a810,
+    0xd4a810,
+    0xd4a810,
+    0xd4a810,
+];
+
+/** dye amount for level tint multiply (0 = none, 1 = full color) */
+export const LEVEL_TINT_STRENGTH = 0.75;
+
+const _mul = { r: 1, g: 1, b: 1 };
+
+/**
+ * Dye material color toward a level hue without washing to pastel.
+ * Multiplies the base albedo by lerp(white, tint, strength) — keeps texture,
+ * reads as real color instead of sky-blue whitening from color.lerp.
+ */
+export function applyLevelTintColor(
+    mat: { color: Color },
+    base: Color,
+    tintHex: number,
+    strength = LEVEL_TINT_STRENGTH,
+): void {
+    const t = strength;
+    const r = ((tintHex >> 16) & 255) / 255;
+    const g = ((tintHex >> 8) & 255) / 255;
+    const b = (tintHex & 255) / 255;
+    _mul.r = 1 - t + r * t;
+    _mul.g = 1 - t + g * t;
+    _mul.b = 1 - t + b * t;
+    mat.color.copy(base);
+    mat.color.r *= _mul.r;
+    mat.color.g *= _mul.g;
+    mat.color.b *= _mul.b;
 }

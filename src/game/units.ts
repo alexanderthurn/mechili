@@ -63,7 +63,7 @@ function makeWardRuneTexture(): CanvasTexture {
     texture.wrapS = RepeatWrapping;
     return texture;
 }
-import { teamColors } from './colors';
+import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, groundSupportAt, mulberry32, type Cell } from './map';
 import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
@@ -245,10 +245,15 @@ function lightMaterial(): MeshStandardMaterial {
     return material('light', () => new MeshStandardMaterial({ color: THEME.light, roughness: 0.5, metalness: 0.12 }));
 }
 
-function accentMaterial(team: Team): MeshStandardMaterial {
-    const c = teamColors[team].hex;
-    return material(`accent-${team}-${c}`, () => {
-        return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: THEME.accentEmissive, roughness: 0.4 });
+function accentMaterial(_team: Team): MeshStandardMaterial {
+    // neutral accent — ownership is HP-bar / panel; mesh tint is by level
+    return material('accent-neutral', () => {
+        return new MeshStandardMaterial({
+            color: THEME.hull,
+            emissive: THEME.hull,
+            emissiveIntensity: THEME.accentEmissive * 0.35,
+            roughness: 0.4,
+        });
     });
 }
 
@@ -666,8 +671,8 @@ export class Unit {
     /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */
     level = 1;
     xp = 0;
-    /** last level rendered on the rank insignia (avoids rebuilding every frame under intel fog) */
-    private badgeDisplayLevel = -1;
+    /** last level used for mesh tint (avoids re-applying every fog frame) */
+    private lookDisplayLevel = -1;
     /** rotation around y the unit currently faces (0 = toward -z / the enemy edge) */
     facing: number;
     /** individual mechs; `home` is each one's formation slot (local offset from the unit center) */
@@ -743,6 +748,7 @@ export class Unit {
         for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
         this.seatMembers();
+        this.applyLevelLook(this.level);
     }
 
     /** current hover base for idle bob (deployment keeps flyers near the ground) */
@@ -841,26 +847,23 @@ export class Unit {
     }
 
     /**
-     * Rebuilds the rank insignia on every mech of the pack: a small totem of
-     * glowing studs above the hull, one per level above 1 (up to 8). Call
-     * after every level change. Pass displayLevel to show stale intel badges.
+     * Updates level visuals (mesh tint). Pass displayLevel for stale intel fog.
+     * Rank studs were removed — level reads from tint + the detail panel.
      */
     refreshLevelBadge(displayLevel = this.level): void {
-        if (displayLevel === this.badgeDisplayLevel) return;
-        this.badgeDisplayLevel = displayLevel;
-        const topY = Math.max(...this.type.colliders.map((c) => c.y + c.r), 1) + 0.35;
+        this.applyLevelLook(displayLevel);
+    }
+
+    /** Mesh color by veterancy — level 1 untinted, 2 blue, 3+ yellow. */
+    applyLevelLook(level = this.level): void {
+        if (level === this.lookDisplayLevel) return;
+        this.lookDisplayLevel = level;
         for (const m of this.members) {
-            const old = m.mesh.getObjectByName('level-badge');
-            if (old) m.mesh.remove(old);
-            if (displayLevel <= 1) continue;
-            const badge = new Group();
-            badge.name = 'level-badge';
-            for (let i = 0; i < displayLevel - 1; i++) {
-                const stud = new Mesh(levelStudGeometry(), levelStudMaterial(i));
-                stud.position.y = topY + i * 0.16;
-                badge.add(stud);
+            if (m.mesh.userData.instanced) {
+                getUnitInstanceRenderer()?.setLevelTint(m.mesh, level);
+            } else {
+                applyMeshLevelTint(m.mesh, level);
             }
-            m.mesh.add(badge);
         }
     }
 
@@ -884,6 +887,7 @@ export class Unit {
         }
         this.seatMembers();
         this.destroyed = false;
+        this.applyLevelLook(this.level);
     }
 
     /** ground positions of each individual mech (targeting works per mech, not per squad) */
@@ -945,25 +949,75 @@ function swapExtent(e: GridExtent): GridExtent {
     return { cols: e.rows, rows: e.cols };
 }
 
-let studGeometry: BoxGeometry | null = null;
-function levelStudGeometry(): BoxGeometry {
-    if (!studGeometry) studGeometry = new BoxGeometry(0.4, 0.09, 0.4);
-    return studGeometry;
-}
-
-/** rank studs: gold for the first tier, white-hot from level 6 up */
-function levelStudMaterial(index: number): MeshStandardMaterial {
-    const tier = index < 4 ? 'gold' : 'elite';
-    return material(`level-stud-${tier}`, () => {
-        const c = tier === 'gold' ? THEME.veteran : 0xfff8f0;
-        return new MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.4 });
-    });
-}
-
 // scratch colors for syncBattleTint — it runs per mech per frame, so it must not allocate
 const TINT_GOLD = new Color(THEME.veteran);
 const TINT_GREY = new Color(0x888890);
 const tintScratch = new Color();
+
+/** Apply veterancy color to a non-instanced mech (GLB clone or procedural). */
+function applyMeshLevelTint(root: Group, level: number): void {
+    const hex =
+        level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level]! : null;
+
+    root.traverse((child) => {
+        if (!(child instanceof Mesh)) return;
+        if (!child.userData.levelTintReady) {
+            const src = child.material;
+            if (Array.isArray(src)) {
+                child.material = src.map((m) => {
+                    const c = (m as MeshStandardMaterial).clone();
+                    c.userData.levelBaseColor = c.color.clone();
+                    c.userData.levelBaseEmissive = c.emissive.clone();
+                    c.userData.levelBaseEmissiveIntensity = c.emissiveIntensity;
+                    return c;
+                });
+            } else if (src) {
+                const c = (src as MeshStandardMaterial).clone();
+                c.userData.levelBaseColor = c.color.clone();
+                c.userData.levelBaseEmissive = c.emissive.clone();
+                c.userData.levelBaseEmissiveIntensity = c.emissiveIntensity;
+                child.material = c;
+            }
+            child.userData.levelTintReady = true;
+        }
+
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        for (const m of mats) {
+            if (!(m instanceof MeshStandardMaterial)) continue;
+            const base = (m.userData.levelBaseColor as Color | undefined) ?? m.color;
+            if (!m.userData.levelBaseColor) m.userData.levelBaseColor = m.color.clone();
+            const baseEmissive = (m.userData.levelBaseEmissive as Color | undefined) ?? m.emissive;
+            if (!m.userData.levelBaseEmissive) {
+                m.userData.levelBaseEmissive = m.emissive.clone();
+                m.userData.levelBaseEmissiveIntensity = m.emissiveIntensity;
+            }
+            if (hex == null) {
+                m.color.copy(base);
+                m.emissive.copy(baseEmissive);
+                m.emissiveIntensity = (m.userData.levelBaseEmissiveIntensity as number) ?? 0;
+            } else {
+                applyLevelTintColor(m, base, hex);
+                m.emissive.setRGB(0, 0, 0);
+                m.emissiveIntensity = 0;
+            }
+        }
+
+        // keep battle "original" in sync so effects restore to the level tint
+        const orig = child.userData.battleOrigMat as MeshStandardMaterial | undefined;
+        if (orig && orig.userData.levelBaseColor) {
+            const base = orig.userData.levelBaseColor as Color;
+            if (hex == null) {
+                orig.color.copy(base);
+                orig.emissive.setRGB(0, 0, 0);
+                orig.emissiveIntensity = 0;
+            } else {
+                applyLevelTintColor(orig, base, hex);
+                orig.emissive.setRGB(0, 0, 0);
+                orig.emissiveIntensity = 0;
+            }
+        }
+    });
+}
 
 /** tints a mech during battle — golden > debuff > spawning > normal */
 export function syncBattleTint(

@@ -8,6 +8,7 @@ import {
     type Object3D,
     type Scene,
 } from 'three';
+import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
 import { prefs, type Prefs } from './prefs';
 import type { Team } from './units';
@@ -21,14 +22,15 @@ const STRUCTURE_IDS = new Set([
     'rocket',
 ]);
 
-/** Max mechs per (type × team × alive|dead) pool — cheat spam still fits. */
+/** Max mechs per (type × team × level × alive|dead) pool — cheat spam still fits. */
 const POOL_CAPACITY = 4096;
 
 const HIDE = new Matrix4().makeScale(0, 0, 0);
 const _matrix = new Matrix4();
 const _color = new Color();
+const _base = new Color();
 
-type PoolKey = string; // `${typeId}:${team}:alive|dead`
+type PoolKey = string; // `${typeId}:${team}:${level}:alive|dead`
 
 interface Pool {
     parts: InstancedMesh[];
@@ -36,14 +38,26 @@ interface Pool {
     owners: Group[];
 }
 
+interface PoolMeta {
+    key: PoolKey;
+    index: number;
+    typeId: string;
+    team: Team;
+    level: number;
+    life: 'alive' | 'dead';
+}
+
 /**
  * Alive / dead InstancedMesh pools for static GLB units. Proxies stay as empty
  * Groups so the sim can keep writing transforms; this layer mirrors them into
  * shared draw calls each frame.
+ *
+ * Level tint is baked into each pool's materials (keyed by level) so textured
+ * models read the hue clearly — instanceColor is only used for battle FX.
  */
 export class UnitInstanceRenderer {
     private readonly pools = new Map<PoolKey, Pool>();
-    private readonly ownerPool = new WeakMap<Group, { key: PoolKey; index: number }>();
+    private readonly ownerPool = new WeakMap<Group, PoolMeta>();
     private readonly scene: Scene;
     private needsColor = false;
 
@@ -59,30 +73,28 @@ export class UnitInstanceRenderer {
     register(proxy: Group, typeId: string, team: Team): void {
         if (this.ownerPool.has(proxy)) return;
         proxy.userData.instanced = true;
-        this.moveTo(proxy, typeId, team, 'alive');
+        proxy.userData.levelTintLevel = 1;
+        this.moveTo(proxy, typeId, team, 'alive', 1);
     }
 
     /** Tip / rubble: leave the alive pool and park the current pose in dead. */
     setDead(proxy: Group): void {
         const meta = this.ownerPool.get(proxy);
-        if (!meta || meta.key.endsWith(':dead')) return;
-        const [typeId, team] = meta.key.split(':') as [string, Team];
+        if (!meta || meta.life === 'dead') return;
         this.removeFromPool(proxy, meta);
-        this.moveTo(proxy, typeId, team, 'dead');
-        // hide proxy (level badges etc.) when wrecks are not drawn
+        this.moveTo(proxy, meta.typeId, meta.team, 'dead', meta.level);
         proxy.visible = prefs().renderDeadUnits;
-        // dead pose is written once here; sync still refreshes if the view moves
-        this.writeMatrix(proxy, this.pool(typeId, team, 'dead'), this.ownerPool.get(proxy)!.index);
+        const next = this.ownerPool.get(proxy);
+        if (next) this.writeMatrix(proxy, this.pools.get(next.key)!, next.index);
     }
 
     /** Round reset: wreck → living formation again. */
     setAlive(proxy: Group): void {
         const meta = this.ownerPool.get(proxy);
-        if (!meta || meta.key.endsWith(':alive')) return;
-        const [typeId, team] = meta.key.split(':') as [string, Team];
+        if (!meta || meta.life === 'alive') return;
         this.removeFromPool(proxy, meta);
         proxy.visible = true;
-        this.moveTo(proxy, typeId, team, 'alive');
+        this.moveTo(proxy, meta.typeId, meta.team, 'alive', meta.level);
     }
 
     unregister(proxy: Group): void {
@@ -98,8 +110,8 @@ export class UnitInstanceRenderer {
     }
 
     /**
-     * Battle tint via per-instance color (multiplies the team-tinted material).
-     * Golden / debuff / spawning are approximations of the old material swaps.
+     * Battle tint via per-instance color (multiplies the level-tinted material).
+     * Golden / debuff / spawning override; `normal` restores white multiply.
      */
     setTint(
         proxy: Group,
@@ -112,6 +124,8 @@ export class UnitInstanceRenderer {
         if (!meta) return;
         const pool = this.pools.get(meta.key);
         if (!pool) return;
+
+        proxy.userData.battleTintKind = tint;
 
         if (tint === 'golden') {
             const pulse = 0.55 + Math.sin(timeSeconds * 4.5) * 0.2;
@@ -134,8 +148,22 @@ export class UnitInstanceRenderer {
 
         for (const mesh of pool.parts) {
             mesh.setColorAt(meta.index, _color);
+            if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         }
         this.needsColor = true;
+    }
+
+    /** Move the proxy into the InstancedMesh pool for this pack level (bakes hue). */
+    setLevelTint(proxy: Group, level: number): void {
+        const clamped = Math.max(1, Math.min(LEVEL_TINT_COLORS.length - 1, level | 0));
+        proxy.userData.levelTintLevel = clamped;
+        const meta = this.ownerPool.get(proxy);
+        if (!meta) return;
+        if (meta.level === clamped) return;
+        this.removeFromPool(proxy, meta);
+        this.moveTo(proxy, meta.typeId, meta.team, meta.life, clamped);
+        const next = this.ownerPool.get(proxy);
+        if (next) this.writeMatrix(proxy, this.pools.get(next.key)!, next.index);
     }
 
     /** Push proxy world matrices into every alive/dead InstancedMesh. */
@@ -213,15 +241,28 @@ export class UnitInstanceRenderer {
         }
     }
 
-    private moveTo(proxy: Group, typeId: string, team: Team, life: 'alive' | 'dead'): void {
-        const pool = this.pool(typeId, team, life);
+    private moveTo(
+        proxy: Group,
+        typeId: string,
+        team: Team,
+        life: 'alive' | 'dead',
+        level: number,
+    ): void {
+        const pool = this.pool(typeId, team, life, level);
         if (pool.owners.length >= POOL_CAPACITY) {
-            console.warn(`[unitInstances] pool full for ${typeId}/${team}/${life}`);
+            console.warn(`[unitInstances] pool full for ${typeId}/${team}/L${level}/${life}`);
             return;
         }
         const index = pool.owners.length;
         pool.owners.push(proxy);
-        this.ownerPool.set(proxy, { key: poolKey(typeId, team, life), index });
+        this.ownerPool.set(proxy, {
+            key: poolKey(typeId, team, level, life),
+            index,
+            typeId,
+            team,
+            level,
+            life,
+        });
         for (const mesh of pool.parts) {
             mesh.count = pool.owners.length;
             mesh.setColorAt(index, _color.setRGB(1, 1, 1));
@@ -229,15 +270,18 @@ export class UnitInstanceRenderer {
         this.needsColor = true;
     }
 
-    private removeFromPool(proxy: Group, meta: { key: PoolKey; index: number }): void {
+    private removeFromPool(proxy: Group, meta: PoolMeta): void {
         const pool = this.pools.get(meta.key);
         if (!pool) return;
         const last = pool.owners.length - 1;
         const lastOwner = pool.owners[last]!;
         if (meta.index !== last) {
             pool.owners[meta.index] = lastOwner;
-            this.ownerPool.set(lastOwner, { key: meta.key, index: meta.index });
-            // copy last instance matrix/color into the hole
+            const lastMeta = this.ownerPool.get(lastOwner);
+            if (lastMeta) {
+                lastMeta.index = meta.index;
+                this.ownerPool.set(lastOwner, lastMeta);
+            }
             for (const mesh of pool.parts) {
                 mesh.getMatrixAt(last, _matrix);
                 mesh.setMatrixAt(meta.index, _matrix);
@@ -264,15 +308,15 @@ export class UnitInstanceRenderer {
         for (const mesh of pool.parts) mesh.setMatrixAt(index, proxy.matrixWorld);
     }
 
-    private pool(typeId: string, team: Team, life: 'alive' | 'dead'): Pool {
-        const key = poolKey(typeId, team, life);
+    private pool(typeId: string, team: Team, life: 'alive' | 'dead', level: number): Pool {
+        const key = poolKey(typeId, team, level, life);
         let pool = this.pools.get(key);
         if (pool) return pool;
 
-        const asset = getUnitInstanceAsset(typeId, team);
-        if (!asset) throw new Error(`[unitInstances] no asset for ${typeId}/${team}`);
+        const asset = getUnitInstanceAsset(typeId);
+        if (!asset) throw new Error(`[unitInstances] no asset for ${typeId}`);
 
-        const parts = asset.parts.map((part) => makeInstanced(part, typeId));
+        const parts = asset.parts.map((part) => makeInstanced(part, typeId, level));
         for (const mesh of parts) this.scene.add(mesh);
         pool = { parts, owners: [] };
         this.pools.set(key, pool);
@@ -280,8 +324,8 @@ export class UnitInstanceRenderer {
     }
 }
 
-function poolKey(typeId: string, team: Team, life: 'alive' | 'dead'): PoolKey {
-    return `${typeId}:${team}:${life}`;
+function poolKey(typeId: string, team: Team, level: number, life: 'alive' | 'dead'): PoolKey {
+    return `${typeId}:${team}:${level}:${life}`;
 }
 
 function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
@@ -290,16 +334,21 @@ function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
     return true;
 }
 
-function makeInstanced(part: InstancePart, typeId: string): InstancedMesh {
+function makeInstanced(part: InstancePart, typeId: string, level: number): InstancedMesh {
     const mat = part.material.clone();
-    // clone geo so pool dispose() can free it without breaking sibling pools
+    const hex = level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level] : null;
+    if (hex != null) {
+        _base.copy(mat.color);
+        applyLevelTintColor(mat, _base, hex);
+        mat.emissive.setRGB(0, 0, 0);
+        mat.emissiveIntensity = 0;
+    }
     const mesh = new InstancedMesh(part.geometry.clone(), mat, POOL_CAPACITY);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
     mesh.castShadow = unitShadowCast(typeId, prefs().shadows);
     mesh.receiveShadow = true;
     mesh.count = 0;
-    // allocate instanceColor buffer up front
     mesh.setColorAt(0, _color.setRGB(1, 1, 1));
     return mesh;
 }
