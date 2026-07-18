@@ -260,8 +260,9 @@ export function addDrapedRectFill(
 }
 
 /**
- * Oil-style capsule (fill + end caps + side lines), draped over relief.
- * Shared by oil, acid, and dragon path markers.
+ * Oil-style capsule (fill + single outer border), draped over relief.
+ * Shared by oil, acid, fire, dragon, and rally path markers.
+ * Border is the stadium silhouette only — no full end-circle rims inside.
  */
 export function addDrapedCapsule(
     group: Group,
@@ -285,16 +286,10 @@ export function addDrapedCapsule(
         side: DoubleSide,
         depthWrite: false,
     });
-    const lineMat = new LineBasicMaterial({
-        color: lineColor,
-        transparent: true,
-        opacity: lineOpacity,
-    });
 
     if (len < 0.5) {
         addDrapedCircle(group, startX, startZ, radius, fillColor, fillOpacity, lineOpacity);
         fillMat.dispose();
-        lineMat.dispose();
         return;
     }
 
@@ -302,6 +297,7 @@ export function addDrapedCapsule(
     const uz = dz / len;
     const px = -uz * radius;
     const pz = ux * radius;
+    // one mesh = one opacity (no overlapping end discs that darken under alpha)
     const body = new Mesh(
         buildDrapedCapsuleFill(startX, startZ, endX, endZ, px, pz, ux, uz, radius),
         fillMat,
@@ -309,32 +305,83 @@ export function addDrapedCapsule(
     body.frustumCulled = false;
     group.add(body);
 
-    for (const [x, z] of [
-        [startX, startZ],
-        [endX, endZ],
-    ] as const) {
-        const capMat = fillMat.clone();
-        capMat.opacity = fillOpacity + 0.06;
-        const disc = new Mesh(drapeDiskGeometry(x, z, radius), capMat);
-        disc.position.set(x, DRAPE_LIFT + 0.01, z);
-        disc.frustumCulled = false;
-        group.add(disc);
-        group.add(new Line(drapeCircleOutline(x, z, radius), lineMat));
-    }
+    group.add(
+        new Line(
+            drapeCapsuleOutline(startX, startZ, endX, endZ, radius),
+            new LineBasicMaterial({
+                color: lineColor,
+                transparent: true,
+                opacity: lineOpacity,
+            }),
+        ),
+    );
+}
+
+/**
+ * Closed stadium outline: two side rails + outer end caps only
+ * (no interior arcs where the end circles would cut through the strip).
+ */
+export function drapeCapsuleOutline(
+    sx: number,
+    sz: number,
+    ex: number,
+    ez: number,
+    radius: number,
+): BufferGeometry {
+    const dx = ex - sx;
+    const dz = ez - sz;
+    const len = Math.hypot(dx, dz) || 1;
+    const ux = dx / len;
+    const uz = dz / len;
+    const px = -uz * radius;
+    const pz = ux * radius;
+    const pts: Vector3[] = [];
+    const lift = DRAPE_LIFT + 0.01;
+    const push = (x: number, z: number) => {
+        pts.push(new Vector3(x, groundHeightAt(x, z) + lift, z));
+    };
 
     const sideSteps = Math.max(4, Math.ceil(len / 2));
-    for (const [ox, oz] of [
-        [px, pz],
-        [-px, -pz],
-    ] as const) {
-        const pts: Vector3[] = [];
-        for (let i = 0; i <= sideSteps; i++) {
-            const t = i / sideSteps;
-            const x = startX + dx * t + ox;
-            const z = startZ + dz * t + oz;
-            pts.push(new Vector3(x, groundHeightAt(x, z) + DRAPE_LIFT + 0.01, z));
-        }
-        group.add(new Line(new BufferGeometry().setFromPoints(pts), lineMat));
+    // +perp rail: start → end
+    for (let i = 0; i <= sideSteps; i++) {
+        const t = i / sideSteps;
+        push(sx + dx * t + px, sz + dz * t + pz);
+    }
+    // outer semicircle at end (bulge along +forward)
+    appendDrapedSemicircleOutline(push, ex, ez, ux, uz, px, pz, radius);
+    // -perp rail: end → start
+    for (let i = 0; i <= sideSteps; i++) {
+        const t = i / sideSteps;
+        push(ex - dx * t - px, ez - dz * t - pz);
+    }
+    // outer semicircle at start (bulge along −forward); rails arrive at −perp
+    appendDrapedSemicircleOutline(push, sx, sz, -ux, -uz, -px, -pz, radius);
+
+    if (pts.length > 0) pts.push(pts[0]!.clone());
+    return new BufferGeometry().setFromPoints(pts);
+}
+
+/** walk the outer semicircle from +perp → −perp through the bulge direction */
+function appendDrapedSemicircleOutline(
+    push: (x: number, z: number) => void,
+    cx: number,
+    cz: number,
+    bulgeX: number,
+    bulgeZ: number,
+    px: number,
+    pz: number,
+    r: number,
+): void {
+    const aLeft = Math.atan2(pz, px);
+    const aBulge = Math.atan2(bulgeZ, bulgeX);
+    const ccwToBulge = (((aBulge - aLeft) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const clockwise = ccwToBulge > Math.PI;
+    const sweep = clockwise ? -Math.PI : Math.PI;
+    const steps = Math.max(16, Math.min(48, Math.ceil(r * 4)));
+    // skip i=0 — already at +perp from the incoming rail
+    for (let i = 1; i <= steps; i++) {
+        const a = aLeft + (sweep * i) / steps;
+        push(cx + Math.cos(a) * r, cz + Math.sin(a) * r);
     }
 }
 
