@@ -853,11 +853,17 @@ export class Unit {
         this.applyLevelLook(displayLevel);
     }
 
-    /** Visual scale: base buildings grow with level; packs stay at type.meshScale. */
+    /** Visual scale: towers grow each level; packs only a little, capped at L3. */
     visualMeshScale(level = this.level): number {
-        if (!this.type.structure || this.type.extra) return this.type.meshScale;
-        // +10% per level above 1 → L5 ≈ 1.4× (tower upgrade max)
-        return this.type.meshScale * (1 + (level - 1) * 0.1);
+        const base = this.type.meshScale;
+        if (this.type.structure && !this.type.extra) {
+            // +10% per level above 1 → L5 ≈ 1.4× (tower upgrade max)
+            return base * (1 + (level - 1) * 0.1);
+        }
+        if (this.type.structure) return base; // extras (shield / rocket)
+        // packs: +5% per level, only through L3 → max +10%
+        const steps = Math.min(2, Math.max(0, level - 1));
+        return base * (1 + steps * 0.05);
     }
 
     /** Mesh tint by level; base buildings also scale up. */
