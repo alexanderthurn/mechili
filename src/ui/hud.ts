@@ -5,7 +5,6 @@ import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emote
 import { onPrefsChange, prefs } from '../game/prefs';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
-import { openSuggest, collectClientSpecs } from '../suggest';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -80,6 +79,8 @@ export interface SelectionInfo {
     rangeBoost?: { cost: number; bonus: number; active: boolean; affordable: boolean };
     /** +speed for all units this round (Research Center only) */
     speedBoost?: { cost: number; bonus: number; active: boolean; affordable: boolean };
+    /** Credit: +gain now, −debt next deployment (Research Center only) */
+    credit?: { gain: number; debt: number; active: boolean; affordable: boolean };
     /** the permanent sell-ability unlock (Command Tower only) */
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Command Tower only); label shows the NEXT tier */
@@ -109,6 +110,7 @@ export class Hud {
     onBuyDeploySlot: (() => void) | null = null;
     onBuyRoundRangeBoost: (() => void) | null = null;
     onBuyRoundSpeedBoost: (() => void) | null = null;
+    onBuyCredit: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     onArmItem: ((itemId: string) => void) | null = null;
     onArmTactic: ((tacticId: string) => void) | null = null;
@@ -145,8 +147,6 @@ export class Hud {
     private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
     private readonly phaseEl: HTMLSpanElement;
-    private matchRound = 0;
-    private matchPhase: Phase = 'build';
     private readonly timerEl: HTMLSpanElement;
     private readonly supplyEl: HTMLSpanElement;
     private readonly playerNameEl: HTMLSpanElement;
@@ -321,6 +321,7 @@ export class Hud {
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
             else if (button.dataset.speedboost) this.onBuyRoundSpeedBoost?.();
+            else if (button.dataset.credit) this.onBuyCredit?.();
             else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
@@ -1012,6 +1013,15 @@ export class Hud {
                 state: info.speedBoost.active ? 'owned' : info.speedBoost.affordable ? 'buy' : 'locked',
             });
         }
+        if (info.credit) {
+            tiles.push({
+                data: 'data-credit="1"',
+                icon: '💳',
+                title: 'Credit',
+                desc: `+${info.credit.gain} supply now. Next deployment: −${info.credit.debt}. Once per round.`,
+                state: info.credit.active ? 'owned' : info.credit.affordable ? 'buy' : 'locked',
+            });
+        }
         if (info.sellAbility) {
             tiles.push({
                 data: 'data-sellability="1"',
@@ -1129,8 +1139,6 @@ export class Hud {
 
     setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {
         // round 0 is the specialist pick, not a numbered round
-        this.matchRound = round;
-        this.matchPhase = phase;
         this.roundEl.textContent = round === 0 ? 'Specialists' : `Round ${round}`;
         this.phaseEl.textContent = waitingForPeer
             ? 'Waiting for opponent…'
@@ -1248,21 +1256,10 @@ export class Hud {
             `<div class="pause-title">Menu</div>` +
             `<button type="button" class="pause-resume">Continue</button>` +
             `<button type="button" class="pause-settings">Settings</button>` +
-            `<button type="button" class="pause-suggest">Suggest</button>` +
             `<button type="button" class="pause-quit">Quit to menu</button>` +
             `</div>`;
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
         el.querySelector('.pause-settings')!.addEventListener('click', () => openSettings(this.overlayParent));
-        el.querySelector('.pause-suggest')!.addEventListener('click', () => {
-            openSuggest({
-                parent: this.overlayParent,
-                source: 'pause',
-                specs: collectClientSpecs({
-                    phase: this.matchPhase,
-                    round: this.matchRound,
-                }),
-            });
-        });
         el.querySelector('.pause-quit')!.addEventListener('click', () => {
             this.hidePauseMenu();
             this.onQuitToMenu?.();

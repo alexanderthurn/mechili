@@ -180,12 +180,8 @@ menu.innerHTML = `
     </div>
     <div class="m-status" style="display:none"></div>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
-    <button type="button" class="m-btn m-small m-suggest"><span class="m-ico">✦</span><span class="m-label">Suggest</span></button>
 `;
 wrapper.appendChild(menu);
-menu.querySelector('.m-suggest')!.addEventListener('click', () => {
-    openSuggest({ parent: wrapper, source: 'game menu' });
-});
 
 const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
@@ -203,6 +199,19 @@ settingsCornerEl.title = 'Settings';
 settingsCornerEl.style.display = 'none';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 wrapper.appendChild(settingsCornerEl);
+
+// suggest icon, top-left (mirrors settings gear)
+const suggestCornerEl = document.createElement('button');
+suggestCornerEl.className = 'mechili-suggest-btn';
+suggestCornerEl.type = 'button';
+suggestCornerEl.textContent = '✦';
+suggestCornerEl.title = 'Suggest';
+suggestCornerEl.setAttribute('aria-label', 'Suggest');
+suggestCornerEl.style.display = 'none';
+suggestCornerEl.addEventListener('click', () => {
+    openSuggest({ parent: wrapper, source: 'game menu' });
+});
+wrapper.appendChild(suggestCornerEl);
 
 // --- global menu chat (php-backed: last 10 messages + admin sticky) ---
 const gchatEl = document.createElement('div');
@@ -227,6 +236,7 @@ function setMenuChromeVisible(visible: boolean): void {
     menu.style.display = display;
     usernameEl.style.display = display;
     settingsCornerEl.style.display = display;
+    suggestCornerEl.style.display = display;
     gchatEl.style.display = display;
 }
 
@@ -519,7 +529,7 @@ function setStatus(text: string): void {
 }
 
 function setMenuBusy(busy: boolean): void {
-    menu.querySelectorAll<HTMLButtonElement>('.m-btn:not(.m-cancel):not(.m-suggest)').forEach((b) => {
+    menu.querySelectorAll<HTMLButtonElement>('.m-btn:not(.m-cancel)').forEach((b) => {
         b.disabled = busy;
     });
     roomListEl.querySelectorAll<HTMLButtonElement>('.m-room').forEach((b) => {
@@ -595,6 +605,7 @@ function returnToMenu(): void {
     wrapper.appendChild(usernameEl);
     wrapper.appendChild(versionEl);
     wrapper.appendChild(settingsCornerEl);
+    wrapper.appendChild(suggestCornerEl);
     wrapper.appendChild(gchatEl);
     startGlobalChatPoll();
     refreshUsernameLabel();
@@ -627,6 +638,7 @@ function startGame(
     usernameEl.remove();
     versionEl.remove();
     settingsCornerEl.remove();
+    suggestCornerEl.remove();
     gchatEl.remove();
     if (net) {
         clearSinglePlayer();
@@ -877,7 +889,6 @@ menu.addEventListener('click', (e) => {
         setStatus('');
         return;
     }
-    if (button.classList.contains('m-suggest')) return;
 
     switch (button.dataset.mode) {
         case 'single':

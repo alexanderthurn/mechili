@@ -87,6 +87,11 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
                 cost: s.deploy.armySpeedBoostCost,
                 description: `+${s.deploy.speedBoost} speed for all units, this round only.`,
             },
+            {
+                icon: '💳',
+                name: 'Credit',
+                description: `+${s.deploy.creditGain} supply now. Next deployment: −${s.deploy.creditDebt}. Once per round.`,
+            },
         );
     }
 

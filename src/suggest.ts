@@ -14,7 +14,7 @@ export const SUGGEST_CATEGORIES = [
 
 export type SuggestCategory = (typeof SUGGEST_CATEGORIES)[number];
 
-export type SuggestSource = 'homepage' | 'game menu' | 'pause';
+export type SuggestSource = 'homepage' | 'game menu';
 
 /** Same host resolution as matchUrl() in net.ts — kept local so homepage does not pull PeerJS. */
 function suggestEndpoint(): string {

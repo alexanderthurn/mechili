@@ -101,6 +101,10 @@ export interface DeploySettings {
     /** Research Center: +speedBoost speed for all units this round only */
     armySpeedBoostCost: number;
     speedBoost: number;
+    /** Research Center: Credit — gain this much supply now (once per round) */
+    creditGain: number;
+    /** Research Center: Credit — repay this much at the start of the next deployment */
+    creditDebt: number;
     /** board extras (shields, rockets) have their own cap: supply spent on them per round */
     extrasBudgetPerRound: number;
     /** first-time flank mech deploys spawn for this many seconds (whenever flanks are open) */
@@ -174,6 +178,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
         rangeBoost: 5,
         armySpeedBoostCost: 50,
         speedBoost: 3,
+        creditGain: 200,
+        creditDebt: 300,
         extrasBudgetPerRound: 500,
         flankSpawnSeconds: 5,
     },
@@ -268,5 +274,10 @@ export class Economy {
     /** pays an amount back (action undo refunds) */
     credit(team: Team, amount: number): void {
         this.balances[team] += amount;
+    }
+
+    /** always deducts (Credit debt); may leave a negative balance */
+    debit(team: Team, amount: number): void {
+        this.balances[team] -= amount;
     }
 }

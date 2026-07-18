@@ -407,6 +407,25 @@ export function menuStyles(): string {
 }
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-settings-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: rotate(45deg); }
+
+/* suggest star, top-left of the main menu (mirrors settings gear) */
+.mechili-suggest-btn {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    left: calc(16px + env(safe-area-inset-left));
+    background: none;
+    border: none;
+    color: ${u.text};
+    font-size: 70px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 30;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    transition: transform 0.25s, color 0.2s;
+}
+.mechili-suggest-btn:hover { color: ${u.brassLight}; transform: scale(1.08); }
+.mechili-suggest-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: scale(1.08); }
+
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
 .mechili-version {
     position: absolute;

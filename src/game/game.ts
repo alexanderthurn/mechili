@@ -257,6 +257,10 @@ export class Game {
         range: { player: false, enemy: false },
         speed: { player: false, enemy: false },
     };
+    /** Research Center Credit: used this round (reset each deployment) */
+    private readonly creditUsed: Record<Team, boolean> = { player: false, enemy: false };
+    /** Research Center Credit: debt owed at the next deployment start */
+    private readonly creditDebt: Record<Team, boolean> = { player: false, enemy: false };
     /** each side's chosen starting-card speciality (null until picked) */
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
     /** per-team multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
@@ -502,6 +506,8 @@ export class Game {
             deployState: this.deployState,
             boostState: this.boostState,
             roundBoosts: this.roundBoosts,
+            creditUsed: this.creditUsed,
+            creditDebt: this.creditDebt,
             speciality: this.speciality,
             flankSpawnMult: this.flankSpawnMult,
             items: this.itemInventory,
@@ -666,6 +672,11 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyRoundSpeedBoost', team: 'player' });
+        };
+        this.hud.onBuyCredit = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
         };
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
@@ -1103,6 +1114,8 @@ export class Game {
         this.roundBoosts.range.enemy = false;
         this.roundBoosts.speed.player = false;
         this.roundBoosts.speed.enemy = false;
+        this.creditUsed.player = false;
+        this.creditUsed.enemy = false;
         this.deployState.used.player = 0;
         this.deployState.used.enemy = 0;
         this.deployState.extrasSpent.player = 0;
@@ -1116,6 +1129,15 @@ export class Game {
         this.hud.refreshCosts();
         this.refreshShopHud();
         this.economy.grantRoundIncome(this.round);
+        // Research Center Credit debt from last round — after income so it always covers
+        // NOTE: must also run while hydrating (debt is never in the action log)
+        const creditDebtAmount = this.settings.deploy.creditDebt;
+        for (const team of ['player', 'enemy'] as const) {
+            if (this.creditDebt[team]) {
+                this.economy.debit(team, creditDebtAmount);
+                this.creditDebt[team] = false;
+            }
+        }
         // card speciality income and gifts
         for (const team of ['player', 'enemy'] as const) {
             if (this.speciality[team] === 'costControl') {
@@ -3403,6 +3425,7 @@ export class Game {
             level: lv.level,
             xp: lv.xp,
             xpNext: lv.xpNext,
+            ...this.researchCenterSelection(a.unit),
         };
     }
 
@@ -3441,49 +3464,7 @@ export class Game {
                           maxLevel: this.settings.towers.upgrade.maxLevel,
                       }
                     : undefined,
-            // the once-per-round level-2 recruit switch lives in the Research Center
-            recruit:
-                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
-                    ? {
-                          cost: this.settings.leveling.recruitLevel2Cost,
-                          active: this.recruitLevel.player > 1,
-                          affordable:
-                              this.economy.balance('player') >=
-                              this.settings.leveling.recruitLevel2Cost,
-                      }
-                    : undefined,
-            // the Research Center sells +1 deployment for the running round
-            deploySlot:
-                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
-                    ? {
-                          cost: this.settings.deploy.extraSlotCost,
-                          active: this.deployState.extra.player > 0,
-                          affordable:
-                              this.economy.balance('player') >= this.settings.deploy.extraSlotCost,
-                      }
-                    : undefined,
-            rangeBoost:
-                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
-                    ? {
-                          cost: this.settings.deploy.rangedRangeBoostCost,
-                          bonus: this.settings.deploy.rangeBoost,
-                          active: this.roundBoosts.range.player,
-                          affordable:
-                              this.economy.balance('player') >=
-                              this.settings.deploy.rangedRangeBoostCost,
-                      }
-                    : undefined,
-            speedBoost:
-                u.team === 'player' && this.playerCanAct && u.type === RESEARCH_CENTER
-                    ? {
-                          cost: this.settings.deploy.armySpeedBoostCost,
-                          bonus: this.settings.deploy.speedBoost,
-                          active: this.roundBoosts.speed.player,
-                          affordable:
-                              this.economy.balance('player') >=
-                              this.settings.deploy.armySpeedBoostCost,
-                      }
-                    : undefined,
+            ...this.researchCenterSelection(u),
             // Command Tower: the two permanent army-wide boost tracks
             boosts:
                 u.team === 'player' && this.playerCanAct && u.type === COMMAND_TOWER
@@ -3535,6 +3516,58 @@ export class Game {
                           };
                       })
                     : undefined,
+        };
+    }
+
+    /**
+     * Research Center ability tiles for the selection panel.
+     * Own building: buyable while acting. Enemy building: read-only once intel
+     * is live (locked in / battle / singleplayer) — same fog as spells & inventory.
+     */
+    private researchCenterSelection(u: Unit): Pick<
+        SelectionInfo,
+        'recruit' | 'deploySlot' | 'rangeBoost' | 'speedBoost' | 'credit'
+    > {
+        if (u.type !== RESEARCH_CENTER) return {};
+        const ownInteractive = u.team === 'player' && this.playerCanAct;
+        const enemyIntel =
+            u.team === 'enemy' &&
+            (this.phase === 'battle' || this.deployReady.player || this.net === null);
+        if (!ownInteractive && !enemyIntel) return {};
+
+        const team = u.team;
+        const bal = this.economy.balance('player');
+        // enemy view is inspect-only: never report affordable (tiles render locked/owned)
+        const canBuy = ownInteractive;
+        return {
+            recruit: {
+                cost: this.settings.leveling.recruitLevel2Cost,
+                active: this.recruitLevel[team] > 1,
+                affordable: canBuy && bal >= this.settings.leveling.recruitLevel2Cost,
+            },
+            deploySlot: {
+                cost: this.settings.deploy.extraSlotCost,
+                active: this.deployState.extra[team] > 0,
+                affordable: canBuy && bal >= this.settings.deploy.extraSlotCost,
+            },
+            rangeBoost: {
+                cost: this.settings.deploy.rangedRangeBoostCost,
+                bonus: this.settings.deploy.rangeBoost,
+                active: this.roundBoosts.range[team],
+                affordable: canBuy && bal >= this.settings.deploy.rangedRangeBoostCost,
+            },
+            speedBoost: {
+                cost: this.settings.deploy.armySpeedBoostCost,
+                bonus: this.settings.deploy.speedBoost,
+                active: this.roundBoosts.speed[team],
+                affordable: canBuy && bal >= this.settings.deploy.armySpeedBoostCost,
+            },
+            credit: {
+                gain: this.settings.deploy.creditGain,
+                debt: this.settings.deploy.creditDebt,
+                active: this.creditUsed[team],
+                affordable: canBuy,
+            },
         };
     }
 }

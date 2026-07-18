@@ -125,6 +125,11 @@ export interface BuyRoundSpeedBoostAction {
     kind: 'buyRoundSpeedBoost';
     team: Team;
 }
+/** Research Center: +supply now, debt collected next deployment (once per round) */
+export interface BuyCreditAction {
+    kind: 'buyCredit';
+    team: Team;
+}
 /** Command Tower: the next tier of a permanent army-wide stat boost */
 export interface BuyBoostAction {
     kind: 'buyBoost';
@@ -226,6 +231,7 @@ export type Action =
     | BuyDeploySlotAction
     | BuyRoundRangeBoostAction
     | BuyRoundSpeedBoostAction
+    | BuyCreditAction
     | BuyBoostAction
     | ChooseCardAction
     | ApplyItemAction
@@ -301,6 +307,10 @@ export interface ActionContext {
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
     /** per-team round-only stat boosts from the Research Center (reset each round) */
     roundBoosts: { range: Record<Team, boolean>; speed: Record<Team, boolean> };
+    /** Research Center Credit: used this round (reset each deployment) */
+    creditUsed: Record<Team, boolean>;
+    /** Research Center Credit: debt still owed at the next deployment start */
+    creditDebt: Record<Team, boolean>;
     /** each side's chosen card speciality (null until the pick) */
     speciality: Record<Team, SpecialityId | null>;
     /** per-team multiplier on flank spawn duration (Flanky card → 0.5) */
@@ -627,6 +637,15 @@ export class ActionDispatcher {
                 if (!economy.spend(action.team, cost)) return false;
                 entry.paid = cost;
                 this.ctx.roundBoosts.speed[action.team] = true;
+                return true;
+            }
+            case 'buyCredit': {
+                if (this.ctx.creditUsed[action.team]) return false; // once per round
+                const gain = this.ctx.deploySettings.creditGain;
+                economy.credit(action.team, gain);
+                entry.paid = gain; // undo takes the gain back
+                this.ctx.creditUsed[action.team] = true;
+                this.ctx.creditDebt[action.team] = true;
                 return true;
             }
             case 'buyBoost': {
@@ -967,6 +986,11 @@ export class ActionDispatcher {
             case 'buyRoundSpeedBoost':
                 this.ctx.roundBoosts.speed[action.team] = false;
                 economy.credit(action.team, e.paid!);
+                break;
+            case 'buyCredit':
+                this.ctx.creditUsed[action.team] = false;
+                this.ctx.creditDebt[action.team] = false;
+                economy.spend(action.team, e.paid!); // take the gain back
                 break;
             case 'buyBoost':
                 this.ctx.boostState[action.boost][action.team]--;
