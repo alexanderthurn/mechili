@@ -228,6 +228,8 @@ export class PlacementController {
 
         listen('pointermove', ((e: PointerEvent) => {
             this.pointer = this.toLocal(e);
+            // touch: one-finger drags pan the camera — no rubber-band select
+            if (e.pointerType === 'touch') return;
             if (!this.downAt || !this.enabled || this.pendingType || this.inputLocked) return;
             const moved = Math.hypot(this.pointer.x - this.downAt.x, this.pointer.y - this.downAt.y);
             if (this.rectActive || moved > 6) this.updateRect(this.downAt, this.pointer);
@@ -235,6 +237,9 @@ export class PlacementController {
         listen('pointerdown', ((e: PointerEvent) => {
             if (e.button !== 0) return;
             this.downAt = this.toLocal(e);
+            // touch has no hover: without this, a carried ghost would sit at
+            // the LAST drag position (e.g. where the previous pack was dropped)
+            this.pointer = this.downAt;
             if (!this.inputLocked) surface.setPointerCapture(e.pointerId);
         }) as EventListener);
         listen('pointercancel', (() => {
@@ -248,6 +253,7 @@ export class PlacementController {
             const wasRect = this.rectActive;
             this.hideRect();
             const up = this.toLocal(e);
+            this.pointer = up;
             // tactic placement: single clicks only, no drag-select
             if (this.inputLocked) {
                 if (this.enabled && !wasRect) this.handleClick(up.x, up.y);
@@ -258,7 +264,9 @@ export class PlacementController {
                 this.finishRectSelect(down, up);
                 return;
             }
-            if (Math.hypot(up.x - down.x, up.y - down.y) > 6) return;
+            // fingers jitter more than mice — allow a wider tap slop on touch
+            const slop = e.pointerType === 'touch' ? 12 : 6;
+            if (Math.hypot(up.x - down.x, up.y - down.y) > slop) return;
             this.handleClick(up.x, up.y);
         }) as EventListener);
     }
@@ -275,6 +283,20 @@ export class PlacementController {
 
     get unitCount(): number {
         return this.units.length;
+    }
+
+    /**
+     * True while something follows the pointer — a bought ghost, a carried
+     * pack/formation, or an armed tactic. Touch camera-pan defers to it so a
+     * one-finger drag aims instead of moving the map.
+     */
+    get pointerCarries(): boolean {
+        return (
+            this.pendingUnit !== null ||
+            this.carryingSelected ||
+            this.selectedGroup.length > 0 ||
+            this.inputLocked
+        );
     }
 
     allUnits(): readonly Unit[] {
@@ -397,10 +419,32 @@ export class PlacementController {
      * trivially identical for either team on both clients.
      */
     findStartSpot(team: Team, type: UnitType): Cell | null {
-        const fp = this.footprintOf(type, false);
         const centerCol = Math.floor(this.map.cols / 2);
         const near = team === 'player' ? !this.map.ownAtFar : this.map.ownAtFar;
-        const centerRow = this.map.zoneCenterRow(near);
+        return this.searchSpotFrom(team, type, centerCol, this.map.zoneCenterRow(near));
+    }
+
+    /**
+     * Nearest zone-valid free anchor around a world point — touch buys drop
+     * the pack near the current camera view instead of the zone center. The
+     * anchor travels inside the dispatched action, so this stays lockstep-safe.
+     */
+    findBuySpotNear(type: UnitType, worldX: number, worldZ: number): Cell | null {
+        const x = Math.max(-this.map.halfW + 1, Math.min(this.map.halfW - 1, worldX));
+        const z = Math.max(-this.map.halfH + 1, Math.min(this.map.halfH - 1, worldZ));
+        const center = this.map.worldToCell(new Vector3(x, 0, z));
+        if (!center) return this.findStartSpot('player', type);
+        return this.searchSpotFrom('player', type, center.col, center.row);
+    }
+
+    /** the shared ring search: nearest valid free anchor around a start cell */
+    private searchSpotFrom(
+        team: Team,
+        type: UnitType,
+        centerCol: number,
+        centerRow: number,
+    ): Cell | null {
+        const fp = this.footprintOf(type, false);
         const maxRadius = Math.max(this.map.cols, this.map.rows);
         for (let radius = 0; radius < maxRadius; radius++) {
             for (let dc = -radius; dc <= radius; dc++) {
@@ -419,6 +463,15 @@ export class PlacementController {
             }
         }
         return null;
+    }
+
+    /** programmatic selection (e.g. highlighting a fresh buy) — selects without picking up */
+    selectUnit(unit: Unit): void {
+        this.restoreSelectedView();
+        this.selectedUnit = unit;
+        this.selectedGroup = [];
+        this.carryingSelected = false;
+        this.onSelect?.(unit);
     }
 
     /**

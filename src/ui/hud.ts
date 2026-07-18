@@ -117,6 +117,12 @@ export class Hud {
     onCancelTactic: (() => void) | null = null;
     onResetPlacedTactic: ((tacticId: string, routeId: number) => void) | null = null;
     onUndo: (() => void) | null = null;
+    /** opens/closes the pause menu (the ☰ button — Escape has no touch equivalent) */
+    onMenuToggle: (() => void) | null = null;
+    /** touch stand-in for right-click: cancel tactic / deselect */
+    onTouchCancel: (() => void) | null = null;
+    /** touch stand-in for middle-click: rotate the selected pack */
+    onTouchRotate: (() => void) | null = null;
     /** the player sent a chat item (emote or text) */
     onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
@@ -169,6 +175,14 @@ export class Hud {
     private readonly deploysEl: HTMLSpanElement;
     private readonly inventoryEl: HTMLDivElement;
     private readonly enemyInventoryEl: HTMLDivElement;
+    /** phone-size bottom tab bar; CSS hides it on larger screens */
+    private readonly phoneBar: HTMLDivElement;
+    private phoneTab: 'shop' | 'unit' | 'tactics' | null = null;
+    /** contextual Cancel/Rotate buttons for touch (right/middle-click stand-ins) */
+    private readonly touchActEl: HTMLDivElement;
+    private readonly touchCancelBtn: HTMLButtonElement;
+    private readonly touchRotateBtn: HTMLButtonElement;
+    private lastTouchActKey = '';
     private itemGhost: HTMLDivElement | null = null;
     private lastInventoryKey = '';
     private lastEnemyInventoryKey = '';
@@ -226,7 +240,11 @@ export class Hud {
                 `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each · hits ${hits}\n` +
                 `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
                 ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
-            button.addEventListener('click', () => onBuy(UNIT_TYPES[index]!));
+            button.addEventListener('click', () => {
+                onBuy(UNIT_TYPES[index]!);
+                // phone sheet covers the field — close it so the ghost is placeable
+                this.setPhoneTab(null);
+            });
             this.buttons.push({ el: button, type });
             return button;
         };
@@ -345,12 +363,16 @@ export class Hud {
             const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-item]');
             if (itemBtn?.dataset.item) {
                 this.onArmItem?.(itemBtn.dataset.item);
+                this.setPhoneTab(null); // aiming happens on the field
                 return;
             }
             const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
                 '.inv-item[data-tactic]:not(.placed)',
             );
-            if (tacticBtn?.dataset.tactic) this.onArmTactic?.(tacticBtn.dataset.tactic);
+            if (tacticBtn?.dataset.tactic) {
+                this.onArmTactic?.(tacticBtn.dataset.tactic);
+                this.setPhoneTab(null);
+            }
         });
         this.inventoryEl.addEventListener('contextmenu', (e) => {
             const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-tactic]');
@@ -436,7 +458,12 @@ export class Hud {
         this.roundEl.className = 'round';
         this.phaseEl = document.createElement('span');
         this.phaseEl.className = 'phase';
-        topMeta.append(this.roundEl, this.phaseEl);
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'menu-btn';
+        menuBtn.textContent = '☰';
+        menuBtn.title = 'Menu (Esc)';
+        menuBtn.addEventListener('click', () => this.onMenuToggle?.());
+        topMeta.append(this.roundEl, this.phaseEl, menuBtn);
         this.timerEl = document.createElement('span');
         this.timerEl.className = 'timer';
         const endButton = document.createElement('button');
@@ -461,10 +488,67 @@ export class Hud {
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
 
+        // phone-size screens: a bottom tab bar swaps the desktop panels in as
+        // one bottom sheet at a time (pure class toggles — CSS gates visuals)
+        this.phoneBar = document.createElement('div');
+        this.phoneBar.className = 'mechili-phonebar';
+        const phoneTabs: ['shop' | 'unit' | 'tactics', string, string][] = [
+            ['shop', '⬢', 'Shop'],
+            ['unit', '⚔', 'Unit'],
+            ['tactics', '✨', 'Tactics'],
+        ];
+        for (const [tab, icon, label] of phoneTabs) {
+            const button = document.createElement('button');
+            button.className = `pb-${tab}`;
+            button.innerHTML = `<span class="pb-ico">${icon}</span><span class="pb-label">${label}</span>`;
+            button.addEventListener('click', () =>
+                this.setPhoneTab(this.phoneTab === tab ? null : tab),
+            );
+            this.phoneBar.append(button);
+        }
+
+        // touch: right/middle-click replacements, shown only when applicable
+        this.touchActEl = document.createElement('div');
+        this.touchActEl.className = 'mechili-touchact';
+        this.touchRotateBtn = document.createElement('button');
+        this.touchRotateBtn.className = 'ta-rotate';
+        this.touchRotateBtn.textContent = '⟳ Rotate';
+        this.touchRotateBtn.addEventListener('click', () => this.onTouchRotate?.());
+        this.touchCancelBtn = document.createElement('button');
+        this.touchCancelBtn.className = 'ta-cancel';
+        this.touchCancelBtn.textContent = '✕ Cancel';
+        this.touchCancelBtn.addEventListener('click', () => this.onTouchCancel?.());
+        this.touchActEl.append(this.touchRotateBtn, this.touchCancelBtn);
+
         this.mount(this.shopColumn);
         this.mount(this.fightBar);
         this.mount(this.panel);
+        this.mount(this.phoneBar);
+        this.mount(this.touchActEl);
         this.buildChatBar();
+    }
+
+    /** shows/hides the touch Cancel/Rotate buttons (visible on coarse pointers only, via CSS) */
+    setTouchActions(cancel: boolean, rotate: boolean): void {
+        const key = `${cancel}|${rotate}`;
+        if (key === this.lastTouchActKey) return;
+        this.lastTouchActKey = key;
+        this.touchActEl.classList.toggle('on', cancel || rotate);
+        this.touchCancelBtn.style.display = cancel ? '' : 'none';
+        this.touchRotateBtn.style.display = rotate ? '' : 'none';
+    }
+
+    /** opens one phone bottom sheet (or none); a no-op visually on desktop */
+    private setPhoneTab(tab: 'shop' | 'unit' | 'tactics' | null): void {
+        this.phoneTab = tab;
+        // an open sheet covers the field — the field-action buttons yield to it
+        this.touchActEl.classList.toggle('sheet-open', tab !== null);
+        this.shopColumn.classList.toggle('phone-open', tab === 'shop');
+        this.panel.classList.toggle('phone-open', tab === 'unit');
+        this.inventoryEl.classList.toggle('phone-open', tab === 'tactics');
+        this.phoneBar.querySelector('.pb-shop')?.classList.toggle('active', tab === 'shop');
+        this.phoneBar.querySelector('.pb-unit')?.classList.toggle('active', tab === 'unit');
+        this.phoneBar.querySelector('.pb-tactics')?.classList.toggle('active', tab === 'tactics');
     }
 
     // --- in-match chat -----------------------------------------------------
@@ -616,6 +700,8 @@ export class Hud {
         this.lastInventoryKey = key;
         const visible = items.length > 0 || tactics.length > 0;
         this.inventoryEl.style.display = visible ? '' : 'none';
+        this.phoneBar.classList.toggle('has-tactics', visible);
+        if (!visible && this.phoneTab === 'tactics') this.setPhoneTab(null);
         const itemHtml = items.length
             ? `<div class="inv-title">Items</div>` +
               items
@@ -911,9 +997,11 @@ export class Hud {
     }
 
     setSelection(info: SelectionInfo | null): void {
+        this.phoneBar.classList.toggle('has-unit', !!info);
         if (!info) {
             this.panel.style.display = 'none';
             this.lastPanelKey = '';
+            if (this.phoneTab === 'unit') this.setPhoneTab(null);
             return;
         }
         this.panel.style.display = 'block';
@@ -1163,6 +1251,8 @@ export class Hud {
         this.shopColumn.classList.toggle('battle', phase === 'battle');
         this.inventoryEl.classList.toggle('battle', phase === 'battle');
         this.enemyInventoryEl.classList.toggle('battle', phase === 'battle');
+        this.phoneBar.classList.toggle('battle', phase === 'battle');
+        if (phase === 'battle' && this.phoneTab === 'shop') this.setPhoneTab(null);
     }
 
     setSpeed(multiplier: number): void {

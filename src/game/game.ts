@@ -61,6 +61,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
+import { inputMode, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
     onPrefsChange,
     prefs,
@@ -363,6 +364,11 @@ export class Game {
         }
 
         if (e.code !== 'Escape') return;
+        this.togglePauseMenu();
+    };
+
+    /** Escape / the topbar ☰ button: open or close the pause menu */
+    private togglePauseMenu(): void {
         if (this.matchOver || this.suspended) return;
         this.hud.togglePauseMenu();
         if (this.hud.isPauseMenuOpen()) {
@@ -371,7 +377,7 @@ export class Game {
             this.armedItem = null;
             this.cancelTacticPlacement();
         }
-    };
+    }
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
     private readonly wrapper: HTMLElement;
     private readonly threeCanvas: HTMLCanvasElement;
@@ -416,7 +422,13 @@ export class Game {
         this.economy = new Economy(settings.economy);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
-        this.renderer = new WebGLRenderer({ canvas: threeCanvas, antialias: true });
+        this.renderer = new WebGLRenderer({
+            canvas: threeCanvas,
+            antialias: prefs().antialias,
+            // mobile Safari kills tabs that push the GPU too hard — prefer the
+            // efficient tier there; desktops ignore or barely notice this hint
+            powerPreference: touchFirstDevice() ? 'low-power' : 'default',
+        });
         this.renderer.setPixelRatio(effectiveDpr());
 
         this.scene.background = new Color(THEME.sky);
@@ -488,8 +500,16 @@ export class Game {
             (this.map.halfH - (this.map.size.zoneRows * CELL) / 2) * (nearSide ? 1 : -1);
         this.rig.startAt(0, ownZoneZ, 110);
         this.controls = new CameraControls(this.rig, surface);
+        // edge scrolling is hover-based and has no touch equivalent
+        const syncEdgeScroll = () => {
+            this.controls.edgeScroll = inputMode() !== 'touch';
+        };
+        syncEdgeScroll();
+        this.inputDisposers.push(onInputModeChange(syncEdgeScroll));
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
+        // one-finger drags aim the carried ghost/tactic instead of panning
+        this.controls.suppressTouchPan = () => this.placement.pointerCarries;
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
             ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
@@ -605,6 +625,15 @@ export class Game {
             (type) => this.buyUnit(type),
         );
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        this.hud.onMenuToggle = () => this.togglePauseMenu();
+        // touch stand-ins mirror right-click (cancel/deselect) and middle-click (rotate)
+        this.hud.onTouchCancel = () => {
+            if (this.cancelTacticPlacement()) return;
+            this.placement.deselect();
+            this.selectedActor = null;
+            this.armedItem = null;
+        };
+        this.hud.onTouchRotate = () => this.placement.rotateSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.onQuitToMenu = () => this.quitToMenu();
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
@@ -2614,15 +2643,36 @@ export class Game {
             this.placement.beginPlacing(type);
             return;
         }
-        const anchor = this.placement.findBuySpot(type);
+        // touch: the shop sheet hides the field, so drop the pack where the
+        // camera looks and highlight it — desktop keeps the zone-center spawn
+        const nearView = inputMode() === 'touch';
+        const view = this.rig.target;
+        const anchor = nearView
+            ? this.placement.findBuySpotNear(type, view.x, view.z)
+            : this.placement.findBuySpot(type);
         if (!anchor) return;
-        this.dispatchPlayer({
+        const done = this.dispatchPlayer({
             kind: 'buy',
             team: 'player',
             typeId: type.id,
             anchor,
             rotated: false,
         });
+        if (done && nearView) {
+            const units = this.placement.allUnits();
+            for (let i = units.length - 1; i >= 0; i--) {
+                const u = units[i]!;
+                if (
+                    u.team === 'player' &&
+                    u.type.id === type.id &&
+                    u.cell.col === anchor.col &&
+                    u.cell.row === anchor.row
+                ) {
+                    this.placement.selectUnit(u);
+                    break;
+                }
+            }
+        }
     }
 
     /**
@@ -3516,6 +3566,14 @@ export class Game {
             const unit = this.placement.selectedUnit;
             this.hud.setSelection(unit ? this.unitInfo(unit) : null);
         }
+        const build = this.phase !== 'battle';
+        this.hud.setTouchActions(
+            this.placement.pointerCarries ||
+                this.armedItem !== null ||
+                this.placement.selectedUnit !== null ||
+                this.selectedActor !== null,
+            build && this.placement.selectedUnit !== null && !this.armedTactic,
+        );
     }
 
     /** veterancy display values for a pack, from the leveling settings */

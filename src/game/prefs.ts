@@ -1,5 +1,7 @@
 /** Player preferences, persisted in localStorage (not match state). */
 
+import { touchFirstDevice } from './inputCapabilities';
+
 /** Outer world / forests / terrain detail ('off' also disables all weather FX). */
 export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low' | 'off';
 /** Battlefield ground texture + sand / blood / scorch wear. */
@@ -62,7 +64,27 @@ export interface Prefs {
     shadows: ShadowQuality;
     /** When false, dead/wrecked mechs are not drawn (still revive next round). */
     renderDeadUnits: boolean;
+    /**
+     * MSAA on the 3D canvas. Read once at renderer creation, so a change
+     * takes effect with the next match (mobile tile GPUs pay a real cost).
+     */
+    antialias: boolean;
+    /**
+     * Player-chosen control scheme override.
+     * 'auto' follows the live-detected input method (see game/inputCapabilities.ts);
+     * the others pin the HUD/camera/placement input language regardless of
+     * what device last generated an event.
+     */
+    controlScheme: ControlScheme;
+    /**
+     * One-shot flag: a touch-first device was dropped to the low preset once
+     * (phones crash on desktop-grade settings). Never downgrades again, so
+     * the user's own choices stick.
+     */
+    mobileTuned: boolean;
 }
+
+export type ControlScheme = 'auto' | 'mouse' | 'touch' | 'gamepad';
 
 /** Sun shadow map quality (visual only). */
 export type ShadowQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
@@ -72,7 +94,7 @@ export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
 
 export type GraphicsPresetValues = Pick<
     Prefs,
-    'scenery' | 'groundEffects' | 'fireVfx' | 'dprCap' | 'shadows' | 'renderDeadUnits'
+    'scenery' | 'groundEffects' | 'fireVfx' | 'dprCap' | 'shadows' | 'renderDeadUnits' | 'antialias'
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
@@ -83,6 +105,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         dprCap: 1,
         shadows: 'low',
         renderDeadUnits: false,
+        antialias: false,
     },
     medium: {
         scenery: 'medium',
@@ -91,6 +114,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         dprCap: 1.5,
         shadows: 'medium',
         renderDeadUnits: false,
+        antialias: false,
     },
     high: {
         scenery: 'high',
@@ -99,6 +123,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         dprCap: 2,
         shadows: 'high',
         renderDeadUnits: true,
+        antialias: true,
     },
     ultra: {
         scenery: 'ultra',
@@ -107,6 +132,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         dprCap: 2,
         shadows: 'ultra',
         renderDeadUnits: true,
+        antialias: true,
     },
 };
 
@@ -120,7 +146,8 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
             p.fireVfx === v.fireVfx &&
             p.dprCap === v.dprCap &&
             p.shadows === v.shadows &&
-            p.renderDeadUnits === v.renderDeadUnits
+            p.renderDeadUnits === v.renderDeadUnits &&
+            p.antialias === v.antialias
         ) {
             return id;
         }
@@ -142,6 +169,9 @@ const DEFAULTS: Prefs = {
     dprCap: 2,
     shadows: 'high',
     renderDeadUnits: true,
+    antialias: true,
+    controlScheme: 'auto',
+    mobileTuned: false,
 };
 
 let cached: Prefs | null = null;
@@ -205,6 +235,16 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
         p.shadows = DEFAULTS.shadows;
     }
     if (typeof p.renderDeadUnits !== 'boolean') p.renderDeadUnits = true;
+    if (typeof p.antialias !== 'boolean') p.antialias = DEFAULTS.antialias;
+    if (typeof p.mobileTuned !== 'boolean') p.mobileTuned = false;
+    if (
+        p.controlScheme !== 'auto' &&
+        p.controlScheme !== 'mouse' &&
+        p.controlScheme !== 'touch' &&
+        p.controlScheme !== 'gamepad'
+    ) {
+        p.controlScheme = DEFAULTS.controlScheme;
+    }
     return p;
 }
 
@@ -294,6 +334,24 @@ export function sceneryHeightFog(quality: SceneryQuality = prefs().scenery): num
     return 0;
 }
 
+/** Preset whose pre-antialias fields match — for stored prefs that predate the antialias field. */
+function legacyPresetOf(p: Prefs): GraphicsPreset | null {
+    for (const id of ['low', 'medium', 'high', 'ultra'] as const) {
+        const v = GRAPHICS_PRESETS[id];
+        if (
+            p.scenery === v.scenery &&
+            p.groundEffects === v.groundEffects &&
+            p.fireVfx === v.fireVfx &&
+            p.dprCap === v.dprCap &&
+            p.shadows === v.shadows &&
+            p.renderDeadUnits === v.renderDeadUnits
+        ) {
+            return id;
+        }
+    }
+    return null;
+}
+
 export function prefs(): Prefs {
     if (!cached) {
         cached = { ...DEFAULTS };
@@ -316,9 +374,21 @@ export function prefs(): Prefs {
                 if (stored.muteChat !== undefined && stored.combatChat === undefined) {
                     cached.combatChat = !stored.muteChat;
                 }
+                // prefs saved before the antialias field: keep the user's
+                // preset intact if they were on one, otherwise stay smooth
+                if (stored.antialias === undefined) {
+                    const legacy = legacyPresetOf(cached);
+                    if (legacy) cached.antialias = GRAPHICS_PRESETS[legacy].antialias;
+                }
             }
         } catch {
             /* private browsing */
+        }
+        // phones/tablets get the low preset once — first run, and also for
+        // prefs stored back when only desktop-grade settings existed
+        if (touchFirstDevice() && !cached.mobileTuned) {
+            Object.assign(cached, GRAPHICS_PRESETS.low);
+            cached.mobileTuned = true;
         }
         normalizePrefs(cached);
     }

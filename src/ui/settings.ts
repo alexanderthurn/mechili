@@ -67,6 +67,7 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="off">Off</option>` +
         `</select> <span class="s-hint">blobs / sun map</span></label>` +
         `<label class="s-row"><input type="checkbox" class="s-dead" /> Show dead units</label>` +
+        `<label class="s-row"><input type="checkbox" class="s-aa" /> Antialiasing <span class="s-hint">smoother edges · next match</span></label>` +
         `</section>` +
         `<div class="actions"><button type="button" class="primary" data-act="close">Close</button></div>` +
         `</div>`;
@@ -79,6 +80,7 @@ export function openSettings(parent: HTMLElement): void {
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;
     const shadows = overlay.querySelector<HTMLSelectElement>('.s-shadows')!;
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
+    const aa = overlay.querySelector<HTMLInputElement>('.s-aa')!;
     const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset')];
 
     const syncFromPrefs = (): void => {
@@ -91,6 +93,7 @@ export function openSettings(parent: HTMLElement): void {
         dpr.value = String(p.dprCap);
         shadows.value = p.shadows;
         dead.checked = p.renderDeadUnits;
+        aa.checked = p.antialias;
         const active = detectGraphicsPreset(p);
         for (const button of presetButtons) {
             button.classList.toggle(
@@ -127,6 +130,10 @@ export function openSettings(parent: HTMLElement): void {
     });
     dead.addEventListener('change', () => {
         updatePrefs({ renderDeadUnits: dead.checked });
+        syncFromPrefs();
+    });
+    aa.addEventListener('change', () => {
+        updatePrefs({ antialias: aa.checked });
         syncFromPrefs();
     });
 

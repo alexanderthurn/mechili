@@ -6,6 +6,9 @@ const ROTATE_SPEED = Math.PI / 2; // rad/s for Q/E
 const ORBIT_HEADING_PER_PX = 0.005; // rad per dragged pixel
 const ORBIT_PITCH_PER_PX = 0.004;
 
+/** single-finger drags shorter than this stay taps (placement clicks) */
+const TOUCH_PAN_SLOP = 9;
+
 /**
  * Typical RTS camera input on top of {@link CameraRig}:
  *  - WASD / arrows: heading-relative panning
@@ -14,6 +17,11 @@ const ORBIT_PITCH_PER_PX = 0.004;
  *  - right drag: grab the ground and pan (the point stays under the cursor)
  *  - wheel: straight zoom toward the cursor
  *  - Q / E: rotate, Home: reset rotation, tilt and zoom
+ *
+ * Touch (no mouse buttons — gestures instead):
+ *  - one-finger drag: grab the ground and pan (taps stay placement clicks;
+ *    suppressed while a ghost/carried pack rides the finger)
+ *  - two fingers: pinch to zoom at the midpoint, move together to orbit
  */
 export class CameraControls {
     /** set to false to disable edge scrolling (e.g. in windowed dev) */
@@ -22,6 +30,8 @@ export class CameraControls {
     onMiddleClick: (() => void) | null = null;
     /** fired on a right CLICK (press without drag) — pan only counts once the mouse moves */
     onRightClick: (() => void) | null = null;
+    /** while true, one-finger drags aim/carry instead of panning (game wires placement state) */
+    suppressTouchPan: (() => boolean) | null = null;
 
     private readonly pressed = new Set<string>();
     private dragGround: Vector3 | null = null;
@@ -29,6 +39,11 @@ export class CameraControls {
     private orbitLast: { x: number; y: number } | null = null;
     private orbitStart: { x: number; y: number } | null = null;
     private pointer: { x: number; y: number } | null = null;
+    private readonly touches = new Map<number, { x: number; y: number }>();
+    private touchPanGround: Vector3 | null = null;
+    private touchPanActive = false;
+    private touchDown: { x: number; y: number } | null = null;
+    private pinchLast: { dist: number; midX: number; midY: number } | null = null;
     private readonly disposers: (() => void)[] = [];
 
     constructor(
@@ -66,8 +81,15 @@ export class CameraControls {
             { passive: false },
         );
 
+        // stop the browser from scrolling/pinch-zooming the page itself
+        surface.style.touchAction = 'none';
+
         listen(surface, 'contextmenu', (e: MouseEvent) => e.preventDefault());
         listen(surface, 'pointerdown', (e: PointerEvent) => {
+            if (e.pointerType === 'touch') {
+                this.onTouchDown(e);
+                return;
+            }
             if (e.button === 1) {
                 e.preventDefault(); // no middle-click autoscroll
                 this.orbitLast = { x: e.clientX, y: e.clientY };
@@ -80,6 +102,10 @@ export class CameraControls {
             }
         });
         listen(surface, 'pointermove', (e: PointerEvent) => {
+            if (e.pointerType === 'touch') {
+                this.onTouchMove(e);
+                return;
+            }
             this.pointer = this.toLocal(e);
             if (this.orbitLast) {
                 const dx = e.clientX - this.orbitLast.x;
@@ -98,6 +124,10 @@ export class CameraControls {
             this.pointer = null;
         });
         listen(surface, 'pointerup', (e: PointerEvent) => {
+            if (e.pointerType === 'touch') {
+                this.onTouchEnd(e);
+                return;
+            }
             if (e.button === 1 && this.orbitStart) {
                 const moved = Math.hypot(e.clientX - this.orbitStart.x, e.clientY - this.orbitStart.y);
                 if (moved <= 5) this.onMiddleClick?.();
@@ -111,12 +141,97 @@ export class CameraControls {
             this.orbitLast = null;
             this.orbitStart = null;
         });
-        listen(surface, 'pointercancel', () => {
+        listen(surface, 'pointercancel', (e: PointerEvent) => {
+            if (e.pointerType === 'touch') {
+                this.onTouchEnd(e);
+                return;
+            }
             this.dragGround = null;
             this.dragStart = null;
             this.orbitLast = null;
             this.orbitStart = null;
         });
+    }
+
+    // --- touch gestures ----------------------------------------------------
+
+    private onTouchDown(e: PointerEvent): void {
+        this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (this.touches.size === 1) {
+            this.touchDown = { x: e.clientX, y: e.clientY };
+            this.touchPanGround = this.pickAt(e.clientX, e.clientY);
+            this.touchPanActive = false;
+        } else if (this.touches.size === 2) {
+            // second finger: abandon panning, start pinch/orbit
+            this.touchPanGround = null;
+            this.touchPanActive = false;
+            this.pinchLast = this.pinchState();
+        } else {
+            this.pinchLast = null;
+        }
+    }
+
+    private onTouchMove(e: PointerEvent): void {
+        const touch = this.touches.get(e.pointerId);
+        if (!touch) return;
+        touch.x = e.clientX;
+        touch.y = e.clientY;
+
+        if (this.touches.size === 1 && this.touchPanGround && this.touchDown) {
+            if (!this.touchPanActive) {
+                const moved = Math.hypot(e.clientX - this.touchDown.x, e.clientY - this.touchDown.y);
+                if (moved <= TOUCH_PAN_SLOP) return; // still a potential tap
+                if (this.suppressTouchPan?.()) return; // finger carries a ghost — placement aims
+                this.touchPanActive = true;
+            }
+            const now = this.pickAt(e.clientX, e.clientY);
+            if (now) this.rig.pan(this.touchPanGround.x - now.x, this.touchPanGround.z - now.z, true);
+            return;
+        }
+
+        if (this.touches.size === 2 && this.pinchLast) {
+            const pinch = this.pinchState();
+            if (!pinch) return;
+            if (pinch.dist > 0 && this.pinchLast.dist > 0) {
+                const rect = this.surface.getBoundingClientRect();
+                this.rig.zoomAt(
+                    this.pinchLast.dist / pinch.dist,
+                    pinch.midX - rect.left,
+                    pinch.midY - rect.top,
+                );
+            }
+            this.rig.orbit(
+                -(pinch.midX - this.pinchLast.midX) * ORBIT_HEADING_PER_PX,
+                (pinch.midY - this.pinchLast.midY) * ORBIT_PITCH_PER_PX,
+            );
+            this.pinchLast = pinch;
+        }
+    }
+
+    private onTouchEnd(e: PointerEvent): void {
+        this.touches.delete(e.pointerId);
+        if (this.touches.size < 2) this.pinchLast = null;
+        if (this.touches.size === 1) {
+            // hand the pan over to the remaining finger
+            const [rest] = this.touches.values();
+            this.touchDown = { x: rest!.x, y: rest!.y };
+            this.touchPanGround = this.pickAt(rest!.x, rest!.y);
+            this.touchPanActive = false;
+        } else if (this.touches.size === 0) {
+            this.touchDown = null;
+            this.touchPanGround = null;
+            this.touchPanActive = false;
+        }
+    }
+
+    private pinchState(): { dist: number; midX: number; midY: number } | null {
+        if (this.touches.size < 2) return null;
+        const [a, b] = [...this.touches.values()];
+        return {
+            dist: Math.hypot(a!.x - b!.x, a!.y - b!.y),
+            midX: (a!.x + b!.x) / 2,
+            midY: (a!.y + b!.y) / 2,
+        };
     }
 
     update(dtSeconds: number): void {
@@ -160,10 +275,14 @@ export class CameraControls {
     }
 
     private pick(e: PointerEvent): Vector3 | null {
+        return this.pickAt(e.clientX, e.clientY);
+    }
+
+    private pickAt(clientX: number, clientY: number): Vector3 | null {
         const rect = this.surface.getBoundingClientRect();
         return this.rig.screenToGround(
-            e.clientX - rect.left,
-            e.clientY - rect.top,
+            clientX - rect.left,
+            clientY - rect.top,
             rect.width,
             rect.height,
         );
