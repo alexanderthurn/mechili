@@ -20,6 +20,12 @@ export default defineConfig({
     base: './',
     build: {
         target: 'esnext',
+        rollupOptions: {
+            input: {
+                main: resolve('index.html'),
+                web: resolve('web.html'),
+            },
+        },
     },
     define: {
         __APP_VERSION__: JSON.stringify(appVersion),

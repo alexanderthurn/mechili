@@ -298,6 +298,9 @@ export class Game {
     private reconnectGraceRemaining: number | null = null;
     /** set by main: fired the instant the grace window elapses, to cancel the in-flight redial */
     onReconnectTimeout: (() => void) | null = null;
+    /** post-reconnect readiness handshake — see awaitPeerReady() */
+    private localReady = false;
+    private peerReady = false;
     /** the round-card offer drawn during hydration, shown once it finishes */
     private pendingOffer: RoundCard[] | null = null;
     /** the four specialist cards currently offered to the player (for auto-pick) */
@@ -733,6 +736,11 @@ export class Game {
         }
         // only now may peer messages flow — everything they touch exists
         if (this.net) this.wireSession(this.net);
+        if (resume && this.net && !resume.local) {
+            // rebuilt from a peer reconnect (not a solo save) — hold ticking
+            // until the peer confirms it's ready too; see awaitPeerReady()
+            this.awaitPeerReady();
+        }
 
         // Escape toggles the in-game menu (the match keeps running underneath)
         window.addEventListener('keydown', this.onEscapeKey);
@@ -1290,6 +1298,8 @@ export class Game {
     beginReconnectGrace(seconds: number): void {
         if (this.disposed || this.matchOver) return;
         this.suspended = true;
+        this.localReady = false;
+        this.peerReady = false;
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
@@ -1298,7 +1308,8 @@ export class Game {
         this.hud.updateReconnectWait(seconds);
     }
 
-    /** the peer is back on a fresh session — continue exactly where we were */
+    /** the connection is back on a fresh session — but stay paused until the
+     *  peer confirms it's actually ready too (see awaitPeerReady) */
     resumeWith(session: NetSession): void {
         if (this.disposed || this.matchOver) {
             session.close();
@@ -1307,27 +1318,76 @@ export class Game {
         this.reconnectGraceRemaining = null;
         this.onReconnectTimeout = null;
         this.wireSession(session);
-        this.suspended = false;
-        this.hud.hideReconnectWait();
-        this.hud.hideNotice();
-        this.verifyAfterReconnect();
+        this.awaitPeerReady();
     }
 
     /**
-     * After ANY reconnect (not just a page reload) — not only the initial
-     * page-reload/attemptResume path already covered by `hydrate`. A message
-     * dropped exactly at the moment the connection died (e.g. a missed
-     * endDeployment) would otherwise never be noticed, since the existing
-     * check only runs at battle start. Reusing the same check/verify plumbing
-     * here means any such gap self-heals through the existing guest-reloads
-     * recovery instead of silently stalling the match.
+     * Reconnect handshake, phase 2: the transport is back, but a peer that
+     * had to reload pays several real seconds loading 3D assets before its
+     * own clock can start. If a survivor (never reloaded) resumed ticking
+     * immediately, that entire load gap would drain out of ONLY its own
+     * deployment timer. Both sides hold suspended here until each has told
+     * the other "ready" — a survivor sends it right away (nothing to load);
+     * a rebuilt peer sends it once construction/hydrate is fully done.
      */
-    private verifyAfterReconnect(): void {
-        if (!this.net || this.hydrating) return;
-        const hash = this.stateHash();
-        this.sentChecks.set(this.round, hash);
-        this.net.send({ type: 'check', round: this.round, hash });
-        this.verifyCheck(this.round);
+    private awaitPeerReady(): void {
+        this.localReady = true;
+        this.suspended = true;
+        this.hud.hideReconnectWait();
+        this.hud.showNotice(
+            'Reconnected — waiting for the opponent to finish loading…',
+            'Give up',
+            () => this.quitToMenu(),
+        );
+        this.net?.send({ type: 'ready' });
+        if (this.peerReady) this.confirmBothReady();
+    }
+
+    /** both sides confirmed — resume together, then resend anything the peer
+     *  might have missed at disconnect time */
+    private confirmBothReady(): void {
+        this.suspended = false;
+        this.hud.hideNotice();
+        this.resendGateSignals();
+    }
+
+    /**
+     * After ANY reconnect (not just a page reload): resend whichever "gate"
+     * signal we've already locally committed to but the peer may be missing
+     * — a message dropped exactly at the moment the connection died is
+     * otherwise gone for good, and if it's one of these, the peer can get
+     * stuck waiting forever (deployReady/battleReady never flips, and it
+     * never reaches the point where the existing battle-start desync check
+     * would even run). Resending is safe: dispatch() rejects an
+     * already-applied gate action as a harmless no-op.
+     *
+     * A blind state-hash comparison here (instead of a targeted resend) was
+     * tried and reverted — during round 0 (before both sides have picked) or
+     * mid-deployment (before both lock in), the two sides' state is
+     * legitimately, momentarily asymmetric while ordinary in-flight messages
+     * are still catching up, which isn't a desync. Hashing at that point
+     * produces false mismatches; the original check only ever ran at battle
+     * start, a point structurally guaranteed to be fully converged (reliable
+     * ordered delivery + the deployReady gate), which is why it never had
+     * this problem.
+     */
+    private resendGateSignals(): void {
+        if (!this.net) return;
+        if (this.round === 0) {
+            const own = this.starterCardOf('player');
+            if (own) this.net.send({ type: 'starter', cardId: own.id });
+            return;
+        }
+        if (this.phase === 'build' && this.deployReady.player) {
+            this.net.send({
+                type: 'action',
+                round: this.round,
+                action: { kind: 'endDeployment', team: 'player' },
+            });
+        }
+        if (this.battleReady.player) {
+            this.net.send({ type: 'battleEnd', round: this.round });
+        }
     }
 
     /** everything a rejoining peer needs to rebuild the match (our perspective) */
@@ -1446,12 +1506,7 @@ export class Game {
         }
     }
 
-    /**
-     * Canonical state fingerprint. Originally exchanged only at battle start;
-     * also used post-reconnect (see {@link verifyAfterReconnect}), so it must
-     * be meaningful during build phase too — deployReady/speciality/round-card
-     * picks and the units on the board all feed in when there's no running sim.
-     */
+    /** canonical state fingerprint, exchanged at battle start to catch desyncs */
     private stateHash(): number {
         const buffer = new DataView(new ArrayBuffer(8));
         let h = 0x811c9dc5;
@@ -1460,48 +1515,19 @@ export class Game {
             h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
             h = Math.imul(h ^ buffer.getUint32(4), 0x9e3779b1);
         };
-        const mixStr = (s: string | null) => {
-            if (s === null) {
-                mix(-1);
-                return;
-            }
-            let acc = 0;
-            for (let i = 0; i < s.length; i++) acc = (Math.imul(acc, 131) + s.charCodeAt(i)) | 0;
-            mix(acc);
-        };
         const hostParity = this.side === 'a' ? 0 : 1;
-        const hostFirst = <T>(player: T, enemy: T): T[] =>
+        const hostFirst = (player: number, enemy: number) =>
             this.side === 'a' ? [player, enemy] : [enemy, player];
         mix(this.round);
-        mix(this.phase === 'build' ? 0 : 1);
         for (const v of hostFirst(this.playerHp, this.enemyHp)) mix(v);
         for (const v of hostFirst(this.economy.balance('player'), this.economy.balance('enemy'))) mix(v);
-        for (const v of hostFirst(this.deployReady.player, this.deployReady.enemy)) mix(v ? 1 : 0);
-        for (const v of hostFirst(this.battleReady.player, this.battleReady.enemy)) mix(v ? 1 : 0);
-        for (const v of hostFirst(this.roundCardTaken.player, this.roundCardTaken.enemy)) mix(v ? 1 : 0);
-        for (const v of hostFirst(this.speciality.player, this.speciality.enemy)) mixStr(v);
-        if (this.sim) {
-            for (const a of this.sim.actors) {
-                const id = a.unit.id;
-                mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
-                mix(a.x);
-                mix(a.z);
-                mix(a.hp);
-                mix(a.unit.level);
-            }
-        } else {
-            // allUnits() order tracks local dispatch interleaving, which can
-            // legitimately differ between peers — sort by id like sim.ts does
-            const units = [...this.placement.allUnits()].sort((a, b) => a.id - b.id);
-            for (const u of units) {
-                const id = u.id;
-                mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
-                mix(u.cell.col);
-                mix(u.cell.row);
-                mix(u.level);
-                mix(u.destroyed ? 1 : 0);
-                mix(u.consumed ? 1 : 0);
-            }
+        for (const a of this.sim?.actors ?? []) {
+            const id = a.unit.id;
+            mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
+            mix(a.x);
+            mix(a.z);
+            mix(a.hp);
+            mix(a.unit.level);
         }
         // shared oil layer — must match on both peers before battle
         const oil = this.oilField.oilExpires;
@@ -1605,6 +1631,9 @@ export class Game {
                 this.battleReady.enemy = true;
                 this.maybeStartNextRound();
             }
+        } else if (msg.type === 'ready') {
+            this.peerReady = true;
+            if (this.localReady && this.suspended) this.confirmBothReady();
         }
     }
 

@@ -125,7 +125,12 @@ export type NetMessage =
     | { type: 'chat'; item: ChatItem }
     /** local battle sim finished — the peer may still be watching theirs
      *  (fast-forward speed is per-client); the next build phase waits for both */
-    | { type: 'battleEnd'; round: number };
+    | { type: 'battleEnd'; round: number }
+    /** post-reconnect: "I've finished rebuilding and am about to resume my
+     *  clock" — a reloading peer's asset load takes real seconds, so a
+     *  survivor that resumed instantly would otherwise burn that time for
+     *  nothing; both sides hold until they've traded this */
+    | { type: 'ready' };
 
 /** the remote player as an Opponent: it acts via received messages, so the
  *  local hooks are all no-ops */
