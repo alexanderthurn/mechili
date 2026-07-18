@@ -131,8 +131,11 @@ export type NetMessage =
       }
     /** battle playback speed — kept in sync so both players finish together */
     | { type: 'speed'; multiplier: number }
-    /** chat: emote or short text — never part of game state */
-    | { type: 'chat'; item: ChatItem }
+    /** chat: emote or short text — never part of game state. `from` is
+     *  required (not just implied by "whoever's on the other end of this
+     *  connection") because spectators mean more than one possible sender —
+     *  the host relays a spectator's chat to the player link too. */
+    | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' } }
     /** local battle sim finished — the peer may still be watching theirs
      *  (fast-forward speed is per-client); the next build phase waits for both */
     | { type: 'battleEnd'; round: number }
@@ -140,7 +143,39 @@ export type NetMessage =
      *  clock" — a reloading peer's asset load takes real seconds, so a
      *  survivor that resumed instantly would otherwise burn that time for
      *  nothing; both sides hold until they've traded this */
-    | { type: 'ready' };
+    | { type: 'ready' }
+    /** spectator's opening handshake, sent immediately on connecting to the
+     *  host's dedicated broadcast Peer (never the player link) */
+    | { type: 'spectate'; name: string; version: number }
+    /** host's reply: everything needed to catch up to the CURRENT live
+     *  state, mirroring the shape of 'state' (reconnect) since it's the same
+     *  underlying need — replay the log, then fast-forward any running battle */
+    | {
+          type: 'spectateAccepted';
+          version: number;
+          seed: number;
+          settings: GameSettings;
+          actions: LoggedAction[];
+          battleElapsed: number | null;
+          phaseRemaining: number;
+          roster: RosterEntry[];
+      }
+    | { type: 'spectateRejected'; reason: string }
+    /** full roster snapshot, broadcast to players + spectators whenever a
+     *  spectator joins or leaves */
+    | { type: 'roster'; entries: RosterEntry[] };
+
+/**
+ * One seat at the match, for roster display. `team` is a plain string (not
+ * the current 2-value `Team` union) and `role`/team are already separated —
+ * neither should need to change shape when a future multi-player mode adds
+ * more than two player seats.
+ */
+export interface RosterEntry {
+    name: string;
+    role: 'player' | 'spectator';
+    team?: string;
+}
 
 /** the remote player as an Opponent: it acts via received messages, so the
  *  local hooks are all no-ops */
@@ -258,6 +293,106 @@ export class NetSession {
                 await delay(delayMs, signal);
             }
         }
+    }
+}
+
+/**
+ * Host-side only: a dedicated PeerJS connection point, entirely separate
+ * from the player-link `NetSession`/`Peer`, that accepts any number of
+ * spectator connections for the life of the match. Kept independent on
+ * purpose — the player link already has its own reconnect machinery (grace
+ * timers, the redial/listen race); folding spectator traffic into that same
+ * Peer object would mean teaching all of it to tell a spectator apart from
+ * a returning opponent. A stranger dialing the WRONG endpoint (this one)
+ * can only ever become a spectator, never accidentally get treated as the
+ * live opponent.
+ *
+ * Known limitation (acceptable for now): if the host reloads, this Peer
+ * object dies with everything else and spectators are dropped — there is no
+ * spectator-side reconnect yet.
+ */
+export class SpectatorHub {
+    private readonly viewers = new Map<DataConnection, { name: string }>();
+
+    /** fired whenever a spectator connects or disconnects */
+    onRosterChange: (() => void) | null = null;
+    /** fired for chat relayed FROM a spectator (needs mirroring to the
+     *  player link and every other spectator) */
+    onSpectatorChat: ((name: string, item: ChatItem) => void) | null = null;
+
+    private constructor(private readonly peer: Peer) {}
+
+    static async open(): Promise<SpectatorHub> {
+        const peer = await openPeer();
+        return new SpectatorHub(peer);
+    }
+
+    get peerId(): string {
+        return this.peer.id;
+    }
+
+    get count(): number {
+        return this.viewers.size;
+    }
+
+    names(): string[] {
+        return [...this.viewers.values()].map((v) => v.name);
+    }
+
+    /**
+     * Wires the persistent connection acceptor — unlike `awaitConnection`,
+     * this never detaches, since any number of spectators may join over the
+     * match's lifetime. `onJoin` decides whether to accept (e.g. version
+     * check) and, if so, is responsible for replying with `spectateAccepted`
+     * (or `spectateRejected` + closing the connection).
+     */
+    listen(onJoin: (name: string, version: number, conn: DataConnection) => void): void {
+        this.peer.on('connection', (conn) => {
+            conn.on('open', () => {
+                const onData = (data: unknown) => {
+                    const msg = data as NetMessage;
+                    if (msg.type !== 'spectate') {
+                        conn.close();
+                        return;
+                    }
+                    conn.off('data', onData);
+                    conn.on('data', (d) => this.onData(conn, d as NetMessage));
+                    onJoin(msg.name, msg.version, conn);
+                };
+                conn.on('data', onData);
+                conn.on('close', () => this.drop(conn));
+                conn.on('error', () => this.drop(conn));
+            });
+        });
+    }
+
+    /** call once `onJoin` has accepted a spectator (sent `spectateAccepted`) */
+    admit(name: string, conn: DataConnection): void {
+        this.viewers.set(conn, { name });
+        this.onRosterChange?.();
+    }
+
+    private onData(conn: DataConnection, msg: NetMessage): void {
+        if (msg.type !== 'chat') return; // spectators may only ever chat
+        const viewer = this.viewers.get(conn);
+        if (!viewer) return;
+        this.onSpectatorChat?.(viewer.name, msg.item);
+    }
+
+    private drop(conn: DataConnection): void {
+        if (!this.viewers.delete(conn)) return;
+        this.onRosterChange?.();
+    }
+
+    /** fan a message out to every connected spectator */
+    broadcast(msg: NetMessage): void {
+        for (const conn of this.viewers.keys()) conn.send(msg);
+    }
+
+    close(): void {
+        for (const conn of this.viewers.keys()) conn.close();
+        this.viewers.clear();
+        this.peer.destroy();
     }
 }
 
@@ -541,6 +676,38 @@ async function lobbyRegister(peerId: string, name: string): Promise<void> {
     ).catch(() => undefined);
 }
 
+/**
+ * Discovery for `SpectatorHub`/`joinAsSpectator`: register (and heartbeat)
+ * a live match's spectate endpoint under its room name, so a spectator can
+ * find it later. `roomName` is whatever the host is already discoverable
+ * as — reuses the room-name-lookup convention `joinLobby`/`peerRoomId`
+ * already establish, just tagged separately so it never shows up in the
+ * normal "join as a player" room list.
+ */
+export function registerSpectateEndpoint(peerId: string, roomName: string): () => void {
+    let stopped = false;
+    const beat = () => {
+        void fetch(
+            `${matchUrl()}?action=spectate-register&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(roomName)}`,
+        ).catch(() => undefined);
+    };
+    beat();
+    const heartbeat = setInterval(beat, HEARTBEAT_MS);
+    return () => {
+        if (stopped) return;
+        stopped = true;
+        clearInterval(heartbeat);
+        void lobbyLeave(peerId);
+    };
+}
+
+/** Look up a live match's spectate endpoint by room name, if one is open. */
+export async function lookupSpectateEndpoint(roomName: string): Promise<string | null> {
+    const res = await fetch(`${matchUrl()}?action=spectate-lookup&name=${encodeURIComponent(roomName)}`);
+    const data = (await res.json()) as { peer?: string | null };
+    return data.peer ?? null;
+}
+
 /** Public lobby rooms (refreshed by the menu every few seconds). */
 export async function fetchLobbyRooms(): Promise<LobbyRoom[]> {
     const res = await fetch(`${matchUrl()}?action=list`);
@@ -665,6 +832,132 @@ export function joinLobby(hostName: string, onStatus: (status: string) => void):
     })();
 
     return { session, cancel: () => peer?.destroy() };
+}
+
+/**
+ * A spectator's own connection to a host's `SpectatorHub`. Deliberately NOT
+ * a `NetSession` — there's no host/guest role, no redial/reconnect, no
+ * `setup`/`hello` handshake; it's a plain receive-and-occasionally-chat link
+ * to whatever the host is mirroring.
+ */
+export class SpectatorSession {
+    private handler: ((msg: NetMessage) => void) | null = null;
+    private readonly backlog: NetMessage[] = [];
+    onClose: (() => void) | null = null;
+
+    constructor(
+        private readonly peer: Peer,
+        private readonly conn: DataConnection,
+    ) {
+        conn.on('data', (data) => {
+            const msg = data as NetMessage;
+            if (this.handler) this.handler(msg);
+            else this.backlog.push(msg);
+        });
+        let closed = false;
+        const fireClose = () => {
+            if (closed) return;
+            closed = true;
+            this.onClose?.();
+        };
+        conn.on('close', fireClose);
+        conn.on('error', fireClose);
+        peer.on('error', fireClose);
+    }
+
+    attach(handler: (msg: NetMessage) => void): void {
+        this.handler = handler;
+        while (this.backlog.length > 0) handler(this.backlog.shift()!);
+    }
+
+    send(msg: NetMessage): void {
+        this.conn.send(msg);
+    }
+
+    close(): void {
+        this.onClose = null;
+        this.conn.close();
+        this.peer.destroy();
+    }
+}
+
+export interface SpectateResult {
+    session: SpectatorSession;
+    seed: number;
+    settings: GameSettings;
+    actions: LoggedAction[];
+    battleElapsed: number | null;
+    phaseRemaining: number;
+    roster: RosterEntry[];
+}
+
+/**
+ * Join an in-progress match as a spectator, given the host's dedicated
+ * broadcast peer id (looked up via matchmaking, see `lookupSpectateEndpoint`).
+ * Returns everything needed to reconstruct current state locally (same
+ * shape of need as a reconnect) plus the live session for the ongoing
+ * stream. This is connection-level only — feeding the result into an actual
+ * on-screen (read-only) match view is separate, later work.
+ */
+export async function joinAsSpectator(
+    hostPeerId: string,
+    name: string,
+    signal?: AbortSignal,
+): Promise<SpectateResult> {
+    const peer = await openPeer(undefined, signal);
+    try {
+        const conn = await new Promise<DataConnection>((resolve, reject) => {
+            if (signal?.aborted) {
+                reject(new DOMException('Aborted', 'AbortError'));
+                return;
+            }
+            const timer = setTimeout(
+                () => reject(new Error('Host not found or offline')),
+                CONNECT_TIMEOUT_MS,
+            );
+            const onAbort = () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+            };
+            signal?.addEventListener('abort', onAbort, { once: true });
+            const c = peer.connect(hostPeerId, { reliable: true });
+            c.on('open', () => {
+                clearTimeout(timer);
+                signal?.removeEventListener('abort', onAbort);
+                resolve(c);
+            });
+            c.on('error', (e) => {
+                clearTimeout(timer);
+                signal?.removeEventListener('abort', onAbort);
+                reject(e);
+            });
+        });
+        conn.send({ type: 'spectate', name, version: GAME_VERSION });
+        const msg = await new Promise<NetMessage>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
+            const onData = (data: unknown) => {
+                clearTimeout(timer);
+                conn.off('data', onData);
+                resolve(data as NetMessage);
+            };
+            conn.on('data', onData);
+        });
+        if (msg.type === 'spectateRejected') throw new Error(msg.reason);
+        if (msg.type !== 'spectateAccepted') throw new Error('Unexpected reply from host');
+        if (msg.version !== GAME_VERSION) throw new Error('Version mismatch');
+        return {
+            session: new SpectatorSession(peer, conn),
+            seed: msg.seed,
+            settings: msg.settings,
+            actions: msg.actions,
+            battleElapsed: msg.battleElapsed,
+            phaseRemaining: msg.phaseRemaining,
+            roster: msg.roster,
+        };
+    } catch (e) {
+        peer.destroy();
+        throw e;
+    }
 }
 
 /** Guest sends hello; host waits for the guest's display name. */

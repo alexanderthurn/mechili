@@ -21,7 +21,17 @@ import { CameraControls } from '../engine/cameraControls';
 import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
-import { clearResumeMarker, clearSinglePlayer, GAME_VERSION, NetworkOpponent, type NetMessage, type NetSession } from './net';
+import {
+    clearResumeMarker,
+    clearSinglePlayer,
+    GAME_VERSION,
+    NetworkOpponent,
+    registerSpectateEndpoint,
+    SpectatorHub,
+    type NetMessage,
+    type NetSession,
+    type RosterEntry,
+} from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
 import {
@@ -233,6 +243,11 @@ export class Game {
     private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
     /** streamed peer events, applied in order once our game reaches their round */
     private readonly remoteQueue: { round: number; action?: Action; undo?: boolean }[] = [];
+    /** host-only: dedicated broadcast connection point for spectators, opened
+     *  once a multiplayer match starts (side 'a' only — see startSpectatorHub) */
+    private spectatorHub: SpectatorHub | null = null;
+    /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
+    private stopSpectateRegistration: (() => void) | null = null;
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
     private readonly recruitLevel: Record<Team, number> = { player: 1, enemy: 1 };
     /** the sell ability: `owned` is a permanent match unlock, `used` resets per round */
@@ -606,7 +621,7 @@ export class Game {
             if (now - this.lastChatSent < CHAT_COOLDOWN_MS) return;
             this.lastChatSent = now;
             this.hud.addChat(this.playerNames.local, item, 'local');
-            this.net?.send({ type: 'chat', item });
+            this.broadcast({ type: 'chat', item, from: { name: this.playerNames.local, role: 'player' } });
         };
         this.hud.onArmItem = (itemId) => {
             if (!this.playerCanAct || this.armedTactic) return;
@@ -750,6 +765,7 @@ export class Game {
             // until the peer confirms it's ready too; see awaitPeerReady()
             this.awaitPeerReady();
         }
+        if (this.net && this.side === 'a') this.startSpectatorHub();
 
         // Escape toggles the in-game menu (the match keeps running underneath)
         window.addEventListener('keydown', this.onEscapeKey);
@@ -1002,6 +1018,10 @@ export class Game {
         this.renderer.dispose();
         this.net?.close();
         this.net = null;
+        this.spectatorHub?.close();
+        this.spectatorHub = null;
+        this.stopSpectateRegistration?.();
+        this.stopSpectateRegistration = null;
     }
 
     /**
@@ -1196,7 +1216,7 @@ export class Game {
     private dispatchPlayer(action: Action): boolean {
         if (this.deployReady.player || this.suspended) return false;
         if (!this.dispatcher.dispatch(action)) return false;
-        if (this.round >= 1) this.net?.send({ type: 'action', round: this.round, action });
+        if (this.round >= 1) this.broadcast({ type: 'action', round: this.round, action });
         return true;
     }
 
@@ -1233,7 +1253,7 @@ export class Game {
         this.hud.showStartCards(offer, (cardId) => {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
-            this.net?.send({ type: 'starter', cardId });
+            this.broadcast({ type: 'starter', cardId });
             this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
             this.afterStarterPick();
         });
@@ -1252,7 +1272,7 @@ export class Game {
         this.hud.hideCardOverlay();
         this.playerStarterOffer = null;
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
-        this.net?.send({ type: 'starter', cardId: pick.id });
+        this.broadcast({ type: 'starter', cardId: pick.id });
         this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
         this.afterStarterPick();
     }
@@ -1274,6 +1294,89 @@ export class Game {
         if (this.phase !== 'build' || this.deployReady.player) return;
         this.autoSkipRoundCard();
         this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
+    }
+
+    // --- spectators (hub is host-only; roster is readable from either side) -
+
+    /** the guest has no hub of its own — it just tracks whatever the host broadcasts */
+    private receivedRoster: RosterEntry[] = [];
+
+    /** everyone currently seated at the match, for future UI use — the host
+     *  always has the live answer, the guest has whatever it was last told */
+    roster(): RosterEntry[] {
+        return this.side === 'a' ? this.buildRoster() : this.receivedRoster;
+    }
+
+    /** everyone currently seated at the match, for roster display */
+    private buildRoster(): RosterEntry[] {
+        return [
+            { name: this.playerNames.local, role: 'player', team: 'player' },
+            { name: this.playerNames.opponent, role: 'player', team: 'enemy' },
+            ...(this.spectatorHub?.names().map((name) => ({ name, role: 'spectator' as const })) ?? []),
+        ];
+    }
+
+    private broadcastRoster(): void {
+        this.broadcast({ type: 'roster', entries: this.buildRoster() });
+    }
+
+    /** sends to the opponent AND mirrors to any connected spectators */
+    private broadcast(msg: NetMessage): void {
+        this.net?.send(msg);
+        this.mirrorToSpectators(msg);
+    }
+
+    /** relays something we already handled (sent OR just received from the
+     *  opponent) out to spectators — never echoed back onto `this.net`,
+     *  that's the peer who either sent it to us or already has it */
+    private mirrorToSpectators(msg: NetMessage): void {
+        this.spectatorHub?.broadcast(msg);
+    }
+
+    /**
+     * Host-only: opens the dedicated spectator broadcast Peer for this
+     * match's lifetime. Best-effort — if it fails to open (e.g. offline),
+     * spectating just isn't available this match; it never blocks or
+     * disrupts play, which only ever depends on `this.net`.
+     */
+    private startSpectatorHub(): void {
+        void (async () => {
+            let hub: SpectatorHub;
+            try {
+                hub = await SpectatorHub.open();
+            } catch {
+                return;
+            }
+            if (this.disposed || this.matchOver) {
+                hub.close();
+                return;
+            }
+            this.spectatorHub = hub;
+            // discoverable under the same room name a "Host Room" match
+            // already uses — spectators look it up the same way a joining
+            // player would find the room
+            this.stopSpectateRegistration = registerSpectateEndpoint(hub.peerId, this.playerNames.local);
+            hub.onRosterChange = () => this.broadcastRoster();
+            hub.onSpectatorChat = (name, item) => {
+                const relayed: NetMessage = { type: 'chat', item, from: { name, role: 'spectator' } };
+                this.net?.send(relayed);
+                hub.broadcast(relayed);
+            };
+            hub.listen((name, version, conn) => {
+                if (version !== GAME_VERSION) {
+                    conn.send({ type: 'spectateRejected', reason: 'Version mismatch' });
+                    conn.close();
+                    return;
+                }
+                conn.send({
+                    type: 'spectateAccepted',
+                    version: GAME_VERSION,
+                    ...this.exportResume(),
+                    roster: this.buildRoster(),
+                });
+                hub.admit(name, conn);
+            });
+        })();
     }
 
     /** connects (or re-connects) a peer session to this game */
@@ -1610,14 +1713,17 @@ export class Game {
     private onNetMessage(msg: NetMessage): void {
         if (this.disposed || this.matchOver) return;
         if (msg.type === 'starter') {
+            this.mirrorToSpectators(msg);
             this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId });
             this.refreshShopHud();
             this.syncSpecialities();
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
+            this.mirrorToSpectators(msg);
             this.remoteQueue.push({ round: msg.round, action: msg.action });
             this.drainRemoteQueue();
         } else if (msg.type === 'undo') {
+            this.mirrorToSpectators(msg);
             this.remoteQueue.push({ round: msg.round, undo: true });
             this.drainRemoteQueue();
         } else if (msg.type === 'check') {
@@ -1633,8 +1739,23 @@ export class Game {
                 msg.item.kind === 'text'
                     ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
                     : msg.item;
-            this.hud.addChat(this.playerNames.opponent, item, 'remote');
+            if (msg.from.role === 'player') {
+                // this.net's only possible player-role sender is the opponent —
+                // use our own trusted record rather than their (unverified) claim
+                this.hud.addChat(this.playerNames.opponent, item, 'remote');
+                this.mirrorToSpectators({
+                    type: 'chat',
+                    item,
+                    from: { name: this.playerNames.opponent, role: 'player' },
+                });
+            } else {
+                // a spectator's chat, relayed to us by the host — no UI surface
+                // for this yet (spectator chat renders separately from player
+                // chat, per design; that view doesn't exist yet). Never
+                // attribute it to the opponent.
+            }
         } else if (msg.type === 'speed') {
+            this.mirrorToSpectators(msg);
             const index = Game.SPEED_STEPS.indexOf(msg.multiplier);
             if (index >= 0) {
                 this.speedIndex = index;
@@ -1644,6 +1765,7 @@ export class Game {
             // the peer reloaded and rebuilt mid-session (rare direct path)
             this.net?.send({ type: 'state', version: GAME_VERSION, ...this.exportResume() });
         } else if (msg.type === 'battleEnd') {
+            this.mirrorToSpectators(msg);
             if (msg.round === this.round) {
                 this.battleReady.enemy = true;
                 this.maybeStartNextRound();
@@ -1651,6 +1773,10 @@ export class Game {
         } else if (msg.type === 'ready') {
             this.peerReady = true;
             if (this.localReady && this.suspended) this.confirmBothReady();
+        } else if (msg.type === 'roster') {
+            // only the host actually tracks spectators (see buildRoster());
+            // the guest just holds onto whatever it's told for display
+            this.receivedRoster = msg.entries;
         }
     }
 
@@ -2451,8 +2577,8 @@ export class Game {
         this.speedIndex = (this.speedIndex + direction + n) % n;
         const multiplier = Game.SPEED_STEPS[this.speedIndex]!;
         this.hud.setSpeed(multiplier);
-        // both players watch at the same pace and finish together
-        this.net?.send({ type: 'speed', multiplier });
+        // both players (and spectators) watch at the same pace and finish together
+        this.broadcast({ type: 'speed', multiplier });
     }
 
     /** battle speed returns to 1× at the start of every deployment phase */
@@ -2462,7 +2588,7 @@ export class Game {
         this.speedIndex = index;
         this.hud.setSpeed(1);
         // during hydration this runs once per replayed round — don't spam the peer
-        if (!this.hydrating) this.net?.send({ type: 'speed', multiplier: 1 });
+        if (!this.hydrating) this.broadcast({ type: 'speed', multiplier: 1 });
     }
 
     /** what the player pays right now, including an active recruit-level premium */
@@ -2508,7 +2634,7 @@ export class Game {
         if (!this.canUndo()) return;
         this.placement.deselect();
         if (this.dispatcher.undoLast(this.round, 'player')) {
-            this.net?.send({ type: 'undo', round: this.round }); // the peer mirrors it
+            this.broadcast({ type: 'undo', round: this.round }); // the peer mirrors it
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
@@ -2932,7 +3058,7 @@ export class Game {
     private announceBattleEnd(): void {
         this.battleReady.player = true;
         if (this.net && !this.hydrating) {
-            this.net.send({ type: 'battleEnd', round: this.round });
+            this.broadcast({ type: 'battleEnd', round: this.round });
         }
         this.maybeStartNextRound();
     }

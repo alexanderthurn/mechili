@@ -14,7 +14,15 @@
  *   ?action=list
  *       Open public rooms: {"rooms":[{"name":"...","peer":"..."}]}
  *   ?action=leave&peer=<peerjs-id>
- *       Remove the caller's queue or lobby entry.
+ *       Remove the caller's queue, lobby, or spectate entry.
+ *   ?action=spectate-register&peer=<peerjs-id>&name=<room-name>
+ *       Register/heartbeat a live match's spectator broadcast endpoint —
+ *       same shape as ?action=host, but tagged kind=spectate and kept alive
+ *       for the WHOLE match (not just pre-match), so a match stays
+ *       discoverable-for-watching after it starts. Not shown by ?action=list.
+ *   ?action=spectate-lookup&name=<room-name>
+ *       Find a live match's spectate endpoint by room name.
+ *       {"peer":"<peerjs-id>"|null}
  *
  * Entries not refreshed for TTL seconds are deleted automatically.
  * Clients heartbeat every 5s, so TTL 15s means "gone".
@@ -50,6 +58,35 @@ if ($action === 'list') {
         $open[] = ['name' => $r['name'] ?? '', 'peer' => $r['peer'] ?? ''];
     }
     echo json_encode(['rooms' => $open]);
+    exit;
+}
+
+if ($action === 'spectate-lookup') {
+    if ($name === '' || strlen($name) > 32) {
+        http_response_code(400);
+        echo json_encode(['error' => 'bad room name']);
+        exit;
+    }
+    $fp = fopen(STORE, 'c+');
+    if (!$fp || !flock($fp, LOCK_SH)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'lock failed']);
+        exit;
+    }
+    $raw = stream_get_contents($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    $rooms = $raw ? (json_decode($raw, true) ?: []) : [];
+    $now = time();
+    $found = null;
+    foreach ($rooms as $r) {
+        if (($r['kind'] ?? '') !== 'spectate') continue;
+        if ($now - ($r['ts'] ?? 0) > TTL) continue;
+        if (($r['name'] ?? '') !== $name) continue;
+        $found = $r['peer'] ?? null;
+        break;
+    }
+    echo json_encode(['peer' => $found]);
     exit;
 }
 
@@ -94,6 +131,25 @@ if ($action === 'leave') {
     // one lobby entry per peer id; name is the display label
     $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
     $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'lobby', 'ts' => $now];
+    echo json_encode(['ok' => true]);
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($rooms));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    exit;
+} elseif ($action === 'spectate-register') {
+    if ($name === '' || strlen($name) > 32) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        http_response_code(400);
+        echo json_encode(['error' => 'bad room name']);
+        exit;
+    }
+    // one spectate entry per peer id; name is the room it's spectating for
+    $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
+    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'spectate', 'ts' => $now];
     echo json_encode(['ok' => true]);
     ftruncate($fp, 0);
     rewind($fp);
