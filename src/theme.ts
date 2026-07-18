@@ -422,8 +422,16 @@ export function menuStyles(): string {
     opacity: 0.85;
     pointer-events: none;
     user-select: none;
+    text-decoration: none;
     z-index: 30;
 }
+.mechili-version.link {
+    pointer-events: auto;
+    cursor: pointer;
+    transition: color 0.12s ease, opacity 0.12s ease;
+}
+.mechili-version.link:hover { color: ${u.brassLight}; opacity: 1; }
+.mechili-version.link:focus-visible { outline: none; color: ${u.brassLight}; opacity: 1; }
 .mechili-name-edit {
     position: absolute;
     inset: 0;

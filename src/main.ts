@@ -9,6 +9,7 @@ import {
     GAME_VERSION,
     handshake,
     hostLobby,
+    isMelodanPlayHost,
     joinLobby,
     loadResumeMarker,
     loadSinglePlayer,
@@ -142,10 +143,17 @@ usernameEl.type = 'button';
 usernameEl.style.zIndex = '30';
 wrapper.appendChild(usernameEl);
 
-const versionEl = document.createElement('div');
+const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
 versionEl.className = 'mechili-version';
 versionEl.style.zIndex = '30';
 versionEl.textContent = `v${__APP_VERSION__} · ${GAME_VERSION}`;
+if (versionEl instanceof HTMLAnchorElement) {
+    versionEl.href = 'https://melodan.com/';
+    versionEl.target = '_blank';
+    versionEl.rel = 'noopener noreferrer';
+    versionEl.title = 'melodan.com';
+    versionEl.classList.add('link');
+}
 wrapper.appendChild(versionEl);
 
 // big gear in the top-right corner of the main menu

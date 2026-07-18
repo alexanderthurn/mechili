@@ -230,7 +230,7 @@ app.innerHTML = `
     <a class="mh-play-btn steam" href="${STEAM_URL}" rel="noopener noreferrer" target="_blank">
       <span class="mh-play-title">
         <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="" width="56" height="56" />
-        Buy Now
+        Coming Soon
       </span>
       <span class="mh-play-note">Ranked Multiplayer · Play with your Friends</span>
     </a>

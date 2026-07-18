@@ -33,9 +33,14 @@ const HEARTBEAT_MS = 5000;
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
  * Override per deployment with ?match=<url>.
  */
-function isLocalhost(): boolean {
+export function isLocalhost(): boolean {
     const h = location.hostname;
     return h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+}
+
+/** localhost (dev) or the public play host — same hosts that use the Melodan backend path */
+export function isMelodanPlayHost(): boolean {
+    return isLocalhost() || location.hostname === 'play.melodan.com';
 }
 
 export function matchUrl(): string {
