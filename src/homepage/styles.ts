@@ -419,11 +419,14 @@ body {
     font-size: 14px;
     font-weight: 700;
 }
-/* Below this width, cards/tactics/units pile up too tall to browse — swap the
-   full gallery for a <select> that shows one item (.mh-active) at a time. */
+/* Below this width, tall galleries (and the unit roster) swap to a <select>
+   that shows one item / drives the 3D preview — chips and card grids hide. */
 @media (max-width: 720px) {
     .mh-card-select {
         display: block;
+        max-width: none;
+        width: 100%;
+        box-sizing: border-box;
     }
     #mh-specialists-row > .card:not(.mh-active),
     #mh-round-cards-row > .card:not(.mh-active),
@@ -432,10 +435,48 @@ body {
     }
     #mh-specialists-row,
     #mh-round-cards-row {
-        justify-content: center;
+        justify-content: stretch;
+        width: 100%;
+    }
+    /* Match the select’s full width — in-game cards are only 215px wide */
+    .melodan-home #mh-specialists-row > .card.mh-active,
+    .melodan-home #mh-round-cards-row > .card.mh-active {
+        width: 100%;
+        max-width: none;
+        min-height: 0;
+        box-sizing: border-box;
+        padding: 22px 18px;
+        gap: 14px;
+    }
+    .melodan-home #mh-specialists-row > .card.mh-active .c-title,
+    .melodan-home #mh-round-cards-row > .card.mh-active .c-title {
+        font-size: 1.2rem;
+    }
+    .melodan-home #mh-specialists-row > .card.mh-active .c-units,
+    .melodan-home #mh-round-cards-row > .card.mh-active .c-units,
+    .melodan-home #mh-specialists-row > .card.mh-active .c-desc,
+    .melodan-home #mh-round-cards-row > .card.mh-active .c-desc {
+        font-size: 0.95rem;
+        line-height: 1.55;
+    }
+    .melodan-home #mh-specialists-row > .card.mh-active .c-hp,
+    .melodan-home #mh-round-cards-row > .card.mh-active .c-hp,
+    .melodan-home #mh-round-cards-row > .card.mh-active .c-cost {
+        font-size: 1.05rem;
+    }
+    #mh-tactics-grid {
+        grid-template-columns: 1fr;
+    }
+    #mh-tactics-grid > .mh-tactic.mh-active {
+        width: 100%;
+    }
+    #mh-tactics-grid > .mh-tactic.mh-active .mh-tactic-art,
+    #mh-tactics-grid > .mh-tactic.mh-active .mh-tactic-icon {
+        width: 100%;
+        max-width: 100%;
     }
     .mh-unit-picks {
-        display: none;
+        display: none !important;
     }
 }
 
