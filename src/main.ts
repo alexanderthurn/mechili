@@ -68,6 +68,53 @@ function replaceThreeCanvas(): void {
 
 document.body.appendChild(wrapper);
 
+// Loading chrome first — Feuerware + bar show before Pixi / Melodan logo finish.
+const style = document.createElement('style');
+style.textContent = menuStyles();
+document.head.appendChild(style);
+
+const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
+versionEl.className = 'mechili-version';
+versionEl.style.zIndex = '30';
+versionEl.textContent = `v${__APP_VERSION__} · ${GAME_VERSION}`;
+if (versionEl instanceof HTMLAnchorElement) {
+    versionEl.href = 'https://melodan.com/';
+    versionEl.target = '_blank';
+    versionEl.rel = 'noopener noreferrer';
+    versionEl.title = 'melodan.com';
+    versionEl.classList.add('link');
+}
+wrapper.appendChild(versionEl);
+
+const feuerwareLogoUrl = new URL('../assets/marketing/feuerware.png', import.meta.url).href;
+const feuerwareEl = document.createElement('img');
+feuerwareEl.className = 'mechili-feuerware';
+feuerwareEl.src = feuerwareLogoUrl;
+feuerwareEl.alt = 'Feuerware';
+feuerwareEl.width = 82;
+feuerwareEl.height = 16;
+wrapper.appendChild(feuerwareEl);
+
+const loadingEl = document.createElement('div');
+loadingEl.className = 'mechili-loading';
+loadingEl.innerHTML =
+    `<div class="load-bar"><div class="hp-track">` +
+    `<div class="hp-fill" style="width:0%"></div>` +
+    `<span class="hp-val">0%</span>` +
+    `</div></div>` +
+    `<div class="load-status">Loading…</div>`;
+wrapper.appendChild(loadingEl);
+const loadFill = loadingEl.querySelector<HTMLDivElement>('.hp-fill')!;
+const loadVal = loadingEl.querySelector<HTMLSpanElement>('.hp-val')!;
+const loadStatus = loadingEl.querySelector<HTMLDivElement>('.load-status')!;
+
+function setBootProgress(fraction: number, label: string): void {
+    const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+    loadFill.style.width = `${pct}%`;
+    loadVal.textContent = `${pct}%`;
+    loadStatus.textContent = label;
+}
+
 const app = new Application();
 await app.init({ backgroundAlpha: 0, resizeTo: wrapper, antialias: true });
 app.canvas.style.position = 'absolute';
@@ -113,14 +160,11 @@ function layoutTitle() {
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
 
-const style = document.createElement('style');
-style.textContent = menuStyles();
-document.head.appendChild(style);
-
 const menu = document.createElement('div');
 menu.className = 'mechili-menu';
 menu.style.position = 'relative';
 menu.style.zIndex = '30';
+menu.style.display = 'none';
 menu.innerHTML = `
     <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
     <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
@@ -141,20 +185,8 @@ const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
 usernameEl.type = 'button';
 usernameEl.style.zIndex = '30';
+usernameEl.style.display = 'none';
 wrapper.appendChild(usernameEl);
-
-const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
-versionEl.className = 'mechili-version';
-versionEl.style.zIndex = '30';
-versionEl.textContent = `v${__APP_VERSION__} · ${GAME_VERSION}`;
-if (versionEl instanceof HTMLAnchorElement) {
-    versionEl.href = 'https://melodan.com/';
-    versionEl.target = '_blank';
-    versionEl.rel = 'noopener noreferrer';
-    versionEl.title = 'melodan.com';
-    versionEl.classList.add('link');
-}
-wrapper.appendChild(versionEl);
 
 // big gear in the top-right corner of the main menu
 const settingsCornerEl = document.createElement('button');
@@ -162,12 +194,14 @@ settingsCornerEl.className = 'mechili-settings-btn';
 settingsCornerEl.type = 'button';
 settingsCornerEl.textContent = '⚙';
 settingsCornerEl.title = 'Settings';
+settingsCornerEl.style.display = 'none';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 wrapper.appendChild(settingsCornerEl);
 
 // --- global menu chat (php-backed: last 10 messages + admin sticky) ---
 const gchatEl = document.createElement('div');
 gchatEl.className = 'mechili-gchat';
+gchatEl.style.display = 'none';
 gchatEl.innerHTML =
     `<button type="button" class="g-strip">Chat</button>` +
     `<div class="g-panel">` +
@@ -182,28 +216,6 @@ const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
 const gchatInput = gchatEl.querySelector<HTMLInputElement>('.g-input')!;
 let gchatPoll: ReturnType<typeof setInterval> | null = null;
 
-const feuerwareLogoUrl = new URL('../assets/marketing/feuerware.png', import.meta.url).href;
-const loadingEl = document.createElement('div');
-loadingEl.className = 'mechili-loading';
-loadingEl.innerHTML =
-    `<div class="load-bar"><div class="hp-track">` +
-    `<div class="hp-fill" style="width:0%"></div>` +
-    `<span class="hp-val">0%</span>` +
-    `</div></div>` +
-    `<div class="load-status">Loading…</div>` +
-    `<img class="load-feuerware" src="${feuerwareLogoUrl}" alt="Feuerware" width="165" height="33" />`;
-wrapper.appendChild(loadingEl);
-const loadFill = loadingEl.querySelector<HTMLDivElement>('.hp-fill')!;
-const loadVal = loadingEl.querySelector<HTMLSpanElement>('.hp-val')!;
-const loadStatus = loadingEl.querySelector<HTMLDivElement>('.load-status')!;
-
-function setBootProgress(fraction: number, label: string): void {
-    const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
-    loadFill.style.width = `${pct}%`;
-    loadVal.textContent = `${pct}%`;
-    loadStatus.textContent = label;
-}
-
 function setMenuChromeVisible(visible: boolean): void {
     const display = visible ? '' : 'none';
     menu.style.display = display;
@@ -211,9 +223,6 @@ function setMenuChromeVisible(visible: boolean): void {
     settingsCornerEl.style.display = display;
     gchatEl.style.display = display;
 }
-
-// hide interactive menu until assets are ready (logo + version stay visible)
-setMenuChromeVisible(false);
 
 async function refreshGlobalChat(): Promise<void> {
     if (!gchatEl.isConnected || !prefs().globalChat) return;
@@ -888,6 +897,7 @@ menu.addEventListener('click', (e) => {
 // load all shared game assets before the menu is interactive
 await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
 loadingEl.remove();
+feuerwareEl.remove();
 setMenuChromeVisible(true);
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save

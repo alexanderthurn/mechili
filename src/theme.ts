@@ -450,18 +450,19 @@ export function menuStyles(): string {
     user-select: none;
     pointer-events: none;
 }
-.mechili-loading .load-feuerware {
-    display: block;
-    width: min(165px, 41vw);
+.mechili-feuerware {
+    position: absolute;
+    bottom: calc(28px + env(safe-area-inset-bottom));
+    right: calc(28px + env(safe-area-inset-right));
+    top: auto;
+    left: auto;
+    width: min(82px, 20vw);
     height: auto;
-    margin-top: 4px;
-    opacity: 0;
+    opacity: 0.85;
     filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
-    animation: mechili-fw-in 1.4s ease-out 0.35s forwards;
-}
-@keyframes mechili-fw-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 0.85; transform: translateY(0); }
+    z-index: 36;
+    pointer-events: none;
+    user-select: none;
 }
 .mechili-loading .load-bar {
     width: 100%;
