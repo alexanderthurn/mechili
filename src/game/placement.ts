@@ -144,9 +144,10 @@ export class PlacementController {
     private pendingType: UnitType | null = null;
     private pendingUnit: Unit | null = null;
     /**
-     * Mechabellum-style pickup: the first click on a movable pack only
-     * SELECTS it (info, range); a second click on it picks it up so it rides
-     * the cursor. Clicking ground moves the selection either way.
+     * First click on a movable pack only SELECTS it (info, range). A second
+     * click on it (or middle-click rotate) picks it up so it rides the cursor.
+     * Empty-ground clicks only move while carrying — after a drop the pack
+     * stays selected in details mode until picked up again.
      */
     private carryingSelected = false;
     /** rect-selected movable packs (2+); a single selection uses selectedUnit */
@@ -1083,10 +1084,8 @@ export class PlacementController {
             if (done) this.deselect();
             return;
         }
-        // empty ground, selection stays either way:
-        //  - merely selected: move there AND pick it up (rides the cursor from here)
-        //  - carrying: drop it there
-        if (this.selectedUnit && this.isMovable(this.selectedUnit)) {
+        // empty ground: drop only while carrying; mere selection clears
+        if (this.selectedUnit && this.isMovable(this.selectedUnit) && this.carryingSelected) {
             const anchor = this.centeredAnchor(this.selectedUnit.type, this.selectedUnit.rotated, cell);
             const done = this.dispatch?.({
                 kind: 'move',
@@ -1094,7 +1093,7 @@ export class PlacementController {
                 unitId: this.selectedUnit.id,
                 anchor,
             });
-            if (done) this.carryingSelected = false; // placed — stay selected, back on the ground
+            if (done) this.carryingSelected = false; // placed — stay selected, details only
         } else {
             this.deselect();
         }

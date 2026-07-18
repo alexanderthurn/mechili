@@ -595,7 +595,7 @@ function startGame(
     const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume);
     activeGame = game;
     game.onReturnToMenu = returnToMenu;
-    if (net) wireReconnect(game, net);
+    if (net) wireReconnect(game, net, side, names);
     else stopSinglePlayerPersist = wireSinglePlayerPersist(game);
 }
 
@@ -632,11 +632,16 @@ const RECONNECT_GRACE_SECONDS = 30;
 
 /**
  * Survivor side of a dropped connection: pause behind a live countdown, wait
- * for the peer to come back (re-hosting our room, or redialing theirs),
- * answer their resume request with the full match state, then continue. If
- * the peer hasn't returned within the grace window, we win by forfeit.
+ * for the peer to come back, answer their resume request with the full
+ * match state, then continue. If the peer hasn't returned within the grace
+ * window, we win by forfeit.
  */
-function wireReconnect(game: Game, initial: NetSession): void {
+function wireReconnect(
+    game: Game,
+    initial: NetSession,
+    side: 'a' | 'b',
+    names: { local: string; opponent: string },
+): void {
     let session = initial;
     game.onConnectionLost = () => {
         const ac = new AbortController();
@@ -644,11 +649,16 @@ function wireReconnect(game: Game, initial: NetSession): void {
         game.beginReconnectGrace(RECONNECT_GRACE_SECONDS);
         void (async () => {
             try {
-                // if the dropped peer owned a room id it will RE-HOST it (we
-                // redial); otherwise it knows our id and dials us (we wait)
-                const next = session.remoteId.startsWith('mechili-room-')
-                    ? await session.redial(ac.signal)
-                    : await session.awaitReconnect(ac.signal);
+                // deterministic tie-break by match-lifetime side, NOT by
+                // whether the peer id happens to look like a hosted room —
+                // in Matchmaking mode NEITHER side has a stable room id, so
+                // that check used to send both sides into redial() and
+                // leave nobody listening, a silent hang. Side 'a' always
+                // waits on its own (still-live) Peer object; side 'b'
+                // always redials — this only needs the connection to still
+                // be alive locally, not a specific id format.
+                const next =
+                    side === 'a' ? await session.awaitReconnect(ac.signal) : await session.redial(ac.signal);
                 if (activeGame !== game) return;
                 const first = await next.once();
                 if (activeGame !== game) return;
@@ -657,6 +667,17 @@ function wireReconnect(game: Game, initial: NetSession): void {
                 }
                 session = next;
                 game.resumeWith(next);
+                // the peer's id may have just changed (it reloaded and got a
+                // fresh PeerJS id) — refresh our own marker so that IF we
+                // reload next, we redial its CURRENT id, not the one from
+                // match start (that staleness is what broke host's reload
+                // after guest's earlier one: guest's id had already moved on)
+                saveResumeMarker({
+                    side,
+                    names,
+                    remotePeerId: next.remoteId,
+                    ownRoomId: next.ownId.startsWith('mechili-room-') ? next.ownId : null,
+                });
             } catch (e) {
                 if (activeGame !== game) return;
                 // grace window already elapsed — forfeitWin() has the result,
