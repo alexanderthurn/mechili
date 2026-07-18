@@ -79,6 +79,11 @@ export function playerUrl(): string {
     return new URL('player.php', matchUrl()).href;
 }
 
+/** community suggestions — suggest.php next to matchmaking.php */
+export function suggestUrl(): string {
+    return new URL('suggest.php', matchUrl()).href;
+}
+
 export interface GlobalChatState {
     sticky: string | null;
     messages: { name: string; text: string; ts: number }[];

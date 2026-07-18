@@ -14,6 +14,7 @@ import {
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
 import { hudStyles, menuStyles } from '../theme';
+import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from './modelViewer';
 import { homepageStyles } from './styles';
 
@@ -304,6 +305,38 @@ app.innerHTML = `
       ${ALL_TACTICS.map(tacticCard).join('')}
     </div>
   </section>
+  <section class="mh-section mh-together" id="suggest">
+    <h2>Contribute</h2>
+    <p class="mh-sub">Melodan is developed by a single person, me. I am passionate about this game, but i can not make an AAA title and keep everything perfect, balanced and so on. The idea is to have an open game where anybody can contribute. <br /><br />Let&rsquo;s make this together. Balance, bugs, features, art ideas <span class="mh-sep">⬢</span> send a short note and I will read it. If you want to do more, welcome!</p>
+    <div class="mh-together-cta">
+      <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Suggest</button>
+    </div>
+    <div class="mh-community-body">
+      <div class="mh-community-block">
+        <h3>Ways to help</h3>
+        <ul class="mh-help-list">
+          <li>Share ideas and bug reports</li>
+          <li>Open pull requests on <a href="https://github.com/alexanderthurn/mechili" rel="noopener noreferrer" target="_blank">GitHub</a> (GPL-3.0)</li>
+          <li>Make or improve 3D models</li> 
+          <li>Take care of balancing, invent new spells, cards, ideas.</li>
+          <li>Welcome players, write guides, help with moderation if you want to take that on</li>
+        </ul>
+      </div>
+      <div class="mh-community-block">
+        <h3>3D models with Tripo3D</h3>
+        <p>
+          Most unit, building, and spell meshes are GLB files under the repo.
+          Many were made with <a href="https://www.tripo3d.ai/" rel="noopener noreferrer" target="_blank">Tripo3D</a>
+          (text or image to 3D), then exported as game-ready <strong>GLB / PBR</strong> with a reasonable polycount for crowds.
+        </p>
+        <p>
+          Workflow sketch: concept <span class="mh-sep">⬢</span> Tripo <span class="mh-sep">⬢</span> export GLB
+          <span class="mh-sep">⬢</span> pull request or Suggest with a link / file note.
+          Animated characters may need a rig (ask if unsure). Contributed assets must be OK to ship with the game.
+        </p>
+      </div>
+    </div>
+  </section>
   <section class="mh-section mh-about-section" id="about">
     <h2>About</h2>
     <div class="mh-about">
@@ -324,6 +357,7 @@ app.innerHTML = `
         For something bigger <span class="mh-sep">⬢</span> a new setting, a commercial spin-off, a full rebrand
         <span class="mh-sep">⬢</span>
         feel free to ask me at <a href="mailto:alex@feuerware.com">alex@feuerware.com</a>.
+        Want to chip in? See <a href="#suggest">Suggest</a>.
       </p>
     </div>
   </section>
@@ -333,6 +367,7 @@ app.innerHTML = `
   <div class="mh-footer-links">
     <a href="${PLAY_URL}">Play</a>
     <a href="${STEAM_URL}" rel="noopener noreferrer" target="_blank">Steam</a>
+    <a href="#suggest" id="mh-footer-suggest">Suggest</a>
     <a href="https://feuerware.com/2025/imprint.html" rel="noopener noreferrer" target="_blank">Imprint</a>
     <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">Data privacy</a>
   </div>
@@ -340,6 +375,7 @@ app.innerHTML = `
 </footer>
 
 <aside class="mh-sticky-play" id="mh-sticky-play" aria-hidden="true">
+  <button type="button" class="mh-sticky-btn suggest" id="mh-sticky-suggest">Suggest</button>
   <a class="mh-sticky-btn primary" href="${PLAY_URL}">Play in Browser</a>
   <a class="mh-sticky-btn steam" href="${STEAM_URL}" rel="noopener noreferrer" target="_blank">
     <img class="mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="28" height="28" />
@@ -378,6 +414,17 @@ if (heroPlay && stickyPlay && typeof IntersectionObserver !== 'undefined') {
         ).observe(footerEl);
     }
 }
+
+const openHomepageSuggest = () => {
+    openSuggest({ parent: document.body, source: 'homepage', lightSpecs: true });
+};
+app.querySelector('#mh-suggest-open')?.addEventListener('click', openHomepageSuggest);
+app.querySelector('#mh-sticky-suggest')?.addEventListener('click', openHomepageSuggest);
+app.querySelector('#mh-footer-suggest')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('suggest')?.scrollIntoView({ behavior: 'smooth' });
+    openHomepageSuggest();
+});
 
 for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
     img.addEventListener('error', () => {

@@ -173,6 +173,7 @@ body {
     background: ${u.panelBgDark};
     color: ${u.text};
     text-decoration: none;
+    font-family: inherit;
     font-weight: 800;
     font-size: 0.85rem;
     letter-spacing: 0.02em;
@@ -184,6 +185,10 @@ body {
 .mh-sticky-btn:hover { filter: brightness(1.08); }
 .mh-sticky-btn.primary {
     background: linear-gradient(180deg, ${u.alliedBtnHover}, ${u.alliedBtnBg});
+}
+.mh-sticky-btn.suggest {
+    background: linear-gradient(180deg, rgba(48, 58, 40, 0.95), rgba(28, 38, 24, 0.95));
+    color: ${u.brassLight};
 }
 .mh-sticky-btn.steam {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
@@ -596,6 +601,99 @@ body {
 .mh-about strong {
     color: ${u.text};
     font-weight: 800;
+}
+
+.mh-together-cta {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0 4px;
+}
+.mh-community-body {
+    max-width: 920px;
+    margin: 28px auto 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    text-align: left;
+}
+@media (min-width: 720px) {
+    .mh-community-body {
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+    }
+}
+.mh-community-block {
+    padding: 20px 22px;
+    border-radius: 14px;
+    border: 1.5px solid rgba(255, 208, 64, 0.28);
+    background: rgba(12, 18, 14, 0.55);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.mh-community-block h3 {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: ${u.brass};
+    text-align: center;
+}
+.mh-community-block p {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: ${u.phase};
+}
+.mh-community-block p:last-child { margin-bottom: 0; }
+.mh-community-block a {
+    color: ${u.brassLight};
+    font-weight: 700;
+    text-decoration: none;
+}
+.mh-community-block a:hover { text-decoration: underline; }
+.mh-community-block strong {
+    color: ${u.text};
+    font-weight: 800;
+}
+.mh-help-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: ${u.phase};
+}
+.mh-help-list li::before {
+    content: '⬢ ';
+    color: ${u.brass};
+    font-size: 0.75em;
+}
+.mh-suggest-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 6px;
+    padding: 14px 28px;
+    border-radius: 14px;
+    border: 2px solid ${u.player};
+    background: linear-gradient(180deg, ${u.alliedBtnHover}, ${u.alliedBtnBg});
+    color: ${u.text};
+    font-weight: 900;
+    font-size: 1.1rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.12s, filter 0.12s;
+}
+.mh-suggest-btn:hover {
+    border-color: ${u.hover};
+    transform: translateY(-2px);
+    filter: brightness(1.05);
+}
+.mh-suggest-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
 }
 
 .mh-footer {

@@ -5,6 +5,7 @@ import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emote
 import { onPrefsChange, prefs } from '../game/prefs';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
+import { openSuggest, collectClientSpecs } from '../suggest';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -144,6 +145,8 @@ export class Hud {
     private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
     private readonly phaseEl: HTMLSpanElement;
+    private matchRound = 0;
+    private matchPhase: Phase = 'build';
     private readonly timerEl: HTMLSpanElement;
     private readonly supplyEl: HTMLSpanElement;
     private readonly playerNameEl: HTMLSpanElement;
@@ -1126,6 +1129,8 @@ export class Hud {
 
     setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {
         // round 0 is the specialist pick, not a numbered round
+        this.matchRound = round;
+        this.matchPhase = phase;
         this.roundEl.textContent = round === 0 ? 'Specialists' : `Round ${round}`;
         this.phaseEl.textContent = waitingForPeer
             ? 'Waiting for opponent…'
@@ -1243,10 +1248,21 @@ export class Hud {
             `<div class="pause-title">Menu</div>` +
             `<button type="button" class="pause-resume">Continue</button>` +
             `<button type="button" class="pause-settings">Settings</button>` +
+            `<button type="button" class="pause-suggest">Suggest</button>` +
             `<button type="button" class="pause-quit">Quit to menu</button>` +
             `</div>`;
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
         el.querySelector('.pause-settings')!.addEventListener('click', () => openSettings(this.overlayParent));
+        el.querySelector('.pause-suggest')!.addEventListener('click', () => {
+            openSuggest({
+                parent: this.overlayParent,
+                source: 'pause',
+                specs: collectClientSpecs({
+                    phase: this.matchPhase,
+                    round: this.matchRound,
+                }),
+            });
+        });
         el.querySelector('.pause-quit')!.addEventListener('click', () => {
             this.hidePauseMenu();
             this.onQuitToMenu?.();

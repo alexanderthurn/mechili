@@ -75,22 +75,22 @@ jobs:
           name: dist
           path: dist
 
-      # the chat admin key lives only in the repo secret — injected into the
-      # PHP just before upload, never in git or the build artifact
+      # the chat / suggest admin key lives only in the repo secret — injected
+      # into the PHP just before upload, never in git or the build artifact
       - name: Inject chat admin key
         env:
           ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
         run: |
           if [ -z "$ADMIN_KEY" ]; then
-            echo "ADMIN_KEY secret not set — sticky admin stays disabled"
+            echo "ADMIN_KEY secret not set — sticky admin / suggest inbox stay disabled"
           else
             python3 - <<'PY'
           import os
-          path = 'dist/backend/chat.php'
           key = os.environ['ADMIN_KEY'].replace('\\', '\\\\').replace("'", "\\'")
-          src = open(path).read().replace('__ADMIN_KEY__', key)
-          open(path, 'w').write(src)
-          print('admin key injected')
+          for path in ('dist/backend/chat.php', 'dist/backend/suggest.php'):
+              src = open(path).read().replace('__ADMIN_KEY__', key)
+              open(path, 'w').write(src)
+              print('admin key injected into', path)
           PY
           fi
 
@@ -125,6 +125,8 @@ jobs:
             --exclude-glob "backend/stats/" \
             --exclude-glob "players/" \
             --exclude-glob "backend/players/" \
+            --exclude-glob "suggestions/" \
+            --exclude-glob "backend/suggestions/" \
             --verbose
           quit
           EOF

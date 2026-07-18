@@ -29,6 +29,7 @@ import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenPro
 import { bootGameAssets } from './game/bootAssets';
 import { onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
+import { openSuggest } from './suggest';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
 import { THEME, menuStyles } from './theme';
 
@@ -179,8 +180,12 @@ menu.innerHTML = `
     </div>
     <div class="m-status" style="display:none"></div>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
+    <button type="button" class="m-btn m-small m-suggest"><span class="m-ico">✦</span><span class="m-label">Suggest</span></button>
 `;
 wrapper.appendChild(menu);
+menu.querySelector('.m-suggest')!.addEventListener('click', () => {
+    openSuggest({ parent: wrapper, source: 'game menu' });
+});
 
 const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
@@ -514,7 +519,7 @@ function setStatus(text: string): void {
 }
 
 function setMenuBusy(busy: boolean): void {
-    menu.querySelectorAll<HTMLButtonElement>('.m-btn:not(.m-cancel)').forEach((b) => {
+    menu.querySelectorAll<HTMLButtonElement>('.m-btn:not(.m-cancel):not(.m-suggest)').forEach((b) => {
         b.disabled = busy;
     });
     roomListEl.querySelectorAll<HTMLButtonElement>('.m-room').forEach((b) => {
@@ -872,6 +877,7 @@ menu.addEventListener('click', (e) => {
         setStatus('');
         return;
     }
+    if (button.classList.contains('m-suggest')) return;
 
     switch (button.dataset.mode) {
         case 'single':

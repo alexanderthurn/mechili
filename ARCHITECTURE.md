@@ -23,7 +23,7 @@ to prevent exactly that.
 | `src/game/colors.ts` | canonical side colors (host blue, guest red, on both screens) |
 | `src/ui/hud.ts` | the whole in-match UI (DOM overlay), incl. combat chat |
 | `src/theme.ts` | every color and all CSS |
-| `backend/*.php` | matchmaking, chat, match telemetry, open player/MMR (JSON files) |
+| `backend/*.php` | matchmaking, chat, match telemetry, open player/MMR, community suggestions (JSON files) |
 | `src/game/telemetry.ts` | fire-and-forget match upload; analysis stays in clients |
 | `src/game/account.ts` / `channel.ts` | open-track soft Elo; `BUILD_CHANNEL` seam for future Steam |
 
@@ -116,6 +116,14 @@ atomic write, content-hash dedupe. Failures are ignored. Bulk download
 (`?action=bulk`) feeds client-side analysis (`backend/stats.html`). Bump
 `BALANCE_PATCH_ID` in `telemetry.ts` when tuning costs/stats for patches.
 The FTP deploy excludes `backend/stats/` so collected matches survive releases.
+
+## Community suggestions
+
+`backend/suggest.php` appends JSON items under `suggestions/data.json`
+(honeypot + per-IP rate limit). The first suggestion each UTC day emails
+`alex@feuerware.com` with a link to `backend/suggest.html` (admin key =
+chat sticky `ADMIN_KEY`). List/delete require that key. FTP deploy excludes
+`backend/suggestions/`.
 
 ## Open player profiles & soft MMR
 

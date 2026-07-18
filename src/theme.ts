@@ -675,6 +675,115 @@ export function menuStyles(): string {
 .mechili-settings button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-settings button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
 .mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.hover}; outline-offset: 1px; }
+
+/* Community Suggest — shared by game menu / pause / homepage */
+.mechili-suggest {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    font-family: system-ui, sans-serif;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    z-index: 80;
+    padding: 16px;
+}
+.mechili-suggest .box {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 20px;
+    background: ${u.panelBgSolid};
+    border: 2px solid ${u.border};
+    border-radius: 12px;
+    width: min(420px, 100%);
+    color: ${u.text};
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.mechili-suggest .s-title {
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+.mechili-suggest .s-lead {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: ${u.phase};
+}
+.mechili-suggest .s-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: ${u.brass};
+}
+.mechili-suggest .s-cat,
+.mechili-suggest .s-msg {
+    font: inherit;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: ${u.text};
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+.mechili-suggest .s-msg {
+    resize: vertical;
+    min-height: 120px;
+    line-height: 1.45;
+}
+.mechili-suggest .s-cat:focus-visible,
+.mechili-suggest .s-msg:focus-visible {
+    outline: none;
+    border-color: ${u.brassLight};
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
+.mechili-suggest .s-status {
+    margin: 0;
+    min-height: 1.2em;
+    font-size: 12px;
+    color: ${u.brassLight};
+}
+.mechili-suggest .s-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.mechili-suggest .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.mechili-suggest button {
+    padding: 8px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.mechili-suggest button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-suggest button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-suggest button:focus-visible {
+    outline: none;
+    border-color: ${u.brassLight};
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
+
 .mechili-resume {
     position: absolute;
     inset: 0;

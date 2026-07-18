@@ -67,6 +67,17 @@ MELODAN is made by **Alexander Thurn** at [Feuerware](https://feuerware.com/).
 
 Inspired by [Mechabellum](https://www.playmechabellum.com/) — thank you for the spark. MELODAN is an independent fantasy take; please support the original.
 
+## Contribute
+
+Let’s make this together. The browser game is **free**; the source is **GPL-3.0**. Steam (coming soon) is for optional paid / platform features, not a lock on the core game.
+
+- **Suggest** ideas, bugs, or how to help from [melodan.com](https://melodan.com/#suggest) or the in-game Suggest button (saved server-side; admin inbox at `backend/suggest.html`).
+- **Code / PRs** on this repo — fork, invent units, open pull requests.
+- **3D models** — most meshes are GLB under `assets/models/`; many were made with [Tripo3D](https://www.tripo3d.ai/) (export game-ready GLB / PBR, keep polycount reasonable). Send a PR or Suggest.
+- Welcome players, write guides, help with moderation later — email if you want to take that on.
+
+For something bigger (a new setting, commercial spin-off, full rebrand), ask at [alex@feuerware.com](mailto:alex@feuerware.com).
+
 ## License
 
 GPL-3.0 — copyright stays with Alexander Thurn / Feuerware. Feel free to fork privately, invent new units, and open pull requests. For something bigger (a new setting, a commercial spin-off, a full rebrand), feel free to ask at [alex@feuerware.com](mailto:alex@feuerware.com).
