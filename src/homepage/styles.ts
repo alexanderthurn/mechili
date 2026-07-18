@@ -287,6 +287,12 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 14px;
 }
+@media (max-width: 720px) {
+    .mh-shots {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+}
 .mh-shot {
     aspect-ratio: 16 / 10;
     border-radius: 12px;
