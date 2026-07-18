@@ -18,6 +18,11 @@ function escapeAttr(s: string): string {
         .replace(/\n/g, '&#10;');
 }
 
+/** escapes a string for safe use as HTML text content */
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /** one buyable/owned action in the detail panel, rendered as a square tile */
 interface ActionTile {
     /** the data-* attribute string the click handler dispatches on, e.g. `data-tech="ap"` */
@@ -36,7 +41,10 @@ interface ActionTile {
 /** what the stats panel shows for a selected pack or single mech */
 export interface SelectionInfo {
     name: string;
-    team: string;
+    /** local perspective: drives team-color CSS */
+    team: 'player' | 'enemy';
+    /** display name of the owning player (e.g. "mangoo", "AI") */
+    owner: string;
     hp: number;
     maxHp: number;
     damage: number;
@@ -1052,16 +1060,24 @@ export class Hud {
                   )
                   .join('')}</div>`
             : '';
+        // XP (or tower level) progress toward the next rank
+        const xpBarPct = info.structure
+            ? info.towerUpgrade
+                ? (info.level / info.towerUpgrade.maxLevel) * 100
+                : 100
+            : info.xpNext < 0
+              ? 100
+              : Math.max(0, Math.min(100, (info.xp / info.xpNext) * 100));
         this.panel.innerHTML =
             `<div class="panel-head">` +
             `<div class="lvl-big"><span class="lvl-cap">LVL</span><span class="lvl-num">${info.level}</span></div>` +
-            `<div class="head-main"><div class="title">${info.name}</div><div class="team ${info.team}">${info.team}</div></div>` +
+            `<div class="head-main"><div class="title">${escapeHtml(info.name)}</div><div class="team ${info.team}">${escapeHtml(info.owner)}</div></div>` +
             levelActions +
             `</div>` +
             itemSquares +
-            `<div class="hpbar"><div style="width:${Math.max(0, (info.hp / info.maxHp) * 100)}%"></div></div>` +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
+            `<div class="xpbar ${info.team}"><div style="width:${xpBarPct}%"></div></div>` +
             row(
                 'Level',
                 info.structure

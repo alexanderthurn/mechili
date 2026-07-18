@@ -1060,8 +1060,9 @@ export class Game {
      * SP cheat (U): free-spawn every unit type on both sides during
      * deployment (3 dwarf packs, 1 of each other type), bump player HP
      * sky-high, top up every tactic/spell charge so the whole strip is off
-     * cooldown, and lift intel fog so both armies are visible. Press again
-     * (any round) for another full top-up.
+     * cooldown, scramble pack levels so badges/arrows vary, and lift intel
+     * fog so both armies are visible. Press again (any round) for another
+     * full top-up.
      */
     private cheatSpawnAllUnits(): void {
         if (this.phase !== 'build' || this.matchOver) return;
@@ -1074,7 +1075,7 @@ export class Game {
 
         for (const team of ['player', 'enemy'] as const) {
             for (const type of UNIT_TYPES) {
-                if (type.id === 'shield') continue; // ward stones clutter the test field
+                if (type.id === 'shield' || type.id === 'rocket') continue; // extras clutter the test field
                 const copies = type.id === 'dwarf' ? 3 : 1;
                 for (let i = 0; i < copies; i++) {
                     const spot = this.placement.findStartSpot(team, type);
@@ -1083,6 +1084,31 @@ export class Game {
                 }
             }
         }
+
+        // scramble veterancy on every pack so level badges / panel LVL differ
+        const unitMax = this.settings.leveling.maxLevel;
+        const towerMax = this.settings.towers.upgrade.maxLevel;
+        for (const unit of this.placement.allUnits()) {
+            if (unit.type.structure && !unit.type.extra) {
+                unit.level = 1 + Math.floor(Math.random() * towerMax);
+            } else if (!unit.type.structure) {
+                unit.level = 1 + Math.floor(Math.random() * unitMax);
+                if (unit.level < unitMax) {
+                    const need = xpThresholdFor(
+                        unit.type,
+                        unit.level,
+                        this.economy,
+                        this.settings.leveling,
+                    );
+                    // some packs bank enough XP to show the upgrade arrow
+                    unit.xp = Math.random() < 0.45 ? need : Math.floor(Math.random() * need);
+                } else {
+                    unit.xp = 0;
+                }
+            }
+            unit.refreshLevelBadge();
+        }
+
         // newly spawned enemy packs aren't in the phase-start intel snapshot —
         // show the live board so the test army is actually visible
         this.placement.setIntelFog(false);
@@ -3522,6 +3548,11 @@ export class Game {
         }
     }
 
+    /** display name for the side that owns a pack */
+    private ownerName(team: Team): string {
+        return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
+    }
+
     /** veterancy display values for a pack (enemy uses phase-start intel while fogged) */
     private levelInfo(u: Unit): { level: number; xp: number; xpNext: number; statMult: number } {
         const intel = this.placement.intelOf(u);
@@ -3541,6 +3572,7 @@ export class Game {
         return {
             name: a.unit.type.name,
             team: a.unit.team,
+            owner: this.ownerName(a.unit.team),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,
@@ -3571,6 +3603,7 @@ export class Game {
         return {
             name: u.type.name,
             team: u.team,
+            owner: this.ownerName(u.team),
             hp: rs.hp * lv.statMult,
             maxHp: rs.hp * lv.statMult,
             damage: rs.damage * lv.statMult,

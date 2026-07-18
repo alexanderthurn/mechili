@@ -1,5 +1,6 @@
 import { Graphics } from 'pixi.js';
 import { Vector3, type PerspectiveCamera } from 'three';
+import { teamColors } from '../game/colors';
 import { groundHeightAt } from '../game/map';
 import { HURT_BAR_SECONDS, type Actor } from '../game/sim';
 import { THEME } from '../theme';
@@ -8,7 +9,7 @@ import { THEME } from '../theme';
  * Battle-phase HP bars, drawn into one Pixi Graphics by projecting world
  * positions through the three.js camera. A bar shows while a unit is under
  * attack (fading out afterwards) and for the selected mech, which also gets
- * a ground ring and an outlined bar.
+ * a ground ring and an outlined bar. Fill color is the owner's team color.
  */
 export class HpBars {
     readonly view = new Graphics();
@@ -61,10 +62,12 @@ export class HpBars {
         const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp));
         const w = t.structure ? 42 : selected ? 26 : 18;
         const h = selected ? 5 : 3;
-        const color = ratio > 0.5 ? THEME.hpHigh : ratio > 0.25 ? THEME.hpMid : THEME.hpLow;
+        const color = teamColors[a.unit.team].hex;
         // veterancy pips above the bar
         for (let i = 0; i < a.unit.level - 1; i++) {
-            this.view.circle(sx - ((a.unit.level - 2) * 5) / 2 + i * 5, sy - h - 5, 1.8).fill({ color: THEME.veteran, alpha });
+            this.view
+                .circle(sx - ((a.unit.level - 2) * 5) / 2 + i * 5, sy - h - 5, 1.8)
+                .fill({ color: THEME.veteran, alpha });
         }
 
         if (selected) {

@@ -1196,13 +1196,14 @@ export function hudStyles(): string {
     user-select: none;
 }
 .mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
-.mechili-panel .team { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.mechili-panel .team { font-size: 11px; letter-spacing: 0.5px; margin-bottom: 8px; }
 .mechili-panel .team.player { color: ${pc}; }
 .mechili-panel .team.enemy { color: ${ec}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
-.mechili-panel .hpbar { height: 6px; margin: 6px 0 8px; background: ${u.barTrack}; border-radius: 3px; overflow: hidden; }
-.mechili-panel .hpbar div { height: 100%; background: ${u.hpBar}; }
+.mechili-panel .xpbar { height: 6px; margin: 6px 0 2px; background: ${u.barTrack}; border-radius: 3px; overflow: hidden; }
+.mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
+.mechili-panel .xpbar.enemy div { height: 100%; background: ${ec}; }
 /* horizontal row of square action tiles (sell, techs, tower actions) */
 .mechili-panel .action-row {
     display: flex; flex-wrap: wrap; gap: 5px;
