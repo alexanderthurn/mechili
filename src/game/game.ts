@@ -795,6 +795,7 @@ export class Game {
             this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
         }
         this.unitInstances.applyShadowPref(prefs().shadows);
+        this.meteorFx.applyShadowPref(prefs().shadows);
         this.unitInstances.applyDeadPref(prefs().renderDeadUnits);
         this.applyShadowQuality();
         const fireVfx = prefs().fireVfx;
@@ -853,6 +854,7 @@ export class Game {
         }
 
         this.unitInstances.applyShadowPref(tier);
+        this.meteorFx.applyShadowPref(tier);
         this.appliedShadows = tier;
     }
 

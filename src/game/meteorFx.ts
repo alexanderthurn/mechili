@@ -1,5 +1,6 @@
-import { Group, MathUtils, type MeshStandardMaterial, type Scene } from 'three';
+import { Group, MathUtils, type Mesh, type MeshStandardMaterial, type Scene } from 'three';
 import { groundHeightAt } from './map';
+import { prefs, type ShadowQuality } from './prefs';
 import { ensureSpellTemplate } from './spellAssets';
 import {
     cloneSpellInstance,
@@ -7,6 +8,21 @@ import {
     setSpellOpacity,
 } from './spellMeshes';
 import { METEOR_SHARD_FALL_SEC } from './tactics';
+
+/** Shards only cast on high/ultra — many concurrent casters are costly on the shadow map. */
+function shardCastsShadow(tier: ShadowQuality = prefs().shadows): boolean {
+    return tier === 'high' || tier === 'ultra';
+}
+
+function setRootCastShadow(root: Group, cast: boolean): void {
+    root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (mesh.isMesh) {
+            mesh.castShadow = cast;
+            mesh.receiveShadow = cast;
+        }
+    });
+}
 
 /** fall time so impact lines up with the sim strike */
 export const GREAT_METEOR_FALL_SEC = 1.1;
@@ -74,19 +90,19 @@ export class MeteorFx {
         });
     }
 
+    /** Live-apply shadow pref to active + pooled shards. */
+    applyShadowPref(tier: ShadowQuality = prefs().shadows): void {
+        const cast = shardCastsShadow(tier);
+        for (const s of this.shards) setRootCastShadow(s.root, cast);
+        for (const p of this.shardPool) setRootCastShadow(p.root, cast);
+    }
+
     /** spawn a falling shard that impacts at (x,z) at sim time `at` */
     spawnShardImpact(x: number, z: number, at: number): void {
         void this.loadPromise.then(() => {
             if (!this.shardTpl) return;
             const inst = this.shardPool.pop() ?? cloneSpellInstance(this.shardTpl);
-            // shards don't need shadows — many concurrent casters tank FPS
-            inst.root.traverse((o) => {
-                const mesh = o as import('three').Mesh;
-                if (mesh.isMesh) {
-                    mesh.castShadow = false;
-                    mesh.receiveShadow = false;
-                }
-            });
+            setRootCastShadow(inst.root, shardCastsShadow());
             const { root, materials } = inst;
             setSpellOpacity(materials, 1);
             const groundY = groundHeightAt(x, z);
@@ -231,15 +247,10 @@ export class MeteorFx {
         this.shardTpl = shard;
         if (!shard) return;
         // warm a few pooled shards so the first impacts don't hitch
+        const cast = shardCastsShadow();
         for (let i = 0; i < 4; i++) {
             const inst = cloneSpellInstance(shard);
-            inst.root.traverse((o) => {
-                const mesh = o as import('three').Mesh;
-                if (mesh.isMesh) {
-                    mesh.castShadow = false;
-                    mesh.receiveShadow = false;
-                }
-            });
+            setRootCastShadow(inst.root, cast);
             this.shardPool.push(inst);
         }
         console.info('[meteorFx] templates ready');
