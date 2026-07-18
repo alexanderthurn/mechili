@@ -408,23 +408,29 @@ export function menuStyles(): string {
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-settings-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: rotate(45deg); }
 
-/* suggest star, top-left of the main menu (mirrors settings gear) */
+/* suggest chip, top-left of the main menu (same feel as username) */
 .mechili-suggest-btn {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
     left: calc(16px + env(safe-area-inset-left));
-    background: none;
-    border: none;
+    padding: 8px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
     color: ${u.text};
-    font-size: 70px;
-    line-height: 1;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
     cursor: pointer;
+    user-select: none;
     z-index: 30;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-    transition: transform 0.25s, color 0.2s;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
-.mechili-suggest-btn:hover { color: ${u.brassLight}; transform: scale(1.08); }
-.mechili-suggest-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: scale(1.08); }
+.mechili-suggest-btn::before { content: '✦ '; color: ${u.brass}; opacity: 0.9; }
+.mechili-suggest-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-suggest-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
 .mechili-version {

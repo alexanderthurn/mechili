@@ -200,13 +200,12 @@ settingsCornerEl.style.display = 'none';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 wrapper.appendChild(settingsCornerEl);
 
-// suggest icon, top-left (mirrors settings gear)
+// suggest chip, top-left (same language as username button)
 const suggestCornerEl = document.createElement('button');
 suggestCornerEl.className = 'mechili-suggest-btn';
 suggestCornerEl.type = 'button';
-suggestCornerEl.textContent = '✦';
-suggestCornerEl.title = 'Suggest';
-suggestCornerEl.setAttribute('aria-label', 'Suggest');
+suggestCornerEl.textContent = 'Report bug';
+suggestCornerEl.title = 'Report bug';
 suggestCornerEl.style.display = 'none';
 suggestCornerEl.addEventListener('click', () => {
     openSuggest({ parent: wrapper, source: 'game menu' });
