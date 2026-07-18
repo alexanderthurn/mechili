@@ -338,7 +338,44 @@ app.innerHTML = `
   </div>
   <span>${esc(versionLabel)} · MELODAN · Feuerware</span>
 </footer>
+
+<aside class="mh-sticky-play" id="mh-sticky-play" aria-hidden="true">
+  <a class="mh-sticky-btn primary" href="${PLAY_URL}">Play in Browser</a>
+  <a class="mh-sticky-btn steam" href="${STEAM_URL}" rel="noopener noreferrer" target="_blank">
+    <img class="mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="28" height="28" />
+    Buy
+  </a>
+</aside>
 `;
+
+const heroPlay = app.querySelector('.mh-play');
+const stickyPlay = app.querySelector<HTMLElement>('#mh-sticky-play');
+const footerEl = app.querySelector('.mh-footer');
+if (heroPlay && stickyPlay && typeof IntersectionObserver !== 'undefined') {
+    let pastHero = false;
+    let footerVisible = false;
+    const syncSticky = () => {
+        const show = pastHero && !footerVisible;
+        stickyPlay.classList.toggle('visible', show);
+        stickyPlay.setAttribute('aria-hidden', show ? 'false' : 'true');
+    };
+    new IntersectionObserver(
+        ([entry]) => {
+            pastHero = !entry.isIntersecting;
+            syncSticky();
+        },
+        { threshold: 0 },
+    ).observe(heroPlay);
+    if (footerEl) {
+        new IntersectionObserver(
+            ([entry]) => {
+                footerVisible = entry.isIntersecting;
+                syncSticky();
+            },
+            { threshold: 0, rootMargin: '0px 0px -8px 0px' },
+        ).observe(footerEl);
+    }
+}
 
 for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
     img.addEventListener('error', () => {

@@ -133,6 +133,85 @@ body {
     opacity: 0.95;
 }
 
+.mh-sticky-play {
+    display: flex;
+    position: fixed;
+    z-index: 40;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    transform: translateY(110%);
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 0;
+    padding: 0;
+    border-radius: 14px 0 0 0;
+    border: 1px solid rgba(255, 208, 64, 0.28);
+    border-right: none;
+    border-bottom: none;
+    background: rgba(12, 18, 14, 0.92);
+    backdrop-filter: blur(10px);
+    box-shadow: -6px -6px 24px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.28s ease, opacity 0.28s ease;
+}
+.mh-sticky-play.visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+.mh-sticky-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 0;
+    border: none;
+    border-left: 1px solid rgba(255, 208, 64, 0.18);
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.12s, filter 0.12s;
+}
+.mh-sticky-btn:first-child { border-left: none; }
+.mh-sticky-btn:hover { filter: brightness(1.08); }
+.mh-sticky-btn.primary {
+    background: linear-gradient(180deg, ${u.alliedBtnHover}, ${u.alliedBtnBg});
+}
+.mh-sticky-btn.steam {
+    background: linear-gradient(180deg, #2a4a2e, #1a3020);
+    color: ${u.brassLight};
+    padding: 4px 12px 4px 8px;
+}
+.mh-sticky-steam {
+    width: 2.2em;
+    height: 2.2em;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+}
+@media (min-width: 720px) {
+    .mh-sticky-btn {
+        padding: 8px 18px;
+        font-size: 0.92rem;
+        gap: 8px;
+    }
+    .mh-sticky-btn.steam {
+        padding: 5px 14px 5px 10px;
+    }
+    .mh-sticky-steam {
+        width: 2.4em;
+        height: 2.4em;
+    }
+}
+
 .mh-section {
     margin: 40px 0 56px;
     padding-top: 80px;

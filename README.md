@@ -1,35 +1,42 @@
-# MECHILI
+# MELODAN
 
-A 3D auto-battler in the spirit of Mechabellum: deploy mech packs in secret,
-watch the round play out, adapt, repeat — until one commander runs out of HP.
+**FANTASY AUTO·BATTLER**
+
+Deploy armies in secret and watch the round play out. Your enemy does the same.
+Adapt, repeat until one of you runs out of HP.
+
+**Website:** [melodan.com](https://melodan.com)  
+**Play now:** [play.melodan.com](https://play.melodan.com) (free in the browser · single & multiplayer)  
+**Steam:** coming soon (ranked multiplayer · play with your friends)
 
 Built with [three.js](https://threejs.org) for the battlefield, [PixiJS](https://pixijs.com)
-for the UI overlay (HTML-in-canvas), and shipped to Steam via
-[steam-electron-build](https://github.com/alexanderthurn/steam-electron-build).
+for the UI overlay, and [steam-electron-build](https://github.com/alexanderthurn/steam-electron-build)
+for the desktop / Steam client.
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/marketing/screenshots/01.webp" alt="MELODAN screenshot 1" width="480" />
+  <img src="assets/marketing/screenshots/02.webp" alt="MELODAN screenshot 2" width="480" />
+  <img src="assets/marketing/screenshots/03.webp" alt="MELODAN screenshot 3" width="480" />
+  <img src="assets/marketing/screenshots/04.webp" alt="MELODAN screenshot 4" width="480" />
+</p>
 
 ## How it plays
 
-- **Specialist pick** — before round 1 each player chooses a specialist
-  card: a starting army, HP pool, and a permanent speciality.
-- **Deployment phase** — buy packs, level them with banked XP, buy techs
-  and tower upgrades, equip items, place shields and rockets; position
-  everything on your side of the grid (flanks and the center strip unlock
-  after round 1), hidden from the enemy until the fight starts. From round
-  2 a card offer opens each round. Ends via button or timer.
-- **Battle phase** — fully automatic: every mech walks at the closest enemy
-  it can attack, packs split around obstacles, bullets fly and hit whatever
-  is actually in the way. Watch at 0.25×–8×.
-- Survivors damage the enemy commander by their remaining value; losing a
-  command tower debuffs your army for a while. First to 0 HP loses.
+- **Specialists** — before round one, each player picks a specialist. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.
+- **Deployment** — buy packs, level them with banked XP, buy techs and building upgrades, equip items, place wards and fire bolts; position everything on your side of the grid (flanks unlock after round 1), hidden from the enemy until the fight starts.
+- **Round cards** — from round two onward there is a chance to draft from a random offer. Cards grant packs, items, or tactic charges.
+- **Battle** — fully automatic: units march, fight, and cast. Survivors damage the enemy commander by their remaining value; losing a command tower debuffs your army for a while. First to 0 HP loses.
+- **Tactics & spells** — rallies, spills, summons, and battle spells like the dragon’s fire breath. Some arrive as round cards; others come from buildings or specialities.
 
-**Multiplayer**: peer-to-peer (PeerJS) with quick match, a public lobby and
-named rooms — deterministic lockstep with automatic desync recovery, and
-reloading mid-match reconnects and resumes.
+**Multiplayer:** peer-to-peer (PeerJS) with quick match, a public lobby, and named rooms — deterministic lockstep with automatic desync recovery. Reloading mid-match reconnects and resumes.
 
-All match rules (map layout, timers, economy, tower debuffs) live in one
-JSON-serializable settings object — see `src/game/settings.ts`. How the
-whole thing fits together (action log, determinism rules, wire protocol,
-extension checklists): see [ARCHITECTURE.md](ARCHITECTURE.md).
+Match rules (map, timers, economy, tower debuffs) live in one JSON-serializable settings object — see `src/game/settings.ts`. Architecture notes: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Units & buildings
+
+Your army and buildings: dwarves, archers, crow riders, ballistae, ward stones, fire bolts, command tower, research center, stronghold — each with stats, techs, and building abilities. Browse them on [melodan.com](https://melodan.com).
 
 ## Controls
 
@@ -45,13 +52,21 @@ extension checklists): see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```bash
 npm install
-npm run dev          # browser with hot reload
-npm start            # the real thing: Electron + Steam
+npm run dev          # browser with hot reload (game: /  ·  homepage: /web.html)
+npm start            # Electron + Steam
+npm run build        # game + homepage into dist/
 npm run build:mac    # depot-ready build (mac | win | linux)
 ```
 
-Dev URL params: `?hp=100&build=20` overrides starting HP / build timer.
+Dev URL params: `?hp=100&build=20` overrides starting HP / build timer.  
+Localhost matchmaking defaults to [play.melodan.com](https://play.melodan.com); use `?branch=<name>` for a branch preview backend.
+
+## About
+
+MELODAN is made by **Alexander Thurn** at [Feuerware](https://feuerware.com/).
+
+Inspired by [Mechabellum](https://www.playmechabellum.com/) — thank you for the spark. MELODAN is an independent fantasy take; please support the original.
 
 ## License
 
-GPL-3.0
+GPL-3.0 — copyright stays with Alexander Thurn / Feuerware. Feel free to fork privately, invent new units, and open pull requests. For something bigger (a new setting, a commercial spin-off, a full rebrand), feel free to ask at [alex@feuerware.com](mailto:alex@feuerware.com).
