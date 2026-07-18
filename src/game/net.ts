@@ -48,7 +48,7 @@ export function matchUrl(): string {
         if (branch) {
             return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/backend/matchmaking.php`;
         }
-        return 'https://mechili.feuerware.com/backend/matchmaking.php';
+        return 'https://play.melodan.com/backend/matchmaking.php';
     }
 
     return new URL('./backend/matchmaking.php', location.href).href;
