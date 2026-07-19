@@ -407,6 +407,9 @@ export function menuStyles(): string {
 }
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-settings-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: rotate(45deg); }
+@media (pointer: coarse) {
+    .mechili-settings-btn { font-size: 40px; }
+}
 
 /* suggest chip, top-left of the main menu (same feel as username) */
 .mechili-suggest-btn {
@@ -475,6 +478,17 @@ export function menuStyles(): string {
     user-select: none;
     pointer-events: none;
 }
+/* menu already visible: the bar retreats to a slim strip at the bottom */
+.mechili-loading.late {
+    top: auto;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    gap: 6px;
+    width: min(360px, calc(100vw - 48px));
+}
+.mechili-loading.late .hp-track { height: 18px; }
+.mechili-loading.late .hp-val { font-size: 11px; }
+.mechili-loading.late .load-status { font-size: 11px; }
 .mechili-feuerware {
     position: absolute;
     bottom: calc(28px + env(safe-area-inset-bottom));
@@ -885,8 +899,8 @@ export function hudStyles(): string {
     return `
 .mechili-shop-col {
     position: absolute;
-    right: 0;
-    bottom: 0;
+    right: env(safe-area-inset-right);
+    bottom: env(safe-area-inset-bottom);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -938,7 +952,8 @@ export function hudStyles(): string {
     padding: 0 0 0 8px;
     pointer-events: auto;
 }
-.shop-toolbar .undo {
+.shop-toolbar .undo,
+.mechili-phone-status .undo {
     margin-right: auto;
     display: flex;
     align-items: center;
@@ -959,9 +974,66 @@ export function hudStyles(): string {
     font-family: system-ui, sans-serif;
     flex-shrink: 0;
 }
-.shop-toolbar .undo { transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease; }
-.shop-toolbar .undo:hover { background: ${u.undoHover}; transform: translateY(-1px); }
-.shop-toolbar .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
+.shop-toolbar .undo,
+.mechili-phone-status .undo { transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease; }
+.shop-toolbar .undo:hover,
+.mechili-phone-status .undo:hover { background: ${u.undoHover}; transform: translateY(-1px); }
+.shop-toolbar .undo:focus-visible,
+.mechili-phone-status .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
+
+/* phone: always-visible supply with undo below it, top right below the enemy card */
+.mechili-phone-status {
+    display: none;
+    position: absolute;
+    top: calc(56px + env(safe-area-inset-top));
+    right: calc(6px + env(safe-area-inset-right));
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 3;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    pointer-events: none;
+}
+.mechili-phone-status .undo { pointer-events: auto; margin-right: 0; }
+/* compact versions of the shop-toolbar frames — the originals crowd End Deployment */
+.mechili-phone-status .mechili-supply {
+    min-height: 40px;
+    padding: 4px 10px;
+}
+.mechili-phone-status .supply { font-size: 20px; }
+.mechili-phone-status .supply::before { font-size: 16px; }
+.mechili-phone-status .undo {
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 15px;
+}
+.mechili-phone-status.overlay-open { display: none !important; }
+
+/* phone: the menu button at the left screen edge, mirroring the status strip */
+.mechili-phone-menu {
+    display: none;
+    position: absolute;
+    top: calc(56px + env(safe-area-inset-top));
+    left: calc(6px + env(safe-area-inset-left));
+    box-sizing: border-box;
+    min-width: 46px;
+    min-height: 46px;
+    padding: 2px 10px;
+    appearance: none;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-family: system-ui, sans-serif;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 3;
+    pointer-events: auto;
+    user-select: none;
+}
+.mechili-phone-menu.overlay-open { display: none !important; }
 .shop-toolbar-right {
     display: flex;
     flex-direction: row;
@@ -1178,8 +1250,8 @@ export function hudStyles(): string {
 
 .mechili-panel {
     position: absolute;
-    left: 0;
-    bottom: 0;
+    left: env(safe-area-inset-left);
+    bottom: env(safe-area-inset-bottom);
     min-width: 244px;
     max-width: 300px;
     padding: 12px 14px;
@@ -1295,6 +1367,22 @@ export function hudStyles(): string {
 .mechili-panel .action-info .ai-cost { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: bold; color: ${u.brass}; }
 .mechili-panel .action-info .ai-cost.refund { color: ${u.techOwned}; }
 .mechili-panel .action-info .ai-cost.owned { color: ${u.techOwned}; }
+.mechili-panel .action-info .ai-buy {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px 14px;
+    appearance: none;
+    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
+    border: 1.5px solid ${u.brassLight};
+    border-radius: 8px;
+    color: #20180a;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+}
 
 .mechili-sidebar {
     position: absolute;
@@ -1319,12 +1407,12 @@ export function hudStyles(): string {
     user-select: none;
 }
 .mechili-sidebar.left {
-    left: 0;
+    left: env(safe-area-inset-left);
     border-left: none;
     border-radius: 0 10px 10px 0;
 }
 .mechili-sidebar.right {
-    right: 0;
+    right: env(safe-area-inset-right);
     border-right: none;
     border-radius: 10px 0 0 10px;
 }
@@ -1837,7 +1925,7 @@ export function hudStyles(): string {
 .mechili-topbar {
     position: absolute;
     left: 50%;
-    top: 6px;
+    top: calc(6px + env(safe-area-inset-top));
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
@@ -1858,6 +1946,31 @@ export function hudStyles(): string {
     gap: 12px;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
 }
+.mechili-topbar .top-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.mechili-topbar .menu-btn {
+    min-width: 34px;
+    min-height: 30px;
+    padding: 2px 8px;
+    appearance: none;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    pointer-events: auto;
+    text-shadow: none;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+.mechili-topbar .menu-btn:hover { border-color: ${u.hover}; }
+.mechili-topbar .menu-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-topbar .timer {
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
 }
@@ -2015,5 +2128,328 @@ export function hudStyles(): string {
 .mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
 .mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-topbar.battle .speed { display: inline-block; }
+
+/*
+ * Touch-first devices (tablet/phone): same layout, but tap targets meet the
+ * ~44px minimum and the smallest labels get a readability bump. Desktop with
+ * a mouse is untouched. Keyed on pointer capability, not viewport width.
+ */
+@media (pointer: coarse) {
+    .mechili-panel .action-tile {
+        width: 54px;
+        height: 54px;
+        padding-bottom: 14px;
+    }
+    .mechili-panel .action-tile .at-cost { font-size: 10px; }
+    .mechili-sidebar .inv-item {
+        width: 54px;
+        height: 54px;
+        font-size: 25px;
+    }
+    .mechili-chat .c-emote {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+    }
+    .mechili-topbar .speed {
+        min-width: 64px;
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+    .mechili-topbar .menu-btn {
+        min-width: 44px;
+        min-height: 38px;
+        font-size: 18px;
+    }
+    /* backdrop blur + WebGL memory pressure crashes mobile Safari tabs */
+    .mechili-shop,
+    .mechili-panel,
+    .mechili-sidebar,
+    .mechili-chat.open .c-panel,
+    .mechili-cards .cards-skip,
+    .mechili-pause,
+    .mechili-report {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+    .mechili-extras .shop-tile .title { font-size: 10px; }
+    .mechili-extras .shop-tile .cost { font-size: 11px; }
+    .mechili-shop-col .shop-tile .title { font-size: 11px; }
+    .mechili-shop .shop-grid .shop-tile .title { font-size: 11px; }
+    .mechili-shop .shop-tile.unlock .unlock-label { font-size: 11px; }
+    .shop-toolbar .level-all-global .title { font-size: 11px; }
+    .mechili-panel .lvl-big .lvl-cap { font-size: 9px; }
+}
+
+/*
+ * Phone-size screens: the fixed desktop panels become one bottom sheet at a
+ * time, driven by a bottom tab bar. The bar and the .phone-open class are
+ * always maintained by the Hud, but only take visual effect inside the phone
+ * media query below — desktop/tablet render exactly as before.
+ */
+.mechili-phonebar {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    gap: 6px;
+    padding: 4px calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom))
+        calc(8px + env(safe-area-inset-left));
+    background: linear-gradient(180deg, rgba(26, 40, 22, 0.96), rgba(14, 24, 12, 0.98));
+    border-top: 1.5px solid ${u.border};
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    pointer-events: auto;
+}
+.mechili-phonebar button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 5px 4px;
+    appearance: none;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    color: ${u.textMuted};
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.mechili-phonebar button .pb-ico { font-size: 20px; line-height: 1.15; }
+.mechili-phonebar button.active { color: ${u.brassLight}; background: ${u.techBuyBg}; }
+/* sheet tabs are phone-only: the phone media query opts them back in */
+.mechili-phonebar .pb-tab { display: none; }
+/* contextual field actions (inline display driven by setTouchActions) —
+   same icon-over-label structure and flat look as the tabs */
+.mechili-phonebar .ta-btn {
+    min-height: 44px;
+    color: ${u.text};
+}
+.mechili-phonebar .ta-cancel { color: #f0b0a0; }
+.mechili-phonebar .ta-level,
+.mechili-phonebar .ta-levelall {
+    color: ${u.brassLight};
+    font-variant-numeric: tabular-nums;
+}
+.mechili-phonebar button.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+/* card pick / pause overlays own the screen — the bar steps aside */
+.mechili-phonebar.overlay-open { display: none !important; }
+@media (pointer: coarse) {
+    /* tablets: no tab UI, but the bar appears whenever actions apply */
+    .mechili-phonebar.acting { display: flex; }
+}
+
+/* iOS long-press: no text-selection loupe / copy callout on HUD chrome —
+   long-press is a gameplay gesture here. Typing fields stay selectable. */
+.mechili-shop-col,
+.mechili-panel,
+.mechili-sidebar,
+.mechili-topbar,
+.mechili-fightbar,
+.mechili-phonebar,
+.mechili-cards,
+.mechili-pause,
+.mechili-report {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+.mechili-shop-col *,
+.mechili-panel *,
+.mechili-sidebar *,
+.mechili-cards * {
+    -webkit-touch-callout: none;
+}
+input,
+textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* gamepad virtual cursor (left stick moves, A clicks) */
+.mechili-gpcursor {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    border: 2.5px solid ${u.brassLight};
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.65), inset 0 0 5px rgba(0, 0, 0, 0.5);
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+}
+.mechili-gpcursor::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    margin: -2px 0 0 -2px;
+    background: ${u.brassLight};
+    border-radius: 50%;
+}
+.mechili-gpcursor.visible { display: block; }
+
+/* long-press tooltip card (touch stand-in for title-attribute tooltips) */
+.mechili-touchtip {
+    position: fixed;
+    left: 50%;
+    top: 18%;
+    transform: translateX(-50%);
+    z-index: 90;
+    max-width: min(340px, calc(100vw - 32px));
+    padding: 12px 14px;
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    border: 1.5px solid ${u.brass};
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    color: ${u.text};
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-line;
+    user-select: none;
+    pointer-events: none;
+}
+
+@media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px) {
+    .mechili-phonebar { display: flex; }
+    /* tabs share the bar with the actions: Shop/Tactics only while nothing
+       is selected; the Unit tab (and actions) take over on selection */
+    .mechili-phonebar:not(.has-unit):not(.battle) .pb-shop { display: flex; }
+    .mechili-phonebar:not(.has-unit):not(.battle).has-tactics .pb-tactics { display: flex; }
+    /* details tab makes way while the pack rides the finger */
+    .mechili-phonebar.has-unit:not(.carrying) .pb-unit { display: flex; }
+    /* the action-info frame renders BESIDE the panel on desktop — off-screen
+       inside the phone sheet. Pin it above the bar instead, tappable (Buy). */
+    .mechili-panel .action-info {
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        top: auto;
+        bottom: calc(64px + env(safe-area-inset-bottom));
+        width: auto;
+        pointer-events: auto;
+        z-index: 20;
+    }
+    /* money + undo always at hand; their sheet-internal twins hide */
+    .mechili-phone-status { display: flex; }
+    .mechili-shop-col .undo,
+    .mechili-shop-col .mechili-supply { display: none; }
+    /* menu button moves to the left edge; End Deployment stays centered alone */
+    .mechili-phone-menu { display: inline-flex; align-items: center; justify-content: center; }
+    .mechili-topbar .menu-btn { display: none; }
+    /* spectating a battle with nothing selected: no empty strip */
+    .mechili-phonebar.battle:not(.has-unit):not(.acting) { display: none; }
+    /* bottom-center chat bar would collide with the tab bar */
+    .mechili-chat { display: none; }
+    .mechili-shop-col:not(.phone-open),
+    .mechili-panel:not(.phone-open),
+    .mechili-sidebar.left:not(.phone-open),
+    .mechili-sidebar.right {
+        display: none !important;
+    }
+
+    /* the open sheet docks above the tab bar and scrolls */
+    .mechili-shop-col.phone-open,
+    .mechili-panel.phone-open,
+    .mechili-sidebar.left.phone-open {
+        position: absolute;
+        left: env(safe-area-inset-left);
+        right: env(safe-area-inset-right);
+        top: auto;
+        bottom: calc(56px + env(safe-area-inset-bottom));
+        transform: none;
+        width: auto;
+        max-width: none;
+        max-height: 52vh;
+        overflow-y: auto;
+        border-radius: 12px 12px 0 0;
+    }
+    .mechili-shop-col.phone-open { align-items: stretch; }
+    .mechili-shop-col.phone-open .mechili-shop {
+        width: auto;
+        border-right: 1.5px solid ${u.border};
+        border-radius: 10px;
+    }
+    .mechili-shop-col.phone-open .shop-grid {
+        grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    }
+    .mechili-shop-col.phone-open .mechili-extras { flex-wrap: wrap; justify-content: flex-end; }
+    .mechili-sidebar.left.phone-open {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-content: flex-start;
+        border-left: 1.5px solid ${u.border};
+    }
+
+    /* compact commander bar + center controls */
+    .mechili-fightbar .fighter {
+        width: min(31vw, 210px);
+        min-width: 0;
+        gap: 6px;
+        padding: 4px 8px;
+    }
+    .mechili-fightbar .portrait { width: 30px; height: 30px; font-size: 15px; }
+    .mechili-fightbar .fname { font-size: 11px; letter-spacing: 0.4px; }
+    .mechili-fightbar .fighter-info { gap: 3px; }
+    .mechili-fightbar .hp-track { height: 14px; }
+    .mechili-fightbar .hp-val { font-size: 10px; }
+    .mechili-topbar { top: calc(2px + env(safe-area-inset-top)); gap: 2px; }
+    .mechili-topbar .round { font-size: 11px; }
+    /* no room for the phase word next to Round + timer — but keep the
+       "Waiting for opponent…" state visible, nothing else signals it */
+    .mechili-topbar .phase { display: none; }
+    .mechili-topbar.waiting .phase { display: inline; font-size: 10px; }
+    .mechili-topbar .timer { font-size: 16px; }
+    /* uniform 38px control row, clear of the commander HP bars; nowrap so a
+       tight row never lets End Deployment wrap and grow vertically */
+    .mechili-topbar .top-controls { margin-top: 10px; }
+    .mechili-topbar .end-deploy,
+    .mechili-topbar .menu-btn,
+    .mechili-topbar .speed {
+        box-sizing: border-box;
+        height: 38px;
+        min-height: 38px;
+        white-space: nowrap;
+    }
+    .mechili-topbar .end-deploy {
+        padding: 5px 12px;
+        font-size: 11px;
+        letter-spacing: 0.8px;
+    }
+    .mechili-report { max-height: 40vh; overflow-y: auto; }
+
+    /* card drafts: smaller cards that wrap (2×2 portrait, one row landscape)
+       instead of a fixed-width strip that overflows the screen */
+    .mechili-cards { gap: 10px; overflow-y: auto; }
+    .mechili-cards .cards-title { font-size: 17px; letter-spacing: 2px; }
+    .mechili-cards .cards-row {
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 100vw;
+        gap: 10px;
+        padding: 4px 10px 12px;
+    }
+    .mechili-cards .card {
+        width: clamp(150px, 22vw, 215px);
+        min-height: 0;
+        padding: 12px 10px;
+        gap: 8px;
+    }
+}
 `;
 }

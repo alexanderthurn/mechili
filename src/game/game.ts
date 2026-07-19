@@ -18,6 +18,7 @@ import { setHeightFogStrength } from '../engine/heightFog'; // patches three's f
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
+import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
@@ -61,6 +62,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
+import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
     onPrefsChange,
     prefs,
@@ -167,6 +169,7 @@ export class Game {
     private readonly renderer: WebGLRenderer;
     private readonly rig = new CameraRig();
     private readonly controls: CameraControls;
+    private readonly gamepad: GamepadCursor;
     private readonly placement: PlacementController;
     private readonly hud: Hud;
     private readonly debug: DebugOverlay;
@@ -366,6 +369,11 @@ export class Game {
         }
 
         if (e.code !== 'Escape') return;
+        this.togglePauseMenu();
+    };
+
+    /** Escape / the topbar ☰ button: open or close the pause menu */
+    private togglePauseMenu(): void {
         if (this.matchOver || this.suspended) return;
         this.hud.togglePauseMenu();
         if (this.hud.isPauseMenuOpen()) {
@@ -374,7 +382,7 @@ export class Game {
             this.armedItem = null;
             this.cancelTacticPlacement();
         }
-    };
+    }
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
     private readonly wrapper: HTMLElement;
     private readonly threeCanvas: HTMLCanvasElement;
@@ -419,7 +427,13 @@ export class Game {
         this.economy = new Economy(settings.economy);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
-        this.renderer = new WebGLRenderer({ canvas: threeCanvas, antialias: true });
+        this.renderer = new WebGLRenderer({
+            canvas: threeCanvas,
+            antialias: prefs().antialias,
+            // mobile Safari kills tabs that push the GPU too hard — prefer the
+            // efficient tier there; desktops ignore or barely notice this hint
+            powerPreference: touchFirstDevice() ? 'low-power' : 'default',
+        });
         this.renderer.setPixelRatio(effectiveDpr());
 
         this.scene.background = new Color(THEME.sky);
@@ -491,8 +505,27 @@ export class Game {
             (this.map.halfH - (this.map.size.zoneRows * CELL) / 2) * (nearSide ? 1 : -1);
         this.rig.startAt(0, ownZoneZ, 110);
         this.controls = new CameraControls(this.rig, surface);
+        // edge scrolling is hover-based and has no touch equivalent
+        const syncEdgeScroll = () => {
+            this.controls.edgeScroll = inputMode() !== 'touch';
+        };
+        syncEdgeScroll();
+        this.inputDisposers.push(onInputModeChange(syncEdgeScroll));
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
+        // one-finger drags aim the carried ghost/tactic instead of panning
+        this.controls.suppressTouchPan = () => this.placement.pointerCarries;
+        // gamepad: virtual cursor over the same click pipeline (Halo Wars style)
+        this.gamepad = new GamepadCursor(surface, this.rig);
+        this.gamepad.onActivity = () => noteGamepadActivity();
+        this.gamepad.onRotate = () => this.placement.rotateSelected();
+        this.gamepad.onMenu = () => this.togglePauseMenu();
+        this.gamepad.onCancel = () => {
+            if (this.cancelTacticPlacement()) return;
+            this.placement.deselect();
+            this.selectedActor = null;
+            this.armedItem = null;
+        };
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
             ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
@@ -589,8 +622,12 @@ export class Game {
         this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit) => {
-            if (!this.armedItem) return;
-            if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
+            if (this.armedItem) {
+                if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
+                return;
+            }
+            // buildings act through their details — auto-open the sheet (phone-only visual)
+            if (unit.type.structure) this.hud.openUnitDetails();
         };
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
         this.controls.onMiddleClick = () => {
@@ -611,6 +648,16 @@ export class Game {
             (type) => this.buyUnit(type),
         );
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        this.hud.onMenuToggle = () => this.togglePauseMenu();
+        // touch stand-ins mirror right-click (cancel/deselect) and middle-click (rotate)
+        this.hud.onTouchCancel = () => {
+            if (this.cancelTacticPlacement()) return;
+            this.placement.deselect();
+            this.selectedActor = null;
+            this.armedItem = null;
+        };
+        this.hud.onTouchRotate = () => this.placement.rotateSelected();
+        this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.onQuitToMenu = () => this.quitToMenu();
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
@@ -1015,6 +1062,7 @@ export class Game {
         this.dragonFx.dispose();
         this.oilDripFx.dispose();
         this.controls.dispose();
+        this.gamepad.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
         this.hpBars.view.destroy({ children: true });
@@ -2649,7 +2697,13 @@ export class Game {
             this.placement.beginPlacing(type);
             return;
         }
-        const anchor = this.placement.findBuySpot(type);
+        // touch: the shop sheet hides the field, so drop the pack where the
+        // camera looks and highlight it — desktop keeps the zone-center spawn
+        const nearView = inputMode() === 'touch';
+        const view = this.rig.target;
+        const anchor = nearView
+            ? this.placement.findBuySpotNear(type, view.x, view.z)
+            : this.placement.findBuySpot(type);
         if (!anchor) return;
         this.dispatchPlayer({
             kind: 'buy',
@@ -3343,6 +3397,7 @@ export class Game {
         this.particles.update(gameDt);
 
         this.controls.update(dtSeconds);
+        this.gamepad.update(dtSeconds);
         this.rig.update(dtSeconds);
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
@@ -3547,10 +3602,36 @@ export class Game {
                 this.sim.elapsed,
             );
             this.hud.setSelection(this.selectedActor ? this.actorInfo(this.selectedActor) : null);
-        } else {
-            const unit = this.placement.selectedUnit;
-            this.hud.setSelection(unit ? this.unitInfo(unit) : null);
         }
+        let buildInfo: SelectionInfo | null = null;
+        if (this.phase !== 'battle' || !this.sim) {
+            const unit = this.placement.selectedUnit;
+            buildInfo = unit ? this.unitInfo(unit) : null;
+            this.hud.setSelection(buildInfo);
+        }
+        const build = this.phase !== 'battle';
+        const lvl = build ? buildInfo?.levelUp : undefined;
+        const repositionable =
+            build && this.placement.selectedRepositionable && !this.armedTactic;
+        this.hud.setTouchActions({
+            // mere selection needs no Cancel (tapping empty ground deselects);
+            // only armed tactics/items and carried ghosts do
+            cancel: this.placement.pointerCarries || this.armedItem !== null,
+            carrying: this.placement.pointerCarries,
+            // Move enters carry mode explicitly; Rotate only makes sense once
+            // the pack actually rides the finger
+            move: repositionable && !this.placement.pointerCarries,
+            rotate: repositionable && this.placement.pointerCarries,
+            levelUp: lvl?.ready ? { cost: lvl.cost, affordable: lvl.affordable } : null,
+            levelAll: lvl?.ready && lvl.all ? lvl.all : null,
+            upgrade:
+                build && buildInfo?.towerUpgrade && !buildInfo.towerUpgrade.maxed
+                    ? {
+                          cost: buildInfo.towerUpgrade.cost,
+                          affordable: buildInfo.towerUpgrade.affordable,
+                      }
+                    : null,
+        });
     }
 
     /** display name for the side that owns a pack */

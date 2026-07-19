@@ -8,6 +8,7 @@ import {
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { loadSpellTemplate } from './spellMeshes';
+import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 
 const loader = new GLTFLoader();
 
@@ -77,6 +78,8 @@ async function loadOne(id: SpellAssetId): Promise<Group> {
     } else {
         tpl = await loadSpellTemplate(URLS[id]);
     }
+    const budget = modelTextureBudget();
+    if (budget) applyTextureBudget(tpl, budget);
     templates.set(id, tpl);
     return tpl;
 }
@@ -98,6 +101,14 @@ export async function ensureSpellTemplate(id: SpellAssetId): Promise<Group | nul
 /** Load every spell GLB once at boot. Safe to call repeatedly. */
 export function preloadSpellAssets(onProgress?: SpellProgress): Promise<void> {
     if (preloadPromise) return preloadPromise;
+    if (modelTextureBudget() !== null) {
+        // budgeted devices skip the boot warm-up: every FX system already
+        // awaits ensureSpellTemplate() on demand, and preloading all six
+        // spell GLBs is boot memory a phone doesn't have
+        onProgress?.(1, 1, 'Spell effects');
+        preloadPromise = Promise.resolve();
+        return preloadPromise;
+    }
     const ids = Object.keys(URLS) as SpellAssetId[];
     const total = ids.length;
     let done = 0;

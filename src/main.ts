@@ -27,7 +27,8 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
 import { bootGameAssets } from './game/bootAssets';
-import { onPrefsChange, prefs } from './game/prefs';
+import { initInputCapabilities } from './game/inputCapabilities';
+import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
@@ -46,6 +47,45 @@ function settingsFromUrl(): GameSettings {
     return settings;
 }
 
+// ---- page-zoom guard + crash visibility --------------------------------
+// iOS pinch-zooms the PAGE unless the gesture events are cancelled — scaling
+// two full-screen WebGL canvases in the compositor kills the tab ("Diese
+// Seite kann nicht geöffnet werden"). Pointer events keep firing, so the
+// in-game pinch gesture is unaffected.
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+    document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+document.addEventListener(
+    'touchmove',
+    (e) => {
+        if (e.touches.length > 1) e.preventDefault();
+    },
+    { passive: false },
+);
+
+/** phones have no devtools — surface fatal errors in a tap-to-dismiss overlay */
+function showFatal(title: string, detail: string): void {
+    let el = document.querySelector<HTMLDivElement>('.mechili-fatal');
+    if (!el) {
+        el = document.createElement('div');
+        el.className = 'mechili-fatal';
+        el.style.cssText =
+            'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;max-height:40vh;overflow:auto;' +
+            'background:rgba(40,12,8,0.95);color:#ffd8c8;border:2px solid #a03828;border-radius:10px;' +
+            'padding:10px 12px;font:12px/1.45 monospace;white-space:pre-wrap;user-select:text;';
+        el.addEventListener('click', () => el?.remove());
+        document.body.appendChild(el);
+    }
+    el.textContent = `${title}\n${detail}\n\n(tap to dismiss)`;
+}
+window.addEventListener('error', (e) => {
+    showFatal(`Error: ${e.message}`, `${e.filename ?? ''}:${e.lineno ?? ''}\n${e.error?.stack ?? ''}`);
+});
+window.addEventListener('unhandledrejection', (e) => {
+    const reason = e.reason as { message?: string; stack?: string } | undefined;
+    showFatal(`Unhandled rejection: ${reason?.message ?? String(e.reason)}`, reason?.stack ?? '');
+});
+
 const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
 wrapper.style.cssText =
@@ -55,6 +95,13 @@ wrapper.style.cssText =
 function createThreeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+    canvas.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        showFatal(
+            'WebGL context lost (3D canvas)',
+            'The graphics driver dropped the game view — usually out of GPU memory. Reload the page; lowering the graphics preset in Settings helps.',
+        );
+    });
     return canvas;
 }
 
@@ -110,6 +157,9 @@ const loadFill = loadingEl.querySelector<HTMLDivElement>('.hp-fill')!;
 const loadVal = loadingEl.querySelector<HTMLSpanElement>('.hp-val')!;
 const loadStatus = loadingEl.querySelector<HTMLDivElement>('.load-status')!;
 
+// track mouse/touch/gamepad for the whole session, independent of asset loading
+initInputCapabilities();
+
 function setBootProgress(fraction: number, label: string): void {
     const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
     loadFill.style.width = `${pct}%`;
@@ -118,9 +168,25 @@ function setBootProgress(fraction: number, label: string): void {
 }
 
 const app = new Application();
-await app.init({ backgroundAlpha: 0, resizeTo: wrapper, antialias: true });
+// resolution: uncapped DPR (3× on phones) triples the UI canvas memory — cap
+// it like the 3D canvas so low-end devices don't run out of GPU memory
+await app.init({
+    backgroundAlpha: 0,
+    resizeTo: wrapper,
+    antialias: prefs().antialias,
+    resolution: effectiveDpr(),
+    autoDensity: true,
+    powerPreference: 'low-power',
+});
 app.canvas.style.position = 'absolute';
 app.canvas.style.inset = '0';
+app.canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    showFatal(
+        'WebGL context lost (UI canvas)',
+        'The graphics driver dropped the UI layer — usually out of GPU memory. Reload the page.',
+    );
+});
 wrapper.appendChild(app.canvas);
 
 /** hide the 3D/HUD input layer behind the main menu; pixi keeps the title visible */
@@ -326,6 +392,8 @@ const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 
 let started = false;
 let pending: Pending | null = null;
+/** menu shows before assets finish loading — match starts wait for this */
+let bootReady = false;
 let roomPoll: ReturnType<typeof setInterval> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
 let resumeAbort: AbortController | null = null;
@@ -874,6 +942,10 @@ function runPending(p: Pending): void {
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
+        if (!bootReady) {
+            setStatus('Still loading — one moment…');
+            return;
+        }
         runPending(joinLobby(roomBtn.dataset.room, setStatus));
         return;
     }
@@ -889,7 +961,13 @@ menu.addEventListener('click', (e) => {
         return;
     }
 
-    switch (button.dataset.mode) {
+    const mode = button.dataset.mode;
+    if (!bootReady && (mode === 'single' || mode === 'quick' || mode === 'host')) {
+        setStatus('Still loading — one moment…');
+        return;
+    }
+
+    switch (mode) {
         case 'single': {
             // same fog rules as multiplayer; only timers are relaxed so you can think
             const settings = settingsFromUrl();
@@ -919,11 +997,14 @@ menu.addEventListener('click', (e) => {
     }
 });
 
-// load all shared game assets before the menu is interactive
+// the menu appears immediately — the loading bar docks at the bottom and
+// only match starts (single/quick/host/join) wait for the assets
+setMenuChromeVisible(true);
+loadingEl.classList.add('late');
 await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
+bootReady = true;
 loadingEl.remove();
 feuerwareEl.remove();
-setMenuChromeVisible(true);
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
 setGameLayerVisible(false);

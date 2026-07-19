@@ -13,6 +13,7 @@ import {
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { Team } from './units';
 
 /**
@@ -255,30 +256,38 @@ export async function loadUnitModels(
 ): Promise<void> {
     const entries = Object.entries(MODEL_SPECS);
     const total = entries.length;
+    const textureBudget = modelTextureBudget();
     let done = 0;
-    await Promise.all(
-        entries.map(async ([id, spec]) => {
-            try {
-                const gltf = await loader.loadAsync(spec.url);
-                const h = (heights[id] || 1) * (spec.scale ?? 1);
-                const root = normalize(
-                    prepareClone(gltf.scene),
-                    h,
-                    spec.yaw,
-                    spec.pitch,
-                    spec.roll,
-                    spec.offset,
-                );
-                templates.set(id, root);
-                instanceAssets.set(id, bakeInstanceAsset(root));
-                console.info(`[unitModels] loaded '${id}' from ${spec.url} (height ${h.toFixed(2)})`);
-            } catch (e) {
-                console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);
-            } finally {
-                done += 1;
-                onProgress?.(done, total);
-            }
-        }),
-    );
+    const loadEntry = async ([id, spec]: (typeof entries)[number]): Promise<void> => {
+        try {
+            const gltf = await loader.loadAsync(spec.url);
+            // shrink BEFORE cloning: clones share texture instances
+            if (textureBudget) applyTextureBudget(gltf.scene, textureBudget);
+            const h = (heights[id] || 1) * (spec.scale ?? 1);
+            const root = normalize(
+                prepareClone(gltf.scene),
+                h,
+                spec.yaw,
+                spec.pitch,
+                spec.roll,
+                spec.offset,
+            );
+            templates.set(id, root);
+            instanceAssets.set(id, bakeInstanceAsset(root));
+            console.info(`[unitModels] loaded '${id}' from ${spec.url} (height ${h.toFixed(2)})`);
+        } catch (e) {
+            console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);
+        } finally {
+            done += 1;
+            onProgress?.(done, total);
+        }
+    };
+    if (textureBudget) {
+        // budgeted devices decode one model at a time — 15 parallel 2K–4K
+        // texture decodes is exactly the boot spike that kills mobile tabs
+        for (const entry of entries) await loadEntry(entry);
+    } else {
+        await Promise.all(entries.map(loadEntry));
+    }
     console.info(`[unitModels] ready: ${[...templates.keys()].join(', ') || '(none)'}`);
 }
