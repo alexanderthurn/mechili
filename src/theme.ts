@@ -1273,7 +1273,7 @@ export function hudStyles(): string {
 .mechili-panel .team.enemy { color: ${ec}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
-.mechili-panel .xpbar { height: 6px; margin: 6px 0 2px; background: ${u.barTrack}; border-radius: 3px; overflow: hidden; }
+.mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(255, 255, 255, 0.38); border-radius: 3px; overflow: hidden; }
 .mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
 .mechili-panel .xpbar.enemy div { height: 100%; background: ${ec}; }
 /* horizontal row of square action tiles (sell, techs, tower actions) */
@@ -1297,8 +1297,17 @@ export function hudStyles(): string {
 .mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: ${u.textMuted}; }
 .mechili-panel .lvl-big .lvl-num { font-size: 27px; font-weight: 900; color: ${u.brassLight}; }
 .mechili-panel .head-main { flex: 1; min-width: 0; }
-.mechili-panel .head-main .title { margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mechili-panel .head-main .team { margin-bottom: 0; }
+.mechili-panel .head-names {
+    display: flex; align-items: baseline; gap: 8px; min-width: 0;
+    white-space: nowrap; overflow: hidden;
+}
+.mechili-panel .head-names .title {
+    margin-bottom: 0; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis;
+}
+.mechili-panel .head-names .team {
+    margin-bottom: 0; flex-shrink: 0; opacity: 0.9;
+}
 .mechili-panel .level-actions { display: flex; gap: 5px; flex-shrink: 0; }
 .mechili-panel .action-tile {
     position: relative;
@@ -1418,11 +1427,61 @@ export function hudStyles(): string {
 }
 .mechili-sidebar.battle { display: none; }
 .mechili-sidebar .inv-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    margin: 0;
+    padding: 2px 0;
+    width: 48px;
+    box-sizing: border-box;
+    font: inherit;
     font-size: 9px;
     letter-spacing: 1px;
     text-transform: uppercase;
     color: ${u.textMuted};
+    background: transparent;
+    border: none;
+    cursor: default;
+    pointer-events: none;
 }
+.mechili-sidebar .inv-title-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mechili-sidebar .inv-title-meta {
+    display: none;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: ${u.brass};
+}
+.mechili-sidebar .inv-title .inv-chevron {
+    width: 0;
+    height: 0;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 4.5px solid ${u.brass};
+    transition: transform 0.12s ease;
+}
+.mechili-sidebar.folded .inv-title .inv-chevron {
+    transform: rotate(-90deg);
+}
+.mechili-sidebar.can-collapse .inv-title {
+    pointer-events: auto;
+    cursor: pointer;
+    border-radius: 6px;
+}
+.mechili-sidebar.can-collapse .inv-title:hover {
+    color: ${u.brassLight};
+    background: rgba(255, 255, 255, 0.06);
+}
+.mechili-sidebar.can-collapse .inv-title-meta { display: inline-flex; }
+.mechili-sidebar.folded .inv-item { display: none !important; }
 .mechili-sidebar .inv-item {
     position: relative;
     width: 48px;
@@ -2146,6 +2205,7 @@ export function hudStyles(): string {
         height: 54px;
         font-size: 25px;
     }
+    .mechili-sidebar .inv-title { width: 54px; }
     .mechili-chat .c-emote {
         width: 44px;
         height: 44px;

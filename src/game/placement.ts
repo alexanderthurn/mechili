@@ -875,9 +875,10 @@ export class PlacementController {
                     this.itemBadges.push(sprite);
                 }
                 sprite.material = this.itemBadgeMaterial(icon);
+                // memberBaseY tracks deploy hug vs combat climb (not type.flying)
                 sprite.position.set(
                     world.x,
-                    unit.type.meshScale * 2.6 + 2.2 + (unit.type.flying ?? 0),
+                    world.y + unit.memberBaseY() + unit.type.meshScale * 2.6 + 2.2,
                     world.z,
                 );
                 sprite.visible = true;
@@ -900,7 +901,10 @@ export class PlacementController {
                     sprite.material = this.itemBadgeMaterial(icon);
                     sprite.position.set(
                         snap.world.x,
-                        ghost.type.meshScale * 2.6 + 2.2 + (ghost.type.flying ?? 0),
+                        snap.world.y +
+                            ghost.memberBaseY() +
+                            ghost.type.meshScale * 2.6 +
+                            2.2,
                         snap.world.z,
                     );
                     sprite.visible = true;

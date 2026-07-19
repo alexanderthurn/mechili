@@ -207,6 +207,8 @@ export class Hud {
     private itemGhost: HTMLDivElement | null = null;
     private lastInventoryKey = '';
     private lastEnemyInventoryKey = '';
+    /** player inventory strip folded flat (titles only) when it wraps past one column */
+    private inventoryCollapsed = false;
     private deploysLeft = Infinity;
     private extrasBudgetLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
@@ -396,6 +398,7 @@ export class Hud {
         this.inventoryEl.className = 'mechili-sidebar left';
         this.inventoryEl.style.display = 'none';
         this.inventoryEl.addEventListener('click', (e) => {
+            if (this.toggleInventoryCollapse(e)) return;
             const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-item]');
             if (itemBtn?.dataset.item) {
                 this.onArmItem?.(itemBtn.dataset.item);
@@ -922,8 +925,9 @@ export class Hud {
         this.inventoryEl.style.display = visible ? '' : 'none';
         this.phoneBar.classList.toggle('has-tactics', visible);
         if (!visible && this.phoneTab === 'tactics') this.setPhoneTab(null);
+        const total = items.length + tactics.length;
         const itemHtml = items.length
-            ? `<div class="inv-title">Items</div>` +
+            ? this.invSectionTitle('Items', items.length, total) +
               items
                   .map(
                       (i) =>
@@ -933,7 +937,7 @@ export class Hud {
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? `<div class="inv-title">Tactics</div>` +
+            ? this.invSectionTitle('Tactics', tactics.length, total) +
               tactics
                   .map((t) => {
                       const routeAttr = t.routeId !== undefined ? ` data-route-id="${t.routeId}"` : '';
@@ -969,6 +973,8 @@ export class Hud {
                   .join('')
             : '';
         this.inventoryEl.innerHTML = itemHtml + tacticHtml;
+        this.inventoryEl.classList.toggle('folded', this.inventoryCollapsed);
+        this.scheduleInventoryCollapseUi();
         // the picked-up item's ghost rides the cursor until placed or cancelled
         const picked = items.find((i) => i.armed);
         if (picked && !this.itemGhost) {
@@ -999,7 +1005,7 @@ export class Hud {
         const visible = items.length > 0 || tactics.length > 0 || !!options.sellAbility;
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
         const itemHtml = items.length
-            ? `<div class="inv-title">Enemy items</div>` +
+            ? `<div class="inv-title"><span class="inv-title-label">Enemy items</span></div>` +
               items
                   .map(
                       (i) =>
@@ -1009,7 +1015,7 @@ export class Hud {
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? `<div class="inv-title">Enemy tactics</div>` +
+            ? `<div class="inv-title"><span class="inv-title-label">Enemy tactics</span></div>` +
               tactics
                   .map(
                       (t) =>
@@ -1019,11 +1025,72 @@ export class Hud {
                   .join('')
             : '';
         const abilityHtml = options.sellAbility
-            ? `<div class="inv-title">Enemy abilities</div>` +
+            ? `<div class="inv-title"><span class="inv-title-label">Enemy abilities</span></div>` +
               `<span class="inv-item readonly" title="Sell packs (unlocked)">` +
               `<span class="i">↩</span></span>`
             : '';
         this.enemyInventoryEl.innerHTML = itemHtml + tacticHtml + abilityHtml;
+    }
+
+    private invSectionTitle(label: string, count: number, total: number): string {
+        return (
+            `<button type="button" class="inv-title" data-inv-toggle="1"` +
+            ` title="Collapse inventory (${total})">` +
+            `<span class="inv-title-label">${escapeHtml(label)}</span>` +
+            `<span class="inv-title-meta"><span class="inv-count">${count}</span>` +
+            `<span class="inv-chevron" aria-hidden="true"></span></span></button>`
+        );
+    }
+
+    /** click any Items/Tactics header to fold or expand the whole player strip */
+    private toggleInventoryCollapse(e: MouseEvent): boolean {
+        const title = (e.target as HTMLElement).closest<HTMLElement>('.inv-title[data-inv-toggle]');
+        if (!title || !this.inventoryEl.contains(title)) return false;
+        if (!this.inventoryEl.classList.contains('can-collapse') && !this.inventoryCollapsed) {
+            return false;
+        }
+        e.preventDefault();
+        this.inventoryCollapsed = !this.inventoryCollapsed;
+        this.inventoryEl.classList.toggle('folded', this.inventoryCollapsed);
+        this.refreshInventoryCollapseUi();
+        return true;
+    }
+
+    private scheduleInventoryCollapseUi(): void {
+        requestAnimationFrame(() => this.refreshInventoryCollapseUi());
+    }
+
+    /**
+     * Collapse affordance only when tiles wrap past one column (desktop) or
+     * one row (phone sheet) — or when already folded so it can reopen.
+     */
+    private refreshInventoryCollapseUi(): void {
+        const el = this.inventoryEl;
+        if (el.style.display === 'none') {
+            el.classList.remove('can-collapse');
+            return;
+        }
+        const can = this.inventoryCollapsed || this.inventoryStripWrapped(el);
+        el.classList.toggle('can-collapse', can);
+        const tip = this.inventoryCollapsed ? 'Expand inventory' : 'Collapse inventory';
+        for (const title of el.querySelectorAll<HTMLButtonElement>('.inv-title[data-inv-toggle]')) {
+            title.tabIndex = can ? 0 : -1;
+            title.title = tip;
+        }
+    }
+
+    private inventoryStripWrapped(el: HTMLElement): boolean {
+        const tiles = [...el.querySelectorAll<HTMLElement>('.inv-item')];
+        if (tiles.length < 2) return false;
+        // while folded, tiles are hidden — treat as still wrappable so expand stays available
+        if (el.classList.contains('folded')) return true;
+        const rowDir = getComputedStyle(el).flexDirection.startsWith('row');
+        const first = tiles[0]!;
+        return tiles.some((t) =>
+            rowDir
+                ? Math.abs(t.offsetTop - first.offsetTop) > 2
+                : Math.abs(t.offsetLeft - first.offsetLeft) > 2,
+        );
     }
 
     /** purchases used / allowed this round; buy buttons grey out at the limit.
@@ -1369,24 +1436,24 @@ export class Hud {
             : info.xpNext < 0
               ? 100
               : Math.max(0, Math.min(100, (info.xp / info.xpNext) * 100));
+        const levelLabel = info.structure
+            ? `${info.level}${info.towerUpgrade ? ` / ${info.towerUpgrade.maxLevel}` : ''}`
+            : info.xpNext < 0
+              ? 'max'
+              : `${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`;
         this.panel.innerHTML =
             `<div class="panel-head">` +
             `<div class="lvl-big"><span class="lvl-cap">LVL</span><span class="lvl-num">${info.level}</span></div>` +
-            `<div class="head-main"><div class="title">${escapeHtml(info.name)}</div><div class="team ${info.team}">${escapeHtml(info.owner)}</div></div>` +
+            `<div class="head-main">` +
+            `<div class="xpbar ${info.team}"><div style="width:${xpBarPct}%"></div></div>` +
+            `<div class="head-names"><span class="title">${escapeHtml(info.name)}</span><span class="team ${info.team}">${escapeHtml(info.owner)}</span></div>` +
+            `</div>` +
             levelActions +
             `</div>` +
             itemSquares +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
-            `<div class="xpbar ${info.team}"><div style="width:${xpBarPct}%"></div></div>` +
-            row(
-                'Level',
-                info.structure
-                    ? `${info.level}${info.towerUpgrade ? ` / ${info.towerUpgrade.maxLevel}` : ''}`
-                    : info.xpNext < 0
-                      ? 'max'
-                      : `${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`,
-            ) +
+            row('Level', levelLabel) +
             row('Damage', String(Math.round(info.damage))) +
             row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
             (info.splash ? row('Splash', String(info.splash)) : '') +

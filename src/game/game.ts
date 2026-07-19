@@ -1115,9 +1115,9 @@ export class Game {
      * SP cheat (U): free-spawn every unit type on both sides during
      * deployment (3 dwarf packs, 1 of each other type), bump player HP
      * sky-high, top up every tactic/spell charge so the whole strip is off
-     * cooldown, scramble pack levels so badges/arrows vary, and lift intel
-     * fog so both armies are visible. Press again (any round) for another
-     * full top-up.
+     * cooldown, grant one of each pack item, scramble pack levels so
+     * badges/arrows vary, and lift intel fog so both armies are visible.
+     * Press again (any round) for another full top-up.
      */
     private cheatSpawnAllUnits(): void {
         if (this.phase !== 'build' || this.matchOver) return;
@@ -1127,6 +1127,7 @@ export class Game {
         this.enemyHp = CHEAT_HP;
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.cheatGrantAllTactics();
+        this.cheatGrantAllItems();
 
         for (const team of ['player', 'enemy'] as const) {
             for (const type of UNIT_TYPES) {
@@ -1290,6 +1291,15 @@ export class Game {
             const have = this.tacticInventory.player.filter((t) => t === id).length;
             for (let i = have; i < CHEAT_CHARGE_COUNT; i++) {
                 this.tacticInventory.player.push(id);
+            }
+        }
+    }
+
+    /** SP cheat (U): ensure the inventory has one of every equippable pack item. */
+    private cheatGrantAllItems(): void {
+        for (const id of Object.keys(ITEMS)) {
+            if (!this.itemInventory.player.includes(id)) {
+                this.itemInventory.player.push(id);
             }
         }
     }
