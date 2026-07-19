@@ -10,6 +10,14 @@ import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
 
+/** phone-size screens — MUST match the phone media query in theme.ts */
+const PHONE_MQ =
+    typeof matchMedia === 'function'
+        ? matchMedia(
+              '(pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px)',
+          )
+        : null;
+
 /** escapes a string for safe use inside a double-quoted HTML attribute */
 function escapeAttr(s: string): string {
     return s
@@ -121,15 +129,13 @@ export class Hud {
     onBuyRoundSpeedBoost: (() => void) | null = null;
     onBuyCredit: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
-    onArmItem: ((itemId: string) => void) | null = null;
+    onArmItem: ((itemId: string, index: number) => void) | null = null;
     onArmTactic: ((tacticId: string) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
     onResetPlacedTactic: ((tacticId: string, routeId: number) => void) | null = null;
     onUndo: (() => void) | null = null;
     /** opens/closes the pause menu (the ☰ button — Escape has no touch equivalent) */
     onMenuToggle: (() => void) | null = null;
-    /** touch stand-in for right-click: cancel tactic / deselect */
-    onTouchCancel: (() => void) | null = null;
     /** touch stand-in for middle-click: rotate the selected pack */
     onTouchRotate: (() => void) | null = null;
     /** the Move button: pick the selected pack up without moving it yet */
@@ -187,15 +193,15 @@ export class Hud {
     private phoneUndoEl!: HTMLButtonElement;
     private phoneSupplyEl!: HTMLSpanElement;
     private phoneMenuEl!: HTMLButtonElement;
+    private phoneLevelAllEl!: HTMLButtonElement;
     private readonly levelAllGlobalBtn: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
     private readonly inventoryEl: HTMLDivElement;
     private readonly enemyInventoryEl: HTMLDivElement;
     /** phone-size bottom tab bar; CSS hides it on larger screens */
     private readonly phoneBar: HTMLDivElement;
-    private phoneTab: 'shop' | 'unit' | 'tactics' | null = null;
+    private phoneTab: 'shop' | 'unit' | 'tactics' | 'chat' | null = null;
     /** contextual action buttons living inside the bottom bar (touch only) */
-    private readonly touchCancelBtn: HTMLButtonElement;
     private readonly touchRotateBtn: HTMLButtonElement;
     private readonly touchMoveBtn: HTMLButtonElement;
     private readonly touchLevelBtn: HTMLButtonElement;
@@ -403,7 +409,7 @@ export class Hud {
             if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
             const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-item]');
             if (itemBtn?.dataset.item) {
-                this.onArmItem?.(itemBtn.dataset.item);
+                this.onArmItem?.(itemBtn.dataset.item, Number(itemBtn.dataset.index ?? -1));
                 this.setPhoneTab(null); // aiming happens on the field
                 return;
             }
@@ -520,17 +526,18 @@ export class Hud {
         playerFighter.addEventListener('click', () => this.showSpecialistDetail('player'));
         enemyFighter.addEventListener('click', () => this.showSpecialistDetail('enemy'));
         playerFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('player');
+            if (inputMode() !== 'touch') this.showSpecialistDetail('player', true);
         });
         enemyFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('enemy');
+            if (inputMode() !== 'touch') this.showSpecialistDetail('enemy', true);
         });
-        playerFighter.addEventListener('mouseleave', () => {
-            if (inputMode() !== 'touch') this.hideSpecialistDetail();
-        });
-        enemyFighter.addEventListener('mouseleave', () => {
-            if (inputMode() !== 'touch') this.hideSpecialistDetail();
-        });
+        // leave only closes hover peeks — a click-pinned detail stays put
+        const closePeek = () => {
+            if (inputMode() === 'touch') return;
+            if (this.specDetailOverlay?.classList.contains('peek')) this.hideSpecialistDetail();
+        };
+        playerFighter.addEventListener('mouseleave', closePeek);
+        enemyFighter.addEventListener('mouseleave', closePeek);
 
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
@@ -556,14 +563,9 @@ export class Hud {
             e.preventDefault();
             this.onSpeedDown?.();
         });
-        const menuBtn = document.createElement('button');
-        menuBtn.className = 'menu-btn';
-        menuBtn.textContent = '☰';
-        menuBtn.title = 'Menu (Esc)';
-        menuBtn.addEventListener('click', () => this.onMenuToggle?.());
         const controlsRow = document.createElement('div');
         controlsRow.className = 'top-controls';
-        controlsRow.append(endButton, this.speedEl, menuBtn);
+        controlsRow.append(endButton, this.speedEl);
         this.topBar.append(topMeta, this.timerEl, controlsRow);
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
@@ -572,10 +574,11 @@ export class Hud {
         // while nothing is selected, unit actions once something is
         this.phoneBar = document.createElement('div');
         this.phoneBar.className = 'mechili-phonebar';
-        const phoneTabs: ['shop' | 'unit' | 'tactics', string, string][] = [
+        const phoneTabs: ['shop' | 'unit' | 'tactics' | 'chat', string, string][] = [
             ['shop', '⬢', 'Shop'],
             ['unit', '⚔', 'Unit'],
             ['tactics', '✨', 'Tactics'],
+            ['chat', '💬', 'Chat'],
         ];
         for (const [tab, icon, label] of phoneTabs) {
             const button = document.createElement('button');
@@ -605,23 +608,19 @@ export class Hud {
         this.touchRotateBtn.className = 'ta-btn ta-rotate';
         this.touchRotateBtn.innerHTML = `<span class="pb-ico">⟳</span><span class="pb-label">Rotate</span>`;
         this.touchRotateBtn.addEventListener('click', () => this.onTouchRotate?.());
-        this.touchCancelBtn = document.createElement('button');
-        this.touchCancelBtn.className = 'ta-btn ta-cancel';
-        this.touchCancelBtn.innerHTML = `<span class="pb-ico">✕</span><span class="pb-label">Cancel</span>`;
-        this.touchCancelBtn.addEventListener('click', () => this.onTouchCancel?.());
         for (const btn of [
             this.touchLevelBtn,
             this.touchLevelAllBtn,
             this.touchUpgradeBtn,
             this.touchMoveBtn,
             this.touchRotateBtn,
-            this.touchCancelBtn,
         ]) {
             btn.style.display = 'none';
             this.phoneBar.append(btn);
         }
 
-        // phone: money + undo always at hand (the shop toolbar lives in a sheet)
+        // top-right stack under the enemy card: the ☰ menu on every device,
+        // plus money/undo/level-all on phone (their shop toolbar is in a sheet)
         this.phoneStatusEl = document.createElement('div');
         this.phoneStatusEl.className = 'mechili-phone-status';
         this.phoneUndoEl = document.createElement('button');
@@ -633,22 +632,30 @@ export class Hud {
         this.phoneSupplyEl = document.createElement('span');
         this.phoneSupplyEl.className = 'supply';
         phoneSupplyFrame.append(this.phoneSupplyEl);
-        this.phoneStatusEl.append(phoneSupplyFrame, this.phoneUndoEl);
-
-        // phone: the menu button moves to the left screen edge (the topbar
-        // twin hides there, leaving End Deployment centered)
+        this.phoneLevelAllEl = document.createElement('button');
+        this.phoneLevelAllEl.className = 'level-all-global';
+        this.phoneLevelAllEl.style.display = 'none';
+        this.phoneLevelAllEl.title = 'Level up every ready pack on the field';
+        this.phoneLevelAllEl.addEventListener('click', () => this.onLevelAllGlobal?.());
+        // menu sits at the top of the strip, directly under the enemy card —
+        // far away from End Deployment (the topbar twin hides on phone)
         this.phoneMenuEl = document.createElement('button');
         this.phoneMenuEl.className = 'mechili-phone-menu';
         this.phoneMenuEl.textContent = '☰';
-        this.phoneMenuEl.title = 'Menu';
+        this.phoneMenuEl.title = 'Menu (Esc)';
         this.phoneMenuEl.addEventListener('click', () => this.onMenuToggle?.());
+        this.phoneStatusEl.append(
+            this.phoneMenuEl,
+            phoneSupplyFrame,
+            this.phoneUndoEl,
+            this.phoneLevelAllEl,
+        );
 
         this.mount(this.shopColumn);
         this.mount(this.fightBar);
         this.mount(this.panel);
         this.mount(this.phoneBar);
         this.mount(this.phoneStatusEl);
-        this.mount(this.phoneMenuEl);
         this.buildChatBar();
     }
 
@@ -714,7 +721,6 @@ export class Hud {
 
     /** contextual touch field-action buttons in the bottom bar (coarse pointers only, via CSS) */
     setTouchActions(opts: {
-        cancel: boolean;
         rotate: boolean;
         /** shows the Move button (enter carry mode without moving yet) */
         move?: boolean;
@@ -725,17 +731,23 @@ export class Hud {
         /** base-building upgrade (Command Tower etc.) */
         upgrade?: { cost: number; affordable: boolean } | null;
     }): void {
-        const { cancel, rotate, move, carrying, levelUp, levelAll, upgrade } = opts;
-        const key = JSON.stringify(opts);
+        const { rotate, move, carrying } = opts;
+        // tablet (coarse but not phone-size): the details panel is visible and
+        // already offers level/upgrade tiles — the bar only covers what touch
+        // cannot do otherwise (move/rotate), as a compact pill
+        const phone = PHONE_MQ?.matches ?? false;
+        const levelUp = phone ? opts.levelUp : null;
+        const levelAll = phone ? opts.levelAll : null;
+        const upgrade = phone ? opts.upgrade : null;
+        const key = `${phone}|${JSON.stringify(opts)}`;
         if (key === this.lastTouchActKey) return;
         this.lastTouchActKey = key;
         // 'acting' lets tablets (no tab UI) show the bar just for these buttons
         this.phoneBar.classList.toggle(
             'acting',
-            cancel || rotate || !!move || !!levelUp || !!levelAll || !!upgrade,
+            rotate || !!move || !!levelUp || !!levelAll || !!upgrade,
         );
         this.phoneBar.classList.toggle('carrying', !!carrying);
-        this.touchCancelBtn.style.display = cancel ? 'flex' : 'none';
         this.touchRotateBtn.style.display = rotate ? 'flex' : 'none';
         this.touchMoveBtn.style.display = move ? 'flex' : 'none';
         this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
@@ -767,14 +779,20 @@ export class Hud {
     }
 
     /** opens one phone bottom sheet (or none); a no-op visually on desktop */
-    private setPhoneTab(tab: 'shop' | 'unit' | 'tactics' | null): void {
+    private setPhoneTab(tab: 'shop' | 'unit' | 'tactics' | 'chat' | null): void {
+        // the chat's expanded state is shared with desktop hover — only touch
+        // the 'open' flag on actual chat-tab transitions (phone-only states)
+        if (tab === 'chat') this.chatBar.classList.add('open');
+        else if (this.phoneTab === 'chat') this.chatBar.classList.remove('open');
         this.phoneTab = tab;
         this.shopColumn.classList.toggle('phone-open', tab === 'shop');
         this.panel.classList.toggle('phone-open', tab === 'unit');
         this.inventoryEl.classList.toggle('phone-open', tab === 'tactics');
+        this.chatBar.classList.toggle('phone-open', tab === 'chat');
         this.phoneBar.querySelector('.pb-shop')?.classList.toggle('active', tab === 'shop');
         this.phoneBar.querySelector('.pb-unit')?.classList.toggle('active', tab === 'unit');
         this.phoneBar.querySelector('.pb-tactics')?.classList.toggle('active', tab === 'tactics');
+        this.phoneBar.querySelector('.pb-chat')?.classList.toggle('active', tab === 'chat');
     }
 
     // --- in-match chat -----------------------------------------------------
@@ -841,6 +859,8 @@ export class Hud {
             }
             if (bar.classList.contains('open') && !bar.contains(e.target as Node)) {
                 bar.classList.remove('open');
+                // phone: closing the chat also releases its bar tab
+                if (this.phoneTab === 'chat') this.setPhoneTab(null);
             }
         };
         document.addEventListener('pointerdown', onDocPointer);
@@ -851,6 +871,8 @@ export class Hud {
             const show = prefs().combatChat;
             bar.style.display = show ? '' : 'none';
             this.chatFloat.style.display = show ? '' : 'none';
+            // the phone bar's Chat tab mirrors the pref
+            this.phoneBar.classList.toggle('has-chat', show);
         };
         applyVisibility();
         const off = onPrefsChange(() => {
@@ -935,8 +957,8 @@ export class Hud {
             ? this.invSectionTitle('Items', items.length, total) +
               items
                   .map(
-                      (i) =>
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
+                      (i, index) =>
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
                           `<span class="i">${i.icon}</span></button>`,
                   )
                   .join('')
@@ -1144,15 +1166,19 @@ export class Hud {
         this.lastLevelAllKey = key;
         if (!info) {
             this.levelAllGlobalBtn.style.display = 'none';
+            this.phoneLevelAllEl.style.display = 'none';
             return;
         }
-        this.levelAllGlobalBtn.style.display = '';
         const label =
             info.count >= 2 ? `★ Level all (${info.count})` : '★ Level up';
-        this.levelAllGlobalBtn.innerHTML =
-            `<span class="title">${label}</span><span class="cost">${info.cost}</span>`;
-        this.levelAllGlobalBtn.disabled = !info.affordable;
-        this.levelAllGlobalBtn.classList.toggle('unaffordable', !info.affordable);
+        const html = `<span class="title">${label}</span><span class="cost">${info.cost}</span>`;
+        // the shop-toolbar button and its phone twin (top-right strip) mirror each other
+        for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
+            btn.style.display = '';
+            btn.innerHTML = html;
+            btn.disabled = !info.affordable;
+            btn.classList.toggle('unaffordable', !info.affordable);
+        }
     }
 
     /** 3D-rendered thumbnails for shop tiles (generated once at match start). */
@@ -1581,7 +1607,12 @@ export class Hud {
         this.inventoryEl.classList.toggle('battle', phase === 'battle');
         this.enemyInventoryEl.classList.toggle('battle', phase === 'battle');
         this.phoneBar.classList.toggle('battle', phase === 'battle');
-        if (phase === 'battle' && this.phoneTab === 'shop') this.setPhoneTab(null);
+        this.phoneStatusEl.classList.toggle('battle', phase === 'battle');
+        // battle: the chat leaves the bar and becomes the normal floating bar
+        this.chatBar.classList.toggle('battle', phase === 'battle');
+        if (phase === 'battle' && (this.phoneTab === 'shop' || this.phoneTab === 'chat')) {
+            this.setPhoneTab(null);
+        }
     }
 
     setSpeed(multiplier: number): void {
@@ -1644,8 +1675,6 @@ export class Hud {
         this.topBar.classList.toggle('overlay-open', this.cardOverlay !== null);
         this.phoneBar.classList.toggle('overlay-open', open);
         this.phoneStatusEl.classList.toggle('overlay-open', open);
-        // stays visible while paused (it toggles the pause menu closed again)
-        this.phoneMenuEl.classList.toggle('overlay-open', this.cardOverlay !== null);
     }
 
     hidePauseMenu(): void {
@@ -1676,6 +1705,9 @@ export class Hud {
 
     private showCardOverlay(overlay: HTMLDivElement): void {
         this.hideCardOverlay();
+        // phone: an open sheet (e.g. the shop behind the unlock picker) would
+        // show through the overlay's dim layer — close it first
+        this.setPhoneTab(null);
         this.cardOverlay = overlay;
         this.syncOverlayOpen();
         this.mount(overlay);
@@ -1776,14 +1808,17 @@ export class Hud {
     }
 
     /** a dismissible popup of one side's specialist card (frame click or hover) */
-    private showSpecialistDetail(team: 'player' | 'enemy'): void {
+    private showSpecialistDetail(team: 'player' | 'enemy', viaHover = false): void {
         const card = team === 'player' ? this.playerCard : this.enemyCard;
         if (!card) return;
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.specDetailOverlay.remove();
         const name = (team === 'player' ? this.playerNameEl : this.enemyNameEl).textContent ?? '';
         const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards detail';
+        // hover peeks are pointer-transparent: a full-screen overlay under the
+        // cursor would instantly fire mouseleave on the fighter card and the
+        // detail would flicker open/closed forever
+        overlay.className = `mechili-cards detail${viaHover ? ' peek' : ''}`;
         overlay.innerHTML =
             `<div class="cards-row"><div class="card-col ${team}">` +
             `<div class="c-owner ${team}"></div>` +
@@ -1792,6 +1827,8 @@ export class Hud {
         overlay.querySelector('.c-owner')!.textContent = name;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
         this.specDetailOverlay = overlay;
+        // the enemy's unplaced items are intel that belongs to this screen
+        this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
         this.mount(overlay);
     }
 
@@ -1801,6 +1838,7 @@ export class Hud {
             this.specDetailOverlay.remove();
             this.specDetailOverlay = null;
         }
+        this.enemyInventoryEl.classList.remove('reveal');
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */

@@ -1,6 +1,7 @@
 /**
  * Community Suggest — posts to backend/suggest.php (file store + daily mail ping).
  */
+import { isLocalhost } from './game/net';
 import { prefs } from './game/prefs';
 
 export const SUGGEST_CATEGORIES = [
@@ -22,9 +23,7 @@ function suggestEndpoint(): string {
     const override = params.get('suggest');
     if (override) return override;
 
-    const host = location.hostname;
-    const local = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
-    if (local) {
+    if (isLocalhost()) {
         const branch = params.get('branch');
         if (branch) {
             return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/backend/suggest.php`;

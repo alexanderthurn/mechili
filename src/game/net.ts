@@ -35,7 +35,14 @@ const HEARTBEAT_MS = 5000;
  */
 export function isLocalhost(): boolean {
     const h = location.hostname;
-    return h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+    if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') return true;
+    // LAN dev: a phone/tablet reaches the vite server via the machine's
+    // private address or mDNS name — same rules as localhost apply
+    if (h.endsWith('.local')) return true;
+    if (/^10\.\d+\.\d+\.\d+$/.test(h)) return true;
+    if (/^192\.168\.\d+\.\d+$/.test(h)) return true;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(h)) return true;
+    return false;
 }
 
 /** localhost (dev) or the public play host — same hosts that use the Melodan backend path */
