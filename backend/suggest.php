@@ -27,9 +27,17 @@ const DATA_DIR = __DIR__ . '/suggestions';
 const STORE = DATA_DIR . '/data.json';
 
 function adminKey(): ?string {
+    // Prefer the deploy-injected const; CHAT_KEY is only a fallback.
+    // trim(): GitHub secrets / paste often include a trailing newline.
+    if (ADMIN_KEY !== '' && ADMIN_KEY !== '__ADMIN_KEY__') {
+        $k = trim(ADMIN_KEY);
+        if ($k !== '') return $k;
+    }
     $env = getenv('CHAT_KEY');
-    if (is_string($env) && $env !== '') return $env;
-    if (ADMIN_KEY !== '' && ADMIN_KEY !== '__ADMIN_KEY__') return ADMIN_KEY;
+    if (is_string($env)) {
+        $k = trim($env);
+        if ($k !== '') return $k;
+    }
     return null;
 }
 
@@ -213,7 +221,7 @@ if ($action === 'submit') {
 
 if ($action === 'list') {
     $key = adminKey();
-    $given = (string) ($_GET['key'] ?? '');
+    $given = trim((string) ($_GET['key'] ?? ''));
     if ($key === null || $given === '' || !hash_equals($key, $given)) {
         reply($fp, ['error' => 'forbidden'], 403);
     }
@@ -228,7 +236,7 @@ if ($action === 'list') {
 
 if ($action === 'delete') {
     $key = adminKey();
-    $given = (string) ($bodyJson['key'] ?? $_GET['key'] ?? '');
+    $given = trim((string) ($bodyJson['key'] ?? $_GET['key'] ?? ''));
     $id = clean((string) ($bodyJson['id'] ?? $_GET['id'] ?? ''), 64);
     if ($key === null || $given === '' || !hash_equals($key, $given)) {
         reply($fp, ['error' => 'forbidden'], 403);

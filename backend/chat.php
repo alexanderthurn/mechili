@@ -22,9 +22,17 @@
 const ADMIN_KEY = '__ADMIN_KEY__';
 
 function adminKey(): ?string {
+    // Prefer the deploy-injected const; CHAT_KEY is only a fallback.
+    // trim(): GitHub secrets / paste often include a trailing newline.
+    if (ADMIN_KEY !== '' && ADMIN_KEY !== '__ADMIN_KEY__') {
+        $k = trim(ADMIN_KEY);
+        if ($k !== '') return $k;
+    }
     $env = getenv('CHAT_KEY');
-    if (is_string($env) && $env !== '') return $env;
-    if (ADMIN_KEY !== '' && ADMIN_KEY !== '__ADMIN_KEY__') return ADMIN_KEY;
+    if (is_string($env)) {
+        $k = trim($env);
+        if ($k !== '') return $k;
+    }
     return null;
 }
 const MAX_MESSAGES = 10;
@@ -70,7 +78,7 @@ if ($action === 'post') {
     }
 } elseif ($action === 'stick') {
     $key = adminKey();
-    if ($key !== null && hash_equals($key, $_GET['key'] ?? '')) {
+    if ($key !== null && hash_equals($key, trim($_GET['key'] ?? ''))) {
         $text = clean($_GET['text'] ?? '', MAX_TEXT);
         $state['sticky'] = $text === '' ? null : $text;
     } else {
