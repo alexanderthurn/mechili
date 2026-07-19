@@ -233,7 +233,10 @@ export class Game {
      * another, so peers can compute card offers regardless of code order
      */
     private readonly rngAi: () => number;
+    /** per-side streams for the specialist pick (each fighter gets a different draw) */
     private readonly rngCards: Record<Team, () => number>;
+    /** shared stream for between-round card offers (both sides see the same 4) */
+    private readonly rngRoundCards: () => number;
     /** the other side's decision maker (built-in AI or the network peer) */
     private readonly opponent: Opponent;
     /** which sides locked in the current deployment — battle starts at both */
@@ -495,12 +498,13 @@ export class Game {
             ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
             : null;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
-        // card streams are keyed by canonical side, so both peers compute the
-        // same offers for the same player regardless of local perspective
+        // specialist streams are keyed by canonical side (different draws);
+        // round-card offers share one stream so both fighters see the same 4
         this.rngCards = {
             player: mulberry32(seedFrom(this.seed, `cards-${side}`)),
             enemy: mulberry32(seedFrom(this.seed, `cards-${side === 'a' ? 'b' : 'a'}`)),
         };
+        this.rngRoundCards = mulberry32(seedFrom(this.seed, 'round-cards'));
         this.deployState = {
             limit: { player: settings.deploy.unitsPerRound, enemy: settings.deploy.unitsPerRound },
             extra: { player: 0, enemy: 0 },
@@ -1855,25 +1859,23 @@ export class Game {
     }
 
     /**
-     * The between-round card offer: the enemy quietly picks from its own
-     * draw, the player gets the overlay (the round clock waits). Skipping
-     * pays a small consolation instead.
+     * The between-round card offer: both sides get the same 4 cards from a
+     * shared stream. The enemy quietly picks; the player gets the overlay
+     * (the round clock waits). Skipping pays a small consolation instead.
      */
     private offerRoundCards(): void {
         this.roundCardTaken.player = false;
         this.roundCardTaken.enemy = false;
 
-        // each side's offer comes from its OWN card stream — reproducible on
-        // any peer regardless of when either client computes it
-        const enemyOffer = this.draw(ROUND_CARDS, 4, this.rngCards.enemy);
-        const offer = this.draw(ROUND_CARDS, 4, this.rngCards.player);
+        // one shared draw — reproducible on any peer, identical for both sides
+        const offer = this.draw(ROUND_CARDS, 4, this.rngRoundCards);
         if (this.hydrating) {
             // no UI, no opponent hook — the recorded actions carry the picks;
-            // the streams were consumed above so future offers stay aligned
+            // the stream was consumed above so future offers stay aligned
             this.pendingOffer = offer;
             return;
         }
-        this.opponent.onRoundCards(enemyOffer);
+        this.opponent.onRoundCards(offer);
         this.awaitingCards = true;
         this.showRoundOffer(offer);
     }
