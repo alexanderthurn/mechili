@@ -380,6 +380,8 @@ export class PlacementController {
             upgradeReady: this.upgradeReadyAtCapture?.(unit) ?? false,
             items: [...unit.items],
         });
+        // courtyard sand at the pose the player can see (not at later live moves)
+        if (this.intelFog && unit.team === 'enemy') this.stampSandUnder(unit);
     }
 
     /** Turns enemy intel fog on or off (off = live board). */
@@ -694,11 +696,20 @@ export class PlacementController {
     private stampSandUnder(unit: Unit): void {
         const t = unit.type;
         if (t.flying || t.structure || t.extra) return;
+        // while fogged, never stamp enemy sand at live coords — that leaks moves
+        let x = unit.world.x;
+        let z = unit.world.z;
+        if (this.intelFog && unit.team === 'enemy') {
+            const snap = this.intelSnapshot.get(unit.id);
+            if (!snap) return;
+            x = snap.world.x;
+            z = snap.world.z;
+        }
         const fp = this.footprintOf(t, unit.rotated);
         const w = this.map.sandStampWeight(t);
         this.map.stampSand(
-            unit.world.x,
-            unit.world.z,
+            x,
+            z,
             this.map.packSandRadius(fp.cols, fp.rows) * Math.sqrt(w),
             0.22 * w,
         );
