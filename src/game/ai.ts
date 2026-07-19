@@ -1,8 +1,15 @@
-import type { Action } from './actions';
+import { quantizeWorld, quantizeYaw, type Action } from './actions';
 import type { RoundCard, StartCard } from './cards';
 import { SHOP_UNIT_IDS, unitUnlockCost } from './cards';
 import type { PlacementController } from './placement';
 import type { Economy } from './settings';
+import {
+    RALLY_ROUTE_ID,
+    OIL_SPILL_ID,
+    SELL_UNIT_ID,
+    TACTICS,
+    usesSpellPlacement,
+} from './tactics';
 import type { TechTree } from './tech';
 import { UNIT_TYPES, unitTypeById, type Team } from './units';
 
@@ -19,6 +26,11 @@ export interface Opponent {
     onBuildPhase(round: number): void;
     /** answer the between-round card offer (pick or skip) */
     onRoundCards(offer: readonly RoundCard[]): void;
+    /**
+     * Re-run deploy actions without locking in again (cheat mid-phase top-up):
+     * buys, reposition, items, spells, upgrades.
+     */
+    rerunBuildActions?(): void;
 }
 
 export class AiOpponent implements Opponent {
@@ -31,6 +43,8 @@ export class AiOpponent implements Opponent {
             techTree: TechTree;
             unlockedUnits: Record<Team, string[]>;
             unlockUsedThisRound: Record<Team, boolean>;
+            items: Record<Team, string[]>;
+            tactics: Record<Team, string[]>;
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
         },
@@ -43,7 +57,6 @@ export class AiOpponent implements Opponent {
 
     onRoundCards(offer: readonly RoundCard[]): void {
         // takes an affordable UNIT card most of the time, else skips
-        // (it has no use for items yet)
         const candidates = offer.filter(
             (c) => c.units && this.ctx.economy.balance(this.team) >= c.cost,
         );
@@ -52,8 +65,17 @@ export class AiOpponent implements Opponent {
     }
 
     onBuildPhase(_round: number): void {
-        const { dispatch, placement, economy, techTree, rng, unlockedUnits, unlockUsedThisRound } =
-            this.ctx;
+        this.runBuildActions();
+        this.ctx.dispatch({ kind: 'endDeployment', team: this.team });
+    }
+
+    /** cheat mid-deploy: same spend/move/cast loop without another lock-in */
+    rerunBuildActions(): void {
+        this.runBuildActions();
+    }
+
+    private runBuildActions(): void {
+        const { dispatch, placement, economy, rng, unlockedUnits, unlockUsedThisRound } = this.ctx;
         const team = this.team;
         const unlocked = unlockedUnits[team];
 
@@ -68,7 +90,7 @@ export class AiOpponent implements Opponent {
             }
         }
 
-        // 1) fill every deploy slot first (buy fails when slots or supply run out)
+        // 1) fill every deploy slot first
         for (let guard = 0; guard < 30; guard++) {
             const affordable = UNIT_TYPES.filter(
                 (t) =>
@@ -90,28 +112,141 @@ export class AiOpponent implements Opponent {
             if (!done) break;
         }
 
-        // rearrange fresh deployments (starting army included in round 1) —
-        // moves stay invisible to the player until lock-in via intel snapshot
+        // rearrange packs
         for (const unit of placement.allUnits()) {
-            if (unit.team !== this.team || !placement.canReposition(unit)) continue;
-            if (rng() < 0.3) continue; // some stay where they are
+            if (unit.team !== team || !placement.canReposition(unit)) continue;
+            if (rng() < 0.25) continue;
             const spot = placement.findEnemySpot(unit.type, rng);
             if (!spot) continue;
             if (spot.rotated !== unit.rotated) {
-                dispatch({ kind: 'rotate', team: this.team, unitId: unit.id });
+                dispatch({ kind: 'rotate', team, unitId: unit.id });
             }
-            dispatch({ kind: 'move', team: this.team, unitId: unit.id, anchor: spot.anchor });
+            dispatch({ kind: 'move', team, unitId: unit.id, anchor: spot.anchor });
         }
 
-        // 2) leftover supply → upgrades (techs, then pack levels, then towers)
-        this.spendOnUpgrades();
+        // equip inventory items onto bare packs
+        this.applyItems();
 
-        // done for the round — the battle waits for both sides' lock-in
-        dispatch({ kind: 'endDeployment', team: this.team });
+        // cast available tactics / spells toward the opponent
+        this.placeTactics();
+
+        // leftover supply → techs / levels / towers
+        this.spendLeftoverUpgrades();
+    }
+
+    private applyItems(): void {
+        const { dispatch, placement, items, rng } = this.ctx;
+        const team = this.team;
+        const bag = [...items[team]];
+        if (bag.length === 0) return;
+        const packs = placement
+            .allUnits()
+            .filter((u) => u.team === team && !u.type.structure && !u.type.extra && u.items.length === 0);
+        for (const unit of packs) {
+            if (bag.length === 0) break;
+            const i = Math.floor(rng() * bag.length);
+            const itemId = bag.splice(i, 1)[0]!;
+            if (dispatch({ kind: 'applyItem', team, unitId: unit.id, itemId })) {
+                // inventory was mutated by dispatch; keep bag in sync
+            } else {
+                bag.push(itemId);
+            }
+        }
+    }
+
+    private placeTactics(): void {
+        const { dispatch, placement, tactics, rng } = this.ctx;
+        const team = this.team;
+        const foes = placement
+            .allUnits()
+            .filter((u) => u.team !== team && !u.type.extra);
+        const allies = placement
+            .allUnits()
+            .filter((u) => u.team === team && !u.type.structure && !u.type.extra);
+        if (foes.length === 0) return;
+
+        const foePoint = () => {
+            const u = foes[Math.floor(rng() * foes.length)]!;
+            const jitter = (rng() - 0.5) * 8;
+            return {
+                x: quantizeWorld(u.world.x + jitter),
+                z: quantizeWorld(u.world.z + jitter),
+            };
+        };
+        const allyPoint = () => {
+            const u = (allies.length ? allies : foes)[Math.floor(rng() * (allies.length || foes.length))]!;
+            return { x: quantizeWorld(u.world.x), z: quantizeWorld(u.world.z) };
+        };
+
+        // shuffle held tactics, place at most two so the field stays readable
+        const MAX_TACTICS = 2;
+        const pool = [...new Set(tactics[team])].filter((id) => id !== SELL_UNIT_ID);
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+        }
+
+        let placed = 0;
+        for (const tacticId of pool) {
+            if (placed >= MAX_TACTICS) break;
+            const tactic = TACTICS[tacticId];
+            if (!tactic) continue;
+
+            let ok = false;
+            if (tacticId === RALLY_ROUTE_ID && allies.length > 0) {
+                const a = allyPoint();
+                const b = foePoint();
+                ok = dispatch({
+                    kind: 'placeRallyRoute',
+                    team,
+                    startX: a.x,
+                    startZ: a.z,
+                    endX: b.x,
+                    endZ: b.z,
+                });
+            } else if (tacticId === OIL_SPILL_ID) {
+                const a = foePoint();
+                const b = foePoint();
+                ok = dispatch({
+                    kind: 'placeOilSpill',
+                    team,
+                    startX: a.x,
+                    startZ: a.z,
+                    endX: b.x,
+                    endZ: b.z,
+                });
+            } else if (usesSpellPlacement(tactic)) {
+                const p = foePoint();
+                if (tactic.targeting === 'point') {
+                    ok = dispatch({ kind: 'placeSpell', team, tacticId, x: p.x, z: p.z });
+                } else if (tactic.targeting === 'two-point') {
+                    const q = foePoint();
+                    ok = dispatch({
+                        kind: 'placeSpell',
+                        team,
+                        tacticId,
+                        x: p.x,
+                        z: p.z,
+                        endX: q.x,
+                        endZ: q.z,
+                    });
+                } else if (tactic.targeting === 'point-yaw') {
+                    ok = dispatch({
+                        kind: 'placeSpell',
+                        team,
+                        tacticId,
+                        x: p.x,
+                        z: p.z,
+                        yaw: quantizeYaw(rng() * Math.PI * 2),
+                    });
+                }
+            }
+            if (ok) placed++;
+        }
     }
 
     /** spend remaining supply on techs / levels / tower upgrades while affordable */
-    private spendOnUpgrades(): void {
+    private spendLeftoverUpgrades(): void {
         const { dispatch, placement, economy, techTree } = this.ctx;
         const team = this.team;
 
@@ -124,7 +259,6 @@ export class AiOpponent implements Opponent {
             ),
         ];
 
-        // techs for types we actually field — keep buying while anything is affordable
         let bought = true;
         while (bought) {
             bought = false;
@@ -143,13 +277,11 @@ export class AiOpponent implements Opponent {
             }
         }
 
-        // pack levels when XP is banked
         for (const unit of placement.allUnits()) {
             if (unit.team !== team || unit.type.structure || unit.type.extra) continue;
             dispatch({ kind: 'buyLevel', team, unitId: unit.id });
         }
 
-        // base building levels
         for (const unit of placement.allUnits()) {
             if (unit.team !== team || !unit.type.structure || unit.type.extra) continue;
             dispatch({ kind: 'upgradeTower', team, unitId: unit.id });

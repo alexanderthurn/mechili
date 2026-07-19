@@ -357,20 +357,29 @@ export class PlacementController {
         this.intelSnapshot.clear();
         this.clearIntelGhosts();
         for (const u of this.units) {
-            this.intelSnapshot.set(u.id, {
-                unitId: u.id,
-                typeId: u.type.id,
-                team: u.team,
-                cell: { col: u.cell.col, row: u.cell.row },
-                rotated: u.rotated,
-                facing: u.facing,
-                world: u.world.clone(),
-                level: u.level,
-                xp: u.xp,
-                upgradeReady: this.upgradeReadyAtCapture?.(u) ?? false,
-                items: [...u.items],
-            });
+            this.rememberIntelPose(u);
         }
+    }
+
+    /**
+     * Freeze a pack into the intel snapshot at its current pose. Used at phase
+     * start for everyone, and mid-deploy when a cheat grants new enemy packs so
+     * they appear at land position while later moves stay fogged.
+     */
+    rememberIntelPose(unit: Unit): void {
+        this.intelSnapshot.set(unit.id, {
+            unitId: unit.id,
+            typeId: unit.type.id,
+            team: unit.team,
+            cell: { col: unit.cell.col, row: unit.cell.row },
+            rotated: unit.rotated,
+            facing: unit.facing,
+            world: unit.world.clone(),
+            level: unit.level,
+            xp: unit.xp,
+            upgradeReady: this.upgradeReadyAtCapture?.(unit) ?? false,
+            items: [...unit.items],
+        });
     }
 
     /** Turns enemy intel fog on or off (off = live board). */

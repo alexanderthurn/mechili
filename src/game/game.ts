@@ -607,6 +607,8 @@ export class Game {
                   techTree: this.techTree,
                   unlockedUnits: this.unlockedUnits,
                   unlockUsedThisRound: this.unlockUsedThisRound,
+                  items: this.itemInventory,
+                  tactics: this.tacticInventory,
                   rng: this.rngAi,
               });
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
@@ -1107,11 +1109,10 @@ export class Game {
 
     /**
      * SP cheat (U): free-spawn every unit type on both sides during
-     * deployment (3 dwarf packs, 1 of each other type), bump player HP
-     * sky-high, top up every tactic/spell charge so the whole strip is off
-     * cooldown, grant +5000 supply and one of each pack item to both sides,
-     * scramble pack levels so badges/arrows vary, and lift intel fog so both
-     * armies are visible. Press again (any round) for another full top-up.
+     * deployment (3 dwarf packs, 1 of each other type), bump HP sky-high,
+     * top up tactics, grant +5000 supply and one of each item to both sides,
+     * scramble levels, then let the AI re-spend — enemy moves stay behind
+     * intel fog; newly granted enemy packs are snapshotted at land pose.
      */
     private cheatSpawnAllUnits(): void {
         if (this.phase !== 'build' || this.matchOver) return;
@@ -1123,6 +1124,12 @@ export class Game {
         this.cheatGrantSupply(5000);
         this.cheatGrantAllTactics();
         this.cheatGrantAllItems();
+        // sidebar intel: show the freshly granted bag without lifting pack fog
+        this.captureEnemyIntelSnapshot();
+
+        const knownEnemy = new Set(
+            this.placement.allUnits().filter((u) => u.team === 'enemy').map((u) => u.id),
+        );
 
         for (const team of ['player', 'enemy'] as const) {
             for (const type of UNIT_TYPES) {
@@ -1160,9 +1167,15 @@ export class Game {
             unit.refreshLevelBadge();
         }
 
-        // newly spawned enemy packs aren't in the phase-start intel snapshot —
-        // show the live board so the test army is actually visible
-        this.placement.setIntelFog(false);
+        // newly granted enemy packs: visible at land pose; later AI moves stay fogged
+        for (const unit of this.placement.allUnits()) {
+            if (unit.team !== 'enemy' || knownEnemy.has(unit.id)) continue;
+            this.placement.rememberIntelPose(unit);
+        }
+
+        // AI already locked in at phase start — re-run buys/moves/items/spells/upgrades
+        // behind fog (existing packs stay at phase-start pose)
+        this.opponent.rerunBuildActions?.();
     }
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */

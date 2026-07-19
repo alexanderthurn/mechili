@@ -209,6 +209,8 @@ export class Hud {
     private lastEnemyInventoryKey = '';
     /** player inventory strip folded flat (titles only) when it wraps past one column */
     private inventoryCollapsed = false;
+    /** enemy strip starts folded — usually crowded after cheats / long games */
+    private enemyInventoryCollapsed = true;
     private deploysLeft = Infinity;
     private extrasBudgetLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
@@ -398,7 +400,7 @@ export class Hud {
         this.inventoryEl.className = 'mechili-sidebar left';
         this.inventoryEl.style.display = 'none';
         this.inventoryEl.addEventListener('click', (e) => {
-            if (this.toggleInventoryCollapse(e)) return;
+            if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
             const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-item]');
             if (itemBtn?.dataset.item) {
                 this.onArmItem?.(itemBtn.dataset.item);
@@ -440,6 +442,9 @@ export class Hud {
         this.enemyInventoryEl = document.createElement('div');
         this.enemyInventoryEl.className = 'mechili-sidebar right';
         this.enemyInventoryEl.style.display = 'none';
+        this.enemyInventoryEl.addEventListener('click', (e) => {
+            this.toggleSidebarCollapse(this.enemyInventoryEl, 'enemy', e);
+        });
         // touch tooltip stand-ins: long-press a shop tile for its stats, a
         // tactic/item for its hint — and a PLACED tactic long-press resets it
         // (the touch version of the contextmenu handler above)
@@ -974,7 +979,7 @@ export class Hud {
             : '';
         this.inventoryEl.innerHTML = itemHtml + tacticHtml;
         this.inventoryEl.classList.toggle('folded', this.inventoryCollapsed);
-        this.scheduleInventoryCollapseUi();
+        this.scheduleSidebarCollapseUi(this.inventoryEl, 'player');
         // the picked-up item's ghost rides the cursor until placed or cancelled
         const picked = items.find((i) => i.armed);
         if (picked && !this.itemGhost) {
@@ -1004,8 +1009,9 @@ export class Hud {
         this.lastEnemyInventoryKey = key;
         const visible = items.length > 0 || tactics.length > 0 || !!options.sellAbility;
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
+        const total = items.length + tactics.length + (options.sellAbility ? 1 : 0);
         const itemHtml = items.length
-            ? `<div class="inv-title"><span class="inv-title-label">Enemy items</span></div>` +
+            ? this.invSectionTitle('Enemy items', items.length, total) +
               items
                   .map(
                       (i) =>
@@ -1015,7 +1021,7 @@ export class Hud {
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? `<div class="inv-title"><span class="inv-title-label">Enemy tactics</span></div>` +
+            ? this.invSectionTitle('Enemy tactics', tactics.length, total) +
               tactics
                   .map(
                       (t) =>
@@ -1025,11 +1031,13 @@ export class Hud {
                   .join('')
             : '';
         const abilityHtml = options.sellAbility
-            ? `<div class="inv-title"><span class="inv-title-label">Enemy abilities</span></div>` +
+            ? this.invSectionTitle('Enemy abilities', 1, total) +
               `<span class="inv-item readonly" title="Sell packs (unlocked)">` +
               `<span class="i">↩</span></span>`
             : '';
         this.enemyInventoryEl.innerHTML = itemHtml + tacticHtml + abilityHtml;
+        this.enemyInventoryEl.classList.toggle('folded', this.enemyInventoryCollapsed);
+        this.scheduleSidebarCollapseUi(this.enemyInventoryEl, 'enemy');
     }
 
     private invSectionTitle(label: string, count: number, total: number): string {
@@ -1042,37 +1050,47 @@ export class Hud {
         );
     }
 
-    /** click any Items/Tactics header to fold or expand the whole player strip */
-    private toggleInventoryCollapse(e: MouseEvent): boolean {
+    /** click any section header to fold or expand that sidebar strip */
+    private toggleSidebarCollapse(
+        el: HTMLElement,
+        side: 'player' | 'enemy',
+        e: MouseEvent,
+    ): boolean {
         const title = (e.target as HTMLElement).closest<HTMLElement>('.inv-title[data-inv-toggle]');
-        if (!title || !this.inventoryEl.contains(title)) return false;
-        if (!this.inventoryEl.classList.contains('can-collapse') && !this.inventoryCollapsed) {
-            return false;
-        }
+        if (!title || !el.contains(title)) return false;
+        const collapsed =
+            side === 'player' ? this.inventoryCollapsed : this.enemyInventoryCollapsed;
+        if (!el.classList.contains('can-collapse') && !collapsed) return false;
         e.preventDefault();
-        this.inventoryCollapsed = !this.inventoryCollapsed;
-        this.inventoryEl.classList.toggle('folded', this.inventoryCollapsed);
-        this.refreshInventoryCollapseUi();
+        if (side === 'player') {
+            this.inventoryCollapsed = !this.inventoryCollapsed;
+            el.classList.toggle('folded', this.inventoryCollapsed);
+        } else {
+            this.enemyInventoryCollapsed = !this.enemyInventoryCollapsed;
+            el.classList.toggle('folded', this.enemyInventoryCollapsed);
+        }
+        this.refreshSidebarCollapseUi(el, side);
         return true;
     }
 
-    private scheduleInventoryCollapseUi(): void {
-        requestAnimationFrame(() => this.refreshInventoryCollapseUi());
+    private scheduleSidebarCollapseUi(el: HTMLElement, side: 'player' | 'enemy'): void {
+        requestAnimationFrame(() => this.refreshSidebarCollapseUi(el, side));
     }
 
     /**
-     * Collapse affordance only when tiles wrap past one column (desktop) or
-     * one row (phone sheet) — or when already folded so it can reopen.
+     * Collapse affordance when tiles wrap past one column/row — or when already
+     * folded so it can reopen. Enemy defaults folded, so it stays clickable.
      */
-    private refreshInventoryCollapseUi(): void {
-        const el = this.inventoryEl;
+    private refreshSidebarCollapseUi(el: HTMLElement, side: 'player' | 'enemy'): void {
         if (el.style.display === 'none') {
             el.classList.remove('can-collapse');
             return;
         }
-        const can = this.inventoryCollapsed || this.inventoryStripWrapped(el);
+        const collapsed =
+            side === 'player' ? this.inventoryCollapsed : this.enemyInventoryCollapsed;
+        const can = collapsed || this.inventoryStripWrapped(el);
         el.classList.toggle('can-collapse', can);
-        const tip = this.inventoryCollapsed ? 'Expand inventory' : 'Collapse inventory';
+        const tip = collapsed ? 'Expand inventory' : 'Collapse inventory';
         for (const title of el.querySelectorAll<HTMLButtonElement>('.inv-title[data-inv-toggle]')) {
             title.tabIndex = can ? 0 : -1;
             title.title = tip;
@@ -1093,7 +1111,7 @@ export class Hud {
         );
     }
 
-    /** purchases used / allowed this round; buy buttons grey out at the limit.
+        /** purchases used / allowed this round; buy buttons grey out at the limit.
      *  `extrasBudgetLeft` is the separate supply cap for shields/rockets. */
     setDeploys(used: number, limit: number, extrasBudgetLeft: number): void {
         this.deploysLeft = limit - used;
