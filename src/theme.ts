@@ -981,12 +981,13 @@ export function hudStyles(): string {
 .shop-toolbar .undo:focus-visible,
 .mechili-phone-status .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
 
-/* phone: always-visible supply with undo below it, top right below the enemy card */
+/* top-right stack docked under the enemy card: ☰ on every device,
+   plus supply/undo/level-all on phone */
 .mechili-phone-status {
-    display: none;
+    display: flex;
     position: absolute;
-    top: calc(56px + env(safe-area-inset-top));
-    right: calc(6px + env(safe-area-inset-right));
+    top: calc(62px + env(safe-area-inset-top));
+    right: env(safe-area-inset-right);
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
@@ -994,6 +995,12 @@ export function hudStyles(): string {
     font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
+}
+/* the money/undo/level-all twins exist for the phone layout only */
+.mechili-phone-status .mechili-supply,
+.mechili-phone-status .undo,
+.mechili-phone-status .level-all-global {
+    display: none;
 }
 .mechili-phone-status .undo { pointer-events: auto; margin-right: 0; }
 /* compact versions of the shop-toolbar frames — the originals crowd End Deployment */
@@ -1008,32 +1015,41 @@ export function hudStyles(): string {
     padding: 6px 10px;
     font-size: 15px;
 }
+.mechili-phone-status .level-all-global {
+    align-self: flex-end;
+    min-height: 40px;
+    max-width: 110px;
+}
 .mechili-phone-status.overlay-open { display: none !important; }
 
-/* phone: the menu button at the left screen edge, mirroring the status strip */
+/* the ☰ menu: a tab growing out of the enemy card's bottom-right corner —
+   same chrome as the card so it reads as part of it */
 .mechili-phone-menu {
-    display: none;
-    position: absolute;
-    top: calc(56px + env(safe-area-inset-top));
-    left: calc(6px + env(safe-area-inset-left));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     box-sizing: border-box;
-    min-width: 46px;
-    min-height: 46px;
-    padding: 2px 10px;
+    align-self: flex-end;
+    min-width: 48px;
+    min-height: 40px;
+    padding: 2px 12px;
     appearance: none;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
+    border: 2px solid ${u.border};
+    border-top: none;
+    border-right: none;
+    border-radius: 0 0 0 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     color: ${u.text};
     font-family: system-ui, sans-serif;
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
-    z-index: 3;
     pointer-events: auto;
     user-select: none;
+    transition: color 0.12s ease;
 }
-.mechili-phone-menu.overlay-open { display: none !important; }
+.mechili-phone-menu:hover { color: ${u.brassLight}; }
 .shop-toolbar-right {
     display: flex;
     flex-direction: row;
@@ -1041,7 +1057,8 @@ export function hudStyles(): string {
     gap: 8px;
     flex-shrink: 0;
 }
-.shop-toolbar .level-all-global {
+.shop-toolbar .level-all-global,
+.mechili-phone-status .level-all-global {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1063,7 +1080,8 @@ export function hudStyles(): string {
     flex-shrink: 0;
     align-self: flex-start;
 }
-.shop-toolbar .level-all-global .title {
+.shop-toolbar .level-all-global .title,
+.mechili-phone-status .level-all-global .title {
     font-size: 9px;
     font-weight: bold;
     letter-spacing: 0.4px;
@@ -1072,7 +1090,8 @@ export function hudStyles(): string {
     white-space: normal;
     color: ${u.phase};
 }
-.shop-toolbar .level-all-global .cost {
+.shop-toolbar .level-all-global .cost,
+.mechili-phone-status .level-all-global .cost {
     font-size: 14px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
@@ -1080,11 +1099,16 @@ export function hudStyles(): string {
     line-height: 1;
     margin-top: 2px;
 }
-.shop-toolbar .level-all-global { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
-.shop-toolbar .level-all-global:hover { border-color: ${u.hover}; transform: translateY(-1px); }
-.shop-toolbar .level-all-global:active { transform: scale(0.96); }
-.shop-toolbar .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
-.shop-toolbar .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
+.shop-toolbar .level-all-global,
+.mechili-phone-status .level-all-global { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+.shop-toolbar .level-all-global:hover,
+.mechili-phone-status .level-all-global:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.shop-toolbar .level-all-global:active,
+.mechili-phone-status .level-all-global:active { transform: scale(0.96); }
+.shop-toolbar .level-all-global:focus-visible,
+.mechili-phone-status .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.shop-toolbar .level-all-global.unaffordable,
+.mechili-phone-status .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras {
     display: flex;
     flex-direction: row-reverse;
@@ -1386,14 +1410,16 @@ export function hudStyles(): string {
 
 .mechili-sidebar {
     position: absolute;
-    top: 50%;
+    /* biased upward with a guaranteed clearance to the bottom panels
+       (selection details left, money/shop right) */
+    top: 40%;
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     /* many tactics: wrap into extra columns instead of growing off-screen */
     flex-wrap: wrap;
     align-content: flex-start;
-    max-height: 78vh;
+    max-height: min(56vh, calc(100vh - 360px));
     align-items: center;
     gap: 6px;
     padding: 8px 6px;
@@ -1415,8 +1441,18 @@ export function hudStyles(): string {
     right: env(safe-area-inset-right);
     border-right: none;
     border-radius: 10px 0 0 10px;
+    /* enemy intel only shows on the enemy commander's detail screen */
+    display: none;
+}
+.mechili-sidebar.right.reveal:not(.battle) {
+    display: flex;
+    /* above the detail overlay's dim layer */
+    z-index: 60;
 }
 .mechili-sidebar.battle { display: none; }
+/* the hover peek must not sit under the cursor — it would steal the hover
+   from the commander card and flicker */
+.mechili-cards.detail.peek { pointer-events: none; }
 .mechili-sidebar .inv-title {
     font-size: 9px;
     letter-spacing: 1px;
@@ -1952,25 +1988,6 @@ export function hudStyles(): string {
     justify-content: center;
     gap: 8px;
 }
-.mechili-topbar .menu-btn {
-    min-width: 34px;
-    min-height: 30px;
-    padding: 2px 8px;
-    appearance: none;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.border};
-    border-radius: 8px;
-    color: ${u.text};
-    font-family: inherit;
-    font-size: 15px;
-    line-height: 1;
-    cursor: pointer;
-    pointer-events: auto;
-    text-shadow: none;
-    transition: border-color 0.12s ease, background 0.12s ease;
-}
-.mechili-topbar .menu-btn:hover { border-color: ${u.hover}; }
-.mechili-topbar .menu-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-topbar .timer {
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
 }
@@ -2156,11 +2173,6 @@ export function hudStyles(): string {
         padding: 10px 12px;
         font-size: 14px;
     }
-    .mechili-topbar .menu-btn {
-        min-width: 44px;
-        min-height: 38px;
-        font-size: 18px;
-    }
     /* backdrop blur + WebGL memory pressure crashes mobile Safari tabs */
     .mechili-shop,
     .mechili-panel,
@@ -2344,13 +2356,16 @@ textarea {
         pointer-events: auto;
         z-index: 20;
     }
-    /* money + undo always at hand; their sheet-internal twins hide */
-    .mechili-phone-status { display: flex; }
+    /* money + undo + level-all always at hand; their sheet-internal twins
+       hide. The phone enemy card is shorter, so the strip docks higher. */
+    .mechili-phone-status { top: calc(40px + env(safe-area-inset-top)); }
+    .mechili-phone-status .mechili-supply,
+    .mechili-phone-status .undo,
+    .mechili-phone-status .level-all-global { display: flex; }
     .mechili-shop-col .undo,
-    .mechili-shop-col .mechili-supply { display: none; }
+    .mechili-shop-col .mechili-supply,
+    .mechili-shop-col .level-all-global { display: none !important; }
     /* menu button moves to the left edge; End Deployment stays centered alone */
-    .mechili-phone-menu { display: inline-flex; align-items: center; justify-content: center; }
-    .mechili-topbar .menu-btn { display: none; }
     /* spectating a battle with nothing selected: no empty strip */
     .mechili-phonebar.battle:not(.has-unit):not(.acting) { display: none; }
     /* bottom-center chat bar would collide with the tab bar */
@@ -2419,7 +2434,6 @@ textarea {
        tight row never lets End Deployment wrap and grow vertically */
     .mechili-topbar .top-controls { margin-top: 10px; }
     .mechili-topbar .end-deploy,
-    .mechili-topbar .menu-btn,
     .mechili-topbar .speed {
         box-sizing: border-box;
         height: 38px;

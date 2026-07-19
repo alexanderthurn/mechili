@@ -187,6 +187,7 @@ export class Hud {
     private phoneUndoEl!: HTMLButtonElement;
     private phoneSupplyEl!: HTMLSpanElement;
     private phoneMenuEl!: HTMLButtonElement;
+    private phoneLevelAllEl!: HTMLButtonElement;
     private readonly levelAllGlobalBtn: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
     private readonly inventoryEl: HTMLDivElement;
@@ -512,17 +513,18 @@ export class Hud {
         playerFighter.addEventListener('click', () => this.showSpecialistDetail('player'));
         enemyFighter.addEventListener('click', () => this.showSpecialistDetail('enemy'));
         playerFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('player');
+            if (inputMode() !== 'touch') this.showSpecialistDetail('player', true);
         });
         enemyFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('enemy');
+            if (inputMode() !== 'touch') this.showSpecialistDetail('enemy', true);
         });
-        playerFighter.addEventListener('mouseleave', () => {
-            if (inputMode() !== 'touch') this.hideSpecialistDetail();
-        });
-        enemyFighter.addEventListener('mouseleave', () => {
-            if (inputMode() !== 'touch') this.hideSpecialistDetail();
-        });
+        // leave only closes hover peeks — a click-pinned detail stays put
+        const closePeek = () => {
+            if (inputMode() === 'touch') return;
+            if (this.specDetailOverlay?.classList.contains('peek')) this.hideSpecialistDetail();
+        };
+        playerFighter.addEventListener('mouseleave', closePeek);
+        enemyFighter.addEventListener('mouseleave', closePeek);
 
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
@@ -548,14 +550,9 @@ export class Hud {
             e.preventDefault();
             this.onSpeedDown?.();
         });
-        const menuBtn = document.createElement('button');
-        menuBtn.className = 'menu-btn';
-        menuBtn.textContent = '☰';
-        menuBtn.title = 'Menu (Esc)';
-        menuBtn.addEventListener('click', () => this.onMenuToggle?.());
         const controlsRow = document.createElement('div');
         controlsRow.className = 'top-controls';
-        controlsRow.append(endButton, this.speedEl, menuBtn);
+        controlsRow.append(endButton, this.speedEl);
         this.topBar.append(topMeta, this.timerEl, controlsRow);
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
@@ -613,7 +610,8 @@ export class Hud {
             this.phoneBar.append(btn);
         }
 
-        // phone: money + undo always at hand (the shop toolbar lives in a sheet)
+        // top-right stack under the enemy card: the ☰ menu on every device,
+        // plus money/undo/level-all on phone (their shop toolbar is in a sheet)
         this.phoneStatusEl = document.createElement('div');
         this.phoneStatusEl.className = 'mechili-phone-status';
         this.phoneUndoEl = document.createElement('button');
@@ -625,22 +623,30 @@ export class Hud {
         this.phoneSupplyEl = document.createElement('span');
         this.phoneSupplyEl.className = 'supply';
         phoneSupplyFrame.append(this.phoneSupplyEl);
-        this.phoneStatusEl.append(phoneSupplyFrame, this.phoneUndoEl);
-
-        // phone: the menu button moves to the left screen edge (the topbar
-        // twin hides there, leaving End Deployment centered)
+        this.phoneLevelAllEl = document.createElement('button');
+        this.phoneLevelAllEl.className = 'level-all-global';
+        this.phoneLevelAllEl.style.display = 'none';
+        this.phoneLevelAllEl.title = 'Level up every ready pack on the field';
+        this.phoneLevelAllEl.addEventListener('click', () => this.onLevelAllGlobal?.());
+        // menu sits at the top of the strip, directly under the enemy card —
+        // far away from End Deployment (the topbar twin hides on phone)
         this.phoneMenuEl = document.createElement('button');
         this.phoneMenuEl.className = 'mechili-phone-menu';
         this.phoneMenuEl.textContent = '☰';
-        this.phoneMenuEl.title = 'Menu';
+        this.phoneMenuEl.title = 'Menu (Esc)';
         this.phoneMenuEl.addEventListener('click', () => this.onMenuToggle?.());
+        this.phoneStatusEl.append(
+            this.phoneMenuEl,
+            phoneSupplyFrame,
+            this.phoneUndoEl,
+            this.phoneLevelAllEl,
+        );
 
         this.mount(this.shopColumn);
         this.mount(this.fightBar);
         this.mount(this.panel);
         this.mount(this.phoneBar);
         this.mount(this.phoneStatusEl);
-        this.mount(this.phoneMenuEl);
         this.buildChatBar();
     }
 
@@ -1059,15 +1065,19 @@ export class Hud {
         this.lastLevelAllKey = key;
         if (!info) {
             this.levelAllGlobalBtn.style.display = 'none';
+            this.phoneLevelAllEl.style.display = 'none';
             return;
         }
-        this.levelAllGlobalBtn.style.display = '';
         const label =
             info.count >= 2 ? `★ Level all (${info.count})` : '★ Level up';
-        this.levelAllGlobalBtn.innerHTML =
-            `<span class="title">${label}</span><span class="cost">${info.cost}</span>`;
-        this.levelAllGlobalBtn.disabled = !info.affordable;
-        this.levelAllGlobalBtn.classList.toggle('unaffordable', !info.affordable);
+        const html = `<span class="title">${label}</span><span class="cost">${info.cost}</span>`;
+        // the shop-toolbar button and its phone twin (top-right strip) mirror each other
+        for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
+            btn.style.display = '';
+            btn.innerHTML = html;
+            btn.disabled = !info.affordable;
+            btn.classList.toggle('unaffordable', !info.affordable);
+        }
     }
 
     /** 3D-rendered thumbnails for shop tiles (generated once at match start). */
@@ -1558,8 +1568,6 @@ export class Hud {
         this.topBar.classList.toggle('overlay-open', this.cardOverlay !== null);
         this.phoneBar.classList.toggle('overlay-open', open);
         this.phoneStatusEl.classList.toggle('overlay-open', open);
-        // stays visible while paused (it toggles the pause menu closed again)
-        this.phoneMenuEl.classList.toggle('overlay-open', this.cardOverlay !== null);
     }
 
     hidePauseMenu(): void {
@@ -1690,14 +1698,17 @@ export class Hud {
     }
 
     /** a dismissible popup of one side's specialist card (frame click or hover) */
-    private showSpecialistDetail(team: 'player' | 'enemy'): void {
+    private showSpecialistDetail(team: 'player' | 'enemy', viaHover = false): void {
         const card = team === 'player' ? this.playerCard : this.enemyCard;
         if (!card) return;
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.specDetailOverlay.remove();
         const name = (team === 'player' ? this.playerNameEl : this.enemyNameEl).textContent ?? '';
         const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards detail';
+        // hover peeks are pointer-transparent: a full-screen overlay under the
+        // cursor would instantly fire mouseleave on the fighter card and the
+        // detail would flicker open/closed forever
+        overlay.className = `mechili-cards detail${viaHover ? ' peek' : ''}`;
         overlay.innerHTML =
             `<div class="cards-row"><div class="card-col ${team}">` +
             `<div class="c-owner ${team}"></div>` +
@@ -1706,6 +1717,8 @@ export class Hud {
         overlay.querySelector('.c-owner')!.textContent = name;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
         this.specDetailOverlay = overlay;
+        // the enemy's unplaced items are intel that belongs to this screen
+        this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
         this.mount(overlay);
     }
 
@@ -1715,6 +1728,7 @@ export class Hud {
             this.specDetailOverlay.remove();
             this.specDetailOverlay = null;
         }
+        this.enemyInventoryEl.classList.remove('reveal');
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
