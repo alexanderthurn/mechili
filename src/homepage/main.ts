@@ -53,6 +53,7 @@ const TACTIC_ART: Partial<Record<string, string>> = {
 };
 
 const STEAM_URL = 'https://store.steampowered.com/app/1255063/';
+const DISCORD_URL = 'https://discord.gg/rmRP7qYt7';
 const PLAY_URL =
     location.hostname === 'melodan.com' || location.hostname === 'www.melodan.com'
         ? 'https://play.melodan.com/'
@@ -418,7 +419,7 @@ app.innerHTML = `
 </footer>
 
 <aside class="mh-sticky-play" id="mh-sticky-play" aria-hidden="true">
-  <button type="button" class="mh-sticky-btn suggest" id="mh-sticky-suggest">Suggest</button>
+  <a class="mh-sticky-btn discord" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">Discord</a>
   <a class="mh-sticky-btn primary" href="${PLAY_URL}">Play in Browser</a>
   ${steamLink(
       'mh-sticky-btn steam',
@@ -463,7 +464,6 @@ const openHomepageSuggest = () => {
     openSuggest({ parent: document.body, source: 'homepage', lightSpecs: true });
 };
 app.querySelector('#mh-suggest-open')?.addEventListener('click', openHomepageSuggest);
-app.querySelector('#mh-sticky-suggest')?.addEventListener('click', openHomepageSuggest);
 app.querySelector('#mh-footer-suggest')?.addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('suggest')?.scrollIntoView({ behavior: 'smooth' });

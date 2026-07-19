@@ -194,9 +194,9 @@ body {
 .mh-sticky-btn.primary {
     background: linear-gradient(180deg, ${u.alliedBtnHover}, ${u.alliedBtnBg});
 }
-.mh-sticky-btn.suggest {
-    background: linear-gradient(180deg, rgba(48, 58, 40, 0.95), rgba(28, 38, 24, 0.95));
-    color: ${u.brassLight};
+.mh-sticky-btn.discord {
+    background: linear-gradient(180deg, #5865f2, #404eed);
+    color: #f0f1ff;
 }
 .mh-sticky-btn.steam {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
