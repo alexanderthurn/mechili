@@ -268,19 +268,19 @@ export class Game {
         used: Record<Team, number>;
         extrasSpent: Record<Team, number>;
     };
-    /** permanent army-wide boost tiers (0 = none), bought at the Command Tower */
+    /** permanent army-wide boost tiers (0 = none), bought at the Research Center */
     private readonly boostState: Record<'attack' | 'hp', Record<Team, number>> = {
         attack: { player: 0, enemy: 0 },
         hp: { player: 0, enemy: 0 },
     };
-    /** round-only stat boosts from the Research Center (reset each deployment) */
+    /** round-only stat boosts from the Command Tower (reset each deployment) */
     private readonly roundBoosts: { range: Record<Team, boolean>; speed: Record<Team, boolean> } = {
         range: { player: false, enemy: false },
         speed: { player: false, enemy: false },
     };
-    /** Research Center Credit: used this round (reset each deployment) */
+    /** Command Tower Credit: used this round (reset each deployment) */
     private readonly creditUsed: Record<Team, boolean> = { player: false, enemy: false };
-    /** Research Center Credit: debt owed at the next deployment start */
+    /** Command Tower Credit: debt owed at the next deployment start */
     private readonly creditDebt: Record<Team, boolean> = { player: false, enemy: false };
     /** each side's chosen starting-card speciality (null until picked) */
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
@@ -707,7 +707,7 @@ export class Game {
             else this.resetPlacedRallyRoute(routeId);
         };
         this.hud.onRecruitLevel = () => {
-            // offered in the Research Center's menu
+            // offered in the Command Tower's menu
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             if (this.dispatchPlayer({ kind: 'recruitLevel', team: 'player' })) {
@@ -1086,8 +1086,8 @@ export class Game {
 
     /**
      * Each side's three base buildings (anchors shared with BattleMap so the
-     * ground relief stays flat underneath): the Research Center left and the
-     * Command Tower right, both pushed toward the enemy, plus the big
+     * ground relief stays flat underneath): the Command Tower left and the
+     * Research Center right, both pushed toward the enemy, plus the big
      * Stronghold at the back center.
      */
     private spawnTowers(): void {
@@ -1102,7 +1102,7 @@ export class Game {
             const centerRow = Math.round(zoneRows * anchor.rowFrac - fp.rows / 2);
             const col = flankCols + Math.round(zoneCols * anchor.xFrac) - Math.floor(fp.cols / 2);
             // the far side's base is the near layout rotated 180°, so each
-            // player sees their own research center left, command tower right
+            // player sees their own command tower left, research center right
             const near = { col, row: centerRow };
             const far = {
                 col: this.map.cols - col - fp.cols,
@@ -1248,7 +1248,7 @@ export class Game {
         this.hud.refreshCosts();
         this.refreshShopHud();
         this.economy.grantRoundIncome(this.round);
-        // Research Center Credit debt from last round — after income so it always covers
+        // Command Tower Credit debt from last round — after income so it always covers
         // NOTE: must also run while hydrating (debt is never in the action log)
         const creditDebtAmount = this.settings.deploy.creditDebt;
         for (const team of ['player', 'enemy'] as const) {
@@ -3774,7 +3774,7 @@ export class Game {
 
     /**
      * True when the opponent's purchases are visible: after we lock in, or in
-     * battle — same fog as spells / inventory / Research Center tiles.
+     * battle — same fog as spells / inventory / Command Tower tiles.
      */
     private enemyActionIntelVisible(): boolean {
         // live board (fog off / battle / after we lock in) — same window as
@@ -3813,7 +3813,7 @@ export class Game {
     }
 
     /**
-     * Research Center ability tiles for the selection panel.
+     * Command Tower ability tiles for the selection panel.
      * Own building: buyable while acting, read-only in battle. Enemy: read-only
      * once intel is live (locked in / battle) — same fog as spells & inventory.
      */
@@ -3861,7 +3861,7 @@ export class Game {
         };
     }
 
-    /** Command Tower permanent tracks — buyable for self in deploy; inspect with fog */
+    /** Research Center permanent tracks — buyable for self in deploy; inspect with fog */
     private commandTowerSelection(u: Unit): Pick<SelectionInfo, 'boosts' | 'sellAbility'> {
         if (u.type !== COMMAND_TOWER) return {};
         const canBuy = u.team === 'player' && this.playerCanAct;

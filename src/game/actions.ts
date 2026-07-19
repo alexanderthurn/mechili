@@ -98,7 +98,7 @@ export interface UpgradeTowerAction {
     team: Team;
     unitId: number;
 }
-/** unlocks selling PERMANENTLY (Command Tower, once per match) */
+/** unlocks selling PERMANENTLY (Research Center, once per match) */
 export interface BuySellAbilityAction {
     kind: 'buySellAbility';
     team: Team;
@@ -110,27 +110,27 @@ export interface SellUnitAction {
     team: Team;
     unitId: number;
 }
-/** Research Center: +1 unit purchase for the RUNNING round only */
+/** Command Tower: +1 unit purchase for the RUNNING round only */
 export interface BuyDeploySlotAction {
     kind: 'buyDeploySlot';
     team: Team;
 }
-/** Research Center: +range for all ranged units this round only */
+/** Command Tower: +range for all ranged units this round only */
 export interface BuyRoundRangeBoostAction {
     kind: 'buyRoundRangeBoost';
     team: Team;
 }
-/** Research Center: +speed for all units this round only */
+/** Command Tower: +speed for all units this round only */
 export interface BuyRoundSpeedBoostAction {
     kind: 'buyRoundSpeedBoost';
     team: Team;
 }
-/** Research Center: +supply now, debt collected next deployment (once per round) */
+/** Command Tower: +supply now, debt collected next deployment (once per round) */
 export interface BuyCreditAction {
     kind: 'buyCredit';
     team: Team;
 }
-/** Command Tower: the next tier of a permanent army-wide stat boost */
+/** Research Center: the next tier of a permanent army-wide stat boost */
 export interface BuyBoostAction {
     kind: 'buyBoost';
     team: Team;
@@ -305,11 +305,11 @@ export interface ActionContext {
     };
     /** per-team tier (0 = none) of each permanent army boost */
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
-    /** per-team round-only stat boosts from the Research Center (reset each round) */
+    /** per-team round-only stat boosts from the Command Tower (reset each round) */
     roundBoosts: { range: Record<Team, boolean>; speed: Record<Team, boolean> };
-    /** Research Center Credit: used this round (reset each deployment) */
+    /** Command Tower Credit: used this round (reset each deployment) */
     creditUsed: Record<Team, boolean>;
-    /** Research Center Credit: debt still owed at the next deployment start */
+    /** Command Tower Credit: debt still owed at the next deployment start */
     creditDebt: Record<Team, boolean>;
     /** each side's chosen card speciality (null until the pick) */
     speciality: Record<Team, SpecialityId | null>;

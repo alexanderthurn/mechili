@@ -7,7 +7,7 @@ Roadmap lives in `TACTICS_PLAN.md`; this is the session record.
 
 - Removed the sell button from the unit menu; selling is now a 💰 entry in the
   left tactics strip: arm it (crosshair cursor), click one of your packs.
-- Charges come from the Command Tower ability (max/round) AND from a round
+- Charges come from the Research Center ability (max/round) AND from a round
   card ("Buyback Deal"). Used charges show greyed; undo restores them.
 - A free sell charge is granted at round 1 for testing (`TEST_TACTIC_GRANTS`).
 

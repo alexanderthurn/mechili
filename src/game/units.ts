@@ -405,8 +405,8 @@ function buildTower(parts: PartFactory): void {
 /** each side's two command towers — not buyable, so not part of UNIT_TYPES */
 /**
  * The two base buildings share stats and mesh but are independent types:
- * each carries its own role (and upgrade level). The Command Tower hosts the
- * recruit-level switch; the Research Center's role is still open.
+ * each carries its own role (and upgrade level). The Research Center hosts the
+ * recruit-level switch; the Command Tower's role is still open.
  */
 function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 800): UnitType {
     return {
@@ -436,8 +436,8 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
     };
 }
 
-export const COMMAND_TOWER = makeTower('command-tower', 'Command Tower');
-export const RESEARCH_CENTER = makeTower('research-center', 'Research Center');
+export const COMMAND_TOWER = makeTower('command-tower', 'Research Center');
+export const RESEARCH_CENTER = makeTower('research-center', 'Command Tower');
 /** each side's main castle at the back of its territory — bigger and sturdier */
 export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 1600);
 

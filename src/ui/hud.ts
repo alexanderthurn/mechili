@@ -88,19 +88,19 @@ export interface SelectionInfo {
     structure?: boolean;
     /** a base building's supply-only level upgrade (own, build phase) */
     towerUpgrade?: { cost: number; affordable: boolean; maxed: boolean; maxLevel: number };
-    /** the once-per-round level-2 recruit switch (Command Tower only) */
+    /** the once-per-round level-2 recruit switch (Research Center only) */
     recruit?: { cost: number; active: boolean; affordable: boolean };
-    /** +1 deployment for the running round (Research Center only) */
+    /** +1 deployment for the running round (Command Tower only) */
     deploySlot?: { cost: number; active: boolean; affordable: boolean };
-    /** +range for all ranged units this round (Research Center only) */
+    /** +range for all ranged units this round (Command Tower only) */
     rangeBoost?: { cost: number; bonus: number; active: boolean; affordable: boolean };
-    /** +speed for all units this round (Research Center only) */
+    /** +speed for all units this round (Command Tower only) */
     speedBoost?: { cost: number; bonus: number; active: boolean; affordable: boolean };
-    /** Credit: +gain now, −debt next deployment (Research Center only) */
+    /** Credit: +gain now, −debt next deployment (Command Tower only) */
     credit?: { gain: number; debt: number; active: boolean; affordable: boolean };
-    /** the permanent sell-ability unlock (Command Tower only) */
+    /** the permanent sell-ability unlock (Research Center only) */
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
-    /** permanent army-wide boost tracks (Command Tower only); label shows the NEXT tier */
+    /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
 }
 
@@ -728,7 +728,7 @@ export class Hud {
         carrying?: boolean;
         levelUp?: { cost: number; affordable: boolean } | null;
         levelAll?: { count: number; cost: number; affordable: boolean } | null;
-        /** base-building upgrade (Command Tower etc.) */
+        /** base-building upgrade (Research Center etc.) */
         upgrade?: { cost: number; affordable: boolean } | null;
     }): void {
         const { rotate, move, carrying } = opts;

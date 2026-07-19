@@ -77,7 +77,7 @@ export interface TowerSettings {
 }
 
 /**
- * Command Tower: permanent army-wide stat boosts, one tier bought after the
+ * Research Center: permanent army-wide stat boosts, one tier bought after the
  * other on the same button. Tier values are TOTALS (tier 2 replaces tier 1).
  */
 export interface BoostSettings {
@@ -93,17 +93,17 @@ export interface BoostSettings {
 export interface DeploySettings {
     /** each player's STARTING per-round buy limit (specials may raise it permanently later) */
     unitsPerRound: number;
-    /** Research Center: price of +1 buy for the running round only */
+    /** Command Tower: price of +1 buy for the running round only */
     extraSlotCost: number;
-    /** Research Center: +rangeBoost range for all ranged units this round only */
+    /** Command Tower: +rangeBoost range for all ranged units this round only */
     rangedRangeBoostCost: number;
     rangeBoost: number;
-    /** Research Center: +speedBoost speed for all units this round only */
+    /** Command Tower: +speedBoost speed for all units this round only */
     armySpeedBoostCost: number;
     speedBoost: number;
-    /** Research Center: Credit — gain this much supply now (once per round) */
+    /** Command Tower: Credit — gain this much supply now (once per round) */
     creditGain: number;
-    /** Research Center: Credit — repay this much at the start of the next deployment */
+    /** Command Tower: Credit — repay this much at the start of the next deployment */
     creditDebt: number;
     /** board extras (shields, rockets) have their own cap: supply spent on them per round */
     extrasBudgetPerRound: number;
@@ -111,7 +111,7 @@ export interface DeploySettings {
     flankSpawnSeconds: number;
 }
 
-/** the sell ability: bought ONCE at the Command Tower, then permanent */
+/** the sell ability: bought ONCE at the Research Center, then permanent */
 export interface SellSettings {
     abilityCost: number;
     /** units sellable per deployment phase once owned */

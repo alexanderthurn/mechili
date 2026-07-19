@@ -15,7 +15,7 @@ import { UNIT_TYPES } from './units';
 /** tactical orders (not pack items) — granted by round cards, consumed per placement */
 export const RALLY_ROUTE_ID = 'rallyRoute';
 export const OIL_SPILL_ID = 'oilSpill';
-/** selling a pack — charges come from the Command Tower's sell ability, not cards */
+/** selling a pack — charges come from the Research Center's sell ability, not cards */
 export const SELL_UNIT_ID = 'sellUnit';
 /** battle spells: point-targeted stamps that fire seconds into the battle */
 export const SPAWN_DWARVES_ID = 'spawnDwarves';
