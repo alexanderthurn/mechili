@@ -18,6 +18,7 @@ import { setHeightFogStrength } from '../engine/heightFog'; // patches three's f
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
+import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpForNextLevel, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
@@ -61,7 +62,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
-import { inputMode, onInputModeChange, touchFirstDevice } from './inputCapabilities';
+import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
     onPrefsChange,
     prefs,
@@ -168,6 +169,7 @@ export class Game {
     private readonly renderer: WebGLRenderer;
     private readonly rig = new CameraRig();
     private readonly controls: CameraControls;
+    private readonly gamepad: GamepadCursor;
     private readonly placement: PlacementController;
     private readonly hud: Hud;
     private readonly debug: DebugOverlay;
@@ -510,6 +512,17 @@ export class Game {
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         // one-finger drags aim the carried ghost/tactic instead of panning
         this.controls.suppressTouchPan = () => this.placement.pointerCarries;
+        // gamepad: virtual cursor over the same click pipeline (Halo Wars style)
+        this.gamepad = new GamepadCursor(surface, this.rig);
+        this.gamepad.onActivity = () => noteGamepadActivity();
+        this.gamepad.onRotate = () => this.placement.rotateSelected();
+        this.gamepad.onMenu = () => this.togglePauseMenu();
+        this.gamepad.onCancel = () => {
+            if (this.cancelTacticPlacement()) return;
+            this.placement.deselect();
+            this.selectedActor = null;
+            this.armedItem = null;
+        };
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
             ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
@@ -1035,6 +1048,7 @@ export class Game {
         this.dragonFx.dispose();
         this.oilDripFx.dispose();
         this.controls.dispose();
+        this.gamepad.dispose();
         this.hud.destroy();
         this.pixiApp.stage.removeChild(this.hpBars.view);
         this.hpBars.view.destroy({ children: true });
@@ -3358,6 +3372,7 @@ export class Game {
         this.particles.update(gameDt);
 
         this.controls.update(dtSeconds);
+        this.gamepad.update(dtSeconds);
         this.rig.update(dtSeconds);
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);

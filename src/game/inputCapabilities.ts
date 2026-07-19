@@ -54,6 +54,11 @@ export function hasTouchSupport(): boolean {
     return typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 }
 
+/** Call on real gamepad stick/button activity — flips the live input mode. */
+export function noteGamepadActivity(): void {
+    setMode('gamepad');
+}
+
 /** True when at least one gamepad is currently connected. */
 export function hasGamepadConnected(): boolean {
     if (typeof navigator === 'undefined' || !navigator.getGamepads) return false;

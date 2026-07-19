@@ -2203,6 +2203,32 @@ textarea {
     user-select: text;
 }
 
+/* gamepad virtual cursor (left stick moves, A clicks) */
+.mechili-gpcursor {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    border: 2.5px solid ${u.brassLight};
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.65), inset 0 0 5px rgba(0, 0, 0, 0.5);
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+}
+.mechili-gpcursor::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    margin: -2px 0 0 -2px;
+    background: ${u.brassLight};
+    border-radius: 50%;
+}
+.mechili-gpcursor.visible { display: block; }
+
 /* long-press tooltip card (touch stand-in for title-attribute tooltips) */
 .mechili-touchtip {
     position: fixed;

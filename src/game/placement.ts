@@ -240,7 +240,11 @@ export class PlacementController {
             // touch has no hover: without this, a carried ghost would sit at
             // the LAST drag position (e.g. where the previous pack was dropped)
             this.pointer = this.downAt;
-            if (!this.inputLocked) surface.setPointerCapture(e.pointerId);
+            try {
+                if (!this.inputLocked) surface.setPointerCapture(e.pointerId);
+            } catch {
+                /* synthetic pointers (gamepad cursor) cannot be captured */
+            }
         }) as EventListener);
         listen('pointercancel', (() => {
             this.downAt = null;
