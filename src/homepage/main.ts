@@ -88,6 +88,11 @@ function pickButtons(list: UnitType[], activeId: string): string {
         .join('');
 }
 
+const DISCORD_ICON_SVG =
+    `<svg class="mh-discord-icon" viewBox="0 0 127.14 96.36" width="22" height="17" aria-hidden="true" focusable="false">` +
+    `<path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1A105.25 105.25 0 0 0 126.6 80.22c2.64-27.38-4.51-51.14-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53 48.84 65.69 42.45 65.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53 91.08 65.69 84.69 65.69Z"/>` +
+    `</svg>`;
+
 /** Renders a real link when STEAM_URL is set, otherwise an inert placeholder. */
 function steamLink(className: string, inner: string): string {
     const cls = (className ? `${className} ` : '') + 'mh-steam-link';
@@ -254,10 +259,9 @@ app.innerHTML = `
     ${steamLink(
         'mh-play-btn steam',
         `<span class="mh-play-title">
-        <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="" width="56" height="56" />
-        Coming Soon
+        <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="Steam" width="112" height="112" />
       </span>
-      <span class="mh-play-note">Ranked Multiplayer · Play with your Friends</span>`,
+      <span class="mh-play-note">Ranked Multiplayer · Play with Friends</span>`,
     )}
   </div>
 </header>
@@ -353,7 +357,8 @@ app.innerHTML = `
     <h2>Contribute</h2>
     <p class="mh-sub">Melodan is developed by a single person, me. I am passionate about this game, but i can not make an AAA title and keep everything perfect, balanced and so on. The idea is to have an open game where anybody can contribute. <br /><br />Let&rsquo;s make this together. Balance, bugs, features, art ideas <span class="mh-sep">⬢</span> send a short note and I will read it. If you want to do more, welcome!</p>
     <div class="mh-together-cta">
-      <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Suggest</button>
+      <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Send feedback</button>
+      <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} Discord</a>
     </div>
     <div class="mh-community-body">
       <div class="mh-community-block">
@@ -361,23 +366,10 @@ app.innerHTML = `
         <ul class="mh-help-list">
           <li>Share ideas and bug reports</li>
           <li>Open pull requests on <a href="https://github.com/alexanderthurn/mechili" rel="noopener noreferrer" target="_blank">GitHub</a> (GPL-3.0)</li>
-          <li>Make or improve 3D models</li> 
+          <li>Make or improve 3D models</li>
           <li>Take care of balancing, invent new spells, cards, ideas.</li>
           <li>Welcome players, write guides, help with moderation if you want to take that on</li>
         </ul>
-      </div>
-      <div class="mh-community-block">
-        <h3>3D models with Tripo3D</h3>
-        <p>
-          Most unit, building, and spell meshes are GLB files under the repo.
-          Many were made with <a href="https://www.tripo3d.ai/" rel="noopener noreferrer" target="_blank">Tripo3D</a>
-          (text or image to 3D), then exported as game-ready <strong>GLB / PBR</strong> with a reasonable polycount for crowds.
-        </p>
-        <p>
-          Workflow sketch: concept <span class="mh-sep">⬢</span> Tripo <span class="mh-sep">⬢</span> export GLB
-          <span class="mh-sep">⬢</span> pull request or Suggest with a link / file note.
-          Animated characters may need a rig (ask if unsure). Contributed assets must be OK to ship with the game.
-        </p>
       </div>
     </div>
   </section>
@@ -388,12 +380,11 @@ app.innerHTML = `
         <img src="${esc(feuerwareLogoUrl)}" alt="Feuerware" width="320" height="64" />
       </a>
       <p class="mh-about-lead">
-        MELODAN is made by <strong>Alexander Thurn</strong> at Feuerware.
+        MELODAN is made by Feuerware. A small team of germans who love to code and make games.
       </p>
       <p>
-        Inspired by <a href="https://www.playmechabellum.com/" rel="noopener noreferrer" target="_blank">Mechabellum</a>
-        <span class="mh-sep">⬢</span>
-        thank you for the spark. MELODAN is an independent fantasy take; please support the original.
+        This game is inspired by <a href="https://www.playmechabellum.com/" rel="noopener noreferrer" target="_blank">Mechabellum</a>
+        thank you for the spark. MELODAN is an independent fantasy take; please support the original and buy Mechabelum. Thank you!
       </p>
       <p>
         The game is <a href="https://github.com/alexanderthurn/mechili" rel="noopener noreferrer" target="_blank">open source on GitHub</a>
@@ -401,7 +392,7 @@ app.innerHTML = `
         For something bigger <span class="mh-sep">⬢</span> a new setting, a commercial spin-off, a full rebrand
         <span class="mh-sep">⬢</span>
         feel free to ask me at <a href="mailto:alex@feuerware.com">alex@feuerware.com</a>.
-        Want to chip in? See <a href="#suggest">Suggest</a>.
+        Want to chip in? See <a href="#suggest">Contribute</a>.
       </p>
     </div>
   </section>
@@ -411,7 +402,7 @@ app.innerHTML = `
   <div class="mh-footer-links">
     <a href="${PLAY_URL}">Play</a>
     ${steamLink('', 'Steam')}
-    <a href="#suggest" id="mh-footer-suggest">Suggest</a>
+    <a href="#suggest" id="mh-footer-suggest">Feedback</a>
     <a href="https://feuerware.com/2025/imprint.html" rel="noopener noreferrer" target="_blank">Imprint</a>
     <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">Data privacy</a>
   </div>
@@ -419,13 +410,15 @@ app.innerHTML = `
 </footer>
 
 <aside class="mh-sticky-play" id="mh-sticky-play" aria-hidden="true">
-  <a class="mh-sticky-btn discord" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">Discord</a>
+  <a class="mh-sticky-btn discord icon-only" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank" aria-label="Discord" title="Discord">
+    <svg class="mh-sticky-icon" viewBox="0 0 127.14 96.36" width="28" height="22" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1A105.25 105.25 0 0 0 126.6 80.22c2.64-27.38-4.51-51.14-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53 48.84 65.69 42.45 65.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53 91.08 65.69 84.69 65.69Z"/>
+    </svg>
+  </a>
   <a class="mh-sticky-btn primary" href="${PLAY_URL}">Play in Browser</a>
-  ${steamLink(
-      'mh-sticky-btn steam',
-      `<img class="mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="28" height="28" />
-    Buy`,
-  )}
+  <a class="mh-sticky-btn steam icon-only mh-steam-link" href="${esc(STEAM_URL)}" rel="noopener noreferrer" target="_blank" aria-label="Steam" title="Steam">
+    <img class="mh-sticky-icon mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="84" height="84" />
+  </a>
 </aside>
 `;
 

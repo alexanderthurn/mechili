@@ -17,6 +17,8 @@ export type SuggestCategory = (typeof SUGGEST_CATEGORIES)[number];
 
 export type SuggestSource = 'homepage' | 'game menu';
 
+const DISCORD_URL = 'https://discord.gg/rmRP7qYt7';
+
 /** Same host resolution as matchUrl() in net.ts — kept local so homepage does not pull PeerJS. */
 function suggestEndpoint(): string {
     const params = new URLSearchParams(location.search);
@@ -147,8 +149,9 @@ export function openSuggest(opts: OpenSuggestOptions): void {
     overlay.className = 'mechili-suggest';
     overlay.innerHTML =
         `<div class="box" role="dialog" aria-labelledby="mh-suggest-title">` +
-        `<div class="s-title" id="mh-suggest-title">Suggest</div>` +
-        `<p class="s-lead">Tell me what to build, fix, or try. Your note is saved for me to read.</p>` +
+        `<div class="s-title" id="mh-suggest-title">Send feedback</div>` +
+        `<p class="s-lead">Tell us what to build, fix, or try. If you want you can add your name and email address.</p>` +
+        `<p class="s-discord">Prefer chat? Join the <a href="${DISCORD_URL}" rel="noopener noreferrer" target="_blank">Discord</a> community.</p>` +
         `<label class="s-field">Category` +
         `<select class="s-cat">` +
         SUGGEST_CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('') +

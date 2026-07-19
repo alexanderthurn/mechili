@@ -92,9 +92,10 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 16px 18px;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 9.5rem;
+    padding: 14px 18px 16px;
     border-radius: 14px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
@@ -110,6 +111,7 @@ body {
 .mh-play-btn.steam {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
     border-color: ${u.brassDark};
+    padding: 8px 14px 16px;
 }
 .mh-steam-link.disabled {
     cursor: not-allowed;
@@ -120,25 +122,30 @@ body {
     opacity: 0.5;
 }
 .mh-play-title {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-weight: 900;
     font-size: 1.15rem;
     letter-spacing: 0.02em;
-    display: inline-flex;
-    align-items: center;
     gap: 8px;
+    text-align: center;
 }
 .mh-play-btn.steam .mh-play-title { color: ${u.brassLight}; }
 .mh-steam-logo {
-    width: 2.7em;
-    height: 2.7em;
+    width: 7rem;
+    height: 7rem;
     object-fit: contain;
     display: block;
 }
 .mh-play-note {
+    margin-top: auto;
     font-size: 12px;
     line-height: 1.35;
     color: ${u.phase};
     opacity: 0.95;
+    text-align: center;
 }
 
 .mh-sticky-play {
@@ -201,14 +208,28 @@ body {
 .mh-sticky-btn.steam {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
     color: ${u.brassLight};
-    padding: 4px 12px 4px 8px;
+}
+.mh-sticky-btn.icon-only {
+    padding: 8px 14px;
+    min-width: 3.2rem;
+}
+.mh-sticky-btn.steam.icon-only {
+    padding: 4px 12px;
+}
+.mh-sticky-icon {
+    display: block;
+    width: 1.85rem;
+    height: 1.85rem;
+    object-fit: contain;
+    pointer-events: none;
+}
+.mh-sticky-btn.discord .mh-sticky-icon {
+    width: 1.7rem;
+    height: 1.3rem;
 }
 .mh-sticky-steam {
-    width: 2.2em;
-    height: 2.2em;
-    object-fit: contain;
-    display: block;
-    pointer-events: none;
+    width: 3.6rem;
+    height: 3.6rem;
 }
 @media (min-width: 720px) {
     .mh-sticky-btn {
@@ -216,12 +237,24 @@ body {
         font-size: 0.92rem;
         gap: 8px;
     }
-    .mh-sticky-btn.steam {
-        padding: 5px 14px 5px 10px;
+    .mh-sticky-btn.icon-only {
+        padding: 8px 16px;
+        min-width: 3.6rem;
+    }
+    .mh-sticky-btn.steam.icon-only {
+        padding: 4px 14px;
+    }
+    .mh-sticky-icon {
+        width: 2.05rem;
+        height: 2.05rem;
+    }
+    .mh-sticky-btn.discord .mh-sticky-icon {
+        width: 1.9rem;
+        height: 1.45rem;
     }
     .mh-sticky-steam {
-        width: 2.4em;
-        height: 2.4em;
+        width: 4rem;
+        height: 4rem;
     }
 }
 
@@ -772,22 +805,18 @@ body {
 
 .mh-together-cta {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
+    gap: 12px;
     margin: 8px 0 4px;
 }
 .mh-community-body {
-    max-width: 920px;
+    max-width: 520px;
     margin: 28px auto 0;
     display: grid;
     grid-template-columns: 1fr;
     gap: 16px;
     text-align: left;
-}
-@media (min-width: 720px) {
-    .mh-community-body {
-        grid-template-columns: 1fr 1fr;
-        gap: 18px;
-    }
 }
 .mh-community-block {
     padding: 20px 22px;
@@ -861,6 +890,22 @@ body {
 .mh-suggest-btn:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
+.mh-discord-btn {
+    border-color: #5865f2;
+    background: linear-gradient(180deg, #5865f2, #404eed);
+    color: #f0f1ff;
+    text-decoration: none;
+    gap: 10px;
+}
+.mh-discord-btn:hover {
+    border-color: #7289da;
+}
+.mh-discord-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 1.35em;
+    height: 1.05em;
 }
 
 .mh-footer {

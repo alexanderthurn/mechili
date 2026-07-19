@@ -746,6 +746,18 @@ export function menuStyles(): string {
     line-height: 1.45;
     color: ${u.phase};
 }
+.mechili-suggest .s-discord {
+    margin: -4px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: ${u.phase};
+}
+.mechili-suggest .s-discord a {
+    color: ${u.brassLight};
+    font-weight: 700;
+    text-decoration: none;
+}
+.mechili-suggest .s-discord a:hover { text-decoration: underline; }
 .mechili-suggest .s-field {
     display: flex;
     flex-direction: column;
