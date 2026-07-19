@@ -356,12 +356,6 @@ export class Game {
             this.weather?.next();
             return;
         }
-        if (e.code === 'KeyM' && !this.net) {
-            // single-player: +1000 supply to both sides, each press
-            this.economy.credit('player', 1000);
-            this.economy.credit('enemy', 1000);
-            return;
-        }
         if (e.code === 'KeyU' && !this.net) {
             // single-player: one of every unit type on both sides + huge HP
             this.cheatSpawnAllUnits();
@@ -1115,9 +1109,9 @@ export class Game {
      * SP cheat (U): free-spawn every unit type on both sides during
      * deployment (3 dwarf packs, 1 of each other type), bump player HP
      * sky-high, top up every tactic/spell charge so the whole strip is off
-     * cooldown, grant one of each pack item, scramble pack levels so
-     * badges/arrows vary, and lift intel fog so both armies are visible.
-     * Press again (any round) for another full top-up.
+     * cooldown, grant +5000 supply and one of each pack item to both sides,
+     * scramble pack levels so badges/arrows vary, and lift intel fog so both
+     * armies are visible. Press again (any round) for another full top-up.
      */
     private cheatSpawnAllUnits(): void {
         if (this.phase !== 'build' || this.matchOver) return;
@@ -1126,6 +1120,7 @@ export class Game {
         this.playerHp = CHEAT_HP;
         this.enemyHp = CHEAT_HP;
         this.hud.setHp(this.playerHp, this.enemyHp);
+        this.cheatGrantSupply(5000);
         this.cheatGrantAllTactics();
         this.cheatGrantAllItems();
 
@@ -1287,19 +1282,29 @@ export class Game {
         // comfortably above the highest cooldownRounds (3) so cooling charges
         // never eat into the pool
         const CHEAT_CHARGE_COUNT = 6;
-        for (const id of CHEAT_TACTIC_GRANTS) {
-            const have = this.tacticInventory.player.filter((t) => t === id).length;
-            for (let i = have; i < CHEAT_CHARGE_COUNT; i++) {
-                this.tacticInventory.player.push(id);
+        for (const team of ['player', 'enemy'] as const) {
+            for (const id of CHEAT_TACTIC_GRANTS) {
+                const have = this.tacticInventory[team].filter((t) => t === id).length;
+                for (let i = have; i < CHEAT_CHARGE_COUNT; i++) {
+                    this.tacticInventory[team].push(id);
+                }
             }
         }
     }
 
-    /** SP cheat (U): ensure the inventory has one of every equippable pack item. */
+    /** SP cheat (U): +supply to both sides (same amount each press). */
+    private cheatGrantSupply(amount = 5000): void {
+        this.economy.credit('player', amount);
+        this.economy.credit('enemy', amount);
+    }
+
+    /** SP cheat (U): ensure both inventories have one of every pack item. */
     private cheatGrantAllItems(): void {
-        for (const id of Object.keys(ITEMS)) {
-            if (!this.itemInventory.player.includes(id)) {
-                this.itemInventory.player.push(id);
+        for (const team of ['player', 'enemy'] as const) {
+            for (const id of Object.keys(ITEMS)) {
+                if (!this.itemInventory[team].includes(id)) {
+                    this.itemInventory[team].push(id);
+                }
             }
         }
     }
@@ -3663,32 +3668,39 @@ export class Game {
     }
 
     private actorInfo(a: Actor): SelectionInfo {
-        const rs = this.resolvedStats(a.unit);
-        const lv = this.levelInfo(a.unit);
+        const u = a.unit;
+        const rs = this.resolvedStats(u);
+        const lv = this.levelInfo(u);
         return {
-            name: a.unit.type.name,
-            team: a.unit.team,
-            owner: this.ownerName(a.unit.team),
+            name: u.type.name,
+            team: u.team,
+            owner: this.ownerName(u.team),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,
             range: Math.round(rs.range),
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
-            splash: a.unit.type.splashRadius,
-            structure: !!a.unit.type.structure,
-            items: a.unit.items.length
-                ? a.unit.items.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id, desc: ITEMS[id]?.description ?? '' }))
+            splash: u.type.splashRadius,
+            structure: !!u.type.structure,
+            items: u.items.length
+                ? u.items.map((id) => ({
+                      icon: ITEMS[id]?.icon ?? '?',
+                      name: ITEMS[id]?.name ?? id,
+                      desc: ITEMS[id]?.description ?? '',
+                  }))
                 : undefined,
-            record: a.unit.type.structure
+            record: u.type.structure
                 ? undefined
-                : { damageDealt: a.unit.damageDealt, kills: a.unit.kills },
+                : { damageDealt: u.damageDealt, kills: u.kills },
             alive: 1,
             total: 1,
             level: lv.level,
             xp: lv.xp,
             xpNext: lv.xpNext,
-            ...this.researchCenterSelection(a.unit),
+            techs: this.techSelection(u),
+            ...this.researchCenterSelection(u),
+            ...this.commandTowerSelection(u),
         };
     }
 
@@ -3696,6 +3708,7 @@ export class Game {
         const rs = this.resolvedStats(u);
         const lv = this.levelInfo(u);
         const itemIds = this.placement.intelOf(u)?.items ?? u.items;
+        const ownInteractive = u.team === 'player' && this.playerCanAct;
         return {
             name: u.type.name,
             team: u.team,
@@ -3714,12 +3727,16 @@ export class Game {
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
             items: itemIds.length
-                ? itemIds.map((id) => ({ icon: ITEMS[id]?.icon ?? '?', name: ITEMS[id]?.name ?? id, desc: ITEMS[id]?.description ?? '' }))
+                ? itemIds.map((id) => ({
+                      icon: ITEMS[id]?.icon ?? '?',
+                      name: ITEMS[id]?.name ?? id,
+                      desc: ITEMS[id]?.description ?? '',
+                  }))
                 : undefined,
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
-                u.team === 'player' && this.playerCanAct && u.type.structure && !u.type.extra
+                ownInteractive && u.type.structure && !u.type.extra
                     ? {
                           cost: towerUpgradeCost(u.level, this.settings.towers),
                           affordable:
@@ -3729,81 +3746,71 @@ export class Game {
                           maxLevel: this.settings.towers.upgrade.maxLevel,
                       }
                     : undefined,
-            ...this.researchCenterSelection(u),
-            // Command Tower: the two permanent army-wide boost tracks
-            boosts:
-                u.team === 'player' && this.playerCanAct && u.type === COMMAND_TOWER
-                    ? (['attack', 'hp'] as const).map((id) => {
-                          const tiers =
-                              id === 'attack'
-                                  ? this.settings.boosts.attackTiers
-                                  : this.settings.boosts.hpTiers;
-                          const tier = this.boostState[id].player;
-                          const maxed = tier >= tiers.length;
-                          const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
-                          const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
-                          return {
-                              id,
-                              label: `Army ${id === 'attack' ? 'attack' : 'HP'} +${pct}%`,
-                              cost,
-                              affordable: !maxed && this.economy.balance('player') >= cost,
-                              maxed,
-                          };
-                      })
-                    : undefined,
-            // so does the permanent sell-ability unlock
-            sellAbility:
-                u.team === 'player' && this.playerCanAct && u.type === COMMAND_TOWER
-                    ? {
-                          cost: this.settings.sell.abilityCost,
-                          owned: this.sellState.owned.player,
-                          affordable:
-                              this.economy.balance('player') >= this.settings.sell.abilityCost,
-                      }
-                    : undefined,
             // the next level is a purchase: needs banked XP and supply
             levelUp: this.levelUpInfo(u, lv),
-            // techs are buyable on your own packs during deployment
-            techs:
-                u.team === 'player' && this.playerCanAct && !u.type.structure
-                    ? u.type.techs.map((t) => {
-                          // each owned tech of the type raises the others' prices
-                          const owned = this.techTree.ownedFor('player', u.type.id).size;
-                          const cost = this.economy.techCostOf(t, owned);
-                          return {
-                              id: t.id,
-                              name: t.name,
-                              desc: techDescription(t),
-                              icon: techIcon(t),
-                              cost,
-                              owned: this.techTree.has('player', u.type.id, t.id),
-                              affordable: this.economy.balance('player') >= cost,
-                          };
-                      })
-                    : undefined,
+            techs: this.techSelection(u),
+            ...this.researchCenterSelection(u),
+            ...this.commandTowerSelection(u),
         };
     }
 
     /**
+     * True when the opponent's purchases are visible: after we lock in, or in
+     * battle — same fog as spells / inventory / Research Center tiles.
+     */
+    private enemyActionIntelVisible(): boolean {
+        // live board (fog off / battle / after we lock in) — same window as
+        // when enemy packs are selectable with full details
+        return (
+            this.phase === 'battle' ||
+            this.deployReady.player ||
+            !this.placement.intelFogOn
+        );
+    }
+
+    /** pack/unit techs for the action row (buyable for self in deploy; inspect otherwise) */
+    private techSelection(u: Unit): SelectionInfo['techs'] {
+        if (u.type.structure || u.type.techs.length === 0) return undefined;
+        const canBuy = u.team === 'player' && this.playerCanAct;
+        const canInspect =
+            u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
+        if (!canBuy && !canInspect) return undefined;
+
+        const team = u.team;
+        const ownedCount = this.techTree.ownedFor(team, u.type.id).size;
+        const bal = this.economy.balance('player');
+        return u.type.techs.map((t) => {
+            const owned = this.techTree.has(team, u.type.id, t.id);
+            const cost = this.economy.techCostOf(t, ownedCount);
+            return {
+                id: t.id,
+                name: t.name,
+                desc: techDescription(t),
+                icon: techIcon(t),
+                cost,
+                owned,
+                affordable: canBuy && !owned && bal >= cost,
+            };
+        });
+    }
+
+    /**
      * Research Center ability tiles for the selection panel.
-     * Own building: buyable while acting. Enemy building: read-only once intel
-     * is live (locked in / battle) — same fog as spells & inventory.
+     * Own building: buyable while acting, read-only in battle. Enemy: read-only
+     * once intel is live (locked in / battle) — same fog as spells & inventory.
      */
     private researchCenterSelection(u: Unit): Pick<
         SelectionInfo,
         'recruit' | 'deploySlot' | 'rangeBoost' | 'speedBoost' | 'credit'
     > {
         if (u.type !== RESEARCH_CENTER) return {};
-        const ownInteractive = u.team === 'player' && this.playerCanAct;
-        const enemyIntel =
-            u.team === 'enemy' &&
-            (this.phase === 'battle' || this.deployReady.player);
-        if (!ownInteractive && !enemyIntel) return {};
+        const canBuy = u.team === 'player' && this.playerCanAct;
+        const canInspect =
+            u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
+        if (!canBuy && !canInspect) return {};
 
         const team = u.team;
         const bal = this.economy.balance('player');
-        // enemy view is inspect-only: never report affordable (tiles render locked/owned)
-        const canBuy = ownInteractive;
         return {
             recruit: {
                 cost: this.settings.leveling.recruitLevel2Cost,
@@ -3832,6 +3839,40 @@ export class Game {
                 debt: this.settings.deploy.creditDebt,
                 active: this.creditUsed[team],
                 affordable: canBuy,
+            },
+        };
+    }
+
+    /** Command Tower permanent tracks — buyable for self in deploy; inspect with fog */
+    private commandTowerSelection(u: Unit): Pick<SelectionInfo, 'boosts' | 'sellAbility'> {
+        if (u.type !== COMMAND_TOWER) return {};
+        const canBuy = u.team === 'player' && this.playerCanAct;
+        const canInspect =
+            u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
+        if (!canBuy && !canInspect) return {};
+
+        const team = u.team;
+        const bal = this.economy.balance('player');
+        return {
+            boosts: (['attack', 'hp'] as const).map((id) => {
+                const tiers =
+                    id === 'attack' ? this.settings.boosts.attackTiers : this.settings.boosts.hpTiers;
+                const tier = this.boostState[id][team];
+                const maxed = tier >= tiers.length;
+                const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
+                const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
+                return {
+                    id,
+                    label: `Army ${id === 'attack' ? 'attack' : 'HP'} +${pct}%`,
+                    cost,
+                    affordable: canBuy && !maxed && bal >= cost,
+                    maxed,
+                };
+            }),
+            sellAbility: {
+                cost: this.settings.sell.abilityCost,
+                owned: this.sellState.owned[team],
+                affordable: canBuy && bal >= this.settings.sell.abilityCost,
             },
         };
     }

@@ -382,6 +382,11 @@ export class PlacementController {
         }
     }
 
+    /** true while enemy packs render from the phase-start snapshot */
+    get intelFogOn(): boolean {
+        return this.intelFog;
+    }
+
     /** true when the opponent may see this enemy pack (snapshot or live reveal). */
     enemyIntelVisible(unit: Unit): boolean {
         if (unit.team !== 'enemy') return true;

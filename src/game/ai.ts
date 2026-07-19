@@ -4,7 +4,7 @@ import { SHOP_UNIT_IDS, unitUnlockCost } from './cards';
 import type { PlacementController } from './placement';
 import type { Economy } from './settings';
 import type { TechTree } from './tech';
-import { UNIT_TYPES, type Team } from './units';
+import { UNIT_TYPES, unitTypeById, type Team } from './units';
 
 /**
  * A side's decision maker. The built-in AI implements it; a future network
@@ -51,7 +51,7 @@ export class AiOpponent implements Opponent {
         this.ctx.dispatch({ kind: 'roundCard', team: this.team, cardId: pick?.id ?? null });
     }
 
-    onBuildPhase(round: number): void {
+    onBuildPhase(_round: number): void {
         const { dispatch, placement, economy, techTree, rng, unlockedUnits, unlockUsedThisRound } =
             this.ctx;
         const team = this.team;
@@ -68,20 +68,7 @@ export class AiOpponent implements Opponent {
             }
         }
 
-        // sometimes tech up before spending the rest on units
-        if (round >= 2 && rng() < 0.6) {
-            const type = UNIT_TYPES[Math.floor(rng() * UNIT_TYPES.length)]!;
-            const unowned = type.techs.filter((t) => !techTree.has(team, type.id, t.id));
-            const tech = unowned[Math.floor(rng() * unowned.length)];
-            const techCost = tech
-                ? economy.techCostOf(tech, techTree.ownedFor(team, type.id).size)
-                : 0;
-            if (tech && economy.balance(team) >= techCost + 200) {
-                dispatch({ kind: 'buyTech', team, typeId: type.id, techId: tech.id });
-            }
-        }
-
-        // deploy this round's units — invisible to the player until battle
+        // 1) fill every deploy slot first (buy fails when slots or supply run out)
         for (let guard = 0; guard < 30; guard++) {
             const affordable = UNIT_TYPES.filter(
                 (t) =>
@@ -92,7 +79,7 @@ export class AiOpponent implements Opponent {
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(rng() * affordable.length)]!;
             const spot = placement.findEnemySpot(type, rng);
-            if (!spot) break; // no space left
+            if (!spot) break;
             const done = dispatch({
                 kind: 'buy',
                 team,
@@ -116,7 +103,56 @@ export class AiOpponent implements Opponent {
             dispatch({ kind: 'move', team: this.team, unitId: unit.id, anchor: spot.anchor });
         }
 
+        // 2) leftover supply → upgrades (techs, then pack levels, then towers)
+        this.spendOnUpgrades();
+
         // done for the round — the battle waits for both sides' lock-in
         dispatch({ kind: 'endDeployment', team: this.team });
+    }
+
+    /** spend remaining supply on techs / levels / tower upgrades while affordable */
+    private spendOnUpgrades(): void {
+        const { dispatch, placement, economy, techTree } = this.ctx;
+        const team = this.team;
+
+        const ownedTypeIds = [
+            ...new Set(
+                placement
+                    .allUnits()
+                    .filter((u) => u.team === team && !u.type.structure && !u.type.extra)
+                    .map((u) => u.type.id),
+            ),
+        ];
+
+        // techs for types we actually field — keep buying while anything is affordable
+        let bought = true;
+        while (bought) {
+            bought = false;
+            for (const typeId of ownedTypeIds) {
+                const type = unitTypeById(typeId);
+                if (!type?.techs.length) continue;
+                const owned = techTree.ownedFor(team, type.id);
+                for (const tech of type.techs) {
+                    if (owned.has(tech.id)) continue;
+                    const cost = economy.techCostOf(tech, owned.size);
+                    if (economy.balance(team) < cost) continue;
+                    if (dispatch({ kind: 'buyTech', team, typeId: type.id, techId: tech.id })) {
+                        bought = true;
+                    }
+                }
+            }
+        }
+
+        // pack levels when XP is banked
+        for (const unit of placement.allUnits()) {
+            if (unit.team !== team || unit.type.structure || unit.type.extra) continue;
+            dispatch({ kind: 'buyLevel', team, unitId: unit.id });
+        }
+
+        // base building levels
+        for (const unit of placement.allUnits()) {
+            if (unit.team !== team || !unit.type.structure || unit.type.extra) continue;
+            dispatch({ kind: 'upgradeTower', team, unitId: unit.id });
+        }
     }
 }
