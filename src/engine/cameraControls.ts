@@ -11,11 +11,12 @@ const TOUCH_PAN_SLOP = 9;
 /**
  * Two-finger gestures are winner-takes-all: the first intent to cross its
  * threshold locks the gesture until a finger lifts, so zooming never also
- * rotates and twisting never also zooms.
+ * rotates and twisting never also zooms. Pan has the lowest threshold and is
+ * checked first — an ambiguous gesture resolves to moving the map.
  */
-const PINCH_ZOOM_THRESHOLD = 24; // px of finger-distance change
-const TWIST_THRESHOLD = 0.12; // rad of finger-pair rotation (~7°)
-const TILT_THRESHOLD = 20; // px of midpoint travel up/down
+const PINCH_ZOOM_THRESHOLD = 28; // px of finger-distance change
+const TWIST_THRESHOLD = 0.15; // rad of finger-pair rotation (~9°)
+const PAN_THRESHOLD = 12; // px of midpoint travel (parallel two-finger drag)
 
 /**
  * Typical RTS camera input on top of {@link CameraRig}:
@@ -28,10 +29,12 @@ const TILT_THRESHOLD = 20; // px of midpoint travel up/down
  *
  * Touch (no mouse buttons — gestures instead):
  *  - one-finger drag: grab the ground and pan (taps stay placement clicks;
- *    suppressed while a ghost/carried pack rides the finger)
+ *    suppressed while a ghost/carried pack rides the finger — two-finger
+ *    drag still pans there, so the map stays reachable mid-carry)
  *  - pinch: zoom at the midpoint
  *  - two-finger twist: rotate the heading (map-app style)
- *  - two fingers dragged up/down together: tilt
+ *  - two fingers dragged together (parallel): pan
+ *  - three fingers dragged up/down: tilt
  */
 export class CameraControls {
     /** set to false to disable edge scrolling (e.g. in windowed dev) */
@@ -55,7 +58,9 @@ export class CameraControls {
     private touchDown: { x: number; y: number } | null = null;
     private pinchLast: { dist: number; midX: number; midY: number; angle: number } | null = null;
     private pinchStart: { dist: number; midX: number; midY: number; angle: number } | null = null;
-    private pinchMode: 'idle' | 'zoom' | 'twist' | 'tilt' = 'idle';
+    private pinchMode: 'idle' | 'zoom' | 'twist' | 'pan' = 'idle';
+    private pinchPanGround: Vector3 | null = null;
+    private threeLastY: number | null = null;
     private readonly disposers: (() => void)[] = [];
 
     constructor(
@@ -174,15 +179,25 @@ export class CameraControls {
             this.touchPanGround = this.pickAt(e.clientX, e.clientY);
             this.touchPanActive = false;
         } else if (this.touches.size === 2) {
-            // second finger: abandon panning, start pinch/twist/tilt
+            // second finger: abandon single-finger panning, start pinch/twist/pan
             this.touchPanGround = null;
             this.touchPanActive = false;
             this.pinchLast = this.pinchState();
             this.pinchStart = this.pinchLast;
             this.pinchMode = 'idle';
+            this.pinchPanGround = null;
         } else {
+            // third finger: two-finger gesture ends, vertical drag = tilt
             this.pinchLast = null;
+            this.pinchPanGround = null;
+            this.threeLastY = this.averageY();
         }
+    }
+
+    private averageY(): number {
+        let sum = 0;
+        for (const t of this.touches.values()) sum += t.y;
+        return sum / Math.max(1, this.touches.size);
     }
 
     private onTouchMove(e: PointerEvent): void {
@@ -215,12 +230,18 @@ export class CameraControls {
                 let angleFromStart = pinch.angle - this.pinchStart.angle;
                 if (angleFromStart > Math.PI) angleFromStart -= 2 * Math.PI;
                 else if (angleFromStart < -Math.PI) angleFromStart += 2 * Math.PI;
-                if (Math.abs(pinch.dist - this.pinchStart.dist) > PINCH_ZOOM_THRESHOLD) {
+                const midTravel = Math.hypot(
+                    pinch.midX - this.pinchStart.midX,
+                    pinch.midY - this.pinchStart.midY,
+                );
+                // pan first: when in doubt, the player is moving the map
+                if (midTravel > PAN_THRESHOLD) {
+                    this.pinchMode = 'pan';
+                    this.pinchPanGround = this.pickAt(pinch.midX, pinch.midY);
+                } else if (Math.abs(pinch.dist - this.pinchStart.dist) > PINCH_ZOOM_THRESHOLD) {
                     this.pinchMode = 'zoom';
                 } else if (Math.abs(angleFromStart) > TWIST_THRESHOLD) {
                     this.pinchMode = 'twist';
-                } else if (Math.abs(pinch.midY - this.pinchStart.midY) > TILT_THRESHOLD) {
-                    this.pinchMode = 'tilt';
                 }
             }
 
@@ -233,19 +254,43 @@ export class CameraControls {
                 );
             } else if (this.pinchMode === 'twist') {
                 this.rig.orbit(angleDelta, 0);
-            } else if (this.pinchMode === 'tilt') {
-                this.rig.orbit(0, (pinch.midY - this.pinchLast.midY) * ORBIT_PITCH_PER_PX);
+            } else if (this.pinchMode === 'pan' && this.pinchPanGround) {
+                // keep the grabbed ground point under the finger midpoint
+                const now = this.pickAt(pinch.midX, pinch.midY);
+                if (now) {
+                    this.rig.pan(
+                        this.pinchPanGround.x - now.x,
+                        this.pinchPanGround.z - now.z,
+                        true,
+                    );
+                }
             }
             this.pinchLast = pinch;
+            return;
+        }
+
+        if (this.touches.size >= 3 && this.threeLastY !== null) {
+            const avgY = this.averageY();
+            this.rig.orbit(0, (avgY - this.threeLastY) * ORBIT_PITCH_PER_PX);
+            this.threeLastY = avgY;
         }
     }
 
     private onTouchEnd(e: PointerEvent): void {
         this.touches.delete(e.pointerId);
+        if (this.touches.size < 3) this.threeLastY = null;
+        if (this.touches.size === 2) {
+            // back from tilt: restart the two-finger gesture cleanly
+            this.pinchLast = this.pinchState();
+            this.pinchStart = this.pinchLast;
+            this.pinchMode = 'idle';
+            this.pinchPanGround = null;
+        }
         if (this.touches.size < 2) {
             this.pinchLast = null;
             this.pinchStart = null;
             this.pinchMode = 'idle';
+            this.pinchPanGround = null;
         }
         if (this.touches.size === 1) {
             // hand the pan over to the remaining finger

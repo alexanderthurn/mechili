@@ -227,6 +227,11 @@ export class PlacementController {
         };
 
         listen('pointermove', ((e: PointerEvent) => {
+            // 2+ fingers = camera gesture: the carried ghost must not chase
+            // either finger around
+            if (e.pointerType === 'touch' && (this.activeTouches.size > 1 || this.multiTouch)) {
+                return;
+            }
             this.pointer = this.toLocal(e);
             // touch: one-finger drags pan the camera — no rubber-band select
             if (e.pointerType === 'touch') return;
@@ -236,6 +241,13 @@ export class PlacementController {
         }) as EventListener);
         listen('pointerdown', ((e: PointerEvent) => {
             if (e.button !== 0) return;
+            if (e.pointerType === 'touch') {
+                this.activeTouches.add(e.pointerId);
+                if (this.activeTouches.size > 1) {
+                    this.multiTouch = true; // second finger: camera, not aiming
+                    return;
+                }
+            }
             this.downAt = this.toLocal(e);
             // touch has no hover: without this, a carried ghost would sit at
             // the LAST drag position (e.g. where the previous pack was dropped)
@@ -246,12 +258,19 @@ export class PlacementController {
                 /* synthetic pointers (gamepad cursor) cannot be captured */
             }
         }) as EventListener);
-        listen('pointercancel', (() => {
+        listen('pointercancel', ((e: PointerEvent) => {
+            this.releaseTouch(e);
             this.downAt = null;
             this.hideRect();
         }) as EventListener);
         listen('pointerup', ((e: PointerEvent) => {
             if (e.button !== 0) return;
+            // during/after a multi-finger gesture no tap may become a click
+            if (e.pointerType === 'touch' && this.releaseTouch(e)) {
+                this.downAt = null;
+                this.hideRect();
+                return;
+            }
             const down = this.downAt;
             this.downAt = null;
             const wasRect = this.rectActive;
@@ -273,6 +292,19 @@ export class PlacementController {
             if (Math.hypot(up.x - down.x, up.y - down.y) > slop) return;
             this.handleClick(up.x, up.y);
         }) as EventListener);
+    }
+
+    /** fingers currently down (touch only) — 2+ means a camera gesture owns them */
+    private readonly activeTouches = new Set<number>();
+    private multiTouch = false;
+
+    /** untracks a lifted finger; true while the contact belongs to a camera gesture */
+    private releaseTouch(e: PointerEvent): boolean {
+        if (e.pointerType !== 'touch') return false;
+        this.activeTouches.delete(e.pointerId);
+        if (!this.multiTouch) return false;
+        if (this.activeTouches.size === 0) this.multiTouch = false;
+        return true;
     }
 
     /** detach input listeners and DOM helpers */
@@ -469,14 +501,6 @@ export class PlacementController {
         return null;
     }
 
-    /** programmatic selection (e.g. highlighting a fresh buy) — selects without picking up */
-    selectUnit(unit: Unit): void {
-        this.restoreSelectedView();
-        this.selectedUnit = unit;
-        this.selectedGroup = [];
-        this.carryingSelected = false;
-        this.onSelect?.(unit);
-    }
 
     /**
      * Nearest free anchor for `type` around a world point — deterministic
@@ -515,6 +539,12 @@ export class PlacementController {
             this.selectedUnit !== null &&
             this.isMovable(this.selectedUnit)
         );
+    }
+
+    /** picks up the selected pack so it rides the pointer (the touch Move button) */
+    pickUpSelected(): void {
+        if (!this.enabled || !this.selectedRepositionable) return;
+        this.carryingSelected = true;
     }
 
     rotateSelected(): void {

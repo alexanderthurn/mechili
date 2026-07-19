@@ -616,8 +616,12 @@ export class Game {
         this.placement.levelReady = (unit) => this.canLevel(unit);
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit) => {
-            if (!this.armedItem) return;
-            if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
+            if (this.armedItem) {
+                if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
+                return;
+            }
+            // buildings act through their details — auto-open the sheet (phone-only visual)
+            if (unit.type.structure) this.hud.openUnitDetails();
         };
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
         this.controls.onMiddleClick = () => {
@@ -647,6 +651,7 @@ export class Game {
             this.armedItem = null;
         };
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
+        this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.onQuitToMenu = () => this.quitToMenu();
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
@@ -2665,28 +2670,13 @@ export class Game {
             ? this.placement.findBuySpotNear(type, view.x, view.z)
             : this.placement.findBuySpot(type);
         if (!anchor) return;
-        const done = this.dispatchPlayer({
+        this.dispatchPlayer({
             kind: 'buy',
             team: 'player',
             typeId: type.id,
             anchor,
             rotated: false,
         });
-        if (done && nearView) {
-            const units = this.placement.allUnits();
-            for (let i = units.length - 1; i >= 0; i--) {
-                const u = units[i]!;
-                if (
-                    u.team === 'player' &&
-                    u.type.id === type.id &&
-                    u.cell.col === anchor.col &&
-                    u.cell.row === anchor.row
-                ) {
-                    this.placement.selectUnit(u);
-                    break;
-                }
-            }
-        }
     }
 
     /**
@@ -3586,15 +3576,26 @@ export class Game {
         }
         const build = this.phase !== 'battle';
         const lvl = build ? buildInfo?.levelUp : undefined;
+        const repositionable =
+            build && this.placement.selectedRepositionable && !this.armedTactic;
         this.hud.setTouchActions({
-            cancel:
-                this.placement.pointerCarries ||
-                this.armedItem !== null ||
-                this.placement.selectedUnit !== null ||
-                this.selectedActor !== null,
-            rotate: build && this.placement.selectedRepositionable && !this.armedTactic,
+            // mere selection needs no Cancel (tapping empty ground deselects);
+            // only armed tactics/items and carried ghosts do
+            cancel: this.placement.pointerCarries || this.armedItem !== null,
+            carrying: this.placement.pointerCarries,
+            // Move enters carry mode explicitly; Rotate only makes sense once
+            // the pack actually rides the finger
+            move: repositionable && !this.placement.pointerCarries,
+            rotate: repositionable && this.placement.pointerCarries,
             levelUp: lvl?.ready ? { cost: lvl.cost, affordable: lvl.affordable } : null,
             levelAll: lvl?.ready && lvl.all ? lvl.all : null,
+            upgrade:
+                build && buildInfo?.towerUpgrade && !buildInfo.towerUpgrade.maxed
+                    ? {
+                          cost: buildInfo.towerUpgrade.cost,
+                          affordable: buildInfo.towerUpgrade.affordable,
+                      }
+                    : null,
         });
     }
 
