@@ -504,6 +504,15 @@ export class PlacementController {
     }
 
     /** Middle click: pick up if needed, then rotate the selected movable pack. */
+    /** true when {@link rotateSelected} would act: one own still-movable pack selected */
+    get selectedRepositionable(): boolean {
+        return (
+            this.selectedGroup.length <= 1 &&
+            this.selectedUnit !== null &&
+            this.isMovable(this.selectedUnit)
+        );
+    }
+
     rotateSelected(): void {
         if (this.selectedGroup.length > 1) return; // formations don't rotate
         const unit = this.selectedUnit;

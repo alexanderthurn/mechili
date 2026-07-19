@@ -3562,18 +3562,25 @@ export class Game {
                 this.sim.elapsed,
             );
             this.hud.setSelection(this.selectedActor ? this.actorInfo(this.selectedActor) : null);
-        } else {
+        }
+        let buildInfo: SelectionInfo | null = null;
+        if (this.phase !== 'battle' || !this.sim) {
             const unit = this.placement.selectedUnit;
-            this.hud.setSelection(unit ? this.unitInfo(unit) : null);
+            buildInfo = unit ? this.unitInfo(unit) : null;
+            this.hud.setSelection(buildInfo);
         }
         const build = this.phase !== 'battle';
-        this.hud.setTouchActions(
-            this.placement.pointerCarries ||
+        const lvl = build ? buildInfo?.levelUp : undefined;
+        this.hud.setTouchActions({
+            cancel:
+                this.placement.pointerCarries ||
                 this.armedItem !== null ||
                 this.placement.selectedUnit !== null ||
                 this.selectedActor !== null,
-            build && this.placement.selectedUnit !== null && !this.armedTactic,
-        );
+            rotate: build && this.placement.selectedRepositionable && !this.armedTactic,
+            levelUp: lvl?.ready ? { cost: lvl.cost, affordable: lvl.affordable } : null,
+            levelAll: lvl?.ready && lvl.all ? lvl.all : null,
+        });
     }
 
     /** veterancy display values for a pack, from the leveling settings */

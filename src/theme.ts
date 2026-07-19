@@ -2135,50 +2135,96 @@ export function hudStyles(): string {
 }
 .mechili-phonebar button .pb-ico { font-size: 20px; line-height: 1.15; }
 .mechili-phonebar button.active { color: ${u.brassLight}; background: ${u.techBuyBg}; }
-.mechili-phonebar.battle .pb-shop { display: none; }
-.mechili-phonebar:not(.has-unit) .pb-unit { display: none; }
-.mechili-phonebar:not(.has-tactics) .pb-tactics { display: none; }
-
-/* touch stand-ins for right-click (cancel) and middle-click (rotate) */
-.mechili-touchact {
-    display: none;
-    position: absolute;
-    left: 50%;
-    bottom: calc(14px + env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    gap: 10px;
-    z-index: 4;
-    font-family: system-ui, sans-serif;
-    user-select: none;
-    pointer-events: auto;
-}
-.mechili-touchact button {
-    min-height: 48px;
-    padding: 10px 18px;
-    appearance: none;
-    background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(26, 40, 22, 0.96));
-    border: 2px solid ${u.border};
-    border-radius: 12px;
-    color: ${u.text};
-    font-family: inherit;
-    font-size: 15px;
-    font-weight: bold;
+/* sheet tabs are phone-only: the phone media query opts them back in */
+.mechili-phonebar .pb-tab { display: none; }
+/* contextual field actions (inline display driven by setTouchActions) —
+   flat like the tabs, they're part of the bar */
+.mechili-phonebar .ta-btn {
+    flex-direction: row;
+    gap: 6px;
+    min-height: 44px;
+    font-size: 13px;
     letter-spacing: 0.4px;
-    cursor: pointer;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+    text-transform: none;
+    color: ${u.text};
 }
-.mechili-touchact .ta-cancel { color: #f0b0a0; border-color: rgba(220, 110, 80, 0.7); }
+.mechili-phonebar .ta-cancel { color: #f0b0a0; }
+.mechili-phonebar .ta-level,
+.mechili-phonebar .ta-levelall {
+    color: ${u.brassLight};
+    font-variant-numeric: tabular-nums;
+}
+.mechili-phonebar button.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+/* card pick / pause overlays own the screen — the bar steps aside */
+.mechili-phonebar.overlay-open { display: none !important; }
 @media (pointer: coarse) {
-    .mechili-touchact.on { display: flex; }
+    /* tablets: no tab UI, but the bar appears whenever actions apply */
+    .mechili-phonebar.acting { display: flex; }
+}
+
+/* iOS long-press: no text-selection loupe / copy callout on HUD chrome —
+   long-press is a gameplay gesture here. Typing fields stay selectable. */
+.mechili-shop-col,
+.mechili-panel,
+.mechili-sidebar,
+.mechili-topbar,
+.mechili-fightbar,
+.mechili-phonebar,
+.mechili-cards,
+.mechili-pause,
+.mechili-report {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+.mechili-shop-col *,
+.mechili-panel *,
+.mechili-sidebar *,
+.mechili-cards * {
+    -webkit-touch-callout: none;
+}
+input,
+textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* long-press tooltip card (touch stand-in for title-attribute tooltips) */
+.mechili-touchtip {
+    position: fixed;
+    left: 50%;
+    top: 18%;
+    transform: translateX(-50%);
+    z-index: 90;
+    max-width: min(340px, calc(100vw - 32px));
+    padding: 12px 14px;
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    border: 1.5px solid ${u.brass};
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    color: ${u.text};
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-line;
+    user-select: none;
+    pointer-events: none;
 }
 
 @media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px) {
     .mechili-phonebar { display: flex; }
+    /* tabs share the bar with the actions: Shop/Tactics only while nothing
+       is selected; the Unit tab (and actions) take over on selection */
+    .mechili-phonebar:not(.has-unit):not(.battle) .pb-shop { display: flex; }
+    .mechili-phonebar:not(.has-unit):not(.battle).has-tactics .pb-tactics { display: flex; }
+    .mechili-phonebar.has-unit .pb-unit { display: flex; }
+    /* spectating a battle with nothing selected: no empty strip */
+    .mechili-phonebar.battle:not(.has-unit):not(.acting) { display: none; }
     /* bottom-center chat bar would collide with the tab bar */
     .mechili-chat { display: none; }
-    /* keep the cancel/rotate buttons clear of the tab bar, and off open sheets */
-    .mechili-touchact { bottom: calc(64px + env(safe-area-inset-bottom)); }
-    .mechili-touchact.sheet-open { display: none !important; }
     .mechili-shop-col:not(.phone-open),
     .mechili-panel:not(.phone-open),
     .mechili-sidebar.left:not(.phone-open),
@@ -2241,6 +2287,21 @@ export function hudStyles(): string {
     .mechili-topbar .timer { font-size: 16px; }
     .mechili-topbar .end-deploy { padding: 8px 14px; font-size: 13px; }
     .mechili-report { max-height: 40vh; overflow-y: auto; }
+
+    /* card drafts: swipeable strip — 3-4 fixed-width cards never fit a phone */
+    .mechili-cards { gap: 14px; }
+    .mechili-cards .cards-title { font-size: 18px; letter-spacing: 2px; }
+    .mechili-cards .cards-row {
+        max-width: 100vw;
+        overflow-x: auto;
+        justify-content: flex-start;
+        padding: 4px 16px 12px;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* centered while they fit, scrollable once they don't */
+    .mechili-cards .cards-row > :first-child { margin-left: auto; }
+    .mechili-cards .cards-row > :last-child { margin-right: auto; }
+    .mechili-cards .cards-row > * { flex-shrink: 0; }
 }
 `;
 }

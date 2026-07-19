@@ -2,6 +2,7 @@ import { Sprite, type Application } from 'pixi.js';
 import { HTMLSource } from 'pixi.js/html-source';
 import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
+import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
@@ -178,11 +179,14 @@ export class Hud {
     /** phone-size bottom tab bar; CSS hides it on larger screens */
     private readonly phoneBar: HTMLDivElement;
     private phoneTab: 'shop' | 'unit' | 'tactics' | null = null;
-    /** contextual Cancel/Rotate buttons for touch (right/middle-click stand-ins) */
-    private readonly touchActEl: HTMLDivElement;
+    /** contextual action buttons living inside the bottom bar (touch only) */
     private readonly touchCancelBtn: HTMLButtonElement;
     private readonly touchRotateBtn: HTMLButtonElement;
+    private readonly touchLevelBtn: HTMLButtonElement;
+    private readonly touchLevelAllBtn: HTMLButtonElement;
     private lastTouchActKey = '';
+    /** the tile whose info frame is open — touch taps that tile again to act */
+    private actionInfoFor: HTMLElement | null = null;
     private itemGhost: HTMLDivElement | null = null;
     private lastInventoryKey = '';
     private lastEnemyInventoryKey = '';
@@ -325,7 +329,20 @@ export class Hud {
         this.panel = document.createElement('div');
         this.panel.className = 'mechili-panel';
         this.panel.style.display = 'none';
+        const infoSel = '.action-tile, .item-sq';
         this.panel.addEventListener('click', (e) => {
+            // touch has no hover: first tap peeks at the info, second tap acts
+            if (inputMode() === 'touch') {
+                const peek = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
+                if (peek) {
+                    if (this.actionInfoFor !== peek) {
+                        this.showActionInfo(peek);
+                        return;
+                    }
+                } else {
+                    this.hideActionInfo();
+                }
+            }
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.action-tile');
             if (!button) return;
             // locked (unaffordable / not ready) and owned tiles stay hoverable
@@ -343,13 +360,15 @@ export class Hud {
             else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
-        // hovering a tile or equipped item pops the big info frame
-        const infoSel = '.action-tile, .item-sq';
+        // hovering a tile or equipped item pops the big info frame (mouse only —
+        // touch would open it mid-tap and turn the first tap into a blind buy)
         this.panel.addEventListener('pointerover', (e) => {
+            if ((e as PointerEvent).pointerType === 'touch') return;
             const tile = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             if (tile) this.showActionInfo(tile);
         });
         this.panel.addEventListener('pointerout', (e) => {
+            if ((e as PointerEvent).pointerType === 'touch') return;
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) this.hideActionInfo();
@@ -388,6 +407,21 @@ export class Hud {
         this.enemyInventoryEl = document.createElement('div');
         this.enemyInventoryEl.className = 'mechili-sidebar right';
         this.enemyInventoryEl.style.display = 'none';
+        // touch tooltip stand-ins: long-press a shop tile for its stats, a
+        // tactic/item for its hint — and a PLACED tactic long-press resets it
+        // (the touch version of the contextmenu handler above)
+        this.attachLongPress(this.shopColumn, '.shop-tile', (tile) =>
+            this.showTouchTooltip((tile as HTMLButtonElement).title),
+        );
+        this.attachLongPress(this.inventoryEl, '.inv-item', (btn) => {
+            const routeId = btn.dataset.routeId;
+            if (routeId && btn.dataset.tactic) {
+                this.onResetPlacedTactic?.(btn.dataset.tactic, Number(routeId));
+            } else {
+                this.showTouchTooltip((btn as HTMLButtonElement).title);
+            }
+        });
+
         // the picked-up item rides the cursor (capture phase: HUD elements
         // stop pointer events from bubbling to window)
         window.addEventListener('pointermove', this.onItemGhostMove, true);
@@ -486,8 +520,8 @@ export class Hud {
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
 
-        // phone-size screens: a bottom tab bar swaps the desktop panels in as
-        // one bottom sheet at a time (pure class toggles — CSS gates visuals)
+        // one contextual bottom bar: sheet tabs (Shop/Tactics — phone only)
+        // while nothing is selected, unit actions once something is
         this.phoneBar = document.createElement('div');
         this.phoneBar.className = 'mechili-phonebar';
         const phoneTabs: ['shop' | 'unit' | 'tactics', string, string][] = [
@@ -497,50 +531,135 @@ export class Hud {
         ];
         for (const [tab, icon, label] of phoneTabs) {
             const button = document.createElement('button');
-            button.className = `pb-${tab}`;
+            button.className = `pb-tab pb-${tab}`;
             button.innerHTML = `<span class="pb-ico">${icon}</span><span class="pb-label">${label}</span>`;
             button.addEventListener('click', () =>
                 this.setPhoneTab(this.phoneTab === tab ? null : tab),
             );
             this.phoneBar.append(button);
         }
-
-        // touch: right/middle-click replacements, shown only when applicable
-        this.touchActEl = document.createElement('div');
-        this.touchActEl.className = 'mechili-touchact';
+        // contextual field actions, shown only when they would work
+        this.touchLevelBtn = document.createElement('button');
+        this.touchLevelBtn.className = 'ta-btn ta-level';
+        this.touchLevelBtn.addEventListener('click', () => this.onBuyLevel?.());
+        this.touchLevelAllBtn = document.createElement('button');
+        this.touchLevelAllBtn.className = 'ta-btn ta-levelall';
+        this.touchLevelAllBtn.addEventListener('click', () => this.onLevelAll?.());
         this.touchRotateBtn = document.createElement('button');
-        this.touchRotateBtn.className = 'ta-rotate';
+        this.touchRotateBtn.className = 'ta-btn ta-rotate';
         this.touchRotateBtn.textContent = '⟳ Rotate';
         this.touchRotateBtn.addEventListener('click', () => this.onTouchRotate?.());
         this.touchCancelBtn = document.createElement('button');
-        this.touchCancelBtn.className = 'ta-cancel';
+        this.touchCancelBtn.className = 'ta-btn ta-cancel';
         this.touchCancelBtn.textContent = '✕ Cancel';
         this.touchCancelBtn.addEventListener('click', () => this.onTouchCancel?.());
-        this.touchActEl.append(this.touchRotateBtn, this.touchCancelBtn);
+        for (const btn of [
+            this.touchLevelBtn,
+            this.touchLevelAllBtn,
+            this.touchRotateBtn,
+            this.touchCancelBtn,
+        ]) {
+            btn.style.display = 'none';
+            this.phoneBar.append(btn);
+        }
 
         this.mount(this.shopColumn);
         this.mount(this.fightBar);
         this.mount(this.panel);
         this.mount(this.phoneBar);
-        this.mount(this.touchActEl);
         this.buildChatBar();
     }
 
-    /** shows/hides the touch Cancel/Rotate buttons (visible on coarse pointers only, via CSS) */
-    setTouchActions(cancel: boolean, rotate: boolean): void {
-        const key = `${cancel}|${rotate}`;
+    /**
+     * Delegated long-press for touch (≈450ms still press). Fires `cb` with the
+     * matched descendant and swallows the click that would follow, so a
+     * long-press never also buys/arms.
+     */
+    private attachLongPress(
+        root: HTMLElement,
+        selector: string,
+        cb: (target: HTMLElement) => void,
+    ): void {
+        let timer = 0;
+        let fired = false;
+        let sx = 0;
+        let sy = 0;
+        root.addEventListener('pointerdown', (e) => {
+            if (e.pointerType !== 'touch') return;
+            const target = (e.target as HTMLElement).closest<HTMLElement>(selector);
+            if (!target) return;
+            fired = false;
+            sx = e.clientX;
+            sy = e.clientY;
+            timer = window.setTimeout(() => {
+                fired = true;
+                cb(target);
+            }, 450);
+        });
+        const cancel = () => window.clearTimeout(timer);
+        root.addEventListener('pointermove', (e) => {
+            if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel();
+        });
+        root.addEventListener('pointerup', cancel);
+        root.addEventListener('pointercancel', cancel);
+        root.addEventListener(
+            'click',
+            (e) => {
+                if (!fired) return;
+                fired = false;
+                e.stopPropagation();
+                e.preventDefault();
+            },
+            true, // capture: swallow before the tile's own click handler
+        );
+    }
+
+    /** floating text card for touch (tooltip stand-in); tap anywhere dismisses */
+    private showTouchTooltip(text: string): void {
+        document.querySelector('.mechili-touchtip')?.remove();
+        if (!text) return;
+        const el = document.createElement('div');
+        el.className = 'mechili-touchtip';
+        el.textContent = text;
+        document.body.appendChild(el);
+        const dismiss = () => {
+            el.remove();
+            window.removeEventListener('pointerdown', dismiss, true);
+        };
+        // defer: the long-press finger lift must not instantly dismiss it
+        setTimeout(() => window.addEventListener('pointerdown', dismiss, true), 50);
+    }
+
+    /** contextual touch field-action buttons in the bottom bar (coarse pointers only, via CSS) */
+    setTouchActions(opts: {
+        cancel: boolean;
+        rotate: boolean;
+        levelUp?: { cost: number; affordable: boolean } | null;
+        levelAll?: { count: number; cost: number; affordable: boolean } | null;
+    }): void {
+        const { cancel, rotate, levelUp, levelAll } = opts;
+        const key = JSON.stringify(opts);
         if (key === this.lastTouchActKey) return;
         this.lastTouchActKey = key;
-        this.touchActEl.classList.toggle('on', cancel || rotate);
-        this.touchCancelBtn.style.display = cancel ? '' : 'none';
-        this.touchRotateBtn.style.display = rotate ? '' : 'none';
+        // 'acting' lets tablets (no tab UI) show the bar just for these buttons
+        this.phoneBar.classList.toggle('acting', cancel || rotate || !!levelUp || !!levelAll);
+        this.touchCancelBtn.style.display = cancel ? 'flex' : 'none';
+        this.touchRotateBtn.style.display = rotate ? 'flex' : 'none';
+        this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
+        if (levelUp) {
+            this.touchLevelBtn.textContent = `🔼 ⬢ ${levelUp.cost}`;
+            this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
+        }
+        this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
+        if (levelAll) {
+            this.touchLevelAllBtn.textContent = `⏫ ×${levelAll.count} ⬢ ${levelAll.cost}`;
+            this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
+        }
     }
 
     /** opens one phone bottom sheet (or none); a no-op visually on desktop */
     private setPhoneTab(tab: 'shop' | 'unit' | 'tactics' | null): void {
         this.phoneTab = tab;
-        // an open sheet covers the field — the field-action buttons yield to it
-        this.touchActEl.classList.toggle('sheet-open', tab !== null);
         this.shopColumn.classList.toggle('phone-open', tab === 'shop');
         this.panel.classList.toggle('phone-open', tab === 'unit');
         this.inventoryEl.classList.toggle('phone-open', tab === 'tactics');
@@ -1006,6 +1125,7 @@ export class Hud {
         const key = JSON.stringify(info);
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
+        this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
 
         // leveling sits at the top-right of the frame (next to the name);
@@ -1209,18 +1329,25 @@ export class Hud {
                   ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? `Refund +${-Number(cost)}` : `⬢ ${cost}`}</span>`
                   : '';
         const note = d.tnote ? `<div class="ai-note">${d.tnote}</div>` : '';
+        const touchHint =
+            inputMode() === 'touch' && state === 'buy'
+                ? `<div class="ai-note">Tap again to buy</div>`
+                : '';
         frame.innerHTML =
             `<div class="ai-head"><span class="ai-icon">${d.ticon ?? ''}</span>` +
             `<span class="ai-title">${d.ttitle ?? ''}</span></div>` +
             `<div class="ai-desc">${d.tdesc ?? ''}</div>` +
             note +
-            costLine;
+            costLine +
+            touchHint;
         frame.style.display = 'block';
+        this.actionInfoFor = tile;
     }
 
     private hideActionInfo(): void {
         const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
         if (frame) frame.style.display = 'none';
+        this.actionInfoFor = null;
     }
 
     setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {
@@ -1303,9 +1430,21 @@ export class Hud {
         else this.showPauseMenu();
     }
 
+    /**
+     * Full-screen overlays (card picks, pause) own the screen: the phone tab
+     * bar and field-action buttons step aside. The topbar keeps its original
+     * cards-only rule (a card pick blocks End Deployment; pause does not).
+     */
+    private syncOverlayOpen(): void {
+        const open = this.cardOverlay !== null || this.pauseMenu !== null;
+        this.topBar.classList.toggle('overlay-open', this.cardOverlay !== null);
+        this.phoneBar.classList.toggle('overlay-open', open);
+    }
+
     hidePauseMenu(): void {
         this.pauseMenu?.remove();
         this.pauseMenu = null;
+        this.syncOverlayOpen();
     }
 
     /** dismisses the specialist or round-card picker if it is still open */
@@ -1314,7 +1453,7 @@ export class Hud {
         this.cardOverlay = null;
         // a card overlay (specialist pick, round card, reveal) blocks
         // deployment: no ending the round while one is up
-        this.topBar.classList.remove('overlay-open');
+        this.syncOverlayOpen();
     }
 
     /** dismisses the specialist reveal only: the two cards fly out to the
@@ -1323,7 +1462,7 @@ export class Hud {
         const overlay = this.cardOverlay;
         if (!overlay?.classList.contains('reveal')) return;
         this.cardOverlay = null;
-        this.topBar.classList.remove('overlay-open'); // deployment controls return
+        this.syncOverlayOpen(); // deployment controls return
         overlay.classList.add('exiting');
         setTimeout(() => overlay.remove(), 600); // matches the exit transition
     }
@@ -1331,7 +1470,7 @@ export class Hud {
     private showCardOverlay(overlay: HTMLDivElement): void {
         this.hideCardOverlay();
         this.cardOverlay = overlay;
-        this.topBar.classList.add('overlay-open');
+        this.syncOverlayOpen();
         this.mount(overlay);
     }
 
@@ -1353,6 +1492,7 @@ export class Hud {
             this.onQuitToMenu?.();
         });
         this.pauseMenu = el;
+        this.syncOverlayOpen();
         this.mount(el);
     }
 
