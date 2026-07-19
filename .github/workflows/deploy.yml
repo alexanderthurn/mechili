@@ -78,9 +78,15 @@ jobs:
             python3 - <<'PY'
           import os
           key = os.environ['ADMIN_KEY'].replace('\\', '\\\\').replace("'", "\\'")
+          needle = "const ADMIN_KEY = '__ADMIN_KEY__';"
+          repl = f"const ADMIN_KEY = '{key}';"
           for path in ('dist/backend/chat.php', 'dist/backend/suggest.php'):
-              src = open(path).read().replace('__ADMIN_KEY__', key)
-              open(path, 'w').write(src)
+              src = open(path).read()
+              if needle not in src:
+                  raise SystemExit(f'placeholder not found in {path}')
+              # Only replace the const — a global __ADMIN_KEY__ replace also
+              # rewrites the "still a placeholder?" check and breaks auth.
+              open(path, 'w').write(src.replace(needle, repl, 1))
               print('admin key injected into', path)
           PY
           fi
