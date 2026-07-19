@@ -7,7 +7,7 @@
   "steamElectronBuild": {
     "productName": "MELODAN",
     "appId": "com.feuerware.mechili",
-    "steamAppId": 480,
+    "steamAppId": 1255063,
     "executableName": "mechili"
   },
   "scripts": {

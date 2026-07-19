@@ -7,7 +7,7 @@ Adapt, repeat until one of you runs out of HP.
 
 **Website:** [melodan.com](https://melodan.com)  
 **Play now:** [play.melodan.com](https://play.melodan.com) (free in the browser · single & multiplayer)  
-**Steam:** coming soon (ranked multiplayer · play with your friends)
+**Steam:** [store.steampowered.com/app/1255063](https://store.steampowered.com/app/1255063/) (ranked multiplayer · play with your friends)
 
 Built with [three.js](https://threejs.org) for the battlefield, [PixiJS](https://pixijs.com)
 for the UI overlay, and [steam-electron-build](https://github.com/alexanderthurn/steam-electron-build)
@@ -69,7 +69,7 @@ Inspired by [Mechabellum](https://www.playmechabellum.com/) — thank you for th
 
 ## Contribute
 
-Let’s make this together. The browser game is **free**; the source is **GPL-3.0**. Steam (coming soon) is for optional paid / platform features, not a lock on the core game.
+Let’s make this together. The browser game is **free**; the source is **GPL-3.0**. Steam is for optional paid / platform features, not a lock on the core game.
 
 - **Suggest** ideas, bugs, or how to help from [melodan.com](https://melodan.com/#suggest) or the in-game Suggest button (saved server-side; admin inbox at `backend/suggest.html`).
 - **Code / PRs** on this repo — fork, invent units, open pull requests.

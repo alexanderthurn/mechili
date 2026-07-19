@@ -52,8 +52,7 @@ const TACTIC_ART: Partial<Record<string, string>> = {
     ).href,
 };
 
-/** No Steam store page yet — buttons render disabled (no href) until this is a real app id. */
-const STEAM_URL: string | null = null;
+const STEAM_URL = 'https://store.steampowered.com/app/1255063/';
 const PLAY_URL =
     location.hostname === 'melodan.com' || location.hostname === 'www.melodan.com'
         ? 'https://play.melodan.com/'
