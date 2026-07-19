@@ -94,9 +94,14 @@ clients:
 
 1. Matchmaking (`backend/matchmaking.php`) or direct room (`mechili-room-
    <name>`); host sends `setup` {version, seed, settings, names}.
-2. Actions stream live as they happen. Hiding the opponent's deployment is
-   purely local rendering until your own lock-in (`hiddenPlacements`,
-   `revealAll`). Undos mirror via an `undo` message. Received events queue
+2. Build-phase `action`/`undo` are **buffered on the sender** until the
+   receiving peer locks in (`endDeployment`); then the backlog flushes and
+   a `deployCaughtUp` ack follows. Battle starts only when both have locked
+   **and** each has received the other's catch-up (avoids racing into battle
+   before sells/buys arrive). Spectators default to battle-only vision;
+   a player may grant live deploy vision for their own seat via the pause
+   menu. Presentation intel fog remains for single-player. Undos mirror via
+   an `undo` message (buffered the same way). Received events queue
    (`remoteQueue`) and apply once our game reaches their round.
 3. Battle starts when BOTH sides sent `endDeployment`; battle speed is
    synced (`speed` message).

@@ -24,7 +24,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 12; // v12: projectiles aim/hit/land on terrain height, not y=0
+export const GAME_VERSION = 14; // v14: deployCaughtUp gate before battle (fog flush race)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -109,9 +109,9 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
 }
 
 /**
- * Everything that crosses the wire. Actions stream LIVE as they happen —
- * hiding the opponent's deployment is purely a local rendering rule (until
- * your own lock-in), not a transmission delay.
+ * Everything that crosses the wire. Build-phase `action`/`undo` are withheld
+ * until the *receiving* peer has locked in (sender-side buffer). Spectators
+ * get a per-connection vision policy (default: battle-only).
  */
 export type NetMessage =
     | { type: 'hello'; name: string }
@@ -154,9 +154,8 @@ export type NetMessage =
     /** spectator's opening handshake, sent immediately on connecting to the
      *  host's dedicated broadcast Peer (never the player link) */
     | { type: 'spectate'; name: string; version: number }
-    /** host's reply: everything needed to catch up to the CURRENT live
-     *  state, mirroring the shape of 'state' (reconnect) since it's the same
-     *  underlying need — replay the log, then fast-forward any running battle */
+    /** host's reply: everything needed to catch up to the CURRENT visible
+     *  state for this spectator's vision policy */
     | {
           type: 'spectateAccepted';
           version: number;
@@ -166,11 +165,34 @@ export type NetMessage =
           battleElapsed: number | null;
           phaseRemaining: number;
           roster: RosterEntry[];
+          vision: SpectatorVision;
       }
     | { type: 'spectateRejected'; reason: string }
     /** full roster snapshot, broadcast to players + spectators whenever a
      *  spectator joins or leaves */
-    | { type: 'roster'; entries: RosterEntry[] };
+    | { type: 'roster'; entries: RosterEntry[] }
+    /** host pushes an updated vision policy to one spectator */
+    | { type: 'visionUpdate'; vision: SpectatorVision }
+    /** guest asks host to grant/revoke live deploy vision for a spectator
+     *  (guest may only grant its own seat `'b'`) */
+    | { type: 'spectateGrant'; spectatorName: string; seat: 'a' | 'b'; grant: boolean }
+    /**
+     * Sent after flushing the outbound build buffer to the peer. Battle must
+     * not start until both sides have locked in AND each has received the
+     * other's `deployCaughtUp` (otherwise the second locker races ahead of
+     * the first's sell/buys still in flight).
+     */
+    | { type: 'deployCaughtUp'; round: number };
+
+/**
+ * What a spectator may see during the build phase.
+ * - `battle`: withhold build actions until both players have locked in
+ * - `live`: stream build actions for the listed seats immediately
+ *   (`'a'` = host seat, `'b'` = guest seat)
+ */
+export type SpectatorVision =
+    | { mode: 'battle' }
+    | { mode: 'live'; seats: Array<'a' | 'b'> };
 
 /**
  * One seat at the match, for roster display. `team` is a plain string (not
@@ -319,7 +341,10 @@ export class NetSession {
  * spectator-side reconnect yet.
  */
 export class SpectatorHub {
-    private readonly viewers = new Map<DataConnection, { name: string }>();
+    private readonly viewers = new Map<
+        DataConnection,
+        { name: string; vision: SpectatorVision; buildBuffer: NetMessage[] }
+    >();
 
     /** fired whenever a spectator connects or disconnects */
     onRosterChange: (() => void) | null = null;
@@ -344,6 +369,11 @@ export class SpectatorHub {
 
     names(): string[] {
         return [...this.viewers.values()].map((v) => v.name);
+    }
+
+    /** current vision per spectator name (for pause-menu grant toggles) */
+    visionByName(): { name: string; vision: SpectatorVision }[] {
+        return [...this.viewers.values()].map((v) => ({ name: v.name, vision: v.vision }));
     }
 
     /**
@@ -374,9 +404,24 @@ export class SpectatorHub {
     }
 
     /** call once `onJoin` has accepted a spectator (sent `spectateAccepted`) */
-    admit(name: string, conn: DataConnection): void {
-        this.viewers.set(conn, { name });
+    admit(name: string, conn: DataConnection, vision: SpectatorVision = { mode: 'battle' }): void {
+        this.viewers.set(conn, { name, vision, buildBuffer: [] });
         this.onRosterChange?.();
+    }
+
+    /** grant or revoke live build vision for a seat on a named spectator */
+    setSeatLive(spectatorName: string, seat: 'a' | 'b', grant: boolean): SpectatorVision | null {
+        for (const [conn, viewer] of this.viewers) {
+            if (viewer.name !== spectatorName) continue;
+            const seats =
+                viewer.vision.mode === 'live' ? new Set(viewer.vision.seats) : new Set<'a' | 'b'>();
+            if (grant) seats.add(seat);
+            else seats.delete(seat);
+            viewer.vision = seats.size === 0 ? { mode: 'battle' } : { mode: 'live', seats: [...seats] };
+            conn.send({ type: 'visionUpdate', vision: viewer.vision });
+            return viewer.vision;
+        }
+        return null;
     }
 
     private onData(conn: DataConnection, msg: NetMessage): void {
@@ -391,9 +436,45 @@ export class SpectatorHub {
         this.onRosterChange?.();
     }
 
-    /** fan a message out to every connected spectator */
+    /**
+     * Fan a non-build message to every spectator immediately.
+     * Build `action`/`undo` use {@link relayBuild} instead.
+     */
     broadcast(msg: NetMessage): void {
         for (const conn of this.viewers.keys()) conn.send(msg);
+    }
+
+    /**
+     * Relay a build-phase action/undo with vision filtering.
+     * `seat` is which player originated it (`'a'` host, `'b'` guest).
+     * When `bothLocked`, battle-vision spectators receive their backlog + this msg.
+     */
+    relayBuild(
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        seat: 'a' | 'b',
+        bothLocked: boolean,
+    ): void {
+        for (const [conn, viewer] of this.viewers) {
+            const live =
+                viewer.vision.mode === 'live' && viewer.vision.seats.includes(seat);
+            if (live || bothLocked) {
+                if (viewer.buildBuffer.length > 0) {
+                    for (const buffered of viewer.buildBuffer) conn.send(buffered);
+                    viewer.buildBuffer.length = 0;
+                }
+                conn.send(msg);
+            } else {
+                viewer.buildBuffer.push(msg);
+            }
+        }
+    }
+
+    /** flush every spectator's build backlog (both players locked / battle start) */
+    flushBuildBuffers(): void {
+        for (const [conn, viewer] of this.viewers) {
+            for (const buffered of viewer.buildBuffer) conn.send(buffered);
+            viewer.buildBuffer.length = 0;
+        }
     }
 
     close(): void {
@@ -896,6 +977,7 @@ export interface SpectateResult {
     battleElapsed: number | null;
     phaseRemaining: number;
     roster: RosterEntry[];
+    vision: SpectatorVision;
 }
 
 /**
@@ -960,6 +1042,7 @@ export async function joinAsSpectator(
             battleElapsed: msg.battleElapsed,
             phaseRemaining: msg.phaseRemaining,
             roster: msg.roster,
+            vision: msg.vision,
         };
     } catch (e) {
         peer.destroy();

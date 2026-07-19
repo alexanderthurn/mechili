@@ -147,6 +147,10 @@ export class Hud {
     onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
     onQuitToMenu: (() => void) | null = null;
+    /** grant/revoke live deploy vision for a spectator (own seat) */
+    onGrantSpectatorLive: ((name: string, grant: boolean) => void) | null = null;
+    /** names of current spectators for the pause-menu grant toggles */
+    spectatorNamesForMenu: (() => string[]) | null = null;
     private pauseMenu: HTMLDivElement | null = null;
     private cardOverlay: HTMLDivElement | null = null;
     private lastPanelKey = '';
@@ -1735,11 +1739,28 @@ export class Hud {
         this.hidePauseMenu();
         const el = document.createElement('div');
         el.className = 'mechili-pause';
+        const spectators = this.spectatorNamesForMenu?.() ?? [];
+        const spectateHtml =
+            spectators.length === 0
+                ? ''
+                : `<div class="pause-spectators">` +
+                  `<div class="pause-subtitle">Spectators — share my deploy live</div>` +
+                  spectators
+                      .map(
+                          (name) =>
+                              `<label class="pause-spectate-row">` +
+                              `<input type="checkbox" data-spectate-name="${escapeAttr(name)}" />` +
+                              `<span>${escapeHtml(name)}</span>` +
+                              `</label>`,
+                      )
+                      .join('') +
+                  `</div>`;
         el.innerHTML =
             `<div class="pause-box">` +
             `<div class="pause-title">Menu</div>` +
             `<button type="button" class="pause-resume">Continue</button>` +
             `<button type="button" class="pause-settings">Settings</button>` +
+            spectateHtml +
             `<button type="button" class="pause-quit">Quit to menu</button>` +
             `</div>`;
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
@@ -1748,6 +1769,12 @@ export class Hud {
             this.hidePauseMenu();
             this.onQuitToMenu?.();
         });
+        for (const input of el.querySelectorAll<HTMLInputElement>('input[data-spectate-name]')) {
+            input.addEventListener('change', () => {
+                const name = input.dataset.spectateName;
+                if (name) this.onGrantSpectatorLive?.(name, input.checked);
+            });
+        }
         this.pauseMenu = el;
         this.syncOverlayOpen();
         this.mount(el);

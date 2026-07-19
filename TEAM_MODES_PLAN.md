@@ -366,37 +366,28 @@ relays their chat; `matchmaking.php` already has `spectate-register`/
 friend to watch a game that's already running" works today for 1v1. What's
 new is *who may see what*, and a host that watches instead of playing.
 
-### The trust model, stated honestly
+### The trust model (1v1 wire fog — landed)
 
-In this lockstep design **every client receives every action live**; hiding
-the enemy's build phase is a local *rendering* rule, not withheld
-information (ARCHITECTURE.md says so explicitly — and it's equally true
-between the two players today). So spectator fog of war is a presentation
-policy, not a security boundary: a technical spectator could read the wire.
-For friends-and-living-room play that's the right trade. If it ever
-matters, the host-star gives us real hardening for free later: the host can
-simply **delay relaying a seat's build actions until that seat locks in** —
-then nobody (player or spectator) can peek even in principle. That changes
-live-stream feel and undo mirroring, so it's an opt-in "tournament relay"
-setting, explicitly not v1.
+Build-phase actions are **withheld on the wire** until the *receiving*
+player locks in: each peer buffers outbound `action`/`undo`, flushes when
+it sees the opponent's `endDeployment`, then streams live. Reconnect
+`state` / spectator catch-up redact the unfinished build round the same
+way. Spectators default to `vision: { mode: 'battle' }` (see backlog until
+both locked); a player can grant `{ mode: 'live', seats: [...] }` for
+their own seat from the pause menu (`spectateGrant` / `visionUpdate`).
+
+Presentation intel fog remains for single-player (AI is local). Seatless
+host / big-screen `vision: all` is still later (§ below). Full host-
+authoritative "tournament relay" for N-player is still not required for 1v1.
 
 ### Vision policy (per spectator)
 
-- Each spectator connection carries `vision: 'all' | SeatId[]`.
-  `spectateAccepted` gains the field; a new tiny `visionUpdate` message
-  changes it mid-match (hub pushes it; spectator re-applies its render
-  filter — no game state involved anywhere).
-- The render rule generalizes once: "hide seat X's un-locked-in build
-  actions unless X ∈ my vision set" — players are just clients whose vision
-  set is {own side's seats}, spectators get whatever they were granted.
-  Battle phase stays public for everyone, as today.
-- **Granting:** a seat can expose only *its own* build phase. Player taps
-  "share my screen-side with <spectator>" in the roster panel → host updates
-  that spectator's vision set. (With split zones a seat's grant reveals its
-  own zone only; a teammate's half stays hidden unless they also grant.)
-  Mode presets: 1v1/2v2 spectators default to `[]` until lock-in reveal
-  (today's behavior), co-op vs AI defaults to `all` (nothing to hide from
-  friends), big-screen host is always `all`.
+- Each spectator connection carries `vision: { mode: 'battle' } | { mode: 'live', seats: ('a'|'b')[] }`.
+  `spectateAccepted` includes the field; `visionUpdate` pushes changes mid-match.
+- **Granting:** pause menu "share my deploy live" — host updates hub directly;
+  guest sends `spectateGrant` for seat `'b'`.
+- Mode presets: 1v1 spectators default to battle-only; co-op vs AI can later
+  default to live; big-screen host is always live/all.
 
 ### Big-screen / board mode (host plays nobody)
 
@@ -532,7 +523,8 @@ everything above; see §2b. Not scheduled.
 - Ranked 2v2 Elo (records tagged, ladder later).
 - Per-seat battle unit tints (side color stays dominant).
 - Shipping any Tier-3 / FFA geometry (the model allows it; nothing is built).
-- Wire-level fog of war ("tournament relay" hardening, §5b) — presentation
-  fog only in v1.
+- Wire-level deploy fog for 1v1 + spectator vision — **landed** (sender
+  buffer until receiver lock-in; battle-default spectators). N-player host
+  tournament relay still later.
 - Spectator reconnect (pre-existing limitation; re-join by room name is the
   workaround).

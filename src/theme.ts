@@ -1938,6 +1938,29 @@ export function hudStyles(): string {
     color: ${u.brassLight};
     margin-bottom: 4px;
 }
+.mechili-pause .pause-subtitle {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: ${u.textMuted};
+    text-align: center;
+}
+.mechili-pause .pause-spectators {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0;
+    border-top: 1px solid ${u.border};
+    border-bottom: 1px solid ${u.border};
+}
+.mechili-pause .pause-spectate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: ${u.text};
+    cursor: pointer;
+}
 .mechili-pause button {
     padding: 11px 16px;
     background: ${u.panelBgDark};

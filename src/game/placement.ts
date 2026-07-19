@@ -1197,10 +1197,51 @@ export class PlacementController {
 
     /** the pack under a surface point — for tactics that target units (e.g. sell) */
     unitAtPoint(x: number, y: number): Unit | undefined {
+        return this.pickUnitAt(x, y);
+    }
+
+    /**
+     * Resolve the pack under a screen point. During intel fog, enemy packs
+     * (and sold ghosts) are hit-tested at their visible snapshot pose, not
+     * the live occupied grid — otherwise AI moves make them unclickable.
+     */
+    private pickUnitAt(x: number, y: number, opts?: { skipExtras?: boolean }): Unit | undefined {
         const cell = this.cellAt(x, y);
         if (!cell) return undefined;
-        const unit = this.occupied.get(cellKey(cell)) ?? this.extraAt(cell);
-        return unit && !unit.destroyed ? unit : undefined;
+
+        if (this.intelFog) {
+            const fogged = this.enemyAtIntelCell(cell);
+            if (fogged && !fogged.destroyed) return fogged;
+        }
+
+        const unit = this.occupied.get(cellKey(cell)) ?? (opts?.skipExtras ? undefined : this.extraAt(cell));
+        if (!unit || unit.destroyed) return undefined;
+        // live enemy cell under fog may be a hidden post-move position — ignore
+        if (this.intelFog && unit.team === 'enemy') return undefined;
+        return unit;
+    }
+
+    /** enemy pack or sold ghost whose snapshot footprint covers `cell` */
+    private enemyAtIntelCell(cell: Cell): Unit | undefined {
+        for (const [id, snap] of this.intelSnapshot) {
+            if (snap.team !== 'enemy') continue;
+            const type = unitTypeById(snap.typeId);
+            if (!type) continue;
+            const fp = this.footprintOf(type, snap.rotated);
+            if (
+                cell.col < snap.cell.col ||
+                cell.col >= snap.cell.col + fp.cols ||
+                cell.row < snap.cell.row ||
+                cell.row >= snap.cell.row + fp.rows
+            ) {
+                continue;
+            }
+            const live = this.units.find((u) => u.id === id);
+            if (live && !live.destroyed) return live;
+            const ghost = this.intelGhosts.get(id);
+            if (ghost && !ghost.destroyed) return ghost;
+        }
+        return undefined;
     }
 
     private handleClick(x: number, y: number): void {
@@ -1226,7 +1267,7 @@ export class PlacementController {
             (this.selectedUnit !== null &&
                 this.carryingSelected &&
                 this.isMovable(this.selectedUnit));
-        const clicked = this.occupied.get(cellKey(cell)) ?? (carrying ? undefined : this.extraAt(cell));
+        const clicked = this.pickUnitAt(x, y, { skipExtras: carrying });
         // selecting: any own pack, or an enemy pack visible in intel
         if (clicked && !clicked.destroyed && (clicked.team === 'player' || this.enemyIntelVisible(clicked))) {
             if (clicked === this.selectedUnit && this.selectedGroup.length <= 1) {

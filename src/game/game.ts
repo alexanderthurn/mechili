@@ -32,6 +32,7 @@ import {
     type NetMessage,
     type NetSession,
     type RosterEntry,
+    type SpectatorVision,
 } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
@@ -244,6 +245,18 @@ export class Game {
     private readonly opponent: Opponent;
     /** which sides locked in the current deployment — battle starts at both */
     private readonly deployReady: Record<Team, boolean> = { player: false, enemy: false };
+    /**
+     * Peer has locked in this build round — we may stream them our build
+     * actions. Until then, outbound build `action`/`undo` sit in
+     * {@link outboundBuildBuffer} (wire-level fog).
+     */
+    private peerDeployReady = false;
+    /** build messages withheld until {@link peerDeployReady} */
+    private readonly outboundBuildBuffer: Extract<NetMessage, { type: 'action' | 'undo' }>[] = [];
+    /** we have flushed our build log to the peer this round (MP fog) */
+    private deployFlushedToPeer = false;
+    /** peer has flushed their build log to us this round (MP fog) */
+    private deployCaughtUpFromPeer = false;
     /** which sides finished watching this round's battle — the next build
      *  phase starts once both have (fast-forward speed is per-client) */
     private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
@@ -590,8 +603,9 @@ export class Game {
             onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
                 if (team === 'player') {
-                    // freeze local input; from here on the opponent's live
-                    // (already-streamed) deployment becomes visible
+                    // freeze local input; request peer's buffered deploy (they
+                    // flush when they see our endDeployment). Locally we only
+                    // have last-known enemy state until that backlog arrives.
                     this.placement.deselect();
                     this.placement.enabled = false;
                     this.armedItem = null;
@@ -599,9 +613,11 @@ export class Game {
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
                     this.enemyIntelSnapshot = null;
+                } else {
+                    // peer locked in — release our buffered build stream to them
+                    this.flushOutboundBuildBuffer();
                 }
-                // the battle waits until BOTH sides have locked in
-                if (this.deployReady.player && this.deployReady.enemy) this.startBattlePhase();
+                this.maybeStartBattleAfterDeploy();
             },
         });
         this.opponent = this.net
@@ -660,6 +676,11 @@ export class Game {
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.onQuitToMenu = () => this.quitToMenu();
+        this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
+        this.hud.spectatorNamesForMenu = () =>
+            this.roster()
+                .filter((e) => e.role === 'spectator')
+                .map((e) => e.name);
         this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
@@ -1250,6 +1271,10 @@ export class Game {
         this.deployState.extrasSpent.enemy = 0;
         this.deployReady.player = false;
         this.deployReady.enemy = false;
+        this.peerDeployReady = false;
+        this.outboundBuildBuffer.length = 0;
+        this.deployFlushedToPeer = false;
+        this.deployCaughtUpFromPeer = false;
         this.battleReady.player = false;
         this.battleReady.enemy = false;
         this.unlockUsedThisRound.player = false;
@@ -1338,13 +1363,72 @@ export class Game {
         }
     }
 
-    /** local player input — refused once this deployment is locked in; every
-     *  accepted action streams to the peer immediately */
+    /** local player input — refused once this deployment is locked in.
+     *  Build actions are buffered until the peer locks in (wire fog). */
     private dispatchPlayer(action: Action): boolean {
         if (this.deployReady.player || this.suspended) return false;
         if (!this.dispatcher.dispatch(action)) return false;
-        if (this.round >= 1) this.broadcast({ type: 'action', round: this.round, action });
+        if (this.round >= 1) this.sendPlayerBuildMessage({ type: 'action', round: this.round, action });
         return true;
+    }
+
+    /** our canonical seat on the wire for spectator vision (`'a'` host, `'b'` guest) */
+    private localSeat(): 'a' | 'b' {
+        return this.side === 'a' ? 'a' : 'b';
+    }
+
+    /**
+     * Send or buffer a build-phase action/undo. `endDeployment` always goes
+     * out immediately (gate signal). Other build traffic waits until the
+     * peer has locked in, then flushes.
+     */
+    private sendPlayerBuildMessage(msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        const isGate =
+            msg.type === 'action' && msg.action.kind === 'endDeployment';
+        if (!this.net || this.peerDeployReady || isGate) {
+            this.net?.send(msg);
+            this.mirrorBuildToSpectators(msg, this.localSeat());
+            return;
+        }
+        this.outboundBuildBuffer.push(msg);
+        this.mirrorBuildToSpectators(msg, this.localSeat());
+    }
+
+    /** release withheld build traffic now that the peer may receive it */
+    private flushOutboundBuildBuffer(): void {
+        this.peerDeployReady = true;
+        if (!this.net) {
+            this.outboundBuildBuffer.length = 0;
+            this.deployFlushedToPeer = true;
+            return;
+        }
+        for (const msg of this.outboundBuildBuffer) {
+            this.net.send(msg);
+            // already mirrored to live spectators when buffered; battle-vision
+            // spectators catch up via flushBuildBuffers when both lock
+        }
+        this.outboundBuildBuffer.length = 0;
+        this.deployFlushedToPeer = true;
+        // marks end of our flush so the peer can start battle only after
+        // applying the backlog (sells/buys/moves) that preceded this
+        this.net.send({ type: 'deployCaughtUp', round: this.round });
+        this.maybeStartBattleAfterDeploy();
+    }
+
+    /**
+     * Battle starts only when both have locked in, and (in MP) each side has
+     * flushed its build buffer and received the peer's catch-up. Otherwise the
+     * second locker races into battle before the first's sells/buys arrive.
+     */
+    private maybeStartBattleAfterDeploy(): void {
+        if (this.phase !== 'build' || this.matchOver) return;
+        if (!this.deployReady.player || !this.deployReady.enemy) return;
+        // during hydrate the full log is already applied — no wire catch-up wait
+        if (this.net && !this.hydrating) {
+            if (!this.deployFlushedToPeer || !this.deployCaughtUpFromPeer) return;
+        }
+        this.spectatorHub?.flushBuildBuffers();
+        this.startBattlePhase();
     }
 
     /** the chosen specialist card of a side (null until picked) */
@@ -1457,7 +1541,20 @@ export class Game {
      *  opponent) out to spectators — never echoed back onto `this.net`,
      *  that's the peer who either sent it to us or already has it */
     private mirrorToSpectators(msg: NetMessage): void {
+        if (msg.type === 'action' || msg.type === 'undo') {
+            // caller should use mirrorBuildToSpectators with an explicit seat
+            return;
+        }
         this.spectatorHub?.broadcast(msg);
+    }
+
+    /** vision-filtered relay of build action/undo to spectators */
+    private mirrorBuildToSpectators(
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        seat: 'a' | 'b',
+    ): void {
+        const bothLocked = this.deployReady.player && this.deployReady.enemy;
+        this.spectatorHub?.relayBuild(msg, seat, bothLocked);
     }
 
     /**
@@ -1495,15 +1592,28 @@ export class Game {
                     conn.close();
                     return;
                 }
+                const vision: SpectatorVision = { mode: 'battle' };
                 conn.send({
                     type: 'spectateAccepted',
                     version: GAME_VERSION,
-                    ...this.exportResume(),
+                    ...this.exportResumeForSpectator(vision),
                     roster: this.buildRoster(),
+                    vision,
                 });
-                hub.admit(name, conn);
+                hub.admit(name, conn, vision);
             });
         })();
+    }
+
+    /** grant or revoke live deploy vision for a spectator (own seat only) */
+    grantSpectatorLive(spectatorName: string, grant: boolean): void {
+        const seat = this.localSeat();
+        if (this.side === 'a' && this.spectatorHub) {
+            this.spectatorHub.setSeatLive(spectatorName, seat, grant);
+            return;
+        }
+        // guest asks the host to update vision
+        this.net?.send({ type: 'spectateGrant', spectatorName, seat, grant });
     }
 
     /** connects (or re-connects) a peer session to this game */
@@ -1636,6 +1746,10 @@ export class Game {
                 action: { kind: 'endDeployment', team: 'player' },
             });
         }
+        // peer already locked: re-flush (or re-ack) so they aren't stuck without catch-up
+        if (this.phase === 'build' && this.deployReady.enemy) {
+            this.flushOutboundBuildBuffer();
+        }
         if (this.battleReady.player) {
             this.net.send({ type: 'battleEnd', round: this.round });
         }
@@ -1652,10 +1766,60 @@ export class Game {
         return {
             seed: this.seed,
             settings: this.settings,
-            actions: this.dispatcher.serializable(),
+            actions: this.actionsForPeerResume(),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
         };
+    }
+
+    /** catch-up payload for a spectator under a given vision policy */
+    private exportResumeForSpectator(vision: SpectatorVision): {
+        seed: number;
+        settings: GameSettings;
+        actions: LoggedAction[];
+        battleElapsed: number | null;
+        phaseRemaining: number;
+    } {
+        return {
+            seed: this.seed,
+            settings: this.settings,
+            actions: this.actionsForSpectatorResume(vision),
+            battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
+            phaseRemaining: this.phaseRemaining,
+        };
+    }
+
+    /**
+     * Peer resume: if they have not locked in this build round, withhold our
+     * current-round build actions (they are not allowed to see them yet).
+     */
+    private actionsForPeerResume(): LoggedAction[] {
+        const all = this.dispatcher.serializable();
+        if (this.phase !== 'build' || this.deployReady.enemy) return all;
+        return all.filter(
+            (e) => e.round !== this.round || e.action.team !== 'player',
+        );
+    }
+
+    /**
+     * Spectator mid-join: battle vision omits the unfinished build round's
+     * actions until both seats locked; live vision includes granted seats.
+     */
+    private actionsForSpectatorResume(vision: SpectatorVision): LoggedAction[] {
+        const all = this.dispatcher.serializable();
+        if (this.phase !== 'build') return all;
+        if (this.deployReady.player && this.deployReady.enemy) return all;
+        if (vision.mode === 'battle') {
+            return all.filter((e) => e.round !== this.round);
+        }
+        const livePlayer = vision.seats.includes('a'); // host seat = player in host log
+        const liveEnemy = vision.seats.includes('b');
+        return all.filter((e) => {
+            if (e.round !== this.round) return true;
+            if (e.action.team === 'player') return livePlayer;
+            if (e.action.team === 'enemy') return liveEnemy;
+            return false;
+        });
     }
 
     /**
@@ -1705,6 +1869,11 @@ export class Game {
             this.showRoundOffer(this.pendingOffer);
         }
         this.pendingOffer = null;
+        // peer already locked in the rebuilt state — stream live to them
+        this.peerDeployReady = this.deployReady.enemy;
+        this.outboundBuildBuffer.length = 0;
+        this.deployFlushedToPeer = this.deployReady.enemy;
+        this.deployCaughtUpFromPeer = this.deployReady.player;
         this.hud.refreshCosts();
         this.refreshShopHud();
         this.syncSpecialities(); // restore the fighter-card labels after a rebuild
@@ -1846,11 +2015,13 @@ export class Game {
             this.syncSpecialities();
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
-            this.mirrorToSpectators(msg);
+            const seat: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
+            this.mirrorBuildToSpectators(msg, seat);
             this.remoteQueue.push({ round: msg.round, action: msg.action });
             this.drainRemoteQueue();
         } else if (msg.type === 'undo') {
-            this.mirrorToSpectators(msg);
+            const seat: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
+            this.mirrorBuildToSpectators(msg, seat);
             this.remoteQueue.push({ round: msg.round, undo: true });
             this.drainRemoteQueue();
         } else if (msg.type === 'check') {
@@ -1904,6 +2075,18 @@ export class Game {
             // only the host actually tracks spectators (see buildRoster());
             // the guest just holds onto whatever it's told for display
             this.receivedRoster = msg.entries;
+        } else if (msg.type === 'spectateGrant') {
+            // host only: guest may grant/revoke live vision for seat 'b'
+            if (this.side !== 'a' || !this.spectatorHub) return;
+            if (msg.seat !== 'b') return;
+            this.spectatorHub.setSeatLive(msg.spectatorName, msg.seat, msg.grant);
+        } else if (msg.type === 'deployCaughtUp') {
+            if (msg.round !== this.round || this.phase !== 'build') return;
+            // peer's build backlog was sent just before this — apply any
+            // still-queued actions first so sells/buys land before battle
+            this.drainRemoteQueue();
+            this.deployCaughtUpFromPeer = true;
+            this.maybeStartBattleAfterDeploy();
         }
     }
 
@@ -2768,7 +2951,7 @@ export class Game {
         if (!this.canUndo()) return;
         this.placement.deselect();
         if (this.dispatcher.undoLast(this.round, 'player')) {
-            this.broadcast({ type: 'undo', round: this.round }); // the peer mirrors it
+            this.sendPlayerBuildMessage({ type: 'undo', round: this.round });
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
@@ -3462,7 +3645,11 @@ export class Game {
         const waitingForPeer =
             this.net !== null &&
             !this.matchOver &&
-            ((this.phase === 'build' && this.deployReady.player && !this.deployReady.enemy) ||
+            ((this.phase === 'build' &&
+                this.deployReady.player &&
+                (!this.deployReady.enemy ||
+                    !this.deployFlushedToPeer ||
+                    !this.deployCaughtUpFromPeer)) ||
                 (this.awaitingCards && this.round === 0 && this.speciality.player !== null) ||
                 (this.battleReady.player && !this.battleReady.enemy));
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer);
