@@ -32,6 +32,19 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function picksEqual(
+    a: { round: number; title: string; body: string }[],
+    b: { round: number; title: string; body: string }[],
+): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        const x = a[i]!;
+        const y = b[i]!;
+        if (x.round !== y.round || x.title !== y.title || x.body !== y.body) return false;
+    }
+    return true;
+}
+
 /** one buyable/owned action in the detail panel, rendered as a square tile */
 interface ActionTile {
     /** the data-* attribute string the click handler dispatches on, e.g. `data-tech="ap"` */
@@ -186,7 +199,13 @@ export class Hud {
     /** the chosen specialist card per side — drives the clickable frame detail */
     private playerCard: StartCard | null = null;
     private enemyCard: StartCard | null = null;
+    /** between-round picks known for each side (enemy empty until intel reveals) */
+    private playerRoundPicks: { round: number; title: string; body: string }[] = [];
+    private enemyRoundPicks: { round: number; title: string; body: string }[] = [];
     private specDetailOverlay: HTMLDivElement | null = null;
+    /** which commander's detail is open (so live pick updates can refresh it) */
+    private specDetailTeam: 'player' | 'enemy' | null = null;
+    private specDetailViaHover = false;
     private readonly playerHpFill: HTMLDivElement;
     private readonly enemyHpFill: HTMLDivElement;
     private readonly playerHpVal: HTMLSpanElement;
@@ -1852,10 +1871,29 @@ export class Hud {
         this.enemyFighterEl.classList.toggle('has-spec', opponent !== null);
     }
 
+    /**
+     * Between-round card history for the commander detail popup.
+     * Pass an empty enemy list while deploy fog still hides their picks.
+     */
+    setRoundCardPicks(
+        own: { round: number; title: string; body: string }[],
+        enemy: { round: number; title: string; body: string }[],
+    ): void {
+        const same =
+            picksEqual(this.playerRoundPicks, own) && picksEqual(this.enemyRoundPicks, enemy);
+        if (same) return;
+        this.playerRoundPicks = own;
+        this.enemyRoundPicks = enemy;
+        if (this.specDetailTeam) {
+            this.showSpecialistDetail(this.specDetailTeam, this.specDetailViaHover);
+        }
+    }
+
     /** a dismissible popup of one side's specialist card (frame click or hover) */
     private showSpecialistDetail(team: 'player' | 'enemy', viaHover = false): void {
         const card = team === 'player' ? this.playerCard : this.enemyCard;
-        if (!card) return;
+        const picks = team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
+        if (!card && picks.length === 0) return;
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.specDetailOverlay.remove();
         const name = (team === 'player' ? this.playerNameEl : this.enemyNameEl).textContent ?? '';
@@ -1864,14 +1902,38 @@ export class Hud {
         // cursor would instantly fire mouseleave on the fighter card and the
         // detail would flicker open/closed forever
         overlay.className = `mechili-cards detail${viaHover ? ' peek' : ''}`;
+        const specHtml = card
+            ? `<div class="card static">${this.startCardFace(card)}</div>`
+            : '';
+        const picksHtml =
+            picks.length === 0
+                ? ''
+                : `<div class="round-picks">` +
+                  `<div class="round-picks-title">Round cards</div>` +
+                  picks
+                      .map(
+                          (p) =>
+                              `<div class="round-pick">` +
+                              `<span class="rp-round">R${p.round}</span>` +
+                              `<span class="rp-title">${escapeHtml(p.title)}</span>` +
+                              (p.body
+                                  ? `<span class="rp-body">${escapeHtml(p.body)}</span>`
+                                  : '') +
+                              `</div>`,
+                      )
+                      .join('') +
+                  `</div>`;
         overlay.innerHTML =
             `<div class="cards-row"><div class="card-col ${team}">` +
             `<div class="c-owner ${team}"></div>` +
-            `<div class="card static">${this.startCardFace(card)}</div>` +
+            specHtml +
+            picksHtml +
             `</div></div>`;
         overlay.querySelector('.c-owner')!.textContent = name;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
         this.specDetailOverlay = overlay;
+        this.specDetailTeam = team;
+        this.specDetailViaHover = viaHover;
         // the enemy's unplaced items are intel that belongs to this screen
         this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
         this.mount(overlay);
@@ -1883,6 +1945,8 @@ export class Hud {
             this.specDetailOverlay.remove();
             this.specDetailOverlay = null;
         }
+        this.specDetailTeam = null;
+        this.specDetailViaHover = false;
         this.enemyInventoryEl.classList.remove('reveal');
     }
 

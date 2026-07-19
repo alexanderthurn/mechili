@@ -53,7 +53,22 @@ function clean(string $s, int $max): string {
     return mb_substr($s, 0, $max);
 }
 
-function respond(array $data, int $code = 200): void {
+/**
+ * Persist (optional), release the lock, then send JSON.
+ * Must not use try/finally for the write — PHP skips finally on exit().
+ *
+ * @param resource $fp
+ */
+function reply($fp, array $data, int $code = 200, ?array $save = null): void {
+    if ($save !== null) {
+        $json = json_encode($save, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, $json !== false ? $json : '{}');
+        fflush($fp);
+    }
+    flock($fp, LOCK_UN);
+    fclose($fp);
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -68,15 +83,39 @@ function adminUrlHint(): string {
     return $scheme . '://' . $host . $base . '/suggest.html';
 }
 
+function formatSuggestion(array $it): string {
+    $when = isset($it['ts']) ? gmdate('Y-m-d H:i', (int) $it['ts']) . ' UTC' : '?';
+    $cat = (string) ($it['category'] ?? 'Other');
+    $src = (string) ($it['source'] ?? '');
+    $msg = (string) ($it['message'] ?? '');
+    $line = "[{$when}] {$cat}";
+    if ($src !== '') $line .= " · {$src}";
+    return $line . "\n" . $msg;
+}
+
 function maybeNotify(array &$state): void {
     $day = gmdate('Y-m-d');
     if (($state['lastNotifyDay'] ?? null) === $day) return;
+
+    $items = $state['items'] ?? [];
+    if (!is_array($items) || $items === []) return;
+
+    $latest = $items[count($items) - 1];
+    $recent = array_slice($items, -10);
+    $recent = array_reverse($recent);
 
     $url = adminUrlHint();
     $subject = 'MELODAN: first suggestion today';
     $body =
         "Someone sent a suggestion today (UTC {$day}).\n\n" .
-        "Open the inbox here (enter your admin key):\n{$url}\n\n" .
+        "— New —\n" .
+        formatSuggestion(is_array($latest) ? $latest : []) . "\n\n" .
+        "— Last " . count($recent) . " —\n" .
+        implode("\n\n", array_map(
+            fn($it) => formatSuggestion(is_array($it) ? $it : []),
+            $recent,
+        )) . "\n\n" .
+        "Inbox (enter your admin key):\n{$url}\n\n" .
         "— MELODAN suggest.php\n";
     $headers = 'From: melodan-suggest@' . ($_SERVER['HTTP_HOST'] ?? 'melodan.com') . "\r\n" .
         "Content-Type: text/plain; charset=UTF-8\r\n";
@@ -99,7 +138,9 @@ ensureStore();
 
 $fp = fopen(STORE, 'c+');
 if (!$fp || !flock($fp, LOCK_EX)) {
-    respond(['error' => 'lock failed'], 500);
+    http_response_code(500);
+    echo json_encode(['error' => 'lock failed']);
+    exit;
 }
 
 $raw = stream_get_contents($fp);
@@ -121,101 +162,87 @@ if ($action === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($bodyJson['action'] ?? 'submit');
 }
 $now = time();
-$dirty = false;
 
-try {
-    if ($action === 'submit') {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            respond(['error' => 'POST required'], 405);
-        }
-        $body = $bodyJson;
-        // honeypot — bots fill "website"
-        if (trim((string) ($body['website'] ?? '')) !== '') {
-            respond(['ok' => true]);
-        }
-
-        $category = clean((string) ($body['category'] ?? 'Other'), MAX_CATEGORY);
-        $message = clean((string) ($body['message'] ?? ''), MAX_MESSAGE);
-        $source = clean((string) ($body['source'] ?? ''), MAX_SOURCE);
-        $specs = clean((string) ($body['specs'] ?? ''), MAX_SPECS);
-
-        if ($message === '') {
-            respond(['error' => 'empty message'], 400);
-        }
-
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '?';
-        $last = (int) ($state['lastPost'][$ip] ?? 0);
-        if ($now - $last < MIN_POST_INTERVAL) {
-            respond(['error' => 'too fast', 'retryAfter' => MIN_POST_INTERVAL - ($now - $last)], 429);
-        }
-
-        $id = bin2hex(random_bytes(8));
-        $state['items'][] = [
-            'id' => $id,
-            'ts' => $now,
-            'category' => $category !== '' ? $category : 'Other',
-            'message' => $message,
-            'source' => $source,
-            'specs' => $specs,
-            'ip' => $ip,
-        ];
-        if (count($state['items']) > MAX_ITEMS) {
-            $state['items'] = array_slice($state['items'], -MAX_ITEMS);
-        }
-        $state['lastPost'][$ip] = $now;
-        $state['lastPost'] = array_filter(
-            $state['lastPost'],
-            fn($t) => $now - (int) $t < 86400,
-        );
-
-        maybeNotify($state);
-        $dirty = true;
-        respond(['ok' => true, 'id' => $id]);
+if ($action === 'submit') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        reply($fp, ['error' => 'POST required'], 405);
+    }
+    $body = $bodyJson;
+    // honeypot — bots fill "website"
+    if (trim((string) ($body['website'] ?? '')) !== '') {
+        reply($fp, ['ok' => true]);
     }
 
-    if ($action === 'list') {
-        $key = adminKey();
-        $given = (string) ($_GET['key'] ?? '');
-        if ($key === null || $given === '' || !hash_equals($key, $given)) {
-            respond(['error' => 'forbidden'], 403);
-        }
-        $items = array_reverse($state['items']);
-        respond([
-            'ok' => true,
-            'count' => count($items),
-            'lastNotifyDay' => $state['lastNotifyDay'],
-            'items' => $items,
-        ]);
+    $category = clean((string) ($body['category'] ?? 'Other'), MAX_CATEGORY);
+    $message = clean((string) ($body['message'] ?? ''), MAX_MESSAGE);
+    $source = clean((string) ($body['source'] ?? ''), MAX_SOURCE);
+    $specs = clean((string) ($body['specs'] ?? ''), MAX_SPECS);
+
+    if ($message === '') {
+        reply($fp, ['error' => 'empty message'], 400);
     }
 
-    if ($action === 'delete') {
-        $key = adminKey();
-        $given = (string) ($bodyJson['key'] ?? $_GET['key'] ?? '');
-        $id = clean((string) ($bodyJson['id'] ?? $_GET['id'] ?? ''), 64);
-        if ($key === null || $given === '' || !hash_equals($key, $given)) {
-            respond(['error' => 'forbidden'], 403);
-        }
-        if ($id === '') {
-            respond(['error' => 'missing id'], 400);
-        }
-        $before = count($state['items']);
-        $state['items'] = array_values(array_filter(
-            $state['items'],
-            fn($it) => ($it['id'] ?? '') !== $id,
-        ));
-        $dirty = count($state['items']) !== $before;
-        respond(['ok' => true, 'deleted' => $dirty]);
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '?';
+    $last = (int) ($state['lastPost'][$ip] ?? 0);
+    if ($now - $last < MIN_POST_INTERVAL) {
+        reply($fp, ['error' => 'too fast', 'retryAfter' => MIN_POST_INTERVAL - ($now - $last)], 429);
     }
 
-    respond(['error' => 'bad action'], 400);
-} finally {
-    if ($dirty) {
-        $json = json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-        ftruncate($fp, 0);
-        rewind($fp);
-        fwrite($fp, $json !== false ? $json : '{}');
-        fflush($fp);
+    $id = bin2hex(random_bytes(8));
+    $state['items'][] = [
+        'id' => $id,
+        'ts' => $now,
+        'category' => $category !== '' ? $category : 'Other',
+        'message' => $message,
+        'source' => $source,
+        'specs' => $specs,
+        'ip' => $ip,
+    ];
+    if (count($state['items']) > MAX_ITEMS) {
+        $state['items'] = array_slice($state['items'], -MAX_ITEMS);
     }
-    flock($fp, LOCK_UN);
-    fclose($fp);
+    $state['lastPost'][$ip] = $now;
+    $state['lastPost'] = array_filter(
+        $state['lastPost'],
+        fn($t) => $now - (int) $t < 86400,
+    );
+
+    maybeNotify($state);
+    reply($fp, ['ok' => true, 'id' => $id], 200, $state);
 }
+
+if ($action === 'list') {
+    $key = adminKey();
+    $given = (string) ($_GET['key'] ?? '');
+    if ($key === null || $given === '' || !hash_equals($key, $given)) {
+        reply($fp, ['error' => 'forbidden'], 403);
+    }
+    $items = array_reverse($state['items']);
+    reply($fp, [
+        'ok' => true,
+        'count' => count($items),
+        'lastNotifyDay' => $state['lastNotifyDay'],
+        'items' => $items,
+    ]);
+}
+
+if ($action === 'delete') {
+    $key = adminKey();
+    $given = (string) ($bodyJson['key'] ?? $_GET['key'] ?? '');
+    $id = clean((string) ($bodyJson['id'] ?? $_GET['id'] ?? ''), 64);
+    if ($key === null || $given === '' || !hash_equals($key, $given)) {
+        reply($fp, ['error' => 'forbidden'], 403);
+    }
+    if ($id === '') {
+        reply($fp, ['error' => 'missing id'], 400);
+    }
+    $before = count($state['items']);
+    $state['items'] = array_values(array_filter(
+        $state['items'],
+        fn($it) => ($it['id'] ?? '') !== $id,
+    ));
+    $deleted = count($state['items']) !== $before;
+    reply($fp, ['ok' => true, 'deleted' => $deleted], 200, $deleted ? $state : null);
+}
+
+reply($fp, ['error' => 'bad action'], 400);

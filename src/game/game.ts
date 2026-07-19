@@ -3664,6 +3664,10 @@ export class Game {
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
         });
+        this.hud.setRoundCardPicks(
+            this.roundCardPicksView('player'),
+            this.enemyActionIntelVisible() ? this.roundCardPicksView('enemy') : [],
+        );
         // rally sync is folded into syncTacticVisuals during build; battle needs routes gone
         if (this.phase === 'battle') this.rallyVisuals.sync([], null);
         this.hud.setSupply(this.economy.balance('player'));
@@ -3980,6 +3984,27 @@ export class Game {
             this.deployReady.player ||
             !this.placement.intelFogOn
         );
+    }
+
+    /** round-card history for the commander detail popup */
+    private roundCardPicksView(team: Team): { round: number; title: string; body: string }[] {
+        return this.dispatcher.roundCardPicks(team).map((p) => {
+            if (p.cardId === null) {
+                return {
+                    round: p.round,
+                    title: 'Skipped',
+                    body: `+${SKIP_CARD_REWARD} supply`,
+                };
+            }
+            const card = ROUND_CARDS.find((c) => c.id === p.cardId);
+            return {
+                round: p.round,
+                title: card?.title ?? p.cardId,
+                body: card
+                    ? (card.unitsLabel ? `${card.unitsLabel} — ` : '') + card.description
+                    : '',
+            };
+        });
     }
 
     /** pack/unit techs for the action row (buyable for self in deploy; inspect otherwise) */

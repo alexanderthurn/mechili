@@ -481,6 +481,16 @@ export class ActionDispatcher {
             .map((e) => e.action);
     }
 
+    /** between-round card picks for a side (null cardId = skipped), in round order */
+    roundCardPicks(team: Team): { round: number; cardId: string | null }[] {
+        const out: { round: number; cardId: string | null }[] = [];
+        for (const e of this.log) {
+            if (e.action.kind !== 'roundCard' || e.action.team !== team) continue;
+            out.push({ round: e.round, cardId: e.action.cardId });
+        }
+        return out;
+    }
+
     /** the match as pure data — with the settings and seed this reproduces everything */
     serializable(): LoggedAction[] {
         return this.log.map((e) => ({

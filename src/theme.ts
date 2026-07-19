@@ -1468,6 +1468,48 @@ export function hudStyles(): string {
 /* the hover peek must not sit under the cursor — it would steal the hover
    from the commander card and flicker */
 .mechili-cards.detail.peek { pointer-events: none; }
+.mechili-cards .round-picks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    min-width: 220px;
+    max-width: 320px;
+}
+.mechili-cards .round-picks-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+}
+.mechili-cards .round-pick {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 10px;
+    padding: 8px 10px;
+    background: ${u.panelBgDark};
+    border: 1px solid ${u.border};
+    border-radius: 8px;
+}
+.mechili-cards .round-pick .rp-round {
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: ${u.brass};
+}
+.mechili-cards .round-pick .rp-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: ${u.text};
+}
+.mechili-cards .round-pick .rp-body {
+    grid-column: 2;
+    font-size: 12px;
+    color: ${u.textMuted};
+    line-height: 1.35;
+}
 .mechili-sidebar .inv-title {
     display: flex;
     flex-direction: column;
