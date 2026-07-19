@@ -305,6 +305,8 @@ export class Game {
     } | null = null;
     /** the inventory item currently armed for placement onto a pack */
     private armedItem: string | null = null;
+    /** which inventory slot is armed — duplicates share an id, the highlight must not */
+    private armedItemIndex: number | null = null;
     /** the tactic currently being placed on the map */
     private armedTactic: string | null = null;
     /** first click of an in-progress two-point tactic (rally or oil) */
@@ -623,7 +625,11 @@ export class Game {
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit) => {
             if (this.armedItem) {
-                if (this.applyItemTo(unit, this.armedItem)) this.armedItem = null;
+                if (this.applyItemTo(unit, this.armedItem)) {
+                    this.armedItem = null;
+                    // equipping is not selecting — leave the pack unselected
+                    this.placement.deselect();
+                }
                 return;
             }
             // buildings act through their details — auto-open the sheet (phone-only visual)
@@ -649,13 +655,7 @@ export class Game {
         );
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
         this.hud.onMenuToggle = () => this.togglePauseMenu();
-        // touch stand-ins mirror right-click (cancel/deselect) and middle-click (rotate)
-        this.hud.onTouchCancel = () => {
-            if (this.cancelTacticPlacement()) return;
-            this.placement.deselect();
-            this.selectedActor = null;
-            this.armedItem = null;
-        };
+        // touch stand-in for middle-click (rotate)
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
@@ -676,9 +676,16 @@ export class Game {
             this.hud.addChat(this.playerNames.local, item, 'local');
             this.broadcast({ type: 'chat', item, from: { name: this.playerNames.local, role: 'player' } });
         };
-        this.hud.onArmItem = (itemId) => {
+        this.hud.onArmItem = (itemId, index) => {
             if (!this.playerCanAct || this.armedTactic) return;
-            this.armedItem = this.armedItem === itemId ? null : itemId; // click again to disarm
+            // click the armed slot again to disarm; another slot re-arms there
+            if (this.armedItem === itemId && this.armedItemIndex === index) {
+                this.armedItem = null;
+                this.armedItemIndex = null;
+            } else {
+                this.armedItem = itemId;
+                this.armedItemIndex = index;
+            }
         };
         this.hud.onArmTactic = (tacticId) => {
             if (!this.playerCanAct) return;
@@ -1991,13 +1998,14 @@ export class Game {
     /** the left-side item strip: one square per item instance, hidden outside build */
     private inventoryView(): { id: string; icon: string; name: string; armed: boolean }[] {
         if (!this.playerCanAct) return [];
-        return this.itemInventory.player.map((id) => {
+        return this.itemInventory.player.map((id, index) => {
             const item = ITEMS[id];
             return {
                 id,
                 icon: item?.icon ?? '?',
                 name: item ? `${item.name} — ${item.description}` : id,
-                armed: this.armedItem === id,
+                // duplicates share an id: highlight exactly the clicked slot
+                armed: this.armedItem === id && this.armedItemIndex === index,
             };
         });
     }
@@ -3614,9 +3622,6 @@ export class Game {
         const repositionable =
             build && this.placement.selectedRepositionable && !this.armedTactic;
         this.hud.setTouchActions({
-            // mere selection needs no Cancel (tapping empty ground deselects);
-            // only armed tactics/items and carried ghosts do
-            cancel: this.placement.pointerCarries || this.armedItem !== null,
             carrying: this.placement.pointerCarries,
             // Move enters carry mode explicitly; Rotate only makes sense once
             // the pack actually rides the finger

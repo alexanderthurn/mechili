@@ -388,6 +388,11 @@ export function menuStyles(): string {
     transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+/* narrow screens: the centered chat would collide with the username pill —
+   stack the chat above it */
+@media (max-width: 599px) {
+    .mechili-gchat { bottom: calc(68px + env(safe-area-inset-bottom)); }
+}
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
 /* big gear, top-right of the main menu */
@@ -996,11 +1001,23 @@ export function hudStyles(): string {
     user-select: none;
     pointer-events: none;
 }
-/* the money/undo/level-all twins exist for the phone layout only */
+/* the twins hide by default (button.* outranks the shared component rules
+   below regardless of order): money returns on phone, undo/level-all on any
+   coarse pointer — tablets get them top-right too */
 .mechili-phone-status .mechili-supply,
-.mechili-phone-status .undo,
-.mechili-phone-status .level-all-global {
+.mechili-phone-status button.undo,
+.mechili-phone-status button.level-all-global {
     display: none;
+}
+@media (pointer: coarse) {
+    .mechili-phone-status button.undo,
+    .mechili-phone-status button.level-all-global {
+        display: flex;
+    }
+    .mechili-shop-col .undo,
+    .mechili-shop-col .level-all-global {
+        display: none !important;
+    }
 }
 .mechili-phone-status .undo { pointer-events: auto; margin-right: 0; }
 /* compact versions of the shop-toolbar frames — the originals crowd End Deployment */
@@ -2244,7 +2261,6 @@ export function hudStyles(): string {
     min-height: 44px;
     color: ${u.text};
 }
-.mechili-phonebar .ta-cancel { color: #f0b0a0; }
 .mechili-phonebar .ta-level,
 .mechili-phonebar .ta-levelall {
     color: ${u.brassLight};
@@ -2257,8 +2273,39 @@ export function hudStyles(): string {
 /* card pick / pause overlays own the screen — the bar steps aside */
 .mechili-phonebar.overlay-open { display: none !important; }
 @media (pointer: coarse) {
-    /* tablets: no tab UI, but the bar appears whenever actions apply */
+    /* tablets: no tab UI — the bar appears as a small centered pill whenever
+       move/rotate/cancel apply, clear of the shop and details panels (the
+       phone media query below restores the full-width strip) */
     .mechili-phonebar.acting { display: flex; }
+    .mechili-phonebar {
+        left: 50%;
+        right: auto;
+        bottom: 44px;
+        transform: translateX(-50%);
+        padding: 4px 8px;
+        gap: 10px;
+        border: 1.5px solid ${u.border};
+        border-radius: 14px;
+    }
+    .mechili-phonebar button { flex: 0 0 auto; padding: 5px 14px; }
+
+    /* card drafts (specialist pick, round cards, unlock): smaller cards that
+       wrap — the fixed 4-in-a-row only fits desktop windows */
+    .mechili-cards { gap: 10px; overflow-y: auto; }
+    .mechili-cards .cards-title { font-size: 17px; letter-spacing: 2px; }
+    .mechili-cards .cards-row {
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 100vw;
+        gap: 10px;
+        padding: 4px 10px 12px;
+    }
+    .mechili-cards .card {
+        width: clamp(150px, 22vw, 215px);
+        min-height: 0;
+        padding: 12px 10px;
+        gap: 8px;
+    }
 }
 
 /* iOS long-press: no text-selection loupe / copy callout on HUD chrome —
@@ -2338,10 +2385,25 @@ textarea {
 
 @media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px) {
     .mechili-phonebar { display: flex; }
+    /* phone: back to the full-width bottom strip (tablet uses a pill) */
+    .mechili-phonebar {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        transform: none;
+        padding: 4px calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom))
+            calc(8px + env(safe-area-inset-left));
+        gap: 6px;
+        border: none;
+        border-top: 1.5px solid ${u.border};
+        border-radius: 0;
+    }
+    .mechili-phonebar button { flex: 1; padding: 5px 4px; }
     /* tabs share the bar with the actions: Shop/Tactics only while nothing
        is selected; the Unit tab (and actions) take over on selection */
     .mechili-phonebar:not(.has-unit):not(.battle) .pb-shop { display: flex; }
     .mechili-phonebar:not(.has-unit):not(.battle).has-tactics .pb-tactics { display: flex; }
+    .mechili-phonebar:not(.has-unit):not(.battle).has-chat .pb-chat { display: flex; }
     /* details tab makes way while the pack rides the finger */
     .mechili-phonebar.has-unit:not(.carrying) .pb-unit { display: flex; }
     /* the action-info frame renders BESIDE the panel on desktop — off-screen
@@ -2356,20 +2418,28 @@ textarea {
         pointer-events: auto;
         z-index: 20;
     }
-    /* money + undo + level-all always at hand; their sheet-internal twins
-       hide. The phone enemy card is shorter, so the strip docks higher. */
+    /* money joins the strip on phone (the shop toolbar lives in a sheet);
+       the phone enemy card is shorter, so the strip docks higher */
     .mechili-phone-status { top: calc(40px + env(safe-area-inset-top)); }
-    .mechili-phone-status .mechili-supply,
-    .mechili-phone-status .undo,
-    .mechili-phone-status .level-all-global { display: flex; }
-    .mechili-shop-col .undo,
-    .mechili-shop-col .mechili-supply,
-    .mechili-shop-col .level-all-global { display: none !important; }
+    .mechili-phone-status .mechili-supply { display: flex; }
+    /* no spending during battle — money returns with the next deployment */
+    .mechili-phone-status.battle .mechili-supply { display: none; }
+    .mechili-shop-col .mechili-supply { display: none !important; }
     /* menu button moves to the left edge; End Deployment stays centered alone */
     /* spectating a battle with nothing selected: no empty strip */
     .mechili-phonebar.battle:not(.has-unit):not(.acting) { display: none; }
-    /* bottom-center chat bar would collide with the tab bar */
-    .mechili-chat { display: none; }
+    /* deployment: the chat is a bar sheet (Chat tab); battle: the normal
+       floating bar returns, lifted clear of the tab bar */
+    .mechili-chat {
+        width: min(360px, calc(100vw - 12px));
+        bottom: calc(58px + env(safe-area-inset-bottom));
+    }
+    .mechili-chat:not(.phone-open):not(.battle) { display: none; }
+    /* float lines clear the raised (and opened) chat frame */
+    .mechili-chat-float {
+        bottom: calc(215px + env(safe-area-inset-bottom));
+        z-index: 16;
+    }
     .mechili-shop-col:not(.phone-open),
     .mechili-panel:not(.phone-open),
     .mechili-sidebar.left:not(.phone-open),
@@ -2425,10 +2495,8 @@ textarea {
     .mechili-fightbar .hp-val { font-size: 10px; }
     .mechili-topbar { top: calc(2px + env(safe-area-inset-top)); gap: 2px; }
     .mechili-topbar .round { font-size: 11px; }
-    /* no room for the phase word next to Round + timer — but keep the
-       "Waiting for opponent…" state visible, nothing else signals it */
+    /* no room for the phase words next to Round + timer */
     .mechili-topbar .phase { display: none; }
-    .mechili-topbar.waiting .phase { display: inline; font-size: 10px; }
     .mechili-topbar .timer { font-size: 16px; }
     /* uniform 38px control row, clear of the commander HP bars; nowrap so a
        tight row never lets End Deployment wrap and grow vertically */
@@ -2447,23 +2515,6 @@ textarea {
     }
     .mechili-report { max-height: 40vh; overflow-y: auto; }
 
-    /* card drafts: smaller cards that wrap (2×2 portrait, one row landscape)
-       instead of a fixed-width strip that overflows the screen */
-    .mechili-cards { gap: 10px; overflow-y: auto; }
-    .mechili-cards .cards-title { font-size: 17px; letter-spacing: 2px; }
-    .mechili-cards .cards-row {
-        flex-wrap: wrap;
-        justify-content: center;
-        max-width: 100vw;
-        gap: 10px;
-        padding: 4px 10px 12px;
-    }
-    .mechili-cards .card {
-        width: clamp(150px, 22vw, 215px);
-        min-height: 0;
-        padding: 12px 10px;
-        gap: 8px;
-    }
 }
 `;
 }
