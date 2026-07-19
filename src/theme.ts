@@ -478,17 +478,6 @@ export function menuStyles(): string {
     user-select: none;
     pointer-events: none;
 }
-/* menu already visible: the bar retreats to a slim strip at the bottom */
-.mechili-loading.late {
-    top: auto;
-    bottom: calc(64px + env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    gap: 6px;
-    width: min(360px, calc(100vw - 48px));
-}
-.mechili-loading.late .hp-track { height: 18px; }
-.mechili-loading.late .hp-val { font-size: 11px; }
-.mechili-loading.late .load-status { font-size: 11px; }
 .mechili-feuerware {
     position: absolute;
     bottom: calc(28px + env(safe-area-inset-bottom));

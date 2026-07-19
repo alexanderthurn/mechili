@@ -125,6 +125,7 @@ document.head.appendChild(style);
 const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
 versionEl.className = 'mechili-version';
 versionEl.style.zIndex = '30';
+versionEl.style.display = 'none';
 versionEl.textContent = `v${__APP_VERSION__} · ${GAME_VERSION}`;
 if (versionEl instanceof HTMLAnchorElement) {
     versionEl.href = 'https://melodan.com/';
@@ -295,14 +296,23 @@ const gchatSticky = gchatEl.querySelector<HTMLDivElement>('.g-sticky')!;
 const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
 const gchatInput = gchatEl.querySelector<HTMLInputElement>('.g-input')!;
 let gchatPoll: ReturnType<typeof setInterval> | null = null;
+/** false while the boot splash owns the screen (logo + bar + Feuerware only) */
+let menuChromeVisible = false;
 
 function setMenuChromeVisible(visible: boolean): void {
+    menuChromeVisible = visible;
     const display = visible ? '' : 'none';
     menu.style.display = display;
     usernameEl.style.display = display;
+    versionEl.style.display = display;
     settingsCornerEl.style.display = display;
     suggestCornerEl.style.display = display;
-    gchatEl.style.display = display;
+    applyGlobalChatVisibility();
+}
+
+function applyGlobalChatVisibility(): void {
+    gchatEl.style.display = menuChromeVisible && prefs().globalChat ? '' : 'none';
+    if (menuChromeVisible && prefs().globalChat) void refreshGlobalChat();
 }
 
 async function refreshGlobalChat(): Promise<void> {
@@ -377,10 +387,6 @@ document.addEventListener('pointerdown', (e) => {
 
 // the "show global chat" setting hides the panel, live; the poll keeps
 // ticking but refreshGlobalChat skips fetching while hidden or in-game
-function applyGlobalChatVisibility(): void {
-    gchatEl.style.display = prefs().globalChat ? '' : 'none';
-    if (prefs().globalChat) void refreshGlobalChat();
-}
 applyGlobalChatVisibility();
 onPrefsChange(applyGlobalChatVisibility);
 startGlobalChatPoll();
@@ -392,7 +398,7 @@ const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 
 let started = false;
 let pending: Pending | null = null;
-/** menu shows before assets finish loading — match starts wait for this */
+/** true after 3D assets finish loading — match starts wait for this */
 let bootReady = false;
 let roomPoll: ReturnType<typeof setInterval> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
@@ -679,6 +685,7 @@ function returnToMenu(): void {
     void refreshOpenProfile();
     setMenuBusy(false);
     setStatus('');
+    setMenuChromeVisible(true);
 }
 
 function startGame(
@@ -825,9 +832,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
     const ac = new AbortController();
     resumeAbort = ac;
     setMenuBusy(true);
-    menu.style.display = 'none';
-    usernameEl.style.display = 'none';
-    versionEl.style.display = 'none';
+    setMenuChromeVisible(false);
     showResumeOverlay(
         'Reconnecting…',
         'Waiting for your opponent and restoring the match.',
@@ -835,9 +840,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
             ac.abort();
             clearResumeMarker();
             hideResumeOverlay();
-            menu.style.display = '';
-            usernameEl.style.display = '';
-            versionEl.style.display = '';
+            setMenuChromeVisible(true);
             setMenuBusy(false);
         },
     );
@@ -865,9 +868,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
     } catch (e) {
         session?.close();
         hideResumeOverlay();
-        menu.style.display = '';
-        usernameEl.style.display = '';
-        versionEl.style.display = '';
+        setMenuChromeVisible(true);
         if (e instanceof DOMException && e.name === 'AbortError') {
             setMenuBusy(false);
             return;
@@ -997,10 +998,8 @@ menu.addEventListener('click', (e) => {
     }
 });
 
-// the menu appears immediately — the loading bar docks at the bottom and
-// only match starts (single/quick/host/join) wait for the assets
-setMenuChromeVisible(true);
-loadingEl.classList.add('late');
+// full-screen boot splash (logo + bar + Feuerware) until assets are ready —
+// only then does the main menu chrome appear (unless we resume a match)
 await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
 bootReady = true;
 loadingEl.remove();
@@ -1013,9 +1012,12 @@ const spSave = loadSinglePlayer();
 if (mpMarker) {
     void attemptResume(mpMarker);
 } else if (spSave) {
-    if (spSave.version !== GAME_VERSION) clearSinglePlayer();
-    else resumeSinglePlayer(spSave);
+    if (spSave.version !== GAME_VERSION) {
+        clearSinglePlayer();
+        setMenuChromeVisible(true);
+    } else resumeSinglePlayer(spSave);
 } else {
+    setMenuChromeVisible(true);
     // ?room=mangoo — join that host's room directly
     const roomParam = new URLSearchParams(location.search).get('room');
     if (roomParam) {
