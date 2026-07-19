@@ -392,6 +392,8 @@ const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 
 let started = false;
 let pending: Pending | null = null;
+/** menu shows before assets finish loading — match starts wait for this */
+let bootReady = false;
 let roomPoll: ReturnType<typeof setInterval> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
 let resumeAbort: AbortController | null = null;
@@ -940,6 +942,10 @@ function runPending(p: Pending): void {
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
+        if (!bootReady) {
+            setStatus('Still loading — one moment…');
+            return;
+        }
         runPending(joinLobby(roomBtn.dataset.room, setStatus));
         return;
     }
@@ -955,7 +961,13 @@ menu.addEventListener('click', (e) => {
         return;
     }
 
-    switch (button.dataset.mode) {
+    const mode = button.dataset.mode;
+    if (!bootReady && (mode === 'single' || mode === 'quick' || mode === 'host')) {
+        setStatus('Still loading — one moment…');
+        return;
+    }
+
+    switch (mode) {
         case 'single':
             startGame(settingsFromUrl());
             break;
@@ -980,11 +992,14 @@ menu.addEventListener('click', (e) => {
     }
 });
 
-// load all shared game assets before the menu is interactive
+// the menu appears immediately — the loading bar docks at the bottom and
+// only match starts (single/quick/host/join) wait for the assets
+setMenuChromeVisible(true);
+loadingEl.classList.add('late');
 await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
+bootReady = true;
 loadingEl.remove();
 feuerwareEl.remove();
-setMenuChromeVisible(true);
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
 setGameLayerVisible(false);
