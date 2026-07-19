@@ -1857,6 +1857,12 @@ export function hudStyles(): string {
     gap: 12px;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
 }
+.mechili-topbar .top-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
 .mechili-topbar .menu-btn {
     min-width: 34px;
     min-height: 30px;
@@ -2228,7 +2234,10 @@ export function hudStyles(): string {
     .mechili-fightbar .hp-val { font-size: 10px; }
     .mechili-topbar { top: calc(2px + env(safe-area-inset-top)); gap: 2px; }
     .mechili-topbar .round { font-size: 11px; }
-    .mechili-topbar .phase { font-size: 10px; }
+    /* no room for the phase word next to Round + timer — but keep the
+       "Waiting for opponent…" state visible, nothing else signals it */
+    .mechili-topbar .phase { display: none; }
+    .mechili-topbar.waiting .phase { display: inline; font-size: 10px; }
     .mechili-topbar .timer { font-size: 16px; }
     .mechili-topbar .end-deploy { padding: 8px 14px; font-size: 13px; }
     .mechili-report { max-height: 40vh; overflow-y: auto; }

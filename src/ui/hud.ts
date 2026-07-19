@@ -458,12 +458,7 @@ export class Hud {
         this.roundEl.className = 'round';
         this.phaseEl = document.createElement('span');
         this.phaseEl.className = 'phase';
-        const menuBtn = document.createElement('button');
-        menuBtn.className = 'menu-btn';
-        menuBtn.textContent = '☰';
-        menuBtn.title = 'Menu (Esc)';
-        menuBtn.addEventListener('click', () => this.onMenuToggle?.());
-        topMeta.append(this.roundEl, this.phaseEl, menuBtn);
+        topMeta.append(this.roundEl, this.phaseEl);
         this.timerEl = document.createElement('span');
         this.timerEl.className = 'timer';
         const endButton = document.createElement('button');
@@ -479,12 +474,15 @@ export class Hud {
             e.preventDefault();
             this.onSpeedDown?.();
         });
-        this.topBar.append(
-            topMeta,
-            this.timerEl,
-            endButton,
-            this.speedEl,
-        );
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'menu-btn';
+        menuBtn.textContent = '☰';
+        menuBtn.title = 'Menu (Esc)';
+        menuBtn.addEventListener('click', () => this.onMenuToggle?.());
+        const controlsRow = document.createElement('div');
+        controlsRow.className = 'top-controls';
+        controlsRow.append(endButton, this.speedEl, menuBtn);
+        this.topBar.append(topMeta, this.timerEl, controlsRow);
 
         this.fightBar.append(playerFighter, this.topBar, enemyFighter);
 
