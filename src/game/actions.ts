@@ -31,6 +31,7 @@ import type {
     DeploySettings,
     Economy,
     LevelingSettings,
+    RallyRouteSettings,
     SellSettings,
     TowerSettings,
 } from './settings';
@@ -101,6 +102,11 @@ export interface UpgradeTowerAction {
 /** unlocks selling PERMANENTLY (Research Center, once per match) */
 export interface BuySellAbilityAction {
     kind: 'buySellAbility';
+    team: Team;
+}
+/** grants one rally-route charge (Research Center, once per match) */
+export interface BuyRallyRouteAbilityAction {
+    kind: 'buyRallyRouteAbility';
     team: Team;
 }
 /** sells a pack for its refund — spends an ability charge (per-round) or a
@@ -227,6 +233,7 @@ export type Action =
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuySellAbilityAction
+    | BuyRallyRouteAbilityAction
     | SellUnitAction
     | BuyDeploySlotAction
     | BuyRoundRangeBoostAction
@@ -286,12 +293,15 @@ export interface ActionContext {
     leveling: LevelingSettings;
     towers: TowerSettings;
     sellSettings: SellSettings;
+    rallyRouteSettings: RallyRouteSettings;
     deploySettings: DeploySettings;
     boostSettings: BoostSettings;
     /** per-team recruit level for the running round (reset to 1 each round) */
     recruitLevel: Record<Team, number>;
     /** per-team sell state: `owned` is permanent, `used` resets each round */
     sellState: { owned: Record<Team, boolean>; used: Record<Team, number> };
+    /** Research Center: one-time rally-route purchase (permanent match flag) */
+    rallyRouteOwned: Record<Team, boolean>;
     /**
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
@@ -602,6 +612,16 @@ export class ActionDispatcher {
                 if (!economy.spend(action.team, this.ctx.sellSettings.abilityCost)) return false;
                 entry.paid = this.ctx.sellSettings.abilityCost;
                 this.ctx.sellState.owned[action.team] = true;
+                return true;
+            }
+            case 'buyRallyRouteAbility': {
+                if (this.ctx.rallyRouteOwned[action.team]) return false; // once per match
+                const cost = this.ctx.rallyRouteSettings.abilityCost;
+                if (!economy.spend(action.team, cost)) return false;
+                entry.paid = cost;
+                this.ctx.rallyRouteOwned[action.team] = true;
+                this.ctx.tactics[action.team].push(RALLY_ROUTE_ID);
+                entry.grantedTactics = [RALLY_ROUTE_ID];
                 return true;
             }
             case 'sellUnit': {
@@ -977,6 +997,25 @@ export class ActionDispatcher {
                 this.ctx.sellState.owned[action.team] = false;
                 economy.credit(action.team, e.paid!);
                 break;
+            case 'buyRallyRouteAbility': {
+                this.ctx.rallyRouteOwned[action.team] = false;
+                for (const id of e.grantedTactics ?? []) {
+                    const i = this.ctx.tactics[action.team].lastIndexOf(id);
+                    if (i >= 0) this.ctx.tactics[action.team].splice(i, 1);
+                }
+                // drop excess placed routes if the charge was already used
+                const max = this.ctx.tactics[action.team].filter((id) => id === RALLY_ROUTE_ID)
+                    .length;
+                for (let i = this.ctx.rallyRoutes.length - 1; i >= 0; i--) {
+                    const route = this.ctx.rallyRoutes[i]!;
+                    if (route.team !== action.team) continue;
+                    const placed = this.ctx.rallyRoutes.filter((r) => r.team === action.team).length;
+                    if (placed <= max) break;
+                    this.ctx.rallyRoutes.splice(i, 1);
+                }
+                economy.credit(action.team, e.paid!);
+                break;
+            }
             case 'sellUnit':
                 placement.restoreUnit(e.unit!);
                 economy.spend(action.team, e.paid!); // take the refund back

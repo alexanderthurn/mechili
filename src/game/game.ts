@@ -261,6 +261,8 @@ export class Game {
         owned: { player: false, enemy: false },
         used: { player: 0, enemy: 0 },
     };
+    /** Research Center: one-time rally-route purchase (permanent match flag) */
+    private readonly rallyRouteOwned: Record<Team, boolean> = { player: false, enemy: false };
     /** per-round buy limits: `limit` is permanent (specials may raise it), rest resets per round */
     private readonly deployState: {
         limit: Record<Team, number>;
@@ -547,10 +549,12 @@ export class Game {
             leveling: settings.leveling,
             towers: settings.towers,
             sellSettings: settings.sell,
+            rallyRouteSettings: settings.rallyRoute,
             deploySettings: settings.deploy,
             boostSettings: settings.boosts,
             recruitLevel: this.recruitLevel,
             sellState: this.sellState,
+            rallyRouteOwned: this.rallyRouteOwned,
             deployState: this.deployState,
             boostState: this.boostState,
             roundBoosts: this.roundBoosts,
@@ -728,6 +732,11 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buySellAbility', team: 'player' });
+        };
+        this.hud.onBuyRallyRouteAbility = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            this.dispatchPlayer({ kind: 'buyRallyRouteAbility', team: 'player' });
         };
         this.hud.onBuyDeploySlot = () => {
             const unit = this.placement.selectedUnit;
@@ -3862,7 +3871,9 @@ export class Game {
     }
 
     /** Research Center permanent tracks — buyable for self in deploy; inspect with fog */
-    private commandTowerSelection(u: Unit): Pick<SelectionInfo, 'boosts' | 'sellAbility'> {
+    private commandTowerSelection(
+        u: Unit,
+    ): Pick<SelectionInfo, 'boosts' | 'sellAbility' | 'rallyRouteAbility'> {
         if (u.type !== COMMAND_TOWER) return {};
         const canBuy = u.team === 'player' && this.playerCanAct;
         const canInspect =
@@ -3891,6 +3902,11 @@ export class Game {
                 cost: this.settings.sell.abilityCost,
                 owned: this.sellState.owned[team],
                 affordable: canBuy && bal >= this.settings.sell.abilityCost,
+            },
+            rallyRouteAbility: {
+                cost: this.settings.rallyRoute.abilityCost,
+                owned: this.rallyRouteOwned[team],
+                affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
             },
         };
     }

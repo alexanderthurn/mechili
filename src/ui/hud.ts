@@ -100,6 +100,8 @@ export interface SelectionInfo {
     credit?: { gain: number; debt: number; active: boolean; affordable: boolean };
     /** the permanent sell-ability unlock (Research Center only) */
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
+    /** one-time rally-route charge purchase (Research Center only) */
+    rallyRouteAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
 }
@@ -124,6 +126,7 @@ export class Hud {
     onRecruitLevel: (() => void) | null = null;
     onUpgradeTower: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
+    onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyDeploySlot: (() => void) | null = null;
     onBuyRoundRangeBoost: (() => void) | null = null;
     onBuyRoundSpeedBoost: (() => void) | null = null;
@@ -380,6 +383,7 @@ export class Hud {
             else if (button.dataset.recruit) this.onRecruitLevel?.();
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
+            else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
             else if (button.dataset.speedboost) this.onBuyRoundSpeedBoost?.();
@@ -1450,6 +1454,20 @@ export class Hud {
                 desc: 'Permanently unlock selling packs (up to one per deployment phase).',
                 cost: info.sellAbility.cost,
                 state: info.sellAbility.owned ? 'owned' : info.sellAbility.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.rallyRouteAbility) {
+            tiles.push({
+                data: 'data-rallyroute="1"',
+                icon: '⚑',
+                title: 'Buy Rally Route',
+                desc: 'Add one rally-route charge to your tactics. Once per match.',
+                cost: info.rallyRouteAbility.cost,
+                state: info.rallyRouteAbility.owned
+                    ? 'owned'
+                    : info.rallyRouteAbility.affordable
+                      ? 'buy'
+                      : 'locked',
             });
         }
         for (const t of info.techs ?? []) {

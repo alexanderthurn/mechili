@@ -19,6 +19,7 @@ export interface GameSettings {
     towers: TowerSettings;
     leveling: LevelingSettings;
     sell: SellSettings;
+    rallyRoute: RallyRouteSettings;
     deploy: DeploySettings;
     boosts: BoostSettings;
     /**
@@ -120,6 +121,11 @@ export interface SellSettings {
     refundFactor: number;
 }
 
+/** Research Center: one-time purchase of a single rally-route charge */
+export interface RallyRouteSettings {
+    abilityCost: number;
+}
+
 export interface EconomySettings {
     /** income granted in round 1 */
     startingSupply: number;
@@ -170,6 +176,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
         abilityCost: 100,
         maxPerRound: 1,
         refundFactor: 1,
+    },
+    rallyRoute: {
+        abilityCost: 100,
     },
     deploy: {
         unitsPerRound: 2,
@@ -222,6 +231,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
             upgrade: { ...DEFAULT_SETTINGS.towers.upgrade, ...towers.upgrade },
         },
         sell: { ...DEFAULT_SETTINGS.sell, ...settings.sell },
+        rallyRoute: { ...DEFAULT_SETTINGS.rallyRoute, ...settings.rallyRoute },
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },

@@ -57,6 +57,13 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
                 cost: s.boosts.costs[0],
                 description: `Permanent army-wide HP boost. First tier +${hpPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
             },
+            {
+                icon: '⚑',
+                name: 'Buy Rally Route',
+                cost: s.rallyRoute.abilityCost,
+                description:
+                    'Add one rally-route charge to your tactics strip. Once per match.',
+            },
         );
     }
 
