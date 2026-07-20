@@ -32,6 +32,7 @@ import { Weather } from './weather';
 import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
+    CELL,
     DETAIL_TILE,
     makeValueNoise,
     mulberry32,
@@ -957,21 +958,33 @@ export class Scenery {
         const ROCKS = scaleCount(170, dens.outer);
         const BUSHES = scaleCount(90, dens.outer);
         const FIELD_BUSHES = scaleCount(45, dens.field);
+        // horde mode widens the neutral strip into a real belt — grow a
+        // forest in it so the horde has somewhere to live (pure scenery,
+        // no collision; packs standing between trunks is the point)
+        const beltHalf = (map.size.neutralRows * CELL) / 2;
+        const beltWide = map.size.neutralRows > 8;
+        const BELT_PINES = beltWide ? scaleCount(26, dens.field) : 0;
+        const BELT_LEAFY = beltWide ? scaleCount(30, dens.field) : 0;
+        const BELT_BUSHES = beltWide ? scaleCount(28, dens.field) : 0;
+        const beltSpot = (): { x: number; z: number } => ({
+            x: (rng() * 2 - 1) * (map.halfW - 8),
+            z: (rng() * 2 - 1) * Math.max(0, beltHalf - 4),
+        });
 
         const trunks = new InstancedMesh(
             new CylinderGeometry(0.35, 0.55, 3.4, 6),
             new MeshStandardMaterial({ color: s.trunk, roughness: 0.9 }),
-            PINES + LEAFY + FIELD_PINES + FIELD_LEAFY,
+            PINES + LEAFY + FIELD_PINES + FIELD_LEAFY + BELT_PINES + BELT_LEAFY,
         );
         const cones = new InstancedMesh(
             new ConeGeometry(2.6, 6, 7),
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
-            (PINES + FIELD_PINES) * 2,
+            (PINES + FIELD_PINES + BELT_PINES) * 2,
         );
         const blobs = new InstancedMesh(
             new IcosahedronGeometry(2.4, 1),
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
-            (LEAFY + FIELD_LEAFY) * 2,
+            (LEAFY + FIELD_LEAFY + BELT_LEAFY) * 2,
         );
         const rocks = new InstancedMesh(
             new IcosahedronGeometry(1.4, 0),
@@ -981,7 +994,7 @@ export class Scenery {
         const bushes = new InstancedMesh(
             new IcosahedronGeometry(1, 1),
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
-            BUSHES + FIELD_BUSHES,
+            BUSHES + FIELD_BUSHES + BELT_BUSHES,
         );
 
         let trunkI = 0;
@@ -996,8 +1009,8 @@ export class Scenery {
             trunks.setMatrixAt(trunkI++, dummy.matrix);
         };
 
-        for (let i = 0; i < PINES + FIELD_PINES; i++) {
-            const { x, z } = i < PINES ? forestSpot(84) : fieldSpot(10);
+        for (let i = 0; i < PINES + FIELD_PINES + BELT_PINES; i++) {
+            const { x, z } = i < PINES ? forestSpot(84) : i < PINES + FIELD_PINES ? fieldSpot(10) : beltSpot();
             const h = groundY(x, z);
             const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
             placeTrunk(x, z, sc, h);
@@ -1015,8 +1028,8 @@ export class Scenery {
             }
         }
 
-        for (let i = 0; i < LEAFY + FIELD_LEAFY; i++) {
-            const { x, z } = i < LEAFY ? forestSpot(72) : fieldSpot(10);
+        for (let i = 0; i < LEAFY + FIELD_LEAFY + BELT_LEAFY; i++) {
+            const { x, z } = i < LEAFY ? forestSpot(72) : i < LEAFY + FIELD_LEAFY ? fieldSpot(10) : beltSpot();
             const h = groundY(x, z);
             const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
             placeTrunk(x, z, sc, h);
@@ -1056,8 +1069,8 @@ export class Scenery {
             rocks.setMatrixAt(i, dummy.matrix);
         }
 
-        for (let i = 0; i < BUSHES + FIELD_BUSHES; i++) {
-            const { x, z } = i < BUSHES ? forestSpot(56) : fieldSpot(5);
+        for (let i = 0; i < BUSHES + FIELD_BUSHES + BELT_BUSHES; i++) {
+            const { x, z } = i < BUSHES ? forestSpot(56) : i < BUSHES + FIELD_BUSHES ? fieldSpot(5) : beltSpot();
             const sc = 0.6 + rng() * 0.8;
             dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
             dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));

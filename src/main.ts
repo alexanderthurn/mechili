@@ -44,8 +44,12 @@ function settingsFromUrl(): GameSettings {
     if (build > 0) settings.buildTimeSeconds = build;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
-    // ?horde=1 — PvPvE: a neutral pink dwarf horde spawns in the center every round
-    if (params.get('horde')) settings.horde = structuredClone(DEFAULT_HORDE);
+    // ?horde=1 — PvPvE: a neutral pink dwarf horde owns a wide forest belt in
+    // the map center and spawns a bigger wave there every round
+    if (params.get('horde')) {
+        settings.horde = structuredClone(DEFAULT_HORDE);
+        settings.map = { ...settings.map, neutralRows: settings.horde.beltRows };
+    }
     return settings;
 }
 

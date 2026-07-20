@@ -1245,14 +1245,19 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], true);
         this.syncTacticVisuals();
-        // flanks and the neutral strip open up after the first round
+        // flanks and the neutral strip open up after the first round — but in
+        // horde mode the widened strip is the horde's belt and never opens
         const unlocked = this.round >= 2;
-        if (unlocked !== this.map.flanksUnlocked) {
+        const neutralOpen = unlocked && !this.settings.horde;
+        if (unlocked !== this.map.flanksUnlocked || neutralOpen !== this.map.neutralUnlocked) {
             this.map.flanksUnlocked = unlocked;
-            this.map.neutralUnlocked = unlocked;
+            this.map.neutralUnlocked = neutralOpen;
             this.refreshOverlay();
         }
         this.gridOverlay.visible = true;
+        // the horde stands on the board from deployment start — both players
+        // see the wave and place against it
+        this.spawnHordeWave();
         // elite specialists recruit at level 2 permanently (and free of premium)
         this.recruitLevel.player = this.speciality.player === 'elite' ? 2 : 1;
         this.recruitLevel.enemy = this.speciality.enemy === 'elite' ? 2 : 1;
@@ -3041,7 +3046,6 @@ export class Game {
             const spawn = TACTICS[stamp.tacticId]?.spell?.spawn;
             if (spawn) this.spawnSummons(stamp, spawn);
         }
-        this.spawnHordeWave();
         const spellStrikes = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             return spell?.strike
@@ -3349,12 +3353,13 @@ export class Game {
 
     /**
      * Horde mode (`settings.horde`): materializes this round's neutral pink
-     * wave in the center band, before the sim snapshots units. Fully derived
-     * from the match seed + round + HP standings — every client computes the
-     * identical wave, nothing ever crosses the wire. Positioning IS the
-     * aiming: nearest-hostile targeting makes packs spawned in a player's
-     * half walk at that player, so the leader hunt and the "small hordes
-     * near the weaker player" both fall out of spawn placement alone.
+     * wave inside the belt (the widened neutral strip) at BUILD-phase start,
+     * so both players see the wave standing in its forest and deploy against
+     * it. Fully derived from the match seed + round + HP standings — every
+     * client computes the identical wave, nothing ever crosses the wire.
+     * Positioning IS the aiming: packs biased to the leader-facing edge of
+     * the belt march at the leader when battle starts (nearest hostile),
+     * while packs at the weaker player's edge harass him locally.
      */
     private spawnHordeWave(): void {
         const horde = this.settings.horde;
@@ -3367,29 +3372,27 @@ export class Game {
         const leader: Team | null =
             this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
         // The board is canonical; which z-half is "mine" flips with ownAtFar
-        // (guest side). Team identity ('player') and half-sign both flip per
-        // client, so the canonical spawn positions come out identical on every
-        // machine. Main share spawns a quarter into the leader's half, the
-        // rest a quarter into the weaker player's half; equal HP keeps
-        // everything in the neutral band.
+        // (guest side). Team identity ('player') and edge-sign both flip per
+        // client, so the canonical spawn positions come out identical on
+        // every machine. All spawns stay INSIDE the belt — never in a
+        // player's deploy zone.
         const ownSign = this.map.ownAtFar ? -1 : 1;
-        const intoHalf = this.map.halfH * 0.25;
-        const bandJitter = (this.settings.map.neutralRows * CELL) / 2 + 2 * CELL;
+        const beltHalf = Math.max(CELL, (this.settings.map.neutralRows * CELL) / 2 - CELL);
         for (let i = 0; i < packs; i++) {
             let zCenter = 0;
             if (leader !== null) {
                 const target = rng() < horde.leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
-                zCenter = (target === 'player' ? ownSign : -ownSign) * intoHalf;
+                // biased toward the target's edge of the belt, still inside it
+                zCenter = (target === 'player' ? ownSign : -ownSign) * beltHalf * 0.55;
             }
             const x = (rng() * 2 - 1) * (this.map.halfW * 0.85);
-            const z = zCenter + (rng() * 2 - 1) * bandJitter;
+            const z = Math.max(-beltHalf, Math.min(beltHalf, zCenter + (rng() * 2 - 1) * beltHalf * 0.45));
             const anchor = this.placement.findSpotNearWorld(type, x, z);
             if (!anchor) continue;
             const unit = this.placement.spawn(type, anchor, 'horde', false, true);
             if (!unit) continue;
-            unit.summoned = true; // battle-only: leaves the board with the other summons
+            unit.summoned = true; // battle-only: leaves the board at the round reset
             unit.deployedRound = this.round;
-            unit.setDeployment(false);
         }
     }
 

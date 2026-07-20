@@ -38,17 +38,24 @@ export interface HordeSettings {
     /** extra supply value added to the wave each round after the first */
     budgetPerRound: number;
     /**
-     * share of the wave that hunts the match-HP leader (spawns shifted into
-     * the leader's half); the rest spawns as packs near the weaker player.
-     * On equal HP the whole wave stays in the neutral band.
+     * share of the wave that hunts the match-HP leader (spawns biased to the
+     * leader-facing edge of the belt); the rest spawns near the weaker
+     * player's edge. On equal HP the wave centers in the belt.
      */
     leaderShare: number;
+    /**
+     * depth of the horde's belt in grid rows — replaces `map.neutralRows`
+     * for the mode. The belt never unlocks for player deployment and grows
+     * a forest (the horde's home).
+     */
+    beltRows: number;
 }
 
 export const DEFAULT_HORDE: HordeSettings = {
     baseBudget: 300,
     budgetPerRound: 200,
     leaderShare: 0.65,
+    beltRows: 20,
 };
 
 export interface LevelingSettings {
