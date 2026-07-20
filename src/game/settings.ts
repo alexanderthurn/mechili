@@ -28,7 +28,28 @@ export interface GameSettings {
      * game rolls one at startup.
      */
     seed?: number;
+    /** horde PvPvE mode: a neutral pink dwarf horde spawns in the center every round. Unset = off. */
+    horde?: HordeSettings;
 }
+
+export interface HordeSettings {
+    /** supply value of the round-1 wave (spent entirely on dwarf packs) */
+    baseBudget: number;
+    /** extra supply value added to the wave each round after the first */
+    budgetPerRound: number;
+    /**
+     * share of the wave that hunts the match-HP leader (spawns shifted into
+     * the leader's half); the rest spawns as packs near the weaker player.
+     * On equal HP the whole wave stays in the neutral band.
+     */
+    leaderShare: number;
+}
+
+export const DEFAULT_HORDE: HordeSettings = {
+    baseBudget: 300,
+    budgetPerRound: 200,
+    leaderShare: 0.65,
+};
 
 export interface LevelingSettings {
     /**

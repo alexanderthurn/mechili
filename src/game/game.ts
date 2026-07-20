@@ -3030,6 +3030,7 @@ export class Game {
             const spawn = TACTICS[stamp.tacticId]?.spell?.spawn;
             if (spawn) this.spawnSummons(stamp, spawn);
         }
+        this.spawnHordeWave();
         const spellStrikes = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             return spell?.strike
@@ -3331,6 +3332,49 @@ export class Game {
             // same battle prep, or they stay in deployment mode: flyers ramp
             // their lift toward the ground and Unit.update() re-seats member
             // meshes at the pack origin every frame, fighting the sim's Y
+            unit.setDeployment(false);
+        }
+    }
+
+    /**
+     * Horde mode (`settings.horde`): materializes this round's neutral pink
+     * wave in the center band, before the sim snapshots units. Fully derived
+     * from the match seed + round + HP standings — every client computes the
+     * identical wave, nothing ever crosses the wire. Positioning IS the
+     * aiming: nearest-hostile targeting makes packs spawned in a player's
+     * half walk at that player, so the leader hunt and the "small hordes
+     * near the weaker player" both fall out of spawn placement alone.
+     */
+    private spawnHordeWave(): void {
+        const horde = this.settings.horde;
+        if (!horde) return;
+        const type = unitTypeById('dwarf');
+        if (!type) return;
+        const budget = horde.baseBudget + horde.budgetPerRound * (this.round - 1);
+        const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
+        const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
+        const leader: Team | null =
+            this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
+        // player edge is +z, enemy edge is -z; the neutral band straddles z=0.
+        // Main share spawns a quarter into the leader's half, the rest a
+        // quarter into the weaker player's half; equal HP keeps everything
+        // in the band.
+        const intoHalf = this.map.halfH * 0.25;
+        const bandJitter = (this.settings.map.neutralRows * CELL) / 2 + 2 * CELL;
+        for (let i = 0; i < packs; i++) {
+            let zCenter = 0;
+            if (leader !== null) {
+                const target = rng() < horde.leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
+                zCenter = (target === 'player' ? 1 : -1) * intoHalf;
+            }
+            const x = (rng() * 2 - 1) * (this.map.halfW * 0.85);
+            const z = zCenter + (rng() * 2 - 1) * bandJitter;
+            const anchor = this.placement.findSpotNearWorld(type, x, z);
+            if (!anchor) continue;
+            const unit = this.placement.spawn(type, anchor, 'horde', false, true);
+            if (!unit) continue;
+            unit.summoned = true; // battle-only: leaves the board with the other summons
+            unit.deployedRound = this.round;
             unit.setDeployment(false);
         }
     }

@@ -24,7 +24,10 @@ import {
     TargetPreviewVisuals,
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
-import { Unit, unitTypeById, type GridExtent, type Team, type UnitType } from './units';
+import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+
+/** horde unit ids start here — far above anything the parity counters reach */
+const HORDE_ID_BASE = 1_000_000;
 import { getUnitInstanceRenderer } from './unitInstances';
 
 /** frozen enemy intel captured at deployment-phase start */
@@ -138,7 +141,7 @@ export class PlacementController {
      * sequence, so peers applying each other's actions in any interleaving
      * still agree (player ids even, enemy ids odd)
      */
-    private readonly nextUnitId: Record<Team, number> = { player: 0, enemy: 0 };
+    private readonly nextUnitId: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
     private readonly hoverMesh: Mesh;
@@ -669,14 +672,18 @@ export class PlacementController {
     }
 
     /** Places a unit with its footprint anchored at `anchor` (no zone validation — callers validate). */
-    spawn(type: UnitType, anchor: Cell, team: Team, rotated = false, free = false): Unit | null {
+    spawn(type: UnitType, anchor: Cell, team: BattleTeam, rotated = false, free = false): Unit | null {
         const fp = this.footprintOf(type, rotated);
         const cells = this.coveredCells(fp, anchor);
         if (!cells) return null;
         if (!type.extra && cells.some((c) => this.occupied.has(cellKey(c)))) return null;
-        if (!free && !this.economy.charge(team, type)) return null;
+        // horde units are always free — they have no economy to charge
+        if (!free && (team === 'horde' || !this.economy.charge(team, type))) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
-        unit.id = ++this.nextUnitId[team] * 2 + (team === 'player' ? 0 : 1);
+        // horde ids live far above the player/enemy parity space (id % 2 only
+        // ever orders actors; horde ids are identical on every client, so
+        // ordering stays deterministic)
+        unit.id = team === 'horde' ? HORDE_ID_BASE + ++this.nextUnitId.horde : ++this.nextUnitId[team] * 2 + (team === 'player' ? 0 : 1);
         unit.deployedRound = this.currentRound;
         // board extras take no space on the grid
         if (!type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
@@ -1043,7 +1050,7 @@ export class PlacementController {
      * Positions of every individual opposing mech (not squad centers) that is
      * visible in enemy intel — snapshotted placements and sold ghosts count.
      */
-    private opponentMechPositions(team: Team, exclude: Unit): Vector3[] {
+    private opponentMechPositions(team: BattleTeam, exclude: Unit): Vector3[] {
         const positions: Vector3[] = [];
         for (const u of this.units) {
             if (u === exclude || u.team === team || u.destroyed) continue;
