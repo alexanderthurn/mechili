@@ -8,11 +8,13 @@
  *   ?action=join&peer=<peerjs-id>
  *       Quick match: pair with another waiting quick-match peer, or queue.
  *       {"match":"<their-peer-id>"|null}
- *   ?action=host&peer=<peerjs-id>&name=<display-name>
+ *   ?action=host&peer=<peerjs-id>&name=<display-name>&mode=<1v1|2v2>
  *       Register a public custom room (heartbeat via repeat calls).
+ *       mode is a display/routing hint only (default "1v1") — the room list
+ *       shows it so a joiner knows which connection flow to use.
  *       {"ok":true} or {"error":"..."}
  *   ?action=list
- *       Open public rooms: {"rooms":[{"name":"...","peer":"..."}]}
+ *       Open public rooms: {"rooms":[{"name":"...","peer":"...","mode":"..."}]}
  *   ?action=leave&peer=<peerjs-id>
  *       Remove the caller's queue, lobby, or spectate entry.
  *   ?action=spectate-register&peer=<peerjs-id>&name=<room-name>
@@ -38,6 +40,8 @@ header('Cache-Control: no-store');
 $action = $_GET['action'] ?? '';
 $peer = $_GET['peer'] ?? '';
 $name = trim($_GET['name'] ?? '');
+$mode = trim($_GET['mode'] ?? '1v1');
+if (!in_array($mode, ['1v1', '2v2'], true)) $mode = '1v1';
 
 if ($action === 'list') {
     $fp = fopen(STORE, 'c+');
@@ -55,7 +59,7 @@ if ($action === 'list') {
     foreach ($rooms as $r) {
         if (($r['kind'] ?? '') !== 'lobby') continue;
         if ($now - ($r['ts'] ?? 0) > TTL) continue;
-        $open[] = ['name' => $r['name'] ?? '', 'peer' => $r['peer'] ?? ''];
+        $open[] = ['name' => $r['name'] ?? '', 'peer' => $r['peer'] ?? '', 'mode' => $r['mode'] ?? '1v1'];
     }
     echo json_encode(['rooms' => $open]);
     exit;
@@ -130,7 +134,7 @@ if ($action === 'leave') {
     }
     // one lobby entry per peer id; name is the display label
     $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
-    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'lobby', 'ts' => $now];
+    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'lobby', 'mode' => $mode, 'ts' => $now];
     echo json_encode(['ok' => true]);
     ftruncate($fp, 0);
     rewind($fp);

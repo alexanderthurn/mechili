@@ -3,6 +3,7 @@ import type { Action, LoggedAction } from './actions';
 import type { Opponent } from './ai';
 import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
+import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings } from './settings';
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
@@ -69,6 +70,7 @@ export function matchUrl(): string {
 export interface LobbyRoom {
     name: string;
     peer: string;
+    mode: '1v1' | '2v2';
 }
 
 /** the menu's global chat endpoint — chat.php next to matchmaking.php */
@@ -182,7 +184,32 @@ export type NetMessage =
      * other's `deployCaughtUp` (otherwise the second locker races ahead of
      * the first's sell/buys still in flight).
      */
-    | { type: 'deployCaughtUp'; round: number };
+    | { type: 'deployCaughtUp'; round: number }
+    // ---- star topology (2v2+, N seats): host-relayed, own message family so
+    // the classic 2-seat path above stays completely untouched ------------
+    /** guest's opening handshake on connecting to a star (2v2+) room */
+    | { type: 'starJoin'; name: string; version: number }
+    /** host's per-recipient match setup: canonical roster + which seat is theirs.
+     *  `settings.seats` is unset here — the LOCAL roster is derived per client
+     *  via `localizeRoster(roster, yourSide)`, never sent pre-relabeled. */
+    | {
+          type: 'starSetup';
+          version: number;
+          seed: number;
+          settings: GameSettings;
+          roster: CanonicalSeatDef[];
+          yourSeat: SeatId;
+          yourSide: 'a' | 'b';
+      }
+    /** lobby membership, broadcast whenever a seat's controller/name changes
+     *  (a friend joins, an empty seat gets AI-filled at start) */
+    | { type: 'starRoster'; roster: CanonicalSeatDef[] }
+    /** host declines a join (room full, version mismatch) */
+    | { type: 'starRejected'; reason: string }
+    /** host → each guest once every seat has locked in for the round and the
+     *  fog buffers are flushed (guaranteed delivered-before on an ordered
+     *  connection, so no separate per-client ack round-trip is needed) */
+    | { type: 'starBattleStart'; round: number };
 
 /**
  * What a spectator may see during the build phase.
@@ -323,6 +350,292 @@ export class NetSession {
             }
         }
     }
+}
+
+/**
+ * Host-side only, for 2v2+ "star" rooms (settings.seats.length > 2): one
+ * Peer accepting a connection per REMOTE seat-holding guest (never between
+ * guests — that's the whole point of the star: guests keep the exact same
+ * single-connection shape they already have for 1v1, only the HOST's side
+ * fans out). Deliberately parallel to `SpectatorHub`'s proven pattern
+ * (per-viewer buffer, vision-filtered relay) rather than a new design —
+ * lower risk than inventing a mesh from scratch. Pure relay: it knows
+ * connections, seats and sides, but NOT game rules — gating/AI/dispatch
+ * all stay in `Game`, exactly like `NetSession` today.
+ *
+ * Trust note: the host sees every guest's traffic in cleartext (listen-
+ * server model) — a deliberate, documented v1 tradeoff over a full mesh,
+ * acceptable for friend games. See TEAM_MODES_PLAN.md §3.
+ */
+export class StarHub {
+    private readonly bySeat = new Map<SeatId, { conn: DataConnection; buffer: NetMessage[] }>();
+    private roster: CanonicalSeatDef[];
+
+    /** fired whenever a guest joins/leaves before match start (lobby display) */
+    onRosterChange: (() => void) | null = null;
+    /** fired once a connected guest sends a message post-setup (actions, chat, etc.) */
+    onMessage: ((seat: SeatId, msg: NetMessage) => void) | null = null;
+    /** fired if a connected (post-setup) guest's connection drops */
+    onSeatDropped: ((seat: SeatId) => void) | null = null;
+
+    private constructor(
+        private readonly peer: Peer,
+        initialRoster: CanonicalSeatDef[],
+    ) {
+        this.roster = initialRoster;
+    }
+
+    static async open(initialRoster: CanonicalSeatDef[], id?: string): Promise<StarHub> {
+        const peer = await openPeer(id);
+        return new StarHub(peer, initialRoster);
+    }
+
+    get peerId(): string {
+        return this.peer.id;
+    }
+
+    currentRoster(): CanonicalSeatDef[] {
+        return this.roster;
+    }
+
+    sideOf(seat: SeatId): 'a' | 'b' {
+        return this.roster[seat]?.side ?? 'a';
+    }
+
+    /** open (human, unfilled) seats, in canonical order — join order fills these */
+    private openSeats(): SeatId[] {
+        const taken = new Set(this.bySeat.keys());
+        const ids: SeatId[] = [];
+        for (let i = 0; i < this.roster.length; i++) {
+            if (i === 0) continue; // seat 0 is always the host itself
+            if (this.roster[i]!.controller === 'human' && !taken.has(i)) ids.push(i);
+        }
+        return ids;
+    }
+
+    /**
+     * Accepts connections until every human seat is filled or the host
+     * starts early (remaining open seats get AI-filled by the caller).
+     * `onJoin` may reject (room full, version mismatch) before `admit`.
+     */
+    listen(onJoin: (name: string, version: number, conn: DataConnection) => SeatId | null): void {
+        this.peer.on('connection', (conn) => {
+            conn.on('open', () => {
+                const onData = (data: unknown) => {
+                    const msg = data as NetMessage;
+                    if (msg.type !== 'starJoin') {
+                        conn.close();
+                        return;
+                    }
+                    conn.off('data', onData);
+                    const seat = onJoin(msg.name, msg.version, conn);
+                    if (seat === null) return; // onJoin already sent starRejected + closed
+                    this.bySeat.set(seat, { conn, buffer: [] });
+                    conn.on('data', (d) => this.onMessage?.(seat, d as NetMessage));
+                    conn.on('close', () => this.dropSeat(seat));
+                    conn.on('error', () => this.dropSeat(seat));
+                    this.onRosterChange?.();
+                };
+                conn.on('data', onData);
+            });
+        });
+    }
+
+    /** call once a joining connection is accepted, before/with `starSetup` */
+    setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void {
+        this.roster = this.roster.map((s, i) => (i === seat ? entry : s));
+    }
+
+    private dropSeat(seat: SeatId): void {
+        if (!this.bySeat.delete(seat)) return;
+        this.onSeatDropped?.(seat);
+        this.onRosterChange?.();
+    }
+
+    send(seat: SeatId, msg: NetMessage): void {
+        this.bySeat.get(seat)?.conn.send(msg);
+    }
+
+    /** every connected guest (not the host's own seat(s)) */
+    broadcast(msg: NetMessage): void {
+        for (const { conn } of this.bySeat.values()) conn.send(msg);
+    }
+
+    /**
+     * Vision-filtered relay of one build-phase action/undo: live to every
+     * ally (same side) recipient immediately; buffered per-recipient for
+     * enemy-side recipients until `sideLocked(fromSide)` is true, at which
+     * point that recipient's WHOLE buffer flushes (only one enemy side
+     * exists per recipient — Tier 1, sides stay binary).
+     */
+    relayBuild(
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        fromSeat: SeatId,
+        sideLocked: (side: 'a' | 'b') => boolean,
+    ): void {
+        const fromSide = this.sideOf(fromSeat);
+        for (const [seat, viewer] of this.bySeat) {
+            if (seat === fromSeat) continue; // never echo back to the sender
+            const isAlly = this.sideOf(seat) === fromSide;
+            if (isAlly || sideLocked(fromSide)) {
+                if (viewer.buffer.length > 0) {
+                    for (const buffered of viewer.buffer) viewer.conn.send(buffered);
+                    viewer.buffer.length = 0;
+                }
+                viewer.conn.send(msg);
+            } else {
+                viewer.buffer.push(msg);
+            }
+        }
+    }
+
+    /** force-flush every recipient's buffer (all sides now locked) */
+    flushAllBuffers(): void {
+        for (const viewer of this.bySeat.values()) {
+            for (const buffered of viewer.buffer) viewer.conn.send(buffered);
+            viewer.buffer.length = 0;
+        }
+    }
+
+    connectedSeats(): SeatId[] {
+        return [...this.bySeat.keys()];
+    }
+
+    close(): void {
+        for (const { conn } of this.bySeat.values()) conn.close();
+        this.bySeat.clear();
+        this.peer.destroy();
+    }
+}
+
+/**
+ * Guest side of a star (2v2+) room: a single connection to the host,
+ * shaped like `NetSession` (attach/send/once) but without the host/guest
+ * role split — a star guest never accepts inbound connections itself.
+ */
+export class StarGuestSession {
+    onClose: (() => void) | null = null;
+    private handler: ((msg: NetMessage) => void) | null = null;
+    private readonly backlog: NetMessage[] = [];
+
+    constructor(
+        private readonly peer: Peer,
+        private readonly conn: DataConnection,
+    ) {
+        conn.on('data', (data) => {
+            const msg = data as NetMessage;
+            if (this.handler) this.handler(msg);
+            else this.backlog.push(msg);
+        });
+        let closed = false;
+        const fireClose = () => {
+            if (closed) return;
+            closed = true;
+            this.onClose?.();
+        };
+        conn.on('close', fireClose);
+        conn.on('error', fireClose);
+        peer.on('error', fireClose);
+    }
+
+    attach(handler: (msg: NetMessage) => void): void {
+        this.handler = handler;
+        while (this.backlog.length > 0) handler(this.backlog.shift()!);
+    }
+
+    send(msg: NetMessage): void {
+        this.conn.send(msg);
+    }
+
+    once(): Promise<NetMessage> {
+        return new Promise((resolve) => {
+            if (this.backlog.length > 0) {
+                resolve(this.backlog.shift()!);
+                return;
+            }
+            this.handler = (msg) => {
+                this.handler = null;
+                resolve(msg);
+            };
+        });
+    }
+
+    close(): void {
+        this.onClose = null;
+        this.conn.close();
+        this.peer.destroy();
+    }
+}
+
+/**
+ * Host a 2v2+ star room: opens a peer, registers it in the public/room-code
+ * lobby exactly like `hostLobby`, and returns the `StarHub` for the caller
+ * to drive the join/seat-assignment/start flow (kept in main.ts, alongside
+ * the seat-picker UI — connection plumbing only lives here).
+ */
+export async function hostStarRoom(
+    initialRoster: CanonicalSeatDef[],
+    onStatus: (status: string) => void,
+): Promise<{ hub: StarHub; roomId: string; cleanup: () => void }> {
+    const name = getPlayerName();
+    const roomId = peerRoomId(name);
+    onStatus('Opening room…');
+    let hub: StarHub;
+    try {
+        hub = await StarHub.open(initialRoster, roomId);
+    } catch {
+        throw new Error(`Name "${name}" is already hosting — pick another username`);
+    }
+    // reuses the SAME room-code registration as 1v1 custom rooms, tagged
+    // mode=2v2 so the room list can route joiners to the star join flow
+    await lobbyRegister(hub.peerId, name, '2v2');
+    const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, '2v2'), HEARTBEAT_MS);
+    return {
+        hub,
+        roomId,
+        cleanup: () => {
+            clearInterval(heartbeat);
+            void lobbyLeave(hub.peerId);
+        },
+    };
+}
+
+/** Join a 2v2+ star room by the host's username (room code) — same lookup as `joinLobby`. */
+export function joinStarRoom(hostName: string, onStatus: (status: string) => void): SessionPending<StarGuestSession> {
+    let peer: Peer | null = null;
+    const localName = getPlayerName();
+    const code = roomCodeFromName(hostName);
+    if (!code) {
+        return { session: Promise.reject(new Error('Invalid room name')), cancel: () => undefined };
+    }
+    const session = (async () => {
+        onStatus(`Joining "${hostName.trim()}"…`);
+        peer = await openPeer();
+        const conn = await new Promise<DataConnection>((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error('Room not found or host offline')),
+                CONNECT_TIMEOUT_MS,
+            );
+            const c = peer!.connect(peerRoomId(hostName), { reliable: true });
+            c.on('open', () => {
+                clearTimeout(timer);
+                resolve(c);
+            });
+            c.on('error', (e) => {
+                clearTimeout(timer);
+                reject(e);
+            });
+        });
+        conn.send({ type: 'starJoin', name: localName, version: GAME_VERSION });
+        return new StarGuestSession(peer, conn);
+    })();
+    return { session, cancel: () => peer?.destroy() };
+}
+
+/** identical shape to {@link Pending}, generalized (kept separate — `Pending` stays untouched for the existing 1v1 flow) */
+export interface SessionPending<T> {
+    session: Promise<T>;
+    cancel: () => void;
 }
 
 /**
@@ -758,9 +1071,9 @@ async function lobbyLeave(peerId: string): Promise<void> {
     await fetch(`${matchUrl()}?action=leave&peer=${encodeURIComponent(peerId)}`).catch(() => undefined);
 }
 
-async function lobbyRegister(peerId: string, name: string): Promise<void> {
+async function lobbyRegister(peerId: string, name: string, mode: '1v1' | '2v2' = '1v1'): Promise<void> {
     await fetch(
-        `${matchUrl()}?action=host&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(name)}`,
+        `${matchUrl()}?action=host&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(name)}&mode=${mode}`,
     ).catch(() => undefined);
 }
 

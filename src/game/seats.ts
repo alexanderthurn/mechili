@@ -50,6 +50,37 @@ export function seatIdsOf(seats: readonly SeatDef[], team: Team): SeatId[] {
     return ids;
 }
 
+/**
+ * The WIRE/canonical roster shape for networked N-seat matches (2v2+):
+ * `side` is canonical ('a'/'b', matching the classic host/guest convention)
+ * and identical content on every client — unlike `SeatDef.team`, which is
+ * each client's own LOCAL relabeling of "which side is mine". Only used by
+ * the star-netcode path (settings.seats.length > 2); classic 1v1 keeps its
+ * existing swapPerspective translation entirely untouched.
+ */
+export interface CanonicalSeatDef {
+    side: 'a' | 'b';
+    controller: 'human' | 'ai';
+    name: string;
+}
+
+/**
+ * One-time translation at match setup: canonical roster + "which side am
+ * I" → a LOCAL `SeatDef[]` with `.team` relabeled to each client's own
+ * perspective ('player' = mine), SAME ARRAY ORDER/INDEX as the canonical
+ * roster on every client. This is the only place a canonical seat becomes
+ * a local one — everything downstream (economy, zones, AI, HUD, unit ids)
+ * consumes the result exactly like the existing local duo roster, unaware
+ * this seat happens to be networked.
+ */
+export function localizeRoster(canonical: readonly CanonicalSeatDef[], mySide: 'a' | 'b'): SeatDef[] {
+    return canonical.map((c) => ({
+        team: c.side === mySide ? 'player' : 'enemy',
+        controller: c.controller,
+        name: c.name,
+    }));
+}
+
 /** true for the second (or later) seat of a side — drives the alt color */
 export function isSecondarySeat(seats: readonly SeatDef[], seat: SeatId): boolean {
     if (seat < 0 || seat >= seats.length) return false;
