@@ -1978,6 +1978,25 @@ export class Game {
         }
     }
 
+    /**
+     * Canonical (cross-client) rank for a LOCAL seat id: which side it
+     * belongs to canonically (host side always ranks first — both peers
+     * agree on this regardless of who's asking, exactly like the old
+     * hostParity did), then its position among that side's own seats.
+     * `unit.seat` itself is perspective-relative (0 = mine, on EVERY
+     * client), so this re-maps it into a value both clients compute
+     * identically for the SAME physical seat — needed wherever unit order
+     * must agree exactly (sim battle order, stateHash).
+     */
+    private seatRank(seat: SeatId): number {
+        const def = this.seats[seat];
+        if (!def) return 0;
+        const hostSide: Team = this.side === 'a' ? 'player' : 'enemy';
+        const isHostSide = def.team === hostSide;
+        const within = seatIdsOf(this.seats, def.team).indexOf(seat);
+        return (isHostSide ? 0 : 1000) + within;
+    }
+
     /** canonical state fingerprint, exchanged at battle start to catch desyncs */
     private stateHash(): number {
         const buffer = new DataView(new ArrayBuffer(8));
@@ -1987,7 +2006,6 @@ export class Game {
             h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
             h = Math.imul(h ^ buffer.getUint32(4), 0x9e3779b1);
         };
-        const hostParity = this.side === 'a' ? 0 : 1;
         const hostFirst = (player: number, enemy: number) =>
             this.side === 'a' ? [player, enemy] : [enemy, player];
         mix(this.round);
@@ -1999,8 +2017,12 @@ export class Game {
             for (const seat of seatIdsOf(this.seats, t)) mix(this.economy.balance(seat));
         }
         for (const a of this.sim?.actors ?? []) {
-            const id = a.unit.id;
-            mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
+            // canonicalize: the seat's own counter (client-independent —
+            // both clients apply the same buy-action stream in the same
+            // order) combined with the seat's canonical host/guest rank
+            // (perspective-independent by construction, see seatRank)
+            const counter = Math.floor(a.unit.id / this.seats.length);
+            mix(counter * 2 + (this.seatRank(a.unit.seat) < 1000 ? 0 : 1));
             mix(a.x);
             mix(a.z);
             mix(a.hp);
@@ -3333,7 +3355,7 @@ export class Game {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
             battleSeconds: this.settings.battleTimeSeconds,
-            hostParity: this.side === 'a' ? 0 : 1,
+            seatRank: (seat) => this.seatRank(seat),
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
             hasTech: (team, typeId, techId) => team !== 'horde' && this.techTree.has(team, typeId, techId),

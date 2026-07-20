@@ -11,6 +11,7 @@ import {
     type HazardPour,
 } from './fire';
 import { ITEMS } from './items';
+import type { SeatId } from './seats';
 import { groundSupportAt, mulberry32, simGroundHeightAt, simGroundSupportAt } from './map';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
@@ -53,11 +54,12 @@ export interface SimConfig {
     /** the battle's fixed length — the sim refuses to step past it */
     battleSeconds: number;
     /**
-     * which unit-id parity belongs to the HOST side (0 on the host client,
-     * 1 on the guest) — peers hold the identical board but label teams from
-     * their own perspective, so ordering must key off canonical sides
+     * canonical battle-order rank for a unit's seat (lower sorts first).
+     * With per-seat ids (SeatId embedded via id = counter*rosterLength+seat)
+     * ordering no longer needs parity math — it's a direct seat lookup, one
+     * that stays correct regardless of how many seats a side has.
      */
-    hostParity: 0 | 1;
+    seatRank: (seat: SeatId) => number;
     /** effective supply cost of a unit type (drives kill XP values) */
     costOf: (type: UnitType) => number;
     /** a pack's tech-resolved base stats (level scaling happens in the sim) */
@@ -514,11 +516,10 @@ export class BattleSim {
         // (host units first, each side by spawn counter, members in pack
         // order via sort stability), so every order-dependent computation —
         // targeting ties, float accumulation, fire stagger — agrees exactly
-        const rank = (id: number) => (id % 2 === config.hostParity ? 0 : 1);
         this.actors.sort((a, b) => {
-            const r = rank(a.unit.id) - rank(b.unit.id);
+            const r = config.seatRank(a.unit.seat) - config.seatRank(b.unit.seat);
             if (r !== 0) return r;
-            return (a.unit.id >> 1) - (b.unit.id >> 1);
+            return a.unit.id - b.unit.id;
         });
         const perUnit = new Map<Unit, number>();
         this.actors.forEach((a, i) => {

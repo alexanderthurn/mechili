@@ -142,7 +142,16 @@ export class PlacementController {
      * sequence, so peers applying each other's actions in any interleaving
      * still agree (player ids even, enemy ids odd)
      */
-    private readonly nextUnitId: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
+    /**
+     * Per-SEAT spawn counters (index = SeatId), lazily grown. Per-seat, not
+     * per-team: two seats sharing a side must never share a counter — a
+     * teammate's own actions are always locally sequential, so a per-seat
+     * counter is safe even once those seats are on different network
+     * clients (arrival order between DIFFERENT seats may vary; order
+     * WITHIN one seat's own stream never does).
+     */
+    private readonly nextUnitId: number[] = [];
+    private nextHordeId = 0;
     /** the match roster — drives default seats and (duo modes) lane splits */
     roster: SeatDef[] = classicSeats('You', 'Enemy');
     /** the local human's seat — the placement/preview UI acts for this seat */
@@ -724,10 +733,18 @@ export class PlacementController {
         if (!free && (team === 'horde' || !this.economy.charge(actorSeat, type))) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
         unit.seat = actorSeat;
-        // horde ids live far above the player/enemy parity space (id % 2 only
-        // ever orders actors; horde ids are identical on every client, so
-        // ordering stays deterministic)
-        unit.id = team === 'horde' ? HORDE_ID_BASE + ++this.nextUnitId.horde : ++this.nextUnitId[team] * 2 + (team === 'player' ? 0 : 1);
+        // Canonical per-seat id: counter*rosterLength+seat. For the classic
+        // 2-seat roster this is byte-identical to the old team-parity
+        // formula (seat 0 ⟺ old player-id space, seat 1 ⟺ old enemy-id
+        // space) — no behavior change there. Horde ids live far above this
+        // space (never collide, no seat encoding needed — horde is always
+        // locally derived, identical on every client by construction).
+        if (team === 'horde') {
+            unit.id = HORDE_ID_BASE + ++this.nextHordeId;
+        } else {
+            this.nextUnitId[actorSeat] = (this.nextUnitId[actorSeat] ?? 0) + 1;
+            unit.id = this.nextUnitId[actorSeat]! * this.roster.length + actorSeat;
+        }
         unit.deployedRound = this.currentRound;
         // board extras take no space on the grid
         if (!type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
