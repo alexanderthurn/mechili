@@ -170,6 +170,19 @@ export class SpellVisuals {
                       fill: teamColors.player.hex,
                       line: teamColors.player.hex,
                   });
+            const dx = draft.x - draft.startX;
+            const dz = draft.z - draft.startZ;
+            if (dx * dx + dz * dz > 0.25) {
+                addDrapedCircle(
+                    this.group,
+                    draft.startX,
+                    draft.startZ,
+                    draft.radius * 0.32,
+                    tint.fill,
+                    0.28,
+                    0.75,
+                );
+            }
             this.addCapsuleSpellMarker(
                 draft.tacticId, draft.startX, draft.startZ, draft.x, draft.z,
                 draft.radius, tint.fill, tint.line, true,

@@ -52,7 +52,7 @@ import {
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
-import { HazardField, HAZARD_POUR_DELAY_SEC, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
+import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
@@ -2568,17 +2568,31 @@ export class Game {
                                 radius,
                             ),
                     };
+                } else if (armed.targeting === 'two-point') {
+                    const start = this.tacticDraftStart ?? pos;
+                    const end = this.tacticDraftStart
+                        ? clampTacticEnd(
+                              start.x,
+                              start.z,
+                              pos.x,
+                              pos.z,
+                              armed.maxSpan,
+                          )
+                        : pos;
+                    draft = {
+                        tacticId: armed.id,
+                        x: end.x,
+                        z: end.z,
+                        radius,
+                        yaw: 0,
+                        startX: start.x,
+                        startZ: start.z,
+                        blocked:
+                            !!armed.respectsSafeZone &&
+                            this.inSafeZone(end.x, end.z, radius),
+                    };
                 } else {
-                    const hover =
-                        armed.targeting === 'two-point' && this.tacticDraftStart
-                            ? clampTacticEnd(
-                                  this.tacticDraftStart.x,
-                                  this.tacticDraftStart.z,
-                                  pos.x,
-                                  pos.z,
-                                  armed.maxSpan,
-                              )
-                            : pos;
+                    const hover = pos;
                     draft = {
                         tacticId: armed.id,
                         x: hover.x,
@@ -2588,12 +2602,6 @@ export class Game {
                         blocked:
                             !!armed.respectsSafeZone &&
                             this.inSafeZone(hover.x, hover.z, radius),
-                        ...(armed.targeting === 'two-point' && this.tacticDraftStart
-                            ? {
-                                  startX: this.tacticDraftStart.x,
-                                  startZ: this.tacticDraftStart.z,
-                              }
-                            : {}),
                     };
                 }
             }
@@ -3611,8 +3619,9 @@ export class Game {
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
-                this.hammerFx.update(this.sim.elapsed);
-                this.meteorFx.update(this.sim.elapsed);
+                const battleShields = livingShieldDisks(this.placement.allUnits());
+                this.hammerFx.update(this.sim.elapsed, battleShields);
+                this.meteorFx.update(this.sim.elapsed, battleShields);
                 this.cloudFx.update(this.sim.elapsed);
                 this.dragonFx.update(this.sim.elapsed);
                 this.oilDripFx.update(this.sim.elapsed);

@@ -154,6 +154,7 @@ export function addDrapedCircle(
         drapeCircleOutline(x, z, radius),
         new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
     );
+    line.frustumCulled = false;
     group.add(line);
     return { fill, line };
 }
@@ -241,6 +242,7 @@ export function addDrapedRect(
         drapeRectOutline(x, z, halfW, halfD, yaw),
         new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
     );
+    line.frustumCulled = false;
     group.add(line);
     return { fill, line };
 }
@@ -330,19 +332,20 @@ export function addDrapedCapsule(
         buildDrapedCapsuleFill(startX, startZ, endX, endZ, px, pz, ux, uz, radius),
         fillMat,
     );
+    body.position.set(startX, DRAPE_LIFT, startZ);
     body.frustumCulled = false;
     group.add(body);
 
-    group.add(
-        new Line(
-            drapeCapsuleOutline(startX, startZ, endX, endZ, radius),
-            new LineBasicMaterial({
-                color: lineColor,
-                transparent: true,
-                opacity: lineOpacity,
-            }),
-        ),
+    const line = new Line(
+        drapeCapsuleOutline(startX, startZ, endX, endZ, radius),
+        new LineBasicMaterial({
+            color: lineColor,
+            transparent: true,
+            opacity: lineOpacity,
+        }),
     );
+    line.frustumCulled = false;
+    group.add(line);
 }
 
 /**
@@ -369,7 +372,7 @@ export function drapeCapsuleOutline(
         pts.push(new Vector3(x, groundHeightAt(x, z) + lift, z));
     };
 
-    const sideSteps = Math.max(4, Math.ceil(len / 2));
+    const sideSteps = Math.max(4, Math.ceil(len / 1.5));
     // +perp rail: start → end
     for (let i = 0; i <= sideSteps; i++) {
         const t = i / sideSteps;
@@ -501,13 +504,14 @@ function buildDrapedCapsuleFill(
     const dx = ex - sx;
     const dz = ez - sz;
     const len = Math.hypot(dx, dz);
-    // tessellate along the strip so the fill hugs hills (a single quad clips terrain)
-    const along = Math.max(4, Math.ceil(len / 2));
-    const across = Math.max(2, Math.ceil(r / 2));
+    // tessellate along/across the strip so the fill hugs hills (a single quad clips terrain)
+    const along = Math.max(4, Math.ceil(len / 1.5));
+    const across = Math.max(3, Math.ceil(r / 1.5));
     const positions: number[] = [];
     const indices: number[] = [];
-    const push = (x: number, z: number): number => {
-        positions.push(x, groundHeightAt(x, z) + DRAPE_LIFT, z);
+    // local XZ relative to start — mesh.position carries (sx, DRAPE_LIFT, sz), same as disks/rects
+    const push = (wx: number, wz: number): number => {
+        positions.push(wx - sx, groundHeightAt(wx, wz), wz - sz);
         return positions.length / 3 - 1;
     };
 
