@@ -2925,13 +2925,10 @@ export class Game {
             this.placement.beginPlacing(type);
             return;
         }
-        // touch: the shop sheet hides the field, so drop the pack where the
-        // camera looks and highlight it — desktop keeps the zone-center spawn
-        const nearView = inputMode() === 'touch';
+        // Unified: drop the pack near where the camera is looking and resolve
+        // it immediately into the buy action as a concrete anchor.
         const view = this.rig.target;
-        const anchor = nearView
-            ? this.placement.findBuySpotNear(type, view.x, view.z)
-            : this.placement.findBuySpot(type);
+        const anchor = this.placement.findBuySpotNear(type, view.x, view.z);
         if (!anchor) return;
         this.dispatchPlayer({
             kind: 'buy',
