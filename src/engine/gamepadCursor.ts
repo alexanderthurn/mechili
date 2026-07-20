@@ -19,7 +19,8 @@ const FAKE_POINTER_ID = 0x7fff;
  * the whole existing camera/placement/tactic pipeline handles it exactly like
  * a mouse click — including ghost previews, which follow the synthetic
  * pointermove stream. Right stick orbits, triggers zoom toward the cursor,
- * shoulders spin the heading, B cancels, X rotates, Start opens the menu.
+ * LB/RB turn the right stick into camera pan, B cancels, X rotates,
+ * Start opens the menu.
  */
 export class GamepadCursor {
     onCancel: (() => void) | null = null;
@@ -106,14 +107,34 @@ export class GamepadCursor {
             this.surface.dispatchEvent(this.pointerEvent('pointermove', rect, 0));
         }
 
+        const lb = pressed[4] === true;
+        const rb = pressed[5] === true;
+        // Gamepad stick "up" is usually -Y, but we want intuitive camera control:
+        // stick up should move the view in the opposite direction of stick down.
+        const invRy = -ry;
         if (rx !== 0 || ry !== 0) {
-            this.rig.orbit(-rx * ORBIT_SPEED * dtSeconds, ry * PITCH_SPEED * dtSeconds);
+            if (lb || rb) {
+                // pan is heading-relative (like keyboard WASD/edge scroll)
+                const dx = rx;
+                const dz = invRy;
+                const len = Math.hypot(dx, dz);
+                if (len > 0) {
+                    const speed = this.rig.zoom * 0.9 * dtSeconds;
+                    const invLen = 1 / len;
+                    const fwd = this.rig.groundForward;
+                    const right = this.rig.groundRight;
+                    this.rig.pan(
+                        (right.x * dx + fwd.x * dz) * speed * invLen,
+                        (right.z * dx + fwd.z * dz) * speed * invLen,
+                    );
+                }
+            } else {
+                // orbit: heading left/right, pitch forward/backward
+                this.rig.orbit(-rx * ORBIT_SPEED * dtSeconds, invRy * PITCH_SPEED * dtSeconds);
+            }
         }
         if (lt > 0.02 || rt > 0.02) {
             this.rig.zoomAt(Math.exp((lt - rt) * ZOOM_SPEED * dtSeconds), this.x, this.y);
-        }
-        if (pressed[4] !== pressed[5]) {
-            this.rig.rotate((pressed[4] ? 1 : -1) * HEADING_SPEED * dtSeconds);
         }
 
         const edge = (i: number) => pressed[i] === true && this.prev[i] !== true;

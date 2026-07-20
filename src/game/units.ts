@@ -71,6 +71,15 @@ import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 export type Team = 'player' | 'enemy';
 
+/**
+ * A unit's battle allegiance: one of the two player sides, or the neutral
+ * horde (hostile to everyone — the `a.team !== b.team` checks throughout the
+ * sim are already N-team correct). Horde units exist only during battle
+ * (spawned as summons at battle start) and own no economy/tech/zone state,
+ * so all `Record<Team, …>` ownership tables stay binary.
+ */
+export type BattleTeam = Team | 'horde';
+
 export interface GridExtent {
     cols: number;
     rows: number;
@@ -685,7 +694,7 @@ export class Unit {
         readonly type: UnitType,
         /** top-left anchor tile of the footprint */
         public cell: Cell,
-        readonly team: Team,
+        readonly team: BattleTeam,
         readonly world: Vector3,
         /** placement rotated 90°: footprint and formation use swapped cols/rows */
         public rotated = false,
