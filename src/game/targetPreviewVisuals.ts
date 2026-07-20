@@ -1,14 +1,11 @@
 import {
-    BufferGeometry,
     DoubleSide,
-    Float32BufferAttribute,
     Group,
     Mesh,
     MeshBasicMaterial,
     type Scene,
 } from 'three';
-import { DRAPE_LIFT } from './groundMarkers';
-import { groundHeightAt } from './map';
+import { DRAPE_LIFT, drapeChevronGeometry } from './groundMarkers';
 
 const CHEVRON_SPACING = 14;
 const CHEVRON_SPEED = 22;
@@ -30,13 +27,12 @@ export type TargetPreviewRoute = {
  */
 export class TargetPreviewVisuals {
     readonly group = new Group();
-    private readonly chevronGeo: BufferGeometry;
     private readonly pool: Mesh[] = [];
+    private readonly poolMats: MeshBasicMaterial[] = [];
     private used = 0;
 
     constructor(scene: Scene) {
         scene.add(this.group);
-        this.chevronGeo = chevronGeometry(CHEVRON_W, CHEVRON_D);
         for (let i = 0; i < POOL; i++) {
             const mat = new MeshBasicMaterial({
                 color: 0xffd040,
@@ -45,22 +41,24 @@ export class TargetPreviewVisuals {
                 side: DoubleSide,
                 depthWrite: false,
             });
-            const mesh = new Mesh(this.chevronGeo, mat);
+            const mesh = new Mesh(drapeChevronGeometry(0, 0, CHEVRON_W, CHEVRON_D, 0), mat);
             mesh.frustumCulled = false;
             mesh.visible = false;
             this.group.add(mesh);
             this.pool.push(mesh);
+            this.poolMats.push(mat);
         }
     }
 
     dispose(): void {
         this.clear();
-        for (const mesh of this.pool) {
-            (mesh.material as MeshBasicMaterial).dispose();
-            this.group.remove(mesh);
+        for (let i = 0; i < this.pool.length; i++) {
+            this.pool[i]!.geometry.dispose();
+            this.poolMats[i]!.dispose();
+            this.group.remove(this.pool[i]!);
         }
         this.pool.length = 0;
-        this.chevronGeo.dispose();
+        this.poolMats.length = 0;
         this.group.removeFromParent();
     }
 
@@ -113,28 +111,22 @@ export class TargetPreviewVisuals {
         scale: number,
     ): void {
         if (this.used >= this.pool.length) return;
-        const mesh = this.pool[this.used++]!;
-        const mat = mesh.material as MeshBasicMaterial;
+        const mesh = this.pool[this.used]!;
+        const mat = this.poolMats[this.used]!;
+        this.used++;
         mat.color.setHex(color);
         mat.opacity = opacity;
-        mesh.scale.setScalar(scale);
-        mesh.rotation.y = heading;
-        mesh.position.set(x, groundHeightAt(x, z) + DRAPE_LIFT + 0.08, z);
+        mesh.geometry.dispose();
+        mesh.geometry = drapeChevronGeometry(
+            x,
+            z,
+            CHEVRON_W * scale,
+            CHEVRON_D * scale,
+            heading,
+        );
+        mesh.rotation.set(0, 0, 0);
+        mesh.scale.set(1, 1, 1);
+        mesh.position.set(x, DRAPE_LIFT + 0.08, z);
         mesh.visible = true;
     }
-}
-
-/** Flat chevron in XZ; tip points +Z, yawed to face the path. */
-function chevronGeometry(width: number, depth: number): BufferGeometry {
-    const hw = width / 2;
-    const geo = new BufferGeometry();
-    geo.setAttribute(
-        'position',
-        new Float32BufferAttribute(
-            [0, 0, depth * 0.5, -hw, 0, -depth * 0.5, hw, 0, -depth * 0.5],
-            3,
-        ),
-    );
-    geo.setIndex([0, 1, 2]);
-    return geo;
 }

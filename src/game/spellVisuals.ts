@@ -14,6 +14,8 @@ import {
     addDrapedIconDecal,
     addDrapedRect,
     addDrapedRectFill,
+    rebuildDrapedCircleFill,
+    rebuildDrapedRectFill,
 } from './groundMarkers';
 import { addCapsuleOutline } from './oilVisuals';
 import { SpellIconTextures } from './spellMarkerIcons';
@@ -88,11 +90,19 @@ type ZonePulse = {
     lineBase: number;
 };
 
-/** inner charge fill — scaled each frame from 0.5 → 1.0 */
-type ChargeInner = {
-    mesh: Mesh;
-    readyAt: number;
-};
+/** inner charge fill — geometry rebuilt each frame from 50% → 100% radius */
+type ChargeInner =
+    | { mesh: Mesh; readyAt: number; kind: 'circle'; x: number; z: number; radius: number }
+    | {
+          mesh: Mesh;
+          readyAt: number;
+          kind: 'rect';
+          x: number;
+          z: number;
+          halfW: number;
+          halfD: number;
+          yaw: number;
+      };
 
 /** Ground markers for placed battle spells + the aim preview. */
 export class SpellVisuals {
@@ -244,9 +254,14 @@ export class SpellVisuals {
                 0,
                 1,
             );
-            // 50% → 100% scale; gone once readyAt (filtered out of active set)
             const s = 0.5 + 0.5 * progress;
-            inner.mesh.scale.set(s, 1, s);
+            if (inner.kind === 'circle') {
+                rebuildDrapedCircleFill(inner.mesh, inner.x, inner.z, inner.radius * s);
+            } else {
+                rebuildDrapedRectFill(
+                    inner.mesh, inner.x, inner.z, inner.halfW * s, inner.halfD * s, inner.yaw,
+                );
+            }
         }
     }
 
@@ -279,8 +294,16 @@ export class SpellVisuals {
             const fill = addDrapedRectFill(
                 this.chargeGroup, c.x, c.z, hw, hd, yaw, 0xffe08a, 0.12,
             );
-            fill.scale.set(0.5, 1, 0.5);
-            this.chargeInners.push({ mesh: fill, readyAt: c.readyAt });
+            this.chargeInners.push({
+                mesh: fill,
+                readyAt: c.readyAt,
+                kind: 'rect',
+                x: c.x,
+                z: c.z,
+                halfW: hw,
+                halfD: hd,
+                yaw,
+            });
             return;
         }
         if (c.endX !== undefined && c.endZ !== undefined) {
@@ -297,16 +320,28 @@ export class SpellVisuals {
             const mx = (c.x + c.endX) * 0.5;
             const mz = (c.z + c.endZ) * 0.5;
             const fill = addDrapedCircleFill(this.chargeGroup, mx, mz, c.radius, 0xffa060, 0.14);
-            fill.scale.set(0.5, 1, 0.5);
-            this.chargeInners.push({ mesh: fill, readyAt: c.readyAt });
+            this.chargeInners.push({
+                mesh: fill,
+                readyAt: c.readyAt,
+                kind: 'circle',
+                x: mx,
+                z: mz,
+                radius: c.radius,
+            });
             return;
         }
         const color = CIRCLE_COLORS[c.tacticId] ?? teamColors.player.hex;
         addDrapedCircle(this.chargeGroup, c.x, c.z, c.radius, color, 0.16, 0.9);
         this.addCircleIcon(c.tacticId, c.x, c.z, c.radius, this.chargeGroup);
         const fill = addDrapedCircleFill(this.chargeGroup, c.x, c.z, c.radius, 0xffe08a, 0.12);
-        fill.scale.set(0.5, 1, 0.5);
-        this.chargeInners.push({ mesh: fill, readyAt: c.readyAt });
+        this.chargeInners.push({
+            mesh: fill,
+            readyAt: c.readyAt,
+            kind: 'circle',
+            x: c.x,
+            z: c.z,
+            radius: c.radius,
+        });
     }
 
     private addZoneRing(
