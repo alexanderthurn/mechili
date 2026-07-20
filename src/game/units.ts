@@ -254,7 +254,7 @@ function lightMaterial(): MeshStandardMaterial {
     return material('light', () => new MeshStandardMaterial({ color: THEME.light, roughness: 0.5, metalness: 0.12 }));
 }
 
-function accentMaterial(_team: Team): MeshStandardMaterial {
+function accentMaterial(_team: BattleTeam): MeshStandardMaterial {
     // neutral accent — ownership is HP-bar / panel; mesh tint is by level
     return material('accent-neutral', () => {
         return new MeshStandardMaterial({
@@ -270,7 +270,7 @@ function accentMaterial(_team: Team): MeshStandardMaterial {
 class PartFactory {
     constructor(
         private readonly group: Group,
-        private readonly team: Team,
+        private readonly team: BattleTeam,
         /** icon/thumbnail renders skip oversized parts like the shield dome */
         readonly preview = false,
     ) {}
@@ -1172,7 +1172,7 @@ export function preloadUnitVisuals(
     return visualsPromise;
 }
 /** one mech mesh for UI thumbnails — same builders as in-game, preview-sized */
-export function buildUnitPreviewMesh(type: UnitType, team: Team = 'player'): Group {
+export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'): Group {
     const group = new Group();
     type.build(new PartFactory(group, team, true));
     group.scale.setScalar(type.meshScale);

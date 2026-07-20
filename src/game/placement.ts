@@ -34,7 +34,7 @@ import { getUnitInstanceRenderer } from './unitInstances';
 interface IntelEntry {
     unitId: number;
     typeId: string;
-    team: Team;
+    team: BattleTeam;
     cell: Cell;
     rotated: boolean;
     facing: number;
@@ -606,7 +606,7 @@ export class PlacementController {
     rotateSelected(): void {
         if (this.selectedGroup.length > 1) return; // formations don't rotate
         const unit = this.selectedUnit;
-        if (!unit || !this.enabled || !this.isMovable(unit)) return;
+        if (!unit || unit.team === 'horde' || !this.enabled || !this.isMovable(unit)) return;
         if (!this.carryingSelected) this.carryingSelected = true;
         this.dispatch?.({ kind: 'rotate', team: unit.team, unitId: unit.id });
     }
@@ -638,10 +638,11 @@ export class PlacementController {
 
     /** true when any tile under the pack sits in the flank strips (mechs only) */
     isOnFlank(unit: Unit): boolean {
-        if (unit.type.structure || unit.type.extra) return false;
+        const team = unit.team;
+        if (team === 'horde' || unit.type.structure || unit.type.extra) return false;
         const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), unit.cell);
         if (!cells) return false;
-        return cells.some((c) => this.map.isFlankDeployCell(c, unit.team));
+        return cells.some((c) => this.map.isFlankDeployCell(c, team));
     }
 
     /** a tile a team may deploy on */
@@ -650,7 +651,8 @@ export class PlacementController {
     }
 
     /** zone check plus type rules — shield and rocket may not sit on flank strips */
-    private deployCellOk(team: Team, cell: Cell, type: UnitType): boolean {
+    private deployCellOk(team: BattleTeam, cell: Cell, type: UnitType): boolean {
+        if (team === 'horde') return false; // the horde never deploys — it spawns free at battle start
         if (!this.zoneCell(team, cell)) return false;
         if (type.extra && this.map.isFlankDeployCell(cell, team)) return false;
         return true;

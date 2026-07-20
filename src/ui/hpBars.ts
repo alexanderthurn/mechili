@@ -1,6 +1,6 @@
 import { Graphics } from 'pixi.js';
 import { Vector3, type PerspectiveCamera } from 'three';
-import { teamColors } from '../game/colors';
+import { colorForBattleTeam } from '../game/colors';
 import { groundHeightAt } from '../game/map';
 import { HURT_BAR_SECONDS, type Actor } from '../game/sim';
 import { THEME } from '../theme';
@@ -62,7 +62,7 @@ export class HpBars {
         const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp));
         const w = t.structure ? 42 : selected ? 26 : 18;
         const h = selected ? 5 : 3;
-        const color = teamColors[a.unit.team].hex;
+        const color = colorForBattleTeam(a.unit.team).hex;
 
         if (selected) {
             // the ground shows the 3D attack-range ring instead of a marker here

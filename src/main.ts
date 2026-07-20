@@ -31,7 +31,7 @@ import { initInputCapabilities } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
-import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
+import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/settings';
 import { THEME, menuStyles } from './theme';
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20
@@ -44,6 +44,8 @@ function settingsFromUrl(): GameSettings {
     if (build > 0) settings.buildTimeSeconds = build;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
+    // ?horde=1 — PvPvE: a neutral pink dwarf horde spawns in the center every round
+    if (params.get('horde')) settings.horde = structuredClone(DEFAULT_HORDE);
     return settings;
 }
 

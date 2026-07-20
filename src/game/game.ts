@@ -118,6 +118,7 @@ import {
     techDescription,
     techIcon,
     unitTypeById,
+    type BattleTeam,
     type Team,
     type Unit,
     type UnitType,
@@ -2185,6 +2186,16 @@ export class Game {
     /** tech-resolved stats plus army boosts, card speciality, and the pack's items */
     private resolvedStats(unit: Unit) {
         const { team, type } = unit;
+        // the horde owns no techs/boosts/speciality/items — plain base stats
+        if (team === 'horde') {
+            return {
+                hp: type.hp,
+                damage: type.damage,
+                range: type.range,
+                speed: type.speed,
+                attackInterval: type.attackInterval,
+            };
+        }
         const stats = this.techTree.statsFor(team, type);
         const b = this.settings.boosts;
         const attackTier = this.boostState.attack[team];
@@ -3262,9 +3273,9 @@ export class Game {
             hostParity: this.side === 'a' ? 0 : 1,
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
-            hasTech: (team, typeId, techId) => this.techTree.has(team, typeId, techId),
+            hasTech: (team, typeId, techId) => team !== 'horde' && this.techTree.has(team, typeId, techId),
             flankSpawnSeconds: this.settings.deploy.flankSpawnSeconds ?? 5,
-            flankSpawnMult: (team) => this.flankSpawnMult[team],
+            flankSpawnMult: (team) => (team === 'horde' ? 1 : this.flankSpawnMult[team]),
             needsFlankSpawn: (unit) =>
                 // mechs on flank at battle start — not tied to a specific round, only to flank tiles
                 !unit.flankSpawnDone &&
@@ -3355,17 +3366,20 @@ export class Game {
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
         const leader: Team | null =
             this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
-        // player edge is +z, enemy edge is -z; the neutral band straddles z=0.
-        // Main share spawns a quarter into the leader's half, the rest a
-        // quarter into the weaker player's half; equal HP keeps everything
-        // in the band.
+        // The board is canonical; which z-half is "mine" flips with ownAtFar
+        // (guest side). Team identity ('player') and half-sign both flip per
+        // client, so the canonical spawn positions come out identical on every
+        // machine. Main share spawns a quarter into the leader's half, the
+        // rest a quarter into the weaker player's half; equal HP keeps
+        // everything in the neutral band.
+        const ownSign = this.map.ownAtFar ? -1 : 1;
         const intoHalf = this.map.halfH * 0.25;
         const bandJitter = (this.settings.map.neutralRows * CELL) / 2 + 2 * CELL;
         for (let i = 0; i < packs; i++) {
             let zCenter = 0;
             if (leader !== null) {
                 const target = rng() < horde.leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
-                zCenter = (target === 'player' ? 1 : -1) * intoHalf;
+                zCenter = (target === 'player' ? ownSign : -ownSign) * intoHalf;
             }
             const x = (rng() * 2 - 1) * (this.map.halfW * 0.85);
             const z = zCenter + (rng() * 2 - 1) * bandJitter;
@@ -3544,6 +3558,7 @@ export class Game {
      * price scaled by how much of it survived (half the dwarf pack alive =
      * half its cost), always a whole number. A wiped side has no survivors,
      * so only the losing player takes damage; on a timeout both usually do.
+     * Horde survivors bite into BOTH sides — ignoring the horde is punished.
      */
     private applyBattleResult(sim: BattleSim): void {
         let damageToPlayer = 0;
@@ -3551,7 +3566,11 @@ export class Game {
         for (const [unit, s] of sim.unitSurvivors()) {
             const value = Math.round(this.economy.costOf(unit.type) * (s.alive / s.total));
             if (unit.team === 'player') damageToEnemy += value;
-            else damageToPlayer += value;
+            else if (unit.team === 'enemy') damageToPlayer += value;
+            else {
+                damageToPlayer += value;
+                damageToEnemy += value;
+            }
         }
         this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
         this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
@@ -3912,7 +3931,8 @@ export class Game {
     }
 
     /** display name for the side that owns a pack */
-    private ownerName(team: Team): string {
+    private ownerName(team: BattleTeam): string {
+        if (team === 'horde') return 'Horde';
         return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
     }
 

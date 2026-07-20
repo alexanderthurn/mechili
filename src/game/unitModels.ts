@@ -14,7 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
-import type { Team } from './units';
+import type { BattleTeam, Team } from './units';
 
 /**
  * Units backed by a generated GLB model instead of procedural primitives.
@@ -87,7 +87,7 @@ export function getUnitInstanceAsset(id: string): InstanceAsset | null {
  * `meshScale` yields the same world size the game already expects.
  * `@deprecated team` kept optional for call sites that still pass it.
  */
-export function cloneUnitModel(id: string, _team?: Team): Group | null {
+export function cloneUnitModel(id: string, _team?: BattleTeam): Group | null {
     const t = templates.get(id);
     if (!t) return null;
     const clone = skeletonClone(t) as Group;

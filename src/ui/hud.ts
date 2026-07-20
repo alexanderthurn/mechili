@@ -64,7 +64,7 @@ interface ActionTile {
 export interface SelectionInfo {
     name: string;
     /** local perspective: drives team-color CSS */
-    team: 'player' | 'enemy';
+    team: 'player' | 'enemy' | 'horde';
     /** display name of the owning player (e.g. "mangoo", "AI") */
     owner: string;
     hp: number;

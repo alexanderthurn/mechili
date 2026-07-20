@@ -27,6 +27,7 @@ import {
     DEPLOY_AIR_Y,
     resolveDeathWear,
     syncBattleTint,
+    type BattleTeam,
     type DeathWear,
     type Team,
     type Unit,
@@ -61,10 +62,10 @@ export interface SimConfig {
     costOf: (type: UnitType) => number;
     /** a pack's tech-resolved base stats (level scaling happens in the sim) */
     statsOf: (unit: Unit) => ResolvedStats;
-    hasTech: (team: Team, typeId: string, techId: string) => boolean;
+    hasTech: (team: BattleTeam, typeId: string, techId: string) => boolean;
     /** base flank spawn duration in seconds (before team multiplier) */
     flankSpawnSeconds: number;
-    flankSpawnMult: (team: Team) => number;
+    flankSpawnMult: (team: BattleTeam) => number;
     needsFlankSpawn: (unit: Unit) => boolean;
     /** rally routes placed this deployment (player tactics only for now) */
     rallyRoutes?: readonly RallyRoute[];
@@ -226,7 +227,7 @@ export interface Projectile {
     vy: number;
     vz: number;
     damage: number;
-    team: Team;
+    team: BattleTeam;
     /** the pack that fired it (kill XP goes there) */
     source: Unit;
     /** render style copied from the shooter — visual only */
@@ -330,9 +331,10 @@ export class BattleSim {
     private events: SimEvent[] = [];
     private accumulator = 0;
     /** how many command towers each side has lost this battle (stack strength) */
-    private readonly lostTowers: Record<Team, number> = { player: 0, enemy: 0 };
+    // horde entries stay 0 forever — the horde has no towers and no debuffs
+    private readonly lostTowers: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
     /** sim clock time until which each side's tower-destruction debuff runs */
-    private readonly debuffUntil: Record<Team, number> = { player: 0, enemy: 0 };
+    private readonly debuffUntil: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
     private readonly hash = new Map<number, Actor[]>();
     /** spatial hash of every attackable actor (incl. structures) for targeting / bullets */
     private readonly targetHash = new Map<number, Actor[]>();
@@ -1175,7 +1177,7 @@ export class BattleSim {
     }
 
     /** extends (or starts) a side's debuff window — stacks time if already active */
-    private extendTeamDebuff(team: Team, towerLevel: number): void {
+    private extendTeamDebuff(team: BattleTeam, towerLevel: number): void {
         const add = this.debuffSecondsForTowerLevel(towerLevel);
         this.debuffUntil[team] = Math.max(this.debuffUntil[team], this.elapsed) + add;
     }
@@ -1954,7 +1956,7 @@ export class BattleSim {
      * blast doesn't reach crow riders overhead).
      */
     private explode(
-        p: { damage: number; team: Team; source: Unit },
+        p: { damage: number; team: BattleTeam; source: Unit },
         x: number,
         z: number,
         radius: number,
@@ -2109,7 +2111,7 @@ export class BattleSim {
         x1: number,
         z1: number,
         pad: number,
-        team: Team,
+        team: BattleTeam,
     ): Actor[] {
         const result = this.segmentScratch;
         result.length = 0;

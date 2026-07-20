@@ -1,4 +1,4 @@
-import { teamColors } from './game/colors';
+import { HORDE_COLOR, teamColors } from './game/colors';
 
 /**
  * Allied blue vs Soviet red on a bright, warm RA2-style green battlefield.
@@ -1313,11 +1313,13 @@ export function hudStyles(): string {
 .mechili-panel .team { font-size: 11px; letter-spacing: 0.5px; margin-bottom: 8px; }
 .mechili-panel .team.player { color: ${pc}; }
 .mechili-panel .team.enemy { color: ${ec}; }
+.mechili-panel .team.horde { color: ${HORDE_COLOR.css}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
 .mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(255, 255, 255, 0.38); border-radius: 3px; overflow: hidden; }
 .mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
 .mechili-panel .xpbar.enemy div { height: 100%; background: ${ec}; }
+.mechili-panel .xpbar.horde div { height: 100%; background: ${HORDE_COLOR.css}; }
 /* horizontal row of square action tiles (sell, techs, tower actions) */
 .mechili-panel .action-row {
     display: flex; flex-wrap: wrap; gap: 5px;

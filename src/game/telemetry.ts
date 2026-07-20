@@ -51,7 +51,7 @@ const SUBMIT_TIMEOUT_MS = 8_000;
 export function summarizeUnits(units: readonly Unit[]): Record<Team, Record<string, UnitPresence>> {
     const out: Record<Team, Record<string, UnitPresence>> = { player: {}, enemy: {} };
     for (const u of units) {
-        if (u.type.structure) continue;
+        if (u.type.structure || u.team === 'horde') continue; // horde stays out of balance data
         const bag = out[u.team];
         const cur = bag[u.type.id] ?? { count: 0, levels: 0 };
         cur.count += 1;
