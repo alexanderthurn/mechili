@@ -1,6 +1,8 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
+import { GamepadCursor } from './engine/gamepadCursor';
+import { CameraRig } from './engine/cameraRig';
 import {
     clearResumeMarker,
     clearSinglePlayer,
@@ -27,7 +29,7 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
 import { bootGameAssets } from './game/bootAssets';
-import { initInputCapabilities } from './game/inputCapabilities';
+import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
@@ -299,6 +301,9 @@ let gchatPoll: ReturnType<typeof setInterval> | null = null;
 /** false while the boot splash owns the screen (logo + bar + Feuerware only) */
 let menuChromeVisible = false;
 
+let menuGamepad: GamepadCursor | null = null;
+let menuGamepadRig: CameraRig | null = null;
+
 function setMenuChromeVisible(visible: boolean): void {
     menuChromeVisible = visible;
     const display = visible ? '' : 'none';
@@ -308,6 +313,24 @@ function setMenuChromeVisible(visible: boolean): void {
     settingsCornerEl.style.display = display;
     suggestCornerEl.style.display = display;
     applyGlobalChatVisibility();
+    if (visible) ensureMenuGamepadCursor();
+}
+
+function ensureMenuGamepadCursor(): void {
+    if (menuGamepad || started) return;
+    // The menu has no visible 3D camera; the rig is only needed because the
+    // cursor reuses pan/orbit math from the in-match cursor.
+    menuGamepadRig = new CameraRig();
+    // Same surface as in-match: the Pixi canvas inside the wrapper.
+    menuGamepad = new GamepadCursor(app.canvas, menuGamepadRig);
+    menuGamepad.onActivity = () => noteGamepadActivity();
+}
+
+function destroyMenuGamepadCursor(): void {
+    if (!menuGamepad) return;
+    menuGamepad.dispose();
+    menuGamepad = null;
+    menuGamepadRig = null;
 }
 
 function applyGlobalChatVisibility(): void {
@@ -700,6 +723,7 @@ function startGame(
 ): void {
     if (started) return;
     started = true;
+    destroyMenuGamepadCursor();
     stopRoomPoll();
     stopGlobalChatPoll();
     hideResumeOverlay();
@@ -1026,3 +1050,10 @@ if (mpMarker) {
         runPending(joinLobby(roomParam, setStatus));
     }
 }
+
+// Keep the main-menu gamepad cursor moving while the menu is visible.
+app.ticker.add((ticker) => {
+    if (!started && menuChromeVisible && menuGamepad) {
+        menuGamepad.update(ticker.deltaMS / 1000);
+    }
+});
