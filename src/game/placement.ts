@@ -492,9 +492,13 @@ export class PlacementController {
         );
     }
 
-    /** what the local player may pick up and carry */
+    /**
+     * What the local human may pick up and carry — their OWN seat's packs
+     * only. In duo modes an ally AI shares the side but not the lane; the
+     * human must never drag its packs (wrong lane, wrong purse).
+     */
     isMovable(unit: Unit): boolean {
-        return unit.team === 'player' && this.canReposition(unit);
+        return unit.seat === this.localSeat && this.canReposition(unit);
     }
 
     unitById(id: number): Unit | null {

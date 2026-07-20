@@ -249,8 +249,10 @@ export class Game {
     private readonly deployReady: Record<Team, boolean> = { player: false, enemy: false };
     /** per-seat lock-in flags (aggregated into deployReady per side) */
     private readonly seatReady: boolean[] = [];
+    /** per-seat one-time starter-card pick flags */
+    private readonly starterPicked: boolean[];
     /** extra AI brains beyond the classic opponent (duo modes: ally + 2nd foe) */
-    private readonly extraAis: AiOpponent[] = [];
+    private readonly extraAis: { ai: AiOpponent; rng: () => number; team: Team }[] = [];
     /**
      * Peer has locked in this build round — we may stream them our build
      * actions. Until then, outbound build `action`/`undo` sit in
@@ -450,6 +452,7 @@ export class Game {
         this.recruitLevel = this.seats.map(() => 1);
         this.creditUsed = this.seats.map(() => false);
         this.creditDebt = this.seats.map(() => false);
+        this.starterPicked = this.seats.map(() => false);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
         this.renderer = new WebGLRenderer({
@@ -605,6 +608,7 @@ export class Game {
             roundCardTaken: this.roundCardTaken,
             deployReady: this.deployReady,
             seatReady: this.seatReady,
+            starterPicked: this.starterPicked,
             unlockedUnits: this.unlockedUnits,
             unlockUsedThisRound: this.unlockUsedThisRound,
             hp: {
@@ -657,9 +661,8 @@ export class Game {
             const def = this.seats[seat]!;
             if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
             if (this.net) continue; // networked matches drive remote seats over the wire
-            this.extraAis.push(
-                new AiOpponent(def.team, seat, aiCtxFor(mulberry32(seedFrom(this.seed, `ai-${seat}`)))),
-            );
+            const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
+            this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team });
         }
         this.placement.localSeat = this.humanSeat;
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
@@ -710,7 +713,7 @@ export class Game {
             this.roster()
                 .filter((e) => e.role === 'spectator')
                 .map((e) => e.name);
-        this.hud.setPlayers(this.playerNames.local, this.playerNames.opponent, settings.startingHp);
+        this.hud.setPlayers(this.sideLabel('player'), this.sideLabel('enemy'), settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
                 this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
@@ -1242,7 +1245,7 @@ export class Game {
         // AI already locked in at phase start — re-run buys/moves/items/spells/upgrades
         // behind fog (existing packs stay at phase-start pose)
         this.opponent.rerunBuildActions?.();
-        for (const ai of this.extraAis) ai.rerunBuildActions?.();
+        for (const e of this.extraAis) e.ai.rerunBuildActions?.();
     }
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */
@@ -1354,7 +1357,7 @@ export class Game {
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
-            for (const ai of this.extraAis) ai.onBuildPhase(this.round);
+            for (const e of this.extraAis) e.ai.onBuildPhase(this.round);
         }
 
         // from round 2 on, both sides get a card offer at the round's start
@@ -1501,8 +1504,24 @@ export class Game {
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId });
             this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
+            this.triggerExtraStarters('player');
+            this.triggerExtraStarters('enemy');
             this.afterStarterPick();
         });
+    }
+
+    /**
+     * Duo modes: once a side's primary seat has picked (human above, or the
+     * classic AI just above/below), every OTHER AI seat on that side also
+     * picks its own starter card — own army, own lane. The `chooseCard`
+     * guard (actions.ts) only lets the side's FIRST pick set shared
+     * HP/speciality/items, so repeat picks are side-effect-free there.
+     */
+    private triggerExtraStarters(team: Team): void {
+        for (const e of this.extraAis) {
+            if (e.team !== team) continue;
+            e.ai.chooseStarter(this.draw(START_CARDS, 4, e.rng));
+        }
     }
 
     /** timer ran out before the player picked a specialist — choose one at random.
@@ -1520,6 +1539,8 @@ export class Game {
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id });
         this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
+        this.triggerExtraStarters('player');
+        this.triggerExtraStarters('enemy');
         this.afterStarterPick();
     }
 
@@ -2767,7 +2788,7 @@ export class Game {
 
         if (tactic.targeting === 'own-unit') {
             const unit = this.placement.unitAtPoint(x, y);
-            if (unit && unit.team === 'player' && !unit.type.structure) {
+            if (unit && unit.seat === this.humanSeat && !unit.type.structure) {
                 if (this.dispatchTacticUse(tactic.id, { unit })) this.cancelTacticPlacement();
             }
             // anything else (enemy, structure, ground): stay armed, swallow the click
@@ -2839,7 +2860,7 @@ export class Game {
 
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
     private applyItemTo(unit: Unit, itemId: string): boolean {
-        if (!this.playerCanAct || unit.team !== 'player' || unit.type.structure) return false;
+        if (!this.playerCanAct || unit.seat !== this.humanSeat || unit.type.structure) return false;
         if (!this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
             return false;
         }
@@ -2871,7 +2892,7 @@ export class Game {
     private levelablePacksOf(type: UnitType): Unit[] {
         return this.placement
             .allUnits()
-            .filter((u) => u.team === 'player' && u.type === type && this.canLevel(u))
+            .filter((u) => u.seat === this.humanSeat && u.type === type && this.canLevel(u))
             .sort((a, b) => a.id - b.id);
     }
 
@@ -2879,7 +2900,7 @@ export class Game {
     private allLevelablePacks(): Unit[] {
         return this.placement
             .allUnits()
-            .filter((u) => u.team === 'player' && this.canLevel(u))
+            .filter((u) => u.seat === this.humanSeat && this.canLevel(u))
             .sort((a, b) => a.id - b.id);
     }
 
@@ -2903,7 +2924,7 @@ export class Game {
         u: Unit,
         lv: { xp: number; xpNext: number },
     ): SelectionInfo['levelUp'] {
-        if (u.team !== 'player' || !this.playerCanAct || u.type.structure || lv.xpNext < 0) {
+        if (u.seat !== this.humanSeat || !this.playerCanAct || u.type.structure || lv.xpNext < 0) {
             return undefined;
         }
         const cost = levelCost(u.type, this.economy, this.settings.leveling);
@@ -3971,10 +3992,31 @@ export class Game {
         });
     }
 
-    /** display name for the side that owns a pack */
-    private ownerName(team: BattleTeam): string {
+    /**
+     * Top-bar label for a whole side: the classic single name in 1v1, or
+     * every seat's name joined ("You & Ally") once a side has more than one
+     * commander — a cheap fix that surfaces all 4 duo names without
+     * reworking the fight bar's fixed one-slot-per-side markup.
+     */
+    private sideLabel(team: Team): string {
+        const ids = seatIdsOf(this.seats, team);
+        if (ids.length <= 1) {
+            return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
+        }
+        return ids
+            .map((seat) => (seat === this.humanSeat ? this.playerNames.local : this.seats[seat]!.name))
+            .join(' & ');
+    }
+
+    /** display name for the side (or, in duo modes, the SEAT) that owns a pack */
+    private ownerName(team: BattleTeam, seat?: SeatId): string {
         if (team === 'horde') return 'Horde';
-        return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
+        // classic two-seat roster: exact existing wording, unchanged
+        if (this.seats.length <= 2 || seat === undefined || seat < 0) {
+            return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
+        }
+        if (seat === this.humanSeat) return this.playerNames.local;
+        return this.seats[seat]?.name ?? (team === 'player' ? this.playerNames.local : this.playerNames.opponent);
     }
 
     /** veterancy display values for a pack (enemy uses phase-start intel while fogged) */
@@ -3997,7 +4039,7 @@ export class Game {
         return {
             name: u.type.name,
             team: u.team,
-            owner: this.ownerName(u.team),
+            owner: this.ownerName(u.team, u.seat),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,
@@ -4035,7 +4077,7 @@ export class Game {
         return {
             name: u.type.name,
             team: u.team,
-            owner: this.ownerName(u.team),
+            owner: this.ownerName(u.team, u.seat),
             hp: rs.hp * lv.statMult,
             maxHp: rs.hp * lv.statMult,
             damage: rs.damage * lv.statMult,

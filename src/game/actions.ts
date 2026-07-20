@@ -366,6 +366,8 @@ export interface ActionContext {
     deployReady: Record<Team, boolean>;
     /** per-seat lock-in; a SIDE is deployReady when all its seats are */
     seatReady: boolean[];
+    /** whether a seat has already made its one-time starter-card pick */
+    starterPicked: boolean[];
     /** unit types currently buyable in the shop (starter + unlocks) */
     unlockedUnits: Record<Team, string[]>;
     /** each side may unlock at most one new unit type per deployment round */
@@ -720,17 +722,27 @@ export class ActionDispatcher {
                 return true;
             }
             case 'chooseCard': {
-                if (this.ctx.speciality[action.team] !== null) return false; // one card per match
+                // one starter pick per SEAT — in duo modes each commander
+                // picks their own opening army; only the side's FIRST pick
+                // sets the shared HP/speciality/items (one specialty per side)
+                if (this.ctx.starterPicked[seat]) return false;
                 const card = START_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
-                this.ctx.speciality[action.team] = card.speciality;
-                if (card.speciality === 'flanky') {
-                    this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
+                this.ctx.starterPicked[seat] = true;
+                if (this.ctx.speciality[action.team] === null) {
+                    this.ctx.speciality[action.team] = card.speciality;
+                    if (card.speciality === 'flanky') {
+                        this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
+                    }
+                    this.ctx.unlockedUnits[action.team] = starterUnlockedUnits(card);
+                    entry.prevHp = this.ctx.hp.get(action.team);
+                    this.ctx.hp.set(action.team, card.startingHp);
+                    if (card.items) {
+                        this.ctx.items[action.team].push(...card.items);
+                        entry.grantedItems = [...card.items];
+                    }
                 }
-                this.ctx.unlockedUnits[action.team] = starterUnlockedUnits(card);
-                entry.prevHp = this.ctx.hp.get(action.team);
-                this.ctx.hp.set(action.team, card.startingHp);
-                // the starting army — free, placed ring-wise from the zone center
+                // the starting army — free, placed ring-wise from THIS SEAT's lane
                 entry.units = [];
                 for (const typeId of card.units) {
                     const type = unitTypeById(typeId);
@@ -743,10 +755,6 @@ export class ActionDispatcher {
                     // player can still arrange it freely in the first round
                     unit.deployedRound = 1;
                     entry.units.push(unit);
-                }
-                if (card.items) {
-                    this.ctx.items[action.team].push(...card.items);
-                    entry.grantedItems = [...card.items];
                 }
                 return true;
             }
