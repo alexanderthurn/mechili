@@ -653,6 +653,8 @@ export const UNIT_TYPES: UnitType[] = [
 export class Unit {
     /** stable per-match id, assigned at spawn — actions reference units by this */
     id = 0;
+    /** the commander (seat) this pack belongs to; 0-based index into the roster */
+    seat = 0;
     readonly view = new Group();
     /**
      * false while the owner is still in a build phase: opponents can't see the

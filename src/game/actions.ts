@@ -36,6 +36,7 @@ import type {
     TowerSettings,
 } from './settings';
 import type { TechTree } from './tech';
+import { primarySeatOf, type SeatDef, type SeatId } from './seats';
 import { unitTypeById, type Team, type Unit, type UnitType } from './units';
 
 /**
@@ -223,7 +224,7 @@ export interface RemoveSpellAction {
     stampId: number;
 }
 
-export type Action =
+type ActionVariant =
     | BuyAction
     | MoveAction
     | MoveGroupAction
@@ -251,6 +252,13 @@ export type Action =
     | RemoveOilSpillAction
     | PlaceSpellAction
     | RemoveSpellAction;
+
+/**
+ * Every action carries its acting SEAT alongside the side (`team`). Omitted
+ * seat = the side's primary seat (classic 1v1 wire compatibility — remote
+ * 1v1 actions arrive seatless and resolve to the enemy's only seat).
+ */
+export type Action = ActionVariant & { seat?: SeatId };
 
 /** one applied action as stored in a replay */
 export interface LoggedAction {
@@ -296,8 +304,10 @@ export interface ActionContext {
     rallyRouteSettings: RallyRouteSettings;
     deploySettings: DeploySettings;
     boostSettings: BoostSettings;
-    /** per-team recruit level for the running round (reset to 1 each round) */
-    recruitLevel: Record<Team, number>;
+    /** the match roster — actions resolve their acting seat against it */
+    seats: SeatDef[];
+    /** per-SEAT recruit level for the running round (reset to 1 each round) */
+    recruitLevel: number[];
     /** per-team sell state: `owned` is permanent, `used` resets each round */
     sellState: { owned: Record<Team, boolean>; used: Record<Team, number> };
     /** Research Center: one-time rally-route purchase (permanent match flag) */
@@ -306,21 +316,22 @@ export interface ActionContext {
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
      */
+    /** per-SEAT buy limits (limit permanent; extra/used/extrasSpent reset per round) */
     deployState: {
-        limit: Record<Team, number>;
-        extra: Record<Team, number>;
-        used: Record<Team, number>;
+        limit: number[];
+        extra: number[];
+        used: number[];
         /** supply spent on board extras this round (own budget, resets per round) */
-        extrasSpent: Record<Team, number>;
+        extrasSpent: number[];
     };
     /** per-team tier (0 = none) of each permanent army boost */
     boostState: Record<'attack' | 'hp', Record<Team, number>>;
     /** per-team round-only stat boosts from the Command Tower (reset each round) */
     roundBoosts: { range: Record<Team, boolean>; speed: Record<Team, boolean> };
-    /** Command Tower Credit: used this round (reset each deployment) */
-    creditUsed: Record<Team, boolean>;
-    /** Command Tower Credit: debt still owed at the next deployment start */
-    creditDebt: Record<Team, boolean>;
+    /** Command Tower Credit (per SEAT): used this round (reset each deployment) */
+    creditUsed: boolean[];
+    /** Command Tower Credit (per SEAT): debt still owed at the next deployment start */
+    creditDebt: boolean[];
     /** each side's chosen card speciality (null until the pick) */
     speciality: Record<Team, SpecialityId | null>;
     /** per-team multiplier on flank spawn duration (Flanky card → 0.5) */
@@ -353,6 +364,8 @@ export interface ActionContext {
     roundCardTaken: Record<Team, boolean>;
     /** which sides have locked in this deployment — battle needs BOTH */
     deployReady: Record<Team, boolean>;
+    /** per-seat lock-in; a SIDE is deployReady when all its seats are */
+    seatReady: boolean[];
     /** unit types currently buyable in the shop (starter + unlocks) */
     unlockedUnits: Record<Team, string[]>;
     /** each side may unlock at most one new unit type per deployment round */
@@ -418,19 +431,21 @@ export class ActionDispatcher {
         );
     }
 
-    /** true when `team` has revertible actions in `round` (drives the undo button) */
-    canUndo(round: number, team: Team): boolean {
+    /** true when `seat` has revertible actions in `round` (drives the undo button) */
+    canUndo(round: number, seat: SeatId): boolean {
         return this.log.some(
             (e) =>
-                e.round === round && e.action.team === team && ActionDispatcher.isUndoable(e.action),
+                e.round === round &&
+                this.actorSeat(e.action) === seat &&
+                ActionDispatcher.isUndoable(e.action),
         );
     }
 
-    /** reverts and forgets one side's MOST RECENT undoable action of the given round */
-    undoLast(round: number, team: Team): boolean {
+    /** reverts and forgets one SEAT's MOST RECENT undoable action of the given round */
+    undoLast(round: number, seat: SeatId): boolean {
         for (let i = this.log.length - 1; i >= 0; i--) {
             const e = this.log[i]!;
-            if (e.round !== round || e.action.team !== team) continue;
+            if (e.round !== round || this.actorSeat(e.action) !== seat) continue;
             if (!ActionDispatcher.isUndoable(e.action)) continue;
             this.revert(e);
             this.log.splice(i, 1);
@@ -491,6 +506,11 @@ export class ActionDispatcher {
         return out;
     }
 
+    /** the acting seat of an action — explicit, or the side's primary seat */
+    actorSeat(action: Action): SeatId {
+        return action.seat ?? primarySeatOf(this.ctx.seats, action.team);
+    }
+
     /** the match as pure data — with the settings and seed this reproduces everything */
     serializable(): LoggedAction[] {
         return this.log.map((e) => ({
@@ -502,6 +522,7 @@ export class ActionDispatcher {
 
     private apply(action: Action, entry: LogEntry): boolean {
         const { placement, economy, techTree, leveling, recruitLevel } = this.ctx;
+        const seat = this.actorSeat(action);
         switch (action.kind) {
             case 'buy': {
                 const type = unitTypeById(action.typeId);
@@ -518,13 +539,13 @@ export class ActionDispatcher {
                 const deploy = this.ctx.deployState;
                 if (
                     !type.extra &&
-                    deploy.used[action.team] >= deploy.limit[action.team] + deploy.extra[action.team]
+                    deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!
                 ) {
                     return false;
                 }
                 if (
                     type.extra &&
-                    deploy.extrasSpent[action.team] + economy.costOf(type) >
+                    deploy.extrasSpent[seat]! + economy.costOf(type) >
                         this.ctx.deploySettings.extrasBudgetPerRound
                 ) {
                     return false;
@@ -532,20 +553,20 @@ export class ActionDispatcher {
                 // an active recruit level adds one level's premium on top
                 // (the elite specialist pays it too — only the SWITCH is free
                 // for them); extras never recruit levels
-                const level = type.extra ? 1 : recruitLevel[action.team];
+                const level = type.extra ? 1 : recruitLevel[seat]!;
                 const premium = level > 1 ? levelCost(type, economy, leveling) * (level - 1) : 0;
-                if (economy.balance(action.team) < economy.costOf(type) + premium) return false;
-                const unit = placement.placeUnit(action.team, type, action.anchor, action.rotated);
+                if (economy.balance(seat) < economy.costOf(type) + premium) return false;
+                const unit = placement.placeUnit(action.team, type, action.anchor, action.rotated, seat);
                 if (!unit) return false;
                 if (level > 1) {
-                    economy.spend(action.team, premium);
+                    economy.spend(seat, premium);
                     unit.level = level;
                     unit.refreshLevelBadge();
                 }
                 entry.paid = economy.costOf(type) + premium;
                 entry.unit = unit;
-                if (type.extra) deploy.extrasSpent[action.team] += economy.costOf(type);
-                else deploy.used[action.team]++;
+                if (type.extra) deploy.extrasSpent[seat] = (this.ctx.deployState.extrasSpent[seat] ?? 0) + economy.costOf(type);
+                else deploy.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
                 return true;
             }
             case 'move': {
@@ -576,7 +597,7 @@ export class ActionDispatcher {
                 // every owned tech of the type makes the remaining ones pricier
                 const owned = techTree.ownedFor(action.team, type.id).size;
                 const cost = economy.techCostOf(tech, owned);
-                if (!economy.spend(action.team, cost)) return false;
+                if (!economy.spend(seat, cost)) return false;
                 techTree.add(action.team, type.id, tech.id);
                 entry.paid = cost;
                 return true;
@@ -588,7 +609,7 @@ export class ActionDispatcher {
                 const threshold = xpForNextLevel(unit, economy, leveling);
                 if (unit.xp < threshold) return false;
                 const cost = levelCost(unit.type, economy, leveling);
-                if (!economy.spend(action.team, cost)) return false;
+                if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 entry.xpBefore = unit.xp;
                 unit.xp = Math.max(0, unit.xp - threshold);
@@ -598,10 +619,10 @@ export class ActionDispatcher {
             }
             case 'recruitLevel': {
                 if (this.ctx.speciality[action.team] === 'elite') return false; // already permanent
-                if (recruitLevel[action.team] > 1) return false; // once per round
-                if (!economy.spend(action.team, leveling.recruitLevel2Cost)) return false;
+                if (recruitLevel[seat]! > 1) return false; // once per round
+                if (!economy.spend(seat, leveling.recruitLevel2Cost)) return false;
                 entry.paid = leveling.recruitLevel2Cost;
-                recruitLevel[action.team] = 2;
+                recruitLevel[seat] = 2;
                 return true;
             }
             case 'upgradeTower': {
@@ -611,7 +632,7 @@ export class ActionDispatcher {
                 }
                 if (unit.level >= this.ctx.towers.upgrade.maxLevel) return false;
                 const cost = towerUpgradeCost(unit.level, this.ctx.towers);
-                if (!economy.spend(action.team, cost)) return false;
+                if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 unit.level++;
                 unit.refreshLevelBadge();
@@ -619,7 +640,7 @@ export class ActionDispatcher {
             }
             case 'buySellAbility': {
                 if (this.ctx.sellState.owned[action.team]) return false; // already unlocked
-                if (!economy.spend(action.team, this.ctx.sellSettings.abilityCost)) return false;
+                if (!economy.spend(seat, this.ctx.sellSettings.abilityCost)) return false;
                 entry.paid = this.ctx.sellSettings.abilityCost;
                 this.ctx.sellState.owned[action.team] = true;
                 return true;
@@ -627,7 +648,7 @@ export class ActionDispatcher {
             case 'buyRallyRouteAbility': {
                 if (this.ctx.rallyRouteOwned[action.team]) return false; // once per match
                 const cost = this.ctx.rallyRouteSettings.abilityCost;
-                if (!economy.spend(action.team, cost)) return false;
+                if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 this.ctx.rallyRouteOwned[action.team] = true;
                 this.ctx.tactics[action.team].push(RALLY_ROUTE_ID);
@@ -653,20 +674,20 @@ export class ActionDispatcher {
                 entry.unit = unit;
                 entry.paid = refund;
                 placement.removeUnit(unit);
-                economy.credit(action.team, refund);
+                economy.credit(seat, refund);
                 return true;
             }
             case 'buyDeploySlot': {
-                if (this.ctx.deployState.extra[action.team] >= 1) return false; // once per round
-                if (!economy.spend(action.team, this.ctx.deploySettings.extraSlotCost)) return false;
+                if (this.ctx.deployState.extra[seat]! >= 1) return false; // once per round
+                if (!economy.spend(seat, this.ctx.deploySettings.extraSlotCost)) return false;
                 entry.paid = this.ctx.deploySettings.extraSlotCost;
-                this.ctx.deployState.extra[action.team]++;
+                this.ctx.deployState.extra[seat] = (this.ctx.deployState.extra[seat] ?? 0) + 1;
                 return true;
             }
             case 'buyRoundRangeBoost': {
                 if (this.ctx.roundBoosts.range[action.team]) return false;
                 const cost = this.ctx.deploySettings.rangedRangeBoostCost;
-                if (!economy.spend(action.team, cost)) return false;
+                if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 this.ctx.roundBoosts.range[action.team] = true;
                 return true;
@@ -674,18 +695,18 @@ export class ActionDispatcher {
             case 'buyRoundSpeedBoost': {
                 if (this.ctx.roundBoosts.speed[action.team]) return false;
                 const cost = this.ctx.deploySettings.armySpeedBoostCost;
-                if (!economy.spend(action.team, cost)) return false;
+                if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 this.ctx.roundBoosts.speed[action.team] = true;
                 return true;
             }
             case 'buyCredit': {
-                if (this.ctx.creditUsed[action.team]) return false; // once per round
+                if (this.ctx.creditUsed[seat]!) return false; // once per round
                 const gain = this.ctx.deploySettings.creditGain;
-                economy.credit(action.team, gain);
+                economy.credit(seat, gain);
                 entry.paid = gain; // undo takes the gain back
-                this.ctx.creditUsed[action.team] = true;
-                this.ctx.creditDebt[action.team] = true;
+                this.ctx.creditUsed[seat] = true;
+                this.ctx.creditDebt[seat] = true;
                 return true;
             }
             case 'buyBoost': {
@@ -693,7 +714,7 @@ export class ActionDispatcher {
                 const tier = state[action.team];
                 if (tier >= this.ctx.boostSettings.costs.length) return false; // maxed
                 const cost = this.ctx.boostSettings.costs[tier]!;
-                if (!economy.spend(action.team, cost)) return false;
+                if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 state[action.team]++;
                 return true;
@@ -714,9 +735,9 @@ export class ActionDispatcher {
                 for (const typeId of card.units) {
                     const type = unitTypeById(typeId);
                     if (!type) continue;
-                    const anchor = placement.findStartSpot(action.team, type);
+                    const anchor = placement.findStartSpot(action.team, type, seat);
                     if (!anchor) continue;
-                    const unit = placement.spawn(type, anchor, action.team, false, true);
+                    const unit = placement.spawn(type, anchor, action.team, false, true, seat);
                     if (!unit) continue;
                     // the starting army counts as a round-1 deployment, so the
                     // player can still arrange it freely in the first round
@@ -745,22 +766,22 @@ export class ActionDispatcher {
                 if (this.ctx.roundCardTaken[action.team]) return false; // one per round
                 if (action.cardId === null) {
                     // skip: take the consolation supply instead
-                    economy.credit(action.team, SKIP_CARD_REWARD);
+                    economy.credit(seat, SKIP_CARD_REWARD);
                     entry.paid = -SKIP_CARD_REWARD;
                     this.ctx.roundCardTaken[action.team] = true;
                     return true;
                 }
                 const card = ROUND_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
-                if (!economy.spend(action.team, card.cost)) return false;
+                if (!economy.spend(seat, card.cost)) return false;
                 entry.paid = card.cost;
                 entry.units = [];
                 for (const typeId of card.units ?? []) {
                     const type = unitTypeById(typeId);
                     if (!type) continue;
-                    const anchor = placement.findStartSpot(action.team, type);
+                    const anchor = placement.findStartSpot(action.team, type, seat);
                     if (!anchor) continue;
-                    const unit = placement.spawn(type, anchor, action.team, false, true);
+                    const unit = placement.spawn(type, anchor, action.team, false, true, seat);
                     if (unit) entry.units.push(unit); // movable: deployedRound = this round
                 }
                 if (card.items) {
@@ -778,7 +799,14 @@ export class ActionDispatcher {
                 return true;
             }
             case 'endDeployment': {
-                if (this.ctx.deployReady[action.team]) return false; // already locked in
+                if (this.ctx.seatReady[seat]) return false; // this seat already locked in
+                this.ctx.seatReady[seat] = true;
+                // the side locks when its last seat does
+                const sideReady = this.ctx.seats.every(
+                    (def, i) => def.team !== action.team || this.ctx.seatReady[i],
+                );
+                if (!sideReady) return true;
+                if (this.ctx.deployReady[action.team]) return false;
                 this.ctx.deployReady[action.team] = true;
                 this.ctx.onEndDeployment(action.team);
                 return true;
@@ -788,7 +816,7 @@ export class ActionDispatcher {
                 if (this.ctx.unlockedUnits[action.team].includes(action.typeId)) return false;
                 const cost = unitUnlockCost(action.typeId);
                 if (!Number.isFinite(cost)) return false;
-                if (cost > 0 && !economy.spend(action.team, cost)) return false;
+                if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[action.team].push(action.typeId);
                 this.ctx.unlockUsedThisRound[action.team] = true;
                 entry.paid = cost;
@@ -957,14 +985,15 @@ export class ActionDispatcher {
     private revert(e: LogEntry): void {
         const { placement, economy, techTree } = this.ctx;
         const action = e.action;
+        const seat = this.actorSeat(action);
         switch (action.kind) {
             case 'buy':
                 placement.removeUnit(e.unit!);
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 if (e.unit!.type.extra) {
-                    this.ctx.deployState.extrasSpent[action.team] -= e.paid!;
+                    this.ctx.deployState.extrasSpent[seat] = (this.ctx.deployState.extrasSpent[seat] ?? 0) - e.paid!;
                 } else {
-                    this.ctx.deployState.used[action.team]--;
+                    this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 }
                 break;
             case 'move':
@@ -982,30 +1011,30 @@ export class ActionDispatcher {
                 break;
             case 'buyTech':
                 techTree.remove(action.team, action.typeId, action.techId);
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             case 'buyLevel': {
                 const unit = placement.unitById(action.unitId)!;
                 unit.level--;
                 unit.xp = e.xpBefore!;
                 unit.refreshLevelBadge();
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             }
             case 'recruitLevel':
-                this.ctx.recruitLevel[action.team] = 1;
-                economy.credit(action.team, e.paid!);
+                this.ctx.recruitLevel[seat] = 1;
+                economy.credit(seat, e.paid!);
                 break;
             case 'upgradeTower': {
                 const unit = placement.unitById(action.unitId)!;
                 unit.level--;
                 unit.refreshLevelBadge();
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             }
             case 'buySellAbility':
                 this.ctx.sellState.owned[action.team] = false;
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             case 'buyRallyRouteAbility': {
                 this.ctx.rallyRouteOwned[action.team] = false;
@@ -1023,37 +1052,37 @@ export class ActionDispatcher {
                     if (placed <= max) break;
                     this.ctx.rallyRoutes.splice(i, 1);
                 }
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             }
             case 'sellUnit':
                 placement.restoreUnit(e.unit!);
-                economy.spend(action.team, e.paid!); // take the refund back
+                economy.spend(seat, e.paid!); // take the refund back
                 // a spent one-shot charge frees up when undoLast drops the log
                 // entry (its use record IS the log entry) — only the per-round
                 // ability counter needs rolling back by hand
                 if (e.usedTactic === undefined) this.ctx.sellState.used[action.team]--;
                 break;
             case 'buyDeploySlot':
-                this.ctx.deployState.extra[action.team]--;
-                economy.credit(action.team, e.paid!);
+                this.ctx.deployState.extra[seat] = (this.ctx.deployState.extra[seat] ?? 0) - 1;
+                economy.credit(seat, e.paid!);
                 break;
             case 'buyRoundRangeBoost':
                 this.ctx.roundBoosts.range[action.team] = false;
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             case 'buyRoundSpeedBoost':
                 this.ctx.roundBoosts.speed[action.team] = false;
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             case 'buyCredit':
-                this.ctx.creditUsed[action.team] = false;
-                this.ctx.creditDebt[action.team] = false;
-                economy.spend(action.team, e.paid!); // take the gain back
+                this.ctx.creditUsed[seat] = false;
+                this.ctx.creditDebt[seat] = false;
+                economy.spend(seat, e.paid!); // take the gain back
                 break;
             case 'buyBoost':
                 this.ctx.boostState[action.boost][action.team]--;
-                economy.credit(action.team, e.paid!);
+                economy.credit(seat, e.paid!);
                 break;
             case 'applyItem': {
                 const unit = placement.unitById(action.unitId)!;
@@ -1103,7 +1132,7 @@ export class ActionDispatcher {
                 const i = list.lastIndexOf(action.typeId);
                 if (i >= 0) list.splice(i, 1);
                 this.ctx.unlockUsedThisRound[action.team] = false;
-                if (e.paid) economy.credit(action.team, e.paid);
+                if (e.paid) economy.credit(seat, e.paid);
                 break;
             }
         }

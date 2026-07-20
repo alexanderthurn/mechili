@@ -124,6 +124,7 @@ import {
     type UnitType,
 } from './units';
 import { DebugOverlay, CpuSampler } from '../ui/debug';
+import { classicSeats, primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
@@ -246,6 +247,10 @@ export class Game {
     private readonly opponent: Opponent;
     /** which sides locked in the current deployment — battle starts at both */
     private readonly deployReady: Record<Team, boolean> = { player: false, enemy: false };
+    /** per-seat lock-in flags (aggregated into deployReady per side) */
+    private readonly seatReady: boolean[] = [];
+    /** extra AI brains beyond the classic opponent (duo modes: ally + 2nd foe) */
+    private readonly extraAis: AiOpponent[] = [];
     /**
      * Peer has locked in this build round — we may stream them our build
      * actions. Until then, outbound build `action`/`undo` sit in
@@ -269,7 +274,7 @@ export class Game {
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
     private stopSpectateRegistration: (() => void) | null = null;
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
-    private readonly recruitLevel: Record<Team, number> = { player: 1, enemy: 1 };
+    private readonly recruitLevel: number[]; // per seat
     /** the sell ability: `owned` is a permanent match unlock, `used` resets per round */
     private readonly sellState: { owned: Record<Team, boolean>; used: Record<Team, number> } = {
         owned: { player: false, enemy: false },
@@ -277,12 +282,12 @@ export class Game {
     };
     /** Research Center: one-time rally-route purchase (permanent match flag) */
     private readonly rallyRouteOwned: Record<Team, boolean> = { player: false, enemy: false };
-    /** per-round buy limits: `limit` is permanent (specials may raise it), rest resets per round */
+    /** per-SEAT buy limits: `limit` is permanent (specials may raise it), rest resets per round */
     private readonly deployState: {
-        limit: Record<Team, number>;
-        extra: Record<Team, number>;
-        used: Record<Team, number>;
-        extrasSpent: Record<Team, number>;
+        limit: number[];
+        extra: number[];
+        used: number[];
+        extrasSpent: number[];
     };
     /** permanent army-wide boost tiers (0 = none), bought at the Research Center */
     private readonly boostState: Record<'attack' | 'hp', Record<Team, number>> = {
@@ -294,10 +299,10 @@ export class Game {
         range: { player: false, enemy: false },
         speed: { player: false, enemy: false },
     };
-    /** Command Tower Credit: used this round (reset each deployment) */
-    private readonly creditUsed: Record<Team, boolean> = { player: false, enemy: false };
-    /** Command Tower Credit: debt owed at the next deployment start */
-    private readonly creditDebt: Record<Team, boolean> = { player: false, enemy: false };
+    /** Command Tower Credit (per seat): used this round (reset each deployment) */
+    private readonly creditUsed: boolean[];
+    /** Command Tower Credit (per seat): debt owed at the next deployment start */
+    private readonly creditDebt: boolean[];
     /** each side's chosen starting-card speciality (null until picked) */
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
     /** per-team multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
@@ -402,6 +407,10 @@ export class Game {
     private battleDown: { x: number; y: number } | null = null;
 
     private readonly settings: GameSettings;
+    /** the match roster; seat 0 is always the local human */
+    private readonly seats: SeatDef[];
+    /** the local human's seat id (roster convention: always 0) */
+    private readonly humanSeat: SeatId = 0;
 
     constructor(
         private readonly pixiApp: Application,
@@ -436,7 +445,11 @@ export class Game {
         // one SHARED board for both peers: the guest owns the far half and
         // only its camera differs — no coordinates are ever mirrored
         this.map.ownAtFar = side === 'b';
-        this.economy = new Economy(settings.economy);
+        this.seats = settings.seats ?? classicSeats(this.playerNames.local, this.playerNames.opponent);
+        this.economy = new Economy(settings.economy, this.seats.length);
+        this.recruitLevel = this.seats.map(() => 1);
+        this.creditUsed = this.seats.map(() => false);
+        this.creditDebt = this.seats.map(() => false);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
         this.renderer = new WebGLRenderer({
@@ -551,14 +564,17 @@ export class Game {
         };
         this.rngRoundCards = mulberry32(seedFrom(this.seed, 'round-cards'));
         this.deployState = {
-            limit: { player: settings.deploy.unitsPerRound, enemy: settings.deploy.unitsPerRound },
-            extra: { player: 0, enemy: 0 },
-            used: { player: 0, enemy: 0 },
-            extrasSpent: { player: 0, enemy: 0 },
+            limit: this.seats.map(() => settings.deploy.unitsPerRound),
+            extra: this.seats.map(() => 0),
+            used: this.seats.map(() => 0),
+            extrasSpent: this.seats.map(() => 0),
         };
+        this.placement.roster = this.seats;
+        this.hpBars.roster = this.seats;
         this.dispatcher = new ActionDispatcher({
             placement: this.placement,
             economy: this.economy,
+            seats: this.seats,
             techTree: this.techTree,
             leveling: settings.leveling,
             towers: settings.towers,
@@ -588,6 +604,7 @@ export class Game {
             spellStampIds: this.spellStampIds,
             roundCardTaken: this.roundCardTaken,
             deployReady: this.deployReady,
+            seatReady: this.seatReady,
             unlockedUnits: this.unlockedUnits,
             unlockUsedThisRound: this.unlockUsedThisRound,
             hp: {
@@ -621,19 +638,30 @@ export class Game {
                 this.maybeStartBattleAfterDeploy();
             },
         });
+        const aiCtxFor = (rng: () => number) => ({
+            dispatch: (action: Action) => this.dispatcher.dispatch(action),
+            placement: this.placement,
+            economy: this.economy,
+            techTree: this.techTree,
+            unlockedUnits: this.unlockedUnits,
+            unlockUsedThisRound: this.unlockUsedThisRound,
+            items: this.itemInventory,
+            tactics: this.tacticInventory,
+            rng,
+        });
         this.opponent = this.net
             ? new NetworkOpponent()
-            : new AiOpponent('enemy', {
-                  dispatch: (action) => this.dispatcher.dispatch(action),
-                  placement: this.placement,
-                  economy: this.economy,
-                  techTree: this.techTree,
-                  unlockedUnits: this.unlockedUnits,
-                  unlockUsedThisRound: this.unlockUsedThisRound,
-                  items: this.itemInventory,
-                  tactics: this.tacticInventory,
-                  rng: this.rngAi,
-              });
+            : new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), aiCtxFor(this.rngAi));
+        // duo modes: every further AI seat gets its own brain and rng stream
+        for (let seat = 0; seat < this.seats.length; seat++) {
+            const def = this.seats[seat]!;
+            if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
+            if (this.net) continue; // networked matches drive remote seats over the wire
+            this.extraAis.push(
+                new AiOpponent(def.team, seat, aiCtxFor(mulberry32(seedFrom(this.seed, `ai-${seat}`)))),
+            );
+        }
+        this.placement.localSeat = this.humanSeat;
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
         // gold pulse under packs whose next level is buyable right now
         this.placement.levelReady = (unit) => this.canLevel(unit);
@@ -1214,6 +1242,7 @@ export class Game {
         // AI already locked in at phase start — re-run buys/moves/items/spells/upgrades
         // behind fog (existing packs stay at phase-start pose)
         this.opponent.rerunBuildActions?.();
+        for (const ai of this.extraAis) ai.rerunBuildActions?.();
     }
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */
@@ -1259,24 +1288,23 @@ export class Game {
         // see the wave and place against it
         this.spawnHordeWave();
         // elite specialists recruit at level 2 permanently (and free of premium)
-        this.recruitLevel.player = this.speciality.player === 'elite' ? 2 : 1;
-        this.recruitLevel.enemy = this.speciality.enemy === 'elite' ? 2 : 1;
+        for (let seat = 0; seat < this.seats.length; seat++) {
+            this.recruitLevel[seat] = this.speciality[this.seats[seat]!.team] === 'elite' ? 2 : 1;
+        }
         this.sellState.used.player = 0;
         this.sellState.used.enemy = 0;
-        this.deployState.extra.player = 0;
-        this.deployState.extra.enemy = 0;
+        this.deployState.extra.fill(0);
         this.roundBoosts.range.player = false;
         this.roundBoosts.range.enemy = false;
         this.roundBoosts.speed.player = false;
         this.roundBoosts.speed.enemy = false;
-        this.creditUsed.player = false;
-        this.creditUsed.enemy = false;
-        this.deployState.used.player = 0;
-        this.deployState.used.enemy = 0;
-        this.deployState.extrasSpent.player = 0;
-        this.deployState.extrasSpent.enemy = 0;
+        this.creditUsed.fill(false);
+        this.deployState.used.fill(0);
+        this.deployState.extrasSpent.fill(0);
         this.deployReady.player = false;
         this.deployReady.enemy = false;
+        this.seatReady.length = 0;
+        for (const _ of this.seats) this.seatReady.push(false);
         this.peerDeployReady = false;
         this.outboundBuildBuffer.length = 0;
         this.deployFlushedToPeer = false;
@@ -1291,20 +1319,21 @@ export class Game {
         // Command Tower Credit debt from last round — after income so it always covers
         // NOTE: must also run while hydrating (debt is never in the action log)
         const creditDebtAmount = this.settings.deploy.creditDebt;
-        for (const team of ['player', 'enemy'] as const) {
-            if (this.creditDebt[team]) {
-                this.economy.debit(team, creditDebtAmount);
-                this.creditDebt[team] = false;
+        for (let seat = 0; seat < this.seats.length; seat++) {
+            if (this.creditDebt[seat]) {
+                this.economy.debit(seat, creditDebtAmount);
+                this.creditDebt[seat] = false;
             }
         }
         // card speciality income and gifts
-        for (const team of ['player', 'enemy'] as const) {
+        for (let seat = 0; seat < this.seats.length; seat++) {
+            const team = this.seats[seat]!.team;
             if (this.speciality[team] === 'costControl') {
-                this.economy.credit(team, COST_CONTROL_INCOME);
+                this.economy.credit(seat, COST_CONTROL_INCOME);
             }
             // the elite's round-1 top-up: exactly two level-2 units at 150
             if (this.speciality[team] === 'elite' && this.round === 1) {
-                this.economy.credit(team, ELITE_ROUND1_BONUS);
+                this.economy.credit(seat, ELITE_ROUND1_BONUS);
             }
             // NOTE: must also run while hydrating — the gift is never in the
             // action log, so a rebuild that skipped it would produce a
@@ -1325,6 +1354,7 @@ export class Game {
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
+            for (const ai of this.extraAis) ai.onBuildPhase(this.round);
         }
 
         // from round 2 on, both sides get a card offer at the round's start
@@ -1352,10 +1382,9 @@ export class Game {
         }
     }
 
-    /** SP cheat (U): +supply to both sides (same amount each press). */
+    /** SP cheat (U): +supply to every seat (same amount each press). */
     private cheatGrantSupply(amount = 5000): void {
-        this.economy.credit('player', amount);
-        this.economy.credit('enemy', amount);
+        for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
     }
 
     /** SP cheat (U): ensure both inventories have one of every pack item. */
@@ -1372,7 +1401,7 @@ export class Game {
     /** local player input — refused once this deployment is locked in.
      *  Build actions are buffered until the peer locks in (wire fog). */
     private dispatchPlayer(action: Action): boolean {
-        if (this.deployReady.player || this.suspended) return false;
+        if (this.seatReady[this.humanSeat] || this.suspended) return false;
         if (!this.dispatcher.dispatch(action)) return false;
         if (this.round >= 1) this.sendPlayerBuildMessage({ type: 'action', round: this.round, action });
         return true;
@@ -1508,7 +1537,7 @@ export class Game {
             this.autoPickSpecialist();
             return;
         }
-        if (this.phase !== 'build' || this.deployReady.player) return;
+        if (this.phase !== 'build' || this.seatReady[this.humanSeat]) return;
         this.autoSkipRoundCard();
         this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
     }
@@ -1942,7 +1971,12 @@ export class Game {
             this.side === 'a' ? [player, enemy] : [enemy, player];
         mix(this.round);
         for (const v of hostFirst(this.playerHp, this.enemyHp)) mix(v);
-        for (const v of hostFirst(this.economy.balance('player'), this.economy.balance('enemy'))) mix(v);
+        // every seat's balance: host-side seats first, roster order within a side
+        // (for the classic two-seat roster this is exactly the old two-value mix)
+        const teamOrder: Team[] = this.side === 'a' ? ['player', 'enemy'] : ['enemy', 'player'];
+        for (const t of teamOrder) {
+            for (const seat of seatIdsOf(this.seats, t)) mix(this.economy.balance(seat));
+        }
         for (const a of this.sim?.actors ?? []) {
             const id = a.unit.id;
             mix((id >> 1) * 2 + (id % 2 === hostParity ? 0 : 1));
@@ -2114,7 +2148,7 @@ export class Game {
             if (head.round !== this.round || this.phase !== 'build') return;
             this.remoteQueue.shift();
             if (head.undo) {
-                this.dispatcher.undoLast(head.round, 'enemy');
+                this.dispatcher.undoLast(head.round, primarySeatOf(this.seats, 'enemy'));
             } else if (head.action) {
                 const translated = this.translateRemote(head.action);
                 if (translated) this.dispatcher.dispatch(translated);
@@ -2126,7 +2160,11 @@ export class Game {
     /** a streamed peer action, validated and flipped into our perspective */
     private translateRemote(action: Action): Action | null {
         if (action.team !== 'player') return null; // peers only send their own side
-        return this.swapPerspective(action);
+        const swapped = this.swapPerspective(action);
+        // seat ids are local roster indices — a peer's are meaningless here.
+        // Re-derive from the flipped team (1v1: the enemy side's only seat).
+        swapped.seat = primarySeatOf(this.seats, swapped.team);
+        return swapped;
     }
 
     /** draws n distinct cards from a pool with the given seeded stream */
@@ -2184,7 +2222,7 @@ export class Game {
             title: c.title,
             body: (c.unitsLabel ? `${c.unitsLabel} — ` : '') + c.description,
             cost: c.cost,
-            affordable: this.economy.balance('player') >= c.cost,
+            affordable: this.economy.balance(this.humanSeat) >= c.cost,
         };
     }
 
@@ -2856,7 +2894,7 @@ export class Game {
         return {
             count: packs.length,
             cost,
-            affordable: this.economy.balance('player') >= cost,
+            affordable: this.economy.balance(this.humanSeat) >= cost,
         };
     }
 
@@ -2873,13 +2911,13 @@ export class Game {
         return {
             cost,
             ready: lv.xp >= lv.xpNext,
-            affordable: this.economy.balance('player') >= cost,
+            affordable: this.economy.balance(this.humanSeat) >= cost,
             all:
                 readyPacks.length >= 2
                     ? {
                           count: readyPacks.length,
                           cost: cost * readyPacks.length,
-                          affordable: this.economy.balance('player') >= cost * readyPacks.length,
+                          affordable: this.economy.balance(this.humanSeat) >= cost * readyPacks.length,
                       }
                     : undefined,
         };
@@ -2921,7 +2959,7 @@ export class Game {
     /** what the player pays right now, including an active recruit-level premium */
     private effectiveCost(type: UnitType): number {
         if (type.extra) return this.economy.costOf(type); // extras never recruit levels
-        const extra = this.recruitLevel.player - 1;
+        const extra = this.recruitLevel[this.humanSeat]! - 1;
         return (
             this.economy.costOf(type) +
             extra * levelCost(type, this.economy, this.settings.leveling)
@@ -2932,11 +2970,11 @@ export class Game {
     private buyUnit(type: UnitType): void {
         if (!this.playerCanAct) return;
         if (!type.extra && !this.unlockedUnits.player.includes(type.id)) return;
-        if (this.economy.balance('player') < this.effectiveCost(type)) return;
+        if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
             const left =
-                this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent.player;
+                this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!;
             if (this.economy.costOf(type) > left) return; // extras budget exhausted
             this.placement.beginPlacing(type);
             return;
@@ -2966,7 +3004,7 @@ export class Game {
     private undoLast(): void {
         if (!this.canUndo()) return;
         this.placement.deselect();
-        if (this.dispatcher.undoLast(this.round, 'player')) {
+        if (this.dispatcher.undoLast(this.round, this.humanSeat)) {
             this.sendPlayerBuildMessage({ type: 'undo', round: this.round });
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
@@ -2985,7 +3023,7 @@ export class Game {
         this.hud.updateShop(
             this.unlockedUnits.player,
             !this.unlockUsedThisRound.player,
-            this.economy.balance('player'),
+            this.economy.balance(this.humanSeat),
         );
     }
 
@@ -2994,7 +3032,7 @@ export class Game {
             this.phase === 'build' &&
             !this.matchOver &&
             !this.deployReady.player && // locked in: the batch is already with the peer
-            this.dispatcher.canUndo(this.round, 'player')
+            this.dispatcher.canUndo(this.round, this.humanSeat)
         );
     }
 
@@ -3721,9 +3759,9 @@ export class Game {
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer);
         this.hud.setUndoVisible(this.canUndo());
         this.hud.setDeploys(
-            this.deployState.used.player,
-            this.deployState.limit.player + this.deployState.extra.player,
-            this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent.player,
+            this.deployState.used[this.humanSeat]!,
+            this.deployState.limit[this.humanSeat]! + this.deployState.extra[this.humanSeat]!,
+            this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
         );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
         const enemyInv = this.enemyInventoryView();
@@ -3736,7 +3774,7 @@ export class Game {
         );
         // rally sync is folded into syncTacticVisuals during build; battle needs routes gone
         if (this.phase === 'battle') this.rallyVisuals.sync([], null);
-        this.hud.setSupply(this.economy.balance('player'));
+        this.hud.setSupply(this.economy.balance(this.humanSeat));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();
         this.hud.setHp(this.playerHp, this.enemyHp);
@@ -4025,7 +4063,7 @@ export class Game {
                     ? {
                           cost: towerUpgradeCost(u.level, this.settings.towers),
                           affordable:
-                              this.economy.balance('player') >=
+                              this.economy.balance(this.humanSeat) >=
                               towerUpgradeCost(u.level, this.settings.towers),
                           maxed: u.level >= this.settings.towers.upgrade.maxLevel,
                           maxLevel: this.settings.towers.upgrade.maxLevel,
@@ -4084,7 +4122,7 @@ export class Game {
 
         const team = u.team;
         const ownedCount = this.techTree.ownedFor(team, u.type.id).size;
-        const bal = this.economy.balance('player');
+        const bal = this.economy.balance(this.humanSeat);
         return u.type.techs.map((t) => {
             const owned = this.techTree.has(team, u.type.id, t.id);
             const cost = this.economy.techCostOf(t, ownedCount);
@@ -4116,16 +4154,16 @@ export class Game {
         if (!canBuy && !canInspect) return {};
 
         const team = u.team;
-        const bal = this.economy.balance('player');
+        const bal = this.economy.balance(this.humanSeat);
         return {
             recruit: {
                 cost: this.settings.leveling.recruitLevel2Cost,
-                active: this.recruitLevel[team] > 1,
+                active: this.recruitLevel[this.humanSeat]! > 1,
                 affordable: canBuy && bal >= this.settings.leveling.recruitLevel2Cost,
             },
             deploySlot: {
                 cost: this.settings.deploy.extraSlotCost,
-                active: this.deployState.extra[team] > 0,
+                active: this.deployState.extra[this.humanSeat]! > 0,
                 affordable: canBuy && bal >= this.settings.deploy.extraSlotCost,
             },
             rangeBoost: {
@@ -4143,7 +4181,7 @@ export class Game {
             credit: {
                 gain: this.settings.deploy.creditGain,
                 debt: this.settings.deploy.creditDebt,
-                active: this.creditUsed[team],
+                active: this.creditUsed[this.humanSeat]!,
                 affordable: canBuy,
             },
         };
@@ -4160,7 +4198,7 @@ export class Game {
         if (!canBuy && !canInspect) return {};
 
         const team = u.team;
-        const bal = this.economy.balance('player');
+        const bal = this.economy.balance(this.humanSeat);
         return {
             boosts: (['attack', 'hp'] as const).map((id) => {
                 const tiers =

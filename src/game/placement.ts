@@ -25,6 +25,7 @@ import {
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
 import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 
 /** horde unit ids start here — far above anything the parity counters reach */
 const HORDE_ID_BASE = 1_000_000;
@@ -142,6 +143,10 @@ export class PlacementController {
      * still agree (player ids even, enemy ids odd)
      */
     private readonly nextUnitId: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
+    /** the match roster — drives default seats and (duo modes) lane splits */
+    roster: SeatDef[] = classicSeats('You', 'Enemy');
+    /** the local human's seat — the placement/preview UI acts for this seat */
+    localSeat: SeatId = 0;
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
     private readonly hoverMesh: Mesh;
@@ -502,7 +507,7 @@ export class PlacementController {
      * the buy action is created, so the action carries a concrete anchor.
      */
     findBuySpot(type: UnitType): Cell | null {
-        return this.findStartSpot('player', type);
+        return this.findStartSpot('player', type, this.localSeat);
     }
 
     /**
@@ -510,10 +515,18 @@ export class PlacementController {
      * rng-free). Both lockstep peers hold the identical board, so this is
      * trivially identical for either team on both clients.
      */
-    findStartSpot(team: Team, type: UnitType): Cell | null {
-        const centerCol = Math.floor(this.map.cols / 2);
+    findStartSpot(team: Team, type: UnitType, seat?: SeatId): Cell | null {
+        // duo lanes: start the ring search from the seat's lane center so the
+        // found spot lies inside the lane the zone check enforces
+        const lane = seat !== undefined && seat >= 0 ? seatLane(this.roster, seat) : 'full';
+        const centerCol =
+            lane === 'full'
+                ? Math.floor(this.map.cols / 2)
+                : lane === 'left'
+                  ? Math.floor(this.map.cols / 4)
+                  : Math.floor((3 * this.map.cols) / 4);
         const near = team === 'player' ? !this.map.ownAtFar : this.map.ownAtFar;
-        return this.searchSpotFrom(team, type, centerCol, this.map.zoneCenterRow(near));
+        return this.searchSpotFrom(team, type, centerCol, this.map.zoneCenterRow(near), seat);
     }
 
     /**
@@ -525,8 +538,8 @@ export class PlacementController {
         const x = Math.max(-this.map.halfW + 1, Math.min(this.map.halfW - 1, worldX));
         const z = Math.max(-this.map.halfH + 1, Math.min(this.map.halfH - 1, worldZ));
         const center = this.map.worldToCell(new Vector3(x, 0, z));
-        if (!center) return this.findStartSpot('player', type);
-        return this.searchSpotFrom('player', type, center.col, center.row);
+        if (!center) return this.findStartSpot('player', type, this.localSeat);
+        return this.searchSpotFrom('player', type, center.col, center.row, this.localSeat);
     }
 
     /** the shared ring search: nearest valid free anchor around a start cell */
@@ -535,6 +548,7 @@ export class PlacementController {
         type: UnitType,
         centerCol: number,
         centerRow: number,
+        seat?: SeatId,
     ): Cell | null {
         const fp = this.footprintOf(type, false);
         const maxRadius = Math.max(this.map.cols, this.map.rows);
@@ -549,7 +563,7 @@ export class PlacementController {
                     const cells = this.coveredCells(fp, anchor);
                     const ok =
                         cells !== null &&
-                        cells.every((c) => this.deployCellOk(team, c, type) && !this.occupied.has(cellKey(c)));
+                        cells.every((c) => this.deployCellOk(team, c, type, seat) && !this.occupied.has(cellKey(c)));
                     if (ok) return anchor;
                 }
             }
@@ -625,7 +639,8 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.deployCellOk(unit.team, c, unit.type) && (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type, unit.seat) &&
+            (unit.type.extra || this.freeFor(c, unit));
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.setRotated(rotated);
@@ -651,11 +666,23 @@ export class PlacementController {
     }
 
     /** zone check plus type rules — shield and rocket may not sit on flank strips */
-    private deployCellOk(team: BattleTeam, cell: Cell, type: UnitType): boolean {
+    private deployCellOk(team: BattleTeam, cell: Cell, type: UnitType, seat?: SeatId): boolean {
         if (team === 'horde') return false; // the horde never deploys — it spawns free at battle start
         if (!this.zoneCell(team, cell)) return false;
         if (type.extra && this.map.isFlankDeployCell(cell, team)) return false;
-        return true;
+        return this.laneOk(seat, cell);
+    }
+
+    /**
+     * Duo modes: a seat that shares its side owns one vertical lane of the
+     * zone (left/right half in canonical columns). Solo seats own it all.
+     */
+    private laneOk(seat: SeatId | undefined, cell: Cell): boolean {
+        if (seat === undefined || seat < 0) return true;
+        const lane = seatLane(this.roster, seat);
+        if (lane === 'full') return true;
+        const midCol = Math.floor(this.map.cols / 2);
+        return lane === 'left' ? cell.col < midCol : cell.col >= midCol;
     }
 
     /**
@@ -663,25 +690,36 @@ export class PlacementController {
      * in the buyer's territory and be free; spawning charges the cost.
      * Board extras take no space, so only the zone matters for them.
      */
-    placeUnit(team: Team, type: UnitType, anchor: Cell, rotated: boolean): Unit | null {
+    placeUnit(team: Team, type: UnitType, anchor: Cell, rotated: boolean, seat?: SeatId): Unit | null {
         const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
         const valid =
             cells !== null &&
             cells.every(
-                (c) => this.deployCellOk(team, c, type) && (type.extra || !this.occupied.has(cellKey(c))),
+                (c) =>
+                    this.deployCellOk(team, c, type, seat) &&
+                    (type.extra || !this.occupied.has(cellKey(c))),
             );
-        return valid ? this.spawn(type, anchor, team, rotated) : null;
+        return valid ? this.spawn(type, anchor, team, rotated, false, seat) : null;
     }
 
     /** Places a unit with its footprint anchored at `anchor` (no zone validation — callers validate). */
-    spawn(type: UnitType, anchor: Cell, team: BattleTeam, rotated = false, free = false): Unit | null {
+    spawn(
+        type: UnitType,
+        anchor: Cell,
+        team: BattleTeam,
+        rotated = false,
+        free = false,
+        seat?: SeatId,
+    ): Unit | null {
         const fp = this.footprintOf(type, rotated);
         const cells = this.coveredCells(fp, anchor);
         if (!cells) return null;
         if (!type.extra && cells.some((c) => this.occupied.has(cellKey(c)))) return null;
+        const actorSeat = team === 'horde' ? -1 : (seat ?? primarySeatOf(this.roster, team));
         // horde units are always free — they have no economy to charge
-        if (!free && (team === 'horde' || !this.economy.charge(team, type))) return null;
+        if (!free && (team === 'horde' || !this.economy.charge(actorSeat, type))) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
+        unit.seat = actorSeat;
         // horde ids live far above the player/enemy parity space (id % 2 only
         // ever orders actors; horde ids are identical on every client, so
         // ordering stays deterministic)
@@ -726,7 +764,24 @@ export class PlacementController {
      * with the result. Randomness comes from the match RNG for determinism.
      */
     findEnemySpot(type: UnitType, rng: () => number): { anchor: Cell; rotated: boolean } | null {
+        return this.findAiSpot('enemy', this.roster.findIndex((s) => s.team === 'enemy'), type, rng);
+    }
+
+    /**
+     * A valid AI spot for any seat: random scan of that seat's zone (lane-
+     * restricted in duo modes), melee toward the front, ranged toward the
+     * back, flanks avoided (the AI doesn't understand the spawn tax).
+     */
+    findAiSpot(
+        team: Team,
+        seat: SeatId,
+        type: UnitType,
+        rng: () => number,
+    ): { anchor: Cell; rotated: boolean } | null {
         const preferFront = type.range < 10;
+        // "front" (toward the middle) is a higher row for the near-edge side,
+        // a lower row for the far-edge side
+        const frontIsHigherRow = (team === 'player') !== this.map.ownAtFar;
         let best: { anchor: Cell; rotated: boolean } | null = null;
         let found = 0;
         for (let attempt = 0; attempt < 80 && found < 4; attempt++) {
@@ -738,14 +793,16 @@ export class PlacementController {
             };
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
-            if (!cells.every((c) => this.deployCellOk('enemy', c, type) && !this.occupied.has(cellKey(c)))) continue;
+            if (!cells.every((c) => this.deployCellOk(team, c, type, seat) && !this.occupied.has(cellKey(c)))) continue;
             // the AI doesn't understand the flank-spawn tax yet — keep it off
             // the flanks so its units don't arrive at 1 hp unaware
-            if (cells.some((c) => this.map.isFlankDeployCell(c, 'enemy'))) continue;
+            if (cells.some((c) => this.map.isFlankDeployCell(c, team))) continue;
             found++;
+            const frontward = (a: Cell, b: Cell) =>
+                frontIsHigherRow ? a.row > b.row : a.row < b.row;
             if (
                 !best ||
-                (preferFront ? anchor.row < best.anchor.row : anchor.row > best.anchor.row)
+                (preferFront ? frontward(anchor, best.anchor) : frontward(best.anchor, anchor))
             ) {
                 best = { anchor, rotated };
             }
@@ -1404,7 +1461,7 @@ export class PlacementController {
         return (
             cells !== null &&
             cells.every((c) => {
-                if (!this.deployCellOk(unit.team, c, unit.type)) return false;
+                if (!this.deployCellOk(unit.team, c, unit.type, unit.seat)) return false;
                 if (unit.type.extra) return true; // extras overlap anything (but not flanks)
                 const holder = this.occupied.get(cellKey(c));
                 return holder === undefined || holder === unit || group.includes(holder);
@@ -1440,7 +1497,8 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, unit.rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.deployCellOk(unit.team, c, unit.type) && (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type, unit.seat) &&
+            (unit.type.extra || this.freeFor(c, unit));
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
@@ -1524,7 +1582,7 @@ export class PlacementController {
             const fp = this.footprintOf(type, false);
             const anchor = this.centeredAnchor(type, false, cell);
             const cells = this.coveredCells(fp, anchor);
-            const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type));
+            const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type, this.localSeat));
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             this.pendingUnit.view.position.set(center.x, 0, center.z);
             this.pendingUnit.seatMembers(center.x, center.z);
@@ -1584,7 +1642,7 @@ export class PlacementController {
                 const cells = this.coveredCells(fp, anchor);
                 const valid =
                     cells !== null &&
-                    cells.every((c) => this.deployCellOk('player', c, sel.type) && this.freeFor(c, sel));
+                    cells.every((c) => this.deployCellOk('player', c, sel.type, sel.seat) && this.freeFor(c, sel));
                 this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
             } else {
                 this.hoverMaterial.color.setHex(VALID_COLOR);

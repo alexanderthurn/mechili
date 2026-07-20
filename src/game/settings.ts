@@ -1,5 +1,6 @@
 import { STANDARD_MAP, type MapSize } from './map';
-import type { Team, UnitType } from './units';
+import type { UnitType } from './units';
+import type { SeatDef, SeatId } from './seats';
 
 /**
  * Everything that defines a match, as one plain JSON-serializable object —
@@ -30,6 +31,11 @@ export interface GameSettings {
     seed?: number;
     /** horde PvPvE mode: a neutral pink dwarf horde spawns in the center every round. Unset = off. */
     horde?: HordeSettings;
+    /**
+     * the match roster (seats on sides). Unset = classic 1v1 (two implicit
+     * seats). Local modes only for now — never sent over the wire.
+     */
+    seats?: SeatDef[];
 }
 
 export interface HordeSettings {
@@ -266,11 +272,24 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
     };
 }
 
-/** Both players' supply balances, driven by an {@link EconomySettings}. */
+/**
+ * Every seat's supply balance, driven by an {@link EconomySettings}.
+ * Keyed by SeatId — in classic 1v1 that's seat 0 (player) and seat 1
+ * (enemy); in duo modes each of the four commanders has their own purse.
+ */
 export class Economy {
-    private readonly balances: Record<Team, number> = { player: 0, enemy: 0 };
+    private readonly balances: number[];
 
-    constructor(private readonly settings: EconomySettings) {}
+    constructor(
+        private readonly settings: EconomySettings,
+        seatCount = 2,
+    ) {
+        this.balances = new Array(seatCount).fill(0);
+    }
+
+    get seatCount(): number {
+        return this.balances.length;
+    }
 
     costOf(type: UnitType): number {
         return this.settings.unitCosts[type.id] ?? type.cost;
@@ -281,41 +300,40 @@ export class Economy {
         return tech.cost + ownedCountForType * this.settings.techCostEscalation;
     }
 
-    balance(team: Team): number {
-        return this.balances[team];
+    balance(seat: SeatId): number {
+        return this.balances[seat] ?? 0;
     }
 
-    /** escalating income: round 1 grants 200, round 2 grants 400, round 3 grants 600, ... */
+    /** escalating income: round 1 grants 200, round 2 grants 400, ... — every seat, full share */
     grantRoundIncome(round: number): void {
         const income =
             this.settings.startingSupply + (round - 1) * this.settings.supplyGrowthPerRound;
-        this.balances.player += income;
-        this.balances.enemy += income;
+        for (let s = 0; s < this.balances.length; s++) this.balances[s]! += income;
     }
 
-    canAfford(team: Team, type: UnitType): boolean {
-        return this.balances[team] >= this.costOf(type);
+    canAfford(seat: SeatId, type: UnitType): boolean {
+        return this.balance(seat) >= this.costOf(type);
     }
 
     /** deducts the cost; returns false (and deducts nothing) when unaffordable */
-    charge(team: Team, type: UnitType): boolean {
-        return this.spend(team, this.costOf(type));
+    charge(seat: SeatId, type: UnitType): boolean {
+        return this.spend(seat, this.costOf(type));
     }
 
     /** deducts an arbitrary amount (tech, items, ...) if affordable */
-    spend(team: Team, amount: number): boolean {
-        if (this.balances[team] < amount) return false;
-        this.balances[team] -= amount;
+    spend(seat: SeatId, amount: number): boolean {
+        if (this.balance(seat) < amount) return false;
+        this.balances[seat]! -= amount;
         return true;
     }
 
     /** pays an amount back (action undo refunds) */
-    credit(team: Team, amount: number): void {
-        this.balances[team] += amount;
+    credit(seat: SeatId, amount: number): void {
+        this.balances[seat] = this.balance(seat) + amount;
     }
 
     /** always deducts (Credit debt); may leave a negative balance */
-    debit(team: Team, amount: number): void {
-        this.balances[team] -= amount;
+    debit(seat: SeatId, amount: number): void {
+        this.balances[seat] = this.balance(seat) - amount;
     }
 }

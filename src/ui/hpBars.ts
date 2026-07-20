@@ -1,6 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { Vector3, type PerspectiveCamera } from 'three';
-import { colorForBattleTeam } from '../game/colors';
+import { colorForUnit } from '../game/colors';
+import { isSecondarySeat, type SeatDef } from '../game/seats';
 import { groundHeightAt } from '../game/map';
 import { HURT_BAR_SECONDS, type Actor } from '../game/sim';
 import { THEME } from '../theme';
@@ -14,6 +15,8 @@ import { THEME } from '../theme';
 export class HpBars {
     readonly view = new Graphics();
     private readonly tmp = new Vector3();
+    /** the match roster — secondary seats tint green/orange */
+    roster: SeatDef[] = [];
 
     clear(): void {
         this.view.clear();
@@ -62,7 +65,7 @@ export class HpBars {
         const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp));
         const w = t.structure ? 42 : selected ? 26 : 18;
         const h = selected ? 5 : 3;
-        const color = colorForBattleTeam(a.unit.team).hex;
+        const color = colorForUnit(a.unit.team, isSecondarySeat(this.roster, a.unit.seat)).hex;
 
         if (selected) {
             // the ground shows the 3D attack-range ring instead of a marker here

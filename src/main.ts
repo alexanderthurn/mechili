@@ -32,6 +32,7 @@ import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/settings';
+import { duoSeats } from './game/seats';
 import { THEME, menuStyles } from './theme';
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20
@@ -49,6 +50,12 @@ function settingsFromUrl(): GameSettings {
     if (params.get('horde')) {
         settings.horde = structuredClone(DEFAULT_HORDE);
         settings.map = { ...settings.map, neutralRows: settings.horde.beltRows };
+    }
+    // ?duo=1 — 2v2 skirmish vs AI: you + an AI ally against two AI
+    // commanders, split lanes, wider board. Combines with ?horde=1.
+    if (params.get('duo')) {
+        settings.seats = duoSeats('You');
+        settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.5) };
     }
     return settings;
 }
@@ -904,6 +911,8 @@ async function beginNetGame(session: NetSession): Promise<void> {
 
     if (session.role === 'host') {
         const settings = settingsFromUrl();
+        // networked matches are classic 1v1 — local-mode rosters never travel
+        delete settings.seats;
         settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         session.send({
             type: 'setup',

@@ -43,6 +43,16 @@ export function colorForBattleTeam(team: 'player' | 'enemy' | 'horde'): SideColo
 }
 
 /**
+ * Per-unit color: horde pink; a side's SECOND commander reads green (own
+ * side) / orange (enemy side) so duo armies stay tellable apart.
+ */
+export function colorForUnit(team: 'player' | 'enemy' | 'horde', secondarySeat: boolean): SideColor {
+    if (team === 'horde') return HORDE_COLOR;
+    if (!secondarySeat) return teamColors[team];
+    return team === 'player' ? SIDE_COLORS[2]! : SIDE_COLORS[3]!;
+}
+
+/**
  * Pack veterancy tint on the 3D mesh (level 1 = untinted).
  * 2 blue, 3+ yellow.
  */

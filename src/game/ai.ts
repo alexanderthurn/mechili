@@ -12,6 +12,7 @@ import {
 } from './tactics';
 import type { TechTree } from './tech';
 import { UNIT_TYPES, unitTypeById, type Team } from './units';
+import type { SeatId } from './seats';
 
 /**
  * A side's decision maker. The built-in AI implements it; a future network
@@ -36,6 +37,8 @@ export interface Opponent {
 export class AiOpponent implements Opponent {
     constructor(
         private readonly team: Team,
+        /** the seat this brain commands — its purse, its lane, its packs */
+        private readonly seat: SeatId,
         private readonly ctx: {
             dispatch: (action: Action) => boolean;
             placement: PlacementController;
@@ -52,21 +55,21 @@ export class AiOpponent implements Opponent {
 
     chooseStarter(offer: readonly StartCard[]): void {
         const pick = offer[Math.floor(this.ctx.rng() * offer.length)]!;
-        this.ctx.dispatch({ kind: 'chooseCard', team: this.team, cardId: pick.id });
+        this.ctx.dispatch({ kind: 'chooseCard', team: this.team, seat: this.seat, cardId: pick.id });
     }
 
     onRoundCards(offer: readonly RoundCard[]): void {
         // takes an affordable UNIT card most of the time, else skips
         const candidates = offer.filter(
-            (c) => c.units && this.ctx.economy.balance(this.team) >= c.cost,
+            (c) => c.units && this.ctx.economy.balance(this.seat) >= c.cost,
         );
         const pick = candidates.length > 0 && this.ctx.rng() < 0.75 ? candidates[0]! : null;
-        this.ctx.dispatch({ kind: 'roundCard', team: this.team, cardId: pick?.id ?? null });
+        this.ctx.dispatch({ kind: 'roundCard', team: this.team, seat: this.seat, cardId: pick?.id ?? null });
     }
 
     onBuildPhase(_round: number): void {
         this.runBuildActions();
-        this.ctx.dispatch({ kind: 'endDeployment', team: this.team });
+        this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
     /** cheat mid-deploy: same spend/move/cast loop without another lock-in */
@@ -82,11 +85,11 @@ export class AiOpponent implements Opponent {
         // one unlock per round — pick an affordable locked type when possible
         if (!unlockUsedThisRound[team]) {
             const locked = SHOP_UNIT_IDS.filter((id) => !unlocked.includes(id));
-            const affordable = locked.filter((id) => unitUnlockCost(id) <= economy.balance(team));
+            const affordable = locked.filter((id) => unitUnlockCost(id) <= economy.balance(this.seat));
             const pool = affordable.length > 0 ? affordable : locked;
             if (pool.length > 0 && rng() < 0.85) {
                 const typeId = pool[Math.floor(rng() * pool.length)]!;
-                dispatch({ kind: 'unlockUnit', team, typeId });
+                dispatch({ kind: 'unlockUnit', team, seat: this.seat, typeId });
             }
         }
 
@@ -96,15 +99,16 @@ export class AiOpponent implements Opponent {
                 (t) =>
                     !t.extra &&
                     unlockedUnits[team].includes(t.id) &&
-                    economy.canAfford(team, t),
+                    economy.canAfford(this.seat, t),
             );
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(rng() * affordable.length)]!;
-            const spot = placement.findEnemySpot(type, rng);
+            const spot = placement.findAiSpot(team, this.seat, type, rng);
             if (!spot) break;
             const done = dispatch({
                 kind: 'buy',
                 team,
+                seat: this.seat,
                 typeId: type.id,
                 anchor: spot.anchor,
                 rotated: spot.rotated,
@@ -114,14 +118,14 @@ export class AiOpponent implements Opponent {
 
         // rearrange packs
         for (const unit of placement.allUnits()) {
-            if (unit.team !== team || !placement.canReposition(unit)) continue;
+            if (unit.seat !== this.seat || !placement.canReposition(unit)) continue;
             if (rng() < 0.25) continue;
-            const spot = placement.findEnemySpot(unit.type, rng);
+            const spot = placement.findAiSpot(team, this.seat, unit.type, rng);
             if (!spot) continue;
             if (spot.rotated !== unit.rotated) {
-                dispatch({ kind: 'rotate', team, unitId: unit.id });
+                dispatch({ kind: 'rotate', team, seat: this.seat, unitId: unit.id });
             }
-            dispatch({ kind: 'move', team, unitId: unit.id, anchor: spot.anchor });
+            dispatch({ kind: 'move', team, seat: this.seat, unitId: unit.id, anchor: spot.anchor });
         }
 
         // equip inventory items onto bare packs
@@ -141,12 +145,12 @@ export class AiOpponent implements Opponent {
         if (bag.length === 0) return;
         const packs = placement
             .allUnits()
-            .filter((u) => u.team === team && !u.type.structure && !u.type.extra && u.items.length === 0);
+            .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra && u.items.length === 0);
         for (const unit of packs) {
             if (bag.length === 0) break;
             const i = Math.floor(rng() * bag.length);
             const itemId = bag.splice(i, 1)[0]!;
-            if (dispatch({ kind: 'applyItem', team, unitId: unit.id, itemId })) {
+            if (dispatch({ kind: 'applyItem', team, seat: this.seat, unitId: unit.id, itemId })) {
                 // inventory was mutated by dispatch; keep bag in sync
             } else {
                 bag.push(itemId);
@@ -199,6 +203,7 @@ export class AiOpponent implements Opponent {
                 ok = dispatch({
                     kind: 'placeRallyRoute',
                     team,
+                    seat: this.seat,
                     startX: a.x,
                     startZ: a.z,
                     endX: b.x,
@@ -210,6 +215,7 @@ export class AiOpponent implements Opponent {
                 ok = dispatch({
                     kind: 'placeOilSpill',
                     team,
+                    seat: this.seat,
                     startX: a.x,
                     startZ: a.z,
                     endX: b.x,
@@ -218,12 +224,13 @@ export class AiOpponent implements Opponent {
             } else if (usesSpellPlacement(tactic)) {
                 const p = foePoint();
                 if (tactic.targeting === 'point') {
-                    ok = dispatch({ kind: 'placeSpell', team, tacticId, x: p.x, z: p.z });
+                    ok = dispatch({ kind: 'placeSpell', team, seat: this.seat, tacticId, x: p.x, z: p.z });
                 } else if (tactic.targeting === 'two-point') {
                     const q = foePoint();
                     ok = dispatch({
                         kind: 'placeSpell',
                         team,
+                        seat: this.seat,
                         tacticId,
                         x: p.x,
                         z: p.z,
@@ -234,6 +241,7 @@ export class AiOpponent implements Opponent {
                     ok = dispatch({
                         kind: 'placeSpell',
                         team,
+                        seat: this.seat,
                         tacticId,
                         x: p.x,
                         z: p.z,
@@ -254,7 +262,7 @@ export class AiOpponent implements Opponent {
             ...new Set(
                 placement
                     .allUnits()
-                    .filter((u) => u.team === team && !u.type.structure && !u.type.extra)
+                    .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra)
                     .map((u) => u.type.id),
             ),
         ];
@@ -269,8 +277,8 @@ export class AiOpponent implements Opponent {
                 for (const tech of type.techs) {
                     if (owned.has(tech.id)) continue;
                     const cost = economy.techCostOf(tech, owned.size);
-                    if (economy.balance(team) < cost) continue;
-                    if (dispatch({ kind: 'buyTech', team, typeId: type.id, techId: tech.id })) {
+                    if (economy.balance(this.seat) < cost) continue;
+                    if (dispatch({ kind: 'buyTech', team, seat: this.seat, typeId: type.id, techId: tech.id })) {
                         bought = true;
                     }
                 }
@@ -278,13 +286,13 @@ export class AiOpponent implements Opponent {
         }
 
         for (const unit of placement.allUnits()) {
-            if (unit.team !== team || unit.type.structure || unit.type.extra) continue;
-            dispatch({ kind: 'buyLevel', team, unitId: unit.id });
+            if (unit.seat !== this.seat || unit.type.structure || unit.type.extra) continue;
+            dispatch({ kind: 'buyLevel', team, seat: this.seat, unitId: unit.id });
         }
 
         for (const unit of placement.allUnits()) {
-            if (unit.team !== team || !unit.type.structure || unit.type.extra) continue;
-            dispatch({ kind: 'upgradeTower', team, unitId: unit.id });
+            if (unit.seat !== this.seat || !unit.type.structure || unit.type.extra) continue;
+            dispatch({ kind: 'upgradeTower', team, seat: this.seat, unitId: unit.id });
         }
     }
 }
