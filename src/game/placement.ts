@@ -466,9 +466,17 @@ export class PlacementController {
         return unit === this.selectedUnit && this.selectedGroup.length <= 1;
     }
 
-    /** carried packs go back to their committed spots */
+    /** carried packs go back to their committed / visible intel spots */
     private restoreSelectedView(): void {
         const restore = (u: Unit) => {
+            if (this.intelFog && u.team === 'enemy') {
+                const snap = this.intelSnapshot.get(u.id);
+                if (snap) {
+                    this.applySnapshotPose(u, snap);
+                    u.seatMembers(snap.world.x, snap.world.z);
+                    return;
+                }
+            }
             u.view.position.copy(u.world);
             u.seatMembers(u.world.x, u.world.z);
         };
@@ -1592,14 +1600,26 @@ export class PlacementController {
             );
             markerCenter = center;
         } else {
-            sel.view.position.copy(sel.world);
-            sel.seatMembers(sel.world.x, sel.world.z);
-            const center = this.map.areaCenter(sel.cell, fp.cols, fp.rows);
+            // fogged enemies stay at their phase-start pose — selection must
+            // not reveal the live cell by snapping the mesh there
+            const snap =
+                this.intelFog && sel.team === 'enemy'
+                    ? this.intelSnapshot.get(sel.id)
+                    : undefined;
+            const world = snap?.world ?? sel.world;
+            const cell = snap?.cell ?? sel.cell;
+            const plateFp = snap
+                ? this.footprintOf(sel.type, snap.rotated)
+                : fp;
+            if (snap) this.applySnapshotPose(sel, snap);
+            else sel.view.position.copy(world);
+            sel.seatMembers(world.x, world.z);
+            const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
             this.placeFootprintPlate(
                 this.hoverMesh,
                 this.hoverMaterial,
                 center,
-                fp,
+                plateFp,
                 VALID_COLOR,
                 timeSeconds,
                 true,
