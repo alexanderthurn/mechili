@@ -1,15 +1,27 @@
-# Team modes plan — 2v2, 2vE, and an N-player foundation
+# Team modes plan — Horde PvPvE, 2v2, and an N-player foundation
 
 Plan for adding team modes to Melodan:
 
-- **2vE** — two humans on one side, the built-in AI running the other side.
+- **Horde** — players are mutual enemies plus a neutral AI horde in the
+  map center; fight your rival or farm the horde, last side standing wins.
+  (Replaces the earlier "2vE co-op" concept — see §4 for why.)
 - **2v2** — four humans, two per side.
-- built on an **N-player seat model** (§2, §2b) so later modes — 3vE with a
-  kill-score winner, 5v5, uneven teams, eventually free-for-all — are mode
-  definitions, not refactors.
+- built on an **N-player seat model** (§2, §2b) so later modes — 5v5,
+  uneven teams, eventually free-for-all — are mode definitions, not
+  refactors.
 
-Written after a code survey on 2026-07-19. Read ARCHITECTURE.md first; every
-constraint there (action log, determinism, perspective) shapes this plan.
+Written after a code survey on 2026-07-19; updated the same day after the
+**wire-fog change landed** (GAME_VERSION 14: build `action`/`undo` are
+buffered on the sender until the receiving peer locks in, with a
+`deployCaughtUp` gate before battle; spectators got per-connection vision
+policies). Revised 2026-07-20 after a design session settled four things:
+**mesh of equal peers instead of a host star** (§3 — sender-side fog
+survives N players intact, no listen-server trust hole), **AI derived
+deterministically on every client** instead of run-on-host (§2d), **shared
+seeds derived from the deployment log** so nobody can precompute
+randomness (§2d), and **horde PvPvE replacing co-op 2vE** (§4). Read
+ARCHITECTURE.md first; every constraint there (action log, determinism,
+fog) shapes this plan.
 
 ---
 
@@ -28,12 +40,17 @@ The good news is that the *battle* layer needs almost nothing:
 - **`SIDE_COLORS` already has 4 entries** (blue/red + green/orange marked
   "future 2v2").
 - **The AI is a pure action producer** (`AiOpponent` dispatches through the
-  same `ActionDispatcher` as everyone else, off its own seeded rng stream).
-  A co-op AI is "the same class, driven on the host, its actions relayed" —
-  no new AI work needed for a first version.
-- **`SpectatorHub` proves the multi-connection pattern** — a host-side Peer
-  accepting N connections, with roster broadcast. The 2v2 host link is the
-  same shape.
+  same `ActionDispatcher` as everyone else, off its own seeded rng stream —
+  no wall-clock anywhere in its decisions). That purity is what lets AI and
+  horde decisions be **derived deterministically on every client** from a
+  shared seed at a synchronized point (§2d, §4): no runner machine, no
+  relay, zero network traffic for AI.
+- **`SpectatorHub` proves the multi-connection pattern** — one Peer
+  accepting N connections, with roster broadcast. Since the fog change,
+  `relayBuild` already implements **per-recipient build buffers with a
+  vision filter** — the same vocabulary the mesh's sender-side fog uses
+  per enemy recipient (§3), already written and battle-tested against
+  spectators. Spectator serving stays a single-hub chore (§3 coordinator).
 - **`GameSettings` is the mode definition** ("different game modes are just
   different settings") — a mode descriptor slots in naturally.
 
@@ -47,7 +64,7 @@ The hard part is everything that encodes **ownership** as the binary
 | `actions.ts` | every `Action` carries `team: Team` as the *actor* |
 | `tech.ts` | tech ownership per `(team, typeId)` |
 | `cards.ts` / card streams | `rngCards` keyed `cards-a` / `cards-b` — one draw stream per side |
-| `net.ts` | `NetSession` is one 1:1 link; `setup` names exactly host+guest; `swapPerspective` translates by flipping team + unit-id *parity* — a strictly 2-perspective trick |
+| `net.ts` | `NetSession` is one 1:1 link; `setup` names exactly host+guest; `swapPerspective` translates by flipping team + unit-id *parity* — a strictly 2-perspective trick; the fog buffer (`outboundBuildBuffer`, `peerDeployReady`, `deployCaughtUp`) is symmetric-peer-shaped, and `SpectatorVision.seats` uses `'a'\|'b'` chars |
 | `main.ts` | lobby/quick-match produce exactly one `NetSession`, `side: 'a' \| 'b'` |
 | `backend/matchmaking.php` | queue pairs exactly two peers |
 | `hud.ts` | two HP bars, one supply readout, 1v1 ready states |
@@ -155,9 +172,17 @@ adding a host sequencer (latency on your own placements, rollback machinery),
    ARCHITECTURE.md gains a line: *"new actions must only mutate state owned
    by their seat, or provably commute."*
 
-With that, the existing model scales as-is: actions stream live, apply in
-arrival order, and all interleavings converge. `stateHash` at every battle
-start remains the safety net.
+With that, the existing model scales as-is: actions apply in arrival order
+and all interleavings converge. The fog change doesn't weaken the argument —
+it only changes *when* enemy actions arrive (in a burst at your lock-in
+instead of live); commutativity is exactly what makes that burst safe to
+apply at an arbitrary point relative to your own stream. Teammate actions
+must keep flowing **live** (playing a side together means watching each
+other build), which
+is why the disjointness rules above are load-bearing. `stateHash` at every
+battle start remains the safety net — and the `deployCaughtUp` gate the fog
+change introduced guarantees the hash is only taken after every buffered
+stream has landed.
 
 ### Undo across teammates
 
@@ -179,9 +204,10 @@ ally vs 2 AI". Per-seat cost is O(roster length) everywhere already —
 income loop, card streams (`cards-<seatId>`), HUD rows. The only per-N
 tuning is map width (`zoneCols` is already a setting; ~+10 cols per extra
 seat per side feels right, verify in playtest) and battle perf (§9).
-**This tier is what Phases 0–3 ship, and it is where "3 players vs enemies,
-most kills wins" lives** — 3 human seats + 3 AI seats on two sides, with a
-`score` victory rule (§2c). No new architecture.
+**This tier is what Phases 0–3 ship.** The 2-player horde mode (§4) also
+lives here: its horde is a *pseudo-faction* on the existing two-halves
+map, deliberately not a third side (no HP pool, no zones, no economy).
+No new architecture.
 
 **Tier 2 — N sides in state.** Making side-keyed state (match HP, tower
 debuff stacks, colors, hidden-placement rule, `targets` hostility) run over
@@ -210,8 +236,9 @@ and a balance pass for "getting attacked from two directions". Estimate:
 comparable to the whole 2v2 effort again. **Decision: design nothing that
 blocks it, build none of it now.** The honest statement for a 5-FFA: the
 foundation from Phases 0–1 carries over untouched (seats, canonical log,
-star netcode, victory rules); the map/camera/placement layer is the new
-project.
+mesh netcode, victory rules); the map/camera/placement layer is the new
+project — and **3+-player horde (§4) is its first customer** alongside
+5-FFA.
 
 ## 2c. Victory rules & scoring (mode-defined winners)
 
@@ -244,115 +271,221 @@ victory:
 - **HUD:** elimination modes show HP bars as today; score modes add a small
   live scoreboard (per-seat metric, sorted). Post-battle report already
   becomes per-seat in §6.
-- **"3 players vs enemies, most kills wins"** is then literally:
-  `seats: [3 humans on side 0, 3 AI on side 1]`,
-  `victory: { rule:'score', metric:'kills', endAt:{ sideEliminated:true }, scope:'seat' }`,
-  plus a co-op difficulty preset. It rides the 2vE phase's plumbing with no
-  new systems — a good Phase-2 stretch goal to prove the rule module.
+- **"Most horde kills by round N wins"** (horde-mode variant, §4) is then
+  literally
+  `victory: { rule:'score', metric:'kills', endAt:{ round: N }, scope:'seat' }`
+  with kills counted against horde units. It rides Phase 2's plumbing with
+  no new systems — a good stretch goal to prove the rule module.
+
+## 2d. Derived randomness: seeds nobody can know early
+
+Match-start seeds have a weakness: a modified client can roll any shared
+rng stream forward and precompute the whole match (today that is true of
+the round-card offer stream). Fix: **re-seed shared streams every round
+from the deployment log itself.**
+
+- At the moment the last player locks in, every client hashes the round's
+  full action set in canonical order — sort by `(SeatId, that seat's own
+  action index)`; arrival order differs per client, the sorted set doesn't
+  — and derives the round's shared seeds from it: horde spawns (§4), card
+  offers, any future shared roll.
+- **Nobody can compute a seed before all locks**, because under the fog
+  rules no client holds the other players' actions yet — the seed's inputs
+  are exactly the data the wire fog withholds. In mutually-fogged modes
+  (1v1, horde, across sides in 2v2) this is airtight: by the time the seed
+  exists, every player is locked and can't act on it.
+- The hash doubles as a free integrity check: diverged log ⇒ diverged
+  seed ⇒ diverged sim ⇒ caught by the existing `stateHash` at battle
+  start (the sanctioned checkpoint — never hash mid-deployment).
+- **Residual case, ally-visible modes only:** where teammates stream live
+  (same side in 2v2), the *last* locker legitimately sees every input but
+  his own and could grind his own actions against the seed. Bounded by the
+  round clock (the window is "after the second-to-last lock, before
+  force-lock") and irrelevant where the seed drives symmetric outcomes
+  (both sides get the same card offer). If a future all-allies co-op mode
+  ever needs an ungrindable seed, the upgrade is **commit–reveal**: each
+  player commits a hash of a secret nonce at round start, reveals after
+  all locks, seed = hash of all nonces — the last mover's contribution was
+  fixed before he saw anything; his only cheat left is refusing to reveal,
+  which is a visible rage-quit, not a silent edge. ~30 lines, two
+  messages, **not built now**.
 
 ---
 
-## 3. Network topology: host star
+## 3. Network topology: mesh of equal peers
 
-Keep PeerJS. The host becomes a hub (pattern already proven by
-`SpectatorHub`):
+Keep PeerJS. No machine is authoritative over game state — the sim is
+deterministic lockstep on every client, and every rule is enforced in
+`apply()` on receipt: an illegal action from a hacked client is *rejected*
+by honest clients (costs already hard-fail — `actions.ts` `economy.spend`
+returning false) and surfaces as a hash mismatch on the cheater's machine.
+The only in-sim cheat class left is early information, which the fog rules
+below close. The 1v1 topology generalizes to a **full mesh**, not a star:
 
-- **Host** holds one `NetSession` per remote human (1 for 2vE, up to 3 for
-  2v2). Guests hold exactly one link (to the host) — guest code barely
-  changes.
-- **Relay:** every action a guest sends, the host applies and forwards to
-  the other guests (tagged with the actor's canonical seat). Host's own and
-  AI actions broadcast to all. Guests never talk to each other.
+- **Every player connects directly to every other player** (2v2 = 6 links
+  — trivial at this scale). There is no relay hop between players, so the
+  listen-server trust problem of a star (an enemy-side hub reading your
+  live build traffic) simply does not exist.
+- **Fog stays on the sender — the landed 1v1 model, per recipient.** Each
+  client keeps one outbound build buffer per *enemy* player and flushes it
+  when that player's **whole side** has locked in (in 1v1 this degenerates
+  to exactly today's rule; the whole-side condition stops a locked enemy
+  from whispering to a still-deploying teammate). Ally links (same side in
+  2v2) stream live from the start — allies are just recipients whose
+  entitlement is "always". The invariant, worth stating because it is the
+  whole trust model: **information only ever flows to players who can no
+  longer act on it, and data never leaves the sender's machine until the
+  recipient is entitled to it.** Zero trust required in any peer.
+- **The coordinator is a chore, not an authority.** One peer (the room
+  creator; deterministic fallback: lowest connected `SeatId`) holds the
+  jobs *somebody* must hold: registers the room with `matchmaking.php`,
+  serves the `SpectatorHub`, collects battle-gate acks, and is the sync
+  source for reconnect and the tie-breaker for desync recovery. None of
+  these confer a cheating ability — they are timing and bookkeeping, not
+  state authority.
 - **No wire translation at all** — actions travel with canonical seat ids
-  and are applied verbatim (§2). Relaying is a dumb forward; a whole desync
-  class disappears with `swapPerspective`.
-- **`setup` message** carries the full `GameSettings` including the seat
-  roster (§2) plus each client's own `SeatId` assignment. Replaces
-  `hostName`/`guestName`. `GAME_VERSION` bump gates everything, as usual.
-- **Battle gating:** `deployReady` per seat — battle starts when all 4 seats
-  locked in (AI seats lock instantly after acting). `battleEnd`/`ready`
-  become per *client* (3–4 clients), host waits for all before the next
-  build phase; guests wait for the host's go signal (new tiny message
-  `phase` from host, or host simply forwards everyone's `battleEnd` and each
-  client waits for the full set — pick the former, it's less N²).
-- **Battle speed:** host-controlled only in team matches (today's per-pair
-  sync doesn't generalize; simplest rule that keeps clients together).
+  and are applied verbatim (§2). A whole desync class disappears with
+  `swapPerspective`.
+- **`setup`/roster flow:** the coordinator assembles `GameSettings` (seat
+  roster included, each entry carrying its peer id) in the lobby and sends
+  it to each joiner; peers then dial each other from the roster.
+  `GAME_VERSION` bump gates everything, as usual.
+- **Battle gating.** When the last player locks, every client flushes all
+  its buffers; each client sends one `deployCaughtUp` to the coordinator
+  once its inbound backlog is applied; the coordinator broadcasts a single
+  `battleStart`. Keeps the 1v1 race fix without N² pairwise gates, and the
+  coordinator can't gain anything by mistiming it that it couldn't already
+  get by lagging. Same shape for the next-build-phase transition.
+- **Battle speed:** coordinator-announced in team matches (simplest rule
+  that keeps clients together; today's per-pair sync doesn't generalize).
+
+### Transports: PeerJS now, Steam later
+
+Wrap the pipe in a small transport interface (`connect(peerId)`,
+`send(bytes)`, `onMessage`, `onClose`) under `NetSession` **now** — this
+is the one piece of Steam prep worth doing early. SteamNetworkingSockets
+is shape-identical to WebRTC data channels (identity-addressed P2P,
+reliable/unreliable channels, NAT traversal, wire encryption built in),
+so the mesh maps 1:1 when a Steam build happens — and Steam Datagram
+Relay hops are Valve infrastructure, not a player's machine, so the
+sender-side fog guarantee survives Steam's relaying untouched. (Steamworks
+needs a native wrapper — Electron or similar; the browser build can't
+call it. That's the Steam project's concern, not this plan's.)
+
+If a future transport ever forces a hub topology, the documented fallback
+is end-to-end encryption over the relay (X25519 key agreement between
+peers; the hub forwards ciphertext it cannot read). **Not built**: it
+needs authenticated identities to resist a man-in-the-middle hub (Steam
+auth tickets would provide them; the web build has nothing to anchor to),
+and it blinds the hub for spectator serving. The mesh makes it moot.
 
 ### Reconnect
 
-- **Guest drop:** exactly today's flow, host is the survivor/authority —
-  guest redials the host, sends `resume`, host answers `state` (full
-  canonical log + `battleElapsed` + `phaseRemaining`). Other clients just
-  see a "teammate reconnecting" toast; match pauses (same grace countdown UI
-  as now) or — better for 4 players — *doesn't* pause during build, only
-  blocks the battle-start gate. Start with full-pause (reuse machinery),
-  soften later.
-- **Host drop:** all guests keep their `ResumeMarker` and redial the host's
-  room id for the grace window (host reloads, re-opens its peer, guests
-  reattach, host rebuilds from ITS OWN sessionStorage log — note: host must
-  persist its log like single-player already does). No host migration in v1;
-  if the host doesn't return within grace, the match ends for everyone.
-- **Desync:** guest that mismatches the HOST's hash reloads and resumes from
-  the host (existing flow); host never reloads. Guest-vs-guest comparison is
-  unnecessary — the host is the reference.
+- Everyone holds the identical **completed-rounds log** (all buffers
+  flush before every battle). A rejoiner redials all peers, gets the
+  completed log + battle clock from the coordinator, and receives each
+  seat's *current-round* actions from that seat's owner directly, under
+  the normal fog rules (allies re-stream live; enemies flush at the usual
+  gate). Sender-side fog survives reconnect with no redaction logic on
+  any third machine — each owner "redacts" by simply not sending yet.
+- **Coordinator drop:** peers keep their `ResumeMarker`s and redial for
+  the grace window (coordinator reloads, re-opens its peer, rebuilds from
+  its persisted log — same single-player save machinery). No chore
+  migration in v1; if it doesn't return, the match ends. Mesh means match
+  *state* never depended on it — migration is a lobby/spectator-hub
+  problem only, which is why deferring it is safe.
+- **Desync:** hashes compare at battle start as today; the coordinator's
+  hash is the reference *by convention* — detection is certain, blame
+  attribution is not (§9). The mismatching peer reloads and resumes.
 - Keep the rule from memory: never hash-check outside battle start.
 
 ---
 
-## 4. Mode: 2vE (build first)
+## 4. Mode: Horde (PvPvE — build first)
 
-Two humans (host + one friend) on side 'a', **two AI seats** on side 'b'.
-Two AI seats — not one double-income AI — so the seat model is exercised
-symmetrically and income/balance knobs stay per-seat.
+Replaces the earlier "2vE co-op" concept. Two humans, **mutually
+enemies**, plus a neutral **horde** that spawns in the center strip of
+the map and attacks everyone. Positioning is the strategic dial every
+round: deploy forward against your rival, or toward the middle to farm
+the horde before it farms you. When the horde is dead, the battle plays
+out as pure PvP. Last side standing wins.
 
-- **Entry:** "Co-op vs AI" menu button → host gets a room code (reuse
-  `hostLobby` custom-room plumbing + a `mode: 'coop'` flag in the lobby
-  entry so the room list can label it); friend joins via room list or URL
-  param, lands on the second seat of side 0. No quick-match queue for v1
-  (friends mode); queue can come later with the 2v2 matchmaking work.
-- **AI execution:** the host runs both `AiOpponent` instances exactly as
-  single-player does today (own rng streams `ai-0`, `ai-1` from the seed)
-  and relays their dispatched actions to the guest as normal `action`
-  messages. The guest treats AI seats as network opponents. This sidesteps
-  every "would the AI act identically on both clients" timing question —
-  AI actions are in the log, hydration replays them, reconnect works free.
-- **Difficulty knobs** (in `GameSettings`, so they're lobby-visible):
-  AI income multiplier per seat, AI unlock aggressiveness (existing rng
-  thresholds), optional AI HP handicap. Default: symmetric incomes,
-  2000 team HP both sides.
-- **Ranked:** none. W/L only, same as today's AI games (`player.php` rule
-  already exists). Telemetry MatchRecord gains the seat roster (§7).
-- **Win/lose:** unchanged — side HP reaches 0.
+Why the redesign beats co-op: mutual enmity means the standard fog rules
+apply between all humans — which makes the §2d derived seed *airtight*
+(nobody holds anyone else's actions before all locks, so nobody can
+precompute the horde; the ally-vision grinding case never arises). It is
+also real PvP, so it stays ladder-eligible, and it keeps the netcode
+identical to 1v1.
 
-Why first: it needs only 2 clients (smallest star), no matchmaking backend
-changes, no Elo questions, and friendly stakes while the seat model and
-relay shake out their desyncs.
+- **The horde is a pseudo-faction, not a seat.** No economy, cards,
+  techs, base buildings, or deployment UI — just units. Configured as
+  `horde: { budgetPerRound, curve, … }` in `GameSettings` (lobby-visible
+  difficulty knobs), not as a roster entry. The one real sim cost — and
+  the first change in this plan that touches the binary `Team` — is a
+  third faction value with a single rule: *hostile to everyone, everyone
+  hostile to it*. Targeting changes from "the other team" to "nearest
+  unit not of my faction"; match HP, tower debuffs, and zones don't
+  apply to it. Deliberately NOT a full Tier-2 side.
+- **Spawning is derived, not transmitted.** Horde composition and
+  positions for the round are computed on every client from the §2d seed
+  at lock-complete: zero network traffic, no AI-runner machine, no relay
+  machinery, and unpeekable by construction. Waves escalate per round
+  from the settings curve.
+- **Economy hook:** horde kills pay a per-seat bounty (rides the §2c
+  kill counters) — this is what makes farm-vs-fight a real decision.
+  Tune so pure farming and pure rushing both lose to a mix.
+- **Match HP:** horde survivors damage each side's HP like any hostile
+  survivor (start with that — it keeps the horde threatening; a "horde
+  damages nobody" knob is a one-liner if playtests want it). Simultaneous
+  elimination falls through to the existing tie handling.
+- **Victory:** `elimination` unchanged. Variant via §2c: most horde
+  kills by round N.
+- **Map:** at 2 players this is the existing two-halves `BattleMap` with
+  a horde spawn band in the neutral middle rows. **3+-player horde is a
+  Tier-3 customer** (radial map, §2b) — the mode ships at 2 first.
+- **Entry:** "Horde" menu button → room code via the existing custom-room
+  plumbing + a `mode: 'horde'` lobby flag for labeling; friend joins via
+  room list or URL param. No quick-match queue in v1.
+- **Ranked:** unranked v1; W/L recorded with a mode tag (§7).
+
+Why first: 2 clients, no matchmaking backend changes, no teammate
+machinery at all (both humans are enemies — split zones and seat-owned
+buildings move to the 2v2 phase), and it exercises the genuinely new
+pieces — third faction, derived seeds, victory module — with friendly
+stakes.
 
 ## 5. Mode: 2v2
 
-Everything from 2vE, plus:
+Everything from the phases before it, plus the teammate machinery (split
+zones, seat-owned buildings, commutativity audit — §2) and:
 
 - **Lobby with seats.** Custom-room lobby screen becomes a 4-slot table
-  (side A: seat 0/1, side B: seat 0/1) with click-to-move-seat, host can
-  fill empty seats with AI (this also gives 1v2, 2v1E, 1vE+ally variants
-  for free — don't advertise, just don't forbid), start enabled when all
-  seats filled. Roster broadcast reuses the `roster` message.
+  (side A: seat 0/1, side B: seat 0/1) with click-to-move-seat, the
+  coordinator can fill empty seats with AI (this also gives 1v2, 2v1E,
+  1vE+ally variants for free — don't advertise, just don't forbid; AI
+  seats derive like the horde, §2d — precomputable by a modified client,
+  acceptable for casual fill-ins), start enabled when all seats filled.
+  Roster broadcast reuses the `roster` message.
 - **Quick match 2v2:** extend `matchmaking.php` queue entries with
   `mode: '2v2'` and `party: [peer, peer] | [peer]`; the matcher fills 4
-  slots preferring parties, then solos (first-come). Host = first party's
-  first peer. This is the only backend change; same JSON-file store. v1 can
-  even ship without solo-queue (parties of 2 only) if fill times look bad.
-- **Hidden placements:** hide enemy-*side* placements until own lock-in
-  (existing rule, side-based already); teammate placements always visible
-  live. `hiddenPlacements` check becomes side-of-seat based.
+  slots preferring parties, then solos (first-come). Coordinator = first
+  party's first peer. This is the only backend change; same JSON-file
+  store. v1 can even ship without solo-queue (parties of 2 only) if fill
+  times look bad.
+- **Hidden placements:** enemy-side build actions never leave their
+  sender until your **whole side** has locked in (sender-side wire fog
+  per recipient, §3); teammate placements always visible live. The local
+  `hiddenPlacements` render rule stays as belt-and-suspenders and becomes
+  side-of-seat based.
 - **Ranked:** start unranked. If/when ranked: team Elo = average, delta
   applied to both members, host submits (existing host-submit + token
   protection pattern). Decide after the mode proves fun.
-- **Spectators:** hub unchanged (it snapshots the host log — already
-  seat-agnostic once the log carries seats). Roster entries already fit.
-  Vision permissions and big-screen mode: §5b.
-- **Chat:** `chat` message gains scope `'all' | 'team'`; host relays team
-  chat only to same-side clients. Emote wheel unchanged.
+- **Spectators:** hub unchanged (it snapshots the coordinator's log —
+  already seat-agnostic once the log carries seats). Roster entries
+  already fit. Vision permissions and big-screen mode: §5b.
+- **Chat:** `chat` message gains scope `'all' | 'team'`; team chat is
+  sent directly to same-side peers only (mesh — no relay involved).
+  Emote wheel unchanged.
 
 ---
 
@@ -386,29 +519,43 @@ authoritative "tournament relay" for N-player is still not required for 1v1.
   `spectateAccepted` includes the field; `visionUpdate` pushes changes mid-match.
 - **Granting:** pause menu "share my deploy live" — host updates hub directly;
   guest sends `spectateGrant` for seat `'b'`.
-- Mode presets: 1v1 spectators default to battle-only; co-op vs AI can later
-  default to live; big-screen host is always live/all.
+- Mode presets: 1v1 and horde spectators default to battle-only; casual
+  party rooms can later default to live; big-screen host is always
+  live/all.
+- **Phase-0 migration:** the `'a' | 'b'` seat chars in `SpectatorVision` and
+  `spectateGrant` become `SeatId[]` when the roster lands (grant rule stays
+  "a client may only grant seats it controls"). Player fog then reuses the
+  same vocabulary: a player is just a recipient whose vision is
+  `{ live: seatsOfMySide }` — one filter for players and spectators alike
+  (§3).
 
 ### Big-screen / board mode (host plays nobody)
 
 The scenario "a PC opens the match on the TV, everyone joins from phones"
-is the star topology with a **seatless host**: the roster simply contains
-no seat controlled by the host client.
+is the normal mesh plus a **seatless coordinator**: the roster simply
+contains no seat controlled by the big-screen client.
 
-- Host = authority, relay, AI runner, and renderer with `vision: 'all'` —
-  a dedicated server that happens to have a screen. Guests (phones — the
-  `touchpad` branch's mobile work is exactly this client) join as normal
-  players.
+- The big screen = coordinator (§3 chores: room registration, spectator
+  hub, battle-gate acks) + a renderer with `vision: 'all'`. Nothing else
+  about it is special — AI and horde derive on every client (§2d), so it
+  is not an "AI runner", and match state never depends on it. Players
+  (phones — the `touchpad` branch's mobile work is exactly this client)
+  join as normal mesh peers.
 - Code-wise this needs: `mySeat: SeatId | null` (build UI, card overlays,
   and lock-in prompts hidden when null), a free/overview camera (the rig
   already supports arbitrary heading; add a slow auto-pan "director" later,
   nice-to-have), and a lobby toggle "host as screen only".
-- Costs nothing architecturally — every system already runs host-side for
-  relay/AI purposes; the host just doesn't open a placement UI. The main
-  real work is menu/lobby flow and making the HUD render a neutral
-  "observer" layout (scoreboard + both economies visible).
-- Caveat to accept: the screen is also the single point of failure (host
-  drop pauses/ends the match, §3). Fine for a living room.
+- Costs nothing architecturally — it needs `mySeat: null` handling, the
+  observer HUD, and a lobby toggle; every coordinator chore already runs
+  on some peer anyway. The main real work is menu/lobby flow and a
+  neutral "observer" layout (scoreboard + all economies visible).
+- Caveat to accept: the screen going away ends the *chores* (lobby,
+  spectators, gate acks) after the grace window, §3 — though never the
+  match state itself. Fine for a living room.
+- **Note (updated for the mesh):** with the mesh (§3), wire fog is
+  already strict for every player without any neutral machine — the big
+  screen is purely a display/party feature now, not a trust requirement.
+  The old "tournament relay" idea is obsolete.
 
 **Is it complicated?** No. Mid-game join and multi-viewer infrastructure
 exist; vision is one render-rule filter plus one message; big-screen is
@@ -444,13 +591,13 @@ re-joins by room name, which is an acceptable answer).
 
 ## 7. Telemetry, stats, accounts
 
-- `MatchRecord` gains `mode: '1v1' | 'coop' | '2v2'` and a seat roster
+- `MatchRecord` gains `mode: '1v1' | 'horde' | '2v2'` and a seat roster
   (name or 'AI', side, seat). Bump `BALANCE_PATCH_ID`? No — bump
   `GAME_VERSION`; balance id only when tuning numbers. `stats.html`
   analysis: filter by mode so 1v1 balance data stays clean.
-- `player.php`: co-op counts as AI game (W/L), 2v2 unranked at first —
-  needs only a mode tag on the result submission so records aren't mixed
-  into 1v1 Elo.
+- `player.php`: horde W/L recorded with its mode tag (ladder-eligible
+  later — it's PvP), 2v2 unranked at first — the mode tag on the result
+  submission keeps records out of 1v1 Elo.
 
 ---
 
@@ -470,27 +617,35 @@ on every logic change). **Biggest phase; purely mechanical; gate on: full
 1v1 vs AI match + full multiplayer match + reconnect + replay hydration all
 green.**
 
-**Phase 1 — Host star netcode.** Host multi-`NetSession` container +
-dumb relay (canonical actions, no translation); per-seat `deployReady`;
-host-driven phase gating; host log persistence for host-reload recovery;
-multi-guest reconnect. Testable entirely with 1v1 (a star of one) before
-any new mode exists.
+**Phase 1 — Mesh netcode.** Multi-link session container behind a small
+**transport interface** (§3 — PeerJS now, Steam-shaped later); generalize
+the landed sender-side fog to **per-recipient buffers with the whole-side
+flush rule**; the coordinator role (room registration, spectator hub,
+ack collection, reconnect sync source); coordinator-owned
+`deployCaughtUp` → `battleStart` gate replacing the symmetric 2-peer
+gate; per-seat `deployReady`; log persistence for reload recovery; mesh
+reconnect (§3). Testable entirely with 1v1 — **a mesh of two IS today's
+topology**; behavior must be indistinguishable from the landed
+sender-side fog there.
 
-**Phase 2 — 2vE.** Seat-split zones + seat-owned buildings (needed here
-already — two humans share a side); co-op lobby entry + room labeling; AI
-seats on host with relay; difficulty knobs; HUD seat rows; commutativity
-audit (oil field, extras budget). Playtest gate: full co-op match with an
-artificial 200ms delay on the guest link, zero hash mismatches across 10
-matches. **Stretch: the `score` victory rule + a 3vE "most kills wins"
-preset (§2c)** — rides the same plumbing, proves the rule module, and the
-roster makes 3 seats no harder than 2.
+**Phase 2 — Horde mode (§4).** The `'horde'` pseudo-faction in the sim
+(hostility predicate, targeting, match-HP damage from survivors); center
+spawn band on the existing map; **§2d derived seeds** (horde waves +
+per-round re-seed of the shared card stream); kill bounties; escalation
+curve + difficulty knobs in `GameSettings`; lobby entry + room labeling.
+No teammate machinery — both humans are enemies. **Stretch: the `score`
+victory rule + the "most horde kills" preset (§2c)** — proves the rule
+module. Playtest gate: full horde match with an artificial 200ms delay,
+zero hash mismatches across 10 matches.
 
-**Phase 3 — 2v2.** N-seat lobby with seat picker + AI-fill; quick-match
-party queue in `matchmaking.php`; team chat scope; spectator verification +
-**vision permissions and the mid-game "invite a friend to watch, share my
-view" flow (§5b)**; unranked result recording. Playtest gate: 4 real
-clients, reconnect each role (host, ally guest, enemy guest) mid-build and
-mid-battle.
+**Phase 3 — 2v2.** The teammate machinery horde mode didn't need:
+seat-split zones + seat-owned buildings + the same-side commutativity
+audit (oil field, extras budget). Plus: N-seat lobby with seat picker +
+AI-fill; quick-match party queue in `matchmaking.php`; team chat scope;
+spectator verification + **vision permissions and the mid-game "invite a
+friend to watch, share my view" flow (§5b)**; unranked result recording.
+Playtest gate: 4 real clients, reconnect each role (coordinator, ally,
+enemy) mid-build and mid-battle.
 
 **Phase 4 — Polish/balance + big-screen mode.** Team-HP and income tuning
 for 4 armies on the standard map (the board may want `zoneCols` wider for 2
@@ -500,7 +655,7 @@ stats.html mode filters, ranked decision; **seatless-host board mode
 (§5b)** — phones play, the TV watches.
 
 **Future (own project) — FFA / Tier 3.** Radial map class + observer of
-everything above; see §2b. Not scheduled.
+everything above; see §2b. 3+-player horde rides this. Not scheduled.
 
 ---
 
@@ -511,20 +666,30 @@ everything above; see §2b. Not scheduled.
 | Phase 0 touch surface (~50 sites) introduces subtle 1v1 regressions | mechanical re-key with no logic edits; the compiler drives it (change the key type, fix every red site); hydration replay of a recorded pre-refactor match action-log is the acceptance test |
 | Hidden non-commutative same-side state discovered late | dedicated audit task in Phase 2; anything found becomes seat-owned or (last resort) host-sequenced for that action kind only |
 | PeerJS host upload bandwidth with 3 guests + spectators | actions are tiny JSON; spectator hub already broadcasts fine; measure, don't pre-optimize |
-| Host reload with 3 guests is flaky | host log persistence (single-player save machinery reused) + guests redial room id — same primitives as today, tested in Phase 1 while still 1v1 |
+| Coordinator reload with 3 peers is flaky | log persistence (single-player save machinery reused) + peers redial room id — same primitives as today, tested in Phase 1 while still 1v1; match state never lives only on the coordinator (§3) |
+| Mesh links that fail NAT traversal (more pairs = more chances to fail) | PeerJS TURN fallback covers most; last resort: relay that one pair through the coordinator with a lobby warning (accepting the trust caveat for that pair only); Steam Datagram Relay makes this a non-issue on a Steam build |
+| A rule enforced only in the HUD but not in `apply()` lets a hacked client smuggle an action all clients accept identically — no desync, no detection | one-time audit: every reject the UI enforces must also `return false` in `apply()` (costs already do); add the rule to the ARCHITECTURE.md new-action checklist |
+| Hash mismatch detects desync but cannot prove *who* diverged | accepted for friend games: coordinator hash is the reference by convention (§3); keep logs for post-mortem |
+| Third faction (horde) touches battle-sim targeting and perf | the rule is one predicate change ("nearest non-own-faction"); horde has no towers/HP/zones so the surface is small; profile a full late-round wave on a mid phone (touchpad-branch texture budget applies) |
 | Canonical-log migration breaks a subtle perspective assumption (some UI site still expects "my units are 'player'") | derived `mySide`/`isAlly` helpers land first, then the compiler + a full-match replay diff (hash every round) against a pre-migration recording catches stragglers |
 | Balance: 4 armies double unit count per battle → sim perf & mobile texture budget | sim is headless-fast (fast-forward already runs 0.25 s steps); profile battle with 2× packs on a mid phone in Phase 2 (touchpad-branch texture-budget rules apply) |
+| Fog flush / catch-up races multiply with N clients (the 1v1 `deployCaughtUp` race was real and already needed a fix) | single coordinator-owned gate: everyone flushes at last lock, coordinator collects one ack per client, broadcasts one `battleStart` — no pairwise waits anywhere; hash-at-battle-start catches anything that slips |
+| Last locker grinds a derived seed in ally-visible modes (§2d) | doesn't exist in horde/1v1/cross-side 2v2 (mutual fog withholds the seed's inputs); where allies stream live it's bounded by the round clock; commit–reveal is the documented upgrade if a future co-op mode needs it |
 | Solo-queue 2v2 fill times in a small playerbase | ship parties-of-2 first; room list is the real matchmaking for now |
 
 ## 10. Explicit non-goals (v1)
 
-- Host migration on permanent host loss.
+- Coordinator-chore migration on permanent loss (match state never
+  depends on the coordinator, §3 — this is a lobby/spectator problem only).
 - Shared team purse / gifting supply between teammates.
-- Ranked 2v2 Elo (records tagged, ladder later).
+- Ranked 2v2 Elo (records tagged, ladder later). Horde ladder likewise.
 - Per-seat battle unit tints (side color stays dominant).
-- Shipping any Tier-3 / FFA geometry (the model allows it; nothing is built).
+- Shipping any Tier-3 / FFA geometry (the model allows it; nothing is
+  built) — this includes 3+-player horde.
 - Wire-level deploy fog for 1v1 + spectator vision — **landed** (sender
-  buffer until receiver lock-in; battle-default spectators). N-player host
-  tournament relay still later.
+  buffer until receiver lock-in; battle-default spectators). The mesh (§3)
+  makes any trusted N-player relay unnecessary — that idea is retired.
+- Commit–reveal seeding (§2d) and E2E encryption over a relay (§3) —
+  designed, documented, **not built**.
 - Spectator reconnect (pre-existing limitation; re-join by room name is the
   workaround).
