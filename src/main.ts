@@ -35,6 +35,20 @@ import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/setti
 import { duoSeats } from './game/seats';
 import { THEME, menuStyles } from './theme';
 
+// ?horde=1 / the Horde menu button — PvPvE: a neutral pink dwarf horde owns
+// a wide forest belt in the map center and spawns a bigger wave every round
+function applyHordeMode(settings: GameSettings): void {
+    settings.horde = structuredClone(DEFAULT_HORDE);
+    settings.map = { ...settings.map, neutralRows: settings.horde.beltRows };
+}
+
+// ?duo=1 / the 2v2 Skirmish menu button — you + an AI ally against two AI
+// commanders, split lanes, wider board. Combines with horde mode.
+function applyDuoMode(settings: GameSettings): void {
+    settings.seats = duoSeats('You');
+    settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.5) };
+}
+
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20
 function settingsFromUrl(): GameSettings {
     const params = new URLSearchParams(location.search);
@@ -45,18 +59,8 @@ function settingsFromUrl(): GameSettings {
     if (build > 0) settings.buildTimeSeconds = build;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
-    // ?horde=1 — PvPvE: a neutral pink dwarf horde owns a wide forest belt in
-    // the map center and spawns a bigger wave there every round
-    if (params.get('horde')) {
-        settings.horde = structuredClone(DEFAULT_HORDE);
-        settings.map = { ...settings.map, neutralRows: settings.horde.beltRows };
-    }
-    // ?duo=1 — 2v2 skirmish vs AI: you + an AI ally against two AI
-    // commanders, split lanes, wider board. Combines with ?horde=1.
-    if (params.get('duo')) {
-        settings.seats = duoSeats('You');
-        settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.5) };
-    }
+    if (params.get('horde')) applyHordeMode(settings);
+    if (params.get('duo')) applyDuoMode(settings);
     return settings;
 }
 
@@ -249,6 +253,8 @@ menu.style.zIndex = '30';
 menu.style.display = 'none';
 menu.innerHTML = `
     <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
+    <button class="m-btn" data-mode="horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+    <button class="m-btn" data-mode="duo"><span class="m-ico">👥</span><span class="m-label">2v2 Skirmish (vs AI)</span></button>
     <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
     <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
     <div class="m-lobby" style="display:none">
@@ -978,20 +984,31 @@ menu.addEventListener('click', (e) => {
     }
 
     const mode = button.dataset.mode;
-    if (!bootReady && (mode === 'single' || mode === 'quick' || mode === 'host')) {
+    if (!bootReady && (mode === 'single' || mode === 'quick' || mode === 'host' || mode === 'horde' || mode === 'duo')) {
         setStatus('Still loading — one moment…');
         return;
     }
 
+    /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
+    const startLocalMatch = (mode?: 'horde' | 'duo'): void => {
+        const settings = settingsFromUrl();
+        settings.buildTimeSeconds = 60 * 60;
+        settings.specialistTimeSeconds = 60 * 60;
+        if (mode === 'horde' || mode === 'duo') applyHordeMode(settings);
+        if (mode === 'duo') applyDuoMode(settings);
+        startGame(settings);
+    };
+
     switch (mode) {
-        case 'single': {
-            // same fog rules as multiplayer; only timers are relaxed so you can think
-            const settings = settingsFromUrl();
-            settings.buildTimeSeconds = 60 * 60;
-            settings.specialistTimeSeconds = 60 * 60;
-            startGame(settings);
+        case 'single':
+            startLocalMatch();
             break;
-        }
+        case 'horde':
+            startLocalMatch('horde');
+            break;
+        case 'duo':
+            startLocalMatch('duo');
+            break;
         case 'quick':
             lobbyEl.style.display = 'none';
             stopRoomPoll();
