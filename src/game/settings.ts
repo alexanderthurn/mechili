@@ -55,7 +55,7 @@ export const DEFAULT_HORDE: HordeSettings = {
     baseBudget: 300,
     budgetPerRound: 200,
     leaderShare: 0.65,
-    beltRows: 20,
+    beltRows: 40,
 };
 
 export interface LevelingSettings {
