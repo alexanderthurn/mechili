@@ -13,12 +13,11 @@ const FAKE_POINTER_ID = 0x7fff;
 /**
  * Console-RTS style virtual cursor for gamepads (Halo Wars pattern).
  *
- * The left stick moves a crosshair; A "clicks" wherever it points. Over HUD
- * elements that is a plain DOM click; over the battlefield a synthetic
- * PointerEvent (pointerType 'gamepad') is dispatched on the input surface, so
- * the whole existing camera/placement/tactic pipeline handles it exactly like
- * a mouse click — including ghost previews, which follow the synthetic
- * pointermove stream. Right stick orbits, triggers zoom toward the cursor,
+ * The left stick moves a crosshair. Over HUD elements A is a plain DOM click;
+ * on the battlefield hold A and drag to rubber-band select, or tap to click.
+ * Synthetic PointerEvents (pointerType 'gamepad') feed the same placement
+ * pipeline as mouse — ghost previews follow the pointermove stream. Right
+ * stick orbits, triggers zoom toward the cursor,
  * LB/RB turn the right stick into camera pan, B cancels, X rotates,
  * Start opens the menu.
  */
@@ -35,6 +34,8 @@ export class GamepadCursor {
     private visible = false;
     private lastActivity = 0;
     private prev: boolean[] = [];
+    /** battlefield A held — pointerdown stays up until release for drag-select */
+    private pointerDown = false;
 
     constructor(
         private readonly surface: HTMLElement,
@@ -42,6 +43,12 @@ export class GamepadCursor {
     ) {
         this.el = document.createElement('div');
         this.el.className = 'mechili-gpcursor';
+        for (const dir of ['n', 'e', 's', 'w'] as const) {
+            const arrow = document.createElement('span');
+            arrow.className = `gp-arrow gp-arrow-${dir}`;
+            arrow.setAttribute('aria-hidden', 'true');
+            this.el.appendChild(arrow);
+        }
         (surface.parentElement ?? document.body).appendChild(this.el);
     }
 
@@ -55,6 +62,7 @@ export class GamepadCursor {
             }
         }
         if (!pad) {
+            if (this.pointerDown) this.releasePointer();
             if (this.visible) this.hide();
             return;
         }
@@ -103,12 +111,15 @@ export class GamepadCursor {
             this.y = cy;
             this.el.style.left = `${cx}px`;
             this.el.style.top = `${cy}px`;
-            // ghost/tactic previews track this exactly like a mouse hover
-            this.surface.dispatchEvent(this.pointerEvent('pointermove', rect, 0));
+            // ghost/tactic previews and drag-select track held A like mouse drag
+            this.surface.dispatchEvent(
+                this.pointerEvent('pointermove', rect, this.pointerDown ? 1 : 0),
+            );
         }
 
         const lb = pressed[4] === true;
         const rb = pressed[5] === true;
+        this.el.classList.toggle('pan-mode', lb || rb);
         // Gamepad stick "up" is usually -Y, but we want intuitive camera control:
         // stick up should move the view in the opposite direction of stick down.
         const invRy = -ry;
@@ -138,15 +149,20 @@ export class GamepadCursor {
         }
 
         const edge = (i: number) => pressed[i] === true && this.prev[i] !== true;
-        if (edge(0)) this.press(rect); // A: click at the cursor
-        if (edge(1)) this.onCancel?.(); // B
+        const aDown = pressed[0] === true;
+        if (aDown && !this.prev[0]) this.pressDown(rect); // A: hold for drag-select
+        else if (!aDown && this.prev[0]) this.releasePointer(rect);
+        if (edge(1)) {
+            if (this.pointerDown) this.releasePointer(rect);
+            this.onCancel?.(); // B
+        }
         if (edge(2)) this.onRotate?.(); // X
         if (edge(9)) this.onMenu?.(); // Start
         if (edge(8)) this.rig.resetView(); // Select/Back
         this.prev = pressed;
     }
 
-    private press(rect: DOMRect): void {
+    private pressDown(rect: DOMRect): void {
         const target = document.elementFromPoint(rect.left + this.x, rect.top + this.y);
         // HUD chrome: an ordinary DOM click on the button under the crosshair
         if (target && target !== this.surface && !(target instanceof HTMLCanvasElement)) {
@@ -156,9 +172,15 @@ export class GamepadCursor {
             (clickable ?? (target as HTMLElement)).click();
             return;
         }
-        // battlefield: run the normal pointer pipeline
+        this.pointerDown = true;
         this.surface.dispatchEvent(this.pointerEvent('pointerdown', rect, 1));
-        this.surface.dispatchEvent(this.pointerEvent('pointerup', rect, 0));
+    }
+
+    private releasePointer(rect?: DOMRect): void {
+        if (!this.pointerDown) return;
+        this.pointerDown = false;
+        const r = rect ?? this.surface.getBoundingClientRect();
+        this.surface.dispatchEvent(this.pointerEvent('pointerup', r, 0));
     }
 
     private pointerEvent(type: string, rect: DOMRect, buttons: number): PointerEvent {
@@ -187,11 +209,13 @@ export class GamepadCursor {
     }
 
     private hide(): void {
+        if (this.pointerDown) this.releasePointer();
         this.visible = false;
-        this.el.classList.remove('visible');
+        this.el.classList.remove('visible', 'pan-mode');
     }
 
     dispose(): void {
+        if (this.pointerDown) this.releasePointer();
         this.el.remove();
     }
 }

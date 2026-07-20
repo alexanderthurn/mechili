@@ -2485,6 +2485,46 @@ textarea {
     background: ${u.brassLight};
     border-radius: 50%;
 }
+.mechili-gpcursor .gp-arrow {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border: solid transparent;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    pointer-events: none;
+}
+.mechili-gpcursor.pan-mode .gp-arrow {
+    opacity: 0.95;
+}
+.mechili-gpcursor .gp-arrow-n {
+    left: 50%;
+    top: -9px;
+    margin-left: -4px;
+    border-width: 0 4px 6px 4px;
+    border-bottom-color: ${u.brassLight};
+}
+.mechili-gpcursor .gp-arrow-s {
+    left: 50%;
+    bottom: -9px;
+    margin-left: -4px;
+    border-width: 6px 4px 0 4px;
+    border-top-color: ${u.brassLight};
+}
+.mechili-gpcursor .gp-arrow-e {
+    right: -9px;
+    top: 50%;
+    margin-top: -4px;
+    border-width: 4px 0 4px 6px;
+    border-left-color: ${u.brassLight};
+}
+.mechili-gpcursor .gp-arrow-w {
+    left: -9px;
+    top: 50%;
+    margin-top: -4px;
+    border-width: 4px 6px 4px 0;
+    border-right-color: ${u.brassLight};
+}
 .mechili-gpcursor.visible { display: block; }
 
 /* long-press tooltip card (touch stand-in for title-attribute tooltips) */
