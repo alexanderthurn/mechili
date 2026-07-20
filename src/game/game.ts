@@ -324,6 +324,7 @@ export class Game {
     private armedItemIndex: number | null = null;
     /** the tactic currently being placed on the map */
     private armedTactic: string | null = null;
+    private armedTacticIndex: number | null = null;
     /** first click of an in-progress two-point tactic (rally or oil) */
     private tacticDraftStart: { x: number; z: number } | null = null;
     /** whether each side already took/skipped this round's card */
@@ -708,15 +709,16 @@ export class Game {
                 this.armedItemIndex = index;
             }
         };
-        this.hud.onArmTactic = (tacticId) => {
+        this.hud.onArmTactic = (tacticId, index) => {
             if (!this.playerCanAct) return;
-            if (this.armedTactic === tacticId) {
+            if (this.armedTactic === tacticId && this.armedTacticIndex === index) {
                 this.cancelTacticPlacement();
                 return;
             }
             this.armedItem = null;
             this.placement.deselect();
             this.armedTactic = tacticId;
+            this.armedTacticIndex = index;
             this.tacticDraftStart = null;
             this.placement.inputLocked = true;
             this.syncTacticVisuals();
@@ -2239,6 +2241,7 @@ export class Game {
         placed?: boolean;
         routeId?: number;
         hint?: string;
+        index: number;
     }[] {
         if (!this.playerCanAct) return [];
         const out: {
@@ -2250,7 +2253,9 @@ export class Game {
             routeId?: number;
             cooldown?: number;
             hint?: string;
+            index: number;
         }[] = [];
+        let slot = 0;
 
         // where each 'placement' tactic keeps its resettable placements
         const placementsOf: Record<string, () => readonly { id: number }[]> = {
@@ -2343,23 +2348,27 @@ export class Game {
                     armed: false,
                     placed: true,
                     cooldown: tactic.cooldownRounds,
+                    index: slot,
                     ...p,
                 });
+                slot++;
             }
             for (let i = 0; i < avail; i++) {
                 out.push({
                     id: tactic.id,
                     icon: tactic.icon,
                     name: `${tactic.name} — ${tactic.description}`,
-                    // only ONE entry lights up — a click arms a single charge
-                    armed: this.armedTactic === tactic.id && i === 0,
+                    // duplicates share an id: highlight exactly the clicked slot
+                    armed: this.armedTactic === tactic.id && this.armedTacticIndex === slot,
                     cooldown: tactic.cooldownRounds,
+                    index: slot,
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
                         tactic.kind === 'oneShot'
                             ? `${tactic.name}\n${tactic.description}\nRight-click to cancel.`
                             : undefined,
                 });
+                slot++;
             }
         }
 
@@ -2623,6 +2632,7 @@ export class Game {
     private cancelTacticPlacement(): boolean {
         const had = this.armedTactic !== null || this.tacticDraftStart !== null;
         this.armedTactic = null;
+        this.armedTacticIndex = null;
         this.tacticDraftStart = null;
         this.placement.inputLocked = false;
         this.syncTacticVisuals();
