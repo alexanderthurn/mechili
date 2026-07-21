@@ -60,6 +60,12 @@ const PLAY_URL =
         ? 'https://play.melodan.com/'
         : new URL('./index.html', location.href).href;
 
+const TRAILER_YOUTUBE_ID = '-Kspr2J8jWQ';
+const trailerPosterUrl = new URL(
+    '../../assets/marketing/screenshots/trailer-poster.webp',
+    import.meta.url,
+).href;
+
 const SCREENSHOTS = [
     { file: '01.webp', label: 'Screenshot 1' },
     { file: '02.webp', label: 'Screenshot 2' },
@@ -67,6 +73,19 @@ const SCREENSHOTS = [
     { file: '04.webp', label: 'Screenshot 4' },
 ].map((s) => ({
     src: new URL(`../../assets/marketing/screenshots/${s.file}`, import.meta.url).href,
+    label: s.label,
+}));
+
+const MORE_SCREENSHOTS = [
+    { file: 'screen_1.webp', label: 'Deployment at the castle wall' },
+    { file: 'screen_2.webp', label: 'Battle around a ward stone' },
+    { file: 'screen_3.webp', label: 'Placing archers on the grid' },
+    { file: 'screen_4.webp', label: 'Dragon fire breath over the field' },
+    { file: 'screen_5.webp', label: 'Close combat melee' },
+    { file: 'screen_6.webp', label: 'Mass army deployment' },
+    { file: 'screen_7.webp', label: 'Large-scale battle' },
+].map((s) => ({
+    src: new URL(`../../assets/marketing/screenshots/fullhd/${s.file}`, import.meta.url).href,
     label: s.label,
 }));
 
@@ -268,11 +287,35 @@ app.innerHTML = `
 </header>
 
 <main class="mh-wrap">
+  <section class="mh-section mh-trailer-section" id="trailer">
+    <div class="mh-trailer" id="mh-trailer" data-youtube-id="${esc(TRAILER_YOUTUBE_ID)}">
+      <button type="button" class="mh-trailer-facade" id="mh-trailer-load" aria-label="Play trailer (loads YouTube)">
+        <img class="mh-trailer-poster" src="${esc(trailerPosterUrl)}" alt="MELODAN trailer" width="1280" height="720" />
+        <span class="mh-trailer-play" aria-hidden="true">
+          <svg viewBox="0 0 68 48" width="68" height="48" focusable="false">
+            <path fill="currentColor" d="M66.5 7.7c-.8-2.9-2.5-5.4-5.4-6.2C55.8.1 34 0 34 0S12.2.1 6.9 1.5C4 2.3 2.3 4.8 1.5 7.7 0 13.1 0 24 0 24s0 10.9 1.5 16.3c.8 2.9 2.5 5.4 5.4 6.2C12.2 47.9 34 48 34 48s21.8-.1 27.1-1.5c2.9-.8 4.6-3.3 5.4-6.2C68 34.9 68 24 68 24s0-10.9-1.5-16.3z"/>
+            <path fill="#111" d="M45 24 27 14v20"/>
+          </svg>
+        </span>
+      </button>
+      <p class="mh-trailer-notice">
+        Click to load the trailer from YouTube.
+        YouTube may set cookies &mdash; see
+        <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">data privacy</a>.
+      </p>
+    </div>
+  </section>
+
   <section class="mh-section" id="screenshots">
     <h2>Screenshots</h2>
     <p class="mh-sub">A look at deployment and battle.</p>
     <div class="mh-shots">
       ${SCREENSHOTS.map(shotCard).join('')}
+    </div>
+    <div class="mh-shots-more-wrap">
+      <button type="button" class="mh-shots-more-btn" id="mh-shots-more" aria-haspopup="dialog">
+        Browse more screenshots
+      </button>
     </div>
   </section>
 
@@ -421,6 +464,20 @@ app.innerHTML = `
     <img class="mh-sticky-icon mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="84" height="84" />
   </a>
 </aside>
+
+<dialog class="mh-lightbox" id="mh-lightbox" aria-label="Screenshot gallery">
+  <div class="mh-lightbox-chrome">
+    <p class="mh-lightbox-count" id="mh-lightbox-count" aria-live="polite"></p>
+    <button type="button" class="mh-lightbox-close" id="mh-lightbox-close" aria-label="Close gallery">&times;</button>
+  </div>
+  <button type="button" class="mh-lightbox-nav prev" id="mh-lightbox-prev" aria-label="Previous screenshot">&#8249;</button>
+  <button type="button" class="mh-lightbox-nav next" id="mh-lightbox-next" aria-label="Next screenshot">&#8250;</button>
+  <div class="mh-lightbox-stage" id="mh-lightbox-stage">
+    <img class="mh-lightbox-img" id="mh-lightbox-img" alt="" draggable="false" />
+  </div>
+  <p class="mh-lightbox-caption" id="mh-lightbox-caption"></p>
+  <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="Screenshots"></div>
+</dialog>
 `;
 
 const heroPlay = app.querySelector('.mh-play');
@@ -471,6 +528,119 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
         span.textContent = `${label} ⬢ drop file in assets/marketing/screenshots/`;
         img.replaceWith(span);
     });
+}
+
+const trailerEl = app.querySelector<HTMLElement>('#mh-trailer');
+const trailerLoadBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-load');
+trailerLoadBtn?.addEventListener('click', () => {
+    const id = trailerEl?.dataset.youtubeId;
+    if (!trailerEl || !id) return;
+    const iframe = document.createElement('iframe');
+    iframe.className = 'mh-trailer-frame';
+    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`;
+    iframe.title = 'MELODAN trailer';
+    iframe.allow =
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    iframe.allowFullscreen = true;
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    trailerEl.classList.add('is-playing');
+    trailerEl.replaceChildren(iframe);
+});
+
+{
+    const lightbox = app.querySelector<HTMLDialogElement>('#mh-lightbox');
+    const imgEl = app.querySelector<HTMLImageElement>('#mh-lightbox-img');
+    const countEl = app.querySelector<HTMLElement>('#mh-lightbox-count');
+    const captionEl = app.querySelector<HTMLElement>('#mh-lightbox-caption');
+    const dotsEl = app.querySelector<HTMLElement>('#mh-lightbox-dots');
+    const stageEl = app.querySelector<HTMLElement>('#mh-lightbox-stage');
+    const openBtn = app.querySelector<HTMLButtonElement>('#mh-shots-more');
+    const closeBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-close');
+    const prevBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-prev');
+    const nextBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-next');
+    let index = 0;
+
+    if (lightbox && imgEl && countEl && captionEl && dotsEl && stageEl && openBtn) {
+        dotsEl.innerHTML = MORE_SCREENSHOTS.map(
+            (s, i) =>
+                `<button type="button" class="mh-lightbox-dot" role="tab" aria-label="${esc(s.label)}" data-index="${i}"></button>`,
+        ).join('');
+        const dots = [...dotsEl.querySelectorAll<HTMLButtonElement>('.mh-lightbox-dot')];
+
+        const show = (i: number) => {
+            const n = MORE_SCREENSHOTS.length;
+            index = ((i % n) + n) % n;
+            const shot = MORE_SCREENSHOTS[index]!;
+            imgEl.src = shot.src;
+            imgEl.alt = shot.label;
+            countEl.textContent = `${index + 1} / ${n}`;
+            captionEl.textContent = shot.label;
+            for (const [di, dot] of dots.entries()) {
+                const on = di === index;
+                dot.classList.toggle('active', on);
+                dot.setAttribute('aria-selected', on ? 'true' : 'false');
+            }
+        };
+
+        const open = (i = 0) => {
+            show(i);
+            if (!lightbox.open) lightbox.showModal();
+        };
+        const close = () => {
+            if (lightbox.open) lightbox.close();
+        };
+
+        openBtn.addEventListener('click', () => open(0));
+        closeBtn?.addEventListener('click', close);
+        prevBtn?.addEventListener('click', () => show(index - 1));
+        nextBtn?.addEventListener('click', () => show(index + 1));
+        for (const dot of dots) {
+            dot.addEventListener('click', () => show(Number(dot.dataset.index)));
+        }
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) close();
+        });
+        lightbox.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                show(index - 1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                show(index + 1);
+            }
+        });
+
+        let dragX = 0;
+        let dragY = 0;
+        let dragging = false;
+        stageEl.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            dragging = true;
+            dragX = e.clientX;
+            dragY = e.clientY;
+            stageEl.setPointerCapture(e.pointerId);
+            imgEl.style.transition = 'none';
+        });
+        stageEl.addEventListener('pointermove', (e) => {
+            if (!dragging) return;
+            const dx = e.clientX - dragX;
+            imgEl.style.transform = `translateX(${dx}px)`;
+        });
+        const endDrag = (e: PointerEvent) => {
+            if (!dragging) return;
+            dragging = false;
+            const dx = e.clientX - dragX;
+            const dy = e.clientY - dragY;
+            imgEl.style.transition = '';
+            imgEl.style.transform = '';
+            if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
+                show(dx < 0 ? index + 1 : index - 1);
+            }
+        };
+        stageEl.addEventListener('pointerup', endDrag);
+        stageEl.addEventListener('pointercancel', endDrag);
+    }
 }
 
 const canvas = app.querySelector<HTMLCanvasElement>('#mh-unit-canvas')!;

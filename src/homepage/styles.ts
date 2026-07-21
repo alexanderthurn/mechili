@@ -315,10 +315,129 @@ body {
     padding: 0 0.15em;
 }
 
+.mh-trailer-section {
+    padding-top: 0;
+}
+.mh-trailer-section::before,
+.mh-trailer-section::after {
+    display: none;
+}
+
+.mh-trailer {
+    position: relative;
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    border: 2px solid ${u.border};
+    background: ${u.panelBgDark};
+    overflow: hidden;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+.mh-trailer-facade {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: #0a120c;
+    color: ${u.text};
+    cursor: pointer;
+    font: inherit;
+}
+.mh-trailer-facade:hover .mh-trailer-play {
+    transform: scale(1.06);
+    color: #ff2a2a;
+}
+.mh-trailer-facade:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 3px rgba(255, 216, 64, 0.45);
+}
+.mh-trailer-poster {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.mh-trailer-play {
+    position: relative;
+    z-index: 1;
+    color: #f00;
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55));
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+.mh-trailer-notice {
+    position: absolute;
+    z-index: 2;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 12px 16px 14px;
+    background: linear-gradient(180deg, transparent, rgba(6, 12, 8, 0.92));
+    color: ${u.phase};
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: center;
+    pointer-events: none;
+}
+.mh-trailer-notice a {
+    color: ${u.brassLight};
+    font-weight: 700;
+    text-decoration: none;
+    pointer-events: auto;
+}
+.mh-trailer-notice a:hover { text-decoration: underline; }
+.mh-trailer.is-playing .mh-trailer-notice {
+    display: none;
+}
+.mh-trailer-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+
 .mh-shots {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 14px;
+}
+.mh-shots-more-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 18px;
+}
+.mh-shots-more-btn {
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.brassLight};
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+.mh-shots-more-btn:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+    transform: translateY(-1px);
+}
+.mh-shots-more-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
 }
 @media (max-width: 720px) {
     .mh-shots {
@@ -352,6 +471,162 @@ body {
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+.mh-lightbox {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: rgba(4, 8, 6, 0.94);
+    color: ${u.text};
+    overflow: hidden;
+}
+.mh-lightbox::backdrop {
+    background: rgba(0, 0, 0, 0.72);
+}
+.mh-lightbox-chrome {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    pointer-events: none;
+}
+.mh-lightbox-count {
+    margin: 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: ${u.brassLight};
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+.mh-lightbox-close {
+    pointer-events: auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+.mh-lightbox-close:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+}
+.mh-lightbox-nav {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 72px;
+    border: 1.5px solid ${u.border};
+    border-radius: 12px;
+    background: rgba(12, 18, 14, 0.78);
+    color: ${u.brassLight};
+    font-size: 36px;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+.mh-lightbox-nav:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+}
+.mh-lightbox-nav.prev { left: 12px; }
+.mh-lightbox-nav.next { right: 12px; }
+.mh-lightbox-stage {
+    position: absolute;
+    inset: 56px 64px 88px;
+    display: grid;
+    place-items: center;
+    touch-action: pan-y;
+    cursor: grab;
+    user-select: none;
+}
+.mh-lightbox-stage:active { cursor: grabbing; }
+.mh-lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 10px;
+    border: 2px solid ${u.border};
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+    transition: transform 0.18s ease;
+    pointer-events: none;
+}
+.mh-lightbox-caption {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    bottom: 48px;
+    transform: translateX(-50%);
+    margin: 0;
+    max-width: min(720px, calc(100% - 32px));
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    color: ${u.phase};
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+}
+.mh-lightbox-dots {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+}
+.mh-lightbox-dot {
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 208, 64, 0.45);
+    background: rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+}
+.mh-lightbox-dot.active {
+    background: ${u.brass};
+    border-color: ${u.brassLight};
+}
+@media (max-width: 720px) {
+    .mh-lightbox-stage {
+        inset: 56px 8px 96px;
+    }
+    .mh-lightbox-nav {
+        width: 40px;
+        height: 56px;
+        font-size: 30px;
+    }
+    .mh-lightbox-nav.prev { left: 4px; }
+    .mh-lightbox-nav.next { right: 4px; }
+    .mh-lightbox-caption {
+        bottom: 52px;
+        font-size: 12px;
+    }
 }
 
 .mh-showcase {
