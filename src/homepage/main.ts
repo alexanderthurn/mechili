@@ -52,8 +52,9 @@ const TACTIC_ART: Partial<Record<string, string>> = {
     ).href,
 };
 
-const STEAM_URL = 'https://store.steampowered.com/app/1255063/';
-const DISCORD_URL = 'https://discord.gg/rmRP7qYt7';
+const STEAM_URL = 'https://steam.melodan.com';
+const DISCORD_URL = 'https://discord.melodan.com';
+const GITHUB_URL = 'https://github.melodan.com';
 const PLAY_URL =
     location.hostname === 'melodan.com' || location.hostname === 'www.melodan.com'
         ? 'https://play.melodan.com/'
@@ -365,7 +366,7 @@ app.innerHTML = `
         <h3>Ways to help</h3>
         <ul class="mh-help-list">
           <li>Share ideas and bug reports</li>
-          <li>Open pull requests on <a href="https://github.com/alexanderthurn/mechili" rel="noopener noreferrer" target="_blank">GitHub</a> (GPL-3.0)</li>
+          <li>Open pull requests on <a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">GitHub</a> (GPL-3.0)</li>
           <li>Make or improve 3D models</li>
           <li>Take care of balancing, invent new spells, cards, ideas.</li>
           <li>Welcome players, write guides, help with moderation if you want to take that on</li>
@@ -387,7 +388,7 @@ app.innerHTML = `
         thank you for the spark. MELODAN is an independent fantasy take; please support the original and buy Mechabelum. Thank you!
       </p>
       <p>
-        The game is <a href="https://github.com/alexanderthurn/mechili" rel="noopener noreferrer" target="_blank">open source on GitHub</a>
+        The game is <a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">open source on GitHub</a>
         (GPL-3.0). Copyright stays with Alexander Thurn / Feuerware. Feel free to fork it privately, invent new units, and open pull requests.
         For something bigger <span class="mh-sep">⬢</span> a new setting, a commercial spin-off, a full rebrand
         <span class="mh-sep">⬢</span>

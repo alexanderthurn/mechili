@@ -7,7 +7,7 @@ Adapt, repeat until one of you runs out of HP.
 
 **Website:** [melodan.com](https://melodan.com)  
 **Play now:** [play.melodan.com](https://play.melodan.com) (free in the browser · single & multiplayer)  
-**Steam:** [store.steampowered.com/app/1255063](https://store.steampowered.com/app/1255063/) (ranked multiplayer · play with your friends)
+**Steam:** [steam.melodan.com](https://steam.melodan.com) (ranked multiplayer · play with your friends)
 
 Built with [three.js](https://threejs.org) for the battlefield, [PixiJS](https://pixijs.com)
 for the UI overlay, and [steam-electron-build](https://github.com/alexanderthurn/steam-electron-build)
