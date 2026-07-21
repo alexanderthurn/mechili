@@ -723,13 +723,20 @@ export class ActionDispatcher {
             }
             case 'chooseCard': {
                 // one starter pick per SEAT — in duo modes each commander
-                // picks their own opening army; only the side's FIRST pick
-                // sets the shared HP/speciality/items (one specialty per side)
+                // picks their own opening army; only the side's PRIMARY seat
+                // sets the shared HP/speciality/items (one specialty per
+                // side). This MUST be keyed by which seat it is, never by
+                // "whichever pick gets processed first" — local-vs-relayed
+                // arrival order differs per client over a real network (my
+                // own pick applies instantly; a teammate's arrives with
+                // network latency), so "first" is a different pick on each
+                // client — a guaranteed side-wide desync (HP/unlocks/items)
+                // the moment two seats on one side are on different machines.
                 if (this.ctx.starterPicked[seat]) return false;
                 const card = START_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
-                if (this.ctx.speciality[action.team] === null) {
+                if (seat === primarySeatOf(this.ctx.seats, action.team)) {
                     this.ctx.speciality[action.team] = card.speciality;
                     if (card.speciality === 'flanky') {
                         this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
@@ -771,6 +778,12 @@ export class ActionDispatcher {
                 return true;
             }
             case 'roundCard': {
+                // side-wide resource (v1 scope — cards stay per SIDE, not
+                // per seat): only the PRIMARY seat may act on it, same
+                // determinism reasoning as chooseCard above — "whoever's
+                // pick gets processed first" is a network-order race once
+                // two seats share a side across two machines.
+                if (seat !== primarySeatOf(this.ctx.seats, action.team)) return false;
                 if (this.ctx.roundCardTaken[action.team]) return false; // one per round
                 if (action.cardId === null) {
                     // skip: take the consolation supply instead
