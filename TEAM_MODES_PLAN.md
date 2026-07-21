@@ -23,6 +23,19 @@ randomness (§2d), and **horde PvPvE replacing co-op 2vE** (§4). Read
 ARCHITECTURE.md first; every constraint there (action log, determinism,
 fog) shapes this plan.
 
+**Status as of 2026-07-21 — horde and duo-vs-AI are built and confirmed
+working; 2v2 online is built, self-audited, and awaiting its first live
+multi-client test.** One deliberate design change from what's written
+below: §3's mesh was the right call theoretically, but building it
+required N-way peer connection plumbing nobody had exercised before.
+Given the choice between shipping something testable now versus a
+theoretically cleaner design later, **actual implementation uses a host
+star** (reusing the already-proven `SpectatorHub` relay pattern) instead
+of the mesh — a deliberate, discussed tradeoff, not an oversight. §3 below
+is kept as the target design; see the new §3b for what actually shipped
+and why, and §8 for phase-by-phase status. Classic 1v1 is untouched
+throughout — every star-mode code path is additive and gated.
+
 ---
 
 ## 1. What the codebase already gives us (survey results)
@@ -401,6 +414,72 @@ and it blinds the hub for spectator serving. The mesh makes it moot.
 
 ---
 
+## 3b. What actually shipped: a host star (2026-07-21)
+
+§3's mesh remains the *right* long-term design — this section documents
+the pragmatic substitute actually implemented for 2v2, and exactly what
+it costs versus the mesh above.
+
+**The topology.** One peer (`StarHub`, host-side) accepts a connection
+per remote seat-holding guest; guests never connect to each other. This
+is a straight reuse of `SpectatorHub`'s already-proven pattern (per-
+recipient buffer, vision-filtered relay) rather than new, unexercised
+mesh-connection code — the deciding factor was confidence: the mesh
+needed N-way connection establishment nobody had built or tested before,
+while the star reuses machinery already running in production for
+spectators. Guests keep the *exact* single-connection shape they already
+have for 1v1 — zero change to guest-side connection logic.
+
+**Fog survives, with one named exception.** Sender-side buffering still
+works exactly as designed: nobody sends anything until the recipient is
+entitled to it — a guest sends straight to the host (never buffers
+locally), and the *host* buffers per-recipient on the way out, flushing
+a recipient's backlog only once the sender's whole side has locked in.
+Same guarantee, same invariant ("information only flows to players who
+can no longer act on it"), just enforced at the host's relay layer
+instead of at each sender directly. The cost: the host is a real
+endpoint in that relay hop, so an enemy-side host **player** can read a
+guest's traffic in cleartext before relaying it on — the exact
+listen-server leak §3 built the mesh specifically to avoid. Accepted for
+v1, matching §3's own fallback: "(a) accept for friend games." The
+seatless big-screen host (§5b) still gives strict fog for anyone who
+wants it, unchanged.
+
+**Canonical seats, not translation.** `CanonicalSeatDef` (`side: 'a'|'b'`,
+identical content on every client) travels once via a new `starSetup`
+message; `localizeRoster()` is the *only* place a canonical seat becomes
+a client's own local `SeatDef[]` (team relabeled to the viewer's
+perspective, array order/index preserved). Everything downstream —
+economy, zones, AI, HUD, unit ids — consumes the result exactly like the
+already-built local duo roster, unaware a seat is networked. `swapPerspective`
+and the id-parity trick are untouched and **still used for classic 1v1**
+— a new, fully separate code path handles star mode, gated on
+`settings.seats.length > 2`, so 1v1 carries zero risk from any of this.
+
+**Gating, generalized.** Battle-start and next-round transitions are both
+host-arbitrated single broadcasts (`starBattleStart`, `starNextRound`),
+exactly matching §3's "coordinator broadcasts once, no N² pairwise acks"
+design — just with the coordinator also being the relay, not a neutral
+peer. One real bug was found and fixed during a pre-test self-audit:
+relaying an action and checking "should battle start now" both need to
+happen, in that exact order, every time — get it backwards even once and
+the go-signal can broadcast before the data it depends on arrives.
+
+**What's built:** host/join lobby (room-code based, not matchmaking-queue
+based — see §10), seat assignment with AI-fill, the full send/relay/
+receive/gating loop, AI seats running host-side and relaying like any
+player, N-way battle-start hash comparison (diagnostic only — logs a
+mismatch, does not auto-resync), and a minimal reconnect (any drop pauses
+with a "give up" button, no redial/grace window/host migration).
+
+**What's deferred, not silently dropped:** the mesh itself (§3, if the
+listen-server tradeoff ever needs closing for real), matchmaking-queue-
+based 2v2 pairing (§10), spectators for star matches, a live seat-picker
+for waiting guests (they just see "waiting for host," no roster preview),
+and full reconnect (resume/redial/grace window/host migration).
+
+---
+
 ## 4. Mode: Horde (PvPvE — build first)
 
 Replaces the earlier "2vE co-op" concept. Two humans, **mutually
@@ -603,6 +682,18 @@ re-joins by room name, which is an acceptable answer).
 
 ## 8. Phasing (each phase ships alone, 1v1 keeps working throughout)
 
+**Actual status (2026-07-21):** Phase 0 — **done**, though via a local
+LOCAL-perspective `SeatDef[]` (`team` relabeled per client) rather than
+the fully canonical wire-format rewrite this phase originally specified;
+canonical ids/roster exist too, but scoped to star mode only (§3b), with
+classic 1v1 kept on its original `swapPerspective` path untouched instead
+of migrated. Phase 1 — **done as a host star, not the mesh** (§3b).
+Phase 2 (Horde) — **done and confirmed working**, including the belt/
+visible-waves refinements requested after first playtest. Phase 3 (2v2)
+— **mostly done**: teammate machinery, lobby, and online play all work;
+the quick-match party queue and vision-permission spectator flow are the
+two pieces explicitly not built (§10). Phase 4 and Future — not started.
+
 **Phase 0 — Seat refactor (no behavior change).** Roster-driven `SeatId`
 (§2); re-key the ownership tables in `game.ts` / `settings.ts` (`Economy`) /
 `tech.ts` / card streams / `ai.ts` ctx; `Action.team` → `Action.seat`;
@@ -676,20 +767,35 @@ everything above; see §2b. 3+-player horde rides this. Not scheduled.
 | Fog flush / catch-up races multiply with N clients (the 1v1 `deployCaughtUp` race was real and already needed a fix) | single coordinator-owned gate: everyone flushes at last lock, coordinator collects one ack per client, broadcasts one `battleStart` — no pairwise waits anywhere; hash-at-battle-start catches anything that slips |
 | Last locker grinds a derived seed in ally-visible modes (§2d) | doesn't exist in horde/1v1/cross-side 2v2 (mutual fog withholds the seed's inputs); where allies stream live it's bounded by the round clock; commit–reveal is the documented upgrade if a future co-op mode needs it |
 | Solo-queue 2v2 fill times in a small playerbase | ship parties-of-2 first; room list is the real matchmaking for now |
+| Battle-start broadcast racing ahead of the action that completes it (relay and "should we start now" both reachable from multiple call paths, order-dependent) — this was a REAL bug, found and fixed via self-audit before any live test | fixed by making every dispatch path relay strictly AFTER its own local dispatch, with the battle-start check living only inside that post-relay step, never inside the dispatch callback itself |
 
 ## 10. Explicit non-goals (v1)
 
 - Coordinator-chore migration on permanent loss (match state never
   depends on the coordinator, §3 — this is a lobby/spectator problem only).
+  **As shipped:** any drop (host or guest) just pauses the match behind a
+  "give up" notice — no redial, no grace window, no migration attempted.
 - Shared team purse / gifting supply between teammates.
 - Ranked 2v2 Elo (records tagged, ladder later). Horde ladder likewise.
+  **As shipped:** 2v2 balance telemetry IS collected (tagged `'2v2'`,
+  host-only submission) — only the Elo/rating report is skipped.
 - Per-seat battle unit tints (side color stays dominant).
 - Shipping any Tier-3 / FFA geometry (the model allows it; nothing is
   built) — this includes 3+-player horde.
 - Wire-level deploy fog for 1v1 + spectator vision — **landed** (sender
-  buffer until receiver lock-in; battle-default spectators). The mesh (§3)
-  makes any trusted N-player relay unnecessary — that idea is retired.
+  buffer until receiver lock-in; battle-default spectators).
+- The mesh (§3) itself — **not built**; shipped a host star instead
+  (§3b), with the listen-server trust tradeoff that implies, accepted
+  and documented rather than solved.
 - Commit–reveal seeding (§2d) and E2E encryption over a relay (§3) —
   designed, documented, **not built**.
 - Spectator reconnect (pre-existing limitation; re-join by room name is the
-  workaround).
+  workaround). Spectators for star/2v2 matches specifically — **not
+  built at all** yet (SpectatorHub only wires into the classic 1v1 path).
+- 2v2 matchmaking-queue pairing (auto-match into a party) — **not built**;
+  shipped room-code hosting only (a host creates a room, friends join by
+  code — same discovery mechanism 1v1's Custom Room already uses).
+- A live seat-picker/roster preview for a guest waiting in a 2v2 lobby —
+  **not built**; a waiting guest just sees "connected, waiting for the
+  host to start," with no visibility into who else has joined or which
+  seat they'll get until the host actually starts the match.
