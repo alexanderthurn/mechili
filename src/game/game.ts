@@ -187,8 +187,8 @@ export class Game {
     private readonly dragonFx: DragonFx;
     private readonly oilDripFx: OilDripFx;
     private readonly oilVisuals: OilVisuals;
-    private readonly oilField = new HazardField();
-    private readonly oilBaseline = new HazardField();
+    private readonly oilField: HazardField;
+    private readonly oilBaseline: HazardField;
     private readonly oilStamps: OilStamp[] = [];
     private readonly oilStampIds = { next: 1 };
     /** battle-spell stamps — NEVER cleared per round: old ones drive cooldowns */
@@ -444,6 +444,11 @@ export class Game {
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
         this.map = new BattleMap(settings.map);
+        // sized to THIS match's board — a hardcoded default here silently
+        // drops every oil/acid/fire effect placed outside the standard
+        // map's extent on any non-standard map (horde's belt, duo's width)
+        this.oilField = new HazardField(settings.map);
+        this.oilBaseline = new HazardField(settings.map);
         // one SHARED board for both peers: the guest owns the far half and
         // only its camera differs — no coordinates are ever mirrored
         this.map.ownAtFar = side === 'b';
