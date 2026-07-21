@@ -455,10 +455,6 @@ export function menuStyles(): string {
     align-items: stretch;
     gap: 14px;
     width: 100%;
-    padding: 18px 16px;
-    background: rgba(18, 28, 15, 0.6);
-    border: 1.5px solid ${u.border};
-    border-radius: 12px;
 }
 .mechili-menu .m-spmode-title {
     font-size: 20px;
