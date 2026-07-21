@@ -20,7 +20,6 @@ import { homepageStyles } from './styles';
 
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
 const menuBgUrl = new URL('../../assets/ui/menu-bg.webp', import.meta.url).href;
-const iconUrl = new URL('../../icon.png', import.meta.url).href;
 const feuerwareLogoUrl = new URL('../../assets/marketing/feuerware.webp', import.meta.url).href;
 const steamLogoUrl = new URL('../../assets/marketing/steam-logo.png', import.meta.url).href;
 
@@ -255,11 +254,6 @@ const app = document.getElementById('app');
 if (!app) throw new Error('#app missing');
 
 app.style.setProperty('--menu-bg', `url(${menuBgUrl})`);
-
-const favicon = document.createElement('link');
-favicon.rel = 'icon';
-favicon.href = iconUrl;
-document.head.appendChild(favicon);
 
 const style = document.createElement('style');
 style.textContent = menuStyles() + hudStyles() + homepageStyles();
