@@ -4299,15 +4299,28 @@ export class Game {
         this.drainRemoteQueue();
         this.drainStarRemoteQueue();
         const waitingForPeer =
-            this.net !== null &&
-            !this.matchOver &&
-            ((this.phase === 'build' &&
-                this.deployReady.player &&
-                (!this.deployReady.enemy ||
-                    !this.deployFlushedToPeer ||
-                    !this.deployCaughtUpFromPeer)) ||
-                (this.awaitingCards && this.round === 0 && this.speciality.player !== null) ||
-                (this.battleReady.player && !this.battleReady.enemy));
+            (this.net !== null &&
+                !this.matchOver &&
+                ((this.phase === 'build' &&
+                    this.deployReady.player &&
+                    (!this.deployReady.enemy ||
+                        !this.deployFlushedToPeer ||
+                        !this.deployCaughtUpFromPeer)) ||
+                    (this.awaitingCards && this.round === 0 && this.speciality.player !== null) ||
+                    (this.battleReady.player && !this.battleReady.enemy))) ||
+            // team modes (local duo or online 2v2): reuse the same "hide
+            // everything, show the waiting text" treatment once THIS seat
+            // has locked in — deployReady.player only flips once every seat
+            // on the side has, so without this branch a locked-in seat kept
+            // seeing the full shop/buttons for as long as an ally (or the
+            // enemy side) hadn't finished yet. No need to distinguish
+            // "waiting on ally" vs "waiting on enemy" here: either way there
+            // is nothing left for this seat to do, and the game simply not
+            // starting already makes that clear.
+            (seatIdsOf(this.seats, 'player').length > 1 &&
+                this.phase === 'build' &&
+                !this.matchOver &&
+                this.seatReady[this.humanSeat]);
         // team modes: a teammate on my own side may have locked in deployment
         // already while I haven't clicked yet — deployReady.player only
         // flips once EVERY seat on my side has, so this needs its own check
@@ -4317,20 +4330,7 @@ export class Game {
             seatIdsOf(this.seats, 'player').some(
                 (seat) => seat !== this.humanSeat && this.seatReady[seat],
             );
-        // I've locked in myself, but my SIDE isn't ready yet (ally hasn't) —
-        // deployReady.player only flips once every seat on my side has, so
-        // without this I'd see no feedback at all between my own click and
-        // my ally's (waitingForPeer above only fires once the whole side is)
-        const selfLockedIn =
-            this.phase === 'build' && this.seatReady[this.humanSeat] && !this.deployReady.player;
-        this.hud.setPhase(
-            this.round,
-            this.phase,
-            this.phaseRemaining,
-            waitingForPeer,
-            allyLockedIn,
-            selfLockedIn,
-        );
+        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn);
         this.hud.setUndoVisible(this.canUndo());
         this.hud.setDeploys(
             this.deployState.used[this.humanSeat]!,

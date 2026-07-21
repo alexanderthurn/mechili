@@ -1644,7 +1644,6 @@ export class Hud {
         remainingSeconds: number,
         waitingForPeer = false,
         allyLockedIn = false,
-        selfLockedIn = false,
     ): void {
         // round 0 is the specialist pick, not a numbered round
         this.roundEl.textContent = round === 0 ? 'Specialists' : `Round ${round}`;
@@ -1667,21 +1666,11 @@ export class Hud {
         this.topBar.classList.toggle('waiting', waitingForPeer);
         // teammate (same side, team modes) has already locked in but I
         // haven't yet — a visible cue on the button itself, since I still
-        // see the normal button (my side isn't "waiting" until I click too)
+        // see the normal button (my side isn't "waiting" until I click too).
+        // Once I click myself, waitingForPeer covers it — full hide, same
+        // as classic 1v1's "locked in" treatment (see game.ts's waitingForPeer).
         this.endButton.classList.toggle('ally-ready', allyLockedIn && !waitingForPeer);
-        // the mirror case: I've locked in but my side isn't ready yet (ally
-        // hasn't) — waitingForPeer only fires once the WHOLE side is ready,
-        // so without this I'd see no feedback between my click and theirs
-        this.endButton.classList.toggle('self-ready', selfLockedIn && !waitingForPeer);
-        this.endButton.disabled = selfLockedIn && !waitingForPeer;
-        this.endButton.textContent =
-            selfLockedIn && !waitingForPeer ? 'Waiting for Ally…' : 'End Deployment';
-        this.endButton.title =
-            allyLockedIn && !waitingForPeer
-                ? 'Your ally is ready — waiting on you'
-                : selfLockedIn && !waitingForPeer
-                  ? "You're locked in — waiting on your ally"
-                  : '';
+        this.endButton.title = allyLockedIn && !waitingForPeer ? 'Your ally is ready — waiting on you' : '';
         this.fightBar.classList.toggle('battle', phase === 'battle');
         this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);

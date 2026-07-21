@@ -2359,21 +2359,6 @@ export function hudStyles(): string {
 .mechili-topbar .end-deploy.ally-ready:hover {
     background: linear-gradient(90deg, #7dfa8a 0%, #7dfa8a 48%, #fff0b0 52%, ${u.brassLight} 100%);
 }
-/* I've locked in myself and am now waiting on my ally — fully green,
-   disabled (nothing left to click), so the OTHER side of the same cue
-   (ally-ready, above) is visible on both ends of a lock-in */
-.mechili-topbar .end-deploy.self-ready {
-    background: linear-gradient(180deg, #7dfa8a, #5ee36b);
-    border-color: #5ee36b;
-    color: #0d3a12;
-    cursor: default;
-    opacity: 0.9;
-}
-.mechili-topbar .end-deploy.self-ready:hover {
-    background: linear-gradient(180deg, #7dfa8a, #5ee36b);
-    transform: none;
-    box-shadow: 0 3px 12px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
 /* a card overlay is up (specialist pick, reveal, round card) — can't end yet */
