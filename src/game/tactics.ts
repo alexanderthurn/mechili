@@ -467,6 +467,33 @@ export interface SpellStamp {
     placedRound: number;
 }
 
+/** Keep-out disk around an enemy base building (same math as {@link pointInSafeZone}). */
+export type SafeZoneDisk = { x: number; z: number; radius: number };
+
+/**
+ * Keep-out disks around the OPPOSING side's base buildings.
+ * `margin` is usually the armed tactic's aim radius so the disk matches the
+ * hit-test used by aim preview + dispatcher.
+ */
+export function safeZoneDisks(
+    units: readonly import('./units').Unit[],
+    team: import('./units').Team,
+    margin = 0,
+): SafeZoneDisk[] {
+    const out: SafeZoneDisk[] = [];
+    for (const u of units) {
+        if (u.team === team || !u.type.structure || u.type.extra || u.destroyed) continue;
+        const fp = u.type.footprint;
+        const buildingRadius = (Math.max(fp.cols, fp.rows) / 2) * CELL;
+        out.push({
+            x: u.world.x,
+            z: u.world.z,
+            radius: buildingRadius + TACTIC_SAFE_ZONE_MARGIN + margin,
+        });
+    }
+    return out;
+}
+
 /**
  * Safe zone: circles around the OPPOSING side's base buildings. Shared by the
  * UI (aim preview) and the dispatcher (a hostile peer isn't bound by UI checks).
@@ -478,12 +505,8 @@ export function pointInSafeZone(
     z: number,
     margin = 0,
 ): boolean {
-    for (const u of units) {
-        if (u.team === team || !u.type.structure || u.type.extra || u.destroyed) continue;
-        const fp = u.type.footprint;
-        const buildingRadius = (Math.max(fp.cols, fp.rows) / 2) * CELL;
-        const keepOut = buildingRadius + TACTIC_SAFE_ZONE_MARGIN + margin;
-        if (det2d(x - u.world.x, z - u.world.z) < keepOut) return true;
+    for (const d of safeZoneDisks(units, team, margin)) {
+        if (det2d(x - d.x, z - d.z) < d.radius) return true;
     }
     return false;
 }

@@ -32,6 +32,7 @@ import {
     POISON_CLOUD_ID,
     STORM_ID,
     TACTICS,
+    type SafeZoneDisk,
     type SpellStamp,
 } from './tactics';
 
@@ -112,16 +113,20 @@ export class SpellVisuals {
     private readonly zoneGroup = new Group();
     /** charge outer+icon — rebuilt when the active charge set changes */
     private readonly chargeGroup = new Group();
+    /** keep-out disks while a respectsSafeZone tactic is armed */
+    private readonly safeZoneGroup = new Group();
     private readonly icons = new SpellIconTextures();
     private zoneKey = '';
     private zonePulse: ZonePulse[] = [];
     private chargeKey = '';
     private chargeInners: ChargeInner[] = [];
+    private safeZoneKey = '';
 
     constructor(private readonly scene: Scene) {
         scene.add(this.group);
         this.group.add(this.zoneGroup);
         this.group.add(this.chargeGroup);
+        this.group.add(this.safeZoneGroup);
     }
 
     dispose(): void {
@@ -133,15 +138,42 @@ export class SpellVisuals {
     clear(): void {
         this.clearGroup(this.zoneGroup);
         this.clearGroup(this.chargeGroup);
+        this.clearGroup(this.safeZoneGroup);
         this.clearDeployMarkers();
         this.zoneKey = '';
         this.chargeKey = '';
+        this.safeZoneKey = '';
         this.zonePulse = [];
         this.chargeInners = [];
     }
 
+    /**
+     * Enemy-base keep-out disks for an armed respectsSafeZone tactic.
+     * Rebuilds only when the disk set changes; clear with an empty list.
+     */
+    syncSafeZones(disks: readonly SafeZoneDisk[]): void {
+        const key = disks
+            .map((d) => `${d.x.toFixed(1)},${d.z.toFixed(1)},${d.radius.toFixed(1)}`)
+            .join('|');
+        if (key === this.safeZoneKey) return;
+        this.safeZoneKey = key;
+        this.clearGroup(this.safeZoneGroup);
+        for (const d of disks) {
+            addDrapedCircle(
+                this.safeZoneGroup,
+                d.x,
+                d.z,
+                d.radius,
+                BLOCKED_COLOR,
+                0.16,
+                0.65,
+            );
+        }
+    }
+
     sync(stamps: readonly SpellStamp[], draft: SpellDraft | null): void {
-        this.clear();
+        // deploy markers only — safe-zone disks are owned by syncSafeZones
+        this.clearDeployMarkers();
         for (const s of stamps) {
             const radius = TACTICS[s.tacticId]?.radius ?? 8;
             if (s.endX !== undefined && s.endZ !== undefined) {
@@ -282,7 +314,13 @@ export class SpellVisuals {
     /** remove leftover build-phase stamps sitting as siblings of zone/charge groups */
     private clearDeployMarkers(): void {
         for (const child of [...this.group.children]) {
-            if (child === this.zoneGroup || child === this.chargeGroup) continue;
+            if (
+                child === this.zoneGroup ||
+                child === this.chargeGroup ||
+                child === this.safeZoneGroup
+            ) {
+                continue;
+            }
             child.traverse((o) => {
                 const mesh = o as Mesh;
                 mesh.geometry?.dispose();

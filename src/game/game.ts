@@ -104,6 +104,7 @@ import {
     clampTacticEnd,
     clampTacticPoint,
     pointInSafeZone,
+    safeZoneDisks,
     usesSpellPlacement,
     type OilStamp,
     type RallyRoute,
@@ -2607,6 +2608,13 @@ export class Game {
             }
         }
         this.spellVisuals.sync(this.visibleSpellStamps(), draft);
+        if (armed?.respectsSafeZone && this.playerCanAct) {
+            this.spellVisuals.syncSafeZones(
+                safeZoneDisks(this.placement.allUnits(), 'player', armed.radius ?? 0),
+            );
+        } else {
+            this.spellVisuals.syncSafeZones([]);
+        }
     }
 
     /** this round's spell markers: own always; enemy only after we lock in */
