@@ -442,6 +442,32 @@ export function menuStyles(): string {
 .mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
+.mechili-menu .m-spmode {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    padding: 14px;
+    background: rgba(18, 28, 15, 0.6);
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+}
+.mechili-menu .m-spmode-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    font-size: 15px;
+    color: ${u.text};
+}
+.mechili-menu .m-spmode-row label,
+.mechili-menu .m-spmode-horde {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.mechili-menu .m-spmode-horde { justify-content: center; font-size: 14px; color: ${u.text}; }
 .mechili-username {
     position: absolute;
     right: calc(16px + env(safe-area-inset-right));

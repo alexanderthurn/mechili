@@ -265,10 +265,19 @@ menu.style.zIndex = '30';
 menu.style.display = 'none';
 menu.innerHTML = `
     <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
-    <button class="m-btn" data-mode="horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
-    <button class="m-btn" data-mode="duo"><span class="m-ico">👥</span><span class="m-label">2v2 Skirmish (vs AI)</span></button>
     <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
     <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
+    <div class="m-spmode" style="display:none">
+        <div class="m-spmode-row">
+            <label><input type="radio" name="spteam" value="1v1" checked> 1v1</label>
+            <label><input type="radio" name="spteam" value="2v2"> 2v2</label>
+        </div>
+        <label class="m-spmode-horde"><input type="checkbox" class="sp-horde"> 🐗 Horde</label>
+        <div class="m-room-row">
+            <button class="m-btn m-small" data-mode="sp-back">Back</button>
+            <button class="m-btn m-primary m-small" data-mode="sp-play">Play</button>
+        </div>
+    </div>
     <div class="m-lobby" style="display:none">
         <div class="m-room-row">
             <button class="m-btn m-small" data-mode="host">Host Room</button>
@@ -449,6 +458,8 @@ const lobbyEl = menu.querySelector<HTMLDivElement>('.m-lobby')!;
 const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
+const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
+const spHordeEl = menu.querySelector<HTMLInputElement>('.sp-horde')!;
 
 let started = false;
 let pending: Pending | null = null;
@@ -1197,43 +1208,45 @@ menu.addEventListener('click', (e) => {
     const mode = button.dataset.mode;
     if (
         !bootReady &&
-        (mode === 'single' ||
-            mode === 'quick' ||
-            mode === 'host' ||
-            mode === 'horde' ||
-            mode === 'duo' ||
-            mode === 'host2v2')
+        (mode === 'sp-play' || mode === 'quick' || mode === 'host' || mode === 'host2v2')
     ) {
         setStatus('Still loading — one moment…');
         return;
     }
 
     /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
-    const startLocalMatch = (mode?: 'horde' | 'duo'): void => {
+    const startLocalMatch = (opts: { duo?: boolean; horde?: boolean } = {}): void => {
         const settings = settingsFromUrl();
         settings.buildTimeSeconds = 60 * 60;
         settings.specialistTimeSeconds = 60 * 60;
-        if (mode === 'horde') applyHordeMode(settings);
-        if (mode === 'duo') applyDuoMode(settings);
+        if (opts.horde) applyHordeMode(settings);
+        if (opts.duo) applyDuoMode(settings);
         startGame(settings);
     };
 
     switch (mode) {
         case 'single':
-            startLocalMatch();
+            lobbyEl.style.display = 'none';
+            stopRoomPoll();
+            spModeEl.style.display = '';
             break;
-        case 'horde':
-            startLocalMatch('horde');
+        case 'sp-back':
+            spModeEl.style.display = 'none';
             break;
-        case 'duo':
-            startLocalMatch('duo');
+        case 'sp-play': {
+            const team = spModeEl.querySelector<HTMLInputElement>('input[name="spteam"]:checked')!.value;
+            spModeEl.style.display = 'none';
+            startLocalMatch({ duo: team === '2v2', horde: spHordeEl.checked });
             break;
+        }
         case 'quick':
+            spModeEl.style.display = 'none';
             lobbyEl.style.display = 'none';
             stopRoomPoll();
             runPending(quickMatch(setStatus));
             break;
         case 'lobby': {
+            spModeEl.style.display = 'none';
             const open = lobbyEl.style.display === 'none';
             lobbyEl.style.display = open ? '' : 'none';
             if (open) startRoomPoll();
