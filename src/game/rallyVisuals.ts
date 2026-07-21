@@ -108,7 +108,8 @@ export class RallyVisuals {
 
         const ux = dx / len;
         const uz = dz / len;
-        const heading = Math.atan2(ux, uz);
+        // drapeChevronGeometry: local +Z → world (-sin(yaw), cos(yaw))
+        const heading = Math.atan2(-ux, uz);
         const count = Math.max(1, Math.floor(len / ARROW_SPACING));
         for (let i = 1; i <= count; i++) {
             const t = i / (count + 1);

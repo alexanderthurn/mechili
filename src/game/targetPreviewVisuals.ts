@@ -80,7 +80,8 @@ export class TargetPreviewVisuals {
 
         const ux = dx / len;
         const uz = dz / len;
-        const heading = Math.atan2(ux, uz);
+        // drapeChevronGeometry: local +Z → world (-sin(yaw), cos(yaw))
+        const heading = Math.atan2(-ux, uz);
 
         const margin = 6;
         const travel = Math.max(0, len - margin * 2);
