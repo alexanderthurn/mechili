@@ -1211,7 +1211,7 @@ menu.addEventListener('click', (e) => {
         const settings = settingsFromUrl();
         settings.buildTimeSeconds = 60 * 60;
         settings.specialistTimeSeconds = 60 * 60;
-        if (mode === 'horde' || mode === 'duo') applyHordeMode(settings);
+        if (mode === 'horde') applyHordeMode(settings);
         if (mode === 'duo') applyDuoMode(settings);
         startGame(settings);
     };
@@ -1275,12 +1275,19 @@ if (mpMarker) {
     } else resumeSinglePlayer(spSave);
 } else {
     setMenuChromeVisible(true);
-    // ?room=mangoo — join that host's room directly
+    // ?room=mangoo — join that host's room directly. Unlike the room-list
+    // buttons, a deep link carries no mode — look it up first so a 2v2
+    // room routes to the star join flow instead of hanging forever on
+    // the classic one (a star host never answers a classic 'hello').
     const roomParam = new URLSearchParams(location.search).get('room');
     if (roomParam) {
         lobbyEl.style.display = '';
         startRoomPoll();
-        runPending(joinLobby(roomParam, setStatus));
+        void fetchLobbyRooms().then((rooms) => {
+            const match = rooms.find((r) => r.name.toLowerCase() === roomParam.toLowerCase());
+            if (match?.mode === '2v2') beginStarJoin(roomParam);
+            else runPending(joinLobby(roomParam, setStatus));
+        });
     }
 }
 
