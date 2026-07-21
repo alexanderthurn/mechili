@@ -969,24 +969,53 @@ export class BattleMap {
         // the zones grow into the neutral strip once that is unlocked
         const zonePx = (this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0)) * cellPx;
         const flankPx = this.size.flankCols * cellPx;
-        const paintZone = (x: number, y: number, zw: number, zh: number, tint: string) => {
-            ctx.fillStyle = `${tint} 0.12)`;
+        const paintZone = (x: number, y: number, zw: number, zh: number, tint: string, dim = false) => {
+            ctx.fillStyle = `${tint} ${dim ? 0.04 : 0.12})`;
             ctx.fillRect(x, y, zw, zh);
-            ctx.strokeStyle = `${tint} 0.55)`;
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = `${tint} ${dim ? 0.22 : 0.55})`;
+            ctx.lineWidth = dim ? 2 : 3;
             ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
         };
         // texture top = far (-z) half; whose that is depends on ownAtFar
         const nearTint = this.ownAtFar ? teamColors.enemy.tint : teamColors.player.tint;
         const farTint = this.ownAtFar ? teamColors.player.tint : teamColors.enemy.tint;
-        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, farTint);
-        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, nearTint);
+        const midCol = Math.floor(this.cols / 2);
+        const midX = midCol * cellPx;
+        // which on-texture rect (top or bottom) is actually MY OWN zone —
+        // near/far tint naming is about texture position, not ownership, so
+        // this must be derived the same way the dashed divider below does
+        const myZoneIsTop = this.ownAtFar;
+        // duo/2v2: laneOk only lets a seat place in its OWN half of the
+        // zone — paint that half at full strength and the ally's half
+        // (still your team's territory, just not yours to click) dimmed,
+        // instead of one uniform tint across ground you can't actually use.
+        // Only MY OWN zone is ever split like this — the opponent's stays a
+        // single uniform tint regardless of my lane.
+        const paintMainZone = (y: number, tint: string, mine: boolean) => {
+            if (lane === 'full' || !mine) {
+                paintZone(flankPx, y, w - 2 * flankPx, zonePx, tint);
+                return;
+            }
+            const leftW = midX - flankPx;
+            const rightW = w - flankPx - midX;
+            paintZone(flankPx, y, leftW, zonePx, tint, lane !== 'left');
+            paintZone(midX, y, rightW, zonePx, tint, lane !== 'right');
+        };
+        paintMainZone(0, farTint, myZoneIsTop);
+        paintMainZone(h - zonePx, nearTint, !myZoneIsTop);
         if (this.flanksUnlocked) {
-            // flanks beside the opponent's half belong to you
-            paintZone(0, 0, flankPx, zonePx, nearTint);
-            paintZone(w - flankPx, 0, flankPx, zonePx, nearTint);
-            paintZone(0, h - zonePx, flankPx, zonePx, farTint);
-            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, farTint);
+            // flanks beside the OPPONENT's half belong to you — the crossed
+            // rule means flank ownership is the OPPOSITE of that row-band's
+            // main-zone ownership: top flanks are mine exactly when my own
+            // zone is at the BOTTOM (!myZoneIsTop), and vice versa. Each
+            // flank strip sits entirely in one lane (it's at the map edge),
+            // so it's either fully mine or fully dimmed, no split needed.
+            const dimFlank = (isMine: boolean, laneMatch: boolean) =>
+                isMine && lane !== 'full' && !laneMatch;
+            paintZone(0, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'left'));
+            paintZone(w - flankPx, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'right'));
+            paintZone(0, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'left'));
+            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'right'));
         } else {
             // locked in round 1: neutral grey
             ctx.fillStyle = t.flankLocked;
@@ -1021,8 +1050,6 @@ export class BattleMap {
         // rejected), so without this there's no visual cue at all for where
         // a seat may actually place
         if (lane !== 'full') {
-            const midCol = Math.floor(this.cols / 2);
-            const midX = midCol * cellPx;
             const myZoneTop = this.ownAtFar ? 0 : h - zonePx;
             const myZoneBottom = this.ownAtFar ? zonePx : h;
             ctx.save();
