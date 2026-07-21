@@ -411,15 +411,13 @@ export class StarHub {
         return this.roster[seat]?.side ?? 'a';
     }
 
-    /** open (human, unfilled) seats, in canonical order — join order fills these */
-    private openSeats(): SeatId[] {
-        const taken = new Set(this.bySeat.keys());
-        const ids: SeatId[] = [];
-        for (let i = 0; i < this.roster.length; i++) {
-            if (i === 0) continue; // seat 0 is always the host itself
-            if (this.roster[i]!.controller === 'human' && !taken.has(i)) ids.push(i);
+    /** the next open (human, unfilled) seat in canonical order, or null if full */
+    nextOpenSeat(): SeatId | null {
+        for (let i = 1; i < this.roster.length; i++) {
+            // seat 0 is always the host itself
+            if (this.roster[i]!.controller === 'human' && !this.bySeat.has(i)) return i;
         }
-        return ids;
+        return null;
     }
 
     /**

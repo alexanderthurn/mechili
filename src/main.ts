@@ -11,8 +11,10 @@ import {
     GAME_VERSION,
     handshake,
     hostLobby,
+    hostStarRoom,
     isMelodanPlayHost,
     joinLobby,
+    joinStarRoom,
     loadResumeMarker,
     loadSinglePlayer,
     postGlobalChat,
@@ -25,6 +27,7 @@ import {
     type Pending,
     type ResumeMarker,
     type SinglePlayerSave,
+    type StarRole,
 } from './game/net';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
@@ -34,7 +37,7 @@ import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/settings';
-import { duoSeats } from './game/seats';
+import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
 import { THEME, menuStyles } from './theme';
 
 // ?horde=1 / the Horde menu button — PvPvE: a neutral pink dwarf horde owns
@@ -44,11 +47,16 @@ function applyHordeMode(settings: GameSettings): void {
     settings.map = { ...settings.map, neutralRows: settings.horde.beltRows };
 }
 
+// shared by local duo-vs-AI and online 2v2 — 4 armies need more elbow room
+function widenMapForDuo(settings: GameSettings): void {
+    settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.5) };
+}
+
 // ?duo=1 / the 2v2 Skirmish menu button — you + an AI ally against two AI
 // commanders, split lanes, wider board. Combines with horde mode.
 function applyDuoMode(settings: GameSettings): void {
     settings.seats = duoSeats('You');
-    settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.5) };
+    widenMapForDuo(settings);
 }
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20
@@ -262,11 +270,13 @@ menu.innerHTML = `
     <div class="m-lobby" style="display:none">
         <div class="m-room-row">
             <button class="m-btn m-small" data-mode="host">Host Room</button>
+            <button class="m-btn m-small" data-mode="host2v2">Host 2v2 Online</button>
             <button class="m-btn m-small" data-mode="refresh">Refresh</button>
         </div>
         <div class="m-room-list empty">No open rooms</div>
     </div>
     <div class="m-status" style="display:none"></div>
+    <button class="m-btn m-small" data-mode="startstar" style="display:none">Start 2v2 Match</button>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
@@ -671,7 +681,8 @@ async function refreshRoomList(): Promise<void> {
                 button.type = 'button';
                 button.className = 'm-room';
                 button.dataset.room = r.name;
-                button.textContent = r.name;
+                button.dataset.roomMode = r.mode;
+                button.textContent = r.mode === '2v2' ? `${r.name} (2v2)` : r.name;
                 return button;
             }),
         );
@@ -739,6 +750,8 @@ function startGame(
         opponent: net ? 'Opponent' : 'AI',
     },
     resume: MatchResume | null = null,
+    /** 2v2+ star-topology connection — mutually exclusive with `net` */
+    star: StarRole | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -767,13 +780,15 @@ function startGame(
         });
     } else {
         clearResumeMarker();
-        if (!resume?.local) clearSinglePlayer();
+        // star matches have no save/resume story yet (v1 scope) — never
+        // persist or resume one via the single-player slot
+        if (!resume?.local && !star) clearSinglePlayer();
     }
-    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume);
+    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star);
     activeGame = game;
     game.onReturnToMenu = returnToMenu;
     if (net) wireReconnect(game, net, side, names);
-    else stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    else if (!star) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */
@@ -985,6 +1000,174 @@ function runPending(p: Pending): void {
         });
 }
 
+// ---- 2v2 online (star topology) ----------------------------------------
+
+/** host is always seat 0, side 'a'; the other 3 slots start open for joiners */
+function initialStarRoster(hostName: string): CanonicalSeatDef[] {
+    return [
+        { side: 'a', controller: 'human', name: hostName },
+        { side: 'a', controller: 'human', name: 'Waiting…' },
+        { side: 'b', controller: 'human', name: 'Waiting…' },
+        { side: 'b', controller: 'human', name: 'Waiting…' },
+    ];
+}
+/** fallback names for seats still empty when the host clicks Start */
+const STAR_AI_NAMES: Record<number, string> = { 1: 'Ally', 2: 'Foe West', 3: 'Foe East' };
+
+const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
+let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
+
+function cancelStarHost(): void {
+    starHosting?.cleanup();
+    starHosting = null;
+    startStarBtn.style.display = 'none';
+}
+
+async function beginStarHost(): Promise<void> {
+    setMenuBusy(true);
+    setStatus('Opening 2v2 room…');
+    const hostName = getPlayerName();
+    let hosted: Awaited<ReturnType<typeof hostStarRoom>>;
+    try {
+        hosted = await hostStarRoom(initialStarRoster(hostName), setStatus);
+    } catch (e) {
+        setMenuBusy(false);
+        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        return;
+    }
+    setMenuBusy(false);
+    starHosting = hosted;
+    const { hub } = hosted;
+    startStarBtn.style.display = '';
+    const refresh = () => {
+        if (!starHosting) return;
+        const roster = hub.currentRoster();
+        const joined = hub.connectedSeats().length + 1;
+        const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        setStatus(
+            `Room "${hostName}" — ${joined}/4 joined: ${names}. Click Start when ready (empty seats fill with AI).`,
+        );
+    };
+    hub.onRosterChange = refresh;
+    hub.listen((name, version, conn) => {
+        if (version !== GAME_VERSION) {
+            conn.send({
+                type: 'starRejected',
+                reason: 'Version mismatch — both players need the same game version.',
+            });
+            conn.close();
+            return null;
+        }
+        const seat = hub.nextOpenSeat();
+        if (seat === null) {
+            conn.send({ type: 'starRejected', reason: 'Room is full.' });
+            conn.close();
+            return null;
+        }
+        hub.setRosterEntry(seat, { side: hub.sideOf(seat), controller: 'human', name });
+        return seat;
+    });
+    refresh();
+}
+
+/** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
+function startStarMatch(): void {
+    if (!starHosting) return;
+    const { hub } = starHosting;
+    const connected = new Set(hub.connectedSeats());
+    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+        if (i > 0 && s.controller === 'human' && !connected.has(i)) {
+            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+        }
+        return s;
+    });
+    const settings = settingsFromUrl();
+    delete settings.seats; // canonical roster travels separately, localized per recipient
+    widenMapForDuo(settings);
+    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    for (const seat of connected) {
+        hub.send(seat, {
+            type: 'starSetup',
+            version: GAME_VERSION,
+            seed: settings.seed,
+            settings,
+            roster: finalRoster,
+            yourSeat: seat,
+            yourSide: hub.sideOf(seat),
+        });
+    }
+    startStarBtn.style.display = 'none';
+    const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
+    startGame(hostSettings, null, 'a', { local: getPlayerName(), opponent: '2v2' }, null, {
+        role: 'host',
+        hub,
+        mySeat: 0,
+    });
+    starHosting = null; // ownership passes to the running Game now
+}
+
+/** join a 2v2 room by the host's room name — waits for the host to Start */
+function beginStarJoin(hostName: string): void {
+    runStarPending(joinStarRoom(hostName, setStatus));
+}
+
+function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
+    pending?.cancel();
+    let cancelled = false;
+    pending = {
+        // never actually read back — `pending` only needs `.cancel()` here;
+        // this satisfies the shared Pending<NetSession> shape without
+        // touching it (star join has no NetSession at all)
+        session: Promise.resolve() as unknown as Promise<NetSession>,
+        cancel: () => {
+            cancelled = true;
+            p.cancel();
+        },
+    };
+    setMenuBusy(true);
+    p.session
+        .then(async (session) => {
+            if (cancelled) return;
+            setStatus('Connected — waiting for the host to start…');
+            session.onClose = () => {
+                if (started) return;
+                cancelled = true;
+                pending = null;
+                setMenuBusy(false);
+                setStatus('Host closed the room.');
+            };
+            const msg = await session.once();
+            pending = null;
+            setMenuBusy(false);
+            if (cancelled) return;
+            if (msg.type === 'starRejected') {
+                setStatus(msg.reason);
+                session.close();
+                return;
+            }
+            if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+                setStatus('Version mismatch — both players need the same game version.');
+                session.close();
+                return;
+            }
+            const settings = msg.settings;
+            settings.seed = msg.seed;
+            settings.seats = localizeRoster(msg.roster, msg.yourSide);
+            const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+            startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+                role: 'guest',
+                session,
+                mySeat: msg.yourSeat,
+            });
+        })
+        .catch((e: unknown) => {
+            pending = null;
+            setMenuBusy(false);
+            if (cancelled || String(e).includes('cancelled')) setStatus('');
+            else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+        });
+}
+
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
@@ -992,7 +1175,8 @@ menu.addEventListener('click', (e) => {
             setStatus('Still loading — one moment…');
             return;
         }
-        runPending(joinLobby(roomBtn.dataset.room, setStatus));
+        if (roomBtn.dataset.roomMode === '2v2') beginStarJoin(roomBtn.dataset.room);
+        else runPending(joinLobby(roomBtn.dataset.room, setStatus));
         return;
     }
 
@@ -1002,13 +1186,22 @@ menu.addEventListener('click', (e) => {
     if (button.classList.contains('m-cancel')) {
         pending?.cancel();
         pending = null;
+        cancelStarHost();
         setMenuBusy(false);
         setStatus('');
         return;
     }
 
     const mode = button.dataset.mode;
-    if (!bootReady && (mode === 'single' || mode === 'quick' || mode === 'host' || mode === 'horde' || mode === 'duo')) {
+    if (
+        !bootReady &&
+        (mode === 'single' ||
+            mode === 'quick' ||
+            mode === 'host' ||
+            mode === 'horde' ||
+            mode === 'duo' ||
+            mode === 'host2v2')
+    ) {
         setStatus('Still loading — one moment…');
         return;
     }
@@ -1047,6 +1240,14 @@ menu.addEventListener('click', (e) => {
         }
         case 'host':
             runPending(hostLobby(setStatus));
+            break;
+        case 'host2v2':
+            lobbyEl.style.display = 'none';
+            stopRoomPoll();
+            void beginStarHost();
+            break;
+        case 'startstar':
+            startStarMatch();
             break;
         case 'refresh':
             void refreshRoomList();
