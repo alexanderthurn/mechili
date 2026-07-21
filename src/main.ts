@@ -48,8 +48,10 @@ function applyHordeMode(settings: GameSettings): void {
 }
 
 // shared by local duo-vs-AI and online 2v2 — 4 armies need more elbow room
+// (kept modest — each seat now gets its own pair of towers within its own
+// half-lane, so this doesn't need to be as wide as when towers were shared)
 function widenMapForDuo(settings: GameSettings): void {
-    settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.5) };
+    settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.3) };
 }
 
 // ?duo=1 / the 2v2 Skirmish menu button — you + an AI ally against two AI

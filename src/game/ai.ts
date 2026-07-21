@@ -44,8 +44,10 @@ export class AiOpponent implements Opponent {
             placement: PlacementController;
             economy: Economy;
             techTree: TechTree;
-            unlockedUnits: Record<Team, string[]>;
-            unlockUsedThisRound: Record<Team, boolean>;
+            /** per-SEAT — own card's shop unlocks, never shared */
+            unlockedUnits: string[][];
+            /** per-SEAT — own once-per-round shop-unlock gate */
+            unlockUsedThisRound: boolean[];
             /** per-SEAT pool — never shared, unlike tactics below */
             items: string[][];
             tactics: Record<Team, string[]>;
@@ -81,10 +83,10 @@ export class AiOpponent implements Opponent {
     private runBuildActions(): void {
         const { dispatch, placement, economy, rng, unlockedUnits, unlockUsedThisRound } = this.ctx;
         const team = this.team;
-        const unlocked = unlockedUnits[team];
+        const unlocked = unlockedUnits[this.seat]!;
 
         // one unlock per round — pick an affordable locked type when possible
-        if (!unlockUsedThisRound[team]) {
+        if (!unlockUsedThisRound[this.seat]) {
             const locked = SHOP_UNIT_IDS.filter((id) => !unlocked.includes(id));
             const affordable = locked.filter((id) => unitUnlockCost(id) <= economy.balance(this.seat));
             const pool = affordable.length > 0 ? affordable : locked;
@@ -99,7 +101,7 @@ export class AiOpponent implements Opponent {
             const affordable = UNIT_TYPES.filter(
                 (t) =>
                     !t.extra &&
-                    unlockedUnits[team].includes(t.id) &&
+                    unlockedUnits[this.seat]!.includes(t.id) &&
                     economy.canAfford(this.seat, t),
             );
             if (affordable.length === 0) break;

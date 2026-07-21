@@ -145,6 +145,8 @@ export class Hud {
     onBuyRoundSpeedBoost: (() => void) | null = null;
     onBuyCredit: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
+    /** team modes only: gift supply to your ally, delivered at the start of next round */
+    onSendSupply: ((amount: number) => void) | null = null;
     onArmItem: ((itemId: string, index: number) => void) | null = null;
     onArmTactic: ((tacticId: string, index: number) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
@@ -193,6 +195,8 @@ export class Hud {
     private readonly timerEl: HTMLSpanElement;
     private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
+    /** team modes only: "gift supply to ally" button — hidden in 1v1/solo */
+    private readonly sendSupplyBtn: HTMLButtonElement;
     private readonly playerNameEl: HTMLSpanElement;
     private readonly enemyNameEl: HTMLSpanElement;
     private playerSpecEl!: HTMLSpanElement;
@@ -335,6 +339,14 @@ export class Hud {
         this.supplyEl.className = 'supply';
         this.supplyFrame.append(this.supplyEl);
         toolbarRight.append(this.supplyFrame);
+
+        this.sendSupplyBtn = document.createElement('button');
+        this.sendSupplyBtn.className = 'send-supply';
+        this.sendSupplyBtn.textContent = '🎁 +100 to Ally';
+        this.sendSupplyBtn.title = 'Send 100 supply to your ally — arrives at the start of next round';
+        this.sendSupplyBtn.style.display = 'none'; // shown only in team modes, see setAllySupplyVisible
+        this.sendSupplyBtn.addEventListener('click', () => this.onSendSupply?.(100));
+        toolbarRight.append(this.sendSupplyBtn);
         shopToolbar.append(toolbarRight);
 
         this.extrasRow = document.createElement('div');
@@ -2098,11 +2110,17 @@ export class Hud {
         this.mount(el);
     }
 
+    /** team modes only — call once at match start (never changes mid-match) */
+    setAllySupplyVisible(visible: boolean): void {
+        this.sendSupplyBtn.style.display = visible ? '' : 'none';
+    }
+
     setSupply(amount: number): void {
         this.supplyEl.textContent = String(amount);
         this.phoneSupplyEl.textContent = String(amount);
         this.shopBalance = amount;
         this.lastShopKey = '';
+        this.sendSupplyBtn.disabled = amount < 100;
         for (const { el, type } of this.buttons) {
             const cost = this.costOf(type);
             const blocked = type.extra ? cost > this.extrasBudgetLeft : this.deploysLeft <= 0;

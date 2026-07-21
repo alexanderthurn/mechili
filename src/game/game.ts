@@ -125,7 +125,7 @@ import {
     type UnitType,
 } from './units';
 import { DebugOverlay, CpuSampler } from '../ui/debug';
-import { classicSeats, primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
+import { classicSeats, primarySeatOf, seatIdsOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
@@ -284,13 +284,10 @@ export class Game {
     private stopSpectateRegistration: (() => void) | null = null;
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
     private readonly recruitLevel: number[]; // per seat
-    /** the sell ability: `owned` is a permanent match unlock, `used` resets per round */
-    private readonly sellState: { owned: Record<Team, boolean>; used: Record<Team, number> } = {
-        owned: { player: false, enemy: false },
-        used: { player: 0, enemy: 0 },
-    };
-    /** Research Center: one-time rally-route purchase (permanent match flag) */
-    private readonly rallyRouteOwned: Record<Team, boolean> = { player: false, enemy: false };
+    /** per-SEAT sell ability: `owned` is a permanent unlock, `used` resets per round */
+    private readonly sellState: { owned: boolean[]; used: number[] };
+    /** per-SEAT: one-time rally-route purchase (permanent flag) */
+    private readonly rallyRouteOwned: boolean[];
     /** per-SEAT buy limits: `limit` is permanent (specials may raise it), rest resets per round */
     private readonly deployState: {
         limit: number[];
@@ -298,16 +295,10 @@ export class Game {
         used: number[];
         extrasSpent: number[];
     };
-    /** permanent army-wide boost tiers (0 = none), bought at the Research Center */
-    private readonly boostState: Record<'attack' | 'hp', Record<Team, number>> = {
-        attack: { player: 0, enemy: 0 },
-        hp: { player: 0, enemy: 0 },
-    };
-    /** round-only stat boosts from the Command Tower (reset each deployment) */
-    private readonly roundBoosts: { range: Record<Team, boolean>; speed: Record<Team, boolean> } = {
-        range: { player: false, enemy: false },
-        speed: { player: false, enemy: false },
-    };
+    /** per-SEAT permanent army-wide boost tiers (0 = none) */
+    private readonly boostState: Record<'attack' | 'hp', number[]>;
+    /** per-SEAT round-only stat boosts (reset each deployment) */
+    private readonly roundBoosts: { range: boolean[]; speed: boolean[] };
     /** Command Tower Credit (per seat): used this round (reset each deployment) */
     private readonly creditUsed: boolean[];
     /** Command Tower Credit (per seat): debt owed at the next deployment start */
@@ -323,10 +314,10 @@ export class Game {
     /** rally routes placed this deployment round */
     private readonly rallyRoutes: RallyRoute[] = [];
     private readonly rallyRouteIds = { next: 1 };
-    /** unit types buyable in the shop this match */
-    private readonly unlockedUnits: Record<Team, string[]> = { player: [], enemy: [] };
-    /** at most one shop unlock per deployment round */
-    private readonly unlockUsedThisRound: Record<Team, boolean> = { player: false, enemy: false };
+    /** per-SEAT unit types buyable in the shop this match (own card + own unlocks) */
+    private readonly unlockedUnits: string[][];
+    /** per-SEAT: at most one shop unlock per deployment round */
+    private readonly unlockUsedThisRound: boolean[];
     /** frozen enemy inventory intel captured at deployment-phase start */
     private enemyIntelSnapshot: {
         items: string[];
@@ -592,6 +583,12 @@ export class Game {
             used: this.seats.map(() => 0),
             extrasSpent: this.seats.map(() => 0),
         };
+        this.sellState = { owned: this.seats.map(() => false), used: this.seats.map(() => 0) };
+        this.rallyRouteOwned = this.seats.map(() => false);
+        this.boostState = { attack: this.seats.map(() => 0), hp: this.seats.map(() => 0) };
+        this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
+        this.unlockedUnits = this.seats.map(() => []);
+        this.unlockUsedThisRound = this.seats.map(() => false);
         this.placement.roster = this.seats;
         this.hpBars.roster = this.seats;
         this.dispatcher = new ActionDispatcher({
@@ -871,6 +868,13 @@ export class Game {
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
         };
+        this.hud.onSendSupply = (amount) => {
+            if (!this.playerCanAct) return;
+            const ally = seatIdsOf(this.seats, 'player').find((s) => s !== this.humanSeat);
+            if (ally === undefined) return; // no ally seat (1v1/solo) — button is hidden anyway
+            this.dispatchPlayer({ kind: 'sendSupply', team: 'player', toSeat: ally, amount });
+        };
+        this.hud.setAllySupplyVisible(seatIdsOf(this.seats, 'player').length > 1);
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
@@ -1208,32 +1212,77 @@ export class Game {
     }
 
     /**
-     * Each side's three base buildings (anchors shared with BattleMap so the
-     * ground relief stays flat underneath): the Command Tower left and the
-     * Research Center right, both pushed toward the enemy, plus the big
-     * Stronghold at the back center.
+     * Each side's buildings (anchors shared with BattleMap so the ground
+     * relief stays flat underneath). The Stronghold is the shared castle —
+     * ONE per side, centered at the back, regardless of seat count: the
+     * joint objective both seats on a side defend together. The Command
+     * Tower and Research Center instead spawn once per SEAT, each pair
+     * confined to that seat's own half-lane (mirrors {@link seatLane}'s
+     * left/right split already used for deploy zones), so a 2-seat side
+     * gets two independent tower pairs flanking the one shared Stronghold,
+     * instead of a single pair both teammates used to share.
      */
     private spawnTowers(): void {
         const { flankCols, zoneCols, zoneRows } = this.map.size;
-        const buildings = [
-            { anchor: BASE_ANCHORS.research, type: RESEARCH_CENTER },
-            { anchor: BASE_ANCHORS.command, type: COMMAND_TOWER },
-            { anchor: BASE_ANCHORS.stronghold, type: STRONGHOLD },
-        ];
-        for (const { anchor, type } of buildings) {
+        const ownFar = this.map.ownAtFar;
+        const spawnBuilding = (
+            xFrac: number,
+            rowFrac: number,
+            type: UnitType,
+            team: Team,
+            seat: SeatId,
+        ) => {
             const fp = type.footprint;
-            const centerRow = Math.round(zoneRows * anchor.rowFrac - fp.rows / 2);
-            const col = flankCols + Math.round(zoneCols * anchor.xFrac) - Math.floor(fp.cols / 2);
+            const centerRow = Math.round(zoneRows * rowFrac - fp.rows / 2);
+            const col = flankCols + Math.round(zoneCols * xFrac) - Math.floor(fp.cols / 2);
             // the far side's base is the near layout rotated 180°, so each
-            // player sees their own command tower left, research center right
+            // player sees their own buildings laid out the same way locally
             const near = { col, row: centerRow };
             const far = {
                 col: this.map.cols - col - fp.cols,
                 row: this.map.rows - centerRow - fp.rows,
             };
-            const ownFar = this.map.ownAtFar;
-            this.placement.spawn(type, ownFar ? far : near, 'player');
-            this.placement.spawn(type, ownFar ? near : far, 'enemy');
+            const useFar = (team === 'enemy') !== ownFar;
+            this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
+        };
+
+        spawnBuilding(
+            BASE_ANCHORS.stronghold.xFrac,
+            BASE_ANCHORS.stronghold.rowFrac,
+            STRONGHOLD,
+            'player',
+            primarySeatOf(this.seats, 'player'),
+        );
+        spawnBuilding(
+            BASE_ANCHORS.stronghold.xFrac,
+            BASE_ANCHORS.stronghold.rowFrac,
+            STRONGHOLD,
+            'enemy',
+            primarySeatOf(this.seats, 'enemy'),
+        );
+
+        for (const team of ['player', 'enemy'] as const) {
+            for (const seat of seatIdsOf(this.seats, team)) {
+                const lane = seatLane(this.seats, seat);
+                // remap the classic full-zone xFrac into this seat's own
+                // half of the zone — 'full' (1 seat per side) is unchanged
+                const laneXFrac = (xFrac: number): number =>
+                    lane === 'full' ? xFrac : lane === 'left' ? xFrac * 0.5 : 0.5 + xFrac * 0.5;
+                spawnBuilding(
+                    laneXFrac(BASE_ANCHORS.research.xFrac),
+                    BASE_ANCHORS.research.rowFrac,
+                    RESEARCH_CENTER,
+                    team,
+                    seat,
+                );
+                spawnBuilding(
+                    laneXFrac(BASE_ANCHORS.command.xFrac),
+                    BASE_ANCHORS.command.rowFrac,
+                    COMMAND_TOWER,
+                    team,
+                    seat,
+                );
+            }
         }
     }
 
@@ -1355,13 +1404,10 @@ export class Game {
         for (let seat = 0; seat < this.seats.length; seat++) {
             this.recruitLevel[seat] = this.speciality[this.seats[seat]!.team] === 'elite' ? 2 : 1;
         }
-        this.sellState.used.player = 0;
-        this.sellState.used.enemy = 0;
+        this.sellState.used.fill(0);
         this.deployState.extra.fill(0);
-        this.roundBoosts.range.player = false;
-        this.roundBoosts.range.enemy = false;
-        this.roundBoosts.speed.player = false;
-        this.roundBoosts.speed.enemy = false;
+        this.roundBoosts.range.fill(false);
+        this.roundBoosts.speed.fill(false);
         this.creditUsed.fill(false);
         this.deployState.used.fill(0);
         this.deployState.extrasSpent.fill(0);
@@ -1376,8 +1422,7 @@ export class Game {
         this.battleReady.player = false;
         this.battleReady.enemy = false;
         this.starBattleReadySeats.clear();
-        this.unlockUsedThisRound.player = false;
-        this.unlockUsedThisRound.enemy = false;
+        this.unlockUsedThisRound.fill(false);
         this.hud.refreshCosts();
         this.refreshShopHud();
         this.economy.grantRoundIncome(this.round);
@@ -1410,6 +1455,20 @@ export class Game {
                 if (unit) {
                     unit.level = FREE_ARCHER_LEVEL;
                     unit.refreshLevelBadge();
+                }
+            }
+        }
+        // deliver last round's ally supply gifts — derived straight from the
+        // log (no separate pending-transfer state needed): the sender's
+        // spend already happened on commit, and by the time the NEXT round
+        // starts every client has fully converged on last round's log, so
+        // this credit lands identically everywhere regardless of network
+        // timing. A gift undone before lock-in never enters the log at all,
+        // so there's nothing extra to cancel here.
+        if (this.round > 1) {
+            for (const team of ['player', 'enemy'] as const) {
+                for (const action of this.dispatcher.actionsFor(this.round - 1, team)) {
+                    if (action.kind === 'sendSupply') this.economy.credit(action.toSeat, action.amount);
                 }
             }
         }
@@ -2583,8 +2642,8 @@ export class Game {
         }
         const stats = this.techTree.statsFor(team, type);
         const b = this.settings.boosts;
-        const attackTier = this.boostState.attack[team];
-        const hpTier = this.boostState.hp[team];
+        const attackTier = this.boostState.attack[unit.seat]!;
+        const hpTier = this.boostState.hp[unit.seat]!;
         if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
         if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
         const spec = this.speciality[team];
@@ -2606,8 +2665,8 @@ export class Game {
             stats.attackInterval *= mods.attackInterval ?? 1;
         }
         const rb = this.settings.deploy;
-        if (this.roundBoosts.speed[team]) stats.speed += rb.speedBoost;
-        if (this.roundBoosts.range[team] && type.projectileSpeed) stats.range += rb.rangeBoost;
+        if (this.roundBoosts.speed[unit.seat]) stats.speed += rb.speedBoost;
+        if (this.roundBoosts.range[unit.seat] && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;
     }
 
@@ -2659,11 +2718,11 @@ export class Game {
         };
         // per-round ability charges layered on top of the inventory (sell only)
         const abilityChargesOf = (tacticId: string): { max: number; used: number } => {
-            if (tacticId !== SELL_UNIT_ID || !this.sellState.owned.player) {
+            if (tacticId !== SELL_UNIT_ID || !this.sellState.owned[this.humanSeat]) {
                 return { max: 0, used: 0 };
             }
             const max = this.settings.sell.maxPerRound;
-            return { max, used: Math.min(this.sellState.used.player, max) };
+            return { max, used: Math.min(this.sellState.used[this.humanSeat]!, max) };
         };
 
         for (const tactic of Object.values(TACTICS)) {
@@ -2777,12 +2836,17 @@ export class Game {
         return seatIdsOf(this.seats, team).flatMap((seat) => this.itemInventory[seat]!);
     }
 
+    /** true if ANY seat on the side owns the sell ability — read-only display merge, same idea as {@link itemsForTeam} */
+    private sellAbilityOwnedForTeam(team: Team): boolean {
+        return seatIdsOf(this.seats, team).some((seat) => this.sellState.owned[seat]);
+    }
+
     /** Records the enemy's unequipped items/tactics at deployment-phase start. */
     private captureEnemyIntelSnapshot(): void {
         this.enemyIntelSnapshot = {
             items: this.itemsForTeam('enemy'),
             tactics: [...this.tacticInventory.enemy],
-            sellAbilityOwned: this.sellState.owned.enemy,
+            sellAbilityOwned: this.sellAbilityOwnedForTeam('enemy'),
         };
     }
 
@@ -2798,7 +2862,7 @@ export class Game {
         const items = live ? this.itemsForTeam('enemy') : (this.enemyIntelSnapshot?.items ?? []);
         const tactics = live ? [...this.tacticInventory.enemy] : (this.enemyIntelSnapshot?.tactics ?? []);
         const sellAbility = live
-            ? this.sellState.owned.enemy
+            ? this.sellAbilityOwnedForTeam('enemy')
             : (this.enemyIntelSnapshot?.sellAbilityOwned ?? false);
         const mapItem = (id: string) => {
             const item = ITEMS[id];
@@ -3335,7 +3399,7 @@ export class Game {
     /** HUD buy button: resolve a spawn spot, then run it through the action system */
     private buyUnit(type: UnitType): void {
         if (!this.playerCanAct) return;
-        if (!type.extra && !this.unlockedUnits.player.includes(type.id)) return;
+        if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return;
         if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
@@ -3384,8 +3448,8 @@ export class Game {
 
     private refreshShopHud(): void {
         this.hud.updateShop(
-            this.unlockedUnits.player,
-            !this.unlockUsedThisRound.player,
+            this.unlockedUnits[this.humanSeat]!,
+            !this.unlockUsedThisRound[this.humanSeat],
             this.economy.balance(this.humanSeat),
         );
     }
@@ -3990,9 +4054,11 @@ export class Game {
                 names: { ...this.playerNames },
                 speciality: { player: this.speciality.player, enemy: this.speciality.enemy },
                 units: summarizeUnits(this.placement.allUnits()),
+                // telemetry reporting only — merges every seat's own unlocks
+                // per side (each seat's shop stays exclusively its own in play)
                 unlocked: {
-                    player: [...this.unlockedUnits.player],
-                    enemy: [...this.unlockedUnits.enemy],
+                    player: [...new Set(seatIdsOf(this.seats, 'player').flatMap((s) => this.unlockedUnits[s]!))],
+                    enemy: [...new Set(seatIdsOf(this.seats, 'enemy').flatMap((s) => this.unlockedUnits[s]!))],
                 },
                 replay,
             });
@@ -4591,71 +4657,74 @@ export class Game {
     }
 
     /**
-     * Command Tower ability tiles for the selection panel.
-     * Own building: buyable while acting, read-only in battle. Enemy: read-only
-     * once intel is live (locked in / battle) — same fog as spells & inventory.
+     * Command Tower ability tiles for the selection panel. Each seat has its
+     * OWN tower now — `u.seat` is whose stats/progress this panel shows, not
+     * necessarily `this.humanSeat` (selecting an ally's tower shows THEIR
+     * progress, read-only). Own building: buyable while acting, read-only in
+     * battle. Enemy: read-only once intel is live — same fog as spells/inventory.
      */
     private researchCenterSelection(u: Unit): Pick<
         SelectionInfo,
         'recruit' | 'deploySlot' | 'rangeBoost' | 'speedBoost' | 'credit'
     > {
         if (u.type !== RESEARCH_CENTER) return {};
-        const canBuy = u.team === 'player' && this.playerCanAct;
+        const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const canInspect =
             u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
         if (!canBuy && !canInspect) return {};
 
-        const team = u.team;
-        const bal = this.economy.balance(this.humanSeat);
+        const seat = u.seat;
+        const bal = this.economy.balance(seat);
         return {
             recruit: {
                 cost: this.settings.leveling.recruitLevel2Cost,
-                active: this.recruitLevel[this.humanSeat]! > 1,
+                active: this.recruitLevel[seat]! > 1,
                 affordable: canBuy && bal >= this.settings.leveling.recruitLevel2Cost,
             },
             deploySlot: {
                 cost: this.settings.deploy.extraSlotCost,
-                active: this.deployState.extra[this.humanSeat]! > 0,
+                active: this.deployState.extra[seat]! > 0,
                 affordable: canBuy && bal >= this.settings.deploy.extraSlotCost,
             },
             rangeBoost: {
                 cost: this.settings.deploy.rangedRangeBoostCost,
                 bonus: this.settings.deploy.rangeBoost,
-                active: this.roundBoosts.range[team],
+                active: this.roundBoosts.range[seat]!,
                 affordable: canBuy && bal >= this.settings.deploy.rangedRangeBoostCost,
             },
             speedBoost: {
                 cost: this.settings.deploy.armySpeedBoostCost,
                 bonus: this.settings.deploy.speedBoost,
-                active: this.roundBoosts.speed[team],
+                active: this.roundBoosts.speed[seat]!,
                 affordable: canBuy && bal >= this.settings.deploy.armySpeedBoostCost,
             },
             credit: {
                 gain: this.settings.deploy.creditGain,
                 debt: this.settings.deploy.creditDebt,
-                active: this.creditUsed[this.humanSeat]!,
+                active: this.creditUsed[seat]!,
                 affordable: canBuy,
             },
         };
     }
 
-    /** Research Center permanent tracks — buyable for self in deploy; inspect with fog */
+    /** Command Tower permanent tracks — each seat's own tower; buyable for
+     *  self in deploy, read-only (fogged for enemy) otherwise. */
     private commandTowerSelection(
         u: Unit,
     ): Pick<SelectionInfo, 'boosts' | 'sellAbility' | 'rallyRouteAbility'> {
         if (u.type !== COMMAND_TOWER) return {};
-        const canBuy = u.team === 'player' && this.playerCanAct;
+        const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const canInspect =
             u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
         if (!canBuy && !canInspect) return {};
 
-        const team = u.team;
-        const bal = this.economy.balance(this.humanSeat);
+        const seat = u.seat;
+        const bal = this.economy.balance(seat);
         return {
             boosts: (['attack', 'hp'] as const).map((id) => {
                 const tiers =
                     id === 'attack' ? this.settings.boosts.attackTiers : this.settings.boosts.hpTiers;
-                const tier = this.boostState[id][team];
+                const tier = this.boostState[id][seat]!;
                 const maxed = tier >= tiers.length;
                 const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
                 const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
@@ -4669,12 +4738,12 @@ export class Game {
             }),
             sellAbility: {
                 cost: this.settings.sell.abilityCost,
-                owned: this.sellState.owned[team],
+                owned: this.sellState.owned[seat]!,
                 affordable: canBuy && bal >= this.settings.sell.abilityCost,
             },
             rallyRouteAbility: {
                 cost: this.settings.rallyRoute.abilityCost,
-                owned: this.rallyRouteOwned[team],
+                owned: this.rallyRouteOwned[seat]!,
                 affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
             },
         };
