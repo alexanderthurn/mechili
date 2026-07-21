@@ -1,10 +1,15 @@
 # Steam graphical assets (English)
 
-Generated from dragon-vs-castle key art (castle left, dragon right) + `assets/ui/logo.webp`.
+Two parallel sets (same logo, 1v1 two-base layout):
 
-## Upload checklist
+| Set | Dragon | Folders |
+| --- | --- | --- |
+| **Side dragon** | Flies in from the right | `store/`, `library/`, masters without `_center` |
+| **Center dragon** | Flies toward camera from midfield | `store_center/`, `library_center/`, `*_center.png` masters |
 
-### Store (`store/`)
+## Upload checklist (same filenames in each set)
+
+### Store (`store/` or `store_center/`)
 | File | Size | Steam slot |
 | --- | --- | --- |
 | `header_capsule.png` | 920×430 | Header Capsule * |
@@ -13,7 +18,7 @@ Generated from dragon-vs-castle key art (castle left, dragon right) + `assets/ui
 | `vertical_capsule.png` | 748×896 | Vertical Capsule * |
 | `page_background.png` | 1438×810 | Page Background |
 
-### Library (`library/`)
+### Library (`library/` or `library_center/`)
 | File | Size | Steam slot |
 | --- | --- | --- |
 | `library_capsule.png` | 600×900 | Library Capsule * |
@@ -24,7 +29,9 @@ Generated from dragon-vs-castle key art (castle left, dragon right) + `assets/ui
 In Steamworks Library Logo placement tool, prefer **bottom-left** over the hero.
 
 ### Masters (`masters/`)
-Source plates for regenerating crops: `landscape.png`, `portrait.png`, `hero.png`, `logo.png`.
+- Side: `landscape.png`, `portrait.png`, `hero.png`, `logo.png`
+- Center: `landscape_center.png`, `portrait_center.png`, `hero_center.png`
+- History: `landscape_v1_td.png`, `landscape_v2_side_dragon.png`, `landscape_v3_center_dragon.png`
 
 ## Notes
 - Capsules include the MELODAN logo only (no quotes/awards).
