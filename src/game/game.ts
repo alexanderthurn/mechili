@@ -658,8 +658,15 @@ export class Game {
                     // does all fog buffering on the way OUT (see relayBuild).
                     this.flushOutboundBuildBuffer();
                 }
-                if (this.star) this.maybeStartStarBattle();
-                else this.maybeStartBattleAfterDeploy();
+                // Star mode deliberately does NOT check maybeStartStarBattle
+                // here — this callback fires DURING dispatch, before the
+                // action that triggered it has been relayed onward. Every
+                // dispatch path (dispatchPlayer, AI, drainStarRemoteQueue)
+                // calls relayStarBuildMessage right after its own dispatch
+                // completes, and THAT'S where the check correctly lives —
+                // checking here too raced the battle-start broadcast ahead
+                // of the very action that completed the last lock-in.
+                if (!this.star) this.maybeStartBattleAfterDeploy();
             },
         });
         const aiCtxFor = (rng: () => number) => ({
@@ -2337,15 +2344,17 @@ export class Game {
         const star = this.star;
         const isHost = star.role === 'host';
         if (msg.type === 'action') {
-            // host: stamp the CONNECTION's seat, never the sender's claim
+            // host: stamp the CONNECTION's seat, never the sender's claim.
+            // Relay happens AFTER dispatch (inside drainStarRemoteQueue), not
+            // here — relaying before applying would read stale seatReady
+            // state and could let a battle-start broadcast race ahead of
+            // the very action that completed the last lock-in (see there).
             const seat = isHost ? fromSeat! : msg.action.seat!;
             const action = msg.action.seat === seat ? msg.action : { ...msg.action, seat };
-            if (isHost) this.relayStarBuildMessage({ type: 'action', round: msg.round, action }, seat);
             this.starRemoteQueue.push({ round: msg.round, seat, action });
             this.drainStarRemoteQueue();
         } else if (msg.type === 'undo') {
             const seat = isHost ? fromSeat! : (msg.seat ?? this.humanSeat);
-            if (isHost) this.relayStarBuildMessage({ type: 'undo', round: msg.round, seat }, seat);
             this.starRemoteQueue.push({ round: msg.round, seat, undo: true });
             this.drainStarRemoteQueue();
         } else if (msg.type === 'chat') {
@@ -2421,6 +2430,12 @@ export class Game {
      * never touched. Canonical seat ids need no swapPerspective/id-flip:
      * the seat already tells us exactly which physical commander this is,
      * so we just look up OUR OWN local team for it and dispatch verbatim.
+     *
+     * Relay (host only — `relayStarBuildMessage` no-ops for a guest) always
+     * happens AFTER the local dispatch, never before: relaying first would
+     * read stale seatReady state and, on the action that completes the
+     * last lock-in, could let `starBattleStart` race ahead of the very
+     * action guests need before that broadcast means anything.
      */
     private drainStarRemoteQueue(): void {
         while (this.starRemoteQueue.length > 0) {
@@ -2429,10 +2444,12 @@ export class Game {
             this.starRemoteQueue.shift();
             if (head.undo) {
                 this.dispatcher.undoLast(head.round, head.seat);
+                this.relayStarBuildMessage({ type: 'undo', round: head.round, seat: head.seat }, head.seat);
             } else if (head.action) {
                 const team = this.seats[head.seat]?.team;
                 if (team) {
-                    this.dispatcher.dispatch({ ...head.action, team, seat: head.seat });
+                    const resolved = { ...head.action, team, seat: head.seat };
+                    this.dispatcher.dispatch(resolved);
                     // classic 1v1's dedicated 'starter' message triggers this
                     // same follow-up; star mode's chooseCard rides the normal
                     // action path instead, so it must trigger it here
@@ -2441,6 +2458,10 @@ export class Game {
                         this.syncSpecialities();
                         this.maybeStartMatch();
                     }
+                    this.relayStarBuildMessage(
+                        { type: 'action', round: head.round, action: resolved },
+                        head.seat,
+                    );
                 }
             }
             this.syncRallyVisuals();
