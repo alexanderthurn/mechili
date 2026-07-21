@@ -1022,20 +1022,6 @@ export function hudStyles(): string {
     line-height: 1;
     color: ${u.brass};
 }
-.send-supply {
-    margin-left: 8px;
-    padding: 8px 14px;
-    background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(26, 40, 22, 0.96));
-    border: 2px solid ${u.brassDark};
-    border-radius: 10px;
-    color: ${u.brassLight};
-    font-size: 13px;
-    font-weight: bold;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-.send-supply:hover:not(:disabled) { border-color: ${u.brassLight}; }
-.send-supply:disabled { opacity: 0.4; cursor: default; }
 .shop-toolbar {
     display: flex;
     align-items: center;

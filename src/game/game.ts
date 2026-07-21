@@ -877,12 +877,13 @@ export class Game {
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
         };
         this.hud.onSendSupply = (amount) => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             const ally = seatIdsOf(this.seats, 'player').find((s) => s !== this.humanSeat);
-            if (ally === undefined) return; // no ally seat (1v1/solo) — button is hidden anyway
+            if (ally === undefined) return; // no ally seat (1v1/solo) — tile never shows anyway
             this.dispatchPlayer({ kind: 'sendSupply', team: 'player', toSeat: ally, amount });
         };
-        this.hud.setAllySupplyVisible(seatIdsOf(this.seats, 'player').length > 1);
         this.hud.onBuyLevel = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
@@ -4581,6 +4582,7 @@ export class Game {
             techs: this.techSelection(u),
             ...this.researchCenterSelection(u),
             ...this.commandTowerSelection(u),
+            ...this.strongholdSelection(u),
         };
     }
 
@@ -4631,6 +4633,7 @@ export class Game {
             techs: this.techSelection(u),
             ...this.researchCenterSelection(u),
             ...this.commandTowerSelection(u),
+            ...this.strongholdSelection(u),
         };
     }
 
@@ -4787,6 +4790,17 @@ export class Game {
                 affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
             },
         };
+    }
+
+    /** the shared Stronghold: the one thing both seats on a side work on
+     *  together — its selection panel is where the ally-supply gift lives,
+     *  since it isn't owned by one seat the way the towers now are */
+    private strongholdSelection(u: Unit): Pick<SelectionInfo, 'sendSupply'> {
+        if (u.type !== STRONGHOLD) return {};
+        if (seatIdsOf(this.seats, 'player').length < 2) return {}; // no ally, nothing to send
+        if (u.team !== 'player' || !this.playerCanAct) return {};
+        const amount = 100;
+        return { sendSupply: { amount, affordable: this.economy.balance(this.humanSeat) >= amount } };
     }
 }
 

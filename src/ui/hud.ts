@@ -117,6 +117,8 @@ export interface SelectionInfo {
     rallyRouteAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
+    /** gift supply to your ally (Stronghold only, team modes) */
+    sendSupply?: { amount: number; affordable: boolean };
 }
 
 /**
@@ -195,8 +197,6 @@ export class Hud {
     private readonly timerEl: HTMLSpanElement;
     private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
-    /** team modes only: "gift supply to ally" button — hidden in 1v1/solo */
-    private readonly sendSupplyBtn: HTMLButtonElement;
     private readonly playerNameEl: HTMLSpanElement;
     private readonly enemyNameEl: HTMLSpanElement;
     private playerSpecEl!: HTMLSpanElement;
@@ -339,14 +339,6 @@ export class Hud {
         this.supplyEl.className = 'supply';
         this.supplyFrame.append(this.supplyEl);
         toolbarRight.append(this.supplyFrame);
-
-        this.sendSupplyBtn = document.createElement('button');
-        this.sendSupplyBtn.className = 'send-supply';
-        this.sendSupplyBtn.textContent = '🎁 +100 to Ally';
-        this.sendSupplyBtn.title = 'Send 100 supply to your ally — arrives at the start of next round';
-        this.sendSupplyBtn.style.display = 'none'; // shown only in team modes, see setAllySupplyVisible
-        this.sendSupplyBtn.addEventListener('click', () => this.onSendSupply?.(100));
-        toolbarRight.append(this.sendSupplyBtn);
         shopToolbar.append(toolbarRight);
 
         this.extrasRow = document.createElement('div');
@@ -424,6 +416,7 @@ export class Hud {
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
             else if (button.dataset.speedboost) this.onBuyRoundSpeedBoost?.();
             else if (button.dataset.credit) this.onBuyCredit?.();
+            else if (button.dataset.sendsupply) this.onSendSupply?.(100);
             else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
@@ -1494,6 +1487,15 @@ export class Hud {
                 state: info.sellAbility.owned ? 'owned' : info.sellAbility.affordable ? 'buy' : 'locked',
             });
         }
+        if (info.sendSupply) {
+            tiles.push({
+                data: 'data-sendsupply="1"',
+                icon: '🎁',
+                title: `Send ${info.sendSupply.amount} to Ally`,
+                desc: `Gift ${info.sendSupply.amount} supply to your ally — arrives at the start of next round.`,
+                state: info.sendSupply.affordable ? 'buy' : 'locked',
+            });
+        }
         if (info.rallyRouteAbility) {
             tiles.push({
                 data: 'data-rallyroute="1"',
@@ -2119,17 +2121,11 @@ export class Hud {
         this.mount(el);
     }
 
-    /** team modes only — call once at match start (never changes mid-match) */
-    setAllySupplyVisible(visible: boolean): void {
-        this.sendSupplyBtn.style.display = visible ? '' : 'none';
-    }
-
     setSupply(amount: number): void {
         this.supplyEl.textContent = String(amount);
         this.phoneSupplyEl.textContent = String(amount);
         this.shopBalance = amount;
         this.lastShopKey = '';
-        this.sendSupplyBtn.disabled = amount < 100;
         for (const { el, type } of this.buttons) {
             const cost = this.costOf(type);
             const blocked = type.extra ? cost > this.extrasBudgetLeft : this.deploysLeft <= 0;
