@@ -33,6 +33,7 @@ import {
     type NetSession,
     type RosterEntry,
     type SpectatorVision,
+    type StarRole,
 } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
@@ -270,6 +271,10 @@ export class Game {
     private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
     /** streamed peer events, applied in order once our game reaches their round */
     private readonly remoteQueue: { round: number; action?: Action; undo?: boolean }[] = [];
+    /** star mode's own incoming queue — canonical seat ids need no swapPerspective */
+    private readonly starRemoteQueue: { round: number; seat: SeatId; action?: Action; undo?: boolean }[] = [];
+    /** star host only: which (human) seats have finished watching this round's battle */
+    private readonly starBattleReadySeats = new Set<SeatId>();
     /** host-only: dedicated broadcast connection point for spectators, opened
      *  once a multiplayer match starts (side 'a' only — see startSpectatorHub) */
     private spectatorHub: SpectatorHub | null = null;
@@ -382,7 +387,7 @@ export class Game {
             this.weather?.next();
             return;
         }
-        if (e.code === 'KeyU' && !this.net) {
+        if (e.code === 'KeyU' && !this.net && !this.star) {
             // single-player: one of every unit type on both sides + huge HP
             this.cheatSpawnAllUnits();
             return;
@@ -410,10 +415,11 @@ export class Game {
     private battleDown: { x: number; y: number } | null = null;
 
     private readonly settings: GameSettings;
-    /** the match roster; seat 0 is always the local human */
+    /** the match roster; localized so MY side always reads 'player' locally */
     private readonly seats: SeatDef[];
-    /** the local human's seat id (roster convention: always 0) */
-    private readonly humanSeat: SeatId = 0;
+    /** the local human's seat id — 0 for every local/classic-net mode; a star
+     *  guest's assigned canonical seat can be any index */
+    private readonly humanSeat: SeatId;
 
     constructor(
         private readonly pixiApp: Application,
@@ -437,6 +443,10 @@ export class Game {
              *  resets it to a fresh full timer, so it's restored separately */
             phaseRemaining?: number;
         } | null = null,
+        /** 2v2+ star-topology connection — mutually exclusive with `net`.
+         *  `settings.seats` must already be the LOCALIZED roster (via
+         *  localizeRoster) by the time this reaches the constructor. */
+        private readonly star: StarRole | null = null,
     ) {
         this.settings = normalizeGameSettings(settingsInput);
         const settings = this.settings;
@@ -454,6 +464,7 @@ export class Game {
         // only its camera differs — no coordinates are ever mirrored
         this.map.ownAtFar = side === 'b';
         this.seats = settings.seats ?? classicSeats(this.playerNames.local, this.playerNames.opponent);
+        this.humanSeat = star?.mySeat ?? 0;
         this.economy = new Economy(settings.economy, this.seats.length);
         this.recruitLevel = this.seats.map(() => 1);
         this.creditUsed = this.seats.map(() => false);
@@ -641,15 +652,30 @@ export class Game {
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
                     this.enemyIntelSnapshot = null;
-                } else {
-                    // peer locked in — release our buffered build stream to them
+                } else if (!this.star) {
+                    // classic 1v1 only: release our buffered build stream to
+                    // the peer. Star mode never buffers locally — the host
+                    // does all fog buffering on the way OUT (see relayBuild).
                     this.flushOutboundBuildBuffer();
                 }
-                this.maybeStartBattleAfterDeploy();
+                if (this.star) this.maybeStartStarBattle();
+                else this.maybeStartBattleAfterDeploy();
             },
         });
         const aiCtxFor = (rng: () => number) => ({
-            dispatch: (action: Action) => this.dispatcher.dispatch(action),
+            dispatch: (action: Action) => {
+                const ok = this.dispatcher.dispatch(action);
+                // star host: an AI seat's actions bypass dispatchPlayer
+                // entirely, so relay them here instead — same fog-filtered
+                // path as any human seat's traffic
+                if (ok && this.star?.role === 'host' && !this.hydrating) {
+                    const seat = action.seat ?? this.humanSeat;
+                    if (this.round >= 1 || action.kind === 'chooseCard') {
+                        this.relayStarBuildMessage({ type: 'action', round: this.round, action }, seat);
+                    }
+                }
+                return ok;
+            },
             placement: this.placement,
             economy: this.economy,
             techTree: this.techTree,
@@ -659,16 +685,33 @@ export class Game {
             tactics: this.tacticInventory,
             rng,
         });
-        this.opponent = this.net
-            ? new NetworkOpponent()
-            : new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), aiCtxFor(this.rngAi));
-        // duo modes: every further AI seat gets its own brain and rng stream
-        for (let seat = 0; seat < this.seats.length; seat++) {
-            const def = this.seats[seat]!;
-            if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
-            if (this.net) continue; // networked matches drive remote seats over the wire
-            const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
-            this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team });
+        if (this.star) {
+            // star mode: every AI-controlled seat runs uniformly via extraAis
+            // (no "primary enemy" concept — could be 1 or 2 enemy seats).
+            // Only the HOST ever runs AI locally; a guest's `this.opponent`
+            // stays a no-op placeholder, and its extraAis stays empty —
+            // every seat's actions (AI or human) arrive over the wire.
+            this.opponent = new NetworkOpponent();
+            if (this.star.role === 'host') {
+                for (let seat = 0; seat < this.seats.length; seat++) {
+                    const def = this.seats[seat]!;
+                    if (def.controller !== 'ai') continue;
+                    const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
+                    this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team });
+                }
+            }
+        } else {
+            this.opponent = this.net
+                ? new NetworkOpponent()
+                : new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), aiCtxFor(this.rngAi));
+            // local duo modes: every further AI seat gets its own brain and rng stream
+            for (let seat = 0; seat < this.seats.length; seat++) {
+                const def = this.seats[seat]!;
+                if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
+                if (this.net) continue; // networked matches drive remote seats over the wire
+                const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
+                this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team });
+            }
         }
         this.placement.localSeat = this.humanSeat;
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
@@ -891,6 +934,7 @@ export class Game {
             this.awaitPeerReady();
         }
         if (this.net && this.side === 'a') this.startSpectatorHub();
+        if (this.star) this.wireStar(this.star);
 
         // Escape toggles the in-game menu (the match keeps running underneath)
         window.addEventListener('keydown', this.onEscapeKey);
@@ -1321,6 +1365,7 @@ export class Game {
         this.deployCaughtUpFromPeer = false;
         this.battleReady.player = false;
         this.battleReady.enemy = false;
+        this.starBattleReadySeats.clear();
         this.unlockUsedThisRound.player = false;
         this.unlockUsedThisRound.enemy = false;
         this.hud.refreshCosts();
@@ -1412,8 +1457,18 @@ export class Game {
      *  Build actions are buffered until the peer locks in (wire fog). */
     private dispatchPlayer(action: Action): boolean {
         if (this.seatReady[this.humanSeat] || this.suspended) return false;
-        if (!this.dispatcher.dispatch(action)) return false;
-        if (this.round >= 1) this.sendPlayerBuildMessage({ type: 'action', round: this.round, action });
+        // stamp explicitly: actorSeat's fallback (primarySeatOf(team)) only
+        // equals humanSeat when the human is their side's FIRST seat — false
+        // for a star guest assigned to seat 1/2/3
+        const stamped: Action = action.seat === this.humanSeat ? action : { ...action, seat: this.humanSeat };
+        if (!this.dispatcher.dispatch(stamped)) return false;
+        // classic 1v1's starter pick (round 0) goes out via a dedicated
+        // 'starter' message instead — this gate stays as-is for it. Star
+        // mode never buffers locally (see sendStarBuildMessage), so its
+        // own round-0 starter pick is always safe to send immediately.
+        if (this.round >= 1 || (this.star && stamped.kind === 'chooseCard')) {
+            this.sendPlayerBuildMessage({ type: 'action', round: this.round, action: stamped });
+        }
         return true;
     }
 
@@ -1428,6 +1483,10 @@ export class Game {
      * peer has locked in, then flushes.
      */
     private sendPlayerBuildMessage(msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        if (this.star) {
+            this.sendStarBuildMessage(msg);
+            return;
+        }
         const isGate =
             msg.type === 'action' && msg.action.kind === 'endDeployment';
         if (!this.net || this.peerDeployReady || isGate) {
@@ -1437,6 +1496,66 @@ export class Game {
         }
         this.outboundBuildBuffer.push(msg);
         this.mirrorBuildToSpectators(msg, this.localSeat());
+    }
+
+    /**
+     * Star mode (2v2+): no local sender-side buffering — the HOST does all
+     * fog buffering on the way OUT to each recipient (see `StarHub.relayBuild`),
+     * so every client just sends immediately. A guest sends straight to the
+     * host; the host relays (its own actions AND anything received from a
+     * guest) to every other connected seat.
+     */
+    private sendStarBuildMessage(msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        if (!this.star) return;
+        if (this.star.role === 'guest') {
+            this.star.session.send(msg);
+            return;
+        }
+        const fromSeat =
+            msg.type === 'action' ? (msg.action.seat ?? this.humanSeat) : (msg.seat ?? this.humanSeat);
+        this.relayStarBuildMessage(msg, fromSeat);
+    }
+
+    /** star host only: relay a just-applied action/undo to every OTHER connected seat */
+    private relayStarBuildMessage(
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        fromSeat: SeatId,
+    ): void {
+        if (!this.star || this.star.role !== 'host') return;
+        this.star.hub.relayBuild(msg, fromSeat, (side) => this.starSideLocked(side));
+        if (msg.type === 'action' && msg.action.kind === 'endDeployment') this.maybeStartStarBattle();
+    }
+
+    /** (star host only) canonical side → local team — seat 0 is always the host */
+    private starTeamForCanonicalSide(side: 'a' | 'b'): Team {
+        if (this.star?.role !== 'host') return 'player';
+        return side === this.star.hub.sideOf(0) ? 'player' : 'enemy';
+    }
+
+    /** (star host only) has every seat on this canonical side locked in this round? */
+    private starSideLocked(side: 'a' | 'b'): boolean {
+        const team = this.starTeamForCanonicalSide(side);
+        return seatIdsOf(this.seats, team).every((seat) => this.seatReady[seat]);
+    }
+
+    /**
+     * Star host: the sole arbiter of when battle starts. Once both sides are
+     * fully locked, flush every recipient's fog buffer and broadcast the go
+     * signal BEFORE starting locally — PeerJS connections are ordered, so a
+     * guest is guaranteed to receive/apply the flushed backlog before it
+     * even sees `starBattleStart`, without needing a separate ack round-trip
+     * (unlike 1v1's symmetric peers, there's one arbiter here to race against).
+     */
+    private maybeStartStarBattle(): void {
+        if (!this.star || this.star.role !== 'host') return;
+        if (this.phase !== 'build' || this.matchOver) return;
+        if (!this.deployReady.player || !this.deployReady.enemy) return;
+        if (!this.hydrating) {
+            this.star.hub.flushAllBuffers();
+            this.star.hub.broadcast({ type: 'starBattleStart', round: this.round });
+        }
+        this.spectatorHub?.flushBuildBuffers();
+        this.startBattlePhase();
     }
 
     /** release withheld build traffic now that the peer may receive it */
@@ -1597,6 +1716,10 @@ export class Game {
     /** sends to the opponent AND mirrors to any connected spectators */
     private broadcast(msg: NetMessage): void {
         this.net?.send(msg);
+        if (this.star) {
+            if (this.star.role === 'guest') this.star.session.send(msg);
+            else this.star.hub.broadcast(msg);
+        }
         this.mirrorToSpectators(msg);
     }
 
@@ -1691,6 +1814,28 @@ export class Game {
                 this.hud.showDisconnect();
             }
         };
+    }
+
+    /**
+     * Wires the star (2v2+) transport. No auto-redial/grace-window yet
+     * (documented v1 scope, see TEAM_MODES_PLAN.md) — any drop just pauses
+     * with a "give up" escape hatch, for either role.
+     */
+    private wireStar(star: StarRole): void {
+        if (star.role === 'guest') {
+            star.session.attach((msg) => this.onStarMessage(msg));
+            star.session.onClose = () => {
+                if (this.matchOver || this.suspended) return;
+                this.suspend('Lost connection to the host.');
+            };
+        } else {
+            star.hub.onMessage = (seat, msg) => this.onStarMessage(msg, seat);
+            star.hub.onSeatDropped = (seat) => {
+                if (this.matchOver || this.suspended) return;
+                const name = this.seats[seat]?.name ?? 'a player';
+                this.suspend(`Lost connection to ${name}.`);
+            };
+        }
     }
 
     // --- reconnect / resync ------------------------------------------------
@@ -2181,6 +2326,59 @@ export class Game {
     }
 
     /**
+     * Star mode's own message handler, parallel to `onNetMessage` above
+     * (which stays exactly as it was for classic 1v1). `fromSeat` is the
+     * TRUSTED seat of the connection a message arrived on — only ever
+     * present when we're the host (a guest has one pipe to the host and
+     * reads the seat straight out of the already-sanitized payload).
+     */
+    private onStarMessage(msg: NetMessage, fromSeat?: SeatId): void {
+        if (this.disposed || this.matchOver || !this.star) return;
+        const star = this.star;
+        const isHost = star.role === 'host';
+        if (msg.type === 'action') {
+            // host: stamp the CONNECTION's seat, never the sender's claim
+            const seat = isHost ? fromSeat! : msg.action.seat!;
+            const action = msg.action.seat === seat ? msg.action : { ...msg.action, seat };
+            if (isHost) this.relayStarBuildMessage({ type: 'action', round: msg.round, action }, seat);
+            this.starRemoteQueue.push({ round: msg.round, seat, action });
+            this.drainStarRemoteQueue();
+        } else if (msg.type === 'undo') {
+            const seat = isHost ? fromSeat! : (msg.seat ?? this.humanSeat);
+            if (isHost) this.relayStarBuildMessage({ type: 'undo', round: msg.round, seat }, seat);
+            this.starRemoteQueue.push({ round: msg.round, seat, undo: true });
+            this.drainStarRemoteQueue();
+        } else if (msg.type === 'chat') {
+            const now = performance.now();
+            if (now - this.lastChatReceived < CHAT_COOLDOWN_MS * 0.5) return;
+            this.lastChatReceived = now;
+            const item: ChatItem =
+                msg.item.kind === 'text'
+                    ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
+                    : msg.item;
+            this.hud.addChat(msg.from.name, item, 'remote');
+            if (isHost && fromSeat !== undefined) {
+                star.hub.broadcast({ type: 'chat', item, from: msg.from }, fromSeat);
+            }
+        } else if (msg.type === 'speed') {
+            const index = Game.SPEED_STEPS.indexOf(msg.multiplier);
+            if (index >= 0) {
+                this.speedIndex = index;
+                this.hud.setSpeed(msg.multiplier);
+            }
+            if (isHost && fromSeat !== undefined) star.hub.broadcast(msg, fromSeat);
+        } else if (msg.type === 'battleEnd') {
+            if (isHost && fromSeat !== undefined && msg.round === this.round) {
+                this.markStarBattleReady(fromSeat);
+            }
+        } else if (msg.type === 'starNextRound') {
+            if (!isHost && msg.round === this.round) this.startBuildPhase();
+        } else if (msg.type === 'starBattleStart') {
+            if (!isHost && msg.round === this.round && this.phase === 'build') this.startBattlePhase();
+        }
+    }
+
+    /**
      * Applies streamed peer events strictly in order, holding at the head
      * until our game reaches the event's round (our battle may lag theirs).
      * NOT gated on our own `awaitingCards`: that's purely "is my own round-
@@ -2215,6 +2413,38 @@ export class Game {
         // Re-derive from the flipped team (1v1: the enemy side's only seat).
         swapped.seat = primarySeatOf(this.seats, swapped.team);
         return swapped;
+    }
+
+    /**
+     * Star mode's own queue+drain, parallel to `drainRemoteQueue`/
+     * `translateRemote` — kept separate so the classic 1v1 path above is
+     * never touched. Canonical seat ids need no swapPerspective/id-flip:
+     * the seat already tells us exactly which physical commander this is,
+     * so we just look up OUR OWN local team for it and dispatch verbatim.
+     */
+    private drainStarRemoteQueue(): void {
+        while (this.starRemoteQueue.length > 0) {
+            const head = this.starRemoteQueue[0]!;
+            if (head.round !== this.round || this.phase !== 'build') return;
+            this.starRemoteQueue.shift();
+            if (head.undo) {
+                this.dispatcher.undoLast(head.round, head.seat);
+            } else if (head.action) {
+                const team = this.seats[head.seat]?.team;
+                if (team) {
+                    this.dispatcher.dispatch({ ...head.action, team, seat: head.seat });
+                    // classic 1v1's dedicated 'starter' message triggers this
+                    // same follow-up; star mode's chooseCard rides the normal
+                    // action path instead, so it must trigger it here
+                    if (head.action.kind === 'chooseCard') {
+                        this.refreshShopHud();
+                        this.syncSpecialities();
+                        this.maybeStartMatch();
+                    }
+                }
+            }
+            this.syncRallyVisuals();
+        }
     }
 
     /** draws n distinct cards from a pool with the given seeded stream */
@@ -3068,7 +3298,7 @@ export class Game {
         if (!this.canUndo()) return;
         this.placement.deselect();
         if (this.dispatcher.undoLast(this.round, this.humanSeat)) {
-            this.sendPlayerBuildMessage({ type: 'undo', round: this.round });
+            this.sendPlayerBuildMessage({ type: 'undo', round: this.round, seat: this.humanSeat });
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
@@ -3536,6 +3766,13 @@ export class Game {
      *  so the two sides don't necessarily finish watching at the same time) */
     private announceBattleEnd(): void {
         this.battleReady.player = true;
+        if (this.star) {
+            this.markStarBattleReady(this.humanSeat);
+            if (this.star.role === 'guest') {
+                this.star.session.send({ type: 'battleEnd', round: this.round, seat: this.humanSeat });
+            }
+            return; // star's own gate (markStarBattleReady) decides when to advance
+        }
         if (this.net && !this.hydrating) {
             this.broadcast({ type: 'battleEnd', round: this.round });
         }
@@ -3551,6 +3788,24 @@ export class Game {
             return;
         }
         if (this.battleReady.player && this.battleReady.enemy) this.startBuildPhase();
+    }
+
+    /**
+     * Star host only: track a seat's "done watching" signal; once every
+     * HUMAN seat (AI seats never watch, always vacuously ready) has checked
+     * in, broadcast the go-ahead and start the next round locally. Mirrors
+     * `maybeStartStarBattle`'s host-arbiter pattern — no per-client ack
+     * round-trip needed, PeerJS delivery order does the rest.
+     */
+    private markStarBattleReady(seat: SeatId): void {
+        if (!this.star || this.star.role !== 'host') return;
+        this.starBattleReadySeats.add(seat);
+        const allReady = this.seats.every(
+            (def, i) => def.controller !== 'human' || this.starBattleReadySeats.has(i),
+        );
+        if (!allReady || this.hydrating) return;
+        this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
+        this.startBuildPhase();
     }
 
     /** someone hit 0 HP — freeze the game and show the result */
@@ -3605,6 +3860,10 @@ export class Game {
      * whichever one is still connected. Failures are ignored.
      */
     private reportOpenRating(result: 'victory' | 'defeat' | 'draw', forceReport = false): void {
+        // 2v2 is unranked v1 (no Elo concept for >2 seats yet, per plan) —
+        // skip rather than mislabel; proper mode-tagged telemetry is a
+        // separate, later piece of work
+        if (this.star) return;
         if (this.net && this.side !== 'a' && !forceReport) return;
         try {
             const mode = this.net ? 'mp' : 'ai';
@@ -3629,6 +3888,9 @@ export class Game {
      * record per match); never blocks or throws if the PHP backend is down.
      */
     private reportMatchTelemetry(result: 'victory' | 'defeat' | 'draw'): void {
+        // skip rather than mislabel as 'ai'/'mp' — proper 2v2 mode tagging
+        // for balance telemetry is separate, later work (see plan §7)
+        if (this.star) return;
         if (this.net && this.side !== 'a') return;
         try {
             const replay = this.exportReplay();
@@ -3810,6 +4072,7 @@ export class Game {
         this.updateSandWear();
         this.updateSelectionUi();
         this.drainRemoteQueue();
+        this.drainStarRemoteQueue();
         const waitingForPeer =
             this.net !== null &&
             !this.matchOver &&
@@ -3883,7 +4146,7 @@ export class Game {
             simSteps: simSteps || undefined,
         }, dtSeconds);
 
-        if (this.onStateCheckpoint && !this.net && !this.matchOver && !this.hydrating) {
+        if (this.onStateCheckpoint && !this.net && !this.star && !this.matchOver && !this.hydrating) {
             this.persistTimer += dtSeconds;
             const interval = this.phase === 'battle' ? 0.25 : 1;
             if (this.persistTimer >= interval) {

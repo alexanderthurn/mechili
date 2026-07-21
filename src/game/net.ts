@@ -120,7 +120,9 @@ export type NetMessage =
     | { type: 'setup'; version: number; seed: number; settings: GameSettings; hostName: string; guestName: string }
     | { type: 'starter'; cardId: string }
     | { type: 'action'; round: number; action: Action }
-    | { type: 'undo'; round: number }
+    /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
+     *  needs it since more than one remote seat can send an undo */
+    | { type: 'undo'; round: number; seat?: SeatId }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
@@ -147,7 +149,9 @@ export type NetMessage =
     | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' } }
     /** local battle sim finished — the peer may still be watching theirs
      *  (fast-forward speed is per-client); the next build phase waits for both */
-    | { type: 'battleEnd'; round: number }
+    /** `seat` unused by classic 1v1 (implicitly "the opponent"); star mode's
+     *  host needs it to attribute + aggregate across N watchers */
+    | { type: 'battleEnd'; round: number; seat?: SeatId }
     /** post-reconnect: "I've finished rebuilding and am about to resume my
      *  clock" — a reloading peer's asset load takes real seconds, so a
      *  survivor that resumed instantly would otherwise burn that time for
@@ -209,7 +213,12 @@ export type NetMessage =
     /** host → each guest once every seat has locked in for the round and the
      *  fog buffers are flushed (guaranteed delivered-before on an ordered
      *  connection, so no separate per-client ack round-trip is needed) */
-    | { type: 'starBattleStart'; round: number };
+    | { type: 'starBattleStart'; round: number }
+    /** host → every guest: everyone (all human seats) finished watching the
+     *  battle — start the next build phase now (fast-forward speed is
+     *  per-client, so this needs the same host-arbitrated go-signal as
+     *  starBattleStart rather than each client deciding independently) */
+    | { type: 'starNextRound'; round: number };
 
 /**
  * What a spectator may see during the build phase.
@@ -456,9 +465,14 @@ export class StarHub {
         this.bySeat.get(seat)?.conn.send(msg);
     }
 
-    /** every connected guest (not the host's own seat(s)) */
-    broadcast(msg: NetMessage): void {
-        for (const { conn } of this.bySeat.values()) conn.send(msg);
+    /** every connected guest (not the host's own seat(s)); `exclude` skips
+     *  one seat — used when relaying a message THAT seat just sent, so it
+     *  doesn't get echoed back to its own sender */
+    broadcast(msg: NetMessage, exclude?: SeatId): void {
+        for (const [seat, { conn }] of this.bySeat) {
+            if (seat === exclude) continue;
+            conn.send(msg);
+        }
     }
 
     /**
@@ -566,6 +580,16 @@ export class StarGuestSession {
         this.peer.destroy();
     }
 }
+
+/**
+ * What `Game` needs to know about its star-mode connection: whether it's
+ * the relay (host) or a spoke (guest), and which canonical seat this
+ * client occupies. `mySeat` is NOT necessarily 0 for a guest — only the
+ * host is guaranteed seat 0 by the join-order convention.
+ */
+export type StarRole =
+    | { role: 'host'; hub: StarHub; mySeat: SeatId }
+    | { role: 'guest'; session: StarGuestSession; mySeat: SeatId };
 
 /**
  * Host a 2v2+ star room: opens a peer, registers it in the public/room-code
