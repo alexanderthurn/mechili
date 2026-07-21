@@ -264,10 +264,13 @@ menu.style.position = 'relative';
 menu.style.zIndex = '30';
 menu.style.display = 'none';
 menu.innerHTML = `
-    <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
-    <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
-    <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
+    <div class="m-main">
+        <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
+        <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
+        <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
+    </div>
     <div class="m-spmode" style="display:none">
+        <div class="m-spmode-title">Single Player</div>
         <div class="m-spmode-row">
             <label><input type="radio" name="spteam" value="1v1" checked> 1v1</label>
             <label><input type="radio" name="spteam" value="2v2"> 2v2</label>
@@ -460,6 +463,7 @@ const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
 const spHordeEl = menu.querySelector<HTMLInputElement>('.sp-horde')!;
+const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 
 let started = false;
 let pending: Pending | null = null;
@@ -1228,14 +1232,17 @@ menu.addEventListener('click', (e) => {
         case 'single':
             lobbyEl.style.display = 'none';
             stopRoomPoll();
+            mainButtonsEl.style.display = 'none';
             spModeEl.style.display = '';
             break;
         case 'sp-back':
             spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
             break;
         case 'sp-play': {
             const team = spModeEl.querySelector<HTMLInputElement>('input[name="spteam"]:checked')!.value;
             spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
             startLocalMatch({ duo: team === '2v2', horde: spHordeEl.checked });
             break;
         }
