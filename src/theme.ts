@@ -74,6 +74,8 @@ export const THEME = {
         vignette: 'rgba(18, 42, 14, 0.04)',
         grid: 'rgba(255, 255, 255, 0.2)',
         centerLine: 'rgba(255, 220, 80, 0.6)',
+        /** duo/2v2: dashed divider marking where your own lane ends */
+        laneLine: 'rgba(255, 255, 255, 0.5)',
         flankLocked: 'rgba(140, 170, 100, 0.14)',
         sunWashTop: 'rgba(255, 248, 200, 0.18)',
         sunWashBottom: 'rgba(255, 248, 200, 0)',

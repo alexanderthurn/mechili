@@ -947,8 +947,12 @@ export class BattleMap {
     /**
      * The placement helper overlay: tile grid + deployment zone tints. Only
      * shown during the build phase — the war phase plays on clean terrain.
+     * `lane` is the LOCAL seat's own half of the zone in team modes ('full'
+     * for a solo seat) — when it isn't 'full', a divider marks where the
+     * seat's own placeable half ends, since {@link laneOk} enforces this
+     * strictly but nothing used to show it.
      */
-    createOverlayMesh(): Mesh {
+    createOverlayMesh(lane: 'full' | 'left' | 'right' = 'full'): Mesh {
         const TEX_SCALE = 8;
         const w = this.width * TEX_SCALE;
         const h = this.height * TEX_SCALE;
@@ -1011,6 +1015,26 @@ export class BattleMap {
         ctx.moveTo(0, h / 2);
         ctx.lineTo(w, h / 2);
         ctx.stroke();
+
+        // duo/2v2: a dashed line marking where MY OWN lane ends within my
+        // own zone — laneOk enforces this strictly (a click past it is
+        // rejected), so without this there's no visual cue at all for where
+        // a seat may actually place
+        if (lane !== 'full') {
+            const midCol = Math.floor(this.cols / 2);
+            const midX = midCol * cellPx;
+            const myZoneTop = this.ownAtFar ? 0 : h - zonePx;
+            const myZoneBottom = this.ownAtFar ? zonePx : h;
+            ctx.save();
+            ctx.strokeStyle = t.laneLine;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([14, 10]);
+            ctx.beginPath();
+            ctx.moveTo(midX, myZoneTop);
+            ctx.lineTo(midX, myZoneBottom);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;

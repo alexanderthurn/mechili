@@ -521,7 +521,7 @@ export class Game {
         this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
         this.spellVisuals = new SpellVisuals(this.scene);
-        this.gridOverlay = this.map.createOverlayMesh();
+        this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
@@ -1135,7 +1135,7 @@ export class Game {
         const gridVisible = this.gridOverlay.visible;
         this.scene.remove(this.gridOverlay);
         disposeTree(this.gridOverlay);
-        this.gridOverlay = this.map.createOverlayMesh();
+        this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
         this.gridOverlay.visible = gridVisible;
         this.scene.add(this.gridOverlay);
 
@@ -4137,7 +4137,7 @@ export class Game {
         material.map?.dispose();
         material.dispose();
         this.gridOverlay.geometry.dispose();
-        this.gridOverlay = this.map.createOverlayMesh();
+        this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
         this.scene.add(this.gridOverlay);
     }
 
