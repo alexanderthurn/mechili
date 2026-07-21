@@ -61,10 +61,7 @@ const PLAY_URL =
         : new URL('./index.html', location.href).href;
 
 const TRAILER_YOUTUBE_ID = '-Kspr2J8jWQ';
-const trailerPosterUrl = new URL(
-    '../../assets/marketing/screenshots/trailer-poster.webp',
-    import.meta.url,
-).href;
+const DEVLOG_YOUTUBE_ID = 'hfVDwHk4xCA';
 
 const SCREENSHOTS = [
     { file: '01.webp', label: 'Screenshot 1' },
@@ -111,6 +108,11 @@ function pickButtons(list: UnitType[], activeId: string): string {
 const DISCORD_ICON_SVG =
     `<svg class="mh-discord-icon" viewBox="0 0 127.14 96.36" width="22" height="17" aria-hidden="true" focusable="false">` +
     `<path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1A105.25 105.25 0 0 0 126.6 80.22c2.64-27.38-4.51-51.14-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53 48.84 65.69 42.45 65.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53 91.08 65.69 84.69 65.69Z"/>` +
+    `</svg>`;
+
+const YOUTUBE_ICON_SVG =
+    `<svg class="mh-youtube-icon" viewBox="0 0 24 24" width="22" height="16" aria-hidden="true" focusable="false">` +
+    `<path fill="currentColor" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.5 31.5 0 0 0 0 12a31.5 31.5 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.5 31.5 0 0 0 24 12a31.5 31.5 0 0 0-.5-5.8zM9.75 15.5v-7l6.5 3.5-6.5 3.5z"/>` +
     `</svg>`;
 
 /** Renders a real link when STEAM_URL is set, otherwise an inert placeholder. */
@@ -279,33 +281,18 @@ app.innerHTML = `
     ${steamLink(
         'mh-play-btn steam',
         `<span class="mh-play-title">
-        <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="Steam" width="112" height="112" />
+        <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="Steam" width="256" height="77" />
       </span>
       <span class="mh-play-note">Ranked Multiplayer · Play with Friends</span>`,
     )}
   </div>
+  <button type="button" class="mh-trailer-btn" id="mh-trailer-open" aria-haspopup="dialog">
+    ${YOUTUBE_ICON_SVG}
+    <span>Watch Trailer</span>
+  </button>
 </header>
 
 <main class="mh-wrap">
-  <section class="mh-section mh-trailer-section" id="trailer">
-    <div class="mh-trailer" id="mh-trailer" data-youtube-id="${esc(TRAILER_YOUTUBE_ID)}">
-      <button type="button" class="mh-trailer-facade" id="mh-trailer-load" aria-label="Play trailer (loads YouTube)">
-        <img class="mh-trailer-poster" src="${esc(trailerPosterUrl)}" alt="MELODAN trailer" width="1280" height="720" />
-        <span class="mh-trailer-play" aria-hidden="true">
-          <svg viewBox="0 0 68 48" width="68" height="48" focusable="false">
-            <path fill="currentColor" d="M66.5 7.7c-.8-2.9-2.5-5.4-5.4-6.2C55.8.1 34 0 34 0S12.2.1 6.9 1.5C4 2.3 2.3 4.8 1.5 7.7 0 13.1 0 24 0 24s0 10.9 1.5 16.3c.8 2.9 2.5 5.4 5.4 6.2C12.2 47.9 34 48 34 48s21.8-.1 27.1-1.5c2.9-.8 4.6-3.3 5.4-6.2C68 34.9 68 24 68 24s0-10.9-1.5-16.3z"/>
-            <path fill="#111" d="M45 24 27 14v20"/>
-          </svg>
-        </span>
-      </button>
-      <p class="mh-trailer-notice">
-        Click to load the trailer from YouTube.
-        YouTube may set cookies &mdash; see
-        <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">data privacy</a>.
-      </p>
-    </div>
-  </section>
-
   <section class="mh-section" id="screenshots">
     <h2>Screenshots</h2>
     <p class="mh-sub">A look at deployment and battle.</p>
@@ -314,7 +301,7 @@ app.innerHTML = `
     </div>
     <div class="mh-shots-more-wrap">
       <button type="button" class="mh-shots-more-btn" id="mh-shots-more" aria-haspopup="dialog">
-        Browse more screenshots
+        Browse screenshots
       </button>
     </div>
   </section>
@@ -403,6 +390,10 @@ app.innerHTML = `
     <div class="mh-together-cta">
       <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Send feedback</button>
       <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} Discord</a>
+      <button type="button" class="mh-trailer-btn" id="mh-devlog-open" aria-haspopup="dialog">
+        ${YOUTUBE_ICON_SVG}
+        <span>Developer Log</span>
+      </button>
     </div>
     <div class="mh-community-body">
       <div class="mh-community-block">
@@ -478,6 +469,17 @@ app.innerHTML = `
   <p class="mh-lightbox-caption" id="mh-lightbox-caption"></p>
   <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="Screenshots"></div>
 </dialog>
+
+<dialog class="mh-trailer-dialog" id="mh-trailer-dialog" aria-label="MELODAN trailer">
+  <div class="mh-trailer-dialog-chrome">
+    <button type="button" class="mh-lightbox-close mh-trailer-dialog-close" id="mh-trailer-close" aria-label="Close trailer">&times;</button>
+  </div>
+  <div class="mh-trailer-dialog-frame" id="mh-trailer-mount"></div>
+  <p class="mh-trailer-dialog-note">
+    Playing via YouTube. Cookies may be set &mdash;
+    <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">data privacy</a>.
+  </p>
+</dialog>
 `;
 
 const heroPlay = app.querySelector('.mh-play');
@@ -530,22 +532,38 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
     });
 }
 
-const trailerEl = app.querySelector<HTMLElement>('#mh-trailer');
-const trailerLoadBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-load');
-trailerLoadBtn?.addEventListener('click', () => {
-    const id = trailerEl?.dataset.youtubeId;
-    if (!trailerEl || !id) return;
+const trailerDialog = app.querySelector<HTMLDialogElement>('#mh-trailer-dialog');
+const trailerMount = app.querySelector<HTMLElement>('#mh-trailer-mount');
+const trailerOpenBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-open');
+const devlogOpenBtn = app.querySelector<HTMLButtonElement>('#mh-devlog-open');
+const trailerCloseBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-close');
+
+const unloadTrailer = () => {
+    trailerMount?.replaceChildren();
+};
+
+const openYoutube = (videoId: string, title: string) => {
+    if (!trailerDialog || !trailerMount) return;
     const iframe = document.createElement('iframe');
     iframe.className = 'mh-trailer-frame';
-    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`;
-    iframe.title = 'MELODAN trailer';
+    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0`;
+    iframe.title = title;
     iframe.allow =
         'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-    trailerEl.classList.add('is-playing');
-    trailerEl.replaceChildren(iframe);
+    trailerMount.replaceChildren(iframe);
+    trailerDialog.setAttribute('aria-label', title);
+    if (!trailerDialog.open) trailerDialog.showModal();
+};
+
+trailerOpenBtn?.addEventListener('click', () => openYoutube(TRAILER_YOUTUBE_ID, 'MELODAN trailer'));
+devlogOpenBtn?.addEventListener('click', () => openYoutube(DEVLOG_YOUTUBE_ID, 'MELODAN developer log'));
+trailerCloseBtn?.addEventListener('click', () => trailerDialog?.close());
+trailerDialog?.addEventListener('click', (e) => {
+    if (e.target === trailerDialog) trailerDialog.close();
 });
+trailerDialog?.addEventListener('close', unloadTrailer);
 
 {
     const lightbox = app.querySelector<HTMLDialogElement>('#mh-lightbox');
@@ -623,9 +641,14 @@ trailerLoadBtn?.addEventListener('click', () => {
             imgEl.style.transition = 'none';
         });
         stageEl.addEventListener('pointermove', (e) => {
-            if (!dragging) return;
-            const dx = e.clientX - dragX;
-            imgEl.style.transform = `translateX(${dx}px)`;
+            if (dragging) {
+                const dx = e.clientX - dragX;
+                imgEl.style.transform = `translateX(${dx}px)`;
+                return;
+            }
+            const rect = stageEl.getBoundingClientRect();
+            stageEl.classList.toggle('mh-lightbox-left', e.clientX < rect.left + rect.width / 2);
+            stageEl.classList.toggle('mh-lightbox-right', e.clientX >= rect.left + rect.width / 2);
         });
         const endDrag = (e: PointerEvent) => {
             if (!dragging) return;
@@ -636,10 +659,19 @@ trailerLoadBtn?.addEventListener('click', () => {
             imgEl.style.transform = '';
             if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
                 show(dx < 0 ? index + 1 : index - 1);
+                return;
+            }
+            if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+                const rect = stageEl.getBoundingClientRect();
+                show(e.clientX < rect.left + rect.width / 2 ? index - 1 : index + 1);
             }
         };
         stageEl.addEventListener('pointerup', endDrag);
         stageEl.addEventListener('pointercancel', endDrag);
+        stageEl.addEventListener('pointerleave', () => {
+            if (dragging) return;
+            stageEl.classList.remove('mh-lightbox-left', 'mh-lightbox-right');
+        });
     }
 }
 

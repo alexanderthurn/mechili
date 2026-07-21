@@ -84,6 +84,7 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
     gap: 12px;
     justify-content: center;
+    align-items: stretch;
     width: 100%;
     margin-top: 8px;
 }
@@ -92,10 +93,9 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    min-height: 9.5rem;
-    padding: 14px 18px 16px;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 18px;
     border-radius: 14px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
@@ -111,7 +111,6 @@ body {
 .mh-play-btn.steam {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
     border-color: ${u.brassDark};
-    padding: 8px 14px 16px;
 }
 .mh-steam-link.disabled {
     cursor: not-allowed;
@@ -122,7 +121,6 @@ body {
     opacity: 0.5;
 }
 .mh-play-title {
-    flex: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -131,16 +129,18 @@ body {
     letter-spacing: 0.02em;
     gap: 8px;
     text-align: center;
+    line-height: 1.2;
+    min-height: 1.4em;
 }
 .mh-play-btn.steam .mh-play-title { color: ${u.brassLight}; }
 .mh-steam-logo {
-    width: 7rem;
-    height: 7rem;
+    width: 7.5rem;
+    height: auto;
+    aspect-ratio: 256 / 77;
     object-fit: contain;
     display: block;
 }
 .mh-play-note {
-    margin-top: auto;
     font-size: 12px;
     line-height: 1.35;
     color: ${u.phase};
@@ -315,88 +315,81 @@ body {
     padding: 0 0.15em;
 }
 
-.mh-trailer-section {
-    padding-top: 0;
-}
-.mh-trailer-section::before,
-.mh-trailer-section::after {
-    display: none;
-}
-
-.mh-trailer {
-    position: relative;
-    width: 100%;
-    max-width: 960px;
-    margin: 0 auto;
-    aspect-ratio: 16 / 9;
+.mh-trailer-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 4px;
+    padding: 14px 28px;
     border-radius: 14px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
-    overflow: hidden;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
-}
-.mh-trailer-facade {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    border: none;
-    background: #0a120c;
     color: ${u.text};
+    font-family: inherit;
+    font-size: 1.1rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
     cursor: pointer;
-    font: inherit;
+    transition: border-color 0.12s, background 0.12s, transform 0.12s;
 }
-.mh-trailer-facade:hover .mh-trailer-play {
-    transform: scale(1.06);
+.mh-trailer-btn:hover {
+    border-color: #ff4d4d;
+    background: rgba(180, 20, 20, 0.28);
+    transform: translateY(-2px);
+}
+.mh-trailer-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.35);
+}
+.mh-youtube-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 1.35em;
+    height: 1.05em;
     color: #ff2a2a;
 }
-.mh-trailer-facade:focus-visible {
-    outline: none;
-    box-shadow: inset 0 0 0 3px rgba(255, 216, 64, 0.45);
-}
-.mh-trailer-poster {
-    position: absolute;
+
+.mh-trailer-dialog {
+    position: fixed;
     inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
+    width: min(960px, calc(100% - 24px));
+    max-width: none;
+    height: fit-content;
+    max-height: min(100% - 24px, 100dvh - 24px);
+    margin: auto;
+    padding: 12px;
+    border: 2px solid ${u.border};
+    border-radius: 14px;
+    background: rgba(8, 12, 10, 0.98);
+    color: ${u.text};
+    overflow: auto;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
 }
-.mh-trailer-play {
+.mh-trailer-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.mh-trailer-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.72);
+}
+.mh-trailer-dialog-chrome {
+    display: flex;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+}
+.mh-trailer-dialog-close {
+    position: static;
+}
+.mh-trailer-dialog-frame {
     position: relative;
-    z-index: 1;
-    color: #f00;
-    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55));
-    transition: transform 0.15s ease, color 0.15s ease;
-}
-.mh-trailer-notice {
-    position: absolute;
-    z-index: 2;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0;
-    padding: 12px 16px 14px;
-    background: linear-gradient(180deg, transparent, rgba(6, 12, 8, 0.92));
-    color: ${u.phase};
-    font-size: 12px;
-    line-height: 1.45;
-    text-align: center;
-    pointer-events: none;
-}
-.mh-trailer-notice a {
-    color: ${u.brassLight};
-    font-weight: 700;
-    text-decoration: none;
-    pointer-events: auto;
-}
-.mh-trailer-notice a:hover { text-decoration: underline; }
-.mh-trailer.is-playing .mh-trailer-notice {
-    display: none;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    flex: 0 0 auto;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
 }
 .mh-trailer-frame {
     position: absolute;
@@ -405,6 +398,33 @@ body {
     height: 100%;
     border: 0;
     display: block;
+}
+.mh-trailer-dialog-note {
+    margin: 0;
+    color: ${u.textMuted};
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: center;
+}
+.mh-trailer-dialog-note a {
+    color: ${u.brassLight};
+    font-weight: 700;
+    text-decoration: none;
+}
+.mh-trailer-dialog-note a:hover { text-decoration: underline; }
+@media (max-width: 720px) {
+    .mh-trailer-dialog {
+        width: calc(100% - 16px);
+        max-height: min(100% - 16px, 100dvh - 16px);
+        margin: auto;
+        padding: 10px;
+        gap: 8px;
+        border-radius: 12px;
+    }
+    .mh-trailer-dialog-note {
+        font-size: 11px;
+        padding: 0 4px;
+    }
 }
 
 .mh-shots {
@@ -558,9 +578,11 @@ body {
     display: grid;
     place-items: center;
     touch-action: pan-y;
-    cursor: grab;
+    cursor: pointer;
     user-select: none;
 }
+.mh-lightbox-stage.mh-lightbox-left { cursor: w-resize; }
+.mh-lightbox-stage.mh-lightbox-right { cursor: e-resize; }
 .mh-lightbox-stage:active { cursor: grabbing; }
 .mh-lightbox-img {
     max-width: 100%;
@@ -1082,8 +1104,12 @@ body {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
+    align-items: center;
     gap: 12px;
     margin: 8px 0 4px;
+}
+.mh-together-cta .mh-trailer-btn {
+    margin-top: 6px;
 }
 .mh-community-body {
     max-width: 520px;
