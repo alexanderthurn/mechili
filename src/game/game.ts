@@ -2325,10 +2325,26 @@ export class Game {
         }
     }
 
-    /** the player may act: build phase, not locked in, match running, peer present */
+    /**
+     * The player may act: build phase, not locked in, match running.
+     * Gated on THIS SEAT's own lock-in (`seatReady`), not the whole side's
+     * (`deployReady.player`) — those are the same thing for a single-seat
+     * side (deployReady flips the instant that one seat locks in), but they
+     * diverge the moment a side has >1 seat: your own lock-in happens
+     * first, and deployReady stays false until your ally ALSO locks in.
+     * Gating on the side-wide flag left every build action open the whole
+     * time you were "waiting for ally" — buy, apply items, tactics, undo,
+     * all still callable client-side even though you'd told the system
+     * you were done. This is the actual server-side rule, not just what
+     * the UI hides: relying on hidden buttons alone would leave a modified
+     * client free to keep acting after lock-in.
+     */
     private get playerCanAct(): boolean {
         return (
-            this.phase === 'build' && !this.deployReady.player && !this.matchOver && !this.suspended
+            this.phase === 'build' &&
+            !this.seatReady[this.humanSeat] &&
+            !this.matchOver &&
+            !this.suspended
         );
     }
 
@@ -2524,6 +2540,9 @@ export class Game {
             const head = this.remoteQueue[0]!;
             if (head.round !== this.round || this.phase !== 'build') return;
             this.remoteQueue.shift();
+            // same authority check as drainStarRemoteQueue: the peer's own
+            // seat already locked in has nothing legitimate left to send
+            if (this.seatReady[primarySeatOf(this.seats, 'enemy')]) continue;
             if (head.undo) {
                 this.dispatcher.undoLast(head.round, primarySeatOf(this.seats, 'enemy'));
             } else if (head.action) {
@@ -2562,6 +2581,18 @@ export class Game {
             const head = this.starRemoteQueue[0]!;
             if (head.round !== this.round || this.phase !== 'build') return;
             this.starRemoteQueue.shift();
+            // a seat that has already locked in this round has nothing
+            // legitimate left to send. This is the actual authority check
+            // (not just the sender's own UI/dispatchPlayer gate): this is
+            // where another seat's message actually gets applied to OUR
+            // copy of the match, including on the star host validating a
+            // guest — a modified client that kept sending actions after
+            // lock-in gets rejected here regardless of what it sent. Safe
+            // to check unconditionally: a legitimate endDeployment is what
+            // SETS seatReady, so at the moment it's processed here it's
+            // still false; only a message sent AFTER that (or a malicious
+            // duplicate) is caught.
+            if (this.seatReady[head.seat]) continue;
             if (head.undo) {
                 this.dispatcher.undoLast(head.round, head.seat);
                 this.relayStarBuildMessage({ type: 'undo', round: head.round, seat: head.seat }, head.seat);
@@ -3498,7 +3529,13 @@ export class Game {
         return (
             this.phase === 'build' &&
             !this.matchOver &&
-            !this.deployReady.player && // locked in: the batch is already with the peer
+            // THIS SEAT locked in, not the whole side — undoLast() below
+            // calls the dispatcher directly (unlike buy/applyItem/etc,
+            // which route through dispatchPlayer and already check
+            // seatReady there), so this was the one real gap: checking the
+            // side-wide flag left undo callable for the whole "waiting for
+            // ally" window after you'd already locked in
+            !this.seatReady[this.humanSeat] &&
             this.dispatcher.canUndo(this.round, this.humanSeat)
         );
     }
