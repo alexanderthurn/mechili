@@ -3952,9 +3952,8 @@ export class Game {
      * record per match); never blocks or throws if the PHP backend is down.
      */
     private reportMatchTelemetry(result: 'victory' | 'defeat' | 'draw'): void {
-        // skip rather than mislabel as 'ai'/'mp' — proper 2v2 mode tagging
-        // for balance telemetry is separate, later work (see plan §7)
-        if (this.star) return;
+        // one record per match — only the host reports for star mode too
+        if (this.star && this.star.role !== 'host') return;
         if (this.net && this.side !== 'a') return;
         try {
             const replay = this.exportReplay();
@@ -3963,7 +3962,7 @@ export class Game {
                 ts: Math.floor(Date.now() / 1000),
                 gameVersion: GAME_VERSION,
                 balancePatchId: BALANCE_PATCH_ID,
-                mode: this.net ? 'mp' : 'ai',
+                mode: this.star ? '2v2' : this.net ? 'mp' : 'ai',
                 side: this.side,
                 result,
                 rounds: this.round,

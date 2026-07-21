@@ -220,7 +220,7 @@ function normalizeRecord(array $data): array {
     if ($ts > time() + 86400) $ts = time();
 
     $mode = (string)($data['mode'] ?? 'unknown');
-    if ($mode !== 'ai' && $mode !== 'mp') $mode = 'unknown';
+    if (!in_array($mode, ['ai', 'mp', '2v2'], true)) $mode = 'unknown';
 
     $result = (string)($data['result'] ?? 'unknown');
     if (!in_array($result, ['victory', 'defeat', 'draw'], true)) $result = 'unknown';

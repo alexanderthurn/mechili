@@ -12,7 +12,7 @@ import type { Team, Unit } from './units';
 /** bumped when economy / unit numbers change for balance comparison (independent of GAME_VERSION) */
 export const BALANCE_PATCH_ID = '1';
 
-export type MatchMode = 'ai' | 'mp';
+export type MatchMode = 'ai' | 'mp' | '2v2';
 export type MatchResult = 'victory' | 'defeat' | 'draw';
 
 export interface UnitPresence {
