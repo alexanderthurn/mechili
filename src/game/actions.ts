@@ -336,8 +336,12 @@ export interface ActionContext {
     speciality: Record<Team, SpecialityId | null>;
     /** per-team multiplier on flank spawn duration (Flanky card → 0.5) */
     flankSpawnMult: Record<Team, number>;
-    /** each side's UNEQUIPPED pack items (item ids; duplicates stack) */
-    items: Record<Team, string[]>;
+    /**
+     * Each SEAT's own unequipped pack items (item ids; duplicates stack) —
+     * per-seat, never shared, so two teammates can never race to consume the
+     * same instance (unlike tactics below, still a per-side pool).
+     */
+    items: string[][];
     /** tactical order charges (e.g. rally routes) — not pack items */
     tactics: Record<Team, string[]>;
     /** rally routes placed this deployment round (cleared each round) */
@@ -747,10 +751,11 @@ export class ActionDispatcher {
                 }
                 // items (tactics) are additive per CARD, not an overwrite like
                 // speciality/HP/unlocks above — every seat's own pick grants
-                // its own items, primary or not, so a non-primary seat's
-                // tactic isn't silently dropped on the floor
+                // its own items into ITS OWN pool (items are per-seat, never
+                // shared — see actions.ts applyItem), primary or not, so a
+                // non-primary seat's tactic isn't silently dropped
                 if (card.items) {
-                    this.ctx.items[action.team].push(...card.items);
+                    this.ctx.items[seat]!.push(...card.items);
                     entry.grantedItems = [...card.items];
                 }
                 // the starting army — free, placed ring-wise from THIS SEAT's lane
@@ -771,10 +776,15 @@ export class ActionDispatcher {
             }
             case 'applyItem': {
                 const unit = placement.unitById(action.unitId);
-                if (!unit || unit.team !== action.team || unit.type.structure) return false;
+                // items are a per-SEAT pool now (never shared) — a seat may
+                // only equip its own items onto its own units, so there's no
+                // resource two different clients could both grab at once
+                if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
+                    return false;
+                }
                 if (unit.items.length > 0) return false; // exactly ONE item per pack
                 if (!ITEMS[action.itemId]) return false;
-                const inventory = this.ctx.items[action.team];
+                const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);
                 if (held < 0) return false;
                 inventory.splice(held, 1);
@@ -810,7 +820,9 @@ export class ActionDispatcher {
                     if (unit) entry.units.push(unit); // movable: deployedRound = this round
                 }
                 if (card.items) {
-                    this.ctx.items[action.team].push(...card.items);
+                    // round cards are primary-seat-only (gated above), so
+                    // `seat` is always the primary here — same pool either way
+                    this.ctx.items[seat]!.push(...card.items);
                     entry.grantedItems = [...card.items];
                 }
                 if (card.tactics) {
@@ -1113,7 +1125,7 @@ export class ActionDispatcher {
                 const unit = placement.unitById(action.unitId)!;
                 const worn = unit.items.lastIndexOf(action.itemId);
                 if (worn >= 0) unit.items.splice(worn, 1);
-                this.ctx.items[action.team].push(action.itemId);
+                this.ctx.items[seat]!.push(action.itemId); // seat = actorSeat(action), its own pool
                 break;
             }
             case 'placeRallyRoute': {

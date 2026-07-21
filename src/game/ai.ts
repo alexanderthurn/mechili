@@ -46,7 +46,8 @@ export class AiOpponent implements Opponent {
             techTree: TechTree;
             unlockedUnits: Record<Team, string[]>;
             unlockUsedThisRound: Record<Team, boolean>;
-            items: Record<Team, string[]>;
+            /** per-SEAT pool — never shared, unlike tactics below */
+            items: string[][];
             tactics: Record<Team, string[]>;
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
@@ -141,7 +142,7 @@ export class AiOpponent implements Opponent {
     private applyItems(): void {
         const { dispatch, placement, items, rng } = this.ctx;
         const team = this.team;
-        const bag = [...items[team]];
+        const bag = [...items[this.seat]!];
         if (bag.length === 0) return;
         const packs = placement
             .allUnits()

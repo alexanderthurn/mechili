@@ -316,8 +316,8 @@ export class Game {
     private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
     /** per-team multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
     private readonly flankSpawnMult: Record<Team, number> = { player: 1, enemy: 1 };
-    /** each side's unequipped pack items */
-    private readonly itemInventory: Record<Team, string[]> = { player: [], enemy: [] };
+    /** each SEAT's own unequipped pack items — per seat, never shared (sized in the constructor, once `seats` is known) */
+    private readonly itemInventory: string[][];
     /** tactical order charges (rally routes, etc.) — separate from pack items */
     private readonly tacticInventory: Record<Team, string[]> = { player: [], enemy: [] };
     /** rally routes placed this deployment round */
@@ -472,6 +472,7 @@ export class Game {
         this.creditUsed = this.seats.map(() => false);
         this.creditDebt = this.seats.map(() => false);
         this.starterPicked = this.seats.map(() => false);
+        this.itemInventory = this.seats.map(() => []);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
         this.renderer = new WebGLRenderer({
@@ -1451,12 +1452,12 @@ export class Game {
         for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
     }
 
-    /** SP cheat (U): ensure both inventories have one of every pack item. */
+    /** SP cheat (U): ensure every seat's inventory has one of every pack item. */
     private cheatGrantAllItems(): void {
-        for (const team of ['player', 'enemy'] as const) {
+        for (let seat = 0; seat < this.seats.length; seat++) {
             for (const id of Object.keys(ITEMS)) {
-                if (!this.itemInventory[team].includes(id)) {
-                    this.itemInventory[team].push(id);
+                if (!this.itemInventory[seat]!.includes(id)) {
+                    this.itemInventory[seat]!.push(id);
                 }
             }
         }
@@ -2610,10 +2611,11 @@ export class Game {
         return stats;
     }
 
-    /** the left-side item strip: one square per item instance, hidden outside build */
+    /** the left-side item strip: one square per item instance, hidden outside build.
+     *  Items are per-SEAT — this shows only MY OWN seat's pool, not my ally's. */
     private inventoryView(): { id: string; icon: string; name: string; armed: boolean }[] {
         if (!this.playerCanAct) return [];
-        return this.itemInventory.player.map((id, index) => {
+        return this.itemInventory[this.humanSeat]!.map((id, index) => {
             const item = ITEMS[id];
             return {
                 id,
@@ -2768,10 +2770,17 @@ export class Game {
         return out;
     }
 
+    /** merged item pool across every seat on a side — for READ-ONLY display
+     *  only (intel/HUD). Consumption always targets one seat's own array
+     *  (see actions.ts applyItem) — this never feeds back into gameplay. */
+    private itemsForTeam(team: Team): string[] {
+        return seatIdsOf(this.seats, team).flatMap((seat) => this.itemInventory[seat]!);
+    }
+
     /** Records the enemy's unequipped items/tactics at deployment-phase start. */
     private captureEnemyIntelSnapshot(): void {
         this.enemyIntelSnapshot = {
-            items: [...this.itemInventory.enemy],
+            items: this.itemsForTeam('enemy'),
             tactics: [...this.tacticInventory.enemy],
             sellAbilityOwned: this.sellState.owned.enemy,
         };
@@ -2786,7 +2795,7 @@ export class Game {
             return { items: [], tactics: [], sellAbility: false };
         }
         const live = this.deployReady.player;
-        const items = live ? [...this.itemInventory.enemy] : (this.enemyIntelSnapshot?.items ?? []);
+        const items = live ? this.itemsForTeam('enemy') : (this.enemyIntelSnapshot?.items ?? []);
         const tactics = live ? [...this.tacticInventory.enemy] : (this.enemyIntelSnapshot?.tactics ?? []);
         const sellAbility = live
             ? this.sellState.owned.enemy
