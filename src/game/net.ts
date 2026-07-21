@@ -218,7 +218,11 @@ export type NetMessage =
      *  battle — start the next build phase now (fast-forward speed is
      *  per-client, so this needs the same host-arbitrated go-signal as
      *  starBattleStart rather than each client deciding independently) */
-    | { type: 'starNextRound'; round: number };
+    | { type: 'starNextRound'; round: number }
+    /** every client's battle-start state fingerprint, sent to the host for
+     *  N-way comparison. Detection only for v1 — a mismatch is logged, not
+     *  auto-resynced (star mode has no reconnect/resume story yet either) */
+    | { type: 'starCheck'; round: number; seat: SeatId; hash: number };
 
 /**
  * What a spectator may see during the build phase.

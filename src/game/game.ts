@@ -275,6 +275,8 @@ export class Game {
     private readonly starRemoteQueue: { round: number; seat: SeatId; action?: Action; undo?: boolean }[] = [];
     /** star host only: which (human) seats have finished watching this round's battle */
     private readonly starBattleReadySeats = new Set<SeatId>();
+    /** star host only: this round's battle-start hash per seat (diagnostic desync check) */
+    private readonly starChecks = new Map<SeatId, number>();
     /** host-only: dedicated broadcast connection point for spectators, opened
      *  once a multiplayer match starts (side 'a' only — see startSpectatorHub) */
     private spectatorHub: SpectatorHub | null = null;
@@ -1565,6 +1567,29 @@ export class Game {
         this.startBattlePhase();
     }
 
+    /**
+     * Host only, diagnostic: once every connected seat's battle-start hash
+     * has arrived for this round, warn (console only — no gameplay
+     * interruption) if any of them disagrees with the host's own. Star mode
+     * has no auto-resync yet, so this is detection for debugging, not a fix.
+     * A seat that never reports (e.g. it dropped) just never completes the
+     * check — harmless, since a drop already pauses the whole match via
+     * wireStar's onSeatDropped.
+     */
+    private verifyStarChecks(): void {
+        if (!this.star || this.star.role !== 'host') return;
+        const expected = [0, ...this.star.hub.connectedSeats()];
+        if (!expected.every((s) => this.starChecks.has(s))) return; // still waiting on someone
+        const mine = this.starChecks.get(0)!;
+        const mismatched = expected.filter((s) => this.starChecks.get(s) !== mine);
+        if (mismatched.length > 0) {
+            console.warn(
+                `[mechili] star desync at round ${this.round}: seat(s) ${mismatched.join(', ')} ` +
+                    `disagree with the host's battle-start state hash`,
+            );
+        }
+    }
+
     /** release withheld build traffic now that the peer may receive it */
     private flushOutboundBuildBuffer(): void {
         this.peerDeployReady = true;
@@ -2384,6 +2409,11 @@ export class Game {
             if (!isHost && msg.round === this.round) this.startBuildPhase();
         } else if (msg.type === 'starBattleStart') {
             if (!isHost && msg.round === this.round && this.phase === 'build') this.startBattlePhase();
+        } else if (msg.type === 'starCheck') {
+            if (isHost && msg.round === this.round) {
+                this.starChecks.set(msg.seat, msg.hash);
+                this.verifyStarChecks();
+            }
         }
     }
 
@@ -3654,6 +3684,19 @@ export class Game {
             this.sentChecks.set(this.round, hash);
             this.net.send({ type: 'check', round: this.round, hash });
             this.verifyCheck(this.round);
+        }
+        // star mode: every client's hash goes to the host for N-way
+        // comparison. Diagnostic only (console warning) — no auto-resync,
+        // matching the documented lack of a reconnect/resume story here.
+        if (this.star && !this.hydrating) {
+            const hash = this.stateHash();
+            if (this.star.role === 'guest') {
+                this.star.session.send({ type: 'starCheck', round: this.round, seat: this.humanSeat, hash });
+            } else {
+                this.starChecks.clear();
+                this.starChecks.set(this.humanSeat, hash);
+                this.verifyStarChecks();
+            }
         }
     }
 
