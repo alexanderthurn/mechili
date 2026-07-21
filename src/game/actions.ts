@@ -744,10 +744,14 @@ export class ActionDispatcher {
                     this.ctx.unlockedUnits[action.team] = starterUnlockedUnits(card);
                     entry.prevHp = this.ctx.hp.get(action.team);
                     this.ctx.hp.set(action.team, card.startingHp);
-                    if (card.items) {
-                        this.ctx.items[action.team].push(...card.items);
-                        entry.grantedItems = [...card.items];
-                    }
+                }
+                // items (tactics) are additive per CARD, not an overwrite like
+                // speciality/HP/unlocks above — every seat's own pick grants
+                // its own items, primary or not, so a non-primary seat's
+                // tactic isn't silently dropped on the floor
+                if (card.items) {
+                    this.ctx.items[action.team].push(...card.items);
+                    entry.grantedItems = [...card.items];
                 }
                 // the starting army — free, placed ring-wise from THIS SEAT's lane
                 entry.units = [];
