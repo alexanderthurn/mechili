@@ -4165,7 +4165,20 @@ export class Game {
             seatIdsOf(this.seats, 'player').some(
                 (seat) => seat !== this.humanSeat && this.seatReady[seat],
             );
-        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn);
+        // I've locked in myself, but my SIDE isn't ready yet (ally hasn't) —
+        // deployReady.player only flips once every seat on my side has, so
+        // without this I'd see no feedback at all between my own click and
+        // my ally's (waitingForPeer above only fires once the whole side is)
+        const selfLockedIn =
+            this.phase === 'build' && this.seatReady[this.humanSeat] && !this.deployReady.player;
+        this.hud.setPhase(
+            this.round,
+            this.phase,
+            this.phaseRemaining,
+            waitingForPeer,
+            allyLockedIn,
+            selfLockedIn,
+        );
         this.hud.setUndoVisible(this.canUndo());
         this.hud.setDeploys(
             this.deployState.used[this.humanSeat]!,
