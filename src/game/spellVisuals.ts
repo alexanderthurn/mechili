@@ -14,6 +14,7 @@ import {
     addDrapedIconDecal,
     addDrapedRect,
     addDrapedRectFill,
+    drapeYawToward,
     rebuildDrapedCircleFill,
     rebuildDrapedRectFill,
 } from './groundMarkers';
@@ -455,7 +456,7 @@ export class SpellVisuals {
         if (!tex) return;
         const mx = (startX + endX) * 0.5;
         const mz = (startZ + endZ) * 0.5;
-        const yaw = Math.atan2(endX - startX, endZ - startZ);
+        const yaw = drapeYawToward(startX, startZ, endX, endZ);
         addDrapedIconDecal(target, tex, mx, mz, radius * 0.85, yaw);
     }
 

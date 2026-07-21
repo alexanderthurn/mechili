@@ -6,7 +6,13 @@ import {
     type Scene,
 } from 'three';
 import { teamColors } from './colors';
-import { addDrapedCapsule, addDrapedCircle, DRAPE_LIFT, drapeChevronGeometry } from './groundMarkers';
+import {
+    addDrapedCapsule,
+    addDrapedCircle,
+    drapeChevronGeometry,
+    DRAPE_RENDER_ORDER,
+    setDrapedObjectPosition,
+} from './groundMarkers';
 import { type BattleMap } from './map';
 import { RALLY_ROUTE_RADIUS, type RallyRoute } from './tactics';
 
@@ -125,8 +131,9 @@ export class RallyVisuals {
                     depthWrite: false,
                 }),
             );
-            arrow.position.set(x, DRAPE_LIFT + 0.04, z);
+            setDrapedObjectPosition(arrow, x, z, 0.04);
             arrow.frustumCulled = false;
+            arrow.renderOrder = DRAPE_RENDER_ORDER;
             this.group.add(arrow);
         }
     }

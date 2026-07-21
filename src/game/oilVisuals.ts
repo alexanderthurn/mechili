@@ -70,7 +70,9 @@ export class OilVisuals {
         showOutlines = true,
     ): void {
         const key = hazardKey(field, now, this.draft, stamps, showOutlines);
-        if (key === this.lastKey && Math.abs(now - this.lastNow) < 0.05) return;
+        // build phase: always rebuild while dragging a draft (matches spellVisuals)
+        const dragging = showOutlines && now === 0 && this.draft !== null;
+        if (!dragging && key === this.lastKey && Math.abs(now - this.lastNow) < 0.05) return;
         this.lastKey = key;
         this.lastNow = now;
         // committed puddles only — no draft soft-stamp (outlines carry intent)
@@ -173,7 +175,12 @@ function hazardKey(
         ? `${draft.startX.toFixed(2)},${draft.startZ.toFixed(2)},${draft.endX.toFixed(2)},${draft.endZ.toFixed(2)},${draft.radius.toFixed(2)}`
         : '';
     const s = showOutlines
-        ? stamps.map((t) => `${t.id}:${t.startX.toFixed(1)},${t.endX.toFixed(1)}`).join('|')
+        ? stamps
+              .map(
+                  (t) =>
+                      `${t.id}:${t.startX.toFixed(1)},${t.startZ.toFixed(1)},${t.endX.toFixed(1)},${t.endZ.toFixed(1)}`,
+              )
+              .join('|')
         : '';
     return `${oil}:${fire}:${d}:${s}`;
 }

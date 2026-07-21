@@ -5,7 +5,7 @@ import {
     MeshBasicMaterial,
     type Scene,
 } from 'three';
-import { DRAPE_LIFT, drapeChevronGeometry } from './groundMarkers';
+import { DRAPE_LIFT, drapeChevronGeometry, setDrapedObjectPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
 
 const CHEVRON_SPACING = 14;
 const CHEVRON_SPEED = 22;
@@ -125,9 +125,9 @@ export class TargetPreviewVisuals {
             CHEVRON_D * scale,
             heading,
         );
-        mesh.rotation.set(0, 0, 0);
-        mesh.scale.set(1, 1, 1);
-        mesh.position.set(x, DRAPE_LIFT + 0.08, z);
+        setDrapedObjectPosition(mesh, x, z, DRAPE_LIFT);
+        mesh.frustumCulled = false;
+        mesh.renderOrder = DRAPE_RENDER_ORDER;
         mesh.visible = true;
     }
 }

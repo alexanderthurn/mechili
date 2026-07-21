@@ -79,13 +79,17 @@ export function createRangeRing(scene: Scene): Mesh {
  * it hugs the terrain (and units occlude it) instead of floating.
  */
 export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: number): void {
+    const anchorY = groundHeightAt(x, z);
     const pos = mesh.geometry.attributes.position!;
     for (let i = 0; i < pos.count; i++) {
-        pos.setY(i, groundHeightAt(x + pos.getX(i) * radius, z + pos.getZ(i) * radius));
+        const wx = x + pos.getX(i) * radius;
+        const wz = z + pos.getZ(i) * radius;
+        pos.setY(i, groundHeightAt(wx, wz) - anchorY);
     }
     pos.needsUpdate = true;
-    mesh.position.set(x, 0.12, z);
+    mesh.position.set(x, 0.12 + anchorY, z);
     mesh.scale.set(radius, 1, radius);
+    mesh.renderOrder = 10;
     mesh.visible = true;
 }
 
@@ -867,14 +871,14 @@ export class PlacementController {
             mesh.userData.fpKey = fpKey;
         }
         const pos = mesh.geometry.attributes.position!;
+        const anchorY = this.map.heightAt(center.x, center.z);
         for (let i = 0; i < pos.count; i++) {
-            pos.setY(
-                i,
-                this.map.heightAt(center.x + pos.getX(i) * edge, center.z + pos.getZ(i) * edge),
-            );
+            const wx = center.x + pos.getX(i) * edge;
+            const wz = center.z + pos.getZ(i) * edge;
+            pos.setY(i, this.map.heightAt(wx, wz) - anchorY);
         }
         pos.needsUpdate = true;
-        mesh.position.set(center.x, y + 0.04, center.z);
+        mesh.position.set(center.x, y + 0.04 + anchorY, center.z);
         mesh.scale.set(edge, 1, edge);
         material.color.setHex(color);
         material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
