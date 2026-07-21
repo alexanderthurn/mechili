@@ -1717,7 +1717,18 @@ export class Game {
         this.playerStarterOffer = [...offer];
         // the pick has its own short clock — expiry auto-picks at random
         this.phaseRemaining = this.settings.specialistTimeSeconds;
-        this.hud.showStartCards(offer, (cardId) => {
+        // team modes: everyone still picks their own troops/gear from their
+        // own card, but only the side's primary seat's card sets the shared
+        // speciality/HP — make that explicit so a non-primary teammate isn't
+        // left wondering why their card's speciality didn't "take"
+        const allySeats = seatIdsOf(this.seats, 'player').filter((s) => s !== this.humanSeat);
+        const note =
+            allySeats.length === 0
+                ? undefined
+                : this.humanSeat === primarySeatOf(this.seats, 'player')
+                  ? 'You bring your own troops & gear — and your pick sets the whole side’s speciality.'
+                  : `You bring your own troops & gear — ${this.seats[primarySeatOf(this.seats, 'player')]!.name} decides the side's speciality.`;
+        this.hud.showStartCards(offer, note, (cardId) => {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId });

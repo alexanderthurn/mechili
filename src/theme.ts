@@ -1891,6 +1891,13 @@ export function hudStyles(): string {
     color: ${u.text};
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
+.mechili-cards .cards-note {
+    font-size: 13.5px;
+    color: ${u.phase};
+    max-width: 480px;
+    text-align: center;
+    margin-top: -8px;
+}
 .mechili-cards .cards-row { display: flex; gap: 18px; }
 .mechili-cards.unlock-dialog .unlock-picker {
     display: flex;

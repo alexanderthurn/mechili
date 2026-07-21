@@ -1848,16 +1848,25 @@ export class Hud {
         );
     }
 
-    /** the pre-round-1 loadout pick: four cards, click one, the game begins */
-    showStartCards(cards: readonly StartCard[], onPick: (cardId: string) => void): void {
+    /** the pre-round-1 loadout pick: four cards, click one, the game begins.
+     *  `note` (team modes only) clarifies who decides the shared speciality —
+     *  set via textContent, never innerHTML, since it can embed a player name. */
+    showStartCards(
+        cards: readonly StartCard[],
+        note: string | undefined,
+        onPick: (cardId: string) => void,
+    ): void {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose your specialist</div><div class="cards-row">` +
+            `<div class="cards-title">Choose your specialist</div>` +
+            (note ? `<div class="cards-note"></div>` : '') +
+            `<div class="cards-row">` +
             cards
                 .map((c) => `<button class="card" data-card="${c.id}">${this.startCardFace(c)}</button>`)
                 .join('') +
             `</div>`;
+        if (note) overlay.querySelector('.cards-note')!.textContent = note;
         overlay.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card) return;
