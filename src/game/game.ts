@@ -52,7 +52,7 @@ import {
 } from './cards';
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
-import { HazardField, HAZARD_POUR_DELAY_SEC, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
+import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
@@ -332,6 +332,7 @@ export class Game {
     private armedItemIndex: number | null = null;
     /** the tactic currently being placed on the map */
     private armedTactic: string | null = null;
+    private armedTacticIndex: number | null = null;
     /** first click of an in-progress two-point tactic (rally or oil) */
     private tacticDraftStart: { x: number; z: number } | null = null;
     /** whether each side already took/skipped this round's card */
@@ -745,15 +746,16 @@ export class Game {
                 this.armedItemIndex = index;
             }
         };
-        this.hud.onArmTactic = (tacticId) => {
+        this.hud.onArmTactic = (tacticId, index) => {
             if (!this.playerCanAct) return;
-            if (this.armedTactic === tacticId) {
+            if (this.armedTactic === tacticId && this.armedTacticIndex === index) {
                 this.cancelTacticPlacement();
                 return;
             }
             this.armedItem = null;
             this.placement.deselect();
             this.armedTactic = tacticId;
+            this.armedTacticIndex = index;
             this.tacticDraftStart = null;
             this.placement.inputLocked = true;
             this.syncTacticVisuals();
@@ -2341,6 +2343,7 @@ export class Game {
         placed?: boolean;
         routeId?: number;
         hint?: string;
+        index: number;
     }[] {
         if (!this.playerCanAct) return [];
         const out: {
@@ -2352,7 +2355,9 @@ export class Game {
             routeId?: number;
             cooldown?: number;
             hint?: string;
+            index: number;
         }[] = [];
+        let slot = 0;
 
         // where each 'placement' tactic keeps its resettable placements
         const placementsOf: Record<string, () => readonly { id: number }[]> = {
@@ -2445,23 +2450,27 @@ export class Game {
                     armed: false,
                     placed: true,
                     cooldown: tactic.cooldownRounds,
+                    index: slot,
                     ...p,
                 });
+                slot++;
             }
             for (let i = 0; i < avail; i++) {
                 out.push({
                     id: tactic.id,
                     icon: tactic.icon,
                     name: `${tactic.name} — ${tactic.description}`,
-                    // only ONE entry lights up — a click arms a single charge
-                    armed: this.armedTactic === tactic.id && i === 0,
+                    // duplicates share an id: highlight exactly the clicked slot
+                    armed: this.armedTactic === tactic.id && this.armedTacticIndex === slot,
                     cooldown: tactic.cooldownRounds,
+                    index: slot,
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
                         tactic.kind === 'oneShot'
                             ? `${tactic.name}\n${tactic.description}\nRight-click to cancel.`
                             : undefined,
                 });
+                slot++;
             }
         }
 
@@ -2661,17 +2670,31 @@ export class Game {
                                 radius,
                             ),
                     };
+                } else if (armed.targeting === 'two-point') {
+                    const start = this.tacticDraftStart ?? pos;
+                    const end = this.tacticDraftStart
+                        ? clampTacticEnd(
+                              start.x,
+                              start.z,
+                              pos.x,
+                              pos.z,
+                              armed.maxSpan,
+                          )
+                        : pos;
+                    draft = {
+                        tacticId: armed.id,
+                        x: end.x,
+                        z: end.z,
+                        radius,
+                        yaw: 0,
+                        startX: start.x,
+                        startZ: start.z,
+                        blocked:
+                            !!armed.respectsSafeZone &&
+                            this.inSafeZone(end.x, end.z, radius),
+                    };
                 } else {
-                    const hover =
-                        armed.targeting === 'two-point' && this.tacticDraftStart
-                            ? clampTacticEnd(
-                                  this.tacticDraftStart.x,
-                                  this.tacticDraftStart.z,
-                                  pos.x,
-                                  pos.z,
-                                  armed.maxSpan,
-                              )
-                            : pos;
+                    const hover = pos;
                     draft = {
                         tacticId: armed.id,
                         x: hover.x,
@@ -2681,12 +2704,6 @@ export class Game {
                         blocked:
                             !!armed.respectsSafeZone &&
                             this.inSafeZone(hover.x, hover.z, radius),
-                        ...(armed.targeting === 'two-point' && this.tacticDraftStart
-                            ? {
-                                  startX: this.tacticDraftStart.x,
-                                  startZ: this.tacticDraftStart.z,
-                              }
-                            : {}),
                     };
                 }
             }
@@ -2725,6 +2742,7 @@ export class Game {
     private cancelTacticPlacement(): boolean {
         const had = this.armedTactic !== null || this.tacticDraftStart !== null;
         this.armedTactic = null;
+        this.armedTacticIndex = null;
         this.tacticDraftStart = null;
         this.placement.inputLocked = false;
         this.syncTacticVisuals();
@@ -3027,13 +3045,10 @@ export class Game {
             this.placement.beginPlacing(type);
             return;
         }
-        // touch: the shop sheet hides the field, so drop the pack where the
-        // camera looks and highlight it — desktop keeps the zone-center spawn
-        const nearView = inputMode() === 'touch';
+        // Unified: drop the pack near where the camera is looking and resolve
+        // it immediately into the buy action as a concrete anchor.
         const view = this.rig.target;
-        const anchor = nearView
-            ? this.placement.findBuySpotNear(type, view.x, view.z)
-            : this.placement.findBuySpot(type);
+        const anchor = this.placement.findBuySpotNear(type, view.x, view.z);
         if (!anchor) return;
         this.dispatchPlayer({
             kind: 'buy',
@@ -3756,8 +3771,9 @@ export class Game {
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
-                this.hammerFx.update(this.sim.elapsed);
-                this.meteorFx.update(this.sim.elapsed);
+                const battleShields = livingShieldDisks(this.placement.allUnits());
+                this.hammerFx.update(this.sim.elapsed, battleShields);
+                this.meteorFx.update(this.sim.elapsed, battleShields);
                 this.cloudFx.update(this.sim.elapsed);
                 this.dragonFx.update(this.sim.elapsed);
                 this.oilDripFx.update(this.sim.elapsed);

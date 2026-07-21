@@ -5,6 +5,7 @@ import {
     HAZARD_DRIP_FALL_SEC,
     HazardField,
     OIL_SPEED_MULT,
+    insideAnyShield,
     livingShieldDisks,
     resolveFireProfile,
     type FireProfile,
@@ -1022,6 +1023,8 @@ export class BattleSim {
             damage: m.damage,
             delaySeconds: 0,
         });
+        const shields = livingShieldDisks(this.actors.map((a) => a.unit));
+        if (insideAnyShield(m.x, m.z, shields)) return;
         if (m.igniteRadius) {
             const oilCells = this.hazards.stampFire(
                 m.x,
@@ -1030,6 +1033,7 @@ export class BattleSim {
                 this.elapsed,
                 3,
                 12,
+                shields,
             );
             this.events.push({
                 kind: 'groundFire',
@@ -1047,8 +1051,22 @@ export class BattleSim {
      * (both teams, air included) — except targets under a living ward dome.
      * Each dome involved eats the strike damage ONCE and can break.
      * Hammer uses the HAMMER_ZONE rectangle; other strikes use a circle.
+     * Strikes whose impact point lies inside a ward disc are absorbed at the
+     * roof (meteors / hammers do not pass through).
      */
     private resolveStrike(s: SpellStrike): void {
+        const domes = this.actors.filter((a) => a.alive && a.unit.type.shield);
+        const intercept = domes.find(
+            (d) =>
+                hypot(s.x - d.x, s.z - d.z) <= d.unit.type.shield!.radius,
+        );
+        if (intercept) {
+            intercept.hp -= s.damage;
+            intercept.hurtTimer = HURT_BAR_SECONDS;
+            if (intercept.hp <= 0) this.breakShield(intercept);
+            this.events.push({ kind: 'impact', x: intercept.x, y: 3, z: intercept.z });
+            return;
+        }
         const y = simGroundHeightAt(s.x, s.z);
         const hammer = s.tacticId === HAMMER_ID;
         // particles/scorch: cover the hammer footprint (approx half-diagonal)

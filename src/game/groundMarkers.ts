@@ -154,11 +154,25 @@ export function addDrapedCircle(
         drapeCircleOutline(x, z, radius),
         new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
     );
+    line.frustumCulled = false;
     group.add(line);
     return { fill, line };
 }
 
-/** Fill-only draped disk (local verts — safe to scale from mesh.position). */
+/** Replace a draped disk fill's geometry at a new radius (do not XZ-scale — Y stays wrong on slopes). */
+export function rebuildDrapedCircleFill(
+    mesh: Mesh,
+    cx: number,
+    cz: number,
+    radius: number,
+): void {
+    mesh.geometry.dispose();
+    mesh.geometry = drapeDiskGeometry(cx, cz, radius);
+    mesh.position.set(cx, DRAPE_LIFT, cz);
+    mesh.scale.set(1, 1, 1);
+}
+
+/** Fill-only draped disk (local verts + mesh.position at center). */
 export function addDrapedCircleFill(
     group: Group,
     x: number,
@@ -228,11 +242,27 @@ export function addDrapedRect(
         drapeRectOutline(x, z, halfW, halfD, yaw),
         new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
     );
+    line.frustumCulled = false;
     group.add(line);
     return { fill, line };
 }
 
-/** Fill-only draped rect (local verts — safe to scale from mesh.position). */
+/** Replace a draped rect fill at new half extents (do not XZ-scale — Y stays wrong on slopes). */
+export function rebuildDrapedRectFill(
+    mesh: Mesh,
+    cx: number,
+    cz: number,
+    halfW: number,
+    halfD: number,
+    yaw: number,
+): void {
+    mesh.geometry.dispose();
+    mesh.geometry = drapeRectGeometry(halfW, halfD, yaw, cx, cz);
+    mesh.position.set(cx, DRAPE_LIFT, cz);
+    mesh.scale.set(1, 1, 1);
+}
+
+/** Fill-only draped rect (local verts + mesh.position at center). */
 export function addDrapedRectFill(
     group: Group,
     x: number,
@@ -302,19 +332,20 @@ export function addDrapedCapsule(
         buildDrapedCapsuleFill(startX, startZ, endX, endZ, px, pz, ux, uz, radius),
         fillMat,
     );
+    body.position.set(startX, DRAPE_LIFT, startZ);
     body.frustumCulled = false;
     group.add(body);
 
-    group.add(
-        new Line(
-            drapeCapsuleOutline(startX, startZ, endX, endZ, radius),
-            new LineBasicMaterial({
-                color: lineColor,
-                transparent: true,
-                opacity: lineOpacity,
-            }),
-        ),
+    const line = new Line(
+        drapeCapsuleOutline(startX, startZ, endX, endZ, radius),
+        new LineBasicMaterial({
+            color: lineColor,
+            transparent: true,
+            opacity: lineOpacity,
+        }),
     );
+    line.frustumCulled = false;
+    group.add(line);
 }
 
 /**
@@ -341,7 +372,7 @@ export function drapeCapsuleOutline(
         pts.push(new Vector3(x, groundHeightAt(x, z) + lift, z));
     };
 
-    const sideSteps = Math.max(4, Math.ceil(len / 2));
+    const sideSteps = Math.max(4, Math.ceil(len / 1.5));
     // +perp rail: start → end
     for (let i = 0; i <= sideSteps; i++) {
         const t = i / sideSteps;
@@ -359,6 +390,80 @@ export function drapeCapsuleOutline(
 
     if (pts.length > 0) pts.push(pts[0]!.clone());
     return new BufferGeometry().setFromPoints(pts);
+}
+
+/**
+ * Tessellated chevron draped over relief. Tip points +Z in local space; yaw rotates in XZ.
+ * Caller sets mesh.position to (cx, lift, cz) with identity rotation.
+ */
+export function drapeChevronGeometry(
+    cx: number,
+    cz: number,
+    width: number,
+    depth: number,
+    yaw: number,
+): BufferGeometry {
+    const hw = width / 2;
+    const tipZ = depth * 0.5;
+    const baseZ = -depth * 0.5;
+    const segsAlong = Math.max(3, Math.ceil(depth / 1.5));
+    const c = Math.cos(yaw);
+    const s = Math.sin(yaw);
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const rowStarts: number[] = [];
+    const rowCounts: number[] = [];
+
+    const pushLocal = (lx: number, lz: number): number => {
+        const wx = lx * c - lz * s;
+        const wz = lx * s + lz * c;
+        positions.push(wx, groundHeightAt(cx + wx, cz + wz), wz);
+        return positions.length / 3 - 1;
+    };
+
+    for (let row = 0; row <= segsAlong; row++) {
+        const t = row / segsAlong;
+        const lz = baseZ + t * (tipZ - baseZ);
+        const halfW = hw * (1 - t);
+        const segsAcross = halfW < 0.05 ? 0 : Math.max(1, Math.ceil((halfW * 2) / 1.5));
+        rowStarts.push(positions.length / 3);
+        rowCounts.push(segsAcross + 1);
+        if (segsAcross === 0) {
+            pushLocal(0, lz);
+            continue;
+        }
+        for (let col = 0; col <= segsAcross; col++) {
+            const u = col / segsAcross;
+            pushLocal(-halfW + u * halfW * 2, lz);
+        }
+    }
+
+    for (let row = 0; row < segsAlong; row++) {
+        const n0 = rowCounts[row]!;
+        const n1 = rowCounts[row + 1]!;
+        const s0 = rowStarts[row]!;
+        const s1 = rowStarts[row + 1]!;
+        if (n1 === 1) {
+            for (let a = 0; a < n0 - 1; a++) {
+                indices.push(s1, s0 + a, s0 + a + 1);
+            }
+            continue;
+        }
+        for (let a = 0; a < n0 - 1; a++) {
+            const b = Math.min(Math.floor((a / (n0 - 1)) * (n1 - 1)), n1 - 2);
+            const i0 = s0 + a;
+            const i1 = s0 + a + 1;
+            const j0 = s1 + b;
+            const j1 = s1 + b + 1;
+            indices.push(i0, j0, i1, i1, j0, j1);
+        }
+    }
+
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
 }
 
 /** walk the outer semicircle from +perp → −perp through the bulge direction */
@@ -399,13 +504,14 @@ function buildDrapedCapsuleFill(
     const dx = ex - sx;
     const dz = ez - sz;
     const len = Math.hypot(dx, dz);
-    // tessellate along the strip so the fill hugs hills (a single quad clips terrain)
-    const along = Math.max(4, Math.ceil(len / 2));
-    const across = Math.max(2, Math.ceil(r / 2));
+    // tessellate along/across the strip so the fill hugs hills (a single quad clips terrain)
+    const along = Math.max(4, Math.ceil(len / 1.5));
+    const across = Math.max(3, Math.ceil(r / 1.5));
     const positions: number[] = [];
     const indices: number[] = [];
-    const push = (x: number, z: number): number => {
-        positions.push(x, groundHeightAt(x, z) + DRAPE_LIFT, z);
+    // local XZ relative to start — mesh.position carries (sx, DRAPE_LIFT, sz), same as disks/rects
+    const push = (wx: number, wz: number): number => {
+        positions.push(wx - sx, groundHeightAt(wx, wz), wz - sz);
         return positions.length / 3 - 1;
     };
 

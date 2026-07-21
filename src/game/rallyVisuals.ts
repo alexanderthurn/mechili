@@ -1,15 +1,13 @@
 import {
-    BufferGeometry,
     DoubleSide,
-    Float32BufferAttribute,
     Group,
     Mesh,
     MeshBasicMaterial,
     type Scene,
 } from 'three';
 import { teamColors } from './colors';
-import { addDrapedCapsule, addDrapedCircle, DRAPE_LIFT } from './groundMarkers';
-import { groundHeightAt, type BattleMap } from './map';
+import { addDrapedCapsule, addDrapedCircle, DRAPE_LIFT, drapeChevronGeometry } from './groundMarkers';
+import { type BattleMap } from './map';
 import { RALLY_ROUTE_RADIUS, type RallyRoute } from './tactics';
 
 const ARROW_SPACING = 10;
@@ -117,7 +115,7 @@ export class RallyVisuals {
             const x = startX + dx * t;
             const z = startZ + dz * t;
             const arrow = new Mesh(
-                this.chevronGeometry(2.8, 1.6),
+                drapeChevronGeometry(x, z, 2.8, 1.6, heading),
                 new MeshBasicMaterial({
                     color,
                     transparent: true,
@@ -126,36 +124,10 @@ export class RallyVisuals {
                     depthWrite: false,
                 }),
             );
-            arrow.rotation.y = heading;
-            arrow.position.set(x, groundHeightAt(x, z) + DRAPE_LIFT + 0.04, z);
+            arrow.position.set(x, DRAPE_LIFT + 0.04, z);
             arrow.frustumCulled = false;
             this.group.add(arrow);
         }
-    }
-
-    /** flat chevron in the XZ plane; tip points +Z, rotated by Y to face the path */
-    private chevronGeometry(width: number, depth: number): BufferGeometry {
-        const hw = width / 2;
-        const geo = new BufferGeometry();
-        geo.setAttribute(
-            'position',
-            new Float32BufferAttribute(
-                [
-                    0,
-                    0,
-                    depth * 0.5,
-                    -hw,
-                    0,
-                    -depth * 0.5,
-                    hw,
-                    0,
-                    -depth * 0.5,
-                ],
-                3,
-            ),
-        );
-        geo.setIndex([0, 1, 2]);
-        return geo;
     }
 
     clamp(x: number, z: number): { x: number; z: number } {

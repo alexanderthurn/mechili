@@ -106,6 +106,20 @@ export function insideAnyShield(x: number, z: number, shields: readonly ShieldDi
     return false;
 }
 
+/** first ward disc covering a world XZ point (if any) */
+export function shieldAtPoint(
+    x: number,
+    z: number,
+    shields: readonly ShieldDisk[],
+): ShieldDisk | null {
+    for (const s of shields) {
+        const dx = x - s.x;
+        const dz = z - s.z;
+        if (dx * dx + dz * dz <= s.radius * s.radius) return s;
+    }
+    return null;
+}
+
 export interface FireBurnSpec {
     /** damage per second while burning */
     dps: number;

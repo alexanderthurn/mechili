@@ -1,4 +1,5 @@
 import { Group, MathUtils, type Mesh, type MeshStandardMaterial, type Scene } from 'three';
+import { shieldAtPoint, type ShieldDisk } from './fire';
 import { groundHeightAt } from './map';
 import { prefs, type ShadowQuality } from './prefs';
 import { ensureSpellTemplate } from './spellAssets';
@@ -8,6 +9,7 @@ import {
     setSpellOpacity,
 } from './spellMeshes';
 import { METEOR_SHARD_FALL_SEC } from './tactics';
+import { SHIELD_HEIGHT } from './units';
 
 /** Shards only cast on high/ultra — many concurrent casters are costly on the shadow map. */
 function shardCastsShadow(tier: ShadowQuality = prefs().shadows): boolean {
@@ -132,9 +134,9 @@ export class MeteorFx {
         this.clearShards();
     }
 
-    update(simElapsed: number): void {
-        this.updateGreat(simElapsed);
-        this.updateShards(simElapsed);
+    update(simElapsed: number, shields: readonly ShieldDisk[] = []): void {
+        this.updateGreat(simElapsed, shields);
+        this.updateShards(simElapsed, shields);
     }
 
     dispose(): void {
@@ -174,7 +176,7 @@ export class MeteorFx {
         this.great.push({ cue, root, materials, groundY, phase: 'fall' });
     }
 
-    private updateGreat(t: number): void {
+    private updateGreat(t: number, shields: readonly ShieldDisk[]): void {
         for (let i = this.great.length - 1; i >= 0; i--) {
             const s = this.great[i]!;
             const fallStart = s.cue.at - GREAT_METEOR_FALL_SEC;
@@ -183,14 +185,18 @@ export class MeteorFx {
                 continue;
             }
             s.root.visible = true;
+            const landY =
+                shieldAtPoint(s.cue.x, s.cue.z, shields) !== null
+                    ? s.groundY + SHIELD_HEIGHT
+                    : s.groundY;
             if (s.phase === 'fall') {
                 const u = MathUtils.clamp((t - fallStart) / GREAT_METEOR_FALL_SEC, 0, 1);
                 const e = u * u * u;
-                s.root.position.y = s.groundY + GREAT_DROP * (1 - e);
+                s.root.position.y = landY + GREAT_DROP * (1 - e);
                 s.root.rotation.x = 0.55 + u * 0.4;
                 if (u >= 1) {
                     s.phase = 'hold';
-                    s.root.position.y = s.groundY;
+                    s.root.position.y = landY;
                 }
             } else if (s.phase === 'hold') {
                 const holdT = MathUtils.clamp((t - s.cue.at) / GREAT_HOLD, 0, 1);
@@ -210,20 +216,30 @@ export class MeteorFx {
         }
     }
 
-    private updateShards(t: number): void {
+    private updateShards(t: number, shields: readonly ShieldDisk[]): void {
         for (let i = this.shards.length - 1; i >= 0; i--) {
             const s = this.shards[i]!;
             if (s.phase === 'fall') {
                 const fallStart = s.at - METEOR_SHARD_FALL_SEC;
                 const u = MathUtils.clamp((t - fallStart) / METEOR_SHARD_FALL_SEC, 0, 1);
                 const e = u * u;
-                s.root.position.x = s.startX + (s.x - s.startX) * e;
-                s.root.position.z = s.startZ + (s.z - s.startZ) * e;
-                s.root.position.y = s.groundY + SHARD_DROP * (1 - e);
+                const cx = s.startX + (s.x - s.startX) * e;
+                const cz = s.startZ + (s.z - s.startZ) * e;
+                let cy = s.groundY + SHARD_DROP * (1 - e);
+                if (shieldAtPoint(cx, cz, shields)) {
+                    cy = Math.max(cy, s.groundY + SHIELD_HEIGHT);
+                }
+                s.root.position.x = cx;
+                s.root.position.z = cz;
+                s.root.position.y = cy;
                 s.root.rotation.z += 0.06;
                 if (u >= 1) {
                     s.phase = 'exit';
-                    s.root.position.set(s.x, s.groundY, s.z);
+                    const landY =
+                        shieldAtPoint(s.x, s.z, shields) !== null
+                            ? s.groundY + SHIELD_HEIGHT
+                            : s.groundY;
+                    s.root.position.set(s.x, landY, s.z);
                 }
             } else {
                 const exitT = MathUtils.clamp((t - s.at) / SHARD_EXIT, 0, 1);

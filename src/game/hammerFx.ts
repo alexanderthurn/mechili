@@ -7,9 +7,11 @@ import {
     type Scene,
 } from 'three';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { shieldAtPoint, type ShieldDisk } from './fire';
 import { ensureSpellTemplate } from './spellAssets';
 import { groundHeightAt } from './map';
 import { HAMMER_ZONE } from './tactics';
+import { SHIELD_HEIGHT } from './units';
 
 /** @deprecated import from tactics — re-exported for existing tweak notes */
 export { HAMMER_ZONE };
@@ -73,7 +75,7 @@ export class HammerFx {
         this.active.length = 0;
     }
 
-    update(simElapsed: number): void {
+    update(simElapsed: number, shields: readonly ShieldDisk[] = []): void {
         for (let i = this.active.length - 1; i >= 0; i--) {
             const s = this.active[i]!;
             const fallStart = s.cue.at - HAMMER_SWING_SEC;
@@ -84,27 +86,30 @@ export class HammerFx {
             s.root.visible = true;
             // keep yaw locked every frame (matches the footprint orientation)
             s.root.rotation.y = -s.cue.yaw;
+            const onShield = shieldAtPoint(s.cue.x, s.cue.z, shields) !== null;
+            const baseY = onShield ? s.groundY + SHIELD_HEIGHT : s.groundY;
+            const landY = baseY + LAND_LIFT;
 
             if (s.phase === 'fall') {
                 const u = MathUtils.clamp((simElapsed - fallStart) / HAMMER_SWING_SEC, 0, 1);
                 const e = u * u * u;
-                s.root.position.y = s.groundY + LAND_LIFT + (DROP_HEIGHT - LAND_LIFT) * (1 - e);
+                s.root.position.y = landY + (DROP_HEIGHT - LAND_LIFT) * (1 - e);
                 s.root.scale.setScalar(MESH_SCALE);
                 if (u >= 1) {
                     s.phase = 'hold';
-                    s.root.position.y = s.groundY + LAND_LIFT;
+                    s.root.position.y = landY;
                 }
             } else if (s.phase === 'hold') {
                 const holdT = MathUtils.clamp((simElapsed - s.cue.at) / HOLD_SEC, 0, 1);
                 const squash = 1 - 0.12 * Math.sin(holdT * Math.PI);
                 s.root.scale.set(MESH_SCALE * (2 - squash), MESH_SCALE * squash, MESH_SCALE * (2 - squash));
                 // squash toward the ground contact — don't let Y-scale pull the head underground
-                s.root.position.y = s.groundY + LAND_LIFT * squash;
+                s.root.position.y = baseY + LAND_LIFT * squash;
                 if (holdT >= 1) s.phase = 'exit';
             } else {
                 const exitT = MathUtils.clamp((simElapsed - s.cue.at - HOLD_SEC) / EXIT_SEC, 0, 1);
                 const lift = exitT * exitT;
-                s.root.position.y = s.groundY + LAND_LIFT + lift * 28;
+                s.root.position.y = landY + lift * 28;
                 s.root.scale.setScalar(MESH_SCALE * (1 - 0.35 * exitT));
                 const opacity = 1 - exitT;
                 for (const m of s.materials) {

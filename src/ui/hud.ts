@@ -146,7 +146,7 @@ export class Hud {
     onBuyCredit: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     onArmItem: ((itemId: string, index: number) => void) | null = null;
-    onArmTactic: ((tacticId: string) => void) | null = null;
+    onArmTactic: ((tacticId: string, index: number) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
     onResetPlacedTactic: ((tacticId: string, routeId: number) => void) | null = null;
     onUndo: (() => void) | null = null;
@@ -457,7 +457,7 @@ export class Hud {
                 '.inv-item[data-tactic]:not(.placed)',
             );
             if (tacticBtn?.dataset.tactic) {
-                this.onArmTactic?.(tacticBtn.dataset.tactic);
+                this.onArmTactic?.(tacticBtn.dataset.tactic, Number(tacticBtn.dataset.index ?? -1));
                 this.setPhoneTab(null);
             }
         });
@@ -970,6 +970,7 @@ export class Hud {
             cooldown?: number;
             /** overrides the default click/right-click tooltip line */
             hint?: string;
+            index: number;
         }[] = [],
     ): void {
         const key = JSON.stringify({ items, tactics });
@@ -1020,7 +1021,7 @@ export class Hud {
                                 }">${t.cooldown}</span>`
                               : '';
                       return (
-                          `<button class="${cls}" data-tactic="${t.id}"${routeAttr} title="${escapeAttr(hint)}">` +
+                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr} title="${escapeAttr(hint)}">` +
                           `<span class="i">${t.icon}</span>${cd}</button>`
                       );
                   })

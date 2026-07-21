@@ -139,6 +139,77 @@ export const THEME = {
     },
 } as const;
 
+/** Shared gamepad crosshair — used on the main menu and in-match HUD. */
+function gamepadCursorStyles(u: (typeof THEME)['ui']): string {
+    return `
+/* gamepad virtual cursor (left stick moves, A clicks) */
+.mechili-gpcursor {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    border: 2.5px solid ${u.brassLight};
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.65), inset 0 0 5px rgba(0, 0, 0, 0.5);
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+}
+.mechili-gpcursor::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    margin: -2px 0 0 -2px;
+    background: ${u.brassLight};
+    border-radius: 50%;
+}
+.mechili-gpcursor .gp-arrow {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border: solid transparent;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    pointer-events: none;
+}
+.mechili-gpcursor.pan-mode .gp-arrow {
+    opacity: 0.95;
+}
+.mechili-gpcursor .gp-arrow-n {
+    left: 50%;
+    top: -9px;
+    margin-left: -4px;
+    border-width: 0 4px 6px 4px;
+    border-bottom-color: ${u.brassLight};
+}
+.mechili-gpcursor .gp-arrow-s {
+    left: 50%;
+    bottom: -9px;
+    margin-left: -4px;
+    border-width: 6px 4px 0 4px;
+    border-top-color: ${u.brassLight};
+}
+.mechili-gpcursor .gp-arrow-e {
+    right: -9px;
+    top: 50%;
+    margin-top: -4px;
+    border-width: 4px 0 4px 6px;
+    border-left-color: ${u.brassLight};
+}
+.mechili-gpcursor .gp-arrow-w {
+    left: -9px;
+    top: 50%;
+    margin-top: -4px;
+    border-width: 4px 6px 4px 0;
+    border-right-color: ${u.brassLight};
+}
+.mechili-gpcursor.visible { display: block; }
+`;
+}
+
 /** CSS for the pre-game main menu (exists before the HUD does). */
 export function menuStyles(): string {
     const u = THEME.ui;
@@ -883,6 +954,8 @@ export function menuStyles(): string {
 .mechili-resume .resume-cancel { transition: transform 0.14s ease, background 0.14s ease; }
 .mechili-resume .resume-cancel:hover { background: ${u.undoHover}; transform: translateY(-1px); }
 .mechili-resume .resume-cancel:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
+
+${gamepadCursorStyles(u)}
 
 /* Respect users who prefer reduced motion: neutralize UI transitions/animations. */
 @media (prefers-reduced-motion: reduce) {
@@ -2463,31 +2536,7 @@ textarea {
     user-select: text;
 }
 
-/* gamepad virtual cursor (left stick moves, A clicks) */
-.mechili-gpcursor {
-    position: absolute;
-    width: 26px;
-    height: 26px;
-    margin: -13px 0 0 -13px;
-    border: 2.5px solid ${u.brassLight};
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.65), inset 0 0 5px rgba(0, 0, 0, 0.5);
-    z-index: 60;
-    pointer-events: none;
-    display: none;
-}
-.mechili-gpcursor::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 4px;
-    height: 4px;
-    margin: -2px 0 0 -2px;
-    background: ${u.brassLight};
-    border-radius: 50%;
-}
-.mechili-gpcursor.visible { display: block; }
+${gamepadCursorStyles(u)}
 
 /* long-press tooltip card (touch stand-in for title-attribute tooltips) */
 .mechili-touchtip {
