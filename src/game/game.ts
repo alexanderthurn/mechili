@@ -242,8 +242,11 @@ export class Game {
     private readonly rngAi: () => number;
     /** per-side streams for the specialist pick (each fighter gets a different draw) */
     private readonly rngCards: Record<Team, () => number>;
-    /** shared stream for between-round card offers (both sides see the same 4) */
-    private readonly rngRoundCards: () => number;
+    /** per-SEAT stream for between-round card offers — each seat gets its own
+     *  independent draw now that round cards are a per-seat pick, same as
+     *  the starter pick already does for extra AI seats (own seed by
+     *  canonical seat index, so it's identical on every client) */
+    private readonly rngRoundCards: (() => number)[];
     /** the other side's decision maker (built-in AI or the network peer) */
     private readonly opponent: Opponent;
     /** which sides locked in the current deployment — battle starts at both */
@@ -253,7 +256,7 @@ export class Game {
     /** per-seat one-time starter-card pick flags */
     private readonly starterPicked: boolean[];
     /** extra AI brains beyond the classic opponent (duo modes: ally + 2nd foe) */
-    private readonly extraAis: { ai: AiOpponent; rng: () => number; team: Team }[] = [];
+    private readonly extraAis: { ai: AiOpponent; rng: () => number; team: Team; seat: SeatId }[] = [];
     /**
      * Peer has locked in this build round — we may stream them our build
      * actions. Until then, outbound build `action`/`undo` sit in
@@ -309,8 +312,8 @@ export class Game {
     private readonly flankSpawnMult: Record<Team, number> = { player: 1, enemy: 1 };
     /** each SEAT's own unequipped pack items — per seat, never shared (sized in the constructor, once `seats` is known) */
     private readonly itemInventory: string[][];
-    /** tactical order charges (rally routes, etc.) — separate from pack items */
-    private readonly tacticInventory: Record<Team, string[]> = { player: [], enemy: [] };
+    /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
+    private readonly tacticInventory: string[][];
     /** rally routes placed this deployment round */
     private readonly rallyRoutes: RallyRoute[] = [];
     private readonly rallyRouteIds = { next: 1 };
@@ -333,8 +336,8 @@ export class Game {
     private armedTacticIndex: number | null = null;
     /** first click of an in-progress two-point tactic (rally or oil) */
     private tacticDraftStart: { x: number; z: number } | null = null;
-    /** whether each side already took/skipped this round's card */
-    private readonly roundCardTaken: Record<Team, boolean> = { player: false, enemy: false };
+    /** whether each SEAT already took/skipped this round's card */
+    private readonly roundCardTaken: boolean[];
     /** the game idles behind the card overlay until the loadout is picked */
     private awaitingCards = true;
     /** rebuilding from a recorded log: no UI, no net sends, battles fast-forward */
@@ -464,6 +467,8 @@ export class Game {
         this.creditDebt = this.seats.map(() => false);
         this.starterPicked = this.seats.map(() => false);
         this.itemInventory = this.seats.map(() => []);
+        this.tacticInventory = this.seats.map(() => []);
+        this.roundCardTaken = this.seats.map(() => false);
         this.techTree = new TechTree(this.seats.length);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
@@ -571,13 +576,15 @@ export class Game {
             ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
             : null;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
-        // specialist streams are keyed by canonical side (different draws);
-        // round-card offers share one stream so both fighters see the same 4
+        // specialist streams are keyed by canonical side (different draws)
         this.rngCards = {
             player: mulberry32(seedFrom(this.seed, `cards-${side}`)),
             enemy: mulberry32(seedFrom(this.seed, `cards-${side === 'a' ? 'b' : 'a'}`)),
         };
-        this.rngRoundCards = mulberry32(seedFrom(this.seed, 'round-cards'));
+        // one stream per SEAT, keyed by canonical seat index (same array
+        // order/index on every client, star mode or not) — each seat's own
+        // independent draw, matching how extraAis' own starter-card pick works
+        this.rngRoundCards = this.seats.map((_, seat) => mulberry32(seedFrom(this.seed, `round-cards-${seat}`)));
         this.deployState = {
             limit: this.seats.map(() => settings.deploy.unitsPerRound),
             extra: this.seats.map(() => 0),
@@ -705,7 +712,7 @@ export class Game {
                     const def = this.seats[seat]!;
                     if (def.controller !== 'ai') continue;
                     const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
-                    this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team });
+                    this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team, seat });
                 }
             }
         } else {
@@ -718,7 +725,7 @@ export class Game {
                 if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
                 if (this.net) continue; // networked matches drive remote seats over the wire
                 const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
-                this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team });
+                this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team, seat });
             }
         }
         this.placement.localSeat = this.humanSeat;
@@ -1497,11 +1504,11 @@ export class Game {
         // comfortably above the highest cooldownRounds (3) so cooling charges
         // never eat into the pool
         const CHEAT_CHARGE_COUNT = 6;
-        for (const team of ['player', 'enemy'] as const) {
+        for (let seat = 0; seat < this.seats.length; seat++) {
             for (const id of CHEAT_TACTIC_GRANTS) {
-                const have = this.tacticInventory[team].filter((t) => t === id).length;
+                const have = this.tacticInventory[seat]!.filter((t) => t === id).length;
                 for (let i = have; i < CHEAT_CHARGE_COUNT; i++) {
-                    this.tacticInventory[team].push(id);
+                    this.tacticInventory[seat]!.push(id);
                 }
             }
         }
@@ -1776,7 +1783,7 @@ export class Game {
 
     /** timer ran out during deployment with the round-card overlay still open — skip */
     private autoSkipRoundCard(): void {
-        if (this.round < 2 || this.roundCardTaken.player || !this.awaitingCards) return;
+        if (this.round < 2 || this.roundCardTaken[this.humanSeat] || !this.awaitingCards) return;
         this.hud.hideCardOverlay();
         this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId: null });
         this.awaitingCards = false;
@@ -2176,7 +2183,7 @@ export class Game {
         // reopen whatever decision was pending when the state was captured
         if (this.speciality.player === null) {
             this.showStarterPick(starterOffer);
-        } else if (this.pendingOffer && !this.roundCardTaken.player && this.phase === 'build') {
+        } else if (this.pendingOffer && !this.roundCardTaken[this.humanSeat] && this.phase === 'build') {
             this.awaitingCards = true;
             this.showRoundOffer(this.pendingOffer);
         }
@@ -2591,25 +2598,38 @@ export class Game {
     }
 
     /**
-     * The between-round card offer: both sides get the same 4 cards from a
-     * shared stream. The enemy quietly picks; the player gets the overlay
-     * (the round clock waits). Skipping pays a small consolation instead.
+     * The between-round card offer: every SEAT gets its own independent
+     * draw and picks for itself (own economy, own units/items/tactics) —
+     * same per-seat model as the starter pick's extraAis already use, no
+     * shared side-wide resource left here to race over.
      */
     private offerRoundCards(): void {
-        this.roundCardTaken.player = false;
-        this.roundCardTaken.enemy = false;
+        this.roundCardTaken.fill(false);
 
-        // one shared draw — reproducible on any peer, identical for both sides
-        const offer = this.draw(ROUND_CARDS, 4, this.rngRoundCards);
+        const myOffer = this.draw(ROUND_CARDS, 4, this.rngRoundCards[this.humanSeat]!);
+        // the classic single opponent's own seat-scoped draw (vestigial no-op
+        // on a star guest, since NetworkOpponent.onRoundCards does nothing —
+        // still drawn so every client consumes this seat's stream equally)
+        const enemyPrimary = primarySeatOf(this.seats, 'enemy');
+        const enemyOffer = this.draw(ROUND_CARDS, 4, this.rngRoundCards[enemyPrimary]!);
+        this.triggerExtraRoundCards();
         if (this.hydrating) {
             // no UI, no opponent hook — the recorded actions carry the picks;
-            // the stream was consumed above so future offers stay aligned
-            this.pendingOffer = offer;
+            // the streams were consumed above so future offers stay aligned
+            this.pendingOffer = myOffer;
             return;
         }
-        this.opponent.onRoundCards(offer);
+        this.opponent.onRoundCards(enemyOffer);
         this.awaitingCards = true;
-        this.showRoundOffer(offer);
+        this.showRoundOffer(myOffer);
+    }
+
+    /** every AI-controlled seat beyond the classic opponent also gets its own
+     *  round-card offer and picks for itself — mirrors triggerExtraStarters */
+    private triggerExtraRoundCards(): void {
+        for (const e of this.extraAis) {
+            e.ai.onRoundCards(this.draw(ROUND_CARDS, 4, this.rngRoundCards[e.seat]!));
+        }
     }
 
     private showRoundOffer(offer: RoundCard[]): void {
@@ -2723,10 +2743,11 @@ export class Game {
         }[] = [];
         let slot = 0;
 
-        // where each 'placement' tactic keeps its resettable placements
+        // where each 'placement' tactic keeps its resettable placements —
+        // MY OWN seat's, not an ally's (tactics are per-seat now)
         const placementsOf: Record<string, () => readonly { id: number }[]> = {
-            [RALLY_ROUTE_ID]: () => this.rallyRoutes.filter((r) => r.team === 'player'),
-            [OIL_SPILL_ID]: () => this.oilStamps.filter((s) => s.team === 'player'),
+            [RALLY_ROUTE_ID]: () => this.rallyRoutes.filter((r) => r.seat === this.humanSeat),
+            [OIL_SPILL_ID]: () => this.oilStamps.filter((s) => s.seat === this.humanSeat),
         };
         // per-round ability charges layered on top of the inventory (sell only)
         const abilityChargesOf = (tacticId: string): { max: number; used: number } => {
@@ -2738,7 +2759,7 @@ export class Game {
         };
 
         for (const tactic of Object.values(TACTICS)) {
-            const inventory = this.tacticInventory.player.filter(
+            const inventory = this.tacticInventory[this.humanSeat]!.filter(
                 (id) => id === tactic.id,
             ).length;
             const ability = abilityChargesOf(tactic.id);
@@ -2751,7 +2772,7 @@ export class Game {
                 const placements = usesSpellPlacement(tactic)
                     ? this.spellStamps.filter(
                           (s) =>
-                              s.team === 'player' &&
+                              s.seat === this.humanSeat &&
                               s.tacticId === tactic.id &&
                               s.placedRound === this.round,
                       )
@@ -2760,7 +2781,7 @@ export class Game {
                 const cooling = usesSpellPlacement(tactic)
                     ? this.spellStamps.filter(
                           (s) =>
-                              s.team === 'player' &&
+                              s.seat === this.humanSeat &&
                               s.tacticId === tactic.id &&
                               s.placedRound < this.round &&
                               s.placedRound >= this.round - tactic.cooldownRounds,
@@ -2787,7 +2808,7 @@ export class Game {
                 // one-shot: the charge stays in the inventory but cools down
                 // after use — both derived from the action log (undo restores)
                 const useRounds = this.dispatcher.tacticUseRounds(
-                    'player',
+                    this.humanSeat,
                     tactic.id,
                     this.round - tactic.cooldownRounds,
                 );
@@ -2853,11 +2874,17 @@ export class Game {
         return seatIdsOf(this.seats, team).some((seat) => this.sellState.owned[seat]);
     }
 
+    /** merged tactic-charge pool across every seat on a side — read-only
+     *  display only, same idea as {@link itemsForTeam} */
+    private tacticsForTeam(team: Team): string[] {
+        return seatIdsOf(this.seats, team).flatMap((seat) => this.tacticInventory[seat]!);
+    }
+
     /** Records the enemy's unequipped items/tactics at deployment-phase start. */
     private captureEnemyIntelSnapshot(): void {
         this.enemyIntelSnapshot = {
             items: this.itemsForTeam('enemy'),
-            tactics: [...this.tacticInventory.enemy],
+            tactics: this.tacticsForTeam('enemy'),
             sellAbilityOwned: this.sellAbilityOwnedForTeam('enemy'),
         };
     }
@@ -2872,7 +2899,7 @@ export class Game {
         }
         const live = this.deployReady.player;
         const items = live ? this.itemsForTeam('enemy') : (this.enemyIntelSnapshot?.items ?? []);
-        const tactics = live ? [...this.tacticInventory.enemy] : (this.enemyIntelSnapshot?.tactics ?? []);
+        const tactics = live ? this.tacticsForTeam('enemy') : (this.enemyIntelSnapshot?.tactics ?? []);
         const sellAbility = live
             ? this.sellAbilityOwnedForTeam('enemy')
             : (this.enemyIntelSnapshot?.sellAbilityOwned ?? false);
@@ -3828,7 +3855,7 @@ export class Game {
                 stamp.z + oz,
             );
             if (!anchor) continue;
-            const unit = this.placement.spawn(type, anchor, stamp.team, false, true);
+            const unit = this.placement.spawn(type, anchor, stamp.team, false, true, stamp.seat);
             if (!unit) continue;
             unit.summoned = true;
             unit.summonDelay = tactic.spell?.delaySeconds ?? 0;

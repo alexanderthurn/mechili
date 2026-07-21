@@ -445,6 +445,8 @@ export const RALLY_ROUTE_STUCK_SEC = 3;
 export interface RallyRoute {
     id: number;
     team: import('./units').Team;
+    /** whose charge this was placed from — tactics are per-seat now */
+    seat: import('./seats').SeatId;
     startX: number;
     startZ: number;
     endX: number;
@@ -458,6 +460,8 @@ export interface SpellStamp {
     id: number;
     tacticId: string;
     team: import('./units').Team;
+    /** whose charge this was placed from — tactics are per-seat now */
+    seat: import('./seats').SeatId;
     x: number;
     z: number;
     endX?: number;
@@ -492,6 +496,8 @@ export function pointInSafeZone(
 export interface OilStamp {
     id: number;
     team: import('./units').Team;
+    /** whose charge this was placed from — tactics are per-seat now */
+    seat: import('./seats').SeatId;
     startX: number;
     startZ: number;
     endX: number;

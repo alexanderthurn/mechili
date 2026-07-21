@@ -357,8 +357,8 @@ export interface ActionContext {
      * same instance (unlike tactics below, still a per-side pool).
      */
     items: string[][];
-    /** tactical order charges (e.g. rally routes) — not pack items */
-    tactics: Record<Team, string[]>;
+    /** per-SEAT tactical order charges (e.g. rally routes) — not pack items */
+    tactics: string[][];
     /** rally routes placed this deployment round (cleared each round) */
     rallyRoutes: RallyRoute[];
     /** monotonic id source for rally routes */
@@ -379,8 +379,8 @@ export interface ActionContext {
      */
     spellStamps: SpellStamp[];
     spellStampIds: { next: number };
-    /** whether each side already took (or skipped) this round's card */
-    roundCardTaken: Record<Team, boolean>;
+    /** whether each SEAT already took (or skipped) this round's card */
+    roundCardTaken: boolean[];
     /** which sides have locked in this deployment — battle needs BOTH */
     deployReady: Record<Team, boolean>;
     /** per-seat lock-in; a SIDE is deployReady when all its seats are */
@@ -476,25 +476,25 @@ export class ActionDispatcher {
     }
 
     /**
-     * Rounds in which `team` spent a one-shot charge of `tacticId`, `since`
+     * Rounds in which `seat` spent a one-shot charge of `tacticId`, `since`
      * or later. Cooldowns are DERIVED from these log records: a use in round
      * R blocks one charge through round R + cooldownRounds. Undo removes the
      * record, replay rebuilds it — availability needs no extra state.
      */
-    tacticUseRounds(team: Team, tacticId: string, since: number): number[] {
+    tacticUseRounds(seat: SeatId, tacticId: string, since: number): number[] {
         return this.log
             .filter(
                 (e) =>
-                    e.action.team === team && e.usedTactic === tacticId && e.round >= since,
+                    this.actorSeat(e.action) === seat && e.usedTactic === tacticId && e.round >= since,
             )
             .map((e) => e.round);
     }
 
     /** free one-shot charges of `tacticId` in `round`: inventory − cooling uses */
-    availableTacticCharges(team: Team, tacticId: string, round: number): number {
+    availableTacticCharges(seat: SeatId, tacticId: string, round: number): number {
         const cooldown = TACTICS[tacticId]?.cooldownRounds ?? 0;
-        const inventory = this.ctx.tactics[team].filter((id) => id === tacticId).length;
-        const cooling = this.tacticUseRounds(team, tacticId, round - cooldown).length;
+        const inventory = this.ctx.tactics[seat]!.filter((id) => id === tacticId).length;
+        const cooling = this.tacticUseRounds(seat, tacticId, round - cooldown).length;
         return inventory - cooling;
     }
 
@@ -504,8 +504,8 @@ export class ActionDispatcher {
      * derive from that record. Every 'oneShot' tactic action MUST consume
      * its charge through this.
      */
-    private consumeTacticCharge(entry: LogEntry, team: Team, tacticId: string): boolean {
-        if (this.availableTacticCharges(team, tacticId, entry.round) < 1) return false;
+    private consumeTacticCharge(entry: LogEntry, seat: SeatId, tacticId: string): boolean {
+        if (this.availableTacticCharges(seat, tacticId, entry.round) < 1) return false;
         entry.usedTactic = tacticId;
         return true;
     }
@@ -674,11 +674,8 @@ export class ActionDispatcher {
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 this.ctx.rallyRouteOwned[seat] = true;
-                // the resulting CHARGE still lands in the side's shared tactics
-                // pool (deliberately not split — see items comment above); a
-                // plain push is race-safe regardless of order, unlike the
-                // owned-flag check above which is why THAT needed to go per-seat
-                this.ctx.tactics[action.team].push(RALLY_ROUTE_ID);
+                // tactics are per-seat now too — your own charge, your own pool
+                this.ctx.tactics[seat]!.push(RALLY_ROUTE_ID);
                 entry.grantedTactics = [RALLY_ROUTE_ID];
                 return true;
             }
@@ -693,7 +690,7 @@ export class ActionDispatcher {
                     return false;
                 }
                 if (useAbility) sell.used[seat]!++;
-                else if (!this.consumeTacticCharge(entry, action.team, SELL_UNIT_ID)) {
+                else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
                 }
                 const refund = Math.round(
@@ -829,18 +826,15 @@ export class ActionDispatcher {
                 return true;
             }
             case 'roundCard': {
-                // side-wide resource (v1 scope — cards stay per SIDE, not
-                // per seat): only the PRIMARY seat may act on it, same
-                // determinism reasoning as chooseCard above — "whoever's
-                // pick gets processed first" is a network-order race once
-                // two seats share a side across two machines.
-                if (seat !== primarySeatOf(this.ctx.seats, action.team)) return false;
-                if (this.ctx.roundCardTaken[action.team]) return false; // one per round
+                // per SEAT now (was primary-only): each seat picks its own
+                // card, own economy, own units/items/tactics — no shared
+                // side-wide resource left here to race over
+                if (this.ctx.roundCardTaken[seat]) return false; // one per seat per round
                 if (action.cardId === null) {
                     // skip: take the consolation supply instead
                     economy.credit(seat, SKIP_CARD_REWARD);
                     entry.paid = -SKIP_CARD_REWARD;
-                    this.ctx.roundCardTaken[action.team] = true;
+                    this.ctx.roundCardTaken[seat] = true;
                     return true;
                 }
                 const card = ROUND_CARDS.find((c) => c.id === action.cardId);
@@ -857,19 +851,17 @@ export class ActionDispatcher {
                     if (unit) entry.units.push(unit); // movable: deployedRound = this round
                 }
                 if (card.items) {
-                    // round cards are primary-seat-only (gated above), so
-                    // `seat` is always the primary here — same pool either way
                     this.ctx.items[seat]!.push(...card.items);
                     entry.grantedItems = [...card.items];
                 }
                 if (card.tactics) {
-                    this.ctx.tactics[action.team].push(...card.tactics);
+                    this.ctx.tactics[seat]!.push(...card.tactics);
                     entry.grantedTactics = [...card.tactics];
                 }
                 if (card.flankSpawnHalf) {
                     this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
                 }
-                this.ctx.roundCardTaken[action.team] = true;
+                this.ctx.roundCardTaken[seat] = true;
                 return true;
             }
             case 'endDeployment': {
@@ -898,9 +890,10 @@ export class ActionDispatcher {
             }
             case 'placeRallyRoute': {
                 if (!TACTICS[RALLY_ROUTE_ID]) return false;
-                const max =
-                    this.ctx.tactics[action.team].filter((id) => id === RALLY_ROUTE_ID).length;
-                const placed = this.ctx.rallyRoutes.filter((r) => r.team === action.team).length;
+                // per-seat charge pool and per-seat placement count — your
+                // own routes draw only from your own charges, never an ally's
+                const max = this.ctx.tactics[seat]!.filter((id) => id === RALLY_ROUTE_ID).length;
+                const placed = this.ctx.rallyRoutes.filter((r) => r.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
                 const end = clampTacticEnd(
                     action.startX,
@@ -911,6 +904,7 @@ export class ActionDispatcher {
                 const route: RallyRoute = {
                     id: this.ctx.rallyRouteIds.next++,
                     team: action.team,
+                    seat,
                     startX: action.startX,
                     startZ: action.startZ,
                     endX: end.x,
@@ -921,8 +915,9 @@ export class ActionDispatcher {
                 return true;
             }
             case 'removeRallyRoute': {
+                // own placements only
                 const i = this.ctx.rallyRoutes.findIndex(
-                    (r) => r.id === action.routeId && r.team === action.team,
+                    (r) => r.id === action.routeId && r.seat === seat,
                 );
                 if (i < 0) return false;
                 entry.rallyRoute = this.ctx.rallyRoutes[i];
@@ -931,9 +926,9 @@ export class ActionDispatcher {
             }
             case 'placeOilSpill': {
                 if (!TACTICS[OIL_SPILL_ID]) return false;
-                const max =
-                    this.ctx.tactics[action.team].filter((id) => id === OIL_SPILL_ID).length;
-                const placed = this.ctx.oilStamps.filter((s) => s.team === action.team).length;
+                // per-seat charge pool and per-seat placement count
+                const max = this.ctx.tactics[seat]!.filter((id) => id === OIL_SPILL_ID).length;
+                const placed = this.ctx.oilStamps.filter((s) => s.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
                 const { round } = this.ctx.clock();
                 const duration =
@@ -948,6 +943,7 @@ export class ActionDispatcher {
                 const stamp: OilStamp = {
                     id: this.ctx.oilStampIds.next++,
                     team: action.team,
+                    seat,
                     startX: action.startX,
                     startZ: action.startZ,
                     endX: end.x,
@@ -963,8 +959,9 @@ export class ActionDispatcher {
                 return true;
             }
             case 'removeOilSpill': {
+                // own placements only
                 const i = this.ctx.oilStamps.findIndex(
-                    (s) => s.id === action.stampId && s.team === action.team,
+                    (s) => s.id === action.stampId && s.seat === seat,
                 );
                 if (i < 0) return false;
                 entry.oilStamp = this.ctx.oilStamps[i];
@@ -991,12 +988,13 @@ export class ActionDispatcher {
                 }
                 const { round } = this.ctx.clock();
                 // charges: inventory minus stamps still pending or cooling down
-                const inventory = this.ctx.tactics[action.team].filter(
+                // — per seat now, own charges never shared with an ally
+                const inventory = this.ctx.tactics[seat]!.filter(
                     (id) => id === action.tacticId,
                 ).length;
                 const blocking = this.ctx.spellStamps.filter(
                     (s) =>
-                        s.team === action.team &&
+                        s.seat === seat &&
                         s.tacticId === action.tacticId &&
                         s.placedRound >= round - tactic.cooldownRounds,
                 ).length;
@@ -1029,6 +1027,7 @@ export class ActionDispatcher {
                     id: this.ctx.spellStampIds.next++,
                     tacticId: action.tacticId,
                     team: action.team,
+                    seat,
                     x: action.x,
                     z: action.z,
                     ...(end ? { endX: end.x, endZ: end.z } : {}),
@@ -1041,10 +1040,11 @@ export class ActionDispatcher {
             }
             case 'removeSpell': {
                 const { round } = this.ctx.clock();
+                // own placements only
                 const i = this.ctx.spellStamps.findIndex(
                     (s) =>
                         s.id === action.stampId &&
-                        s.team === action.team &&
+                        s.seat === seat &&
                         s.placedRound === round, // fired stamps are history
                 );
                 if (i < 0) return false;
@@ -1113,16 +1113,15 @@ export class ActionDispatcher {
             case 'buyRallyRouteAbility': {
                 this.ctx.rallyRouteOwned[seat] = false;
                 for (const id of e.grantedTactics ?? []) {
-                    const i = this.ctx.tactics[action.team].lastIndexOf(id);
-                    if (i >= 0) this.ctx.tactics[action.team].splice(i, 1);
+                    const i = this.ctx.tactics[seat]!.lastIndexOf(id);
+                    if (i >= 0) this.ctx.tactics[seat]!.splice(i, 1);
                 }
-                // drop excess placed routes if the charge was already used
-                const max = this.ctx.tactics[action.team].filter((id) => id === RALLY_ROUTE_ID)
-                    .length;
+                // drop excess placed routes (own only) if the charge was already used
+                const max = this.ctx.tactics[seat]!.filter((id) => id === RALLY_ROUTE_ID).length;
                 for (let i = this.ctx.rallyRoutes.length - 1; i >= 0; i--) {
                     const route = this.ctx.rallyRoutes[i]!;
-                    if (route.team !== action.team) continue;
-                    const placed = this.ctx.rallyRoutes.filter((r) => r.team === action.team).length;
+                    if (route.seat !== seat) continue;
+                    const placed = this.ctx.rallyRoutes.filter((r) => r.seat === seat).length;
                     if (placed <= max) break;
                     this.ctx.rallyRoutes.splice(i, 1);
                 }
