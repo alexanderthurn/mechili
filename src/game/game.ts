@@ -2256,6 +2256,16 @@ export class Game {
     private maybeStartMatch(): void {
         if (!this.awaitingCards || this.round > 0) return;
         if (!this.speciality.player || !this.speciality.enemy) return;
+        // speciality.* only reflects each side's PRIMARY seat's pick (by
+        // design — see actions.ts chooseCard). In star mode a non-primary
+        // seat is a separate human on a separate machine who can lag behind;
+        // without this, the primary seat's own pick alone would satisfy the
+        // check above and round could advance before a teammate's pick has
+        // even arrived. Once that happens their chooseCard shows up tagged
+        // for the now-past round and drainStarRemoteQueue's FIFO guard
+        // strands it — and everything queued behind it — forever (no
+        // starter units, no further build actions ever applied for them).
+        if (!this.starterPicked.every(Boolean)) return;
         this.awaitingCards = false;
         this.hud.hideCardOverlay(); // the waiting card, if one is up
         this.syncSpecialities();
@@ -4146,7 +4156,16 @@ export class Game {
                     !this.deployCaughtUpFromPeer)) ||
                 (this.awaitingCards && this.round === 0 && this.speciality.player !== null) ||
                 (this.battleReady.player && !this.battleReady.enemy));
-        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer);
+        // team modes: a teammate on my own side may have locked in deployment
+        // already while I haven't clicked yet — deployReady.player only
+        // flips once EVERY seat on my side has, so this needs its own check
+        const allyLockedIn =
+            this.phase === 'build' &&
+            !this.deployReady.player &&
+            seatIdsOf(this.seats, 'player').some(
+                (seat) => seat !== this.humanSeat && this.seatReady[seat],
+            );
+        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn);
         this.hud.setUndoVisible(this.canUndo());
         this.hud.setDeploys(
             this.deployState.used[this.humanSeat]!,

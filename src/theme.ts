@@ -2341,6 +2341,15 @@ export function hudStyles(): string {
 }
 .mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
 .mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.5); }
+/* a teammate (2v2/duo) already locked in — half the button turns green so
+   both seats on a side can see who's still holding things up */
+.mechili-topbar .end-deploy.ally-ready {
+    background: linear-gradient(90deg, #5ee36b 0%, #5ee36b 48%, ${u.brassLight} 52%, ${u.brass} 100%);
+    border-color: #5ee36b;
+}
+.mechili-topbar .end-deploy.ally-ready:hover {
+    background: linear-gradient(90deg, #7dfa8a 0%, #7dfa8a 48%, #fff0b0 52%, ${u.brassLight} 100%);
+}
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
 /* a card overlay is up (specialist pick, reveal, round card) — can't end yet */

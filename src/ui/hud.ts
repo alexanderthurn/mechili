@@ -191,6 +191,7 @@ export class Hud {
     private readonly roundEl: HTMLSpanElement;
     private readonly phaseEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
+    private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
     private readonly playerNameEl: HTMLSpanElement;
     private readonly enemyNameEl: HTMLSpanElement;
@@ -581,6 +582,7 @@ export class Hud {
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
         endButton.addEventListener('click', () => this.onEndDeployment?.());
+        this.endButton = endButton;
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
@@ -1622,7 +1624,13 @@ export class Hud {
         this.actionInfoFor = null;
     }
 
-    setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {
+    setPhase(
+        round: number,
+        phase: Phase,
+        remainingSeconds: number,
+        waitingForPeer = false,
+        allyLockedIn = false,
+    ): void {
         // round 0 is the specialist pick, not a numbered round
         this.roundEl.textContent = round === 0 ? 'Specialists' : `Round ${round}`;
         this.phaseEl.textContent = waitingForPeer
@@ -1642,6 +1650,11 @@ export class Hud {
         );
         // locked in: only spectating remains — no buying, no ending twice
         this.topBar.classList.toggle('waiting', waitingForPeer);
+        // teammate (same side, team modes) has already locked in but I
+        // haven't yet — a visible cue on the button itself, since I still
+        // see the normal button (my side isn't "waiting" until I click too)
+        this.endButton.classList.toggle('ally-ready', allyLockedIn && !waitingForPeer);
+        this.endButton.title = allyLockedIn && !waitingForPeer ? 'Your ally is ready — waiting on you' : '';
         this.fightBar.classList.toggle('battle', phase === 'battle');
         this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
