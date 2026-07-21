@@ -276,7 +276,7 @@ export class AiOpponent implements Opponent {
             for (const typeId of ownedTypeIds) {
                 const type = unitTypeById(typeId);
                 if (!type?.techs.length) continue;
-                const owned = techTree.ownedFor(team, type.id);
+                const owned = techTree.ownedFor(this.seat, type.id);
                 for (const tech of type.techs) {
                     if (owned.has(tech.id)) continue;
                     const cost = economy.techCostOf(tech, owned.size);

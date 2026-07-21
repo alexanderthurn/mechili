@@ -65,7 +65,8 @@ export interface SimConfig {
     costOf: (type: UnitType) => number;
     /** a pack's tech-resolved base stats (level scaling happens in the sim) */
     statsOf: (unit: Unit) => ResolvedStats;
-    hasTech: (team: BattleTeam, typeId: string, techId: string) => boolean;
+    /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
     /** base flank spawn duration in seconds (before team multiplier) */
     flankSpawnSeconds: number;
     flankSpawnMult: (team: BattleTeam) => number;
@@ -714,7 +715,7 @@ export class BattleSim {
     }
 
     private fireProfileOf(source: Unit): FireProfile | undefined {
-        return resolveFireProfile(source.type, source.team, this.config.hasTech);
+        return resolveFireProfile(source.type, source.seat, this.config.hasTech);
     }
 
     /** burn DoT + standing in ground fire (both friendly-fire) */
@@ -1246,7 +1247,7 @@ export class BattleSim {
         const expires = GOLDEN_AURA_APPLY_AT + GOLDEN_AURA_DURATION;
         for (const f of this.actors) {
             if (!f.alive || f.unit.type.id !== 'ballista') continue;
-            if (!this.config.hasTech(f.unit.team, 'ballista', 'golden')) continue;
+            if (!this.config.hasTech(f.unit.seat, 'ballista', 'golden')) continue;
             for (const a of this.actors) {
                 if (!a.alive || a.unit.team !== f.unit.team || a.unit.type.structure) continue;
                 const dx = a.x - f.x;

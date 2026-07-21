@@ -12,6 +12,7 @@
  */
 
 import { CELL, STANDARD_MAP, type MapSize } from './map';
+import type { SeatId } from './seats';
 
 /** world units per hazard cell — finer than board tiles for splat connectivity */
 export const HAZARD_CELL = 2;
@@ -150,8 +151,8 @@ export interface FireProfile {
  */
 export function resolveFireProfile(
     type: { id: string; fire?: FireProfile; techs: { id: string; fire?: FireProfile }[] },
-    team: string,
-    hasTech: (team: 'player' | 'enemy', typeId: string, techId: string) => boolean,
+    seat: SeatId,
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
 ): FireProfile | undefined {
     let profile: FireProfile | undefined = type.fire
         ? {
@@ -161,7 +162,7 @@ export function resolveFireProfile(
           }
         : undefined;
     for (const tech of type.techs) {
-        if (!tech.fire || !hasTech(team as 'player' | 'enemy', type.id, tech.id)) continue;
+        if (!tech.fire || !hasTech(seat, type.id, tech.id)) continue;
         if (!profile) profile = {};
         if (tech.fire.burn) profile.burn = { ...tech.fire.burn };
         if (tech.fire.ground) profile.ground = { ...tech.fire.ground };

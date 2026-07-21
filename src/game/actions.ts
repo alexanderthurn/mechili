@@ -614,12 +614,14 @@ export class ActionDispatcher {
                 const type = unitTypeById(action.typeId);
                 const tech = type?.techs.find((t) => t.id === action.techId);
                 if (!type || !tech) return false;
-                if (techTree.has(action.team, type.id, tech.id)) return false;
+                if (techTree.has(seat, type.id, tech.id)) return false;
                 // every owned tech of the type makes the remaining ones pricier
-                const owned = techTree.ownedFor(action.team, type.id).size;
+                // — per SEAT now, so this reads only your own count, never a
+                // shared one two teammates could race to price differently
+                const owned = techTree.ownedFor(seat, type.id).size;
                 const cost = economy.techCostOf(tech, owned);
                 if (!economy.spend(seat, cost)) return false;
-                techTree.add(action.team, type.id, tech.id);
+                techTree.add(seat, type.id, tech.id);
                 entry.paid = cost;
                 return true;
             }
@@ -1082,7 +1084,7 @@ export class ActionDispatcher {
                 placement.rotateUnit(placement.unitById(action.unitId)!, e.from);
                 break;
             case 'buyTech':
-                techTree.remove(action.team, action.typeId, action.techId);
+                techTree.remove(seat, action.typeId, action.techId);
                 economy.credit(seat, e.paid!);
                 break;
             case 'buyLevel': {

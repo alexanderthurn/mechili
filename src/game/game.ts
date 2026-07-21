@@ -168,7 +168,7 @@ function seedFrom(seed: number, label: string): number {
 export class Game {
     private readonly map: BattleMap;
     private readonly economy: Economy;
-    private readonly techTree = new TechTree();
+    private readonly techTree: TechTree;
     private readonly scene = new Scene();
     private readonly renderer: WebGLRenderer;
     private readonly rig = new CameraRig();
@@ -464,6 +464,7 @@ export class Game {
         this.creditDebt = this.seats.map(() => false);
         this.starterPicked = this.seats.map(() => false);
         this.itemInventory = this.seats.map(() => []);
+        this.techTree = new TechTree(this.seats.length);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
         this.renderer = new WebGLRenderer({
@@ -2651,7 +2652,7 @@ export class Game {
                 attackInterval: type.attackInterval,
             };
         }
-        const stats = this.techTree.statsFor(team, type);
+        const stats = this.techTree.statsFor(unit.seat, type);
         const b = this.settings.boosts;
         const attackTier = this.boostState.attack[unit.seat]!;
         const hpTier = this.boostState.hp[unit.seat]!;
@@ -3753,7 +3754,7 @@ export class Game {
             seatRank: (seat) => this.seatRank(seat),
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
-            hasTech: (team, typeId, techId) => team !== 'horde' && this.techTree.has(team, typeId, techId),
+            hasTech: (seat, typeId, techId) => seat >= 0 && this.techTree.has(seat, typeId, techId),
             flankSpawnSeconds: this.settings.deploy.flankSpawnSeconds ?? 5,
             flankSpawnMult: (team) => (team === 'horde' ? 1 : this.flankSpawnMult[team]),
             needsFlankSpawn: (unit) =>
@@ -4641,19 +4642,20 @@ export class Game {
         });
     }
 
-    /** pack/unit techs for the action row (buyable for self in deploy; inspect otherwise) */
+    /** pack/unit techs for the action row — per SEAT now (own packs only), like
+     *  applyItem/sellUnit: selecting an ally's pack shows THEIR research, read-only */
     private techSelection(u: Unit): SelectionInfo['techs'] {
         if (u.type.structure || u.type.techs.length === 0) return undefined;
-        const canBuy = u.team === 'player' && this.playerCanAct;
+        const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const canInspect =
             u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
         if (!canBuy && !canInspect) return undefined;
 
-        const team = u.team;
-        const ownedCount = this.techTree.ownedFor(team, u.type.id).size;
-        const bal = this.economy.balance(this.humanSeat);
+        const seat = u.seat;
+        const ownedCount = this.techTree.ownedFor(seat, u.type.id).size;
+        const bal = this.economy.balance(seat);
         return u.type.techs.map((t) => {
-            const owned = this.techTree.has(team, u.type.id, t.id);
+            const owned = this.techTree.has(seat, u.type.id, t.id);
             const cost = this.economy.techCostOf(t, ownedCount);
             return {
                 id: t.id,
