@@ -80,6 +80,7 @@ const MORE_SCREENSHOTS = [
     { file: 'screen_5.webp', label: 'Close combat melee' },
     { file: 'screen_6.webp', label: 'Mass army deployment' },
     { file: 'screen_7.webp', label: 'Large-scale battle' },
+    { file: 'screen_8.webp', label: 'Stronghold and unit deployment' },
 ].map((s) => ({
     src: new URL(`../../assets/marketing/screenshots/fullhd/${s.file}`, import.meta.url).href,
     label: s.label,
