@@ -254,8 +254,23 @@ export class NetworkOpponent implements Opponent {
     onRoundCards(): void {}
 }
 
+/**
+ * What `Game` needs from a 1v1 connection during actual play — a narrow
+ * slice of `NetSession`'s full surface. Reconnect/redial/naming stay
+ * main.ts's concern, operating on the concrete `NetSession` class directly
+ * before handing a freshly-reconnected one to `Game.resumeWith`. Any
+ * transport that satisfies this (`NetSession`/PeerJS today, a Steam P2P
+ * equivalent later) can be passed to `Game` unchanged.
+ */
+export interface Session {
+    onClose: (() => void) | null;
+    attach(handler: (msg: NetMessage) => void): void;
+    send(msg: NetMessage): void;
+    close(): void;
+}
+
 /** one open peer-to-peer connection, host or guest */
-export class NetSession {
+export class NetSession implements Session {
     onClose: (() => void) | null = null;
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
@@ -366,6 +381,26 @@ export class NetSession {
 }
 
 /**
+ * What `Game` needs from the star (2v2+) host relay during actual play —
+ * lobby-formation concerns (`listen`/`setRosterEntry`/`currentRoster`/
+ * `nextOpenSeat`/`peerId`/`onRosterChange`) stay main.ts's concern,
+ * operating on the concrete `StarHub` directly before the match starts.
+ */
+export interface HostHub {
+    onMessage: ((seat: SeatId, msg: NetMessage) => void) | null;
+    onSeatDropped: ((seat: SeatId) => void) | null;
+    broadcast(msg: NetMessage, exclude?: SeatId): void;
+    relayBuild(
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        fromSeat: SeatId,
+        sideLocked: (side: 'a' | 'b') => boolean,
+    ): void;
+    flushAllBuffers(): void;
+    connectedSeats(): SeatId[];
+    sideOf(seat: SeatId): 'a' | 'b';
+}
+
+/**
  * Host-side only, for 2v2+ "star" rooms (settings.seats.length > 2): one
  * Peer accepting a connection per REMOTE seat-holding guest (never between
  * guests — that's the whole point of the star: guests keep the exact same
@@ -380,7 +415,7 @@ export class NetSession {
  * server model) — a deliberate, documented v1 tradeoff over a full mesh,
  * acceptable for friend games. See TEAM_MODES_PLAN.md §3.
  */
-export class StarHub {
+export class StarHub implements HostHub {
     private readonly bySeat = new Map<SeatId, { conn: DataConnection; buffer: NetMessage[] }>();
     private roster: CanonicalSeatDef[];
 
@@ -524,12 +559,19 @@ export class StarHub {
     }
 }
 
+/** What `Game` needs from a star guest connection during actual play. */
+export interface GuestSession {
+    onClose: (() => void) | null;
+    attach(handler: (msg: NetMessage) => void): void;
+    send(msg: NetMessage): void;
+}
+
 /**
  * Guest side of a star (2v2+) room: a single connection to the host,
  * shaped like `NetSession` (attach/send/once) but without the host/guest
  * role split — a star guest never accepts inbound connections itself.
  */
-export class StarGuestSession {
+export class StarGuestSession implements GuestSession {
     onClose: (() => void) | null = null;
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
@@ -587,11 +629,15 @@ export class StarGuestSession {
  * What `Game` needs to know about its star-mode connection: whether it's
  * the relay (host) or a spoke (guest), and which canonical seat this
  * client occupies. `mySeat` is NOT necessarily 0 for a guest — only the
- * host is guaranteed seat 0 by the join-order convention.
+ * host is guaranteed seat 0 by the join-order convention. Typed against the
+ * `HostHub`/`GuestSession` interfaces (not the concrete `StarHub`/
+ * `StarGuestSession` classes) so a future transport (e.g. Steam P2P) can
+ * hand `Game` a same-shaped object without `Game` itself changing at all;
+ * `StarHub`/`StarGuestSession` (PeerJS) already satisfy them.
  */
 export type StarRole =
-    | { role: 'host'; hub: StarHub; mySeat: SeatId }
-    | { role: 'guest'; session: StarGuestSession; mySeat: SeatId };
+    | { role: 'host'; hub: HostHub; mySeat: SeatId }
+    | { role: 'guest'; session: GuestSession; mySeat: SeatId };
 
 /**
  * Host a 2v2+ star room: opens a peer, registers it in the public/room-code

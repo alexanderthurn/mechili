@@ -30,8 +30,8 @@ import {
     registerSpectateEndpoint,
     SpectatorHub,
     type NetMessage,
-    type NetSession,
     type RosterEntry,
+    type Session,
     type SpectatorVision,
     type StarRole,
 } from './net';
@@ -423,7 +423,7 @@ export class Game {
         wrapper: HTMLElement,
         settingsInput: GameSettings = DEFAULT_SETTINGS,
         /** the peer connection in multiplayer, null against the AI (swappable on reconnect) */
-        private net: NetSession | null = null,
+        private net: Session | null = null,
         /** canonical side: the host is 'a', the guest 'b' — keys card streams & sim ordering */
         private readonly side: 'a' | 'b' = 'a',
         private readonly playerNames: { local: string; opponent: string } = {
@@ -1934,7 +1934,7 @@ export class Game {
     }
 
     /** connects (or re-connects) a peer session to this game */
-    private wireSession(session: NetSession): void {
+    private wireSession(session: Session): void {
         this.net = session;
         session.attach((msg) => this.onNetMessage(msg));
         session.onClose = () => {
@@ -2010,7 +2010,7 @@ export class Game {
 
     /** the connection is back on a fresh session — but stay paused until the
      *  peer confirms it's actually ready too (see awaitPeerReady) */
-    resumeWith(session: NetSession): void {
+    resumeWith(session: Session): void {
         if (this.disposed || this.matchOver) {
             session.close();
             return;
