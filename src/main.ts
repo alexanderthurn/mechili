@@ -17,18 +17,32 @@ import {
     joinStarRoom,
     loadResumeMarker,
     loadSinglePlayer,
+    NetSession,
     postGlobalChat,
     quickMatch,
     raceReconnectStrategies,
     resumeSession,
     saveResumeMarker,
     saveSinglePlayer,
-    type NetSession,
+    type NetMessage,
     type Pending,
     type ResumeMarker,
+    type Session,
     type SinglePlayerSave,
     type StarRole,
 } from './game/net';
+import { lobby as steamLobby, steam } from 'steam-electron-build/native';
+import {
+    hostOrJoinSteamStar,
+    hostSteamRoom,
+    hostSteamStarRoom,
+    joinSteamLobby,
+    onSteamJoinRequested,
+    quickSteamMatch,
+    type SteamGuestSession,
+    type SteamSession,
+    type SteamStarHub,
+} from './game/net-steam';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
 import { bootGameAssets } from './game/bootAssets';
@@ -785,7 +799,7 @@ function returnToMenu(): void {
 
 function startGame(
     settings: GameSettings,
-    net: NetSession | null = null,
+    net: Session | null = null,
     side: 'a' | 'b' = 'a',
     names: { local: string; opponent: string } = {
         local: getPlayerName(),
@@ -814,12 +828,17 @@ function startGame(
     gchatEl.remove();
     if (net) {
         clearSinglePlayer();
-        saveResumeMarker({
-            side,
-            names,
-            remotePeerId: net.remoteId,
-            ownPeerId: net.ownId,
-        });
+        // resume/redial is PeerJS-specific (peer ids) — a Steam session has
+        // no equivalent yet (v1 scope, see net-steam.ts), so it just skips
+        // the marker rather than saving one it could never actually resume
+        if (net instanceof NetSession) {
+            saveResumeMarker({
+                side,
+                names,
+                remotePeerId: net.remoteId,
+                ownPeerId: net.ownId,
+            });
+        }
     } else {
         clearResumeMarker();
         // star matches have no save/resume story yet (v1 scope) — never
@@ -829,8 +848,8 @@ function startGame(
     const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star);
     activeGame = game;
     game.onReturnToMenu = returnToMenu;
-    if (net) wireReconnect(game, net, side, names);
-    else if (!star) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    if (net instanceof NetSession) wireReconnect(game, net, side, names);
+    else if (!net && !star) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */
@@ -1046,6 +1065,63 @@ function runPending(p: Pending, applyMode?: (settings: GameSettings) => void): v
         });
 }
 
+// ---- Steam 1v1 (parallel to beginNetGame/runPending above; PeerJS's
+// NetSession has no equivalent on Steam, so this is its own small
+// orchestration rather than a shared function — see net-steam.ts) ----------
+
+const STEAM_HANDSHAKE_TIMEOUT_MS = 20_000;
+
+async function beginSteamNetGame(
+    session: SteamSession,
+    role: 'host' | 'guest',
+    applyMode?: (settings: GameSettings) => void,
+): Promise<void> {
+    const localName = getPlayerName();
+    if (role === 'guest') {
+        session.send({ type: 'hello', name: localName });
+        setStatus('Receiving match setup…');
+        const msg = await session.once();
+        if (msg.type !== 'setup' || msg.version !== GAME_VERSION) {
+            setStatus('Version mismatch — both players need the same game version.');
+            session.close();
+            return;
+        }
+        const settings = msg.settings;
+        settings.seed = msg.seed;
+        startGame(settings, session, 'b', { local: localName, opponent: msg.hostName });
+        return;
+    }
+    const helloMsg = await Promise.race([
+        session.once(),
+        new Promise<NetMessage>((_, reject) =>
+            setTimeout(() => reject(new Error('Opponent did not respond')), STEAM_HANDSHAKE_TIMEOUT_MS),
+        ),
+    ]);
+    if (helloMsg.type !== 'hello') throw new Error('Unexpected handshake');
+    const guestName = helloMsg.name;
+    const settings = settingsFromUrl();
+    applyMode?.(settings);
+    delete settings.seats;
+    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    session.send({ type: 'setup', version: GAME_VERSION, seed: settings.seed, settings, hostName: localName, guestName });
+    startGame(settings, session, 'a', { local: localName, opponent: guestName });
+}
+
+function runSteamPending(
+    p: Promise<SteamSession>,
+    role: 'host' | 'guest',
+    applyMode?: (settings: GameSettings) => void,
+): void {
+    setMenuBusy(true);
+    p.then((session) => {
+        setMenuBusy(false);
+        void beginSteamNetGame(session, role, applyMode);
+    }).catch((e: unknown) => {
+        setMenuBusy(false);
+        setStatus(`Could not connect: ${e instanceof Error ? e.message : e}`);
+    });
+}
+
 // ---- 2v2 online (star topology) ----------------------------------------
 
 /** host is always seat 0, side 'a'; the other 3 slots start open for joiners */
@@ -1227,6 +1303,172 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
         });
 }
 
+// ---- Steam 2v2 (parallel to beginStarHost/startStarMatch/beginStarJoin/
+// runStarPending above; own state (steamStarHosting) since a PeerJS StarHub
+// and a SteamStarHub are never both active at once) -------------------------
+
+let steamStarHosting: { hub: SteamStarHub; lobbyId: string } | null = null;
+
+function cancelSteamStarHost(): void {
+    steamStarHosting?.hub.close();
+    steamStarHosting = null;
+    startStarBtn.style.display = 'none';
+}
+
+/** shared setup for a freshly-created SteamStarHub, whichever call site created it */
+function wireSteamStarHub(hub: SteamStarHub): void {
+    startStarBtn.style.display = '';
+    const refresh = () => {
+        if (!steamStarHosting) return;
+        const roster = hub.currentRoster();
+        const joined = hub.connectedSeats().length + 1;
+        const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        if (joined > 1) {
+            setStatus(`Steam lobby — ${joined}/4 joined: ${names}. Starting…`);
+            startSteamStarMatch();
+            return;
+        }
+        setStatus('Steam lobby open — invite a friend from the overlay, or click Start to play vs AI now instead.');
+    };
+    hub.onRosterChange = refresh;
+    hub.listen((name, version, _steamId64) => {
+        if (version !== GAME_VERSION) {
+            return { reject: 'Version mismatch — both players need the same game version.' };
+        }
+        const seat = hub.nextOpenSeat();
+        if (seat === null) return { reject: 'Room is full.' };
+        hub.setRosterEntry(seat, { side: hub.sideOf(seat), controller: 'human', name });
+        return seat;
+    });
+    refresh();
+}
+
+/** host a private 2v2 Steam lobby for a direct friend invite (Steam overlay) */
+async function beginSteamStarHost(horde = false): Promise<void> {
+    starHordeFlag = horde;
+    setMenuBusy(true);
+    setStatus('Opening Steam lobby…');
+    let hosted: { hub: SteamStarHub; lobbyId: string };
+    try {
+        hosted = await hostSteamStarRoom(initialStarRoster(getPlayerName()), false);
+    } catch (e) {
+        setMenuBusy(false);
+        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        return;
+    }
+    setMenuBusy(false);
+    steamStarHosting = hosted;
+    wireSteamStarHub(hosted.hub);
+    steamLobby.openInviteDialog();
+}
+
+/** host clicks Start: AI-fill empty seats, send each guest its own setup,
+ *  launch locally — mirrors startStarMatch */
+function startSteamStarMatch(): void {
+    if (!steamStarHosting) return;
+    const { hub } = steamStarHosting;
+    const connected = new Set(hub.connectedSeats());
+    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+        if (i > 0 && s.controller === 'human' && !connected.has(i)) {
+            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+        }
+        return s;
+    });
+    const settings = settingsFromUrl();
+    delete settings.seats;
+    if (starHordeFlag) applyHordeMode(settings);
+    widenMapForDuo(settings);
+    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    for (const seat of connected) {
+        hub.send(seat, {
+            type: 'starSetup',
+            version: GAME_VERSION,
+            seed: settings.seed,
+            settings,
+            roster: finalRoster,
+            yourSeat: seat,
+            yourSide: hub.sideOf(seat),
+        });
+    }
+    startStarBtn.style.display = 'none';
+    const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
+    startGame(hostSettings, null, 'a', { local: getPlayerName(), opponent: '2v2' }, null, {
+        role: 'host',
+        hub,
+        mySeat: 0,
+    });
+    steamStarHosting = null; // ownership passes to the running Game now
+}
+
+function runSteamStarPending(p: Promise<SteamGuestSession>): void {
+    pending?.cancel();
+    let cancelled = false;
+    pending = {
+        // never actually read back — `pending` only needs `.cancel()` here;
+        // this satisfies the shared Pending<NetSession> shape without
+        // touching it (star join has no NetSession at all — same trick as
+        // the PeerJS runStarPending above)
+        session: Promise.resolve() as unknown as Promise<NetSession>,
+        cancel: () => {
+            cancelled = true;
+        },
+    };
+    setMenuBusy(true);
+    p.then(async (session) => {
+        if (cancelled) return;
+        setStatus('Connected — waiting for the host to start…');
+        session.onClose = () => {
+            if (started) return;
+            cancelled = true;
+            pending = null;
+            setMenuBusy(false);
+            setStatus('Host closed the room.');
+        };
+        const msg = await session.once();
+        pending = null;
+        setMenuBusy(false);
+        if (cancelled) return;
+        if (msg.type === 'starRejected') {
+            setStatus(msg.reason);
+            session.close();
+            return;
+        }
+        if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+            setStatus('Version mismatch — both players need the same game version.');
+            session.close();
+            return;
+        }
+        const settings = msg.settings;
+        settings.seed = msg.seed;
+        settings.seats = localizeRoster(msg.roster, msg.yourSide);
+        const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+        startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+            role: 'guest',
+            session,
+            mySeat: msg.yourSeat,
+        });
+    }).catch((e: unknown) => {
+        pending = null;
+        setMenuBusy(false);
+        if (cancelled || String(e).includes('cancelled')) setStatus('');
+        else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+    });
+}
+
+// a Steam overlay/friends-list "Join Game" invite can be accepted from
+// anywhere (menu idle, another screen) — not just while mm-invite/mm-play
+// is open, mirroring the ?room= deep-link handling further down for the
+// web build's invite-link equivalent
+onSteamJoinRequested(({ lobbySteamId }) => {
+    if (started || pending || steamStarHosting) return;
+    void joinSteamLobby(lobbySteamId)
+        .then((result) => {
+            if (result.mode === '2v2') runSteamStarPending(Promise.resolve(result.session));
+            else runSteamPending(Promise.resolve(result.session), 'guest');
+        })
+        .catch((e: unknown) => setStatus(`Could not join: ${e instanceof Error ? e.message : e}`));
+});
+
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
@@ -1246,6 +1488,7 @@ menu.addEventListener('click', (e) => {
         pending?.cancel();
         pending = null;
         cancelStarHost();
+        cancelSteamStarHost();
         setMenuBusy(false);
         setStatus('');
         return;
@@ -1311,6 +1554,7 @@ menu.addEventListener('click', (e) => {
             pending?.cancel();
             pending = null;
             cancelStarHost();
+            cancelSteamStarHost();
             setMenuBusy(false);
             setStatus('');
             mmModeEl.style.display = 'none';
@@ -1321,6 +1565,19 @@ menu.addEventListener('click', (e) => {
             const horde = mmHordeEl.checked;
             mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
             mmInviteEl.disabled = true;
+            if (steam.isAvailable()) {
+                // Steam's own overlay invite picker replaces the copy-paste
+                // link — no room code to show, just open it once the lobby exists
+                mmInviteEl.textContent = 'Waiting for your friend…';
+                mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
+                mmLinkEl.style.display = '';
+                if (team === '2v2') void beginSteamStarHost(horde);
+                else {
+                    const hosted = hostSteamRoom(false, () => steamLobby.openInviteDialog());
+                    runSteamPending(hosted.session, 'host', horde ? applyHordeMode : undefined);
+                }
+                break;
+            }
             mmInviteEl.textContent = 'Waiting for your friend…';
             const hostName = getPlayerName();
             const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(hostName)}`;
@@ -1335,6 +1592,25 @@ menu.addEventListener('click', (e) => {
             const horde = mmHordeEl.checked;
             mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
             mmInviteEl.disabled = true;
+            if (steam.isAvailable()) {
+                setStatus('Looking for an open Steam lobby…');
+                if (team === '2v2') {
+                    void hostOrJoinSteamStar(initialStarRoster(getPlayerName())).then((result) => {
+                        if (result.role === 'guest') {
+                            runSteamStarPending(Promise.resolve(result.session));
+                        } else {
+                            starHordeFlag = horde;
+                            steamStarHosting = { hub: result.hub, lobbyId: result.lobbyId };
+                            wireSteamStarHub(result.hub);
+                        }
+                    });
+                } else {
+                    void quickSteamMatch().then(({ session, role }) =>
+                        runSteamPending(Promise.resolve(session), role, horde ? applyHordeMode : undefined),
+                    );
+                }
+                break;
+            }
             if (team === '2v2') {
                 setStatus('Looking for an open 2v2 room…');
                 void fetchLobbyRooms().then((rooms) => {
