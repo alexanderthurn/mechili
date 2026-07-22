@@ -1061,8 +1061,16 @@ async function beginStarHost(): Promise<void> {
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // auto-start the moment anyone joins — no manual "click Start" step;
+        // the Start button (still shown) is only for "give up waiting, go
+        // vs AI now" while the room is still empty
+        if (joined > 1) {
+            setStatus(`Room "${hostName}" — ${joined}/4 joined: ${names}. Starting…`);
+            startStarMatch();
+            return;
+        }
         setStatus(
-            `Room "${hostName}" — ${joined}/4 joined: ${names}. Click Start when ready (empty seats fill with AI).`,
+            `Room "${hostName}" — waiting for a friend to join (share your name: "${hostName}"). Click Start to play vs AI now instead.`,
         );
     };
     hub.onRosterChange = refresh;
