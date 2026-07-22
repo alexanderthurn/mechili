@@ -5,7 +5,15 @@ Two parallel sets (same logo, 1v1 two-base layout):
 | Set | Dragon | Folders |
 | --- | --- | --- |
 | **Side dragon** | Flies in from the right | `store/`, `library/`, masters without `_center` |
-| **Center dragon** | Flies toward camera from midfield | `store_center/`, `library_center/`, `*_center.png` masters |
+| **Center dragon** | Flies toward camera from midfield; **golden-hour** look | `store_center/`, `library_center/`, `*_center.png` masters |
+
+Center main capsule variants (explorations) live in `store_center/main_variants/` — shipping set uses **v2 golden hour**.
+
+### Archived / alternate sets
+| Folder | Style | Contents |
+| --- | --- | --- |
+| `golden/` | Golden-hour center set (archive) | `store/`, `library/`, `masters/` |
+| `epic/` | Epic daylight center set + variants | Full `store/` + `library/` from **a_max_punch**; more main capsules in `epic/variants/` |
 
 ## Upload checklist (same filenames in each set)
 
