@@ -480,6 +480,42 @@ export function menuStyles(): string {
     cursor: pointer;
 }
 .mechili-menu .m-spmode-horde { justify-content: center; font-size: 14px; color: ${u.text}; }
+.mechili-menu .m-seats { display: flex; gap: 10px; width: 100%; }
+.mechili-menu .m-seat {
+    flex: 1;
+    box-sizing: border-box;
+    padding: 14px 10px;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+}
+.mechili-menu .m-seat-you { color: ${u.brassLight}; }
+button.m-seat-invite {
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+button.m-seat-invite:hover:not(:disabled) { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
+.mechili-menu .m-mm-link {
+    font-size: 12.5px;
+    color: ${u.textMuted};
+    text-align: center;
+    word-break: break-all;
+    padding: 8px 10px;
+    background: rgba(18, 28, 15, 0.6);
+    border: 1px solid ${u.border};
+    border-radius: 8px;
+}
 .mechili-username {
     position: absolute;
     right: calc(16px + env(safe-area-inset-right));

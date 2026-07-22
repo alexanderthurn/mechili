@@ -266,7 +266,7 @@ menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-main">
         <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
-        <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
+        <button class="m-btn" data-mode="matchmaking"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
         <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
     </div>
     <div class="m-spmode" style="display:none">
@@ -279,6 +279,23 @@ menu.innerHTML = `
         <div class="m-room-row">
             <button class="m-btn m-small" data-mode="sp-back">Back</button>
             <button class="m-btn m-primary m-small" data-mode="sp-play">Play</button>
+        </div>
+    </div>
+    <div class="m-matchmaking" style="display:none">
+        <div class="m-spmode-title">Matchmaking</div>
+        <div class="m-spmode-row">
+            <label><input type="radio" name="mmteam" value="1v1" checked> 1v1</label>
+            <label><input type="radio" name="mmteam" value="2v2"> 2v2</label>
+        </div>
+        <label class="m-spmode-horde"><input type="checkbox" class="mm-horde"> 🐗 Horde</label>
+        <div class="m-seats">
+            <div class="m-seat m-seat-you"><span class="mm-you-name"></span></div>
+            <button class="m-seat m-seat-invite" data-mode="mm-invite">+ Invite a Friend</button>
+        </div>
+        <div class="m-mm-link" style="display:none"></div>
+        <div class="m-room-row">
+            <button class="m-btn m-small" data-mode="mm-back">Back</button>
+            <button class="m-btn m-primary m-small" data-mode="mm-play">Play</button>
         </div>
     </div>
     <div class="m-lobby" style="display:none">
@@ -464,6 +481,11 @@ const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
 const spHordeEl = menu.querySelector<HTMLInputElement>('.sp-horde')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
+const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
+const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
+const mmYouNameEl = menu.querySelector<HTMLSpanElement>('.mm-you-name')!;
+const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
+const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
 
 let started = false;
 let pending: Pending | null = null;
@@ -967,12 +989,16 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
     });
 }
 
-async function beginNetGame(session: NetSession): Promise<void> {
+async function beginNetGame(
+    session: NetSession,
+    applyMode?: (settings: GameSettings) => void,
+): Promise<void> {
     await handshake(session);
     const localName = session.localName;
 
     if (session.role === 'host') {
         const settings = settingsFromUrl();
+        applyMode?.(settings);
         // networked matches are classic 1v1 — local-mode rosters never travel
         delete settings.seats;
         settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
@@ -999,7 +1025,7 @@ async function beginNetGame(session: NetSession): Promise<void> {
     }
 }
 
-function runPending(p: Pending): void {
+function runPending(p: Pending, applyMode?: (settings: GameSettings) => void): void {
     pending?.cancel();
     pending = p;
     setMenuBusy(true);
@@ -1007,7 +1033,7 @@ function runPending(p: Pending): void {
         .then((session) => {
             pending = null;
             setMenuBusy(false);
-            void beginNetGame(session);
+            void beginNetGame(session, applyMode);
         })
         .catch((e: unknown) => {
             pending = null;
@@ -1040,7 +1066,11 @@ function cancelStarHost(): void {
     startStarBtn.style.display = 'none';
 }
 
-async function beginStarHost(): Promise<void> {
+/** set by beginStarHost's caller right before hosting; read by startStarMatch */
+let starHordeFlag = false;
+
+async function beginStarHost(horde = false): Promise<void> {
+    starHordeFlag = horde;
     setMenuBusy(true);
     setStatus('Opening 2v2 room…');
     const hostName = getPlayerName();
@@ -1108,6 +1138,7 @@ function startStarMatch(): void {
     });
     const settings = settingsFromUrl();
     delete settings.seats; // canonical roster travels separately, localized per recipient
+    if (starHordeFlag) applyHordeMode(settings);
     widenMapForDuo(settings);
     settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     for (const seat of connected) {
@@ -1220,7 +1251,11 @@ menu.addEventListener('click', (e) => {
     const mode = button.dataset.mode;
     if (
         !bootReady &&
-        (mode === 'sp-play' || mode === 'quick' || mode === 'host' || mode === 'host2v2')
+        (mode === 'sp-play' ||
+            mode === 'mm-play' ||
+            mode === 'mm-invite' ||
+            mode === 'host' ||
+            mode === 'host2v2')
     ) {
         setStatus('Still loading — one moment…');
         return;
@@ -1254,14 +1289,65 @@ menu.addEventListener('click', (e) => {
             startLocalMatch({ duo: team === '2v2', horde: spHordeEl.checked });
             break;
         }
-        case 'quick':
+        case 'matchmaking':
             spModeEl.style.display = 'none';
             lobbyEl.style.display = 'none';
             stopRoomPoll();
-            runPending(quickMatch(setStatus));
+            mainButtonsEl.style.display = 'none';
+            // reset to a clean state every time the screen opens — covers
+            // returning here after an earlier invite/play completed or was
+            // cancelled
+            mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
+            mmYouNameEl.textContent = getPlayerName();
+            mmInviteEl.disabled = false;
+            mmInviteEl.textContent = '+ Invite a Friend';
+            mmLinkEl.style.display = 'none';
+            mmModeEl.style.display = '';
             break;
+        case 'mm-back':
+            pending?.cancel();
+            pending = null;
+            cancelStarHost();
+            setMenuBusy(false);
+            setStatus('');
+            mmModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            break;
+        case 'mm-invite': {
+            const team = mmModeEl.querySelector<HTMLInputElement>('input[name="mmteam"]:checked')!.value;
+            const horde = mmHordeEl.checked;
+            mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
+            mmInviteEl.disabled = true;
+            mmInviteEl.textContent = 'Waiting for your friend…';
+            const hostName = getPlayerName();
+            const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(hostName)}`;
+            mmLinkEl.textContent = `Send this to your friend: ${link}`;
+            mmLinkEl.style.display = '';
+            if (team === '2v2') void beginStarHost(horde);
+            else runPending(hostLobby(setStatus), horde ? applyHordeMode : undefined);
+            break;
+        }
+        case 'mm-play': {
+            const team = mmModeEl.querySelector<HTMLInputElement>('input[name="mmteam"]:checked')!.value;
+            const horde = mmHordeEl.checked;
+            mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
+            mmInviteEl.disabled = true;
+            if (team === '2v2') {
+                setStatus('Looking for an open 2v2 room…');
+                void fetchLobbyRooms().then((rooms) => {
+                    const mine = getPlayerName().toLowerCase();
+                    const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
+                    if (open) beginStarJoin(open.name);
+                    else void beginStarHost(horde);
+                });
+            } else {
+                runPending(quickMatch(setStatus), horde ? applyHordeMode : undefined);
+            }
+            break;
+        }
         case 'lobby': {
             spModeEl.style.display = 'none';
+            mmModeEl.style.display = 'none';
             const open = lobbyEl.style.display === 'none';
             lobbyEl.style.display = open ? '' : 'none';
             if (open) startRoomPoll();
