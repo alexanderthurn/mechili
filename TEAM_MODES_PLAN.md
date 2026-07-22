@@ -23,18 +23,38 @@ randomness (§2d), and **horde PvPvE replacing co-op 2vE** (§4). Read
 ARCHITECTURE.md first; every constraint there (action log, determinism,
 fog) shapes this plan.
 
-**Status as of 2026-07-21 — horde and duo-vs-AI are built and confirmed
-working; 2v2 online is built, self-audited, and awaiting its first live
-multi-client test.** One deliberate design change from what's written
-below: §3's mesh was the right call theoretically, but building it
-required N-way peer connection plumbing nobody had exercised before.
-Given the choice between shipping something testable now versus a
-theoretically cleaner design later, **actual implementation uses a host
-star** (reusing the already-proven `SpectatorHub` relay pattern) instead
-of the mesh — a deliberate, discussed tradeoff, not an oversight. §3 below
-is kept as the target design; see the new §3b for what actually shipped
-and why, and §8 for phase-by-phase status. Classic 1v1 is untouched
-throughout — every star-mode code path is additive and gated.
+**Status as of 2026-07-22 — horde, duo-vs-AI, and 2v2 online are all
+built and have been through several real live two-tab test rounds.**
+Every live test found real bugs, and every one of them turned out to be
+the same underlying shape (a shared per-side resource raced by two
+concurrent seats) — that class of bug is now believed closed after a
+full audit (§8's "commutativity audit, completed" note has specifics).
+One deliberate design change from what's written below: §3's mesh was
+the right call theoretically, but building it required N-way peer
+connection plumbing nobody had exercised before. Given the choice
+between shipping something testable now versus a theoretically cleaner
+design later, **actual implementation uses a host star** (reusing the
+already-proven `SpectatorHub` relay pattern) instead of the mesh — a
+deliberate, discussed tradeoff, not an oversight, and one the project
+has since decided to keep rather than revisit: the game's near-term
+focus is single-player and playing with one specific friend, not a
+trust-hardened ladder, so the mesh's main benefit (closing the
+listen-server leak) isn't currently worth its cost. §3 below is kept as
+the target design if that ever changes; see the new §3b for what
+actually shipped and why, and §8 for phase-by-phase status. Classic 1v1
+is untouched throughout — every star-mode code path is additive and
+gated.
+
+**Matchmaking simplified, not queued (2026-07-22):** the menu now has
+just Single Player / Matchmaking / Custom Room. Single Player opens a
+small 1v1-or-2v2 + Horde picker instead of separate mode buttons.
+Matchmaking replaces the old direct-quick-match button with a screen
+that mirrors that same picker, plus two "seats" — invite a friend
+directly (hosts a room, shows a shareable link, starts the instant they
+connect) or hit Play for anonymous pairing (1v1 reuses the existing
+queue; 2v2 auto-discovers-and-joins an open room or hosts one). 2v2
+rooms (however reached) now auto-start the moment a second person
+joins — the "host reviews a roster and clicks Start" step is gone.
 
 ---
 
@@ -682,7 +702,7 @@ re-joins by room name, which is an acceptable answer).
 
 ## 8. Phasing (each phase ships alone, 1v1 keeps working throughout)
 
-**Actual status (2026-07-21):** Phase 0 — **done**, though via a local
+**Actual status (2026-07-22):** Phase 0 — **done**, though via a local
 LOCAL-perspective `SeatDef[]` (`team` relabeled per client) rather than
 the fully canonical wire-format rewrite this phase originally specified;
 canonical ids/roster exist too, but scoped to star mode only (§3b), with
@@ -690,9 +710,58 @@ classic 1v1 kept on its original `swapPerspective` path untouched instead
 of migrated. Phase 1 — **done as a host star, not the mesh** (§3b).
 Phase 2 (Horde) — **done and confirmed working**, including the belt/
 visible-waves refinements requested after first playtest. Phase 3 (2v2)
-— **mostly done**: teammate machinery, lobby, and online play all work;
-the quick-match party queue and vision-permission spectator flow are the
-two pieces explicitly not built (§10). Phase 4 and Future — not started.
+— **teammate machinery is now fully done, including the §2 item 4
+commutativity audit**: every per-side ownership table (gold, army,
+items, tactics/rally-oil-spells, buildings, tech, round cards,
+speciality, HP) is per-seat now, not just the ones Phase 0 originally
+re-keyed — see the "commutativity audit, completed" note below. Lobby
+and online play work, live-tested across several two-tab sessions with
+real bugs found and fixed each time (see the implementation-status
+memory / commit history for specifics). The quick-match party queue is
+now approximated (Matchmaking screen: invite-a-friend via shareable
+link, or auto-discover-and-join an existing open room) rather than a
+real backend queue; vision-permission spectator flow is still not
+built (§10). Phase 4 and Future — not started.
+
+**Commutativity audit, completed (2026-07-22):** §2 item 4 asked for an
+audit of "remaining cross-seat writes for order-independence." Every
+finding from that audit is now fixed, each following the same pattern —
+convert a shared per-side `Record<Team,...>` to a per-seat array, so two
+teammates' concurrent local-then-relayed actions can never race for the
+same slot:
+- Command Tower/Research Center abilities (sell ability, rally-route
+  unlock, permanent attack/HP boosts, round range/speed boosts) — found
+  during a live 2v2 test, same "tiered price computed from a shared
+  count" shape as the original chooseCard bug, but worse (real
+  cross-client price/economy divergence, not just a visual mismatch).
+- Shop unlocks (`unlockedUnits`/`unlockUsedThisRound`) — found during
+  the same pass.
+- Round cards and the tactics pool (rally routes, oil spills, battle
+  spells, sell-charge) — round cards were still primary-seat-gated
+  after the original chooseCard race fix; a live-tested bug ("second
+  player's different tactic didn't show up") traced directly to this.
+  `RallyRoute`/`OilStamp`/`SpellStamp` all carry a `seat` field now.
+- `TechTree` — tiered pricing from a shared owned-tech count, identical
+  shape to the boost bug.
+- Speciality and match HP — the last holdout. HP is now additive per
+  seat (not an overwrite), which sidesteps the race by construction
+  (addition doesn't care about arrival order) rather than needing a
+  "primary decides" gate at all.
+
+The one deliberate, still-shared exception: tactic *placement targeting*
+(a rally route redirects any teammate's units; a golden ballista's aura
+buffs nearby allies) stays team-wide, because that's genuinely a
+battlefield/side concept, not a per-seat resource — the audit's real
+distinction throughout was "who owns the resource" vs. "who the
+resulting effect applies to on the battlefield," and only the former
+needed to move.
+
+Also shipped this pass, not part of the audit: lock-in is now enforced
+at the actual message-receiving/dispatch layer (not just gating the
+sender's own UI) — found via a live report that Undo still worked while
+"waiting for ally"; fixed both the UI-level check and, more importantly,
+the code that applies another seat's relayed action, which had no
+lock-in check at all before.
 
 **Phase 0 — Seat refactor (no behavior change).** Roster-driven `SeatId`
 (§2); re-key the ownership tables in `game.ts` / `settings.ts` (`Economy`) /
