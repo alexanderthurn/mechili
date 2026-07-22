@@ -67,9 +67,10 @@ export interface SimConfig {
     statsOf: (unit: Unit) => ResolvedStats;
     /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
-    /** base flank spawn duration in seconds (before team multiplier) */
+    /** base flank spawn duration in seconds (before per-seat multiplier) */
     flankSpawnSeconds: number;
-    flankSpawnMult: (team: BattleTeam) => number;
+    /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
+    flankSpawnMult: (seat: SeatId) => number;
     needsFlankSpawn: (unit: Unit) => boolean;
     /** rally routes placed this deployment (player tactics only for now) */
     rallyRoutes?: readonly RallyRoute[];
@@ -476,7 +477,7 @@ export class BattleSim {
             const base = this.config.flankSpawnSeconds ?? DEFAULT_SETTINGS.deploy.flankSpawnSeconds;
             // the ramp starts when the opening freeze ends, so the advertised
             // duration is real vulnerability time
-            a.spawnUntil = BATTLE_START_FREEZE + base * this.config.flankSpawnMult(a.unit.team);
+            a.spawnUntil = BATTLE_START_FREEZE + base * this.config.flankSpawnMult(a.unit.seat);
             a.hp = 1;
         }
         for (const unit of spawningUnits) unit.flankSpawnDone = true;

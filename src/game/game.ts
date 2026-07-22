@@ -306,10 +306,10 @@ export class Game {
     private readonly creditUsed: boolean[];
     /** Command Tower Credit (per seat): debt owed at the next deployment start */
     private readonly creditDebt: boolean[];
-    /** each side's chosen starting-card speciality (null until picked) */
-    private readonly speciality: Record<Team, SpecialityId | null> = { player: null, enemy: null };
-    /** per-team multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
-    private readonly flankSpawnMult: Record<Team, number> = { player: 1, enemy: 1 };
+    /** each SEAT's own chosen starting-card speciality (null until picked) */
+    private readonly speciality: (SpecialityId | null)[];
+    /** per-SEAT multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
+    private readonly flankSpawnMult: number[];
     /** each SEAT's own unequipped pack items — per seat, never shared (sized in the constructor, once `seats` is known) */
     private readonly itemInventory: string[][];
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
@@ -469,9 +469,16 @@ export class Game {
         this.itemInventory = this.seats.map(() => []);
         this.tacticInventory = this.seats.map(() => []);
         this.roundCardTaken = this.seats.map(() => false);
+        this.speciality = this.seats.map(() => null);
+        this.flankSpawnMult = this.seats.map(() => 1);
         this.techTree = new TechTree(this.seats.length);
-        this.playerHp = settings.startingHp;
-        this.enemyHp = settings.startingHp;
+        // starts at 0, not settings.startingHp: each seat's own card ADDS its
+        // own startingHp in chooseCard (additive, so it's safe regardless of
+        // which seat's pick a client applies first) — settings.startingHp is
+        // only ever a pre-pick placeholder for the HUD's initial bar max
+        // (see setPlayers below), never the real baseline
+        this.playerHp = 0;
+        this.enemyHp = 0;
         this.renderer = new WebGLRenderer({
             canvas: threeCanvas,
             antialias: prefs().antialias,
@@ -1411,7 +1418,7 @@ export class Game {
         this.spawnHordeWave();
         // elite specialists recruit at level 2 permanently (and free of premium)
         for (let seat = 0; seat < this.seats.length; seat++) {
-            this.recruitLevel[seat] = this.speciality[this.seats[seat]!.team] === 'elite' ? 2 : 1;
+            this.recruitLevel[seat] = this.speciality[seat] === 'elite' ? 2 : 1;
         }
         this.sellState.used.fill(0);
         this.deployState.extra.fill(0);
@@ -1444,23 +1451,23 @@ export class Game {
                 this.creditDebt[seat] = false;
             }
         }
-        // card speciality income and gifts
+        // card speciality income and gifts — per SEAT now, own pick, own reward
         for (let seat = 0; seat < this.seats.length; seat++) {
             const team = this.seats[seat]!.team;
-            if (this.speciality[team] === 'costControl') {
+            if (this.speciality[seat] === 'costControl') {
                 this.economy.credit(seat, COST_CONTROL_INCOME);
             }
             // the elite's round-1 top-up: exactly two level-2 units at 150
-            if (this.speciality[team] === 'elite' && this.round === 1) {
+            if (this.speciality[seat] === 'elite' && this.round === 1) {
                 this.economy.credit(seat, ELITE_ROUND1_BONUS);
             }
             // NOTE: must also run while hydrating — the gift is never in the
             // action log, so a rebuild that skipped it would produce a
             // different board (and shifted unit ids → guaranteed desync)
-            if (this.speciality[team] === 'archer' && this.round === FREE_ARCHER_ROUND) {
+            if (this.speciality[seat] === 'archer' && this.round === FREE_ARCHER_ROUND) {
                 const type = unitTypeById('archer')!;
-                const anchor = this.placement.findStartSpot(team, type);
-                const unit = anchor ? this.placement.spawn(type, anchor, team, false, true) : null;
+                const anchor = this.placement.findStartSpot(team, type, seat);
+                const unit = anchor ? this.placement.spawn(type, anchor, team, false, true, seat) : null;
                 if (unit) {
                     unit.level = FREE_ARCHER_LEVEL;
                     unit.refreshLevelBadge();
@@ -1696,10 +1703,19 @@ export class Game {
         this.startBattlePhase();
     }
 
-    /** the chosen specialist card of a side (null until picked) */
-    private starterCardOf(team: Team): StartCard | null {
-        const spec = this.speciality[team];
+    /** a specific seat's own chosen specialist card (null until picked) */
+    private starterCardOfSeat(seat: SeatId): StartCard | null {
+        const spec = this.speciality[seat];
         return spec ? (START_CARDS.find((c) => c.speciality === spec) ?? null) : null;
+    }
+
+    /** the side's DISPLAYED specialist card — the primary seat's pick. Every
+     *  seat's own card still grants its own army/tactic/effects (per-seat,
+     *  see chooseCard); the persistent top-bar label and reveal screen only
+     *  have room for one face per side, so this shows the primary's, same
+     *  as speciality/HP already work. */
+    private starterCardOf(team: Team): StartCard | null {
+        return this.starterCardOfSeat(primarySeatOf(this.seats, team));
     }
 
     /** speciality names under the commander names — the opponent's pick stays
@@ -1716,7 +1732,10 @@ export class Game {
         this.maybeStartMatch();
         this.syncSpecialities();
         if (this.awaitingCards && this.round === 0) {
-            const own = this.starterCardOf('player');
+            // MY OWN pick specifically — not necessarily the same as
+            // starterCardOf('player'), which shows the primary seat's card
+            // and may not be mine if I'm not the primary
+            const own = this.starterCardOfSeat(this.humanSeat);
             if (own) this.hud.showWaitingCard(own);
         }
     }
@@ -1767,7 +1786,7 @@ export class Game {
      *  action, and consuming the seeded card stream for a timing-dependent
      *  event would desync future offers from what a rebuild computes. */
     private autoPickSpecialist(): void {
-        if (this.speciality.player !== null || !this.playerStarterOffer?.length) return;
+        if (this.starterPicked[this.humanSeat] || !this.playerStarterOffer?.length) return;
         const pick =
             this.playerStarterOffer[
                 Math.floor(Math.random() * this.playerStarterOffer.length)
@@ -1792,7 +1811,7 @@ export class Game {
 
     /** build-phase clock hit zero — resolve any open card pick, then lock in */
     private onDeployTimerExpired(): void {
-        if (this.round === 0 && this.speciality.player === null) {
+        if (this.round === 0 && !this.starterPicked[this.humanSeat]) {
             this.autoPickSpecialist();
             return;
         }
@@ -2182,7 +2201,7 @@ export class Game {
         this.hydrating = false;
 
         // reopen whatever decision was pending when the state was captured
-        if (this.speciality.player === null) {
+        if (!this.starterPicked[this.humanSeat]) {
             this.showStarterPick(starterOffer);
         } else if (this.pendingOffer && !this.roundCardTaken[this.humanSeat] && this.phase === 'build') {
             this.awaitingCards = true;
@@ -2348,19 +2367,19 @@ export class Game {
         );
     }
 
-    /** round 1 begins once BOTH specialists are chosen (the peer's may lag) */
+    /** round 1 begins once EVERY seat has chosen a specialist (a teammate's may lag) */
     private maybeStartMatch(): void {
         if (!this.awaitingCards || this.round > 0) return;
-        if (!this.speciality.player || !this.speciality.enemy) return;
-        // speciality.* only reflects each side's PRIMARY seat's pick (by
-        // design — see actions.ts chooseCard). In star mode a non-primary
-        // seat is a separate human on a separate machine who can lag behind;
-        // without this, the primary seat's own pick alone would satisfy the
-        // check above and round could advance before a teammate's pick has
-        // even arrived. Once that happens their chooseCard shows up tagged
-        // for the now-past round and drainStarRemoteQueue's FIFO guard
-        // strands it — and everything queued behind it — forever (no
-        // starter units, no further build actions ever applied for them).
+        // every seat now sets its own speciality slot directly (no more
+        // shared side-wide value to check) — starterPicked is the correct,
+        // and only, per-seat gate. In star mode a non-primary seat is a
+        // separate human on a separate machine who can lag behind; without
+        // requiring EVERY seat here, round could advance before a
+        // teammate's pick has even arrived. Once that happens their
+        // chooseCard shows up tagged for the now-past round and
+        // drainStarRemoteQueue's FIFO guard strands it — and everything
+        // queued behind it — forever (no starter units, no further build
+        // actions ever applied for them).
         if (!this.starterPicked.every(Boolean)) return;
         this.awaitingCards = false;
         this.hud.hideCardOverlay(); // the waiting card, if one is up
@@ -2710,7 +2729,7 @@ export class Game {
         const hpTier = this.boostState.hp[unit.seat]!;
         if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
         if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
-        const spec = this.speciality[team];
+        const spec = this.speciality[unit.seat];
         if (spec === 'air' && type.flying) {
             stats.damage *= 1 + AIR_BONUS;
             stats.hp *= 1 + AIR_BONUS;
@@ -3821,7 +3840,7 @@ export class Game {
             statsOf: (unit) => this.resolvedStats(unit),
             hasTech: (seat, typeId, techId) => seat >= 0 && this.techTree.has(seat, typeId, techId),
             flankSpawnSeconds: this.settings.deploy.flankSpawnSeconds ?? 5,
-            flankSpawnMult: (team) => (team === 'horde' ? 1 : this.flankSpawnMult[team]),
+            flankSpawnMult: (seat) => (seat < 0 ? 1 : this.flankSpawnMult[seat]!),
             needsFlankSpawn: (unit) =>
                 // mechs on flank at battle start — not tied to a specific round, only to flank tiles
                 !unit.flankSpawnDone &&
@@ -4129,7 +4148,12 @@ export class Game {
                 playerHp: this.playerHp,
                 enemyHp: this.enemyHp,
                 names: { ...this.playerNames },
-                speciality: { player: this.speciality.player, enemy: this.speciality.enemy },
+                // telemetry schema is unchanged (one speciality per side) —
+                // reports the primary seat's, same as the persistent UI label
+                speciality: {
+                    player: this.speciality[primarySeatOf(this.seats, 'player')]!,
+                    enemy: this.speciality[primarySeatOf(this.seats, 'enemy')]!,
+                },
                 units: summarizeUnits(this.placement.allUnits()),
                 // telemetry reporting only — merges every seat's own unlocks
                 // per side (each seat's shop stays exclusively its own in play)
@@ -4212,10 +4236,14 @@ export class Game {
         let simCpu: Record<string, number> | undefined;
 
         if (!this.matchOver && !this.suspended) {
+            // freeze MY clock once I've personally picked, until EVERYONE
+            // has (teammate or enemy) — the per-seat analogue of "I've
+            // picked, waiting on the opponent" now that there's no single
+            // shared per-side speciality value to check anymore
             const waitingForStarterPeer =
                 this.round === 0 &&
-                this.speciality.player !== null &&
-                this.speciality.enemy === null;
+                this.starterPicked[this.humanSeat] &&
+                !this.starterPicked.every(Boolean);
             if (!waitingForStarterPeer) {
                 this.phaseRemaining -= gameDt;
             }
@@ -4306,7 +4334,7 @@ export class Game {
                     (!this.deployReady.enemy ||
                         !this.deployFlushedToPeer ||
                         !this.deployCaughtUpFromPeer)) ||
-                    (this.awaitingCards && this.round === 0 && this.speciality.player !== null) ||
+                    (this.awaitingCards && this.round === 0 && this.starterPicked[this.humanSeat]) ||
                     (this.battleReady.player && !this.battleReady.enemy))) ||
             // team modes (local duo or online 2v2): reuse the same "hide
             // everything, show the waiting text" treatment once THIS seat

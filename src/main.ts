@@ -65,6 +65,9 @@ function applyDuoMode(settings: GameSettings): void {
 function settingsFromUrl(): GameSettings {
     const params = new URLSearchParams(location.search);
     const settings = structuredClone(DEFAULT_SETTINGS);
+    // NOTE: no longer shortens real matches for testing — actual match HP is
+    // additive per seat from a zero baseline (chooseCard), so this only
+    // affects the pre-pick placeholder shown before any card is chosen
     const hp = Number(params.get('hp'));
     if (hp > 0) settings.startingHp = hp;
     const build = Number(params.get('build'));

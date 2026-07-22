@@ -347,10 +347,10 @@ export interface ActionContext {
     creditUsed: boolean[];
     /** Command Tower Credit (per SEAT): debt still owed at the next deployment start */
     creditDebt: boolean[];
-    /** each side's chosen card speciality (null until the pick) */
-    speciality: Record<Team, SpecialityId | null>;
-    /** per-team multiplier on flank spawn duration (Flanky card → 0.5) */
-    flankSpawnMult: Record<Team, number>;
+    /** each SEAT's own chosen card speciality (null until its pick) — own effect, own units */
+    speciality: (SpecialityId | null)[];
+    /** per-SEAT multiplier on flank spawn duration (Flanky card → 0.5) */
+    flankSpawnMult: number[];
     /**
      * Each SEAT's own unequipped pack items (item ids; duplicates stack) —
      * per-seat, never shared, so two teammates can never race to consume the
@@ -641,7 +641,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'recruitLevel': {
-                if (this.ctx.speciality[action.team] === 'elite') return false; // already permanent
+                if (this.ctx.speciality[seat] === 'elite') return false; // already permanent
                 if (recruitLevel[seat]! > 1) return false; // once per round
                 if (!economy.spend(seat, leveling.recruitLevel2Cost)) return false;
                 entry.paid = leveling.recruitLevel2Cost;
@@ -756,29 +756,26 @@ export class ActionDispatcher {
                 return true;
             }
             case 'chooseCard': {
-                // one starter pick per SEAT — in duo modes each commander
-                // picks their own opening army, own shop unlocks, own tactic.
-                // Only speciality/HP stay a single shared side-wide effect,
-                // decided by the side's PRIMARY seat — this MUST be keyed by
-                // which seat it is, never by "whichever pick gets processed
-                // first": local-vs-relayed arrival order differs per client
-                // over a real network (my own pick applies instantly; a
-                // teammate's arrives with network latency), so "first" is a
-                // different pick on each client — a guaranteed side-wide
-                // desync the moment two seats on one side are on different
-                // machines.
+                // one starter pick per SEAT — every seat's own card decides
+                // its own army, shop unlocks, tactic, speciality effect, and
+                // HP contribution. Nothing here is primary-seat-gated
+                // anymore: HP is additive (each seat's own startingHp adds
+                // to the side's pool, from a zero baseline — see the
+                // constructor), so the final total is order-independent
+                // regardless of which seat's pick a client happens to apply
+                // first. Speciality/flankSpawnMult are plain per-seat
+                // overwrites of THIS SEAT's own slot, so they can never
+                // race with a teammate's slot either.
                 if (this.ctx.starterPicked[seat]) return false;
                 const card = START_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
-                if (seat === primarySeatOf(this.ctx.seats, action.team)) {
-                    this.ctx.speciality[action.team] = card.speciality;
-                    if (card.speciality === 'flanky') {
-                        this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
-                    }
-                    entry.prevHp = this.ctx.hp.get(action.team);
-                    this.ctx.hp.set(action.team, card.startingHp);
+                this.ctx.speciality[seat] = card.speciality;
+                if (card.speciality === 'flanky') {
+                    this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
                 }
+                entry.prevHp = this.ctx.hp.get(action.team);
+                this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + card.startingHp);
                 // shop unlocks are per-SEAT (your own card decides your own
                 // buyable roster — no sharing, per-seat like items), so unlike
                 // speciality/HP above this is unconditional, not primary-only
@@ -859,7 +856,8 @@ export class ActionDispatcher {
                     entry.grantedTactics = [...card.tactics];
                 }
                 if (card.flankSpawnHalf) {
-                    this.ctx.flankSpawnMult[action.team] = FLANK_SPAWN_HALF_MULT;
+                    // round cards are primary-seat-only (gated above)
+                    this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
                 }
                 this.ctx.roundCardTaken[seat] = true;
                 return true;
