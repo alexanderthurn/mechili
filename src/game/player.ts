@@ -44,3 +44,20 @@ export function setPlayerName(name: string): boolean {
     }
     return true;
 }
+
+/**
+ * Seeds the saved name (e.g. from Steam) only if none has been chosen yet —
+ * unlike `setPlayerName`, never overwrites a name the player already
+ * customized via the in-game editor. A no-op if `name` fails validation
+ * (e.g. a Steam display name that's all emoji/CJK and strips to nothing as
+ * a room code) — `getPlayerName`'s own random-default fallback still
+ * applies normally in that case.
+ */
+export function seedPlayerName(name: string): void {
+    try {
+        if (localStorage.getItem(STORAGE_KEY)) return;
+    } catch {
+        return;
+    }
+    setPlayerName(name);
+}
