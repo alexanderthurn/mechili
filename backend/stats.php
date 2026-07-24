@@ -26,7 +26,8 @@
  *   GET  ?action=grouped&limit=<n>
  *       Lightweight index GROUPED by matchKey, most-recent-first — for a
  *       human browsing match history (replays.html), not a sync cursor.
- *       {"groups":[{matchKey,ts,records:[{id,ts,side,mode,gameVersion,result,rounds,names},...]}]}
+ *       {"groups":[{matchKey,ts,records:[{id,ts,side,mode,gameVersion,result,rounds,
+ *       playerHp,enemyHp,verifiedCount,lastVerifiedAt,names},...]}]}
  *   GET  ?action=get&id=<id>
  *       One full record.
  *   GET  ?action=count
@@ -146,6 +147,14 @@ function handleSubmit(): void {
     $suffix = '_' . $record['side'] . '_' . $id . '.json';
     foreach (matchFiles() as $f) {
         if (substr($f, -strlen($suffix)) === $suffix) {
+            // a matching Verify re-check never gets its own file (it would
+            // just collide with the original) — that's the right call for
+            // storage, but it left no trace a check ever happened, so a
+            // fully-consistent match could never show as "verified".
+            // Record the fact on the existing file instead of discarding it.
+            if ($record['source'] === 'verify') {
+                recordVerification($f);
+            }
             respond(['ok' => true, 'id' => $id, 'duplicate' => true]);
         }
     }
@@ -171,6 +180,22 @@ function handleSubmit(): void {
     }
 
     respond(['ok' => true, 'id' => $id, 'duplicate' => false]);
+}
+
+/** bumps the lightweight verifiedCount/lastVerifiedAt on an existing record
+ *  — best-effort, no locking: losing a verify tick to a concurrent write is
+ *  harmless (unlike the original submission, this never carries data that
+ *  must not be lost). */
+function recordVerification(string $path): void {
+    $raw = @file_get_contents($path);
+    if ($raw === false) return;
+    $data = json_decode($raw, true);
+    if (!is_array($data)) return;
+    $data['verifiedCount'] = (int)($data['verifiedCount'] ?? 0) + 1;
+    $data['lastVerifiedAt'] = time();
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) return;
+    @file_put_contents($path, $json);
 }
 
 function handleList(bool $full): void {
@@ -264,6 +289,11 @@ function handleGrouped(): void {
             'rounds' => $data['rounds'] ?? 0,
             'playerHp' => $data['playerHp'] ?? 0,
             'enemyHp' => $data['enemyHp'] ?? 0,
+            // a matching Verify re-check never creates its own record (see
+            // recordVerification) — these two fields are the only trace one
+            // ever happened, tracked on the original record instead
+            'verifiedCount' => (int)($data['verifiedCount'] ?? 0),
+            'lastVerifiedAt' => (int)($data['lastVerifiedAt'] ?? 0),
             'names' => [
                 'local' => $data['names']['local'] ?? '',
                 'opponent' => $data['names']['opponent'] ?? '',

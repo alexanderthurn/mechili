@@ -244,12 +244,18 @@
         crossOk = oppositeResults && a.rounds === b.rounds;
       }
       const mismatch = !aAgree || !bAgree || !crossOk;
+      // an exactly-matching Verify re-check dedupes away server-side and
+      // never becomes its own record — it instead bumps verifiedCount on
+      // the record it matched (see stats.php's recordVerification), so the
+      // true count is discrepant verify records (each their own row) PLUS
+      // matching ones tracked as a counter on the original.
       const verifyRecords = records.filter((r) => r.source === 'verify');
+      const dedupedVerifies = records.reduce((sum, r) => sum + (r.verifiedCount || 0), 0);
       return {
         solo: aRecords.length === 0 || bRecords.length === 0,
         mismatch,
-        verified: !mismatch && verifyRecords.length > 0,
-        verifyCount: verifyRecords.length,
+        verified: !mismatch && (verifyRecords.length > 0 || dedupedVerifies > 0),
+        verifyCount: verifyRecords.length + dedupedVerifies,
         verifyRecords,
       };
     }
@@ -297,22 +303,29 @@
 
     /** per-match Verify history — who ran it and whether it matched — shown
      *  only when the row is expanded (the collapsed badge already carries
-     *  the count via analyzeGroup().verifyCount) */
+     *  the count via analyzeGroup().verifyCount). Two kinds of evidence:
+     *  a discrepant verify gets its own stored record (source: 'verify');
+     *  a matching one leaves no record of its own, just a verifiedCount/
+     *  lastVerifiedAt bump on the record it matched — both are shown. */
     function renderVerifySummary(records, info) {
-      if (info.verifyRecords.length === 0) {
-        return '<div class="verify-summary">No verifications yet.</div>';
+      const chips = [];
+      for (const r of records) {
+        if (r.source === 'verify' || !r.verifiedCount) continue;
+        chips.push(`<span class="verify-chip ok">✓ ${escapeHtml(r.names.local || '(unknown)')}` +
+          `<span class="vc-meta">side ${escapeHtml(r.side)} · verified ×${r.verifiedCount} · last ${fmtTime(r.lastVerifiedAt)}</span></span>`);
       }
-      const chips = info.verifyRecords.map((r) => {
+      for (const r of info.verifyRecords) {
         const baseline = records.find((o) => o.side === r.side && o.source !== 'verify' && o !== r);
         const matches = !baseline ||
           (r.result === baseline.result && r.rounds === baseline.rounds &&
             r.playerHp === baseline.playerHp && r.enemyHp === baseline.enemyHp);
         const cls = matches ? 'ok' : 'bad';
         const icon = matches ? '✓' : '⚠';
-        return `<span class="verify-chip ${cls}">${icon} ${escapeHtml(r.names.local || '(unknown)')}` +
-          `<span class="vc-meta">side ${escapeHtml(r.side)} · ${fmtTime(r.ts)}</span></span>`;
-      }).join('');
-      return `<div class="verify-summary"><strong>Verifications (${info.verifyRecords.length}):</strong>${chips}</div>`;
+        chips.push(`<span class="verify-chip ${cls}">${icon} ${escapeHtml(r.names.local || '(unknown)')}` +
+          `<span class="vc-meta">side ${escapeHtml(r.side)} · ${fmtTime(r.ts)}</span></span>`);
+      }
+      if (chips.length === 0) return '<div class="verify-summary">No verifications yet.</div>';
+      return `<div class="verify-summary"><strong>Verifications (${info.verifyCount}):</strong>${chips.join('')}</div>`;
     }
 
     function renderGroup(group, idx) {
