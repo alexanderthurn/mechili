@@ -1,0 +1,188 @@
+/**
+ * Desktop-first ground material tiers. Geometry stays cheap; texture richness
+ * and shader detail scale with the player's graphics preset / scenery + ground
+ * prefs so mobile low stays light and ultra gaming PCs get denser grass.
+ */
+
+import { detectGraphicsPreset, prefs, type GraphicsPreset } from './prefs';
+import { touchFirstDevice } from './inputCapabilities';
+
+export type GroundTextureTier = 'low' | 'medium' | 'high' | 'ultra';
+
+/**
+ * Tweak these live while testing photo accents (High/Ultra).
+ * Soft-reload / hard-refresh after edits so shaders recompile.
+ *
+ * Grass photos (soft round multiply blobs on HQ lawn):
+ * - density: 0..1 — chance a blob appears (↑ = more accents)
+ * - cellScale: ↑ = more/smaller blobs, ↓ = fewer/larger blobs
+ * - radius: blob size in cell units (↑ = bigger soft circles)
+ * - strength: 0..1 — how hard the photo multiplies into the lawn
+ * - uvScale: ↑ = photo features look smaller (good for close-ups)
+ *
+ * Rock photos (same idea on legacy mountain rock):
+ * - same knobs; worldScale = world units per photo tile (↑ = larger features)
+ */
+export const PHOTO_BLEND = {
+    grass: {
+        density: 0.3,
+        cellScale: 1.15,
+        radius: 0.1,
+        strength: 5,
+        uvScale: 3.4,
+    },
+    rock: {
+        density: 1,
+        cellScale: 0.85,
+        radius: 1.05,
+        strength: 1,
+        /** world units covered by one rock-photo tile */
+        worldScale: 55,
+        uvScale: 1.4,
+    },
+} as const;
+
+/**
+ * How far ground units sit relative to terrain height. Negative sinks feet
+ * into the grass (kills the hover look when normals make the lawn read high).
+ * Try -0.05 … -0.15 if dwarfs still float or clip.
+ */
+export const GROUND_UNIT_Y = -0.08;
+
+/**
+ * Footprint / wear dirt (`dirt-albedo-hq`) — NOT the grass photo accents.
+ * Shows under unit stamps + sparse base patches at match start.
+ *
+ * - basePatchArea: lower divisor → more random dirt patches (try 12000–40000)
+ * - basePatchAlpha: how strong those starting patches look (0.2–0.8)
+ * - stampStrength: multiplies every footprint stamp (0.5–2)
+ * - stampRadius: multiplies footprint size (0.7–1.5)
+ */
+export const WEAR_BLEND = {
+    // denser start patches (~2× prior 22000); leave headroom for footprints
+    basePatchArea: 11000,
+    basePatchAlpha: 0.55,
+    stampStrength: 1,
+    stampRadius: 1,
+} as const;
+
+export interface GroundMaterialProfile {
+    tier: GroundTextureTier;
+    /** max anisotropy on tiled ground maps */
+    anisotropy: number;
+    /** MeshStandardMaterial.normalScale magnitude */
+    normalScale: number;
+    /** second UV scale multiplier for micro-detail (1 = off) */
+    detailScale: number;
+    /** 0..1 blend of micro albedo/normal into base */
+    detailStrength: number;
+    /** vary roughness from albedo luminance in the ground shader */
+    roughnessFromAlbedo: boolean;
+    /** prefer HQ grass files when present */
+    useHqTextures: boolean;
+    /** slightly smaller tile → more texels/wu on HQ sets */
+    detailTile: number;
+    /**
+     * How hard the soft macro canvas remaps the tiled grass (1 = full legacy
+     * look). Lower on high/ultra so HQ albedo/normals actually show.
+     */
+    macroStrength: number;
+    /** world-UV texture bombing to break wallpaper tiling (high/ultra) */
+    textureBomb: boolean;
+}
+
+const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
+    low: {
+        tier: 'low',
+        anisotropy: 4,
+        normalScale: 0.28,
+        detailScale: 1,
+        detailStrength: 0,
+        roughnessFromAlbedo: false,
+        useHqTextures: false,
+        detailTile: 20,
+        macroStrength: 1,
+        textureBomb: false,
+    },
+    medium: {
+        tier: 'medium',
+        anisotropy: 8,
+        normalScale: 0.48,
+        detailScale: 5.2,
+        detailStrength: 0.38,
+        roughnessFromAlbedo: true,
+        useHqTextures: false,
+        detailTile: 18,
+        macroStrength: 0.82,
+        textureBomb: false,
+    },
+    high: {
+        tier: 'high',
+        anisotropy: 16,
+        normalScale: 0.85,
+        detailScale: 6.5,
+        detailStrength: 0.58,
+        roughnessFromAlbedo: true,
+        useHqTextures: true,
+        // Field photos are close-ups — larger tile = less "macro" look
+        detailTile: 18,
+        macroStrength: 0.48,
+        textureBomb: true,
+    },
+    ultra: {
+        tier: 'ultra',
+        anisotropy: 16,
+        normalScale: 1.05,
+        detailScale: 7.2,
+        detailStrength: 0.68,
+        roughnessFromAlbedo: true,
+        useHqTextures: true,
+        detailTile: 16,
+        macroStrength: 0.35,
+        textureBomb: true,
+    },
+};
+
+/** Infer ground texture tier from the active graphics bundle (or closest mix). */
+export function groundTextureTier(): GroundTextureTier {
+    const preset = detectGraphicsPreset();
+    if (preset) return preset;
+
+    const p = prefs();
+    // Custom mixes: prefer the richer of scenery / shadows as a desktop signal.
+    const rank = (v: string): number =>
+        ({ off: 0, low: 1, medium: 2, high: 3, ultra: 4 }[v] ?? 2);
+    const score = Math.max(rank(p.scenery), rank(p.shadows), rank(p.groundEffects));
+    if (score >= 4) return 'ultra';
+    if (score >= 3) return 'high';
+    if (score >= 2) return 'medium';
+    return 'low';
+}
+
+export function groundMaterialProfile(): GroundMaterialProfile {
+    let tier = groundTextureTier();
+    // Touch devices keep the light path even if the user bumps presets — HQ
+    // 2K grass + dual-scale is aimed at the "gaming PC looks boring" complaint.
+    if (touchFirstDevice() && (tier === 'high' || tier === 'ultra')) {
+        tier = 'medium';
+    }
+    return PROFILES[tier];
+}
+
+/** Stable cache key fragment for materials that inject ground-detail GLSL. */
+export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
+    if (profile.detailStrength <= 0 && !profile.roughnessFromAlbedo && profile.macroStrength >= 0.99) {
+        return 'plain';
+    }
+    const g = PHOTO_BLEND.grass;
+    const r = PHOTO_BLEND.rock;
+    return `d${profile.detailScale.toFixed(1)}s${profile.detailStrength.toFixed(2)}r${
+        profile.roughnessFromAlbedo ? 1 : 0
+    }m${profile.macroStrength.toFixed(2)}b${profile.textureBomb ? 1 : 0}` +
+        `pg${g.density}-${g.strength}-${g.uvScale}` +
+        `rk${r.density}-${r.strength}-${r.worldScale}`;
+}
+
+export function graphicsPresetOrFallback(): GraphicsPreset {
+    return detectGraphicsPreset() ?? (groundTextureTier() as GraphicsPreset);
+}

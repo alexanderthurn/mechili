@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
 import {
+    ACESFilmicToneMapping,
     BasicShadowMap,
     Color,
     DirectionalLight,
@@ -8,6 +9,7 @@ import {
     PCFSoftShadowMap,
     PMREMGenerator,
     Scene,
+    SRGBColorSpace,
     WebGLRenderer,
     type Mesh,
     type Object3D,
@@ -105,6 +107,7 @@ import {
     clampTacticEnd,
     clampTacticPoint,
     pointInSafeZone,
+    safeZoneDisks,
     usesSpellPlacement,
     type OilStamp,
     type RallyRoute,
@@ -543,6 +546,10 @@ export class Game {
             // efficient tier there; desktops ignore or barely notice this hint
             powerPreference: touchFirstDevice() ? 'low-power' : 'default',
         });
+        this.renderer.outputColorSpace = SRGBColorSpace;
+        this.renderer.toneMapping = ACESFilmicToneMapping;
+        // Slightly above 1 so the denser grass normals/albedo still read under ACES
+        this.renderer.toneMappingExposure = touchFirstDevice() ? 1.0 : 1.08;
         this.renderer.setPixelRatio(effectiveDpr());
 
         this.scene.background = new Color(THEME.sky);
@@ -3363,6 +3370,13 @@ export class Game {
             }
         }
         this.spellVisuals.sync(this.visibleSpellStamps(), draft);
+        if (armed?.respectsSafeZone && this.playerCanAct) {
+            this.spellVisuals.syncSafeZones(
+                safeZoneDisks(this.placement.allUnits(), 'player', armed.radius ?? 0),
+            );
+        } else {
+            this.spellVisuals.syncSafeZones([]);
+        }
     }
 
     /** this round's spell markers: own always; enemy only after we lock in */

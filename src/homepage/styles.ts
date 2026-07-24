@@ -84,6 +84,7 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
     gap: 12px;
     justify-content: center;
+    align-items: stretch;
     width: 100%;
     margin-top: 8px;
 }
@@ -92,10 +93,9 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    min-height: 9.5rem;
-    padding: 14px 18px 16px;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 18px;
     border-radius: 14px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
@@ -111,7 +111,6 @@ body {
 .mh-play-btn.steam {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
     border-color: ${u.brassDark};
-    padding: 8px 14px 16px;
 }
 .mh-steam-link.disabled {
     cursor: not-allowed;
@@ -122,7 +121,6 @@ body {
     opacity: 0.5;
 }
 .mh-play-title {
-    flex: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -131,16 +129,18 @@ body {
     letter-spacing: 0.02em;
     gap: 8px;
     text-align: center;
+    line-height: 1.2;
+    min-height: 1.4em;
 }
 .mh-play-btn.steam .mh-play-title { color: ${u.brassLight}; }
 .mh-steam-logo {
-    width: 7rem;
-    height: 7rem;
+    width: 7.5rem;
+    height: auto;
+    aspect-ratio: 256 / 77;
     object-fit: contain;
     display: block;
 }
 .mh-play-note {
-    margin-top: auto;
     font-size: 12px;
     line-height: 1.35;
     color: ${u.phase};
@@ -315,10 +315,149 @@ body {
     padding: 0 0.15em;
 }
 
+.mh-trailer-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 4px;
+    padding: 14px 28px;
+    border-radius: 14px;
+    border: 2px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    font-family: inherit;
+    font-size: 1.1rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+.mh-trailer-btn:hover {
+    border-color: #ff4d4d;
+    background: rgba(180, 20, 20, 0.28);
+    transform: translateY(-2px);
+}
+.mh-trailer-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.35);
+}
+.mh-youtube-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 1.35em;
+    height: 1.05em;
+    color: #ff2a2a;
+}
+
+.mh-trailer-dialog {
+    position: fixed;
+    inset: 0;
+    width: min(960px, calc(100% - 24px));
+    max-width: none;
+    height: fit-content;
+    max-height: min(100% - 24px, 100dvh - 24px);
+    margin: auto;
+    padding: 12px;
+    border: 2px solid ${u.border};
+    border-radius: 14px;
+    background: rgba(8, 12, 10, 0.98);
+    color: ${u.text};
+    overflow: auto;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+.mh-trailer-dialog[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.mh-trailer-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.72);
+}
+.mh-trailer-dialog-chrome {
+    display: flex;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+}
+.mh-trailer-dialog-close {
+    position: static;
+}
+.mh-trailer-dialog-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    flex: 0 0 auto;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+}
+.mh-trailer-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+.mh-trailer-dialog-note {
+    margin: 0;
+    color: ${u.textMuted};
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: center;
+}
+.mh-trailer-dialog-note a {
+    color: ${u.brassLight};
+    font-weight: 700;
+    text-decoration: none;
+}
+.mh-trailer-dialog-note a:hover { text-decoration: underline; }
+@media (max-width: 720px) {
+    .mh-trailer-dialog {
+        width: calc(100% - 16px);
+        max-height: min(100% - 16px, 100dvh - 16px);
+        margin: auto;
+        padding: 10px;
+        gap: 8px;
+        border-radius: 12px;
+    }
+    .mh-trailer-dialog-note {
+        font-size: 11px;
+        padding: 0 4px;
+    }
+}
+
 .mh-shots {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 14px;
+}
+.mh-shots-more-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 18px;
+}
+.mh-shots-more-btn {
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.brassLight};
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+.mh-shots-more-btn:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+    transform: translateY(-1px);
+}
+.mh-shots-more-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
 }
 @media (max-width: 720px) {
     .mh-shots {
@@ -352,6 +491,164 @@ body {
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+.mh-lightbox {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: rgba(4, 8, 6, 0.94);
+    color: ${u.text};
+    overflow: hidden;
+}
+.mh-lightbox::backdrop {
+    background: rgba(0, 0, 0, 0.72);
+}
+.mh-lightbox-chrome {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    pointer-events: none;
+}
+.mh-lightbox-count {
+    margin: 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: ${u.brassLight};
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+.mh-lightbox-close {
+    pointer-events: auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+.mh-lightbox-close:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+}
+.mh-lightbox-nav {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 72px;
+    border: 1.5px solid ${u.border};
+    border-radius: 12px;
+    background: rgba(12, 18, 14, 0.78);
+    color: ${u.brassLight};
+    font-size: 36px;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+.mh-lightbox-nav:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+}
+.mh-lightbox-nav.prev { left: 12px; }
+.mh-lightbox-nav.next { right: 12px; }
+.mh-lightbox-stage {
+    position: absolute;
+    inset: 56px 64px 88px;
+    display: grid;
+    place-items: center;
+    touch-action: pan-y;
+    cursor: pointer;
+    user-select: none;
+}
+.mh-lightbox-stage.mh-lightbox-left { cursor: w-resize; }
+.mh-lightbox-stage.mh-lightbox-right { cursor: e-resize; }
+.mh-lightbox-stage:active { cursor: grabbing; }
+.mh-lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 10px;
+    border: 2px solid ${u.border};
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+    transition: transform 0.18s ease;
+    pointer-events: none;
+}
+.mh-lightbox-caption {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    bottom: 48px;
+    transform: translateX(-50%);
+    margin: 0;
+    max-width: min(720px, calc(100% - 32px));
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    color: ${u.phase};
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+}
+.mh-lightbox-dots {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+}
+.mh-lightbox-dot {
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 208, 64, 0.45);
+    background: rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+}
+.mh-lightbox-dot.active {
+    background: ${u.brass};
+    border-color: ${u.brassLight};
+}
+@media (max-width: 720px) {
+    .mh-lightbox-stage {
+        inset: 56px 8px 96px;
+    }
+    .mh-lightbox-nav {
+        width: 40px;
+        height: 56px;
+        font-size: 30px;
+    }
+    .mh-lightbox-nav.prev { left: 4px; }
+    .mh-lightbox-nav.next { right: 4px; }
+    .mh-lightbox-caption {
+        bottom: 52px;
+        font-size: 12px;
+    }
 }
 
 .mh-showcase {
@@ -807,8 +1104,12 @@ body {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
+    align-items: center;
     gap: 12px;
     margin: 8px 0 4px;
+}
+.mh-together-cta .mh-trailer-btn {
+    margin-top: 6px;
 }
 .mh-community-body {
     max-width: 520px;

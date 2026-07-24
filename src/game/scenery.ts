@@ -33,21 +33,31 @@ import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
     CELL,
-    DETAIL_TILE,
     makeValueNoise,
     mulberry32,
     registerOuterHeight,
     type BattleMap,
 } from './map';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
-    grassAlbedoUrl,
-    grassNormalUrl,
-    rockUrl,
     sandAlbedoUrl,
+    loadGrassTextures,
+    loadRockTextures,
     loadWorldTexture,
 } from './worldTextures';
+import {
+    BILLBOARD_SCALE,
+    createBillboardInstances,
+    createVegetationInstances,
+    loadSceneryBillboards,
+    loadSceneryVegetation,
+    NEAR_TREE_DIST,
+    placeVegetationInstance,
+    sceneryHqVegetation,
+    type VegetationKind,
+} from './sceneryVegetation';
 
 /** Instance / mesh density for scenery tiers (trees stay InstancedMesh). */
 function sceneryDensity(quality: SceneryQuality): {
@@ -84,17 +94,18 @@ function sceneryDensity(quality: SceneryQuality): {
         };
     }
     if (quality === 'high') {
+        // Same dense forest belt as ultra, but low-poly cones/blobs (no Tripo GLBs).
         return {
-            outer: 1.85,
-            field: 1.25,
-            meadow: 1.55,
-            lake: 1.4,
-            segs: 360,
-            margin: 500,
-            acceptBase: 0.3,
-            beltNear: 18,
-            beltRamp: 50,
-            beltFar: 360,
+            outer: 10,
+            field: 1.6,
+            meadow: 2.2,
+            lake: 1.8,
+            segs: 380,
+            margin: 600,
+            acceptBase: 0.85,
+            beltNear: 8,
+            beltRamp: 18,
+            beltFar: 500,
             peakClouds: 18,
         };
     }
@@ -802,19 +813,30 @@ export class Scenery {
         size: number,
     ): Promise<void> {
         const BOARD_TONE = 0.93;
-        const [albedo, normal, rock, sand] = await Promise.all([
-            loadWorldTexture(grassAlbedoUrl),
-            loadWorldTexture(grassNormalUrl),
-            loadWorldTexture(rockUrl),
+        const profile = groundMaterialProfile();
+        const tileSize = profile.detailTile;
+        const rockTile = 34; // legacy rock tile scale
+        const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
+        const [grass, rockPack, sand] = await Promise.all([
+            loadGrassTextures(),
+            loadRockTextures(),
             loadWorldTexture(sandAlbedoUrl),
         ]);
-        if (!albedo) return;
+        if (!grass?.albedo) return;
+        const { albedo, normal } = grass;
+        const rock = rockPack?.albedo ?? null;
+        const rockPhoto1 = rockPack?.variants[0] ?? null;
+        const rockPhoto2 = rockPack?.variants[1] ?? null;
+        const photoGrass =
+            grass.variants[0] && grass.variants[1]
+                ? ([grass.variants[0], grass.variants[1]] as const)
+                : null;
         const frac = (v: number) => ((v % 1) + 1) % 1;
         const configure = (tex: NonNullable<typeof albedo>) => {
             tex.wrapS = tex.wrapT = RepeatWrapping;
-            tex.repeat.set(size / DETAIL_TILE, size / DETAIL_TILE);
-            tex.offset.set(frac(map.halfW / DETAIL_TILE), frac(map.halfH / DETAIL_TILE));
-            tex.anisotropy = 8;
+            tex.repeat.set(size / tileSize, size / tileSize);
+            tex.offset.set(frac(map.halfW / tileSize), frac(map.halfH / tileSize));
+            tex.anisotropy = profile.anisotropy;
         };
         configure(albedo);
         albedo.colorSpace = SRGBColorSpace;
@@ -822,63 +844,183 @@ export class Scenery {
         if (normal) {
             configure(normal);
             material.normalMap = normal;
-            material.normalScale = new Vector2(0.35, 0.35);
+            const n = profile.normalScale;
+            material.normalScale = new Vector2(n, n);
         }
         if (rock) {
-            // sampled with explicit world-space UVs in the shader
             rock.wrapS = rock.wrapT = RepeatWrapping;
             rock.colorSpace = SRGBColorSpace;
-            rock.anisotropy = 8;
+            rock.anisotropy = profile.anisotropy;
+        }
+        for (const rp of [rockPhoto1, rockPhoto2]) {
+            if (!rp) continue;
+            rp.wrapS = rp.wrapT = RepeatWrapping;
+            rp.colorSpace = SRGBColorSpace;
+            rp.anisotropy = profile.anisotropy;
         }
         if (sand) {
             sand.wrapS = sand.wrapT = RepeatWrapping;
             sand.colorSpace = SRGBColorSpace;
-            sand.anisotropy = 8;
+            sand.anisotropy = profile.anisotropy;
+        }
+        for (const v of grass.variants) {
+            v.wrapS = v.wrapT = RepeatWrapping;
+            v.colorSpace = SRGBColorSpace;
+            v.anisotropy = profile.anisotropy;
+            v.repeat.set(size / tileSize, size / tileSize);
+            v.offset.set(frac(map.halfW / tileSize), frac(map.halfH / tileSize));
         }
         material.color.set(0xffffff);
+        const useDetail = profile.detailStrength > 0;
+        const bomb = useDetail && profile.textureBomb;
+        // Soften the flat BOARD_TONE dim on HQ so meadow grass pops with the board.
+        const toneMix = 0.35 + 0.65 * profile.macroStrength;
         material.onBeforeCompile = (shader) => {
             if (rock) shader.uniforms.uRock = { value: rock };
+            if (rockPhoto1) shader.uniforms.uRockPhoto1 = { value: rockPhoto1 };
+            if (rockPhoto2) shader.uniforms.uRockPhoto2 = { value: rockPhoto2 };
+            if (photoGrass) {
+                shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
+                shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
+            }
             if (sand) shader.uniforms.uSand = { value: sand };
+            if (useDetail) {
+                shader.uniforms.uDetailScale = { value: profile.detailScale };
+                shader.uniforms.uDetailStrength = { value: profile.detailStrength };
+            }
+            const softBlobFn =
+                'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
+                '\tvec2 cell = floor( uv * cellScale );\n' +
+                '\tfloat acc = 0.0;\n' +
+                '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
+                '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
+                '\t\t\tvec2 c = cell + vec2( float( i ), float( j ) );\n' +
+                '\t\t\tfloat h = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+                '\t\t\tif ( h <= density ) {\n' +
+                '\t\t\t\tvec2 jitter = vec2(\n' +
+                '\t\t\t\t\tfract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 ),\n' +
+                '\t\t\t\t\tfract( sin( dot( c + 19.2, vec2( 113.5, 271.9 ) ) ) * 43758.5453 )\n' +
+                '\t\t\t\t);\n' +
+                '\t\t\t\tvec2 center = ( c + 0.5 + ( jitter - 0.5 ) * 0.9 ) / cellScale;\n' +
+                '\t\t\t\tfloat d = length( uv - center ) * cellScale;\n' +
+                '\t\t\t\tfloat r = radius * ( 0.5 + 0.5 * fract( h * 7.13 ) );\n' +
+                '\t\t\t\tacc = max( acc, 1.0 - smoothstep( r * 0.25, r, d ) );\n' +
+                '\t\t\t}\n' +
+                '\t\t}\n' +
+                '\t}\n' +
+                '\treturn clamp( acc, 0.0, 1.0 );\n' +
+                '}\n';
             shader.vertexShader =
                 'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
                     '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;',
                 );
-            const inject = rock
-                ? `
-    // match the board's average brightness
-    diffuseColor.rgb *= ${BOARD_TONE.toFixed(2)};
-    ${
-        sand
-            ? `// sand where the geometry says so: lake shores + rare dry patches
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / 20.0).rgb, vBeach);`
-            : ''
-    }
-    // rock takes over with altitude and on steep faces; snow caps the peaks
+            let inject = `
+    diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
+            if (bomb) {
+                inject += `
+    vec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );
+    float bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+    bombW = smoothstep( 0.28, 0.72, bombW );
+    diffuseColor.rgb = mix( diffuseColor.rgb, texture2D( map, bombUv ).rgb, bombW * 0.55 );`;
+            }
+            if (useDetail) {
+                inject += `
+    vec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
+            }
+            if (photoGrass) {
+                const g = PHOTO_BLEND.grass;
+                inject += `
+    float pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );
+    vec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};
+    float pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+    vec3 pgTex = mix(
+        texture2D( uPhotoGrass1, pgUv ).rgb,
+        texture2D( uPhotoGrass2, pgUv.yx * 1.07 + 0.21 ).rgb,
+        step( 0.5, pgWhich ) );
+    float pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    vec3 pgDetail = pgTex / pgLum;
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * ${g.strength.toFixed(2)} );`;
+            }
+            if (sand) {
+                inject += `
+    // sand where the geometry says so: lake shores + rare dry patches
+    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${tileSize.toFixed(1)}).rgb, vBeach);`;
+            }
+            inject += `
     float snowF = smoothstep(170.0, 235.0, vTerrainH);
-    float rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF);
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uRock, vWorldXZ / 34.0).rgb, rockF);
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`
-                : `\n\tdiffuseColor.rgb *= ${BOARD_TONE.toFixed(2)};`;
-            shader.fragmentShader =
+    float rockF = 0.0;`;
+            if (rock) {
+                inject += `
+    rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF);
+    vec3 rockCol = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;`;
+                if (rockPhoto1) {
+                    const rk = PHOTO_BLEND.rock;
+                    inject += `
+    vec2 rockUv = vWorldXZ / ${rockPhotoTile.toFixed(1)};
+    float rockSoft = softBlobMask( rockUv, ${rk.cellScale.toFixed(2)}, ${rk.density.toFixed(2)}, ${rk.radius.toFixed(2)} );
+    float rWhich = fract( sin( dot( floor( rockUv * 0.85 ), vec2( 91.7, 53.1 ) ) ) * 43758.5453 );
+    vec3 rockPhoto = texture2D( uRockPhoto1, rockUv * ${rk.uvScale.toFixed(2)} ).rgb;`;
+                    if (rockPhoto2) {
+                        inject += `
+    rockPhoto = mix( rockPhoto, texture2D( uRockPhoto2, rockUv.yx * 1.25 + 0.17 ).rgb, step( 0.5, rWhich ) );`;
+                    }
+                    inject += `
+    float rpLum = max( dot( rockPhoto, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    rockCol = mix( rockCol, rockCol * ( rockPhoto / rpLum ), rockSoft * ${rk.strength.toFixed(2)} );`;
+                }
+                inject += `
+    diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+            } else {
+                inject += `
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+            }
+            const needBlob = !!(photoGrass || rockPhoto1);
+            let frag =
                 'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
+                (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
+                (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
+                (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
+                (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
+                (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
+            if (useDetail && normal) {
+                frag = frag.replace(
+                    '#include <normal_fragment_maps>',
+                    `#include <normal_fragment_maps>
+\tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
+\tdetailN.xy *= uDetailStrength;
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
+                );
+            }
+            if (profile.roughnessFromAlbedo) {
+                frag = frag.replace(
+                    '#include <roughnessmap_fragment>',
+                    `#include <roughnessmap_fragment>
+\tfloat grassLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
+\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );`,
+                );
+            }
+            shader.fragmentShader = frag;
         };
-        material.customProgramCacheKey = () => `outer-meadow-simple-v2${rock ? '-rock' : ''}${sand ? '-sand' : ''}`;
+        material.customProgramCacheKey = () =>
+            `outer-meadow-v8${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
     /**
-     * Low-poly trees, bushes and rocks — a forest belt from the field edge
-     * up into the mountain foothills, plus a few trees/bushes ON the battlefield
-     * (pure scenery: no collision). Instanced per part — five draw calls.
+     * Trees, bushes and rocks — forest belt + a few on the battlefield.
+     * High: dense low-poly forest. Ultra: same density with Tripo mid-poly GLBs.
      */
     private createForest(map: BattleMap, rng: () => number): void {
         const s = THEME.scenery;
         const dens = this.density;
+        const hq = sceneryHqVegetation(this.quality);
         // reach lower mountain slopes (rise starts ~d=55, foothills to ~350)
         const margin = dens.margin;
         const keepOut = 8;
@@ -946,62 +1088,88 @@ export class Scenery {
 
         const dummy = new Object3D();
         const color = new Color();
-        // the foliage texture carries the base green; instance tints stay
-        // bright so the multiply keeps the leaf pattern readable
         const white = new Color(0xffffff);
         const lighten = (c: Color) => c.lerp(white, 0.45);
-        // outer forest belt — still a handful of instanced draw calls
-        const PINES = scaleCount(200, dens.outer);
-        const LEAFY = scaleCount(120, dens.outer);
-        const FIELD_PINES = scaleCount(5, dens.field);
-        const FIELD_LEAFY = scaleCount(6, dens.field);
+        // Ultra: Tripo owns all trees via addHqVegetation.
+        // High: Tripo on the board, billboards outside (no procedural trees).
+        // Medium: full procedural.
+        const highMix = this.quality === 'high';
+        const PINES = hq ? 0 : scaleCount(200, dens.outer);
+        const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
+        const FIELD_PINES = hq ? 0 : scaleCount(5, dens.field);
+        const FIELD_LEAFY = hq ? 0 : scaleCount(6, dens.field);
         const ROCKS = scaleCount(170, dens.outer);
-        const BUSHES = scaleCount(90, dens.outer);
-        const FIELD_BUSHES = scaleCount(45, dens.field);
+        const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
+        const FIELD_BUSHES = hq ? 0 : scaleCount(45, dens.field);
         // horde mode widens the neutral strip into a real belt — grow a
-        // forest in it so the horde has somewhere to live (pure scenery,
-        // no collision; packs standing between trunks is the point)
+        // forest in it so the horde has somewhere to live (pure scenery, no
+        // collision; packs standing between trunks is the point). Treated
+        // as on-field vegetation like FIELD_* above: zeroed on Ultra,
+        // billboard/Tripo-routed on High, procedural on Medium.
         const beltHalf = (map.size.neutralRows * CELL) / 2;
         const beltWide = map.size.neutralRows > 8;
-        const BELT_PINES = beltWide ? scaleCount(26, dens.field) : 0;
-        const BELT_LEAFY = beltWide ? scaleCount(30, dens.field) : 0;
-        const BELT_BUSHES = beltWide ? scaleCount(28, dens.field) : 0;
+        const BELT_PINES = hq || !beltWide ? 0 : scaleCount(26, dens.field);
+        const BELT_LEAFY = hq || !beltWide ? 0 : scaleCount(30, dens.field);
+        const BELT_BUSHES = hq || !beltWide ? 0 : scaleCount(28, dens.field);
         const beltSpot = (): { x: number; z: number } => ({
             x: (rng() * 2 - 1) * (map.halfW - 8),
             z: (rng() * 2 - 1) * Math.max(0, beltHalf - 4),
         });
 
-        const trunks = new InstancedMesh(
-            new CylinderGeometry(0.35, 0.55, 3.4, 6),
-            new MeshStandardMaterial({ color: s.trunk, roughness: 0.9 }),
-            PINES + LEAFY + FIELD_PINES + FIELD_LEAFY + BELT_PINES + BELT_LEAFY,
-        );
-        const cones = new InstancedMesh(
-            new ConeGeometry(2.6, 6, 7),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
-            (PINES + FIELD_PINES + BELT_PINES) * 2,
-        );
-        const blobs = new InstancedMesh(
-            new IcosahedronGeometry(2.4, 1),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
-            (LEAFY + FIELD_LEAFY + BELT_LEAFY) * 2,
-        );
+        const treeCapacity = PINES + LEAFY + FIELD_PINES + FIELD_LEAFY + BELT_PINES + BELT_LEAFY;
+        const bushCapacity = BUSHES + FIELD_BUSHES + BELT_BUSHES;
+        const placeProceduralTrees = treeCapacity > 0 && !highMix;
+
+        let trunks: InstancedMesh | null = null;
+        let cones: InstancedMesh | null = null;
+        let blobs: InstancedMesh | null = null;
+        let bushes: InstancedMesh | null = null;
+
+        if (placeProceduralTrees) {
+            trunks = new InstancedMesh(
+                new CylinderGeometry(0.35, 0.55, 3.4, 6),
+                new MeshStandardMaterial({ color: s.trunk, roughness: 0.9 }),
+                treeCapacity,
+            );
+            cones = new InstancedMesh(
+                new ConeGeometry(2.6, 6, 7),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
+                (PINES + FIELD_PINES + BELT_PINES) * 2,
+            );
+            blobs = new InstancedMesh(
+                new IcosahedronGeometry(2.4, 1),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
+                (LEAFY + FIELD_LEAFY + BELT_LEAFY) * 2,
+            );
+        }
         const rocks = new InstancedMesh(
             new IcosahedronGeometry(1.4, 0),
             new MeshStandardMaterial({ color: s.rock, roughness: 0.95, flatShading: true }),
             ROCKS,
         );
-        const bushes = new InstancedMesh(
-            new IcosahedronGeometry(1, 1),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
-            BUSHES + FIELD_BUSHES + BELT_BUSHES,
-        );
+        if (bushCapacity > 0 && !highMix) {
+            bushes = new InstancedMesh(
+                new IcosahedronGeometry(1, 1),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
+                bushCapacity,
+            );
+        }
 
         let trunkI = 0;
         let coneI = 0;
         let blobI = 0;
+        type PlantSpot = { kind: VegetationKind; x: number; z: number; sc: number };
+        const farPlants: PlantSpot[] = [];
+        const fieldHqPlants: PlantSpot[] = [];
+        /** High: board → Tripo GLB, outside → billboard. */
+        const routeHigh = (onField: boolean, kind: VegetationKind, x: number, z: number, sc: number) => {
+            if (!highMix) return false;
+            (onField ? fieldHqPlants : farPlants).push({ kind, x, z, sc });
+            return true;
+        };
 
         const placeTrunk = (x: number, z: number, sc: number, h: number) => {
+            if (!trunks) return;
             dummy.position.set(x, h + 1.7 * sc, z);
             dummy.scale.setScalar(sc);
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
@@ -1009,10 +1177,18 @@ export class Scenery {
             trunks.setMatrixAt(trunkI++, dummy.matrix);
         };
 
+        // Always walk the counts on high (for billboard/Tripo routing) even with no procedural meshes.
         for (let i = 0; i < PINES + FIELD_PINES + BELT_PINES; i++) {
-            const { x, z } = i < PINES ? forestSpot(84) : i < PINES + FIELD_PINES ? fieldSpot(10) : beltSpot();
+            const onField = i >= PINES;
+            const { x, z } = onField
+                ? i < PINES + FIELD_PINES
+                    ? fieldSpot(10)
+                    : beltSpot()
+                : forestSpot(84);
+            const sc = onField ? 0.7 + rng() * 0.5 : 0.8 + rng() * 1.1;
+            if (routeHigh(onField, 'pine', x, z, sc)) continue;
+            if (!trunks || !cones) continue;
             const h = groundY(x, z);
-            const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
             placeTrunk(x, z, sc, h);
             lighten(color.set(s.pine).lerp(new Color(s.pineLight), rng()));
             for (const [ty, tsc] of [
@@ -1029,9 +1205,16 @@ export class Scenery {
         }
 
         for (let i = 0; i < LEAFY + FIELD_LEAFY + BELT_LEAFY; i++) {
-            const { x, z } = i < LEAFY ? forestSpot(72) : i < LEAFY + FIELD_LEAFY ? fieldSpot(10) : beltSpot();
+            const onField = i >= LEAFY;
+            const { x, z } = onField
+                ? i < LEAFY + FIELD_LEAFY
+                    ? fieldSpot(10)
+                    : beltSpot()
+                : forestSpot(72);
+            const sc = onField ? 0.75 + rng() * 0.55 : 0.9 + rng() * 1.2;
+            if (routeHigh(onField, 'oak', x, z, sc)) continue;
+            if (!trunks || !blobs) continue;
             const h = groundY(x, z);
-            const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
             placeTrunk(x, z, sc, h);
             lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng()));
             for (const [ox, oy, oz, bsc] of [
@@ -1069,21 +1252,47 @@ export class Scenery {
             rocks.setMatrixAt(i, dummy.matrix);
         }
 
-        for (let i = 0; i < BUSHES + FIELD_BUSHES + BELT_BUSHES; i++) {
-            const { x, z } = i < BUSHES ? forestSpot(56) : i < BUSHES + FIELD_BUSHES ? fieldSpot(5) : beltSpot();
-            const sc = 0.6 + rng() * 0.8;
-            dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
-            dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));
-            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-            dummy.updateMatrix();
-            bushes.setMatrixAt(i, dummy.matrix);
-            lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng() * 0.8));
-            bushes.setColorAt(i, color);
+        if (bushes || highMix) {
+            let bushI = 0;
+            for (let i = 0; i < BUSHES + FIELD_BUSHES + BELT_BUSHES; i++) {
+                const onField = i >= BUSHES;
+                const { x, z } = onField
+                    ? i < BUSHES + FIELD_BUSHES
+                        ? fieldSpot(5)
+                        : beltSpot()
+                    : forestSpot(56);
+                const sc = 0.6 + rng() * 0.8;
+                const kind: VegetationKind = rng() < 0.55 ? 'bushRound' : 'bushTall';
+                if (routeHigh(onField, kind, x, z, sc)) continue;
+                if (!bushes) continue;
+                dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
+                dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));
+                dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+                dummy.updateMatrix();
+                bushes.setMatrixAt(bushI, dummy.matrix);
+                lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng() * 0.8));
+                bushes.setColorAt(bushI++, color);
+            }
+            if (bushes) bushes.count = bushI;
         }
 
+        if (trunks) trunks.count = trunkI;
+        if (cones) cones.count = coneI;
+        if (blobs) blobs.count = blobI;
+
         for (const m of [trunks, cones, blobs, rocks, bushes]) {
+            if (!m) continue;
             m.castShadow = true;
+            m.instanceMatrix.needsUpdate = true;
+            if (m.instanceColor) m.instanceColor.needsUpdate = true;
             this.group.add(m);
+        }
+
+        if (farPlants.length > 0) {
+            void this.placeFarBillboards(farPlants, groundY, rng);
+        }
+        if (fieldHqPlants.length > 0) {
+            void this.placeTripoVegetation(fieldHqPlants, groundY, rng);
         }
 
         // wildflowers on the outer meadow band — matches the field's painted
@@ -1134,10 +1343,230 @@ export class Scenery {
         }
         this.group.add(flowers);
 
-        void this.applyForestTextures(
-            trunks.material as MeshStandardMaterial,
-            cones.material as MeshStandardMaterial,
-            [blobs.material as MeshStandardMaterial, bushes.material as MeshStandardMaterial],
+        if (trunks && cones && blobs && bushes) {
+            void this.applyForestTextures(
+                trunks.material as MeshStandardMaterial,
+                cones.material as MeshStandardMaterial,
+                [blobs.material as MeshStandardMaterial, bushes.material as MeshStandardMaterial],
+            );
+        }
+
+        if (hq) {
+            void this.addHqVegetation(map, rng, {
+                forestSpot,
+                fieldSpot,
+                groundY,
+                distOut,
+            });
+        }
+    }
+
+    /** Far belt as crossed billboard cards (high + ultra). */
+    private async placeFarBillboards(
+        plants: { kind: VegetationKind; x: number; z: number; sc: number }[],
+        groundY: (x: number, z: number) => number,
+        rng: () => number,
+    ): Promise<void> {
+        await loadSceneryBillboards();
+        const dummy = new Object3D();
+        const kinds: VegetationKind[] = ['oak', 'pine', 'bushRound', 'bushTall'];
+        let total = 0;
+        for (const kind of kinds) {
+            const list = plants.filter((p) => p.kind === kind);
+            if (list.length === 0) continue;
+            const mesh = createBillboardInstances(kind, list.length);
+            if (!mesh) {
+                console.warn(`[scenery] billboard '${kind}' missing`);
+                continue;
+            }
+            for (const p of list) {
+                placeVegetationInstance(
+                    mesh,
+                    p.x,
+                    groundY(p.x, p.z),
+                    p.z,
+                    p.sc * BILLBOARD_SCALE,
+                    rng() * Math.PI * 2,
+                    dummy,
+                );
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+            this.group.add(mesh);
+            total += mesh.count;
+        }
+        console.info(`[scenery] far billboards: ${total}`);
+    }
+
+    /** On-board Tripo GLBs (high) — matches billboard art direction. */
+    private async placeTripoVegetation(
+        plants: { kind: VegetationKind; x: number; z: number; sc: number }[],
+        groundY: (x: number, z: number) => number,
+        rng: () => number,
+    ): Promise<void> {
+        await loadSceneryVegetation();
+        const dummy = new Object3D();
+        const kinds: VegetationKind[] = ['oak', 'pine', 'bushRound', 'bushTall'];
+        let total = 0;
+        for (const kind of kinds) {
+            const list = plants.filter((p) => p.kind === kind);
+            if (list.length === 0) continue;
+            const mesh = createVegetationInstances(kind, list.length);
+            if (!mesh) {
+                console.warn(`[scenery] Tripo '${kind}' missing`);
+                continue;
+            }
+            for (const p of list) {
+                placeVegetationInstance(
+                    mesh,
+                    p.x,
+                    groundY(p.x, p.z),
+                    p.z,
+                    p.sc,
+                    rng() * Math.PI * 2,
+                    dummy,
+                );
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+            this.group.add(mesh);
+            total += mesh.count;
+        }
+        console.info(`[scenery] field Tripo: ${total}`);
+    }
+
+    /**
+     * Ultra-only: near Tripo mid-poly + far billboards (same headcount as dense
+     * procedural belt).
+     */
+    private async addHqVegetation(
+        map: BattleMap,
+        rng: () => number,
+        helpers: {
+            forestSpot: (maxHeight: number) => { x: number; z: number };
+            fieldSpot: (clearance: number) => { x: number; z: number };
+            groundY: (x: number, z: number) => number;
+            distOut: (x: number, z: number) => number;
+        },
+    ): Promise<void> {
+        await Promise.all([loadSceneryVegetation(), loadSceneryBillboards()]);
+        const dens = this.density;
+        const { forestSpot, fieldSpot, groundY, distOut } = helpers;
+
+        const OAK = scaleCount(120, dens.outer);
+        const PINE = scaleCount(200, dens.outer);
+        const BUSH_R = scaleCount(50, dens.outer);
+        const BUSH_T = scaleCount(40, dens.outer);
+        const FIELD_OAK = scaleCount(6, dens.field);
+        const FIELD_PINE = scaleCount(5, dens.field);
+        const FIELD_BUSH = scaleCount(45, dens.field);
+
+        type Plant = { kind: VegetationKind; x: number; z: number; sc: number; near: boolean };
+        const plants: Plant[] = [];
+
+        for (let i = 0; i < OAK + FIELD_OAK; i++) {
+            const onField = i >= OAK;
+            const { x, z } = onField ? fieldSpot(10) : forestSpot(72);
+            const sc = onField ? 0.7 + rng() * 0.35 : 0.85 + rng() * 0.55;
+            plants.push({
+                kind: 'oak',
+                x,
+                z,
+                sc,
+                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+            });
+        }
+        for (let i = 0; i < PINE + FIELD_PINE; i++) {
+            const onField = i >= PINE;
+            const { x, z } = onField ? fieldSpot(10) : forestSpot(84);
+            const sc = onField ? 0.65 + rng() * 0.3 : 0.8 + rng() * 0.5;
+            plants.push({
+                kind: 'pine',
+                x,
+                z,
+                sc,
+                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+            });
+        }
+        const bushRTotal = BUSH_R + Math.ceil(FIELD_BUSH / 2);
+        for (let i = 0; i < bushRTotal; i++) {
+            const onField = i >= BUSH_R;
+            const { x, z } = onField ? fieldSpot(5) : forestSpot(56);
+            plants.push({
+                kind: 'bushRound',
+                x,
+                z,
+                sc: 0.75 + rng() * 0.55,
+                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+            });
+        }
+        const bushTTotal = BUSH_T + Math.floor(FIELD_BUSH / 2);
+        for (let i = 0; i < bushTTotal; i++) {
+            const onField = i >= BUSH_T;
+            const { x, z } = onField ? fieldSpot(5) : forestSpot(56);
+            plants.push({
+                kind: 'bushTall',
+                x,
+                z,
+                sc: 0.7 + rng() * 0.5,
+                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+            });
+        }
+
+        const dummy = new Object3D();
+        const kinds: VegetationKind[] = ['oak', 'pine', 'bushRound', 'bushTall'];
+        let nearN = 0;
+        let farN = 0;
+
+        for (const kind of kinds) {
+            const nearList = plants.filter((p) => p.kind === kind && p.near);
+            const farList = plants.filter((p) => p.kind === kind && !p.near);
+
+            if (nearList.length > 0) {
+                const mesh = createVegetationInstances(kind, nearList.length);
+                if (!mesh) {
+                    console.warn(`[scenery] HQ '${kind}' missing`);
+                } else {
+                    for (const p of nearList) {
+                        placeVegetationInstance(
+                            mesh,
+                            p.x,
+                            groundY(p.x, p.z),
+                            p.z,
+                            p.sc,
+                            rng() * Math.PI * 2,
+                            dummy,
+                        );
+                    }
+                    mesh.instanceMatrix.needsUpdate = true;
+                    this.group.add(mesh);
+                    nearN += mesh.count;
+                }
+            }
+
+            if (farList.length > 0) {
+                const mesh = createBillboardInstances(kind, farList.length);
+                if (!mesh) {
+                    console.warn(`[scenery] billboard '${kind}' missing`);
+                } else {
+                    for (const p of farList) {
+                        placeVegetationInstance(
+                            mesh,
+                            p.x,
+                            groundY(p.x, p.z),
+                            p.z,
+                            p.sc * BILLBOARD_SCALE,
+                            rng() * Math.PI * 2,
+                            dummy,
+                        );
+                    }
+                    mesh.instanceMatrix.needsUpdate = true;
+                    this.group.add(mesh);
+                    farN += mesh.count;
+                }
+            }
+        }
+
+        console.info(
+            `[scenery] HQ vegetation: near3D=${nearN} farBillboards=${farN} (cut=${NEAR_TREE_DIST})`,
         );
     }
 

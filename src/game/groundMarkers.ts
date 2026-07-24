@@ -6,6 +6,7 @@ import {
     LineBasicMaterial,
     Mesh,
     MeshBasicMaterial,
+    Object3D,
     PlaneGeometry,
     Texture,
     Vector3,
@@ -15,10 +16,59 @@ import { groundHeightAt } from './map';
 
 /** small lift on draped plates (same idea as unit footprint plates) */
 export const DRAPE_LIFT = 0.08;
+/** above ground tiles; transparent overlays sort by object position — keep fills/lines aligned */
+export const DRAPE_RENDER_ORDER = 10;
+
+/** Yaw so local +Z points from (ax,az) toward (bx,bz); matches drapeRectGeometry. */
+export function drapeYawToward(ax: number, az: number, bx: number, bz: number): number {
+    return Math.atan2(-(bx - ax), bz - az);
+}
+
+function drapeAnchorY(cx: number, cz: number): number {
+    return groundHeightAt(cx, cz);
+}
+
+/** Local Y for a draped vertex — height relative to the anchor so object.position sits on relief. */
+function drapeLocalY(wx: number, wz: number, anchorY: number): number {
+    return groundHeightAt(wx, wz) - anchorY;
+}
+
+/** Anchor object origin on relief + lift (transparent sort uses object position, not verts). */
+export function setDrapedObjectPosition(
+    obj: Object3D,
+    cx: number,
+    cz: number,
+    extraLift = 0,
+): void {
+    obj.position.set(cx, drapeAnchorY(cx, cz) + DRAPE_LIFT + extraLift, cz);
+    obj.rotation.set(0, 0, 0);
+    obj.scale.set(1, 1, 1);
+}
+
+/** Anchor mesh origin on relief + lift (transparent sort uses object position, not verts). */
+export function setDrapedMeshPosition(
+    mesh: Mesh,
+    cx: number,
+    cz: number,
+    extraLift = 0,
+): void {
+    setDrapedObjectPosition(mesh, cx, cz, extraLift);
+}
+
+function prepDrapedLine(line: Line, cx: number, cz: number, extraLift = 0.01): void {
+    setDrapedObjectPosition(line, cx, cz, extraLift);
+    line.frustumCulled = false;
+    line.renderOrder = DRAPE_RENDER_ORDER + 1;
+}
+
+function prepDrapedFill(mesh: Mesh): void {
+    mesh.frustumCulled = false;
+    mesh.renderOrder = DRAPE_RENDER_ORDER;
+}
 
 /**
  * Tessellated ground-aligned rect, yawed in XZ, draped over board relief.
- * Vertices are local to the stamp center — caller sets mesh.position to (x, lift, z).
+ * Vertices are local XZ + relative Y — caller sets position via {@link setDrapedMeshPosition}.
  */
 export function drapeRectGeometry(
     halfW: number,
@@ -27,6 +77,7 @@ export function drapeRectGeometry(
     cx: number,
     cz: number,
 ): PlaneGeometry {
+    const anchorY = drapeAnchorY(cx, cz);
     const segsW = Math.max(2, Math.ceil((halfW * 2) / 2));
     const segsD = Math.max(2, Math.ceil((halfD * 2) / 2));
     const geo = new PlaneGeometry(halfW * 2, halfD * 2, segsW, segsD);
@@ -39,7 +90,7 @@ export function drapeRectGeometry(
         const lz = pos.getZ(i);
         const wx = lx * c - lz * s;
         const wz = lx * s + lz * c;
-        pos.setXYZ(i, wx, groundHeightAt(cx + wx, cz + wz), wz);
+        pos.setXYZ(i, wx, drapeLocalY(cx + wx, cz + wz, anchorY), wz);
     }
     pos.needsUpdate = true;
     geo.computeVertexNormals();
@@ -54,6 +105,7 @@ export function drapeRectOutline(
     halfD: number,
     yaw: number,
 ): BufferGeometry {
+    const anchorY = drapeAnchorY(cx, cz);
     const c = Math.cos(yaw);
     const s = Math.sin(yaw);
     const edge = (ax: number, az: number, bx: number, bz: number, steps: number) => {
@@ -64,7 +116,7 @@ export function drapeRectOutline(
             const lz = az + (bz - az) * t;
             const wx = cx + lx * c - lz * s;
             const wz = cz + lx * s + lz * c;
-            out.push(new Vector3(wx, groundHeightAt(wx, wz) + DRAPE_LIFT + 0.01, wz));
+            out.push(new Vector3(wx - cx, drapeLocalY(wx, wz, anchorY) + 0.01, wz - cz));
         }
         return out;
     };
@@ -80,23 +132,24 @@ export function drapeRectOutline(
 }
 
 /**
- * Concentric-ring disk draped over relief. Vertices are local to center —
- * caller sets mesh.position to (x, lift, z).
+ * Concentric-ring disk draped over relief. Vertices are local XZ + relative Y —
+ * caller sets position via {@link setDrapedMeshPosition}.
  */
 export function drapeDiskGeometry(cx: number, cz: number, radius: number): BufferGeometry {
+    const anchorY = drapeAnchorY(cx, cz);
     const segs = Math.max(24, Math.min(64, Math.ceil(radius * 4)));
     const rings = Math.max(2, Math.ceil(radius / 2));
     const positions: number[] = [];
     const indices: number[] = [];
     // center
-    positions.push(0, groundHeightAt(cx, cz), 0);
+    positions.push(0, 0, 0);
     for (let r = 1; r <= rings; r++) {
         const rr = (r / rings) * radius;
         for (let i = 0; i < segs; i++) {
             const a = (i / segs) * Math.PI * 2;
             const lx = Math.cos(a) * rr;
             const lz = Math.sin(a) * rr;
-            positions.push(lx, groundHeightAt(cx + lx, cz + lz), lz);
+            positions.push(lx, drapeLocalY(cx + lx, cz + lz, anchorY), lz);
         }
     }
     for (let i = 0; i < segs; i++) {
@@ -123,15 +176,16 @@ export function drapeDiskGeometry(cx: number, cz: number, radius: number): Buffe
     return geo;
 }
 
-/** Closed circle outline draped on the relief. */
+/** Closed circle outline draped on the relief (local XZ + relative Y — position the Line at center). */
 export function drapeCircleOutline(cx: number, cz: number, radius: number): BufferGeometry {
+    const anchorY = drapeAnchorY(cx, cz);
     const steps = Math.max(32, Math.min(96, Math.ceil(radius * 6)));
     const pts: Vector3[] = [];
     for (let i = 0; i <= steps; i++) {
         const a = (i / steps) * Math.PI * 2;
         const x = cx + Math.cos(a) * radius;
         const z = cz + Math.sin(a) * radius;
-        pts.push(new Vector3(x, groundHeightAt(x, z) + DRAPE_LIFT + 0.01, z));
+        pts.push(new Vector3(x - cx, drapeLocalY(x, z, anchorY) + 0.01, z - cz));
     }
     return new BufferGeometry().setFromPoints(pts);
 }
@@ -154,7 +208,7 @@ export function addDrapedCircle(
         drapeCircleOutline(x, z, radius),
         new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
     );
-    line.frustumCulled = false;
+    prepDrapedLine(line, x, z);
     group.add(line);
     return { fill, line };
 }
@@ -168,8 +222,7 @@ export function rebuildDrapedCircleFill(
 ): void {
     mesh.geometry.dispose();
     mesh.geometry = drapeDiskGeometry(cx, cz, radius);
-    mesh.position.set(cx, DRAPE_LIFT, cz);
-    mesh.scale.set(1, 1, 1);
+    setDrapedMeshPosition(mesh, cx, cz);
 }
 
 /** Fill-only draped disk (local verts + mesh.position at center). */
@@ -191,8 +244,8 @@ export function addDrapedCircleFill(
             depthWrite: false,
         }),
     );
-    disc.position.set(x, DRAPE_LIFT, z);
-    disc.frustumCulled = false;
+    setDrapedMeshPosition(disc, x, z);
+    prepDrapedFill(disc);
     group.add(disc);
     return disc;
 }
@@ -217,8 +270,8 @@ export function addDrapedIconDecal(
             depthWrite: false,
         }),
     );
-    mesh.position.set(x, DRAPE_LIFT + 0.02, z);
-    mesh.frustumCulled = false;
+    setDrapedMeshPosition(mesh, x, z, 0.02);
+    prepDrapedFill(mesh);
     group.add(mesh);
 }
 
@@ -242,7 +295,7 @@ export function addDrapedRect(
         drapeRectOutline(x, z, halfW, halfD, yaw),
         new LineBasicMaterial({ color, transparent: true, opacity: lineOpacity }),
     );
-    line.frustumCulled = false;
+    prepDrapedLine(line, x, z);
     group.add(line);
     return { fill, line };
 }
@@ -258,8 +311,7 @@ export function rebuildDrapedRectFill(
 ): void {
     mesh.geometry.dispose();
     mesh.geometry = drapeRectGeometry(halfW, halfD, yaw, cx, cz);
-    mesh.position.set(cx, DRAPE_LIFT, cz);
-    mesh.scale.set(1, 1, 1);
+    setDrapedMeshPosition(mesh, cx, cz);
 }
 
 /** Fill-only draped rect (local verts + mesh.position at center). */
@@ -283,8 +335,8 @@ export function addDrapedRectFill(
             depthWrite: false,
         }),
     );
-    fill.position.set(x, DRAPE_LIFT, z);
-    fill.frustumCulled = false;
+    setDrapedMeshPosition(fill, x, z);
+    prepDrapedFill(fill);
     group.add(fill);
     return fill;
 }
@@ -327,13 +379,15 @@ export function addDrapedCapsule(
     const uz = dz / len;
     const px = -uz * radius;
     const pz = ux * radius;
+    const mx = (startX + endX) * 0.5;
+    const mz = (startZ + endZ) * 0.5;
     // one mesh = one opacity (no overlapping end discs that darken under alpha)
     const body = new Mesh(
         buildDrapedCapsuleFill(startX, startZ, endX, endZ, px, pz, ux, uz, radius),
         fillMat,
     );
-    body.position.set(startX, DRAPE_LIFT, startZ);
-    body.frustumCulled = false;
+    setDrapedMeshPosition(body, mx, mz);
+    prepDrapedFill(body);
     group.add(body);
 
     const line = new Line(
@@ -344,7 +398,7 @@ export function addDrapedCapsule(
             opacity: lineOpacity,
         }),
     );
-    line.frustumCulled = false;
+    prepDrapedLine(line, mx, mz);
     group.add(line);
 }
 
@@ -366,10 +420,12 @@ export function drapeCapsuleOutline(
     const uz = dz / len;
     const px = -uz * radius;
     const pz = ux * radius;
+    const mx = (sx + ex) * 0.5;
+    const mz = (sz + ez) * 0.5;
+    const anchorY = drapeAnchorY(mx, mz);
     const pts: Vector3[] = [];
-    const lift = DRAPE_LIFT + 0.01;
     const push = (x: number, z: number) => {
-        pts.push(new Vector3(x, groundHeightAt(x, z) + lift, z));
+        pts.push(new Vector3(x - mx, drapeLocalY(x, z, anchorY) + 0.01, z - mz));
     };
 
     const sideSteps = Math.max(4, Math.ceil(len / 1.5));
@@ -394,7 +450,7 @@ export function drapeCapsuleOutline(
 
 /**
  * Tessellated chevron draped over relief. Tip points +Z in local space; yaw rotates in XZ.
- * Caller sets mesh.position to (cx, lift, cz) with identity rotation.
+ * Caller sets position via {@link setDrapedMeshPosition}.
  */
 export function drapeChevronGeometry(
     cx: number,
@@ -403,6 +459,7 @@ export function drapeChevronGeometry(
     depth: number,
     yaw: number,
 ): BufferGeometry {
+    const anchorY = drapeAnchorY(cx, cz);
     const hw = width / 2;
     const tipZ = depth * 0.5;
     const baseZ = -depth * 0.5;
@@ -417,7 +474,7 @@ export function drapeChevronGeometry(
     const pushLocal = (lx: number, lz: number): number => {
         const wx = lx * c - lz * s;
         const wz = lx * s + lz * c;
-        positions.push(wx, groundHeightAt(cx + wx, cz + wz), wz);
+        positions.push(wx, drapeLocalY(cx + wx, cz + wz, anchorY), wz);
         return positions.length / 3 - 1;
     };
 
@@ -507,11 +564,14 @@ function buildDrapedCapsuleFill(
     // tessellate along/across the strip so the fill hugs hills (a single quad clips terrain)
     const along = Math.max(4, Math.ceil(len / 1.5));
     const across = Math.max(3, Math.ceil(r / 1.5));
+    const mx = (sx + ex) * 0.5;
+    const mz = (sz + ez) * 0.5;
+    const anchorY = drapeAnchorY(mx, mz);
     const positions: number[] = [];
     const indices: number[] = [];
-    // local XZ relative to start — mesh.position carries (sx, DRAPE_LIFT, sz), same as disks/rects
+    // local XZ relative to route midpoint; Y relative to midpoint relief
     const push = (wx: number, wz: number): number => {
-        positions.push(wx - sx, groundHeightAt(wx, wz), wz - sz);
+        positions.push(wx - mx, drapeLocalY(wx, wz, anchorY), wz - mz);
         return positions.length / 3 - 1;
     };
 
@@ -535,7 +595,8 @@ function buildDrapedCapsuleFill(
         }
     }
 
-    // semicircle caps at each end (already sampled densely)
+    // semicircle caps — concentric rings (same density as the strip), not a fan
+    // that spans the full radius in one triangle and clips hills
     appendSemicircleCap(push, indices, ex, ez, dx / len, dz / len, px, pz, r);
     appendSemicircleCap(push, indices, sx, sz, -dx / len, -dz / len, px, pz, r);
 
@@ -546,6 +607,10 @@ function buildDrapedCapsuleFill(
     return geo;
 }
 
+/**
+ * Draped semicircle fill at a capsule end. Concentric rings + angular steps so
+ * interior verts sample relief (a center→rim fan floats/clips on mounds).
+ */
 function appendSemicircleCap(
     push: (x: number, z: number) => number,
     indices: number[],
@@ -557,18 +622,43 @@ function appendSemicircleCap(
     pz: number,
     r: number,
 ): void {
-    const center = push(cx, cz);
     const aLeft = Math.atan2(pz, px);
     const aBulge = Math.atan2(bulgeZ, bulgeX);
     const ccwToBulge = (((aBulge - aLeft) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     const clockwise = ccwToBulge > Math.PI;
     const sweep = clockwise ? -Math.PI : Math.PI;
-    const steps = 28;
-    let prev = -1;
-    for (let i = 0; i <= steps; i++) {
-        const a = aLeft + (sweep * i) / steps;
-        const idx = push(cx + Math.cos(a) * r, cz + Math.sin(a) * r);
-        if (prev >= 0) indices.push(center, prev, idx);
-        prev = idx;
+    const rings = Math.max(2, Math.ceil(r / 1.5));
+    const steps = Math.max(16, Math.min(48, Math.ceil(r * 4)));
+    const center = push(cx, cz);
+
+    // each ring: steps+1 verts from +perp through bulge to −perp (inclusive ends)
+    const ringStarts: number[] = [];
+    for (let ring = 1; ring <= rings; ring++) {
+        const rr = (ring / rings) * r;
+        let start = -1;
+        for (let i = 0; i <= steps; i++) {
+            const a = aLeft + (sweep * i) / steps;
+            const idx = push(cx + Math.cos(a) * rr, cz + Math.sin(a) * rr);
+            if (start < 0) start = idx;
+        }
+        ringStarts.push(start);
+    }
+
+    // center → first ring
+    const s0 = ringStarts[0]!;
+    for (let i = 0; i < steps; i++) {
+        indices.push(center, s0 + i, s0 + i + 1);
+    }
+    // ring → ring
+    for (let ring = 0; ring < rings - 1; ring++) {
+        const a = ringStarts[ring]!;
+        const b = ringStarts[ring + 1]!;
+        for (let i = 0; i < steps; i++) {
+            const i0 = a + i;
+            const i1 = a + i + 1;
+            const j0 = b + i;
+            const j1 = b + i + 1;
+            indices.push(i0, j0, i1, i1, j0, j1);
+        }
     }
 }

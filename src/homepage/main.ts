@@ -20,7 +20,6 @@ import { homepageStyles } from './styles';
 
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
 const menuBgUrl = new URL('../../assets/ui/menu-bg.webp', import.meta.url).href;
-const iconUrl = new URL('../../icon.png', import.meta.url).href;
 const feuerwareLogoUrl = new URL('../../assets/marketing/feuerware.webp', import.meta.url).href;
 const steamLogoUrl = new URL('../../assets/marketing/steam-logo.png', import.meta.url).href;
 
@@ -52,12 +51,16 @@ const TACTIC_ART: Partial<Record<string, string>> = {
     ).href,
 };
 
-const STEAM_URL = 'https://store.steampowered.com/app/1255063/';
-const DISCORD_URL = 'https://discord.gg/rmRP7qYt7';
+const STEAM_URL = 'https://steam.melodan.com';
+const DISCORD_URL = 'https://discord.melodan.com';
+const GITHUB_URL = 'https://github.melodan.com';
 const PLAY_URL =
     location.hostname === 'melodan.com' || location.hostname === 'www.melodan.com'
         ? 'https://play.melodan.com/'
         : new URL('./index.html', location.href).href;
+
+const TRAILER_YOUTUBE_ID = '-Kspr2J8jWQ';
+const DEVLOG_YOUTUBE_ID = 'hfVDwHk4xCA';
 
 const SCREENSHOTS = [
     { file: '01.webp', label: 'Screenshot 1' },
@@ -66,6 +69,20 @@ const SCREENSHOTS = [
     { file: '04.webp', label: 'Screenshot 4' },
 ].map((s) => ({
     src: new URL(`../../assets/marketing/screenshots/${s.file}`, import.meta.url).href,
+    label: s.label,
+}));
+
+const MORE_SCREENSHOTS = [
+    { file: 'screen_1.webp', label: 'Deployment at the castle wall' },
+    { file: 'screen_2.webp', label: 'Battle around a ward stone' },
+    { file: 'screen_3.webp', label: 'Placing archers on the grid' },
+    { file: 'screen_4.webp', label: 'Dragon fire breath over the field' },
+    { file: 'screen_5.webp', label: 'Close combat melee' },
+    { file: 'screen_6.webp', label: 'Mass army deployment' },
+    { file: 'screen_7.webp', label: 'Large-scale battle' },
+    { file: 'screen_8.webp', label: 'Stronghold and unit deployment' },
+].map((s) => ({
+    src: new URL(`../../assets/marketing/screenshots/fullhd/${s.file}`, import.meta.url).href,
     label: s.label,
 }));
 
@@ -91,6 +108,11 @@ function pickButtons(list: UnitType[], activeId: string): string {
 const DISCORD_ICON_SVG =
     `<svg class="mh-discord-icon" viewBox="0 0 127.14 96.36" width="22" height="17" aria-hidden="true" focusable="false">` +
     `<path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1A105.25 105.25 0 0 0 126.6 80.22c2.64-27.38-4.51-51.14-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53 48.84 65.69 42.45 65.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53 91.08 65.69 84.69 65.69Z"/>` +
+    `</svg>`;
+
+const YOUTUBE_ICON_SVG =
+    `<svg class="mh-youtube-icon" viewBox="0 0 24 24" width="22" height="16" aria-hidden="true" focusable="false">` +
+    `<path fill="currentColor" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.5 31.5 0 0 0 0 12a31.5 31.5 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.5 31.5 0 0 0 24 12a31.5 31.5 0 0 0-.5-5.8zM9.75 15.5v-7l6.5 3.5-6.5 3.5z"/>` +
     `</svg>`;
 
 /** Renders a real link when STEAM_URL is set, otherwise an inert placeholder. */
@@ -234,11 +256,6 @@ if (!app) throw new Error('#app missing');
 
 app.style.setProperty('--menu-bg', `url(${menuBgUrl})`);
 
-const favicon = document.createElement('link');
-favicon.rel = 'icon';
-favicon.href = iconUrl;
-document.head.appendChild(favicon);
-
 const style = document.createElement('style');
 style.textContent = menuStyles() + hudStyles() + homepageStyles();
 document.head.appendChild(style);
@@ -259,11 +276,15 @@ app.innerHTML = `
     ${steamLink(
         'mh-play-btn steam',
         `<span class="mh-play-title">
-        <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="Steam" width="112" height="112" />
+        <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="Steam" width="256" height="77" />
       </span>
       <span class="mh-play-note">Ranked Multiplayer · Play with Friends</span>`,
     )}
   </div>
+  <button type="button" class="mh-trailer-btn" id="mh-trailer-open" aria-haspopup="dialog">
+    ${YOUTUBE_ICON_SVG}
+    <span>Watch Trailer</span>
+  </button>
 </header>
 
 <main class="mh-wrap">
@@ -272,6 +293,11 @@ app.innerHTML = `
     <p class="mh-sub">A look at deployment and battle.</p>
     <div class="mh-shots">
       ${SCREENSHOTS.map(shotCard).join('')}
+    </div>
+    <div class="mh-shots-more-wrap">
+      <button type="button" class="mh-shots-more-btn" id="mh-shots-more" aria-haspopup="dialog">
+        Browse screenshots
+      </button>
     </div>
   </section>
 
@@ -359,13 +385,17 @@ app.innerHTML = `
     <div class="mh-together-cta">
       <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Send feedback</button>
       <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} Discord</a>
+      <button type="button" class="mh-trailer-btn" id="mh-devlog-open" aria-haspopup="dialog">
+        ${YOUTUBE_ICON_SVG}
+        <span>Developer Log</span>
+      </button>
     </div>
     <div class="mh-community-body">
       <div class="mh-community-block">
         <h3>Ways to help</h3>
         <ul class="mh-help-list">
           <li>Share ideas and bug reports</li>
-          <li>Open pull requests on <a href="https://github.com/alexanderthurn/mechili" rel="noopener noreferrer" target="_blank">GitHub</a> (GPL-3.0)</li>
+          <li>Open pull requests on <a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">GitHub</a> (GPL-3.0)</li>
           <li>Make or improve 3D models</li>
           <li>Take care of balancing, invent new spells, cards, ideas.</li>
           <li>Welcome players, write guides, help with moderation if you want to take that on</li>
@@ -387,7 +417,7 @@ app.innerHTML = `
         thank you for the spark. MELODAN is an independent fantasy take; please support the original and buy Mechabelum. Thank you!
       </p>
       <p>
-        The game is <a href="https://github.com/alexanderthurn/mechili" rel="noopener noreferrer" target="_blank">open source on GitHub</a>
+        The game is <a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">open source on GitHub</a>
         (GPL-3.0). Copyright stays with Alexander Thurn / Feuerware. Feel free to fork it privately, invent new units, and open pull requests.
         For something bigger <span class="mh-sep">⬢</span> a new setting, a commercial spin-off, a full rebrand
         <span class="mh-sep">⬢</span>
@@ -420,6 +450,31 @@ app.innerHTML = `
     <img class="mh-sticky-icon mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="84" height="84" />
   </a>
 </aside>
+
+<dialog class="mh-lightbox" id="mh-lightbox" aria-label="Screenshot gallery">
+  <div class="mh-lightbox-chrome">
+    <p class="mh-lightbox-count" id="mh-lightbox-count" aria-live="polite"></p>
+    <button type="button" class="mh-lightbox-close" id="mh-lightbox-close" aria-label="Close gallery">&times;</button>
+  </div>
+  <button type="button" class="mh-lightbox-nav prev" id="mh-lightbox-prev" aria-label="Previous screenshot">&#8249;</button>
+  <button type="button" class="mh-lightbox-nav next" id="mh-lightbox-next" aria-label="Next screenshot">&#8250;</button>
+  <div class="mh-lightbox-stage" id="mh-lightbox-stage">
+    <img class="mh-lightbox-img" id="mh-lightbox-img" alt="" draggable="false" />
+  </div>
+  <p class="mh-lightbox-caption" id="mh-lightbox-caption"></p>
+  <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="Screenshots"></div>
+</dialog>
+
+<dialog class="mh-trailer-dialog" id="mh-trailer-dialog" aria-label="MELODAN trailer">
+  <div class="mh-trailer-dialog-chrome">
+    <button type="button" class="mh-lightbox-close mh-trailer-dialog-close" id="mh-trailer-close" aria-label="Close trailer">&times;</button>
+  </div>
+  <div class="mh-trailer-dialog-frame" id="mh-trailer-mount"></div>
+  <p class="mh-trailer-dialog-note">
+    Playing via YouTube. Cookies may be set &mdash;
+    <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">data privacy</a>.
+  </p>
+</dialog>
 `;
 
 const heroPlay = app.querySelector('.mh-play');
@@ -470,6 +525,149 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
         span.textContent = `${label} ⬢ drop file in assets/marketing/screenshots/`;
         img.replaceWith(span);
     });
+}
+
+const trailerDialog = app.querySelector<HTMLDialogElement>('#mh-trailer-dialog');
+const trailerMount = app.querySelector<HTMLElement>('#mh-trailer-mount');
+const trailerOpenBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-open');
+const devlogOpenBtn = app.querySelector<HTMLButtonElement>('#mh-devlog-open');
+const trailerCloseBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-close');
+
+const unloadTrailer = () => {
+    trailerMount?.replaceChildren();
+};
+
+const openYoutube = (videoId: string, title: string) => {
+    if (!trailerDialog || !trailerMount) return;
+    const iframe = document.createElement('iframe');
+    iframe.className = 'mh-trailer-frame';
+    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0`;
+    iframe.title = title;
+    iframe.allow =
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    iframe.allowFullscreen = true;
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    trailerMount.replaceChildren(iframe);
+    trailerDialog.setAttribute('aria-label', title);
+    if (!trailerDialog.open) trailerDialog.showModal();
+};
+
+trailerOpenBtn?.addEventListener('click', () => openYoutube(TRAILER_YOUTUBE_ID, 'MELODAN trailer'));
+devlogOpenBtn?.addEventListener('click', () => openYoutube(DEVLOG_YOUTUBE_ID, 'MELODAN developer log'));
+trailerCloseBtn?.addEventListener('click', () => trailerDialog?.close());
+trailerDialog?.addEventListener('click', (e) => {
+    if (e.target === trailerDialog) trailerDialog.close();
+});
+trailerDialog?.addEventListener('close', unloadTrailer);
+
+{
+    const lightbox = app.querySelector<HTMLDialogElement>('#mh-lightbox');
+    const imgEl = app.querySelector<HTMLImageElement>('#mh-lightbox-img');
+    const countEl = app.querySelector<HTMLElement>('#mh-lightbox-count');
+    const captionEl = app.querySelector<HTMLElement>('#mh-lightbox-caption');
+    const dotsEl = app.querySelector<HTMLElement>('#mh-lightbox-dots');
+    const stageEl = app.querySelector<HTMLElement>('#mh-lightbox-stage');
+    const openBtn = app.querySelector<HTMLButtonElement>('#mh-shots-more');
+    const closeBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-close');
+    const prevBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-prev');
+    const nextBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-next');
+    let index = 0;
+
+    if (lightbox && imgEl && countEl && captionEl && dotsEl && stageEl && openBtn) {
+        dotsEl.innerHTML = MORE_SCREENSHOTS.map(
+            (s, i) =>
+                `<button type="button" class="mh-lightbox-dot" role="tab" aria-label="${esc(s.label)}" data-index="${i}"></button>`,
+        ).join('');
+        const dots = [...dotsEl.querySelectorAll<HTMLButtonElement>('.mh-lightbox-dot')];
+
+        const show = (i: number) => {
+            const n = MORE_SCREENSHOTS.length;
+            index = ((i % n) + n) % n;
+            const shot = MORE_SCREENSHOTS[index]!;
+            imgEl.src = shot.src;
+            imgEl.alt = shot.label;
+            countEl.textContent = `${index + 1} / ${n}`;
+            captionEl.textContent = shot.label;
+            for (const [di, dot] of dots.entries()) {
+                const on = di === index;
+                dot.classList.toggle('active', on);
+                dot.setAttribute('aria-selected', on ? 'true' : 'false');
+            }
+        };
+
+        const open = (i = 0) => {
+            show(i);
+            if (!lightbox.open) lightbox.showModal();
+        };
+        const close = () => {
+            if (lightbox.open) lightbox.close();
+        };
+
+        openBtn.addEventListener('click', () => open(0));
+        closeBtn?.addEventListener('click', close);
+        prevBtn?.addEventListener('click', () => show(index - 1));
+        nextBtn?.addEventListener('click', () => show(index + 1));
+        for (const dot of dots) {
+            dot.addEventListener('click', () => show(Number(dot.dataset.index)));
+        }
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) close();
+        });
+        lightbox.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                show(index - 1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                show(index + 1);
+            }
+        });
+
+        let dragX = 0;
+        let dragY = 0;
+        let dragging = false;
+        stageEl.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            dragging = true;
+            dragX = e.clientX;
+            dragY = e.clientY;
+            stageEl.setPointerCapture(e.pointerId);
+            imgEl.style.transition = 'none';
+        });
+        stageEl.addEventListener('pointermove', (e) => {
+            if (dragging) {
+                const dx = e.clientX - dragX;
+                imgEl.style.transform = `translateX(${dx}px)`;
+                return;
+            }
+            const rect = stageEl.getBoundingClientRect();
+            stageEl.classList.toggle('mh-lightbox-left', e.clientX < rect.left + rect.width / 2);
+            stageEl.classList.toggle('mh-lightbox-right', e.clientX >= rect.left + rect.width / 2);
+        });
+        const endDrag = (e: PointerEvent) => {
+            if (!dragging) return;
+            dragging = false;
+            const dx = e.clientX - dragX;
+            const dy = e.clientY - dragY;
+            imgEl.style.transition = '';
+            imgEl.style.transform = '';
+            if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
+                show(dx < 0 ? index + 1 : index - 1);
+                return;
+            }
+            if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+                const rect = stageEl.getBoundingClientRect();
+                show(e.clientX < rect.left + rect.width / 2 ? index - 1 : index + 1);
+            }
+        };
+        stageEl.addEventListener('pointerup', endDrag);
+        stageEl.addEventListener('pointercancel', endDrag);
+        stageEl.addEventListener('pointerleave', () => {
+            if (dragging) return;
+            stageEl.classList.remove('mh-lightbox-left', 'mh-lightbox-right');
+        });
+    }
 }
 
 const canvas = app.querySelector<HTMLCanvasElement>('#mh-unit-canvas')!;

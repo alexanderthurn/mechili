@@ -65,6 +65,7 @@ function makeWardRuneTexture(): CanvasTexture {
 }
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, groundSupportAt, mulberry32, type Cell } from './map';
+import { GROUND_UNIT_Y } from './groundQuality';
 import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -764,7 +765,7 @@ export class Unit {
 
     /** current hover base for idle bob (deployment keeps flyers near the ground) */
     memberBaseY(): number {
-        if (!this.type.flying) return 0.05;
+        if (!this.type.flying) return GROUND_UNIT_Y;
         // rockets use absolute combat altitude (see seatMembers) — this is
         // only consulted for crow-rider-style flyers
         if (this.type.rocket) return this.type.flying;

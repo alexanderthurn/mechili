@@ -17,7 +17,7 @@ export type SuggestCategory = (typeof SUGGEST_CATEGORIES)[number];
 
 export type SuggestSource = 'homepage' | 'game menu';
 
-const DISCORD_URL = 'https://discord.gg/rmRP7qYt7';
+const DISCORD_URL = 'https://discord.melodan.com';
 
 /** Same host resolution as matchUrl() in net.ts — kept local so homepage does not pull PeerJS. */
 function suggestEndpoint(): string {
