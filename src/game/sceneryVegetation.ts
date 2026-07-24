@@ -1,20 +1,26 @@
 /**
- * Higher-detail Tripo vegetation for high/ultra scenery.
- * Mid-poly PBR GLBs (~9–17k tris) — denser than the procedural cone/blob forest,
- * used near the board while the far belt stays cheap/instanced primitives.
+ * Higher-detail Tripo vegetation for ultra scenery + shared billboard cards
+ * for far trees (high + ultra).
  */
 
 import {
     Box3,
     BufferGeometry,
+    Color,
+    DoubleSide,
     Group,
     InstancedMesh,
     Matrix4,
     Mesh,
+    MeshBasicMaterial,
     MeshStandardMaterial,
     Object3D,
+    PlaneGeometry,
+    SRGBColorSpace,
+    TextureLoader,
     Vector3,
     type Object3D as Obj3D,
+    type Texture,
 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -30,31 +36,49 @@ export interface VegetationAsset {
     height: number;
 }
 
+/** World units past the board edge that still get real 3D trees. */
+export const NEAR_TREE_DIST = 48;
+
+/** Far cards read thinner than volumetric trees — bump scale so the belt matches. */
+export const BILLBOARD_SCALE = 1.55;
+
+/** MeshBasic cards miss sun lift; multiply albedo so they match lit near trees. */
+export const BILLBOARD_BRIGHTNESS = 1.55;
+
 const SPECS: Record<
     VegetationKind,
-    { url: string; /** target local height in world units */ height: number }
+    { url: string; /** target local height in world units */ height: number; billboard: string }
 > = {
     oak: {
         url: new URL('../../assets/models/scenery/tree-oak.glb', import.meta.url).href,
         height: 10,
+        billboard: new URL('../../assets/textures/scenery/billboard-oak.png', import.meta.url).href,
     },
     pine: {
         url: new URL('../../assets/models/scenery/tree-pine.glb', import.meta.url).href,
         height: 12,
+        billboard: new URL('../../assets/textures/scenery/billboard-pine.png', import.meta.url).href,
     },
     bushRound: {
         url: new URL('../../assets/models/scenery/bush-round.glb', import.meta.url).href,
         height: 2.4,
+        billboard: new URL('../../assets/textures/scenery/billboard-bush-round.png', import.meta.url)
+            .href,
     },
     bushTall: {
         url: new URL('../../assets/models/scenery/bush-tall.glb', import.meta.url).href,
         height: 3.2,
+        billboard: new URL('../../assets/textures/scenery/billboard-bush-tall.png', import.meta.url)
+            .href,
     },
 };
 
 const loader = new GLTFLoader();
+const texLoader = new TextureLoader();
 const cache = new Map<VegetationKind, VegetationAsset>();
+const billboardCache = new Map<VegetationKind, { geometry: BufferGeometry; material: MeshBasicMaterial }>();
 let loadPromise: Promise<void> | null = null;
+let billboardPromise: Promise<void> | null = null;
 
 /** True when Tripo mid-poly trees replace the procedural forest (ultra only). */
 export function sceneryHqVegetation(quality: SceneryQuality): boolean {
@@ -115,7 +139,31 @@ function bake(root: Group): VegetationAsset {
     return { geometry: merged, material: matOut, height: box.max.y - box.min.y };
 }
 
-/** Load all HQ vegetation once (safe to call repeatedly). */
+/** Crossed card: two planes at 90° so it reads from most RTS angles. */
+function makeCrossCard(tex: Texture, height: number): { geometry: BufferGeometry; material: MeshBasicMaterial } {
+    const width = height * 1.05;
+    const a = new PlaneGeometry(width, height);
+    a.translate(0, height * 0.5, 0);
+    const b = a.clone();
+    b.rotateY(Math.PI / 2);
+    const geometry = mergeGeometries([a, b], false) ?? a;
+    a.dispose();
+    // b is a clone with its own data; dispose if merge copied
+    if (geometry !== a) b.dispose();
+
+    tex.colorSpace = SRGBColorSpace;
+    const material = new MeshBasicMaterial({
+        map: tex,
+        color: new Color().setScalar(BILLBOARD_BRIGHTNESS),
+        transparent: true,
+        alphaTest: 0.28,
+        side: DoubleSide,
+        depthWrite: true,
+    });
+    return { geometry, material };
+}
+
+/** Load HQ meshes (ultra). */
 export async function loadSceneryVegetation(): Promise<void> {
     if (cache.size === Object.keys(SPECS).length) return;
     if (loadPromise) return loadPromise;
@@ -140,6 +188,28 @@ export async function loadSceneryVegetation(): Promise<void> {
     return loadPromise;
 }
 
+/** Load billboard cards (high + ultra far belt). */
+export async function loadSceneryBillboards(): Promise<void> {
+    if (billboardCache.size === Object.keys(SPECS).length) return;
+    if (billboardPromise) return billboardPromise;
+    billboardPromise = (async () => {
+        await Promise.all(
+            (Object.keys(SPECS) as VegetationKind[]).map(async (id) => {
+                if (billboardCache.has(id)) return;
+                const spec = SPECS[id]!;
+                try {
+                    const tex = await texLoader.loadAsync(spec.billboard);
+                    billboardCache.set(id, makeCrossCard(tex, spec.height));
+                    console.info(`[sceneryVegetation] billboard '${id}'`);
+                } catch (e) {
+                    console.error(`[sceneryVegetation] billboard '${id}' failed`, e);
+                }
+            }),
+        );
+    })();
+    return billboardPromise;
+}
+
 export function getVegetationAsset(kind: VegetationKind): VegetationAsset | null {
     return cache.get(kind) ?? null;
 }
@@ -152,6 +222,17 @@ export function createVegetationInstances(kind: VegetationKind, capacity: number
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.count = 0;
+    return mesh;
+}
+
+export function createBillboardInstances(kind: VegetationKind, capacity: number): InstancedMesh | null {
+    const asset = billboardCache.get(kind);
+    if (!asset || capacity < 1) return null;
+    const mesh = new InstancedMesh(asset.geometry, asset.material, capacity);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.count = 0;
+    mesh.frustumCulled = true;
     return mesh;
 }
 

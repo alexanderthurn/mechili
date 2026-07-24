@@ -1,7 +1,11 @@
 import { preloadSpellAssets } from './spellAssets';
 import { preloadUnitVisuals } from './units';
 import { preloadWorldTextures } from './worldTextures';
-import { loadSceneryVegetation, sceneryHqVegetation } from './sceneryVegetation';
+import {
+    loadSceneryBillboards,
+    loadSceneryVegetation,
+    sceneryHqVegetation,
+} from './sceneryVegetation';
 import { prefs } from './prefs';
 
 export type BootProgress = {
@@ -51,9 +55,10 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
         }),
     ];
 
-    if (sceneryHqVegetation(prefs().scenery)) {
+    const sceneryQ = prefs().scenery;
+    if (sceneryHqVegetation(sceneryQ) || sceneryQ === 'high') {
         jobs.push(
-            loadSceneryVegetation().then(() => {
+            Promise.all([loadSceneryBillboards(), loadSceneryVegetation()]).then(() => {
                 sceneryFrac = 1;
                 report('Scenery');
             }),
