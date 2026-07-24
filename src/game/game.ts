@@ -35,7 +35,7 @@ import {
     type SpectatorVision,
     type StarRole,
 } from './net';
-import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits } from './telemetry';
+import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
 import {
     AIR_BONUS,
@@ -352,6 +352,13 @@ export class Game {
     private replayLog: LoggedAction[] | null = null;
     /** index into replayLog of the next not-yet-dispatched entry */
     private replayCursor = 0;
+    /** verify mode: re-submits telemetry at match end despite watching
+     *  (see finishMatch) — everything else about watching stays the same */
+    private replayVerify = false;
+    /** the ORIGINAL match's mode, threaded through so reportMatchTelemetry
+     *  can tag a verify submission correctly — net/star are always null
+     *  while watching, so they can't tell a replayed 2v2 from solo */
+    private replayOriginalMode: MatchMode | null = null;
     /** connection lost: everything pauses until the peer is back */
     private suspended = false;
     /** seconds left before an unreturned opponent forfeits (null = no active grace window) */
@@ -460,10 +467,24 @@ export class Game {
          *  instantly fast-forwards (dispatch + headless battles) through
          *  everything before that round before paced playback takes over —
          *  used for both "jump to round N" and "skip to end" (an
-         *  unreachably high target). */
-        replay: { actions: LoggedAction[]; jumpToRound?: number } | null = null,
+         *  unreachably high target). `verify` re-submits the recomputed
+         *  result through the normal telemetry pipeline at match end (see
+         *  finishMatch) — a fast, no-watching way to check a stored replay
+         *  still reproduces its recorded outcome; `mode` is the ORIGINAL
+         *  match's mode (net/star are always null while watching, so
+         *  reportMatchTelemetry can't otherwise tell a replayed 2v2 from
+         *  solo — needed so a verify submission's fingerprint can actually
+         *  match the original's). */
+        replay: {
+            actions: LoggedAction[];
+            jumpToRound?: number;
+            verify?: boolean;
+            mode?: MatchMode;
+        } | null = null,
     ) {
         this.watching = replay !== null;
+        this.replayVerify = replay?.verify === true;
+        this.replayOriginalMode = replay?.mode ?? null;
         // the field initializer above hardcodes SPEED_STEPS's index of 1 —
         // REPLAY_SPEED_STEPS has 1 at a different position, so correct it
         // now that `watching` (and therefore `speedSteps`) is known
@@ -2488,6 +2509,27 @@ export class Game {
         this.hud.setSpeed(this.speedSteps[clamped]!);
     }
 
+    /**
+     * Skip Deployment: instantly dispatches every remaining `replayLog`
+     * entry for the CURRENT round (ignoring their recorded `t`) — finishes
+     * this round's build phase immediately without jumping rounds, so no
+     * Game reconstruction is needed (unlike jump-to-round/skip-to-end).
+     * The round-card/log dispatch naturally stops once the round's own
+     * entries run out (the next entry, if any, belongs to the next round —
+     * battle phases carry no logged actions), so no explicit phase check
+     * is needed inside the loop.
+     */
+    skipReplayDeployment(): void {
+        if (!this.watching || !this.replayLog || this.phase !== 'build') return;
+        while (
+            this.replayCursor < this.replayLog.length &&
+            this.replayLog[this.replayCursor]!.round === this.round
+        ) {
+            this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+            this.replayCursor++;
+        }
+    }
+
     /** round 1 begins once EVERY seat has chosen a specialist (a teammate's may lag) */
     private maybeStartMatch(): void {
         if (!this.awaitingCards || this.round > 0) return;
@@ -4205,10 +4247,18 @@ export class Game {
             return;
         }
         // watching someone else's (or your own) already-recorded match end
-        // again isn't a new result to report — it's the same match
+        // again isn't a new result to report — it's the same match — EXCEPT
+        // verify mode, which specifically re-submits through the normal
+        // telemetry pipeline: stats.php's per-side dedupe means an exact
+        // recomputed match stores nothing new (implicitly "verified, still
+        // matches"), while any divergence creates a second file for that
+        // side — exactly the mismatch signal worth flagging for review.
+        // Rating never applies here either way — it's not a new result.
         if (!this.watching) {
             this.reportMatchTelemetry(result);
             this.reportOpenRating(result);
+        } else if (this.replayVerify) {
+            this.reportMatchTelemetry(result);
         }
         this.hud.showGameOver(result);
     }
@@ -4285,7 +4335,7 @@ export class Game {
                 ts: Math.floor(Date.now() / 1000),
                 gameVersion: GAME_VERSION,
                 balancePatchId: BALANCE_PATCH_ID,
-                mode: this.star ? '2v2' : this.net ? 'mp' : 'ai',
+                mode: this.replayOriginalMode ?? (this.star ? '2v2' : this.net ? 'mp' : 'ai'),
                 side: this.side,
                 result,
                 rounds: this.round,

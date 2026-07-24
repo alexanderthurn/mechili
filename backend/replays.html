@@ -180,12 +180,17 @@
       const recsHtml = records.map((r) => {
         const uid = `${group.matchKey}-${r.side}-${r.id}`;
         const watchUrl = `../index.html?watch=${encodeURIComponent(r.id)}&side=${encodeURIComponent(r.side)}`;
+        // instant, no-watching re-check: fast-forwards headlessly and
+        // redirects straight back here, so a whole batch can be clicked
+        // through quickly — see verifyReplayAndReturn in main.ts
+        const verifyUrl = `../index.html?verify=${encodeURIComponent(r.id)}&side=${encodeURIComponent(r.side)}`;
         return `<div class="rec">
           <div class="name">${escapeHtml(r.names.local || '(unknown)')}</div>
           <div class="vs">vs ${escapeHtml(r.names.opponent || '(unknown)')} · side ${escapeHtml(r.side)}</div>
           <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)}</div>
           <div class="meta">${r.rounds} rounds · v${r.gameVersion} · ${fmtTime(r.ts)}</div>
           <a class="raw-link" href="${watchUrl}">▶ Watch</a>
+          <a class="raw-link" href="${verifyUrl}" title="Instantly recomputes the result and re-submits it — no new file if it still matches, a second one if it doesn't">⚡ Verify</a>
           <a class="raw-link" data-id="${escapeHtml(r.id)}" data-side="${escapeHtml(r.side)}" data-target="raw-${uid}">View raw ▸</a>
           <pre id="raw-${uid}" hidden></pre>
         </div>`;

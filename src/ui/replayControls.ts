@@ -9,6 +9,7 @@
 export interface ReplayControlsCallbacks {
     onJump(round: number): void;
     onSkipToEnd(): void;
+    onSkipDeployment(): void;
     onSpeedChange(index: number): void;
 }
 
@@ -32,6 +33,7 @@ export class ReplayControls {
         this.root.innerHTML =
             `<div class="rc-row">` +
             `<label>Round <select class="rc-round">${roundOptions}</select></label>` +
+            `<button type="button" class="rc-skip-deploy">Skip Deployment</button>` +
             `<button type="button" class="rc-end">Skip to End</button>` +
             `</div>` +
             `<div class="rc-row">` +
@@ -49,6 +51,7 @@ export class ReplayControls {
             const round = Number(this.roundSelect.value);
             if (Number.isFinite(round) && round >= 1) cb.onJump(round);
         });
+        this.root.querySelector('.rc-skip-deploy')!.addEventListener('click', () => cb.onSkipDeployment());
         this.root.querySelector('.rc-end')!.addEventListener('click', () => cb.onSkipToEnd());
         this.speedSelect.addEventListener('change', () => cb.onSpeedChange(Number(this.speedSelect.value)));
 

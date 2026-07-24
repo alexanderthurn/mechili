@@ -1,7 +1,7 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
-import { fetchMatchReplay, type MatchTelemetry } from './game/telemetry';
+import { fetchMatchReplay, type MatchMode, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
@@ -849,8 +849,9 @@ function startGame(
     star: StarRole | null = null,
     /** watching a finished match play back — mutually exclusive with
      *  everything above; never persists/resumes/reports (see game.ts).
-     *  `jumpToRound` fast-forwards past everything before that round. */
-    replay: { actions: LoggedAction[]; jumpToRound?: number } | null = null,
+     *  `jumpToRound` fast-forwards past everything before that round.
+     *  `verify` re-submits telemetry at the end despite watching. */
+    replay: { actions: LoggedAction[]; jumpToRound?: number; verify?: boolean; mode?: MatchMode } | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -1087,7 +1088,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         { local: record.names.local, opponent: record.names.opponent },
         null,
         null,
-        { actions: record.replay.actions },
+        { actions: record.replay.actions, mode: record.mode },
     );
     const maxRound = Math.max(1, ...record.replay.actions.map((a) => a.round));
     replayControlsPanel = new ReplayControls(
@@ -1098,6 +1099,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         {
             onJump: (round) => void rebuildReplayAt(round),
             onSkipToEnd: () => void rebuildReplayAt('end'),
+            onSkipDeployment: () => activeGame?.skipReplayDeployment(),
             onSpeedChange: (index) => activeGame?.setReplaySpeedIndex(index),
         },
     );
@@ -1124,6 +1126,7 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
         {
             actions: currentReplayRecord.replay.actions,
             jumpToRound: target === 'end' ? Infinity : target,
+            mode: currentReplayRecord.mode,
         },
     );
     // a fresh Game always starts at 1x — reapply whatever the panel (which
@@ -1137,6 +1140,43 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
             target === 'end' ? Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round)) : target;
         replayControlsPanel.setCurrentRound(landedRound);
     }
+}
+
+/**
+ * ?verify=<id>&side=<a|b> — a fast, no-watching way to re-check a stored
+ * replay: instantly fast-forwards the whole match headlessly (same as
+ * "skip to end", jumpToRound: Infinity), which re-submits the recomputed
+ * result through the normal telemetry pipeline (verify: true — see
+ * game.ts's finishMatch/reportMatchTelemetry). stats.php's per-side dedupe
+ * means an exact match stores nothing new; any divergence creates a second
+ * file for that side, visible in replays.html as a mismatch. Redirects
+ * straight back to replays.html so a batch of "Verify" links can be
+ * clicked through quickly without watching each one — safe to navigate
+ * immediately, since submitMatchTelemetry's fetch already fired
+ * synchronously inside the Game constructor above (finishMatch runs
+ * synchronously from the constructor's own instant fast-forward) and uses
+ * `keepalive: true` specifically so it survives the navigation.
+ */
+async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void> {
+    setMenuChromeVisible(true);
+    setStatus('Verifying…');
+    const record = await fetchMatchReplay(id, side);
+    if (!record) {
+        setStatus('Replay not found.');
+        return;
+    }
+    const settings = record.replay.settings;
+    settings.seed = record.replay.seed;
+    startGame(
+        settings,
+        null,
+        record.side,
+        { local: record.names.local, opponent: record.names.opponent },
+        null,
+        null,
+        { actions: record.replay.actions, jumpToRound: Infinity, verify: true, mode: record.mode },
+    );
+    location.href = new URL('backend/replays.html', location.href).href;
 }
 
 async function beginNetGame(
@@ -1790,9 +1830,13 @@ setGameLayerVisible(false);
 const watchParams = new URLSearchParams(location.search);
 const watchId = watchParams.get('watch');
 const watchSide = watchParams.get('side');
+const verifyId = watchParams.get('verify');
 const mpMarker = loadResumeMarker();
 const spSave = loadSinglePlayer();
-if (watchId && (watchSide === 'a' || watchSide === 'b')) {
+if (verifyId && (watchSide === 'a' || watchSide === 'b')) {
+    // same "outranks stale local state" reasoning as ?watch= below
+    void verifyReplayAndReturn(verifyId, watchSide);
+} else if (watchId && (watchSide === 'a' || watchSide === 'b')) {
     // outranks any resume marker/single-player save — a replay link should
     // never be silently preempted by stale local state
     void startReplayWatch(watchId, watchSide);
