@@ -2542,6 +2542,19 @@ export class Game {
         }
     }
 
+    /**
+     * Skip Battle: instantly resolves the current battle phase headlessly
+     * (fastForwardBattle already does exactly this at a battle's natural
+     * end — sim.update() in a loop, no rendering) and lands on the next
+     * round's build phase, or finishMatch() if this was the last battle.
+     * A no-op outside battle phase (mirrors skipReplayDeployment's own
+     * phase guard, its build-phase counterpart).
+     */
+    skipReplayBattle(): void {
+        if (!this.watching || this.phase !== 'battle') return;
+        this.fastForwardBattle();
+    }
+
     /** verify mode's recomputed outcome once the match has ended, for a
      *  caller (bulk verify in main.ts) to compare against the original
      *  without needing the visual game-over note. Null until finishMatch

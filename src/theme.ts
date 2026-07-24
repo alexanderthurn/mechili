@@ -565,12 +565,14 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-exit-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-exit-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
-/* watch-mode-only jump/speed controls, top-center of the game view */
+/* watch-mode-only jump/speed controls — top-right, deliberately NOT
+   top-center: the round/phase/timer readout (.mechili-topbar) already lives
+   there and this panel used to sit directly on top of it, hiding the one
+   piece of info (time left in the round) replay viewers actually want */
 .mechili-replay-controls {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
-    left: 50%;
-    transform: translateX(-50%);
+    right: calc(16px + env(safe-area-inset-right));
     z-index: 30;
     display: flex;
     flex-direction: column;

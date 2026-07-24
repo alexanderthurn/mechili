@@ -1108,6 +1108,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
             onJump: (round) => void rebuildReplayAt(round),
             onSkipToEnd: () => void rebuildReplayAt('end'),
             onSkipDeployment: () => activeGame?.skipReplayDeployment(),
+            onSkipBattle: () => activeGame?.skipReplayBattle(),
             onSpeedChange: (index) => activeGame?.setReplaySpeedIndex(index),
         },
     );
