@@ -6,15 +6,27 @@
  * lock (temp file + rename). Clients own all analysis; this endpoint only
  * stores and serves bulk downloads.
  *
+ * Every real client in a match submits its OWN record (not just one side),
+ * so a given match normally produces TWO files sharing the same `matchKey`
+ * (a stable hash of `gameVersion:seed` — established before either side
+ * could possibly diverge, unlike the per-submission dedupe id below, which
+ * includes `result` and so differs between sides by construction: my
+ * victory is your defeat). `matchKey` is what lets the two be found
+ * together later (grouped listing below, and the filename itself).
+ *
  * Protocol (JSON, CORS open):
  *   OPTIONS
  *       CORS preflight.
  *   POST ?action=submit   body: MatchRecord JSON
- *       Store (or dedupe). {"ok":true,"id":"...","duplicate":bool}
+ *       Store (or dedupe a retried submission from the same side). {"ok":true,"id":"...","duplicate":bool}
  *   GET  ?action=list&since=<unix>&limit=<n>
- *       Lightweight index. {"matches":[{id,ts,...}],"nextSince":n|null}
+ *       Lightweight index, oldest-of-the-batch first (forward cursor). {"matches":[{id,ts,...}],"nextSince":n|null}
  *   GET  ?action=bulk&since=<unix>&limit=<n>
- *       Full records. {"matches":[...],"nextSince":n|null}
+ *       Full records, same cursor as `list`. {"matches":[...],"nextSince":n|null}
+ *   GET  ?action=grouped&limit=<n>
+ *       Lightweight index GROUPED by matchKey, most-recent-first — for a
+ *       human browsing match history (replays.html), not a sync cursor.
+ *       {"groups":[{matchKey,ts,records:[{id,ts,side,mode,gameVersion,result,rounds,names},...]}]}
  *   GET  ?action=get&id=<id>
  *       One full record.
  *   GET  ?action=count
@@ -29,6 +41,7 @@ const MATCH_DIR = DATA_DIR . '/matches';
 const MAX_BODY = 1_048_576; // 1 MiB
 const MAX_LIST = 500;
 const SCHEMA = 1;
+const TS_BUCKET_SECONDS = 600; // 10 min — coarse enough that both sides' near-simultaneous submissions land in the same bucket
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -52,6 +65,8 @@ try {
         handleList(false);
     } elseif ($action === 'bulk') {
         handleList(true);
+    } elseif ($action === 'grouped') {
+        handleGrouped();
     } elseif ($action === 'get') {
         handleGet();
     } elseif ($action === 'count') {
@@ -112,11 +127,25 @@ function handleSubmit(): void {
 
     $record = normalizeRecord($data);
     $id = $record['id'];
-    $path = MATCH_DIR . '/' . $record['ts'] . '_' . $id . '.json';
+    // {tsBucket}_{matchKey}_{side}_{id} — tsBucket keeps the listing roughly
+    // chronological, matchKey groups both sides of one match adjacent to
+    // each other (see the file docblock), side+id keep the two files apart.
+    $tsBucket = intdiv($record['ts'], TS_BUCKET_SECONDS) * TS_BUCKET_SECONDS;
+    $path = MATCH_DIR . '/' . $tsBucket . '_' . $record['matchKey'] . '_' . $record['side'] . '_' . $id . '.json';
 
-    // content-addressed dedupe: same id already stored under any timestamp
+    // content-addressed dedupe, scoped to the SAME side: catches a retried
+    // submission from the same client cleanly, but two genuinely different
+    // sides must never be treated as duplicates of each other just because
+    // their content fingerprint happens to collide (e.g. both wrongly
+    // reporting "victory", or a cheater's fabricated report happening to
+    // match the honest side's summary fields) — that's exactly the
+    // conflicting evidence this dual-submission exists to preserve, not
+    // discard. Scoping by side is safe because the fingerprint never
+    // includes `side` itself, so two legitimately different submissions
+    // from the SAME side always collide identically regardless of order.
+    $suffix = '_' . $record['side'] . '_' . $id . '.json';
     foreach (matchFiles() as $f) {
-        if (substr($f, -strlen('_' . $id . '.json')) === '_' . $id . '.json') {
+        if (substr($f, -strlen($suffix)) === $suffix) {
             respond(['ok' => true, 'id' => $id, 'duplicate' => true]);
         }
     }
@@ -154,25 +183,30 @@ function handleList(bool $full): void {
     $nextSince = null;
 
     foreach (matchFiles() as $path) {
+        // the leading filename component is a `ts` BUCKET (see
+        // TS_BUCKET_SECONDS) — always <= the real ts inside the file, so
+        // it's a safe, cheap pre-skip for obviously-too-old files without
+        // opening them, but the actual filter/cursor below always uses the
+        // real per-record `ts` from content, never the bucket.
         $base = basename($path, '.json');
-        // filename: {ts}_{id}
         $us = strpos($base, '_');
-        if ($us === false) continue;
-        $ts = (int)substr($base, 0, $us);
-        $id = substr($base, $us + 1);
-        if ($ts < $since) continue;
+        $bucket = $us === false ? 0 : (int)substr($base, 0, $us);
+        if ($bucket + TS_BUCKET_SECONDS <= $since) continue;
 
         $raw = @file_get_contents($path);
         if ($raw === false) continue;
         $data = json_decode($raw, true);
         if (!is_array($data)) continue;
 
+        $ts = (int)($data['ts'] ?? 0);
+        if ($ts < $since) continue;
+
         if ($full) {
             $out[] = $data;
         } else {
             $out[] = [
-                'id' => $data['id'] ?? $id,
-                'ts' => $data['ts'] ?? $ts,
+                'id' => $data['id'] ?? '',
+                'ts' => $ts,
                 'mode' => $data['mode'] ?? 'unknown',
                 'patch' => $data['balancePatchId'] ?? '',
                 'gameVersion' => $data['gameVersion'] ?? 0,
@@ -191,12 +225,65 @@ function handleList(bool $full): void {
     ]);
 }
 
+/**
+ * Lightweight index grouped by matchKey, most-recent-first — for a human
+ * browsing match history, not a sync cursor like list/bulk above (no
+ * since/nextSince; `limit` caps the number of GROUPS, not records, so a
+ * two-sided match's sibling record is never orphaned onto the next page).
+ * Records with no matchKey (pre-migration files, if any exist on the
+ * deployed server from before this endpoint existed) are skipped — they
+ * still work fine through list/bulk/get, just don't appear here.
+ */
+function handleGrouped(): void {
+    $limit = (int)($_GET['limit'] ?? 100);
+    if ($limit < 1) $limit = 100;
+    if ($limit > MAX_LIST) $limit = MAX_LIST;
+
+    $groups = []; // matchKey => group; insertion order = newest-group-first, since we scan files newest-first
+    foreach (array_reverse(matchFiles()) as $path) {
+        $raw = @file_get_contents($path);
+        if ($raw === false) continue;
+        $data = json_decode($raw, true);
+        if (!is_array($data)) continue;
+
+        $matchKey = (string)($data['matchKey'] ?? '');
+        if ($matchKey === '') continue;
+
+        if (!isset($groups[$matchKey])) {
+            if (count($groups) >= $limit) continue; // already have enough groups — but keep scanning for siblings of ones we do have
+            $groups[$matchKey] = ['matchKey' => $matchKey, 'ts' => (int)($data['ts'] ?? 0), 'records' => []];
+        }
+        $groups[$matchKey]['records'][] = [
+            'id' => $data['id'] ?? '',
+            'ts' => (int)($data['ts'] ?? 0),
+            'side' => $data['side'] ?? 'a',
+            'mode' => $data['mode'] ?? 'unknown',
+            'gameVersion' => $data['gameVersion'] ?? 0,
+            'result' => $data['result'] ?? 'unknown',
+            'rounds' => $data['rounds'] ?? 0,
+            'names' => [
+                'local' => $data['names']['local'] ?? '',
+                'opponent' => $data['names']['opponent'] ?? '',
+            ],
+        ];
+    }
+
+    respond(['groups' => array_values($groups)]);
+}
+
 function handleGet(): void {
     $id = $_GET['id'] ?? '';
     if ($id === '' || !preg_match('/^[a-f0-9]{16,64}$/', $id)) {
         respond(['error' => 'bad id'], 400);
     }
-    $files = glob(MATCH_DIR . '/*_' . $id . '.json') ?: [];
+    // `side` disambiguates the rare case where two DIFFERENT sides' content
+    // fingerprints collide (same id) — the dedupe in handleSubmit no longer
+    // treats that as a duplicate (see its comment), so both files can now
+    // genuinely coexist; optional and defaults to "first match" for callers
+    // that don't have a side handy (unchanged prior behavior).
+    $side = $_GET['side'] ?? '';
+    $pattern = $side !== '' ? "*_{$side}_{$id}.json" : "*_{$id}.json";
+    $files = glob(MATCH_DIR . '/' . $pattern) ?: [];
     if (!$files) {
         respond(['error' => 'not found'], 404);
     }
@@ -254,9 +341,16 @@ function normalizeRecord(array $data): array {
         $id = $data['id'];
     }
 
+    // stable across both sides of one match: gameVersion+seed are agreed
+    // BEFORE either side could diverge (unlike the dedupe id above, which
+    // bakes in `result` and so is never the same between the two sides of
+    // a real match — see the file docblock).
+    $matchKey = substr(hash('sha256', $gameVersion . ':' . $seed), 0, 12);
+
     return [
         'schema' => SCHEMA,
         'id' => $id,
+        'matchKey' => $matchKey,
         'ts' => $ts,
         'gameVersion' => $gameVersion,
         'balancePatchId' => $patch,

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MECHILI — match replays</title>
+  <style>
+    :root {
+      --bg: #1a1814;
+      --panel: #242018;
+      --ink: #e8e0d0;
+      --muted: #9a9080;
+      --accent: #c4a574;
+      --line: #3a3428;
+      --good: #7a9e6a;
+      --bad: #b86a5a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 24px;
+    }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 4px; letter-spacing: 0.02em; }
+    .sub { color: var(--muted); margin-bottom: 20px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 16px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+    input, select, button {
+      font: inherit;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--panel);
+      color: var(--ink);
+    }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #1a1814;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .status { color: var(--muted); min-height: 1.2em; margin-bottom: 16px; }
+    .groups { display: flex; flex-direction: column; gap: 10px; }
+    .group {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .badge {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+    .badge.ok { color: var(--good); border-color: var(--good); }
+    .badge.mismatch { color: var(--bad); border-color: var(--bad); }
+    .badge.solo { color: var(--muted); }
+    .when { color: var(--muted); font-size: 12px; }
+    .mode-tag { color: var(--muted); font-size: 12px; }
+    .records { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .rec {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px 10px;
+      background: #1e1b15;
+    }
+    .rec .name { font-weight: 600; }
+    .rec .vs { color: var(--muted); }
+    .rec .result { font-weight: 600; }
+    .rec .result.victory { color: var(--good); }
+    .rec .result.defeat { color: var(--bad); }
+    .rec .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .rec .raw-link { font-size: 12px; margin-top: 6px; display: inline-block; cursor: pointer; color: var(--accent); }
+    .rec pre {
+      margin-top: 8px;
+      max-height: 220px;
+      overflow: auto;
+      background: #14120e;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 11px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 24px; max-width: 52em; }
+  </style>
+</head>
+<body>
+  <h1>Match replays</h1>
+  <p class="sub">Every real client submits its own replay at match end — two records sharing a matchKey are the two sides of one match.</p>
+
+  <div class="row">
+    <label>API base
+      <input id="api" size="48" value="" placeholder="stats.php" />
+    </label>
+    <label>Mode
+      <select id="mode">
+        <option value="all">all</option>
+        <option value="mp">multiplayer</option>
+        <option value="ai">vs AI</option>
+        <option value="2v2">2v2</option>
+      </select>
+    </label>
+    <label>Limit
+      <input id="limit" size="6" value="100" />
+    </label>
+    <button id="load">Load</button>
+  </div>
+  <div class="status" id="status">Ready.</div>
+
+  <div class="groups" id="groups"></div>
+
+  <p class="hint">
+    "Consistent" means the two sides report opposite results (or both draw)
+    and agree on round count — the minimum you'd expect from two honest
+    clients replaying the same match. It is not a full divergence check
+    (that needs actually re-simulating each side's action log) — just a
+    cheap, immediate sanity flag on the summary fields already submitted.
+    "View raw" fetches the full stored record (settings/seed/action log)
+    for one side on demand.
+  </p>
+
+  <script>
+    const apiInput = document.getElementById('api');
+    const statusEl = document.getElementById('status');
+    const groupsEl = document.getElementById('groups');
+
+    // default: same folder as this page
+    apiInput.value = new URL('stats.php', location.href).href;
+
+    document.getElementById('load').addEventListener('click', () => load().catch((e) => {
+      statusEl.textContent = 'Failed: ' + (e.message || e);
+    }));
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[c]);
+    }
+
+    function fmtTime(ts) {
+      if (!ts) return '—';
+      return new Date(ts * 1000).toLocaleString();
+    }
+
+    /** cheap consistency check on already-submitted summary fields — not a
+     *  real divergence check (that needs re-simulating each side's action
+     *  log), just an immediate sanity flag */
+    function checkConsistency(records) {
+      if (records.length < 2) return null;
+      const [a, b] = records;
+      const oppositeResults =
+        (a.result === 'victory' && b.result === 'defeat') ||
+        (a.result === 'defeat' && b.result === 'victory') ||
+        (a.result === 'draw' && b.result === 'draw');
+      const sameRounds = a.rounds === b.rounds;
+      return oppositeResults && sameRounds;
+    }
+
+    function renderGroup(group, base) {
+      const records = group.records.slice().sort((r1, r2) => (r1.side < r2.side ? -1 : 1));
+      const consistent = checkConsistency(records);
+      const badge =
+        records.length < 2
+          ? '<span class="badge solo">solo</span>'
+          : consistent
+            ? '<span class="badge ok">consistent</span>'
+            : '<span class="badge mismatch">⚠ mismatch</span>';
+
+      const recsHtml = records.map((r) => {
+        const uid = `${group.matchKey}-${r.side}-${r.id}`;
+        return `<div class="rec">
+          <div class="name">${escapeHtml(r.names.local || '(unknown)')}</div>
+          <div class="vs">vs ${escapeHtml(r.names.opponent || '(unknown)')} · side ${escapeHtml(r.side)}</div>
+          <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)}</div>
+          <div class="meta">${r.rounds} rounds · v${r.gameVersion} · ${fmtTime(r.ts)}</div>
+          <a class="raw-link" data-id="${escapeHtml(r.id)}" data-side="${escapeHtml(r.side)}" data-target="raw-${uid}">View raw ▸</a>
+          <pre id="raw-${uid}" hidden></pre>
+        </div>`;
+      }).join('');
+
+      return `<div class="group">
+        <div class="group-head">
+          ${badge}
+          <span class="mode-tag">${escapeHtml(records[0].mode)}</span>
+          <span class="when">${fmtTime(group.ts)}</span>
+        </div>
+        <div class="records">${recsHtml}</div>
+      </div>`;
+    }
+
+    groupsEl.addEventListener('click', async (e) => {
+      const link = e.target.closest('.raw-link');
+      if (!link) return;
+      const pre = document.getElementById(link.dataset.target);
+      if (!pre) return;
+      if (!pre.hidden) {
+        pre.hidden = true;
+        link.textContent = 'View raw ▸';
+        return;
+      }
+      const base = apiInput.value.replace(/\?.*$/, '');
+      link.textContent = 'Loading…';
+      try {
+        const res = await fetch(`${base}?action=get&id=${encodeURIComponent(link.dataset.id)}&side=${encodeURIComponent(link.dataset.side)}`);
+        const data = await res.json();
+        pre.textContent = JSON.stringify(data, null, 2);
+        pre.hidden = false;
+        link.textContent = 'Hide raw ▾';
+      } catch (err) {
+        link.textContent = 'View raw ▸ (failed)';
+      }
+    });
+
+    async function load() {
+      const btn = document.getElementById('load');
+      const mode = document.getElementById('mode').value;
+      const limit = Math.max(1, parseInt(document.getElementById('limit').value, 10) || 100);
+      const base = apiInput.value.replace(/\?.*$/, '');
+      btn.disabled = true;
+      statusEl.textContent = 'Loading…';
+      try {
+        const res = await fetch(`${base}?action=grouped&limit=${limit}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        let groups = data.groups || [];
+        if (mode !== 'all') {
+          groups = groups
+            .map((g) => ({ ...g, records: g.records.filter((r) => r.mode === mode) }))
+            .filter((g) => g.records.length > 0);
+        }
+        groupsEl.innerHTML = groups.map((g) => renderGroup(g, base)).join('') ||
+          '<p class="sub">No matches found.</p>';
+        const paired = groups.filter((g) => g.records.length >= 2).length;
+        statusEl.textContent = `${groups.length} match(es) · ${paired} with both sides reporting.`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    load().catch((e) => { statusEl.textContent = 'Failed: ' + (e.message || e); });
+  </script>
+</body>
+</html>
