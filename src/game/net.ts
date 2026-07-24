@@ -1196,9 +1196,13 @@ export interface Pending {
 
 /**
  * Quick match via the PHP endpoint: register our PeerJS id as waiting, or
- * take a waiting one and connect to it.
+ * take a waiting one and connect to it. `onWaiting` fires the moment we
+ * learn no one's already waiting (right before we start waiting ourselves)
+ * — the one point where a caller can still meaningfully offer choices
+ * (e.g. match settings), since anyone who instead finds and joins an
+ * existing wait never sees this callback at all and just connects.
  */
-export function quickMatch(onStatus: (status: string) => void): Pending {
+export function quickMatch(onStatus: (status: string) => void, onWaiting?: () => void): Pending {
     let cancelled = false;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let peer: Peer | null = null;
@@ -1227,6 +1231,7 @@ export function quickMatch(onStatus: (status: string) => void): Pending {
             );
         }, HEARTBEAT_MS);
         onStatus('Waiting for an opponent…');
+        onWaiting?.();
         const s = await awaitConnection(peer, localName);
         cleanup();
         return s;

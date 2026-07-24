@@ -311,11 +311,20 @@ menu.innerHTML = `
     </div>
     <div class="m-matchmaking" style="display:none">
         <div class="m-spmode-title">Matchmaking</div>
-        <div class="m-spmode-row">
-            <label><input type="radio" name="mmteam" value="1v1" checked> 1v1</label>
-            <label><input type="radio" name="mmteam" value="2v2"> 2v2</label>
+        <div class="m-toggle-row">
+            <label class="m-toggle-card">
+                <input type="radio" name="mmteam" value="1v1" checked>
+                <span class="m-ico">🧍</span><span class="m-label">1v1</span>
+            </label>
+            <label class="m-toggle-card">
+                <input type="radio" name="mmteam" value="2v2">
+                <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
+            </label>
         </div>
-        <label class="m-spmode-horde"><input type="checkbox" class="mm-horde"> 🐗 Horde</label>
+        <label class="m-toggle-pill">
+            <input type="checkbox" class="mm-horde">
+            <span class="m-ico">🐗</span><span class="m-label">Horde Mode</span>
+        </label>
         <div class="m-seats">
             <div class="m-seat m-seat-you"><span class="mm-you-name"></span></div>
             <button class="m-seat m-seat-invite" data-mode="mm-invite">+ Invite a Friend</button>
@@ -1763,6 +1772,19 @@ onSteamJoinRequested(({ lobbySteamId }) => {
         .catch((e: unknown) => setStatus(`Could not join: ${e instanceof Error ? e.message : e}`));
 });
 
+/** resets and reveals the Matchmaking picker (team size / Horde / Invite /
+ *  Play) — shown up front for Steam (see the 'matchmaking' case below for
+ *  why), and as the fallback for the plain PeerJS path once a quick probe
+ *  finds nobody already waiting to join. */
+function showMatchmakingPicker(): void {
+    mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
+    mmYouNameEl.textContent = getPlayerName();
+    mmInviteEl.disabled = false;
+    mmInviteEl.textContent = '+ Invite a Friend';
+    mmLinkEl.style.display = 'none';
+    mmModeEl.style.display = '';
+}
+
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
@@ -1829,21 +1851,52 @@ menu.addEventListener('click', (e) => {
             startLocalMatch({ duo: team === '2v2', horde: spHordeEl.checked });
             break;
         }
-        case 'matchmaking':
+        case 'matchmaking': {
             spModeEl.style.display = 'none';
             lobbyEl.style.display = 'none';
             stopRoomPoll();
             mainButtonsEl.style.display = 'none';
-            // reset to a clean state every time the screen opens — covers
-            // returning here after an earlier invite/play completed or was
-            // cancelled
-            mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
-            mmYouNameEl.textContent = getPlayerName();
-            mmInviteEl.disabled = false;
-            mmInviteEl.textContent = '+ Invite a Friend';
-            mmLinkEl.style.display = 'none';
-            mmModeEl.style.display = '';
+            if (steam.isAvailable()) {
+                // unchanged for Steam: quickSteamMatch's "host" branch
+                // creates a real public Steam lobby the instant it starts
+                // waiting, and safely abandoning that lobby if the player
+                // changes their mind first needs its own pass before the
+                // probe-first shortcut below is safe to extend there too
+                showMatchmakingPicker();
+                break;
+            }
+            // Try to find someone already waiting BEFORE asking anything.
+            // Joining an existing wait means taking the host's settings
+            // as-is (see beginNetGame: only the host's choices ever apply),
+            // so there's nothing meaningful to pick in that case — the
+            // picker only ever appears for whoever ends up waiting
+            // themselves, the one point where a choice still matters.
+            setStatus('Looking for a match…');
+            setMenuBusy(true);
+            const probe = quickMatch(
+                (s) => setStatus(s),
+                () => {
+                    pending = null;
+                    probe.cancel();
+                    setMenuBusy(false);
+                    setStatus('');
+                    showMatchmakingPicker();
+                },
+            );
+            pending = probe;
+            probe.session
+                .then((session) => {
+                    pending = null;
+                    setMenuBusy(false);
+                    setStatus('');
+                    void beginNetGame(session);
+                })
+                .catch(() => {
+                    // either the deliberate cancel-and-reveal above, or the
+                    // player's own Cancel click — both handled where they happened
+                });
             break;
+        }
         case 'mm-back':
             pending?.cancel();
             pending = null;
