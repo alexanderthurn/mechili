@@ -2420,7 +2420,8 @@ export class Game {
             this.phase === 'build' &&
             !this.seatReady[this.humanSeat] &&
             !this.matchOver &&
-            !this.suspended
+            !this.suspended &&
+            !this.watching
         );
     }
 
@@ -2443,7 +2444,8 @@ export class Game {
         this.syncSpecialities();
         this.startBuildPhase();
         // reveal both picks for a beat, then it auto-dismisses into deployment
-        if (!this.hydrating) {
+        // (watching: no reveal at all — every other overlay is suppressed too)
+        if (!this.hydrating && !this.watching) {
             const own = this.starterCardOf('player');
             const opp = this.starterCardOf('enemy');
             if (own && opp) {
@@ -2721,8 +2723,11 @@ export class Game {
         const enemyPrimary = primarySeatOf(this.seats, 'enemy');
         const enemyOffer = this.draw(ROUND_CARDS, 4, this.rngRoundCards[enemyPrimary]!);
         this.triggerExtraRoundCards();
-        if (this.hydrating) {
-            // no UI, no opponent hook — the recorded actions carry the picks;
+        if (this.hydrating || this.watching) {
+            // no UI, no opponent hook — hydrating: the recorded actions
+            // carry the picks and this is re-shown once rebuilt (see
+            // hydrate()); watching: the replay log drives the pick
+            // directly (tickReplayPlayback) and never needs showing at all —
             // the streams were consumed above so future offers stay aligned
             this.pendingOffer = myOffer;
             return;
@@ -3612,6 +3617,7 @@ export class Game {
             // side-wide flag left undo callable for the whole "waiting for
             // ally" window after you'd already locked in
             !this.seatReady[this.humanSeat] &&
+            !this.watching &&
             this.dispatcher.canUndo(this.round, this.humanSeat)
         );
     }
@@ -4427,7 +4433,12 @@ export class Game {
             (seatIdsOf(this.seats, 'player').length > 1 &&
                 this.phase === 'build' &&
                 !this.matchOver &&
-                this.seatReady[this.humanSeat]);
+                this.seatReady[this.humanSeat]) ||
+            // watching: nothing here is ever "mine" to act on — reuse the
+            // same full-hide treatment for the whole build UI, not just the
+            // few individual gates (playerCanAct, canUndo, round-card
+            // offers) patched above
+            this.watching;
         // team modes: a teammate on my own side may have locked in deployment
         // already while I haven't clicked yet — deployReady.player only
         // flips once EVERY seat on my side has, so this needs its own check
