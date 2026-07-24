@@ -43,7 +43,7 @@ import {
     type SteamSession,
     type SteamStarHub,
 } from './game/net-steam';
-import { getPlayerName, seedPlayerName, setPlayerName, validatePlayerName } from './game/player';
+import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
 import { bootGameAssets } from './game/bootAssets';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -713,14 +713,18 @@ function showNameEditor(): void {
     wrapper.appendChild(overlay);
 }
 
-// under Steam, default the display name to the Steam username on first run
-// (never overwrites a name already customized via the editor) — must be
-// awaited before the very first getPlayerName() call below, otherwise that
-// call's own "no saved name yet" fallback wins the race and persists a
-// random Player#### name first
+// under Steam, always sync the display name from the Steam identity — not
+// just a one-time seed: the click-to-edit/rename path below is disabled
+// under Steam (no account story there yet), so there's no way for a name to
+// have been legitimately customized while running under Steam, and a stale
+// pre-Steam localStorage name (from earlier testing, or the plain web
+// build) should not keep winning forever. Must be awaited before the very
+// first getPlayerName() call below, otherwise that call's own "no saved
+// name yet" fallback wins the race and persists a random Player#### name
+// first.
 if (steam.isAvailable()) {
     const steamName = await steam.getUserName();
-    if (steamName) seedPlayerName(steamName);
+    if (steamName) setPlayerName(steamName);
 }
 refreshUsernameLabel();
 void refreshOpenProfile();
