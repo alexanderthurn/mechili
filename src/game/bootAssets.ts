@@ -1,6 +1,8 @@
 import { preloadSpellAssets } from './spellAssets';
 import { preloadUnitVisuals } from './units';
 import { preloadWorldTextures } from './worldTextures';
+import { loadSceneryVegetation, sceneryHqVegetation } from './sceneryVegetation';
+import { prefs } from './prefs';
 
 export type BootProgress = {
     /** 0..1 overall */
@@ -17,20 +19,24 @@ type ProgressFn = (p: BootProgress) => void;
  */
 export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
     // Weights: units dominate download size; spells next; textures are light.
-    const weights = { units: 0.55, spells: 0.35, textures: 0.1 };
+    const weights = { units: 0.5, spells: 0.3, textures: 0.1, scenery: 0.1 };
     let unitsFrac = 0;
     let spellsFrac = 0;
     let texturesFrac = 0;
+    let sceneryFrac = 0;
 
     const report = (label: string) => {
         const fraction =
-            unitsFrac * weights.units + spellsFrac * weights.spells + texturesFrac * weights.textures;
+            unitsFrac * weights.units +
+            spellsFrac * weights.spells +
+            texturesFrac * weights.textures +
+            sceneryFrac * weights.scenery;
         onProgress?.({ fraction: Math.min(1, fraction), label });
     };
 
     report('Loading…');
 
-    await Promise.all([
+    const jobs: Promise<void>[] = [
         preloadUnitVisuals((done, total) => {
             unitsFrac = total > 0 ? done / total : 1;
             report(`Units ${done}/${total}`);
@@ -43,7 +49,20 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
             texturesFrac = total > 0 ? done / total : 1;
             report(`Textures ${done}/${total}`);
         }),
-    ]);
+    ];
+
+    if (sceneryHqVegetation(prefs().scenery)) {
+        jobs.push(
+            loadSceneryVegetation().then(() => {
+                sceneryFrac = 1;
+                report('Scenery');
+            }),
+        );
+    } else {
+        sceneryFrac = 1;
+    }
+
+    await Promise.all(jobs);
 
     onProgress?.({ fraction: 1, label: 'Ready' });
 }

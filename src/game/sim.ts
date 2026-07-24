@@ -13,6 +13,7 @@ import {
 } from './fire';
 import { ITEMS } from './items';
 import { groundSupportAt, mulberry32, simGroundHeightAt, simGroundSupportAt } from './map';
+import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     HAMMER_ID,
@@ -1293,8 +1294,10 @@ export class BattleSim {
         // from the skeleton, so only apply the procedural bob to the rest.
         if (a.altitude === 0) {
             // sample under the footprint (max of a ring) at the RENDERED xz so
-            // walkers clear the uphill side of mounds instead of sinking in
-            const groundY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + 0.08;
+            // walkers clear the uphill side of mounds instead of sinking in.
+            // Slight negative seat: strong ground normals make the lawn look
+            // higher than the mesh, so a tiny sink kills the hover look.
+            const groundY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + GROUND_UNIT_Y;
             if (!a.mesh.userData.animated) {
                 const gait = Math.sin(timeSeconds * 9 + a.index);
                 a.mesh.position.y = groundY + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
@@ -1409,7 +1412,7 @@ export class BattleSim {
             // tip over and stay as a battlefield wreck until the round resets
             // (air units crash to the ground)
             target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
-            target.mesh.position.y = groundSupportAt(target.x, target.z, target.radius * 0.65) + 0.08;
+            target.mesh.position.y = groundSupportAt(target.x, target.z, target.radius * 0.65) + GROUND_UNIT_Y;
             target.mesh.userData.dead = true;
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
@@ -1590,7 +1593,7 @@ export class BattleSim {
      */
     private feetY(a: Actor, x = a.x, z = a.z): number {
         if (a.altitude > 0) return a.altitude;
-        return simGroundSupportAt(x, z, a.radius * 0.65) + 0.08;
+        return simGroundSupportAt(x, z, a.radius * 0.65) + GROUND_UNIT_Y;
     }
 
     /** seek toward a direction with obstacle avoidance and crowd separation */

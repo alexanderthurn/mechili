@@ -32,21 +32,26 @@ import { Weather } from './weather';
 import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
-    DETAIL_TILE,
     makeValueNoise,
     mulberry32,
     registerOuterHeight,
     type BattleMap,
 } from './map';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
-    grassAlbedoUrl,
-    grassNormalUrl,
-    rockUrl,
     sandAlbedoUrl,
+    loadGrassTextures,
+    loadRockTextures,
     loadWorldTexture,
 } from './worldTextures';
+import {
+    createVegetationInstances,
+    loadSceneryVegetation,
+    placeVegetationInstance,
+    sceneryHqVegetation,
+} from './sceneryVegetation';
 
 /** Instance / mesh density for scenery tiers (trees stay InstancedMesh). */
 function sceneryDensity(quality: SceneryQuality): {
@@ -83,17 +88,18 @@ function sceneryDensity(quality: SceneryQuality): {
         };
     }
     if (quality === 'high') {
+        // Same dense forest belt as ultra, but low-poly cones/blobs (no Tripo GLBs).
         return {
-            outer: 1.85,
-            field: 1.25,
-            meadow: 1.55,
-            lake: 1.4,
-            segs: 360,
-            margin: 500,
-            acceptBase: 0.3,
-            beltNear: 18,
-            beltRamp: 50,
-            beltFar: 360,
+            outer: 10,
+            field: 1.6,
+            meadow: 2.2,
+            lake: 1.8,
+            segs: 380,
+            margin: 600,
+            acceptBase: 0.85,
+            beltNear: 8,
+            beltRamp: 18,
+            beltFar: 500,
             peakClouds: 18,
         };
     }
@@ -801,19 +807,30 @@ export class Scenery {
         size: number,
     ): Promise<void> {
         const BOARD_TONE = 0.93;
-        const [albedo, normal, rock, sand] = await Promise.all([
-            loadWorldTexture(grassAlbedoUrl),
-            loadWorldTexture(grassNormalUrl),
-            loadWorldTexture(rockUrl),
+        const profile = groundMaterialProfile();
+        const tileSize = profile.detailTile;
+        const rockTile = 34; // legacy rock tile scale
+        const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
+        const [grass, rockPack, sand] = await Promise.all([
+            loadGrassTextures(),
+            loadRockTextures(),
             loadWorldTexture(sandAlbedoUrl),
         ]);
-        if (!albedo) return;
+        if (!grass?.albedo) return;
+        const { albedo, normal } = grass;
+        const rock = rockPack?.albedo ?? null;
+        const rockPhoto1 = rockPack?.variants[0] ?? null;
+        const rockPhoto2 = rockPack?.variants[1] ?? null;
+        const photoGrass =
+            grass.variants[0] && grass.variants[1]
+                ? ([grass.variants[0], grass.variants[1]] as const)
+                : null;
         const frac = (v: number) => ((v % 1) + 1) % 1;
         const configure = (tex: NonNullable<typeof albedo>) => {
             tex.wrapS = tex.wrapT = RepeatWrapping;
-            tex.repeat.set(size / DETAIL_TILE, size / DETAIL_TILE);
-            tex.offset.set(frac(map.halfW / DETAIL_TILE), frac(map.halfH / DETAIL_TILE));
-            tex.anisotropy = 8;
+            tex.repeat.set(size / tileSize, size / tileSize);
+            tex.offset.set(frac(map.halfW / tileSize), frac(map.halfH / tileSize));
+            tex.anisotropy = profile.anisotropy;
         };
         configure(albedo);
         albedo.colorSpace = SRGBColorSpace;
@@ -821,63 +838,183 @@ export class Scenery {
         if (normal) {
             configure(normal);
             material.normalMap = normal;
-            material.normalScale = new Vector2(0.35, 0.35);
+            const n = profile.normalScale;
+            material.normalScale = new Vector2(n, n);
         }
         if (rock) {
-            // sampled with explicit world-space UVs in the shader
             rock.wrapS = rock.wrapT = RepeatWrapping;
             rock.colorSpace = SRGBColorSpace;
-            rock.anisotropy = 8;
+            rock.anisotropy = profile.anisotropy;
+        }
+        for (const rp of [rockPhoto1, rockPhoto2]) {
+            if (!rp) continue;
+            rp.wrapS = rp.wrapT = RepeatWrapping;
+            rp.colorSpace = SRGBColorSpace;
+            rp.anisotropy = profile.anisotropy;
         }
         if (sand) {
             sand.wrapS = sand.wrapT = RepeatWrapping;
             sand.colorSpace = SRGBColorSpace;
-            sand.anisotropy = 8;
+            sand.anisotropy = profile.anisotropy;
+        }
+        for (const v of grass.variants) {
+            v.wrapS = v.wrapT = RepeatWrapping;
+            v.colorSpace = SRGBColorSpace;
+            v.anisotropy = profile.anisotropy;
+            v.repeat.set(size / tileSize, size / tileSize);
+            v.offset.set(frac(map.halfW / tileSize), frac(map.halfH / tileSize));
         }
         material.color.set(0xffffff);
+        const useDetail = profile.detailStrength > 0;
+        const bomb = useDetail && profile.textureBomb;
+        // Soften the flat BOARD_TONE dim on HQ so meadow grass pops with the board.
+        const toneMix = 0.35 + 0.65 * profile.macroStrength;
         material.onBeforeCompile = (shader) => {
             if (rock) shader.uniforms.uRock = { value: rock };
+            if (rockPhoto1) shader.uniforms.uRockPhoto1 = { value: rockPhoto1 };
+            if (rockPhoto2) shader.uniforms.uRockPhoto2 = { value: rockPhoto2 };
+            if (photoGrass) {
+                shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
+                shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
+            }
             if (sand) shader.uniforms.uSand = { value: sand };
+            if (useDetail) {
+                shader.uniforms.uDetailScale = { value: profile.detailScale };
+                shader.uniforms.uDetailStrength = { value: profile.detailStrength };
+            }
+            const softBlobFn =
+                'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
+                '\tvec2 cell = floor( uv * cellScale );\n' +
+                '\tfloat acc = 0.0;\n' +
+                '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
+                '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
+                '\t\t\tvec2 c = cell + vec2( float( i ), float( j ) );\n' +
+                '\t\t\tfloat h = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+                '\t\t\tif ( h <= density ) {\n' +
+                '\t\t\t\tvec2 jitter = vec2(\n' +
+                '\t\t\t\t\tfract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 ),\n' +
+                '\t\t\t\t\tfract( sin( dot( c + 19.2, vec2( 113.5, 271.9 ) ) ) * 43758.5453 )\n' +
+                '\t\t\t\t);\n' +
+                '\t\t\t\tvec2 center = ( c + 0.5 + ( jitter - 0.5 ) * 0.9 ) / cellScale;\n' +
+                '\t\t\t\tfloat d = length( uv - center ) * cellScale;\n' +
+                '\t\t\t\tfloat r = radius * ( 0.5 + 0.5 * fract( h * 7.13 ) );\n' +
+                '\t\t\t\tacc = max( acc, 1.0 - smoothstep( r * 0.25, r, d ) );\n' +
+                '\t\t\t}\n' +
+                '\t\t}\n' +
+                '\t}\n' +
+                '\treturn clamp( acc, 0.0, 1.0 );\n' +
+                '}\n';
             shader.vertexShader =
                 'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
                     '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;',
                 );
-            const inject = rock
-                ? `
-    // match the board's average brightness
-    diffuseColor.rgb *= ${BOARD_TONE.toFixed(2)};
-    ${
-        sand
-            ? `// sand where the geometry says so: lake shores + rare dry patches
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / 20.0).rgb, vBeach);`
-            : ''
-    }
-    // rock takes over with altitude and on steep faces; snow caps the peaks
+            let inject = `
+    diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
+            if (bomb) {
+                inject += `
+    vec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );
+    float bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+    bombW = smoothstep( 0.28, 0.72, bombW );
+    diffuseColor.rgb = mix( diffuseColor.rgb, texture2D( map, bombUv ).rgb, bombW * 0.55 );`;
+            }
+            if (useDetail) {
+                inject += `
+    vec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
+            }
+            if (photoGrass) {
+                const g = PHOTO_BLEND.grass;
+                inject += `
+    float pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );
+    vec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};
+    float pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+    vec3 pgTex = mix(
+        texture2D( uPhotoGrass1, pgUv ).rgb,
+        texture2D( uPhotoGrass2, pgUv.yx * 1.07 + 0.21 ).rgb,
+        step( 0.5, pgWhich ) );
+    float pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    vec3 pgDetail = pgTex / pgLum;
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * ${g.strength.toFixed(2)} );`;
+            }
+            if (sand) {
+                inject += `
+    // sand where the geometry says so: lake shores + rare dry patches
+    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${tileSize.toFixed(1)}).rgb, vBeach);`;
+            }
+            inject += `
     float snowF = smoothstep(170.0, 235.0, vTerrainH);
-    float rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF);
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uRock, vWorldXZ / 34.0).rgb, rockF);
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`
-                : `\n\tdiffuseColor.rgb *= ${BOARD_TONE.toFixed(2)};`;
-            shader.fragmentShader =
+    float rockF = 0.0;`;
+            if (rock) {
+                inject += `
+    rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF);
+    vec3 rockCol = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;`;
+                if (rockPhoto1) {
+                    const rk = PHOTO_BLEND.rock;
+                    inject += `
+    vec2 rockUv = vWorldXZ / ${rockPhotoTile.toFixed(1)};
+    float rockSoft = softBlobMask( rockUv, ${rk.cellScale.toFixed(2)}, ${rk.density.toFixed(2)}, ${rk.radius.toFixed(2)} );
+    float rWhich = fract( sin( dot( floor( rockUv * 0.85 ), vec2( 91.7, 53.1 ) ) ) * 43758.5453 );
+    vec3 rockPhoto = texture2D( uRockPhoto1, rockUv * ${rk.uvScale.toFixed(2)} ).rgb;`;
+                    if (rockPhoto2) {
+                        inject += `
+    rockPhoto = mix( rockPhoto, texture2D( uRockPhoto2, rockUv.yx * 1.25 + 0.17 ).rgb, step( 0.5, rWhich ) );`;
+                    }
+                    inject += `
+    float rpLum = max( dot( rockPhoto, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    rockCol = mix( rockCol, rockCol * ( rockPhoto / rpLum ), rockSoft * ${rk.strength.toFixed(2)} );`;
+                }
+                inject += `
+    diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+            } else {
+                inject += `
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+            }
+            const needBlob = !!(photoGrass || rockPhoto1);
+            let frag =
                 'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
+                (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
+                (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
+                (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
+                (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
+                (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
+            if (useDetail && normal) {
+                frag = frag.replace(
+                    '#include <normal_fragment_maps>',
+                    `#include <normal_fragment_maps>
+\tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
+\tdetailN.xy *= uDetailStrength;
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
+                );
+            }
+            if (profile.roughnessFromAlbedo) {
+                frag = frag.replace(
+                    '#include <roughnessmap_fragment>',
+                    `#include <roughnessmap_fragment>
+\tfloat grassLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
+\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );`,
+                );
+            }
+            shader.fragmentShader = frag;
         };
-        material.customProgramCacheKey = () => `outer-meadow-simple-v2${rock ? '-rock' : ''}${sand ? '-sand' : ''}`;
+        material.customProgramCacheKey = () =>
+            `outer-meadow-v8${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
     /**
-     * Low-poly trees, bushes and rocks — a forest belt from the field edge
-     * up into the mountain foothills, plus a few trees/bushes ON the battlefield
-     * (pure scenery: no collision). Instanced per part — five draw calls.
+     * Trees, bushes and rocks — forest belt + a few on the battlefield.
+     * High: dense low-poly forest. Ultra: same density with Tripo mid-poly GLBs.
      */
     private createForest(map: BattleMap, rng: () => number): void {
         const s = THEME.scenery;
         const dens = this.density;
+        const hq = sceneryHqVegetation(this.quality);
         // reach lower mountain slopes (rise starts ~d=55, foothills to ~350)
         const margin = dens.margin;
         const keepOut = 8;
@@ -945,50 +1082,63 @@ export class Scenery {
 
         const dummy = new Object3D();
         const color = new Color();
-        // the foliage texture carries the base green; instance tints stay
-        // bright so the multiply keeps the leaf pattern readable
         const white = new Color(0xffffff);
         const lighten = (c: Color) => c.lerp(white, 0.45);
-        // outer forest belt — still a handful of instanced draw calls
-        const PINES = scaleCount(200, dens.outer);
-        const LEAFY = scaleCount(120, dens.outer);
-        const FIELD_PINES = scaleCount(5, dens.field);
-        const FIELD_LEAFY = scaleCount(6, dens.field);
-        const ROCKS = scaleCount(170, dens.outer);
-        const BUSHES = scaleCount(90, dens.outer);
-        const FIELD_BUSHES = scaleCount(45, dens.field);
 
-        const trunks = new InstancedMesh(
-            new CylinderGeometry(0.35, 0.55, 3.4, 6),
-            new MeshStandardMaterial({ color: s.trunk, roughness: 0.9 }),
-            PINES + LEAFY + FIELD_PINES + FIELD_LEAFY,
-        );
-        const cones = new InstancedMesh(
-            new ConeGeometry(2.6, 6, 7),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
-            (PINES + FIELD_PINES) * 2,
-        );
-        const blobs = new InstancedMesh(
-            new IcosahedronGeometry(2.4, 1),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
-            (LEAFY + FIELD_LEAFY) * 2,
-        );
+        // Ultra: Tripo owns trees/bushes. High/medium: procedural at dens.outer.
+        const PINES = hq ? 0 : scaleCount(200, dens.outer);
+        const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
+        const FIELD_PINES = hq ? 0 : scaleCount(5, dens.field);
+        const FIELD_LEAFY = hq ? 0 : scaleCount(6, dens.field);
+        const ROCKS = scaleCount(170, dens.outer);
+        const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
+        const FIELD_BUSHES = hq ? 0 : scaleCount(45, dens.field);
+
+        const treeCapacity = PINES + LEAFY + FIELD_PINES + FIELD_LEAFY;
+        const bushCapacity = BUSHES + FIELD_BUSHES;
+        const placeProceduralTrees = treeCapacity > 0;
+
+        let trunks: InstancedMesh | null = null;
+        let cones: InstancedMesh | null = null;
+        let blobs: InstancedMesh | null = null;
+        let bushes: InstancedMesh | null = null;
+
+        if (placeProceduralTrees) {
+            trunks = new InstancedMesh(
+                new CylinderGeometry(0.35, 0.55, 3.4, 6),
+                new MeshStandardMaterial({ color: s.trunk, roughness: 0.9 }),
+                treeCapacity,
+            );
+            cones = new InstancedMesh(
+                new ConeGeometry(2.6, 6, 7),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
+                (PINES + FIELD_PINES) * 2,
+            );
+            blobs = new InstancedMesh(
+                new IcosahedronGeometry(2.4, 1),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
+                (LEAFY + FIELD_LEAFY) * 2,
+            );
+        }
         const rocks = new InstancedMesh(
             new IcosahedronGeometry(1.4, 0),
             new MeshStandardMaterial({ color: s.rock, roughness: 0.95, flatShading: true }),
             ROCKS,
         );
-        const bushes = new InstancedMesh(
-            new IcosahedronGeometry(1, 1),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
-            BUSHES + FIELD_BUSHES,
-        );
+        if (bushCapacity > 0) {
+            bushes = new InstancedMesh(
+                new IcosahedronGeometry(1, 1),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
+                bushCapacity,
+            );
+        }
 
         let trunkI = 0;
         let coneI = 0;
         let blobI = 0;
 
         const placeTrunk = (x: number, z: number, sc: number, h: number) => {
+            if (!trunks) return;
             dummy.position.set(x, h + 1.7 * sc, z);
             dummy.scale.setScalar(sc);
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
@@ -996,41 +1146,45 @@ export class Scenery {
             trunks.setMatrixAt(trunkI++, dummy.matrix);
         };
 
-        for (let i = 0; i < PINES + FIELD_PINES; i++) {
-            const { x, z } = i < PINES ? forestSpot(84) : fieldSpot(10);
-            const h = groundY(x, z);
-            const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
-            placeTrunk(x, z, sc, h);
-            lighten(color.set(s.pine).lerp(new Color(s.pineLight), rng()));
-            for (const [ty, tsc] of [
-                [3.2, 1],
-                [6.2, 0.62],
-            ] as const) {
-                dummy.position.set(x, h + (3.4 * 0.5 + ty) * sc, z);
-                dummy.scale.setScalar(sc * tsc);
-                dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-                dummy.updateMatrix();
-                cones.setMatrixAt(coneI, dummy.matrix);
-                cones.setColorAt(coneI++, color);
+        if (trunks && cones) {
+            for (let i = 0; i < PINES + FIELD_PINES; i++) {
+                const { x, z } = i < PINES ? forestSpot(84) : fieldSpot(10);
+                const h = groundY(x, z);
+                const sc = i < PINES ? 0.8 + rng() * 1.1 : 0.7 + rng() * 0.5;
+                placeTrunk(x, z, sc, h);
+                lighten(color.set(s.pine).lerp(new Color(s.pineLight), rng()));
+                for (const [ty, tsc] of [
+                    [3.2, 1],
+                    [6.2, 0.62],
+                ] as const) {
+                    dummy.position.set(x, h + (3.4 * 0.5 + ty) * sc, z);
+                    dummy.scale.setScalar(sc * tsc);
+                    dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+                    dummy.updateMatrix();
+                    cones.setMatrixAt(coneI, dummy.matrix);
+                    cones.setColorAt(coneI++, color);
+                }
             }
         }
 
-        for (let i = 0; i < LEAFY + FIELD_LEAFY; i++) {
-            const { x, z } = i < LEAFY ? forestSpot(72) : fieldSpot(10);
-            const h = groundY(x, z);
-            const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
-            placeTrunk(x, z, sc, h);
-            lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng()));
-            for (const [ox, oy, oz, bsc] of [
-                [0, 4.6, 0, 1.15],
-                [1.4, 3.6, 0.9, 0.7],
-            ] as const) {
-                dummy.position.set(x + ox * sc, h + oy * sc, z + oz * sc);
-                dummy.scale.set(sc * bsc, sc * bsc * 0.85, sc * bsc);
-                dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-                dummy.updateMatrix();
-                blobs.setMatrixAt(blobI, dummy.matrix);
-                blobs.setColorAt(blobI++, color);
+        if (trunks && blobs) {
+            for (let i = 0; i < LEAFY + FIELD_LEAFY; i++) {
+                const { x, z } = i < LEAFY ? forestSpot(72) : fieldSpot(10);
+                const h = groundY(x, z);
+                const sc = i < LEAFY ? 0.9 + rng() * 1.2 : 0.75 + rng() * 0.55;
+                placeTrunk(x, z, sc, h);
+                lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng()));
+                for (const [ox, oy, oz, bsc] of [
+                    [0, 4.6, 0, 1.15],
+                    [1.4, 3.6, 0.9, 0.7],
+                ] as const) {
+                    dummy.position.set(x + ox * sc, h + oy * sc, z + oz * sc);
+                    dummy.scale.set(sc * bsc, sc * bsc * 0.85, sc * bsc);
+                    dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+                    dummy.updateMatrix();
+                    blobs.setMatrixAt(blobI, dummy.matrix);
+                    blobs.setColorAt(blobI++, color);
+                }
             }
         }
 
@@ -1056,19 +1210,22 @@ export class Scenery {
             rocks.setMatrixAt(i, dummy.matrix);
         }
 
-        for (let i = 0; i < BUSHES + FIELD_BUSHES; i++) {
-            const { x, z } = i < BUSHES ? forestSpot(56) : fieldSpot(5);
-            const sc = 0.6 + rng() * 0.8;
-            dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
-            dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));
-            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-            dummy.updateMatrix();
-            bushes.setMatrixAt(i, dummy.matrix);
-            lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng() * 0.8));
-            bushes.setColorAt(i, color);
+        if (bushes) {
+            for (let i = 0; i < BUSHES + FIELD_BUSHES; i++) {
+                const { x, z } = i < BUSHES ? forestSpot(56) : fieldSpot(5);
+                const sc = 0.6 + rng() * 0.8;
+                dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
+                dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));
+                dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+                dummy.updateMatrix();
+                bushes.setMatrixAt(i, dummy.matrix);
+                lighten(color.set(s.leaf).lerp(new Color(s.leafLight), rng() * 0.8));
+                bushes.setColorAt(i, color);
+            }
         }
 
         for (const m of [trunks, cones, blobs, rocks, bushes]) {
+            if (!m) continue;
             m.castShadow = true;
             this.group.add(m);
         }
@@ -1121,10 +1278,90 @@ export class Scenery {
         }
         this.group.add(flowers);
 
-        void this.applyForestTextures(
-            trunks.material as MeshStandardMaterial,
-            cones.material as MeshStandardMaterial,
-            [blobs.material as MeshStandardMaterial, bushes.material as MeshStandardMaterial],
+        if (trunks && cones && blobs && bushes) {
+            void this.applyForestTextures(
+                trunks.material as MeshStandardMaterial,
+                cones.material as MeshStandardMaterial,
+                [blobs.material as MeshStandardMaterial, bushes.material as MeshStandardMaterial],
+            );
+        }
+
+        if (hq) {
+            void this.addHqVegetation(map, rng, {
+                forestSpot,
+                fieldSpot,
+                groundY,
+            });
+        }
+    }
+
+    /**
+     * Ultra-only: Tripo mid-poly forest at the same headcount as the dense
+     * procedural belt (dens.outer ≈ 10 → ~2k pines / ~1.2k oaks / ~900 bushes).
+     */
+    private async addHqVegetation(
+        map: BattleMap,
+        rng: () => number,
+        helpers: {
+            forestSpot: (maxHeight: number) => { x: number; z: number };
+            fieldSpot: (clearance: number) => { x: number; z: number };
+            groundY: (x: number, z: number) => number;
+        },
+    ): Promise<void> {
+        await loadSceneryVegetation();
+        const dens = this.density;
+        const { forestSpot, fieldSpot, groundY } = helpers;
+
+        const OAK = scaleCount(120, dens.outer);
+        const PINE = scaleCount(200, dens.outer);
+        const BUSH_R = scaleCount(50, dens.outer);
+        const BUSH_T = scaleCount(40, dens.outer);
+        const FIELD_OAK = scaleCount(6, dens.field);
+        const FIELD_PINE = scaleCount(5, dens.field);
+        const FIELD_BUSH = scaleCount(45, dens.field);
+
+        const oak = createVegetationInstances('oak', OAK + FIELD_OAK);
+        const pine = createVegetationInstances('pine', PINE + FIELD_PINE);
+        const bushR = createVegetationInstances('bushRound', BUSH_R + Math.ceil(FIELD_BUSH / 2));
+        const bushT = createVegetationInstances('bushTall', BUSH_T + Math.floor(FIELD_BUSH / 2));
+        if (!oak || !pine || !bushR || !bushT) {
+            console.warn('[scenery] HQ vegetation assets missing; keeping procedural only');
+            return;
+        }
+
+        const dummy = new Object3D();
+
+        for (let i = 0; i < OAK + FIELD_OAK; i++) {
+            const { x, z } = i < OAK ? forestSpot(72) : fieldSpot(10);
+            const sc = i < OAK ? 0.85 + rng() * 0.55 : 0.7 + rng() * 0.35;
+            placeVegetationInstance(oak, x, groundY(x, z), z, sc, rng() * Math.PI * 2, dummy);
+        }
+        for (let i = 0; i < PINE + FIELD_PINE; i++) {
+            const { x, z } = i < PINE ? forestSpot(84) : fieldSpot(10);
+            const sc = i < PINE ? 0.8 + rng() * 0.5 : 0.65 + rng() * 0.3;
+            placeVegetationInstance(pine, x, groundY(x, z), z, sc, rng() * Math.PI * 2, dummy);
+        }
+        const bushRTotal = BUSH_R + Math.ceil(FIELD_BUSH / 2);
+        for (let i = 0; i < bushRTotal; i++) {
+            const onField = i >= BUSH_R;
+            const { x, z } = onField ? fieldSpot(5) : forestSpot(56);
+            const sc = 0.75 + rng() * 0.55;
+            placeVegetationInstance(bushR, x, groundY(x, z), z, sc, rng() * Math.PI * 2, dummy);
+        }
+        const bushTTotal = BUSH_T + Math.floor(FIELD_BUSH / 2);
+        for (let i = 0; i < bushTTotal; i++) {
+            const onField = i >= BUSH_T;
+            const { x, z } = onField ? fieldSpot(5) : forestSpot(56);
+            const sc = 0.7 + rng() * 0.5;
+            placeVegetationInstance(bushT, x, groundY(x, z), z, sc, rng() * Math.PI * 2, dummy);
+        }
+
+        for (const m of [oak, pine, bushR, bushT]) {
+            m.instanceMatrix.needsUpdate = true;
+            this.group.add(m);
+        }
+        console.info(
+            `[scenery] HQ vegetation (ultra dense): oak=${oak.count} pine=${pine.count} bushR=${bushR.count} bushT=${bushT.count}`,
         );
     }
 

@@ -11,14 +11,20 @@ import {
     Vector3,
 } from 'three';
 
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
     sandAlbedoUrl,
+    loadGrassTextures,
+    loadWearGroundTextures,
     loadWorldTexture,
 } from './worldTextures';
 
-/** world units covered by one repeat of the grass detail texture (field AND outer meadow) */
+/**
+ * Default world units per grass tile (medium/low). High/ultra use a tighter
+ * tile from {@link groundMaterialProfile} so HQ 2K maps get more texels/wu.
+ */
 export const DETAIL_TILE = 20;
 export { grassAlbedoUrl, grassNormalUrl, sandAlbedoUrl };
 
@@ -392,7 +398,7 @@ export class BattleMap {
         return tex;
     }
 
-    /** faint loose sand patches only (R channel) — no building courtyards */
+    /** faint loose sand patches (R) — denser near base courtyards, still room for footprints */
     private paintBaseSand(
         ctx: CanvasRenderingContext2D,
         w: number,
@@ -403,20 +409,56 @@ export class BattleMap {
         ctx.fillRect(0, 0, w, h);
         const rng = mulberry32(seed ^ 0x5eed);
         const pxPerUnit = w / this.width;
-        const patches = Math.round((this.width * this.height) / 22000);
+        const worldToPx = (x: number, z: number) => ({
+            cx: ((x + this.halfW) / this.width) * w,
+            cy: ((z + this.halfH) / this.height) * h,
+        });
+
+        const paintCluster = (cx: number, cy: number, rBase: number, alpha: number, blobs: number) => {
+            for (let b = 0; b < blobs; b++) {
+                const r = rBase * (0.55 + rng() * 0.9);
+                this.drawWearBlob(
+                    ctx,
+                    cx + (rng() - 0.5) * r * 1.5,
+                    cy + (rng() - 0.5) * r * 1.5,
+                    r,
+                    alpha * (0.78 + rng() * 0.55),
+                    'r',
+                );
+            }
+        };
+
+        // scattered meadow wear
+        const patches = Math.round((this.width * this.height) / WEAR_BLEND.basePatchArea);
         for (let i = 0; i < patches; i++) {
             const cx = w * (0.08 + rng() * 0.84);
             const cy = h * (0.08 + rng() * 0.84);
-            const blobs = 2 + Math.floor(rng() * 3);
-            for (let b = 0; b < blobs; b++) {
-                const r = (2.5 + rng() * 5) * pxPerUnit;
-                this.drawWearBlob(
-                    ctx,
-                    cx + (rng() - 0.5) * r * 1.4,
-                    cy + (rng() - 0.5) * r * 1.4,
-                    r,
-                    0.35 + rng() * 0.25,
-                    'r',
+            paintCluster(
+                cx,
+                cy,
+                (2.5 + rng() * 5) * pxPerUnit,
+                WEAR_BLEND.basePatchAlpha,
+                2 + Math.floor(rng() * 3),
+            );
+        }
+
+        // lived-in rings around both armies' base buildings (houses look "used")
+        for (const a of this.baseAnchors()) {
+            const { cx, cy } = worldToPx(a.x, a.z);
+            const ringR = a.r * pxPerUnit;
+            // soft courtyard disk
+            paintCluster(cx, cy, ringR * 0.85, WEAR_BLEND.basePatchAlpha * 0.7, 4);
+            // a few irregular blotches around the ring edge
+            const blotches = 5 + Math.floor(rng() * 4);
+            for (let i = 0; i < blotches; i++) {
+                const ang = rng() * Math.PI * 2;
+                const dist = ringR * (0.45 + rng() * 0.85);
+                paintCluster(
+                    cx + Math.cos(ang) * dist,
+                    cy + Math.sin(ang) * dist,
+                    (1.8 + rng() * 3.2) * pxPerUnit,
+                    WEAR_BLEND.basePatchAlpha * 0.85,
+                    2 + Math.floor(rng() * 2),
                 );
             }
         }
@@ -466,8 +508,9 @@ export class BattleMap {
     /** Stamp sandy wear (R). Also scrubs blood/scorch underfoot. */
     stampSand(x: number, z: number, radius: number, strength = 0.09): void {
         if (!this.wearEnabled()) return;
-        const s = this.groundEffects === 'medium' ? strength * 0.55 : strength;
-        this.stampWearChannel(x, z, radius, s, 'r');
+        const s =
+            (this.groundEffects === 'medium' ? strength * 0.55 : strength) * WEAR_BLEND.stampStrength;
+        this.stampWearChannel(x, z, radius * WEAR_BLEND.stampRadius, s, 'r');
     }
 
     /** Stamp blood under a hit/kill (G) — tight stain, short soft edge. */
@@ -629,7 +672,8 @@ export class BattleMap {
 
     /**
      * Shared ground fragment inject: optional wear (sand/blood/scorch) + always
-     * oil/fire hazard. Used by both the plain macro material and the detailed upgrade.
+     * oil/fire hazard. High/ultra dual-scale / texture-bomb the grass, ease off
+     * the soft macro canvas, and derive micro roughness from albedo luminance.
      */
     private attachGroundShader(
         material: MeshStandardMaterial,
@@ -638,15 +682,32 @@ export class BattleMap {
             hazardMask: CanvasTexture;
             sand?: import('three').Texture | null;
             sandMask?: CanvasTexture | null;
+            // Soft circular field-photo accents (texture bombing + multiply).
+            photoGrass?: readonly [import('three').Texture, import('three').Texture] | null;
+            detail?: boolean;
         },
     ): void {
-        const { hazardMask, sand = null, sandMask = null } = opts;
+        const {
+            hazardMask,
+            sand = null,
+            sandMask = null,
+            photoGrass = null,
+            detail = false,
+        } = opts;
+        const profile = groundMaterialProfile();
+        const useDetail = detail && profile.detailStrength > 0;
+        const bomb = useDetail && profile.textureBomb;
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uMacro = { value: macro };
             shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
+            shader.uniforms.uMacroStrength = { value: detail ? profile.macroStrength : 1 };
             shader.uniforms.uHazardTime = { value: 0 };
             shader.uniforms.uHazardMask = { value: hazardMask };
             this.hazardTimeUniform = shader.uniforms.uHazardTime as { value: number };
+            if (useDetail) {
+                shader.uniforms.uDetailScale = { value: profile.detailScale };
+                shader.uniforms.uDetailStrength = { value: profile.detailStrength };
+            }
             shader.vertexShader =
                 'varying vec2 vMacroUv;\n' +
                 shader.vertexShader.replace(
@@ -655,7 +716,66 @@ export class BattleMap {
                 );
             let inject = '';
             let extraUniforms =
-                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\n';
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\n';
+            // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
+            const softBlobFn =
+                'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
+                '\tvec2 cell = floor( uv * cellScale );\n' +
+                '\tfloat acc = 0.0;\n' +
+                '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
+                '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
+                '\t\t\tvec2 c = cell + vec2( float( i ), float( j ) );\n' +
+                '\t\t\tfloat h = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+                '\t\t\tif ( h <= density ) {\n' +
+                '\t\t\t\tvec2 jitter = vec2(\n' +
+                '\t\t\t\t\tfract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 ),\n' +
+                '\t\t\t\t\tfract( sin( dot( c + 19.2, vec2( 113.5, 271.9 ) ) ) * 43758.5453 )\n' +
+                '\t\t\t\t);\n' +
+                '\t\t\t\tvec2 center = ( c + 0.5 + ( jitter - 0.5 ) * 0.9 ) / cellScale;\n' +
+                '\t\t\t\tfloat d = length( uv - center ) * cellScale;\n' +
+                '\t\t\t\tfloat r = radius * ( 0.5 + 0.5 * fract( h * 7.13 ) );\n' +
+                '\t\t\t\tacc = max( acc, 1.0 - smoothstep( r * 0.25, r, d ) );\n' +
+                '\t\t\t}\n' +
+                '\t\t}\n' +
+                '\t}\n' +
+                '\treturn clamp( acc, 0.0, 1.0 );\n' +
+                '}\n';
+            if (useDetail) {
+                extraUniforms += 'uniform float uDetailScale;\nuniform float uDetailStrength;\n';
+                if (bomb) {
+                    // Stochastic blend of rotated UV samples kills wallpaper tiling.
+                    inject +=
+                        '\tvec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );\n' +
+                        '\tfloat bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
+                        '\tbombW = smoothstep( 0.28, 0.72, bombW );\n' +
+                        '\tvec3 bombAlb = texture2D( map, bombUv ).rgb;\n' +
+                        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, bombAlb, bombW * 0.55 );\n';
+                }
+                // Micro albedo: multiply-blend a finer UV sample so the lawn
+                // doesn't read as a single wallpaper tile at desktop distance.
+                inject +=
+                    '\tvec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+            }
+            // HQ lawn stays dominant. Field photos multiply in via soft round
+            // blobs (texture bombing) so they never paint hard square tiles.
+            if (photoGrass) {
+                const g = PHOTO_BLEND.grass;
+                shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
+                shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
+                extraUniforms += 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n';
+                inject +=
+                    `\tfloat pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );\n` +
+                    `\tvec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};\n` +
+                    '\tfloat pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
+                    '\tvec3 pgTex = mix(\n' +
+                    '\t\ttexture2D( uPhotoGrass1, pgUv ).rgb,\n' +
+                    '\t\ttexture2D( uPhotoGrass2, pgUv.yx * 1.07 + 0.21 ).rgb,\n' +
+                    '\t\tstep( 0.5, pgWhich ) );\n' +
+                    '\tfloat pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );\n' +
+                    '\tvec3 pgDetail = pgTex / pgLum;\n' +
+                    `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * ${g.strength.toFixed(2)} );\n`;
+            }
             if (sand && sandMask) {
                 shader.uniforms.uSand = { value: sand };
                 shader.uniforms.uSandMask = { value: sandMask };
@@ -684,14 +804,41 @@ export class BattleMap {
                 '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
                 '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
-            inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
-            shader.fragmentShader =
+            // Soft macro only partially remaps HQ grass so desktop detail survives.
+            inject +=
+                '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
+                '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
+            let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
+                (photoGrass ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
+            if (useDetail && material.normalMap) {
+                // Micro normals in the same space as the already-perturbed map
+                // (cheap UDN-style). Avoids perturbNormalArb — removed/changed in r185.
+                frag = frag.replace(
+                    '#include <normal_fragment_maps>',
+                    `#include <normal_fragment_maps>
+\tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
+\tdetailN.xy *= uDetailStrength;
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
+                );
+            }
+            if (profile.roughnessFromAlbedo && detail) {
+                frag = frag.replace(
+                    '#include <roughnessmap_fragment>',
+                    `#include <roughnessmap_fragment>
+\tfloat grassLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
+\t// darker soil pockets slightly rougher; bright blades a touch less flat-matte
+\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );`,
+                );
+            }
+            shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard${sand && sandMask ? '-wear-rgb' : ''}`;
+            `ground-hazard-v8${sand && sandMask ? '-wear-rgb' : ''}${photoGrass ? '-pgblob' : ''}-${
+                useDetail ? groundDetailCacheKey(profile) : 'plain'
+            }`;
     }
 
     /**
@@ -753,30 +900,30 @@ export class BattleMap {
      * files are missing) the ground keeps the plain macro look.
      */
     private async upgradeGroundMaterial(mesh: Mesh, macro: CanvasTexture, seed: number): Promise<void> {
-        const [albedo, normal] = await Promise.all([
-            loadWorldTexture(grassAlbedoUrl),
-            loadWorldTexture(grassNormalUrl),
-        ]);
-        if (!albedo || !normal) return;
-        // sand is optional garnish — without it the ground is plain grass
-        const sand = await loadWorldTexture(sandAlbedoUrl);
-        const repeat = new Vector2(
-            this.width / DETAIL_TILE,
-            this.height / DETAIL_TILE,
-        );
+        const grass = await loadGrassTextures();
+        if (!grass?.albedo) return;
+        const { albedo, normal } = grass;
+        const profile = groundMaterialProfile();
+        // Wear surface: packed dirt on HQ tiers, sand otherwise
+        const wear = await loadWearGroundTextures();
+        const sand = wear?.albedo ?? (await loadWorldTexture(sandAlbedoUrl));
+        const tileSize = profile.detailTile;
+        const repeat = new Vector2(this.width / tileSize, this.height / tileSize);
         const tile = (t: typeof albedo) => {
             t.wrapS = t.wrapT = RepeatWrapping;
             t.repeat.copy(repeat);
-            t.anisotropy = 8;
+            t.anisotropy = profile.anisotropy;
         };
         tile(albedo);
         // boot preload may already have set this; keep local path correct too
         albedo.colorSpace = SRGBColorSpace;
-        tile(normal);
+        if (normal) tile(normal);
         if (sand) {
             tile(sand);
             sand.colorSpace = SRGBColorSpace;
         }
+        if (wear?.normal) tile(wear.normal);
+        for (const v of grass.variants) tile(v);
         const wearOn = this.wearEnabled();
         const sandMask = sand && wearOn ? this.createSandMask(seed) : null;
         if (!sandMask) {
@@ -785,17 +932,25 @@ export class BattleMap {
         }
         const hazardMask = this.ensureHazardMask();
 
+        const n = profile.normalScale;
         const material = new MeshStandardMaterial({
             map: albedo,
-            normalMap: normal,
-            normalScale: new Vector2(0.35, 0.35),
+            normalMap: normal ?? undefined,
+            normalScale: new Vector2(n, n),
             roughness: THEME.terrain.groundRoughness,
             metalness: 0,
         });
+        // variants = grass photos only (HQ lawn is base; dirt photos unused here)
+        const photoGrass =
+            grass.variants[0] && grass.variants[1]
+                ? ([grass.variants[0], grass.variants[1]] as const)
+                : null;
         this.attachGroundShader(material, macro, {
             hazardMask,
             sand: sandMask ? sand : null,
             sandMask,
+            photoGrass,
+            detail: true,
         });
 
         const previous = mesh.material as MeshStandardMaterial;
