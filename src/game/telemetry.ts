@@ -63,19 +63,18 @@ export function summarizeUnits(units: readonly Unit[]): Record<Team, Record<stri
 
 /**
  * Fetch a previously-submitted match by id — everything needed to replay it
- * is already in `replay` (same seed+settings+action-log shape `hydrate()`
- * already knows how to rebuild from for reconnects). Returns null on any
- * failure (not found, unreachable, bad id) rather than throwing; callers
- * decide how to surface that.
- *
- * NOTE: this only covers fetching a stored match by id — an actual
- * watchable playback mode (stepping through the log at a natural pace with
- * pause/speed/scrub controls, instead of hydrate()'s headless fast-forward)
- * is separate, not-yet-built work.
+ * is already in `replay` (same seed+settings+action-log shape a watch-mode
+ * `Game` plays back at a natural pace). Returns null on any failure (not
+ * found, unreachable, bad id) rather than throwing; callers decide how to
+ * surface that. `side` disambiguates the rare case where two different
+ * sides' records share a content-fingerprint id (see stats.php) — pass it
+ * whenever the caller already knows which side's record it wants (e.g. a
+ * specific "Watch" link in replays.html).
  */
-export async function fetchMatchReplay(id: string): Promise<MatchTelemetry | null> {
+export async function fetchMatchReplay(id: string, side?: 'a' | 'b'): Promise<MatchTelemetry | null> {
     try {
-        const res = await fetch(`${statsUrl()}?action=get&id=${encodeURIComponent(id)}`);
+        const sideParam = side ? `&side=${encodeURIComponent(side)}` : '';
+        const res = await fetch(`${statsUrl()}?action=get&id=${encodeURIComponent(id)}${sideParam}`);
         if (!res.ok) return null;
         const data = (await res.json()) as Partial<MatchTelemetry> | null;
         if (!data || !data.replay) return null;

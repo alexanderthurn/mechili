@@ -342,6 +342,12 @@ export class Game {
     private awaitingCards = true;
     /** rebuilding from a recorded log: no UI, no net sends, battles fast-forward */
     private hydrating = false;
+    /** watching someone else's finished match play back at a natural pace —
+     *  no input, no AI, no persistence/telemetry re-submission */
+    private watching = false;
+    private replayLog: LoggedAction[] | null = null;
+    /** index into replayLog of the next not-yet-dispatched entry */
+    private replayCursor = 0;
     /** connection lost: everything pauses until the peer is back */
     private suspended = false;
     /** seconds left before an unreturned opponent forfeits (null = no active grace window) */
@@ -443,7 +449,13 @@ export class Game {
          *  `settings.seats` must already be the LOCALIZED roster (via
          *  localizeRoster) by the time this reaches the constructor. */
         private readonly star: StarRole | null = null,
+        /** watch mode: replaces the entire match with someone else's
+         *  (or your own) finished one, played back at a natural pace —
+         *  distinct from `resume`, which continues a still-live match.
+         *  Mutually exclusive with `net`/`star`/`resume`. */
+        replay: { actions: LoggedAction[] } | null = null,
     ) {
+        this.watching = replay !== null;
         this.settings = normalizeGameSettings(settingsInput);
         const settings = this.settings;
         this.wrapper = wrapper;
@@ -707,7 +719,12 @@ export class Game {
             tactics: this.tacticInventory,
             rng,
         });
-        if (this.star) {
+        if (this.watching) {
+            // every seat's actions come from the replay log — no AI, no
+            // human input, on any seat (same no-op used for a star guest,
+            // which already never runs local AI or accepts local input)
+            this.opponent = new NetworkOpponent();
+        } else if (this.star) {
             // star mode: every AI-controlled seat runs uniformly via extraAis
             // (no "primary enemy" concept — could be 1 or 2 enemy seats).
             // Only the HOST ever runs AI locally; a guest's `this.opponent`
@@ -953,6 +970,21 @@ export class Game {
             if (resume.phaseRemaining !== undefined && this.phase === 'build') {
                 this.phaseRemaining = resume.phaseRemaining;
             }
+        } else if (replay) {
+            this.replayLog = replay.actions;
+            // round 0 (starter pick) dispatches immediately, same as
+            // hydrate() does — a natural pace doesn't matter for a one-time
+            // card pick, and this gets straight to round 1's build phase,
+            // where the per-frame paced dispatch (see the main tick) takes
+            // over for everything after
+            while (
+                this.replayCursor < this.replayLog.length &&
+                this.replayLog[this.replayCursor]!.round === 0
+            ) {
+                this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                this.replayCursor++;
+            }
+            this.maybeStartMatch();
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
@@ -1541,6 +1573,10 @@ export class Game {
     /** local player input — refused once this deployment is locked in.
      *  Build actions are buffered until the peer locks in (wire fog). */
     private dispatchPlayer(action: Action): boolean {
+        // watch mode: nothing here is "my" input — every action comes from
+        // the replay log (see the per-frame paced dispatch). The real guard,
+        // not just hidden/disabled UI.
+        if (this.watching) return false;
         if (this.seatReady[this.humanSeat] || this.suspended) return false;
         // stamp explicitly: actorSeat's fallback (primarySeatOf(team)) only
         // equals humanSeat when the human is their side's FIRST seat — false
@@ -2216,6 +2252,27 @@ export class Game {
         this.hud.refreshCosts();
         this.refreshShopHud();
         this.syncSpecialities(); // restore the fighter-card labels after a rebuild
+    }
+
+    /**
+     * Watch mode's per-frame build-phase driver: dispatches `replayLog`
+     * entries for the current round once their recorded `t` has been
+     * reached, using the exact same elapsed-time formula the recorder used
+     * (see `clock()`) — reproduces the original pacing, scaled by whatever
+     * speed multiplier is active (see the `gameDt` computation in the main
+     * tick). Battle phases need no equivalent method: once a dispatched
+     * `endDeployment` flips the phase, the normal per-frame `sim.update()`
+     * tick already replays it correctly with no special-casing at all.
+     */
+    private tickReplayPlayback(): void {
+        if (!this.replayLog) return;
+        const elapsed = Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining);
+        while (this.replayCursor < this.replayLog.length) {
+            const entry = this.replayLog[this.replayCursor]!;
+            if (entry.round !== this.round || entry.t > elapsed) break;
+            this.dispatcher.dispatch(entry.action);
+            this.replayCursor++;
+        }
     }
 
     /** runs the current battle headlessly — fully, or just up to `toElapsed`
@@ -4054,8 +4111,13 @@ export class Game {
     /** someone hit 0 HP — freeze the game and show the result */
     private finishMatch(): void {
         this.matchOver = true;
-        clearResumeMarker();
-        clearSinglePlayer();
+        // watching mode never touches these in the first place (see
+        // constructor/main.ts) — clearing them here would wipe out the
+        // player's real, unrelated saved game/resume marker
+        if (!this.watching) {
+            clearResumeMarker();
+            clearSinglePlayer();
+        }
         this.hud.hidePauseMenu();
         this.placement.enabled = false;
         this.placement.deselect();
@@ -4072,8 +4134,12 @@ export class Game {
             queueMicrotask(() => this.quitToMenu());
             return;
         }
-        this.reportMatchTelemetry(result);
-        this.reportOpenRating(result);
+        // watching someone else's (or your own) already-recorded match end
+        // again isn't a new result to report — it's the same match
+        if (!this.watching) {
+            this.reportMatchTelemetry(result);
+            this.reportOpenRating(result);
+        }
         this.hud.showGameOver(result);
     }
 
@@ -4236,8 +4302,12 @@ export class Game {
         if (profile) cpu.reset();
 
         // battle can be fast-forwarded (or slowed); build always runs at 1x
+        // — except when watching a replay, where the same speed control
+        // scales build-phase pacing too (nothing live to keep at real time)
         const gameDt =
-            this.phase === 'battle' ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]! : dtSeconds;
+            this.phase === 'battle' || this.watching
+                ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]!
+                : dtSeconds;
         this.time += gameDt;
 
         let simSteps = 0;
@@ -4256,6 +4326,7 @@ export class Game {
                 this.phaseRemaining -= gameDt;
             }
             if (this.phase === 'build') {
+                if (this.watching) this.tickReplayPlayback();
                 if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
             } else if (this.sim) {
                 if (profile) {

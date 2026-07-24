@@ -1,6 +1,7 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
+import { fetchMatchReplay } from './game/telemetry';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
 import {
@@ -842,6 +843,9 @@ function startGame(
     resume: MatchResume | null = null,
     /** 2v2+ star-topology connection — mutually exclusive with `net` */
     star: StarRole | null = null,
+    /** watching a finished match play back — mutually exclusive with
+     *  everything above; never persists/resumes/reports (see game.ts) */
+    replay: { actions: LoggedAction[] } | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -874,17 +878,20 @@ function startGame(
                 ownPeerId: net.ownId,
             });
         }
-    } else {
+    } else if (!replay) {
+        // watching a replay touches neither marker — it isn't a new match,
+        // and clearing either here would wipe out the player's real,
+        // unrelated saved game just because they clicked Watch
         clearResumeMarker();
         // star matches have no save/resume story yet (v1 scope) — never
         // persist or resume one via the single-player slot
         if (!resume?.local && !star) clearSinglePlayer();
     }
-    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star);
+    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star, replay);
     activeGame = game;
     game.onReturnToMenu = returnToMenu;
     if (net instanceof NetSession) wireReconnect(game, net, side, names);
-    else if (!net && !star) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    else if (!net && !star && !replay) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */
@@ -1044,6 +1051,31 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
         phaseRemaining: save.phaseRemaining,
         local: true,
     });
+}
+
+/** ?watch=<id>&side=<a|b> from replays.html — plays a stored match back at
+ *  a natural pace instead of starting a new one. Checked ahead of any
+ *  resume marker/single-player save so a replay link is never preempted. */
+async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
+    setMenuChromeVisible(true);
+    setStatus('Loading replay…');
+    const record = await fetchMatchReplay(id, side);
+    if (!record) {
+        setStatus('Replay not found.');
+        return;
+    }
+    setStatus('');
+    const settings = record.replay.settings;
+    settings.seed = record.replay.seed;
+    startGame(
+        settings,
+        null,
+        record.side,
+        { local: record.names.local, opponent: record.names.opponent },
+        null,
+        null,
+        { actions: record.replay.actions },
+    );
 }
 
 async function beginNetGame(
@@ -1694,9 +1726,16 @@ feuerwareEl.remove();
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
 setGameLayerVisible(false);
+const watchParams = new URLSearchParams(location.search);
+const watchId = watchParams.get('watch');
+const watchSide = watchParams.get('side');
 const mpMarker = loadResumeMarker();
 const spSave = loadSinglePlayer();
-if (mpMarker) {
+if (watchId && (watchSide === 'a' || watchSide === 'b')) {
+    // outranks any resume marker/single-player save — a replay link should
+    // never be silently preempted by stale local state
+    void startReplayWatch(watchId, watchSide);
+} else if (mpMarker) {
     void attemptResume(mpMarker);
 } else if (spSave) {
     if (spSave.version !== GAME_VERSION) {
