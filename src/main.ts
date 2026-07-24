@@ -291,9 +291,9 @@ menu.innerHTML = `
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
         <div class="m-toggle-row">
-            <button class="m-toggle-card" data-mode="sp-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
-            <button class="m-toggle-card" data-mode="sp-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
-            <button class="m-toggle-card" data-mode="sp-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-back">Back</button>
     </div>
@@ -326,9 +326,9 @@ menu.innerHTML = `
     <div class="m-mm-simple" style="display:none">
         <div class="m-spmode-title">Matchmaking</div>
         <div class="m-toggle-row">
-            <button class="m-toggle-card" data-mode="mms-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
-            <button class="m-toggle-card" data-mode="mms-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
-            <button class="m-toggle-card" data-mode="mms-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
         </div>
         <button class="m-btn m-small" data-mode="mms-back">Back</button>
     </div>
