@@ -35,7 +35,7 @@ import {
     type SpectatorVision,
     type StarRole,
 } from './net';
-import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode } from './telemetry';
+import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode, type MatchResult } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
 import {
     AIR_BONUS,
@@ -359,6 +359,9 @@ export class Game {
      *  can tag a verify submission correctly — net/star are always null
      *  while watching, so they can't tell a replayed 2v2 from solo */
     private replayOriginalMode: MatchMode | null = null;
+    /** verify mode only: the originally-recorded outcome, shown alongside
+     *  the recomputed one on the game-over screen (see finishMatch) */
+    private replayExpected: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number } | null = null;
     /** connection lost: everything pauses until the peer is back */
     private suspended = false;
     /** seconds left before an unreturned opponent forfeits (null = no active grace window) */
@@ -474,17 +477,22 @@ export class Game {
          *  match's mode (net/star are always null while watching, so
          *  reportMatchTelemetry can't otherwise tell a replayed 2v2 from
          *  solo — needed so a verify submission's fingerprint can actually
-         *  match the original's). */
+         *  match the original's). `expected` is the originally-recorded
+         *  outcome, shown alongside the recomputed one on the game-over
+         *  screen in verify mode so the match/mismatch is visible without
+         *  needing to cross-reference replays.html by hand. */
         replay: {
             actions: LoggedAction[];
             jumpToRound?: number;
             verify?: boolean;
             mode?: MatchMode;
+            expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
         } | null = null,
     ) {
         this.watching = replay !== null;
         this.replayVerify = replay?.verify === true;
         this.replayOriginalMode = replay?.mode ?? null;
+        this.replayExpected = replay?.expected ?? null;
         // the field initializer above hardcodes SPEED_STEPS's index of 1 —
         // REPLAY_SPEED_STEPS has 1 at a different position, so correct it
         // now that `watching` (and therefore `speedSteps`) is known
@@ -4260,7 +4268,18 @@ export class Game {
         } else if (this.replayVerify) {
             this.reportMatchTelemetry(result);
         }
-        this.hud.showGameOver(result);
+        if (this.replayVerify && this.replayExpected) {
+            const exp = this.replayExpected;
+            const matches =
+                result === exp.result && this.round === exp.rounds &&
+                this.playerHp === exp.playerHp && this.enemyHp === exp.enemyHp;
+            const note = matches
+                ? `✓ Matches recorded result (${exp.result}, ${exp.rounds} rounds, ${exp.playerHp}-${exp.enemyHp})`
+                : `⚠ MISMATCH — recorded ${exp.result}/${exp.rounds} rounds/${exp.playerHp}-${exp.enemyHp}, this run: ${result}/${this.round} rounds/${this.playerHp}-${this.enemyHp}`;
+            this.hud.showGameOver(result, { note, backLabel: 'Back to replays' });
+        } else {
+            this.hud.showGameOver(result);
+        }
     }
 
     /** the opponent never reconnected within the grace window — win by forfeit */

@@ -2108,11 +2108,15 @@ export class Hud {
         this.mount(el);
     }
 
-    showGameOver(result: 'victory' | 'defeat' | 'draw'): void {
+    showGameOver(result: 'victory' | 'defeat' | 'draw', options?: { note?: string; backLabel?: string }): void {
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;
         const title = result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW';
-        el.innerHTML = `<div class="go-title">${title}</div><button class="go-restart">Back to main menu</button>`;
+        const note = options?.note ? `<div class="go-note">${escapeHtml(options.note)}</div>` : '';
+        const backLabel = options?.backLabel ?? 'Back to main menu';
+        el.innerHTML =
+            `<div class="go-title">${title}</div>${note}` +
+            `<button class="go-restart">${escapeHtml(backLabel)}</button>`;
         el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
     }

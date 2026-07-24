@@ -1,7 +1,7 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
-import { fetchMatchReplay, type MatchMode, type MatchTelemetry } from './game/telemetry';
+import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
@@ -850,8 +850,16 @@ function startGame(
     /** watching a finished match play back — mutually exclusive with
      *  everything above; never persists/resumes/reports (see game.ts).
      *  `jumpToRound` fast-forwards past everything before that round.
-     *  `verify` re-submits telemetry at the end despite watching. */
-    replay: { actions: LoggedAction[]; jumpToRound?: number; verify?: boolean; mode?: MatchMode } | null = null,
+     *  `verify` re-submits telemetry at the end despite watching;
+     *  `expected` is the originally-recorded outcome, shown alongside the
+     *  recomputed one on the game-over screen. */
+    replay: {
+        actions: LoggedAction[];
+        jumpToRound?: number;
+        verify?: boolean;
+        mode?: MatchMode;
+        expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    } | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -1149,13 +1157,14 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
  * result through the normal telemetry pipeline (verify: true — see
  * game.ts's finishMatch/reportMatchTelemetry). stats.php's per-side dedupe
  * means an exact match stores nothing new; any divergence creates a second
- * file for that side, visible in replays.html as a mismatch. Redirects
- * straight back to replays.html so a batch of "Verify" links can be
- * clicked through quickly without watching each one — safe to navigate
- * immediately, since submitMatchTelemetry's fetch already fired
- * synchronously inside the Game constructor above (finishMatch runs
- * synchronously from the constructor's own instant fast-forward) and uses
- * `keepalive: true` specifically so it survives the navigation.
+ * file for that side, visible in replays.html as a mismatch.
+ *
+ * Shows the normal game-over screen (with an added match/mismatch note —
+ * see `expected` below) instead of redirecting immediately: the whole
+ * point of Verify is to see whether it matched, so silently bouncing back
+ * to the list defeats that. The screen's "Back to replays" button (its
+ * label repointed here) sends you back when you're ready for the next
+ * one — still fast to click through a batch, just not literally invisible.
  */
 async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void> {
     setMenuChromeVisible(true);
@@ -1174,9 +1183,28 @@ async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void>
         { local: record.names.local, opponent: record.names.opponent },
         null,
         null,
-        { actions: record.replay.actions, jumpToRound: Infinity, verify: true, mode: record.mode },
+        {
+            actions: record.replay.actions,
+            jumpToRound: Infinity,
+            verify: true,
+            mode: record.mode,
+            expected: {
+                result: record.result,
+                rounds: record.rounds,
+                playerHp: record.playerHp,
+                enemyHp: record.enemyHp,
+            },
+        },
     );
-    location.href = new URL('backend/replays.html', location.href).href;
+    // repoints the game-over screen's button (labeled "Back to replays" by
+    // finishMatch's verify branch) instead of the normal in-game menu —
+    // explicit type restatement for the same reason as rebuildReplayAt above
+    const game = activeGame as Game | null;
+    if (game) {
+        game.onReturnToMenu = () => {
+            location.href = new URL('backend/replays.html', location.href).href;
+        };
+    }
 }
 
 async function beginNetGame(
