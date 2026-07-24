@@ -290,9 +290,11 @@ menu.innerHTML = `
     </div>
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
-        <button class="m-btn" data-mode="sp-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
-        <button class="m-btn" data-mode="sp-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
-        <button class="m-btn" data-mode="sp-horde"><span class="m-ico">🐗</span><span class="m-label">Horde Mode</span></button>
+        <div class="m-toggle-row">
+            <button class="m-toggle-card" data-mode="sp-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
+            <button class="m-toggle-card" data-mode="sp-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
+            <button class="m-toggle-card" data-mode="sp-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+        </div>
         <button class="m-btn m-small" data-mode="sp-back">Back</button>
     </div>
     <div class="m-matchmaking" style="display:none">
@@ -320,6 +322,15 @@ menu.innerHTML = `
             <button class="m-btn m-small" data-mode="mm-back">Back</button>
             <button class="m-btn m-primary m-small" data-mode="mm-play">Play</button>
         </div>
+    </div>
+    <div class="m-mm-simple" style="display:none">
+        <div class="m-spmode-title">Matchmaking</div>
+        <div class="m-toggle-row">
+            <button class="m-toggle-card" data-mode="mms-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
+            <button class="m-toggle-card" data-mode="mms-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
+            <button class="m-toggle-card" data-mode="mms-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="mms-back">Back</button>
     </div>
     <div class="m-lobby" style="display:none">
         <div class="m-room-row">
@@ -522,6 +533,7 @@ const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
 const mmYouNameEl = menu.querySelector<HTMLSpanElement>('.mm-you-name')!;
 const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
 const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
+const mmSimpleEl = menu.querySelector<HTMLDivElement>('.m-mm-simple')!;
 
 let started = false;
 let pending: Pending | null = null;
@@ -1770,6 +1782,56 @@ function showMatchmakingPicker(): void {
     mmModeEl.style.display = '';
 }
 
+/**
+ * Plain (non-Steam) 1v1 quick match, probe-first — used both for the
+ * default "just clicked Matchmaking" attempt and for the simplified
+ * picker's own 1v1/Horde buttons (retrying is the same operation). Finds
+ * someone already waiting → connects immediately with their settings, no
+ * further UI. Finds no one → becomes the one waiting, and reveals the
+ * simplified picker (mode buttons only, no invite — see mmSimpleEl) so the
+ * player can pick a different mode, or just wait as-is.
+ */
+function tryQuickMatch(horde: boolean): void {
+    mmSimpleEl.style.display = 'none';
+    setStatus('Looking for a match…');
+    setMenuBusy(true);
+    const probe = quickMatch(
+        (s) => setStatus(s),
+        () => {
+            pending = null;
+            probe.cancel();
+            setMenuBusy(false);
+            setStatus('');
+            mmSimpleEl.style.display = '';
+        },
+    );
+    pending = probe;
+    probe.session
+        .then((session) => {
+            pending = null;
+            setMenuBusy(false);
+            setStatus('');
+            void beginNetGame(session, horde ? applyHordeMode : undefined);
+        })
+        .catch(() => {
+            // either the deliberate cancel-and-reveal above, or the
+            // player's own Cancel click — both handled where they happened
+        });
+}
+
+/** Plain (non-Steam) 2v2: join an open room if one exists, else host and
+ *  wait (beginStarHost already auto-starts the moment anyone joins). */
+function try2v2Match(horde: boolean): void {
+    mmSimpleEl.style.display = 'none';
+    setStatus('Looking for an open 2v2 room…');
+    void fetchLobbyRooms().then((rooms) => {
+        const mine = getPlayerName().toLowerCase();
+        const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
+        if (open) beginStarJoin(open.name);
+        else void beginStarHost(horde);
+    });
+}
+
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
@@ -1801,6 +1863,10 @@ menu.addEventListener('click', (e) => {
         (mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
+            mode === 'matchmaking' ||
+            mode === 'mms-1v1' ||
+            mode === 'mms-2v2' ||
+            mode === 'mms-horde' ||
             mode === 'mm-play' ||
             mode === 'mm-invite' ||
             mode === 'host' ||
@@ -1849,6 +1915,7 @@ menu.addEventListener('click', (e) => {
         case 'matchmaking': {
             spModeEl.style.display = 'none';
             lobbyEl.style.display = 'none';
+            mmSimpleEl.style.display = 'none';
             stopRoomPoll();
             mainButtonsEl.style.display = 'none';
             if (steam.isAvailable()) {
@@ -1864,34 +1931,29 @@ menu.addEventListener('click', (e) => {
             // Joining an existing wait means taking the host's settings
             // as-is (see beginNetGame: only the host's choices ever apply),
             // so there's nothing meaningful to pick in that case — the
-            // picker only ever appears for whoever ends up waiting
-            // themselves, the one point where a choice still matters.
-            setStatus('Looking for a match…');
-            setMenuBusy(true);
-            const probe = quickMatch(
-                (s) => setStatus(s),
-                () => {
-                    pending = null;
-                    probe.cancel();
-                    setMenuBusy(false);
-                    setStatus('');
-                    showMatchmakingPicker();
-                },
-            );
-            pending = probe;
-            probe.session
-                .then((session) => {
-                    pending = null;
-                    setMenuBusy(false);
-                    setStatus('');
-                    void beginNetGame(session);
-                })
-                .catch(() => {
-                    // either the deliberate cancel-and-reveal above, or the
-                    // player's own Cancel click — both handled where they happened
-                });
+            // simplified picker only ever appears for whoever ends up
+            // waiting themselves, the one point where a choice still matters.
+            tryQuickMatch(false);
             break;
         }
+        case 'mms-1v1':
+            tryQuickMatch(false);
+            break;
+        case 'mms-horde':
+            tryQuickMatch(true);
+            break;
+        case 'mms-2v2':
+            try2v2Match(false);
+            break;
+        case 'mms-back':
+            pending?.cancel();
+            pending = null;
+            cancelStarHost();
+            setMenuBusy(false);
+            setStatus('');
+            mmSimpleEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            break;
         case 'mm-back':
             pending?.cancel();
             pending = null;
@@ -1969,6 +2031,7 @@ menu.addEventListener('click', (e) => {
         case 'lobby': {
             spModeEl.style.display = 'none';
             mmModeEl.style.display = 'none';
+            mmSimpleEl.style.display = 'none';
             const open = lobbyEl.style.display === 'none';
             lobbyEl.style.display = open ? '' : 'none';
             if (open) startRoomPoll();
