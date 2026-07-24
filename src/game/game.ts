@@ -4127,13 +4127,21 @@ export class Game {
     }
 
     /**
-     * Best-effort upload for balance stats. Host-only in multiplayer (one
-     * record per match); never blocks or throws if the PHP backend is down.
+     * Best-effort upload for balance stats — and, in multiplayer, the raw
+     * material for a future replay-divergence check: every real client
+     * (both 1v1 sides, every connected star seat) submits its OWN
+     * independently-derived record rather than just one side. `stats.php`'s
+     * dedup is a content fingerprint that includes `result`, which is
+     * perspective-flipped between sides by construction (my victory is your
+     * defeat) — so two honest submissions of the same match never collide
+     * and both get stored, which is exactly what's wanted here. They aren't
+     * yet tied together by an explicit shared match id, though (unlike a
+     * dedup fingerprint, that needs to be order-independent between "my
+     * name, their name" on each side) — fine for just collecting data now,
+     * but worth adding whenever an actual divergence-check tool gets built.
+     * Never blocks or throws if the PHP backend is down.
      */
     private reportMatchTelemetry(result: 'victory' | 'defeat' | 'draw'): void {
-        // one record per match — only the host reports for star mode too
-        if (this.star && this.star.role !== 'host') return;
-        if (this.net && this.side !== 'a') return;
         try {
             const replay = this.exportReplay();
             submitMatchTelemetry({
