@@ -221,6 +221,10 @@ export class Game {
 
     /** ascending — the speed button steps up (click) or down (right click), wrapping */
     private static readonly SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8];
+    /** replay-only — much wider range since nothing live needs to stay near
+     *  real-time; a separate array so the live-match button/range is
+     *  untouched */
+    static readonly REPLAY_SPEED_STEPS = [0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
     private phase: Phase = 'build';
     private round = 0;
@@ -452,10 +456,18 @@ export class Game {
         /** watch mode: replaces the entire match with someone else's
          *  (or your own) finished one, played back at a natural pace —
          *  distinct from `resume`, which continues a still-live match.
-         *  Mutually exclusive with `net`/`star`/`resume`. */
-        replay: { actions: LoggedAction[] } | null = null,
+         *  Mutually exclusive with `net`/`star`/`resume`. `jumpToRound`
+         *  instantly fast-forwards (dispatch + headless battles) through
+         *  everything before that round before paced playback takes over —
+         *  used for both "jump to round N" and "skip to end" (an
+         *  unreachably high target). */
+        replay: { actions: LoggedAction[]; jumpToRound?: number } | null = null,
     ) {
         this.watching = replay !== null;
+        // the field initializer above hardcodes SPEED_STEPS's index of 1 —
+        // REPLAY_SPEED_STEPS has 1 at a different position, so correct it
+        // now that `watching` (and therefore `speedSteps`) is known
+        if (this.watching) this.speedIndex = this.speedSteps.indexOf(1);
         this.settings = normalizeGameSettings(settingsInput);
         const settings = this.settings;
         this.wrapper = wrapper;
@@ -790,6 +802,10 @@ export class Game {
             (type) => this.buyUnit(type),
         );
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        // watching's own wider-range speed control (replayControls.ts)
+        // replaces this button entirely — watching never changes for a
+        // Game instance's lifetime, so this is a one-time hide, not a toggle
+        if (this.watching) this.hud.setSpeedButtonVisible(false);
         this.hud.onMenuToggle = () => this.togglePauseMenu();
         // touch stand-in for middle-click (rotate)
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
@@ -985,6 +1001,9 @@ export class Game {
                 this.replayCursor++;
             }
             this.maybeStartMatch();
+            if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
+                this.fastForwardReplayThroughRound(replay.jumpToRound);
+            }
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
@@ -1408,7 +1427,9 @@ export class Game {
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */
     private startBuildPhase(): void {
-        this.resetSpeed();
+        // watching: keep whatever playback speed the viewer picked instead
+        // of snapping back to 1x every round — nothing live to reset for
+        if (!this.watching) this.resetSpeed();
         this.round++;
         this.weather?.onRound(this.round);
         this.phase = 'build';
@@ -2275,6 +2296,32 @@ export class Game {
         }
     }
 
+    /**
+     * Watch mode only: instantly fast-forwards through the replay log
+     * (dispatch + headless battle via fastForwardBattle — no rendering, no
+     * pacing) until reaching `target`'s build phase, or the match/log ends
+     * first — the latter is exactly what "skip to end" is (call with an
+     * unreachably high target: the loop just runs until matchOver or the
+     * log is exhausted, headlessly resolving every remaining battle,
+     * finishMatch() firing naturally off the same HP<=0 detection it
+     * always has). Parallel to hydrate(), not a refactor of it — hydrate()
+     * has its own resume-specific concerns (reopening a pending decision)
+     * that don't apply to a fresh replay-mode Game instance.
+     */
+    private fastForwardReplayThroughRound(target: number): void {
+        if (!this.replayLog) return;
+        while (this.replayCursor < this.replayLog.length && !this.matchOver) {
+            if (this.round === target && this.phase === 'build') return;
+            const entry = this.replayLog[this.replayCursor]!;
+            if (entry.round !== this.round || this.phase !== 'build') break; // shouldn't happen — safety guard
+            this.dispatcher.dispatch(entry.action);
+            this.replayCursor++;
+            if ((this.phase as Phase) === 'battle') {
+                this.fastForwardBattle();
+            }
+        }
+    }
+
     /** runs the current battle headlessly — fully, or just up to `toElapsed`
      *  (rejoining a battle the peer is still watching) */
     private fastForwardBattle(toElapsed?: number): void {
@@ -2423,6 +2470,22 @@ export class Game {
             !this.suspended &&
             !this.watching
         );
+    }
+
+    /** which speed range applies right now — replay gets a much wider one
+     *  (see REPLAY_SPEED_STEPS), live matches keep the existing range */
+    private get speedSteps(): number[] {
+        return this.watching ? Game.REPLAY_SPEED_STEPS : Game.SPEED_STEPS;
+    }
+
+    /** the new replay-controls panel's speed <select> calls this directly —
+     *  no peer to broadcast to (watching implies no net/star), unlike the
+     *  live cycleSpeed() button handler */
+    setReplaySpeedIndex(index: number): void {
+        if (!this.watching) return;
+        const clamped = Math.max(0, Math.min(index, this.speedSteps.length - 1));
+        this.speedIndex = clamped;
+        this.hud.setSpeed(this.speedSteps[clamped]!);
     }
 
     /** round 1 begins once EVERY seat has chosen a specialist (a teammate's may lag) */
@@ -3520,17 +3583,18 @@ export class Game {
     }
 
     private cycleSpeed(direction: number): void {
-        const n = Game.SPEED_STEPS.length;
+        const n = this.speedSteps.length;
         this.speedIndex = (this.speedIndex + direction + n) % n;
-        const multiplier = Game.SPEED_STEPS[this.speedIndex]!;
+        const multiplier = this.speedSteps[this.speedIndex]!;
         this.hud.setSpeed(multiplier);
         // both players (and spectators) watch at the same pace and finish together
         this.broadcast({ type: 'speed', multiplier });
     }
 
-    /** battle speed returns to 1× at the start of every deployment phase */
+    /** battle speed returns to 1× at the start of every deployment phase
+     *  (never called while watching — see startBuildPhase's guard) */
     private resetSpeed(): void {
-        const index = Game.SPEED_STEPS.indexOf(1);
+        const index = this.speedSteps.indexOf(1);
         if (index < 0) return;
         this.speedIndex = index;
         this.hud.setSpeed(1);
@@ -4312,7 +4376,7 @@ export class Game {
         // scales build-phase pacing too (nothing live to keep at real time)
         const gameDt =
             this.phase === 'battle' || this.watching
-                ? dtSeconds * Game.SPEED_STEPS[this.speedIndex]!
+                ? dtSeconds * this.speedSteps[this.speedIndex]!
                 : dtSeconds;
         this.time += gameDt;
 

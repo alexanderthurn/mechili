@@ -1690,6 +1690,13 @@ export class Hud {
         this.speedEl.textContent = `${multiplier}×`;
     }
 
+    /** watch mode replaces this with its own wider-range speed control
+     *  (replayControls.ts) — set once, never toggled back (a Game instance's
+     *  watching-ness never changes for its lifetime) */
+    setSpeedButtonVisible(visible: boolean): void {
+        this.speedEl.style.display = visible ? '' : 'none';
+    }
+
     setHp(player: number, enemy: number): void {
         if (player > this.playerMaxHp) this.playerMaxHp = player;
         if (enemy > this.enemyMaxHp) this.enemyMaxHp = enemy;

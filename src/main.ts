@@ -1,7 +1,8 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
-import { fetchMatchReplay } from './game/telemetry';
+import { fetchMatchReplay, type MatchTelemetry } from './game/telemetry';
+import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
 import {
@@ -810,6 +811,9 @@ function returnToMenu(): void {
     clearMatchResumeData();
     activeGame?.destroy();
     activeGame = null;
+    replayControlsPanel?.remove();
+    replayControlsPanel = null;
+    currentReplayRecord = null;
     replaceThreeCanvas();
     started = false;
     setGameLayerVisible(false);
@@ -844,8 +848,9 @@ function startGame(
     /** 2v2+ star-topology connection — mutually exclusive with `net` */
     star: StarRole | null = null,
     /** watching a finished match play back — mutually exclusive with
-     *  everything above; never persists/resumes/reports (see game.ts) */
-    replay: { actions: LoggedAction[] } | null = null,
+     *  everything above; never persists/resumes/reports (see game.ts).
+     *  `jumpToRound` fast-forwards past everything before that round. */
+    replay: { actions: LoggedAction[]; jumpToRound?: number } | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -1053,6 +1058,13 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
     });
 }
 
+/** kept around so rebuildReplayAt (round jump / skip to end) can
+ *  reconstruct without re-fetching; cleared on return to menu */
+let currentReplayRecord: MatchTelemetry | null = null;
+/** survives across rebuildReplayAt's Game reconstructions — owned here,
+ *  not by Game, for exactly that reason */
+let replayControlsPanel: ReplayControls | null = null;
+
 /** ?watch=<id>&side=<a|b> from replays.html — plays a stored match back at
  *  a natural pace instead of starting a new one. Checked ahead of any
  *  resume marker/single-player save so a replay link is never preempted. */
@@ -1065,6 +1077,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         return;
     }
     setStatus('');
+    currentReplayRecord = record;
     const settings = record.replay.settings;
     settings.seed = record.replay.seed;
     startGame(
@@ -1076,6 +1089,49 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         null,
         { actions: record.replay.actions },
     );
+    const maxRound = Math.max(1, ...record.replay.actions.map((a) => a.round));
+    replayControlsPanel = new ReplayControls(
+        wrapper,
+        maxRound,
+        Game.REPLAY_SPEED_STEPS,
+        Game.REPLAY_SPEED_STEPS.indexOf(1),
+        {
+            onJump: (round) => void rebuildReplayAt(round),
+            onSkipToEnd: () => void rebuildReplayAt('end'),
+            onSpeedChange: (index) => activeGame?.setReplaySpeedIndex(index),
+        },
+    );
+}
+
+/** round-jump / skip-to-end: tear down the current replay Game and
+ *  reconstruct fresh, fast-forwarded to the target — state is always fully
+ *  reconstructible from {seed, settings, actions}, so this is simpler and
+ *  safer than trying to rewind a live instance in place. */
+async function rebuildReplayAt(target: number | 'end'): Promise<void> {
+    if (!currentReplayRecord) return;
+    activeGame?.destroy();
+    activeGame = null;
+    started = false;
+    const settings = currentReplayRecord.replay.settings;
+    settings.seed = currentReplayRecord.replay.seed;
+    startGame(
+        settings,
+        null,
+        currentReplayRecord.side,
+        { local: currentReplayRecord.names.local, opponent: currentReplayRecord.names.opponent },
+        null,
+        null,
+        {
+            actions: currentReplayRecord.replay.actions,
+            jumpToRound: target === 'end' ? Infinity : target,
+        },
+    );
+    // a fresh Game always starts at 1x — reapply whatever the panel (which
+    // survives the reconstruction) has selected. Explicit type restatement:
+    // TS over-narrows activeGame to `never` here otherwise, not accounting
+    // for startGame() (above) reassigning the module-level variable.
+    const game = activeGame as Game | null;
+    if (replayControlsPanel) game?.setReplaySpeedIndex(replayControlsPanel.getSpeedIndex());
 }
 
 async function beginNetGame(

@@ -565,6 +565,47 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-exit-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-exit-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
+/* watch-mode-only jump/speed controls, top-center of the game view */
+.mechili-replay-controls {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 12px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    color: ${u.text};
+}
+.mechili-replay-controls .rc-row { display: flex; align-items: center; gap: 8px; }
+.mechili-replay-controls label { display: flex; align-items: center; gap: 4px; }
+.mechili-replay-controls input, .mechili-replay-controls select {
+    font: inherit;
+    padding: 3px 6px;
+    border: 1px solid ${u.border};
+    border-radius: 4px;
+    background: #1e1b15;
+    color: ${u.text};
+}
+.mechili-replay-controls input.rc-round { width: 4.5em; }
+.mechili-replay-controls button {
+    font: inherit;
+    padding: 4px 10px;
+    border: 1.5px solid ${u.border};
+    border-radius: 6px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+
 /* big gear, top-right of the main menu */
 .mechili-settings-btn {
     position: absolute;
