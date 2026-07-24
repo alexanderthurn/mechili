@@ -31,7 +31,7 @@ import {
     type SinglePlayerSave,
     type StarRole,
 } from './game/net';
-import { lobby as steamLobby, steam } from 'steam-electron-build/native';
+import { isElectron, lobby as steamLobby, steam, win } from 'steam-electron-build/native';
 import {
     hostOrJoinSteamStar,
     hostSteamRoom,
@@ -346,6 +346,19 @@ settingsCornerEl.style.display = 'none';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 wrapper.appendChild(settingsCornerEl);
 
+// Electron only — a browser tab has its own close affordance, but a
+// borderless/fullscreen Electron window doesn't; stacked just above the
+// username pill. Visibility is gated on isElectron() inside
+// setMenuChromeVisible, not just here, since it must also hide during play.
+const exitDesktopEl = document.createElement('button');
+exitDesktopEl.className = 'mechili-exit-btn';
+exitDesktopEl.type = 'button';
+exitDesktopEl.textContent = 'Exit to Desktop';
+exitDesktopEl.title = 'Quit the game';
+exitDesktopEl.style.display = 'none';
+exitDesktopEl.addEventListener('click', () => void win.close());
+wrapper.appendChild(exitDesktopEl);
+
 // suggest chip, top-left (same language as username button)
 const suggestCornerEl = document.createElement('button');
 suggestCornerEl.className = 'mechili-suggest-btn';
@@ -389,6 +402,7 @@ function setMenuChromeVisible(visible: boolean): void {
     versionEl.style.display = display;
     settingsCornerEl.style.display = display;
     suggestCornerEl.style.display = display;
+    exitDesktopEl.style.display = visible && isElectron() ? '' : 'none';
     applyGlobalChatVisibility();
     if (visible) ensureMenuGamepadCursor();
 }
@@ -710,7 +724,13 @@ if (steam.isAvailable()) {
 }
 refreshUsernameLabel();
 void refreshOpenProfile();
-usernameEl.addEventListener('click', () => showNameEditor());
+// under Steam the name is seeded from your Steam identity (above) — the
+// web version's login/rename/password editor doesn't apply yet, so the
+// corner button is inert for now rather than opening it (revisit once
+// there's an actual Steam-side account/identity story)
+usernameEl.addEventListener('click', () => {
+    if (!steam.isAvailable()) showNameEditor();
+});
 
 function setStatus(text: string): void {
     statusEl.style.display = text ? '' : 'none';
@@ -797,6 +817,7 @@ function returnToMenu(): void {
     wrapper.appendChild(versionEl);
     wrapper.appendChild(settingsCornerEl);
     wrapper.appendChild(suggestCornerEl);
+    wrapper.appendChild(exitDesktopEl);
     wrapper.appendChild(gchatEl);
     startGlobalChatPoll();
     refreshUsernameLabel();
@@ -834,6 +855,7 @@ function startGame(
     versionEl.remove();
     settingsCornerEl.remove();
     suggestCornerEl.remove();
+    exitDesktopEl.remove();
     gchatEl.remove();
     if (net) {
         clearSinglePlayer();

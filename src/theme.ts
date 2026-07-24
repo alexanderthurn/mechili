@@ -542,6 +542,29 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
+/* Electron only — stacked directly above the username pill, same corner */
+.mechili-exit-btn {
+    position: absolute;
+    right: calc(16px + env(safe-area-inset-right));
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    padding: 8px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    user-select: none;
+    z-index: 30;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.mechili-exit-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-exit-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+
 /* big gear, top-right of the main menu */
 .mechili-settings-btn {
     position: absolute;
