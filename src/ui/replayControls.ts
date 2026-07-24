@@ -14,7 +14,7 @@ export interface ReplayControlsCallbacks {
 
 export class ReplayControls {
     private readonly root: HTMLDivElement;
-    private readonly roundInput: HTMLInputElement;
+    private readonly roundSelect: HTMLSelectElement;
     private readonly speedSelect: HTMLSelectElement;
 
     constructor(
@@ -26,10 +26,12 @@ export class ReplayControls {
     ) {
         this.root = document.createElement('div');
         this.root.className = 'mechili-replay-controls';
+        const roundOptions = Array.from({ length: maxRound }, (_, i) => i + 1)
+            .map((r) => `<option value="${r}">Round ${r}</option>`)
+            .join('');
         this.root.innerHTML =
             `<div class="rc-row">` +
-            `<label>Round <input type="number" class="rc-round" min="1" max="${maxRound}" value="1" /></label>` +
-            `<button type="button" class="rc-jump">Jump</button>` +
+            `<label>Round <select class="rc-round">${roundOptions}</select></label>` +
             `<button type="button" class="rc-end">Skip to End</button>` +
             `</div>` +
             `<div class="rc-row">` +
@@ -38,18 +40,25 @@ export class ReplayControls {
             `</select></label>` +
             `</div>`;
 
-        this.roundInput = this.root.querySelector<HTMLInputElement>('.rc-round')!;
+        this.roundSelect = this.root.querySelector<HTMLSelectElement>('.rc-round')!;
         this.speedSelect = this.root.querySelector<HTMLSelectElement>('.rc-speed')!;
         this.speedSelect.value = String(initialSpeedIndex);
 
-        this.root.querySelector('.rc-jump')!.addEventListener('click', () => {
-            const round = parseInt(this.roundInput.value, 10);
+        // selecting a round jumps immediately — no separate confirm button
+        this.roundSelect.addEventListener('change', () => {
+            const round = Number(this.roundSelect.value);
             if (Number.isFinite(round) && round >= 1) cb.onJump(round);
         });
         this.root.querySelector('.rc-end')!.addEventListener('click', () => cb.onSkipToEnd());
         this.speedSelect.addEventListener('change', () => cb.onSpeedChange(Number(this.speedSelect.value)));
 
         wrapper.appendChild(this.root);
+    }
+
+    /** re-synced after a jump so re-opening the dropdown later shows where
+     *  you actually are, not just the last explicit selection */
+    setCurrentRound(round: number): void {
+        this.roundSelect.value = String(round);
     }
 
     /** re-applied after rebuildReplayAt reconstructs the Game (a fresh

@@ -1131,7 +1131,12 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
     // TS over-narrows activeGame to `never` here otherwise, not accounting
     // for startGame() (above) reassigning the module-level variable.
     const game = activeGame as Game | null;
-    if (replayControlsPanel) game?.setReplaySpeedIndex(replayControlsPanel.getSpeedIndex());
+    if (replayControlsPanel) {
+        game?.setReplaySpeedIndex(replayControlsPanel.getSpeedIndex());
+        const landedRound =
+            target === 'end' ? Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round)) : target;
+        replayControlsPanel.setCurrentRound(landedRound);
+    }
 }
 
 async function beginNetGame(
