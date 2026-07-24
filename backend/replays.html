@@ -72,17 +72,25 @@
       border: 1px solid var(--line);
       white-space: nowrap;
     }
-    .badge.ok { color: var(--good); border-color: var(--good); }
+    .badge.verified { color: var(--good); border-color: var(--good); }
+    .badge.unverified { color: var(--muted); }
     .badge.mismatch { color: var(--bad); border-color: var(--bad); }
-    .badge.solo { color: var(--muted); }
     .score-line { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
     .score-line .side-name { font-weight: 600; }
+    .score-line .side-name.winner { color: var(--good); font-weight: 700; }
+    .score-line .side-name.loser { opacity: 0.55; font-weight: 400; }
+    .score-line .side-name.draw { color: var(--muted); }
     .score-line .score { font-variant-numeric: tabular-nums; color: var(--muted); }
     .score-line .vs { color: var(--muted); font-size: 12px; }
     .when, .mode-tag { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .group-body { display: none; padding: 4px 12px 12px; border-top: 1px solid var(--line); }
     .group.open .group-body { display: block; }
     .group.open .chevron { transform: rotate(90deg); display: inline-block; }
+    .verify-summary { margin: 4px 0 10px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .verify-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); font-size: 11px; white-space: nowrap; }
+    .verify-chip.ok { color: var(--good); border-color: var(--good); }
+    .verify-chip.bad { color: var(--bad); border-color: var(--bad); }
+    .verify-chip .vc-meta { color: var(--muted); }
     .records { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
     .rec {
       border: 1px solid var(--line);
@@ -152,9 +160,9 @@
     <label>Status
       <select id="status">
         <option value="all">all</option>
-        <option value="ok">consistent</option>
+        <option value="verified">verified</option>
+        <option value="unverified">unverified</option>
         <option value="mismatch">mismatch</option>
-        <option value="solo">solo</option>
       </select>
     </label>
     <label>Limit
@@ -168,17 +176,16 @@
   <div class="groups" id="groups"></div>
 
   <p class="hint">
-    "Consistent" means every record on each side agrees with itself, and the
-    two sides report opposite results (or both draw) with matching round
-    counts — the minimum you'd expect from honest clients replaying the same
-    match. It is not a full divergence check (that needs actually
-    re-simulating each side's action log) — just a cheap, immediate sanity
-    flag on the summary fields already submitted. A "verify" tag marks a
-    later headless re-check (see the ⚡ Verify link) rather than the
-    match's own original report — extra verify records only appear here
-    when they disagree with something, since a matching one dedupes away
-    server-side. Click a row to expand it; "View raw" fetches the full
-    stored record (settings/seed/action log) for one side on demand.
+    "Verified" means at least one ⚡ Verify re-check (a headless re-simulation
+    of the stored action log) has been run against this match and nothing it
+    touched disagreed — with itself, or with the opposing side. "Unverified"
+    just means no one has run Verify on it yet (solo matches — only one side
+    ever submitted — count the same as paired ones here; whether both sides
+    reported is shown in the score line, not the badge). "Mismatch" means a
+    disagreement was found — between two records on the same side, between
+    the two sides, or between an original submission and a later Verify.
+    Click a row to expand it: it lists every Verify run so far (who, when,
+    match/mismatch), plus the full raw record per submission.
   </p>
 
   <script>
@@ -208,26 +215,43 @@
     }
 
     /**
-     * Cheap consistency check on already-submitted summary fields — not a
-     * real divergence check (that needs re-simulating each side's action
-     * log), just an immediate sanity flag. Generalizes to N records per
-     * side (verify re-checks can add more than one per side): every record
-     * on a side must agree with every other record on that side, and the
-     * two sides' (any representative's) result/rounds must complement.
-     * Returns 'solo' | 'ok' | 'mismatch'.
+     * Cheap consistency + verification check on already-submitted summary
+     * fields — not a real divergence check (that needs actually
+     * re-simulating each side's action log, which is exactly what a Verify
+     * run does). Generalizes to N records per side (verify re-checks can
+     * add more than one per side): every record on a side must agree with
+     * every other record on that side (result/rounds/HP), and — when both
+     * sides have reported — the two sides' results must complement.
+     * "Verified" and "solo" are independent of each other on purpose: a
+     * solo match (only one side ever submitted) can still be verified by
+     * re-checking that lone side's own action log.
      */
-    function checkConsistency(records) {
+    function analyzeGroup(records) {
       const aRecords = records.filter((r) => r.side === 'a');
       const bRecords = records.filter((r) => r.side === 'b');
-      if (aRecords.length === 0 || bRecords.length === 0) return 'solo';
-      const sameSideAgree = (list) => list.every((r) => r.result === list[0].result && r.rounds === list[0].rounds);
-      if (!sameSideAgree(aRecords) || !sameSideAgree(bRecords)) return 'mismatch';
-      const a = aRecords[0], b = bRecords[0];
-      const oppositeResults =
-        (a.result === 'victory' && b.result === 'defeat') ||
-        (a.result === 'defeat' && b.result === 'victory') ||
-        (a.result === 'draw' && b.result === 'draw');
-      return oppositeResults && a.rounds === b.rounds ? 'ok' : 'mismatch';
+      const sameSideAgree = (list) => list.every((r) =>
+        r.result === list[0].result && r.rounds === list[0].rounds &&
+        r.playerHp === list[0].playerHp && r.enemyHp === list[0].enemyHp);
+      const aAgree = aRecords.length === 0 || sameSideAgree(aRecords);
+      const bAgree = bRecords.length === 0 || sameSideAgree(bRecords);
+      let crossOk = true;
+      if (aRecords.length && bRecords.length) {
+        const a = aRecords[0], b = bRecords[0];
+        const oppositeResults =
+          (a.result === 'victory' && b.result === 'defeat') ||
+          (a.result === 'defeat' && b.result === 'victory') ||
+          (a.result === 'draw' && b.result === 'draw');
+        crossOk = oppositeResults && a.rounds === b.rounds;
+      }
+      const mismatch = !aAgree || !bAgree || !crossOk;
+      const verifyRecords = records.filter((r) => r.source === 'verify');
+      return {
+        solo: aRecords.length === 0 || bRecords.length === 0,
+        mismatch,
+        verified: !mismatch && verifyRecords.length > 0,
+        verifyCount: verifyRecords.length,
+        verifyRecords,
+      };
     }
 
     /** the canonical record to show as "the" score for a side — the
@@ -237,25 +261,71 @@
         records.find((r) => r.side === side) || null;
     }
 
-    function renderGroup(group, idx) {
-      const records = group.records.slice().sort((r1, r2) => (r1.side < r2.side ? -1 : 1));
-      const status = checkConsistency(records);
-      const badge =
-        status === 'solo' ? '<span class="badge solo">solo</span>'
-        : status === 'ok' ? '<span class="badge ok">consistent</span>'
-        : '<span class="badge mismatch">⚠ mismatch</span>';
+    function resultClass(result) {
+      return result === 'victory' ? 'winner' : result === 'defeat' ? 'loser' : 'draw';
+    }
 
+    /** left-vs-right score line for the collapsed row, winner highlighted.
+     *  Solo matches (only one side ever submitted) still get a full "vs"
+     *  line — a single record already carries both playerHp and enemyHp
+     *  from its own perspective, so no second record is needed. */
+    function renderScoreLine(records) {
       const a = primaryForSide(records, 'a');
       const b = primaryForSide(records, 'b');
-      const scoreLine = a && b
-        ? `<span class="score-line">
-            <span class="side-name">${escapeHtml(a.names.local || 'Side A')}</span>
-            <span class="score">${a.playerHp}</span>
-            <span class="vs">vs</span>
-            <span class="score">${b.playerHp}</span>
-            <span class="side-name">${escapeHtml(b.names.local || 'Side B')}</span>
-          </span>`
-        : `<span class="score-line"><span class="side-name">${escapeHtml((a || b).names.local || '(unknown)')}</span></span>`;
+      let left, right;
+      if (a && b) {
+        left = { name: a.names.local || 'Side A', score: a.playerHp, result: a.result };
+        right = { name: b.names.local || 'Side B', score: b.playerHp, result: b.result };
+      } else {
+        const solo = a || b;
+        if (!solo) return '';
+        const opposite = solo.result === 'victory' ? 'defeat' : solo.result === 'defeat' ? 'victory' : 'draw';
+        left = { name: solo.names.local || '(unknown)', score: solo.playerHp, result: solo.result };
+        right = { name: solo.names.opponent || 'AI', score: solo.enemyHp, result: opposite };
+      }
+      const leftCls = resultClass(left.result);
+      const rightCls = resultClass(right.result);
+      const crown = (cls) => (cls === 'winner' ? '🏆 ' : '');
+      return `<span class="score-line">
+        <span class="side-name ${leftCls}">${crown(leftCls)}${escapeHtml(left.name)}</span>
+        <span class="score">${left.score}</span>
+        <span class="vs">vs</span>
+        <span class="score">${right.score}</span>
+        <span class="side-name ${rightCls}">${crown(rightCls)}${escapeHtml(right.name)}</span>
+      </span>`;
+    }
+
+    /** per-match Verify history — who ran it and whether it matched — shown
+     *  only when the row is expanded (the collapsed badge already carries
+     *  the count via analyzeGroup().verifyCount) */
+    function renderVerifySummary(records, info) {
+      if (info.verifyRecords.length === 0) {
+        return '<div class="verify-summary">No verifications yet.</div>';
+      }
+      const chips = info.verifyRecords.map((r) => {
+        const baseline = records.find((o) => o.side === r.side && o.source !== 'verify' && o !== r);
+        const matches = !baseline ||
+          (r.result === baseline.result && r.rounds === baseline.rounds &&
+            r.playerHp === baseline.playerHp && r.enemyHp === baseline.enemyHp);
+        const cls = matches ? 'ok' : 'bad';
+        const icon = matches ? '✓' : '⚠';
+        return `<span class="verify-chip ${cls}">${icon} ${escapeHtml(r.names.local || '(unknown)')}` +
+          `<span class="vc-meta">side ${escapeHtml(r.side)} · ${fmtTime(r.ts)}</span></span>`;
+      }).join('');
+      return `<div class="verify-summary"><strong>Verifications (${info.verifyRecords.length}):</strong>${chips}</div>`;
+    }
+
+    function renderGroup(group, idx) {
+      const records = group.records.slice().sort((r1, r2) => (r1.side < r2.side ? -1 : 1));
+      const info = analyzeGroup(records);
+      const status = info.mismatch ? 'mismatch' : info.verified ? 'verified' : 'unverified';
+      const badge =
+        status === 'mismatch' ? '<span class="badge mismatch">⚠ mismatch</span>'
+        : status === 'verified' ? `<span class="badge verified">✓ verified${info.verifyCount > 1 ? ` ×${info.verifyCount}` : ''}</span>`
+        : '<span class="badge unverified">○ unverified</span>';
+
+      const scoreLine = renderScoreLine(records);
+      const modeTag = `<span class="mode-tag">${escapeHtml(records[0].mode)}${info.solo ? ' · solo' : ''}</span>`;
 
       const recsHtml = records.map((r) => {
         const uid = `${group.matchKey}-${r.side}-${r.id}-${idx}`;
@@ -277,15 +347,18 @@
         </div>`;
       }).join('');
 
+      const verifySummary = renderVerifySummary(records, info);
+
       return `<div class="group" data-status="${status}">
         <div class="group-head">
           <span class="chevron">▸</span>
           ${badge}
           ${scoreLine}
-          <span class="mode-tag">${escapeHtml(records[0].mode)}</span>
+          ${modeTag}
           <span class="when">${fmtTime(group.ts)}</span>
         </div>
         <div class="group-body">
+          ${verifySummary}
           <div class="records">${recsHtml}</div>
         </div>
       </div>`;
@@ -344,15 +417,19 @@
             .filter((g) => g.records.length > 0);
         }
         if (status !== 'all') {
-          groups = groups.filter((g) => checkConsistency(g.records) === status);
+          groups = groups.filter((g) => {
+            const info = analyzeGroup(g.records);
+            const s = info.mismatch ? 'mismatch' : info.verified ? 'verified' : 'unverified';
+            return s === status;
+          });
         }
         groupsEl.innerHTML = groups.map((g, i) => renderGroup(g, i)).join('') ||
           '<p class="sub">No matches found.</p>';
         lastFilteredGroups = groups;
-        const paired = groups.filter((g) => g.records.length >= 2).length;
-        const mismatched = groups.filter((g) => checkConsistency(g.records) === 'mismatch').length;
+        const verifiedCount = groups.filter((g) => analyzeGroup(g.records).verified).length;
+        const mismatched = groups.filter((g) => analyzeGroup(g.records).mismatch).length;
         statusEl.textContent =
-          `${groups.length} match(es) · ${paired} with both sides reporting` +
+          `${groups.length} match(es) · ${verifiedCount} verified` +
           (mismatched ? ` · ${mismatched} mismatch(es)` : '') + '.';
       } finally {
         btn.disabled = false;
