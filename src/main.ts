@@ -290,11 +290,20 @@ menu.innerHTML = `
     </div>
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
-        <div class="m-spmode-row">
-            <label><input type="radio" name="spteam" value="1v1" checked> 1v1</label>
-            <label><input type="radio" name="spteam" value="2v2"> 2v2</label>
+        <div class="m-toggle-row">
+            <label class="m-toggle-card">
+                <input type="radio" name="spteam" value="1v1" checked>
+                <span class="m-ico">🧍</span><span class="m-label">1v1</span>
+            </label>
+            <label class="m-toggle-card">
+                <input type="radio" name="spteam" value="2v2">
+                <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
+            </label>
         </div>
-        <label class="m-spmode-horde"><input type="checkbox" class="sp-horde"> 🐗 Horde</label>
+        <label class="m-toggle-pill">
+            <input type="checkbox" class="sp-horde">
+            <span class="m-ico">🐗</span><span class="m-label">Horde Mode</span>
+        </label>
         <div class="m-room-row">
             <button class="m-btn m-small" data-mode="sp-back">Back</button>
             <button class="m-btn m-primary m-small" data-mode="sp-play">Play</button>

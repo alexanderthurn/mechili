@@ -480,6 +480,87 @@ export function menuStyles(): string {
     cursor: pointer;
 }
 .mechili-menu .m-spmode-horde { justify-content: center; font-size: 14px; color: ${u.text}; }
+/* card-style team-size / Horde toggles (Single Player) — same visual
+   language as .m-btn, built on real radio/checkbox inputs (hidden, not
+   removed) so the existing :checked-based JS needs no changes at all */
+.mechili-menu .m-toggle-row { display: flex; gap: 10px; width: 100%; }
+.mechili-menu .m-toggle-card {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    padding: 14px 10px;
+    background: linear-gradient(180deg, rgba(42, 58, 34, 0.95), rgba(24, 36, 20, 0.95));
+    border: 1.5px solid ${u.border};
+    border-radius: 11px;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease,
+        background 0.14s ease, color 0.14s ease;
+}
+.mechili-menu .m-toggle-card input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+.mechili-menu .m-toggle-card .m-ico { font-size: 20px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+.mechili-menu .m-toggle-card:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-2px); }
+.mechili-menu .m-toggle-card:has(input:checked) {
+    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
+    border-color: ${u.brassLight};
+    color: #20180a;
+    box-shadow: 0 4px 14px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.mechili-menu .m-toggle-card:has(input:checked) .m-ico { filter: none; }
+.mechili-menu .m-toggle-card:has(input:focus-visible) {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
+.mechili-menu .m-toggle-pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+.mechili-menu .m-toggle-pill input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+.mechili-menu .m-toggle-pill:hover { border-color: ${u.hover}; }
+.mechili-menu .m-toggle-pill:has(input:checked) {
+    background: linear-gradient(180deg, rgba(255, 216, 64, 0.22), rgba(255, 180, 40, 0.12));
+    border-color: ${u.brassLight};
+    color: ${u.brassLight};
+}
+.mechili-menu .m-toggle-pill:has(input:focus-visible) {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
 .mechili-menu .m-seats { display: flex; gap: 10px; width: 100%; }
 .mechili-menu .m-seat {
     flex: 1;
