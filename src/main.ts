@@ -290,24 +290,10 @@ menu.innerHTML = `
     </div>
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
-        <div class="m-toggle-row">
-            <label class="m-toggle-card">
-                <input type="radio" name="spteam" value="1v1" checked>
-                <span class="m-ico">🧍</span><span class="m-label">1v1</span>
-            </label>
-            <label class="m-toggle-card">
-                <input type="radio" name="spteam" value="2v2">
-                <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
-            </label>
-        </div>
-        <label class="m-toggle-pill">
-            <input type="checkbox" class="sp-horde">
-            <span class="m-ico">🐗</span><span class="m-label">Horde Mode</span>
-        </label>
-        <div class="m-room-row">
-            <button class="m-btn m-small" data-mode="sp-back">Back</button>
-            <button class="m-btn m-primary m-small" data-mode="sp-play">Play</button>
-        </div>
+        <button class="m-btn" data-mode="sp-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
+        <button class="m-btn" data-mode="sp-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
+        <button class="m-btn" data-mode="sp-horde"><span class="m-ico">🐗</span><span class="m-label">Horde Mode</span></button>
+        <button class="m-btn m-small" data-mode="sp-back">Back</button>
     </div>
     <div class="m-matchmaking" style="display:none">
         <div class="m-spmode-title">Matchmaking</div>
@@ -530,7 +516,6 @@ const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
-const spHordeEl = menu.querySelector<HTMLInputElement>('.sp-horde')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
 const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
@@ -1813,7 +1798,9 @@ menu.addEventListener('click', (e) => {
     const mode = button.dataset.mode;
     if (
         !bootReady &&
-        (mode === 'sp-play' ||
+        (mode === 'sp-1v1' ||
+            mode === 'sp-2v2' ||
+            mode === 'sp-horde' ||
             mode === 'mm-play' ||
             mode === 'mm-invite' ||
             mode === 'host' ||
@@ -1844,13 +1831,21 @@ menu.addEventListener('click', (e) => {
             spModeEl.style.display = 'none';
             mainButtonsEl.style.display = '';
             break;
-        case 'sp-play': {
-            const team = spModeEl.querySelector<HTMLInputElement>('input[name="spteam"]:checked')!.value;
+        case 'sp-1v1':
             spModeEl.style.display = 'none';
             mainButtonsEl.style.display = '';
-            startLocalMatch({ duo: team === '2v2', horde: spHordeEl.checked });
+            startLocalMatch();
             break;
-        }
+        case 'sp-2v2':
+            spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            startLocalMatch({ duo: true });
+            break;
+        case 'sp-horde':
+            spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            startLocalMatch({ horde: true });
+            break;
         case 'matchmaking': {
             spModeEl.style.display = 'none';
             lobbyEl.style.display = 'none';
