@@ -4337,6 +4337,7 @@ export class Game {
                 balancePatchId: BALANCE_PATCH_ID,
                 mode: this.replayOriginalMode ?? (this.star ? '2v2' : this.net ? 'mp' : 'ai'),
                 side: this.side,
+                source: this.replayVerify ? 'verify' : 'player',
                 result,
                 rounds: this.round,
                 playerHp: this.playerHp,

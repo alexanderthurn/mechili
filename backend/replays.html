@@ -44,14 +44,24 @@
     }
     button:disabled { opacity: 0.5; cursor: wait; }
     .status { color: var(--muted); min-height: 1.2em; margin-bottom: 16px; }
-    .groups { display: flex; flex-direction: column; gap: 10px; }
+    .groups { display: flex; flex-direction: column; gap: 4px; }
     .group {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 6px;
-      padding: 12px 14px;
+      overflow: hidden;
     }
-    .group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .group-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .group-head:hover { background: #2a2519; }
+    .group-head .chevron { color: var(--muted); font-size: 11px; width: 1em; }
     .badge {
       font-size: 11px;
       text-transform: uppercase;
@@ -60,13 +70,20 @@
       padding: 2px 8px;
       border-radius: 10px;
       border: 1px solid var(--line);
+      white-space: nowrap;
     }
     .badge.ok { color: var(--good); border-color: var(--good); }
     .badge.mismatch { color: var(--bad); border-color: var(--bad); }
     .badge.solo { color: var(--muted); }
-    .when { color: var(--muted); font-size: 12px; }
-    .mode-tag { color: var(--muted); font-size: 12px; }
-    .records { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .score-line { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+    .score-line .side-name { font-weight: 600; }
+    .score-line .score { font-variant-numeric: tabular-nums; color: var(--muted); }
+    .score-line .vs { color: var(--muted); font-size: 12px; }
+    .when, .mode-tag { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .group-body { display: none; padding: 4px 12px 12px; border-top: 1px solid var(--line); }
+    .group.open .group-body { display: block; }
+    .group.open .chevron { transform: rotate(90deg); display: inline-block; }
+    .records { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
     .rec {
       border: 1px solid var(--line);
       border-radius: 4px;
@@ -74,12 +91,13 @@
       background: #1e1b15;
     }
     .rec .name { font-weight: 600; }
+    .rec .source-tag { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; margin-left: 6px; text-transform: uppercase; }
     .rec .vs { color: var(--muted); }
     .rec .result { font-weight: 600; }
     .rec .result.victory { color: var(--good); }
     .rec .result.defeat { color: var(--bad); }
     .rec .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
-    .rec .raw-link { font-size: 12px; margin-top: 6px; display: inline-block; cursor: pointer; color: var(--accent); }
+    .rec .raw-link { font-size: 12px; margin-top: 6px; margin-right: 8px; display: inline-block; cursor: pointer; color: var(--accent); }
     .rec pre {
       margin-top: 8px;
       max-height: 220px;
@@ -97,11 +115,11 @@
 </head>
 <body>
   <h1>Match replays</h1>
-  <p class="sub">Every real client submits its own replay at match end — two records sharing a matchKey are the two sides of one match.</p>
+  <p class="sub">Every real client submits its own replay at match end — records sharing a matchKey are the same match (plus any later Verify re-checks).</p>
 
   <div class="row">
     <label>API base
-      <input id="api" size="48" value="" placeholder="stats.php" />
+      <input id="api" size="40" value="" placeholder="stats.php" />
     </label>
     <label>Mode
       <select id="mode">
@@ -111,28 +129,43 @@
         <option value="2v2">2v2</option>
       </select>
     </label>
+    <label>Version
+      <input id="version" size="6" placeholder="any" />
+    </label>
+    <label>Status
+      <select id="status">
+        <option value="all">all</option>
+        <option value="ok">consistent</option>
+        <option value="mismatch">mismatch</option>
+        <option value="solo">solo</option>
+      </select>
+    </label>
     <label>Limit
       <input id="limit" size="6" value="100" />
     </label>
     <button id="load">Load</button>
   </div>
-  <div class="status" id="status">Ready.</div>
+  <div class="status" id="status-line">Ready.</div>
 
   <div class="groups" id="groups"></div>
 
   <p class="hint">
-    "Consistent" means the two sides report opposite results (or both draw)
-    and agree on round count — the minimum you'd expect from two honest
-    clients replaying the same match. It is not a full divergence check
-    (that needs actually re-simulating each side's action log) — just a
-    cheap, immediate sanity flag on the summary fields already submitted.
-    "View raw" fetches the full stored record (settings/seed/action log)
-    for one side on demand.
+    "Consistent" means every record on each side agrees with itself, and the
+    two sides report opposite results (or both draw) with matching round
+    counts — the minimum you'd expect from honest clients replaying the same
+    match. It is not a full divergence check (that needs actually
+    re-simulating each side's action log) — just a cheap, immediate sanity
+    flag on the summary fields already submitted. A "verify" tag marks a
+    later headless re-check (see the ⚡ Verify link) rather than the
+    match's own original report — extra verify records only appear here
+    when they disagree with something, since a matching one dedupes away
+    server-side. Click a row to expand it; "View raw" fetches the full
+    stored record (settings/seed/action log) for one side on demand.
   </p>
 
   <script>
     const apiInput = document.getElementById('api');
-    const statusEl = document.getElementById('status');
+    const statusEl = document.getElementById('status-line');
     const groupsEl = document.getElementById('groups');
 
     // default: same folder as this page
@@ -153,41 +186,68 @@
       return new Date(ts * 1000).toLocaleString();
     }
 
-    /** cheap consistency check on already-submitted summary fields — not a
-     *  real divergence check (that needs re-simulating each side's action
-     *  log), just an immediate sanity flag */
+    /**
+     * Cheap consistency check on already-submitted summary fields — not a
+     * real divergence check (that needs re-simulating each side's action
+     * log), just an immediate sanity flag. Generalizes to N records per
+     * side (verify re-checks can add more than one per side): every record
+     * on a side must agree with every other record on that side, and the
+     * two sides' (any representative's) result/rounds must complement.
+     * Returns 'solo' | 'ok' | 'mismatch'.
+     */
     function checkConsistency(records) {
-      if (records.length < 2) return null;
-      const [a, b] = records;
+      const aRecords = records.filter((r) => r.side === 'a');
+      const bRecords = records.filter((r) => r.side === 'b');
+      if (aRecords.length === 0 || bRecords.length === 0) return 'solo';
+      const sameSideAgree = (list) => list.every((r) => r.result === list[0].result && r.rounds === list[0].rounds);
+      if (!sameSideAgree(aRecords) || !sameSideAgree(bRecords)) return 'mismatch';
+      const a = aRecords[0], b = bRecords[0];
       const oppositeResults =
         (a.result === 'victory' && b.result === 'defeat') ||
         (a.result === 'defeat' && b.result === 'victory') ||
         (a.result === 'draw' && b.result === 'draw');
-      const sameRounds = a.rounds === b.rounds;
-      return oppositeResults && sameRounds;
+      return oppositeResults && a.rounds === b.rounds ? 'ok' : 'mismatch';
     }
 
-    function renderGroup(group, base) {
+    /** the canonical record to show as "the" score for a side — the
+     *  original player report if one exists, else whatever's there */
+    function primaryForSide(records, side) {
+      return records.find((r) => r.side === side && r.source !== 'verify') ||
+        records.find((r) => r.side === side) || null;
+    }
+
+    function renderGroup(group, idx) {
       const records = group.records.slice().sort((r1, r2) => (r1.side < r2.side ? -1 : 1));
-      const consistent = checkConsistency(records);
+      const status = checkConsistency(records);
       const badge =
-        records.length < 2
-          ? '<span class="badge solo">solo</span>'
-          : consistent
-            ? '<span class="badge ok">consistent</span>'
-            : '<span class="badge mismatch">⚠ mismatch</span>';
+        status === 'solo' ? '<span class="badge solo">solo</span>'
+        : status === 'ok' ? '<span class="badge ok">consistent</span>'
+        : '<span class="badge mismatch">⚠ mismatch</span>';
+
+      const a = primaryForSide(records, 'a');
+      const b = primaryForSide(records, 'b');
+      const scoreLine = a && b
+        ? `<span class="score-line">
+            <span class="side-name">${escapeHtml(a.names.local || 'Side A')}</span>
+            <span class="score">${a.playerHp}</span>
+            <span class="vs">vs</span>
+            <span class="score">${b.playerHp}</span>
+            <span class="side-name">${escapeHtml(b.names.local || 'Side B')}</span>
+          </span>`
+        : `<span class="score-line"><span class="side-name">${escapeHtml((a || b).names.local || '(unknown)')}</span></span>`;
 
       const recsHtml = records.map((r) => {
-        const uid = `${group.matchKey}-${r.side}-${r.id}`;
+        const uid = `${group.matchKey}-${r.side}-${r.id}-${idx}`;
         const watchUrl = `../index.html?watch=${encodeURIComponent(r.id)}&side=${encodeURIComponent(r.side)}`;
         // instant, no-watching re-check: fast-forwards headlessly and
         // redirects straight back here, so a whole batch can be clicked
         // through quickly — see verifyReplayAndReturn in main.ts
         const verifyUrl = `../index.html?verify=${encodeURIComponent(r.id)}&side=${encodeURIComponent(r.side)}`;
+        const sourceTag = r.source === 'verify' ? '<span class="source-tag">verify</span>' : '';
         return `<div class="rec">
-          <div class="name">${escapeHtml(r.names.local || '(unknown)')}</div>
+          <div class="name">${escapeHtml(r.names.local || '(unknown)')}${sourceTag}</div>
           <div class="vs">vs ${escapeHtml(r.names.opponent || '(unknown)')} · side ${escapeHtml(r.side)}</div>
-          <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)}</div>
+          <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)} · ${r.playerHp} - ${r.enemyHp}</div>
           <div class="meta">${r.rounds} rounds · v${r.gameVersion} · ${fmtTime(r.ts)}</div>
           <a class="raw-link" href="${watchUrl}">▶ Watch</a>
           <a class="raw-link" href="${verifyUrl}" title="Instantly recomputes the result and re-submits it — no new file if it still matches, a second one if it doesn't">⚡ Verify</a>
@@ -196,42 +256,53 @@
         </div>`;
       }).join('');
 
-      return `<div class="group">
+      return `<div class="group" data-status="${status}">
         <div class="group-head">
+          <span class="chevron">▸</span>
           ${badge}
+          ${scoreLine}
           <span class="mode-tag">${escapeHtml(records[0].mode)}</span>
           <span class="when">${fmtTime(group.ts)}</span>
         </div>
-        <div class="records">${recsHtml}</div>
+        <div class="group-body">
+          <div class="records">${recsHtml}</div>
+        </div>
       </div>`;
     }
 
     groupsEl.addEventListener('click', async (e) => {
       const link = e.target.closest('.raw-link');
-      if (!link) return;
-      const pre = document.getElementById(link.dataset.target);
-      if (!pre) return;
-      if (!pre.hidden) {
-        pre.hidden = true;
-        link.textContent = 'View raw ▸';
+      if (link) {
+        e.stopPropagation();
+        const pre = document.getElementById(link.dataset.target);
+        if (!pre) return;
+        if (!pre.hidden) {
+          pre.hidden = true;
+          link.textContent = 'View raw ▸';
+          return;
+        }
+        const base = apiInput.value.replace(/\?.*$/, '');
+        link.textContent = 'Loading…';
+        try {
+          const res = await fetch(`${base}?action=get&id=${encodeURIComponent(link.dataset.id)}&side=${encodeURIComponent(link.dataset.side)}`);
+          const data = await res.json();
+          pre.textContent = JSON.stringify(data, null, 2);
+          pre.hidden = false;
+          link.textContent = 'Hide raw ▾';
+        } catch (err) {
+          link.textContent = 'View raw ▸ (failed)';
+        }
         return;
       }
-      const base = apiInput.value.replace(/\?.*$/, '');
-      link.textContent = 'Loading…';
-      try {
-        const res = await fetch(`${base}?action=get&id=${encodeURIComponent(link.dataset.id)}&side=${encodeURIComponent(link.dataset.side)}`);
-        const data = await res.json();
-        pre.textContent = JSON.stringify(data, null, 2);
-        pre.hidden = false;
-        link.textContent = 'Hide raw ▾';
-      } catch (err) {
-        link.textContent = 'View raw ▸ (failed)';
-      }
+      const head = e.target.closest('.group-head');
+      if (head) head.closest('.group').classList.toggle('open');
     });
 
     async function load() {
       const btn = document.getElementById('load');
       const mode = document.getElementById('mode').value;
+      const version = document.getElementById('version').value.trim();
+      const status = document.getElementById('status').value;
       const limit = Math.max(1, parseInt(document.getElementById('limit').value, 10) || 100);
       const base = apiInput.value.replace(/\?.*$/, '');
       btn.disabled = true;
@@ -246,10 +317,21 @@
             .map((g) => ({ ...g, records: g.records.filter((r) => r.mode === mode) }))
             .filter((g) => g.records.length > 0);
         }
-        groupsEl.innerHTML = groups.map((g) => renderGroup(g, base)).join('') ||
+        if (version) {
+          groups = groups
+            .map((g) => ({ ...g, records: g.records.filter((r) => String(r.gameVersion) === version) }))
+            .filter((g) => g.records.length > 0);
+        }
+        if (status !== 'all') {
+          groups = groups.filter((g) => checkConsistency(g.records) === status);
+        }
+        groupsEl.innerHTML = groups.map((g, i) => renderGroup(g, i)).join('') ||
           '<p class="sub">No matches found.</p>';
         const paired = groups.filter((g) => g.records.length >= 2).length;
-        statusEl.textContent = `${groups.length} match(es) · ${paired} with both sides reporting.`;
+        const mismatched = groups.filter((g) => checkConsistency(g.records) === 'mismatch').length;
+        statusEl.textContent =
+          `${groups.length} match(es) · ${paired} with both sides reporting` +
+          (mismatched ? ` · ${mismatched} mismatch(es)` : '') + '.';
       } finally {
         btn.disabled = false;
       }

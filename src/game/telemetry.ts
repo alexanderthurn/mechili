@@ -29,6 +29,13 @@ export interface MatchTelemetry {
     balancePatchId: string;
     mode: MatchMode;
     side: 'a' | 'b';
+    /** 'player': the match's own end-of-game report (default, omitted =
+     *  'player' for records predating this field). 'verify': a later
+     *  headless re-check (Game's `replay.verify`, main.ts's
+     *  verifyReplayAndReturn) re-submitting the recomputed result —
+     *  stats.php's per-side dedupe means a matching one never creates a
+     *  new file; a mismatching one does, which is the point. */
+    source?: 'player' | 'verify';
     result: MatchResult;
     rounds: number;
     playerHp: number;

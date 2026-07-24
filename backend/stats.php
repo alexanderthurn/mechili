@@ -257,10 +257,13 @@ function handleGrouped(): void {
             'id' => $data['id'] ?? '',
             'ts' => (int)($data['ts'] ?? 0),
             'side' => $data['side'] ?? 'a',
+            'source' => $data['source'] ?? 'player',
             'mode' => $data['mode'] ?? 'unknown',
             'gameVersion' => $data['gameVersion'] ?? 0,
             'result' => $data['result'] ?? 'unknown',
             'rounds' => $data['rounds'] ?? 0,
+            'playerHp' => $data['playerHp'] ?? 0,
+            'enemyHp' => $data['enemyHp'] ?? 0,
             'names' => [
                 'local' => $data['names']['local'] ?? '',
                 'opponent' => $data['names']['opponent'] ?? '',
@@ -312,6 +315,13 @@ function normalizeRecord(array $data): array {
     $result = (string)($data['result'] ?? 'unknown');
     if (!in_array($result, ['victory', 'defeat', 'draw'], true)) $result = 'unknown';
 
+    // deliberately NOT part of the dedupe fingerprint below — a 'verify'
+    // resubmission that reproduces the exact same result must still dedupe
+    // against the original 'player' record (same side), that's the whole
+    // point; only the CONTENT needs to match, not who/what produced it
+    $source = (string)($data['source'] ?? 'player');
+    if (!in_array($source, ['player', 'verify'], true)) $source = 'player';
+
     $replay = is_array($data['replay'] ?? null) ? $data['replay'] : [];
     $seed = (int)($replay['seed'] ?? $data['seed'] ?? 0);
     $gameVersion = (int)($data['gameVersion'] ?? 0);
@@ -356,6 +366,7 @@ function normalizeRecord(array $data): array {
         'balancePatchId' => $patch,
         'mode' => $mode,
         'side' => (string)($data['side'] ?? 'a'),
+        'source' => $source,
         'result' => $result,
         'rounds' => max(0, (int)($data['rounds'] ?? 0)),
         'playerHp' => (int)($data['playerHp'] ?? 0),
