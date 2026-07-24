@@ -111,6 +111,23 @@
       word-break: break-word;
     }
     .hint { font-size: 12px; color: var(--muted); margin-top: 24px; max-width: 52em; }
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+      display: flex; align-items: center; justify-content: center; z-index: 10;
+    }
+    .modal {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 20px 22px; max-width: 560px; width: calc(100% - 40px); max-height: 80vh;
+      overflow: auto;
+    }
+    .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    .modal .summary-counts { display: flex; gap: 16px; margin-bottom: 14px; }
+    .modal .summary-counts .n { font-size: 1.4rem; font-weight: 700; }
+    .modal .summary-counts .good .n { color: var(--good); }
+    .modal .summary-counts .bad .n { color: var(--bad); }
+    .modal .mismatch-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .modal .mismatch-list .item { border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; font-size: 12px; }
+    .modal .mismatch-list .item .n2 { color: var(--muted); }
   </style>
 </head>
 <body>
@@ -144,6 +161,7 @@
       <input id="limit" size="6" value="100" />
     </label>
     <button id="load">Load</button>
+    <button id="bulk-verify" title="Re-checks every original (non-verify) record currently shown by re-simulating it headlessly">⚡ Bulk Verify</button>
   </div>
   <div class="status" id="status-line">Ready.</div>
 
@@ -167,6 +185,9 @@
     const apiInput = document.getElementById('api');
     const statusEl = document.getElementById('status-line');
     const groupsEl = document.getElementById('groups');
+    // the groups currently on screen after filtering — Bulk Verify works off
+    // exactly what's visible, not the full unfiltered fetch
+    let lastFilteredGroups = [];
 
     // default: same folder as this page
     apiInput.value = new URL('stats.php', location.href).href;
@@ -327,6 +348,7 @@
         }
         groupsEl.innerHTML = groups.map((g, i) => renderGroup(g, i)).join('') ||
           '<p class="sub">No matches found.</p>';
+        lastFilteredGroups = groups;
         const paired = groups.filter((g) => g.records.length >= 2).length;
         const mismatched = groups.filter((g) => checkConsistency(g.records) === 'mismatch').length;
         statusEl.textContent =
@@ -337,7 +359,68 @@
       }
     }
 
+    document.getElementById('bulk-verify').addEventListener('click', () => {
+      const queue = [];
+      for (const g of lastFilteredGroups) {
+        for (const r of g.records) {
+          if (r.source !== 'verify') queue.push({ id: r.id, side: r.side });
+        }
+      }
+      if (queue.length === 0) {
+        statusEl.textContent = 'Nothing to verify — load some replays first.';
+        return;
+      }
+      sessionStorage.setItem('mechili-bulk-verify-queue', JSON.stringify(queue));
+      location.href = new URL(`../index.html?bulkverify=1`, location.href).href;
+    });
+
+    /** shows the summary dialog left behind by main.ts's runBulkVerify,
+     *  then clears it so a plain refresh doesn't show it again */
+    function showBulkVerifySummaryIfAny() {
+      const raw = sessionStorage.getItem('mechili-bulk-verify-results');
+      if (!raw) return;
+      sessionStorage.removeItem('mechili-bulk-verify-results');
+      let results;
+      try {
+        results = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      const matched = results.filter((r) => r.ok && r.matches).length;
+      const mismatched = results.filter((r) => r.ok && !r.matches).length;
+      const failed = results.filter((r) => !r.ok).length;
+      const problems = results.filter((r) => !r.ok || !r.matches);
+      const problemsHtml = problems.map((r) => {
+        const who = escapeHtml(r.names ? (r.names.local || '(unknown)') : '(unknown)');
+        if (!r.ok) {
+          return `<div class="item">${who} · side ${escapeHtml(r.side)} — ${escapeHtml(r.error || 'failed')}</div>`;
+        }
+        return `<div class="item">${who} · side ${escapeHtml(r.side)} — recorded
+          <span class="n2">${escapeHtml(r.expected.result)}/${r.expected.rounds}r/${r.expected.playerHp}-${r.expected.enemyHp}</span>,
+          recomputed
+          <span class="n2">${r.actual ? escapeHtml(r.actual.result) + '/' + r.actual.rounds + 'r/' + r.actual.playerHp + '-' + r.actual.enemyHp : '(none)'}</span>
+        </div>`;
+      }).join('');
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      backdrop.innerHTML = `<div class="modal">
+        <h2>Bulk Verify complete</h2>
+        <div class="summary-counts">
+          <span>Checked <span class="n">${results.length}</span></span>
+          <span class="good">Matched <span class="n">${matched}</span></span>
+          <span class="bad">Mismatched <span class="n">${mismatched + failed}</span></span>
+        </div>
+        ${problems.length ? `<div class="mismatch-list">${problemsHtml}</div>` : '<p class="sub">Everything matched.</p>'}
+        <button id="bulk-verify-close">Close</button>
+      </div>`;
+      document.body.appendChild(backdrop);
+      const close = () => backdrop.remove();
+      backdrop.querySelector('#bulk-verify-close').addEventListener('click', close);
+      backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+    }
+
     load().catch((e) => { statusEl.textContent = 'Failed: ' + (e.message || e); });
+    showBulkVerifySummaryIfAny();
   </script>
 </body>
 </html>

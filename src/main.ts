@@ -1207,6 +1207,94 @@ async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void>
     }
 }
 
+interface BulkVerifyResult {
+    id: string;
+    side: 'a' | 'b';
+    ok: boolean;
+    matches: boolean;
+    names: { local: string; opponent: string };
+    expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    actual?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    error?: string;
+}
+
+/**
+ * ?bulkverify=1 — chains verifyReplayAndReturn's headless re-check across a
+ * whole queue without a click per item (replays.html's Bulk Verify button
+ * seeds the queue into sessionStorage before navigating here). Each item's
+ * Game is fast-forwarded synchronously in its constructor (jumpToRound:
+ * Infinity), so no waiting on the interactive game-over screen is needed —
+ * just read getFinalResult() the instant `startGame` returns and move on.
+ * Writes a summary to sessionStorage and navigates back to replays.html,
+ * which renders it as a dialog on load.
+ */
+async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<void> {
+    setMenuChromeVisible(true);
+    const results: BulkVerifyResult[] = [];
+    for (let i = 0; i < queue.length; i++) {
+        const { id, side } = queue[i]!;
+        setStatus(`Bulk verifying ${i + 1}/${queue.length}…`);
+        const record = await fetchMatchReplay(id, side);
+        if (!record) {
+            results.push({
+                id,
+                side,
+                ok: false,
+                matches: false,
+                names: { local: '(unknown)', opponent: '(unknown)' },
+                error: 'replay not found',
+            });
+            continue;
+        }
+        activeGame?.destroy();
+        activeGame = null;
+        started = false;
+        const settings = record.replay.settings;
+        settings.seed = record.replay.seed;
+        startGame(
+            settings,
+            null,
+            record.side,
+            { local: record.names.local, opponent: record.names.opponent },
+            null,
+            null,
+            {
+                actions: record.replay.actions,
+                jumpToRound: Infinity,
+                verify: true,
+                mode: record.mode,
+                expected: {
+                    result: record.result,
+                    rounds: record.rounds,
+                    playerHp: record.playerHp,
+                    enemyHp: record.enemyHp,
+                },
+            },
+        );
+        // explicit type restatement — see rebuildReplayAt above
+        const game = activeGame as Game | null;
+        const actual = game?.getFinalResult() ?? undefined;
+        const expected = {
+            result: record.result,
+            rounds: record.rounds,
+            playerHp: record.playerHp,
+            enemyHp: record.enemyHp,
+        };
+        const matches =
+            !!actual &&
+            actual.result === expected.result &&
+            actual.rounds === expected.rounds &&
+            actual.playerHp === expected.playerHp &&
+            actual.enemyHp === expected.enemyHp;
+        results.push({ id, side, ok: true, matches, names: record.names, expected, actual });
+    }
+    activeGame?.destroy();
+    activeGame = null;
+    started = false;
+    sessionStorage.setItem('mechili-bulk-verify-results', JSON.stringify(results));
+    location.href = new URL('backend/replays.html', location.href).href;
+}
+
 async function beginNetGame(
     session: NetSession,
     applyMode?: (settings: GameSettings) => void,
@@ -1859,9 +1947,18 @@ const watchParams = new URLSearchParams(location.search);
 const watchId = watchParams.get('watch');
 const watchSide = watchParams.get('side');
 const verifyId = watchParams.get('verify');
+const bulkVerify = watchParams.get('bulkverify');
 const mpMarker = loadResumeMarker();
 const spSave = loadSinglePlayer();
-if (verifyId && (watchSide === 'a' || watchSide === 'b')) {
+if (bulkVerify) {
+    // seeded by replays.html's Bulk Verify button just before navigating
+    // here — outranks stale local state for the same reason ?verify=/
+    // ?watch= do below
+    const raw = sessionStorage.getItem('mechili-bulk-verify-queue');
+    sessionStorage.removeItem('mechili-bulk-verify-queue');
+    const queue: { id: string; side: 'a' | 'b' }[] = raw ? JSON.parse(raw) : [];
+    void runBulkVerify(queue);
+} else if (verifyId && (watchSide === 'a' || watchSide === 'b')) {
     // same "outranks stale local state" reasoning as ?watch= below
     void verifyReplayAndReturn(verifyId, watchSide);
 } else if (watchId && (watchSide === 'a' || watchSide === 'b')) {

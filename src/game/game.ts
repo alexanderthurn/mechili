@@ -362,6 +362,10 @@ export class Game {
     /** verify mode only: the originally-recorded outcome, shown alongside
      *  the recomputed one on the game-over screen (see finishMatch) */
     private replayExpected: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number } | null = null;
+    /** the recomputed outcome once finishMatch runs — lets main.ts compare
+     *  against `expected` itself (bulk verify: no per-item UI, just tallies) */
+    private replayFinalResult: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number } | null =
+        null;
     /** connection lost: everything pauses until the peer is back */
     private suspended = false;
     /** seconds left before an unreturned opponent forfeits (null = no active grace window) */
@@ -2538,6 +2542,14 @@ export class Game {
         }
     }
 
+    /** verify mode's recomputed outcome once the match has ended, for a
+     *  caller (bulk verify in main.ts) to compare against the original
+     *  without needing the visual game-over note. Null until finishMatch
+     *  runs, or always for a non-verify Game. */
+    getFinalResult(): { result: MatchResult; rounds: number; playerHp: number; enemyHp: number } | null {
+        return this.replayFinalResult;
+    }
+
     /** round 1 begins once EVERY seat has chosen a specialist (a teammate's may lag) */
     private maybeStartMatch(): void {
         if (!this.awaitingCards || this.round > 0) return;
@@ -4267,6 +4279,9 @@ export class Game {
             this.reportOpenRating(result);
         } else if (this.replayVerify) {
             this.reportMatchTelemetry(result);
+        }
+        if (this.replayVerify) {
+            this.replayFinalResult = { result, rounds: this.round, playerHp: this.playerHp, enemyHp: this.enemyHp };
         }
         if (this.replayVerify && this.replayExpected) {
             const exp = this.replayExpected;
