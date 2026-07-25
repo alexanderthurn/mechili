@@ -510,10 +510,9 @@ class WeatherState {
  * Atmosphere system: season / weather / time of day are independent axes,
  * composed into one numeric target every time any of them changes and eased
  * into smoothly (see `composeTarget` + `WeatherState`). Named year-tour
- * scenes (`ATMOSPHERE_SCENES`) bundle coherent combos for hotkey N;
- * hotkey X cycles season alone. `onRound` deterministically rolls a new
- * weather (seeded, so network peers stay in sync); `nextWeather` / `nextTime`
- * remain available for fine-grain debug (V / Y).
+ * scenes (`ATMOSPHERE_SCENES`) drive each deployment via `onRound` (round 1 =
+ * first scene, then advance; wraps). Cheat keys N / X / V / Y override live
+ * for debugging until the next deploy start.
  */
 export class Weather {
     private readonly state = new WeatherState();
@@ -836,36 +835,16 @@ export class Weather {
     }
 
     /**
-     * Once per round: maybe drift to another weather (occasionally the time
-     * of day too), respecting the current season. Consumes the seeded stream
-     * identically on every peer, so the sky stays in sync online.
+     * Each deployment start: apply the year-tour scene for this round
+     * (round 1 → scene 1, … wraps after the last). Deterministic — no RNG —
+     * so peers stay in sync. Cheat keys (N / X / V / Y) still override live
+     * for debugging; the next deploy start snaps back to the round's scene.
      */
     onRound(round: number): void {
-        const roll = this.rng();
-        if (round <= 1 || roll >= 0.45) return;
-        const season = this.atmosphere.season;
-        const pick = this.rng();
-        let kind: WeatherKind;
-        let intensity = 0;
-        if (season === 'winter') {
-            // prefers clear/snow — no rain
-            kind = pick < 0.5 ? 'clear' : 'snow';
-            if (kind === 'snow') intensity = 0.5 + this.rng() * 0.5;
-        } else if (season === 'spring' || season === 'summer') {
-            // no snow weather
-            kind = pick < 0.6 ? 'clear' : 'rain';
-            if (kind === 'rain') intensity = 0.35 + this.rng() * 0.55;
-        } else {
-            // autumn: rain is common, an early cold snap can still snow lightly
-            kind = pick < 0.5 ? 'clear' : pick < 0.85 ? 'rain' : 'snow';
-            if (kind === 'rain') intensity = 0.35 + this.rng() * 0.55;
-            if (kind === 'snow') intensity = 0.3 + this.rng() * 0.4;
-        }
-        this.sceneIndex = -1;
-        this.setAtmosphere({ weatherKind: kind, weatherIntensity: intensity });
-        if (this.rng() < 0.2) {
-            this.setAtmosphere({ timeOfDay: TIME_CYCLE[Math.floor(this.rng() * TIME_CYCLE.length)]! });
-        }
+        const n = ATMOSPHERE_SCENES.length;
+        const i = ((round - 1) % n + n) % n;
+        const scene = ATMOSPHERE_SCENES[i]!;
+        this.setScene(scene.atmosphere, i);
     }
 
     update(dtSeconds: number, cameraPos: Vector3): void {
