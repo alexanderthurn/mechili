@@ -977,6 +977,27 @@ export function hudStyles(): string {
     const pc = teamColors.player.css;
     const ec = teamColors.enemy.css;
     return `
+.mechili-cinema-hide {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+.mechili-cinema-hint {
+    position: absolute;
+    left: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 200;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(8, 12, 6, 0.72);
+    border: 1px solid rgba(168, 216, 120, 0.35);
+    color: ${u.debug};
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0;
+    pointer-events: none;
+    user-select: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+    white-space: pre;
+}
 .mechili-shop-col {
     position: absolute;
     right: env(safe-area-inset-right);

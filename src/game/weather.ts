@@ -358,6 +358,55 @@ const WEATHER_STEPS: { kind: WeatherKind; intensity: number }[] = [
     { kind: 'snow', intensity: 1 },
 ];
 
+/** Named year-tour beat: coherent season × time × weather (hotkey N). */
+export interface AtmosphereScene {
+    label: string;
+    atmosphere: Atmosphere;
+}
+
+/**
+ * Linear showcase tour (no snow in warm seasons). Hotkey N advances;
+ * hotkey X cycles season alone (Y = time, V = weather — clustered by C).
+ */
+export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
+    {
+        label: 'Spring morning',
+        atmosphere: { season: 'spring', timeOfDay: 'dawn', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Spring rain',
+        atmosphere: { season: 'spring', timeOfDay: 'day', weatherKind: 'rain', weatherIntensity: 0.5 },
+    },
+    {
+        label: 'Summer noon',
+        atmosphere: { season: 'summer', timeOfDay: 'day', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Summer golden',
+        atmosphere: { season: 'summer', timeOfDay: 'golden', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Summer night',
+        atmosphere: { season: 'summer', timeOfDay: 'night', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Autumn dusk',
+        atmosphere: { season: 'autumn', timeOfDay: 'dusk', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Autumn storm',
+        atmosphere: { season: 'autumn', timeOfDay: 'day', weatherKind: 'rain', weatherIntensity: 0.85 },
+    },
+    {
+        label: 'Winter snow',
+        atmosphere: { season: 'winter', timeOfDay: 'day', weatherKind: 'snow', weatherIntensity: 0.9 },
+    },
+    {
+        label: 'Deep winter',
+        atmosphere: { season: 'winter', timeOfDay: 'night', weatherKind: 'snow', weatherIntensity: 1 },
+    },
+];
+
 /** seconds for the exponential ease toward a new target (sky + foliage share this) */
 export const TRANSITION_TAU = 3.5;
 const RAIN_DROPS = 2200;
@@ -460,18 +509,22 @@ class WeatherState {
 /**
  * Atmosphere system: season / weather / time of day are independent axes,
  * composed into one numeric target every time any of them changes and eased
- * into smoothly (see `composeTarget` + `WeatherState`). `onRound` deterministically
- * rolls a new weather (seeded, so network peers stay in sync); `nextSeason` /
- * `nextWeather` / `nextTime` cycle manually (hotkeys N / V / B).
+ * into smoothly (see `composeTarget` + `WeatherState`). Named year-tour
+ * scenes (`ATMOSPHERE_SCENES`) bundle coherent combos for hotkey N;
+ * hotkey X cycles season alone. `onRound` deterministically rolls a new
+ * weather (seeded, so network peers stay in sync); `nextWeather` / `nextTime`
+ * remain available for fine-grain debug (V / Y).
  */
 export class Weather {
     private readonly state = new WeatherState();
     private atmosphere: Atmosphere = {
-        season: 'summer',
+        season: 'spring',
         weatherKind: 'clear',
         weatherIntensity: 0,
-        timeOfDay: 'day',
+        timeOfDay: 'dawn',
     };
+    /** index into {@link ATMOSPHERE_SCENES}; -1 until first N / explicit apply */
+    private sceneIndex = 0; // Spring morning
     private target: ComposedTarget;
     private readonly rng: () => number;
     /** renderer's tone-mapping exposure before the weather system starts driving it */
@@ -704,12 +757,20 @@ export class Weather {
         return this.snowCover * this.snowCover;
     }
 
+    /** compact label for cinema / debug — e.g. `1/11 Spring morning` or `custom` */
+    sceneStatus(): string {
+        const scene = ATMOSPHERE_SCENES[this.sceneIndex];
+        if (!scene) return 'custom';
+        return `${this.sceneIndex + 1}/${ATMOSPHERE_SCENES.length} ${scene.label}`;
+    }
+
     /** compact live-state dump for the debug overlay — for finetuning presets */
     debugLines(): string[] {
         const s = this.state;
         const a = this.atmosphere;
         const hex = (c: Color) => `#${c.getHexString()}`;
         return [
+            `scene ${this.sceneStatus()}`,
             `season ${a.season}  weather ${a.weatherKind} ${(a.weatherIntensity * 100).toFixed(0)}%  time ${a.timeOfDay}`,
             `ground-snow accum ${(this.snowCover * 100).toFixed(0)}% visual ${(this.groundSnow * 100).toFixed(0)}%`,
             `sky zenith ${hex(s.skyZenith)} mid ${hex(s.skyMid)} horizon ${hex(s.skyHorizon)}`,
@@ -728,9 +789,30 @@ export class Weather {
         if (this.atmosphere.season !== prevSeason) this.h.onSeasonChange?.(this.atmosphere.season);
     }
 
-    /** manual cycle (hotkey N) */
+    /**
+     * Apply a full named scene (season + weather + time). Used by the N carousel;
+     * keeps {@link sceneIndex} in sync when `index` is passed.
+     */
+    setScene(scene: Atmosphere, index?: number): void {
+        if (index !== undefined) this.sceneIndex = index;
+        else this.sceneIndex = -1;
+        const prevSeason = this.atmosphere.season;
+        this.atmosphere = { ...scene };
+        this.target = composeTarget(this.atmosphere);
+        if (this.atmosphere.season !== prevSeason) this.h.onSeasonChange?.(this.atmosphere.season);
+    }
+
+    /** Hotkey N: next year-tour beat (season × time × weather). */
+    nextScene(): void {
+        const i = this.sceneIndex < 0 ? 0 : (this.sceneIndex + 1) % ATMOSPHERE_SCENES.length;
+        const scene = ATMOSPHERE_SCENES[i]!;
+        this.setScene(scene.atmosphere, i);
+    }
+
+    /** Hotkey X: season only — weather & time stay put (marks scene as custom). */
     nextSeason(): void {
         const i = SEASON_CYCLE.indexOf(this.atmosphere.season);
+        this.sceneIndex = -1;
         this.setAtmosphere({ season: SEASON_CYCLE[(i + 1) % SEASON_CYCLE.length]! });
     }
 
@@ -742,12 +824,14 @@ export class Weather {
                 Math.abs(step.intensity - this.atmosphere.weatherIntensity) < 0.01,
         );
         const next = WEATHER_STEPS[(i + 1) % WEATHER_STEPS.length]!;
+        this.sceneIndex = -1;
         this.setAtmosphere({ weatherKind: next.kind, weatherIntensity: next.intensity });
     }
 
-    /** manual cycle (hotkey B): dawn → day → golden → dusk → night → dawn… */
+    /** manual cycle (hotkey Y): dawn → day → golden → dusk → night → dawn… */
     nextTime(): void {
         const i = TIME_CYCLE.indexOf(this.atmosphere.timeOfDay);
+        this.sceneIndex = -1;
         this.setAtmosphere({ timeOfDay: TIME_CYCLE[(i + 1) % TIME_CYCLE.length]! });
     }
 
@@ -777,6 +861,7 @@ export class Weather {
             if (kind === 'rain') intensity = 0.35 + this.rng() * 0.55;
             if (kind === 'snow') intensity = 0.3 + this.rng() * 0.4;
         }
+        this.sceneIndex = -1;
         this.setAtmosphere({ weatherKind: kind, weatherIntensity: intensity });
         if (this.rng() < 0.2) {
             this.setAtmosphere({ timeOfDay: TIME_CYCLE[Math.floor(this.rng() * TIME_CYCLE.length)]! });

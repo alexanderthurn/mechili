@@ -824,7 +824,7 @@ export class BattleMap {
             inject +=
                 '\tfloat snowLine = mix( 220.0, -15.0, uSnowCover );\n' +
                 '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
-                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.92, 0.95, 0.98 ), snowMask * 0.42 );\n';
+                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.92, 0.95, 0.98 ), snowMask * 0.82 );\n';
             if (sand && sandMask) {
                 shader.uniforms.uSandMask = { value: sandMask };
                 extraUniforms += 'uniform sampler2D uSandMask;\n';

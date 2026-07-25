@@ -172,7 +172,7 @@ export class Scenery {
     /** wildflower materials (meadow clumps + lake blossoms) — opacity-boosted in spring */
     private readonly flowerMaterials: MeshStandardMaterial[] = [];
     /** target opacity for wildflower / lily blossom materials (lerped in update) */
-    private flowerOpacityTarget = 0.85;
+    private flowerOpacityTarget = 1;
     /** fallen-leaf litter on the meadow — built once, opacity eased in autumn */
     private leafLitter: InstancedMesh | null = null;
     private litterOpacityTarget = 0;
@@ -1081,7 +1081,7 @@ export class Scenery {
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * (1.0 - vBeach);
     // alpine stays bright; weather frost on meadow/board is softer (matches map.ts)
-    float snowF = max(alpineSnow, weatherSnow * 0.42);
+    float snowF = max(alpineSnow, weatherSnow * 0.82);
     float rockF = 0.0;`;
             if (rock) {
                 inject += `

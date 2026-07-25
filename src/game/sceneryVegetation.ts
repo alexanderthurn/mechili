@@ -140,14 +140,14 @@ let billboardPromise: Promise<void> | null = null;
 type BillboardSeasonMaps = Record<Season, Texture>;
 
 /** Season shown on billboard `map` (fade source). */
-let billboardFromSeason: Season = 'summer';
+let billboardFromSeason: Season = 'spring';
 /** Season bound to `uSeasonMapB` (fade target). */
-let billboardToSeason: Season = 'summer';
+let billboardToSeason: Season = 'spring';
 /** Shared 0→1 crossfade; when ≥1 we commit `map` to the target and reset. */
 const seasonFadeUniform = { value: 0 };
 /** Live leaf tint (lerped) vs target set by {@link setVegetationSeason}. */
-const seasonTintCurrent = new Vector3(1, 1, 1);
-const seasonTintTarget = new Vector3(1, 1, 1);
+const seasonTintCurrent = new Vector3(0.86, 1.12, 0.82); // spring
+const seasonTintTarget = new Vector3(0.86, 1.12, 0.82);
 
 /** Materials that receive the shared weather snow-line uniform. */
 const snowMaterials: { userData: { snowCoverUniform?: { value: number } } }[] = [];
@@ -224,12 +224,13 @@ export function sceneryHqVegetation(quality: SceneryQuality): boolean {
     return quality === 'ultra';
 }
 
-/** multiply tint per season — 1,1,1 (summer) leaves the baked leaf/bush colors untouched */
+/** multiply tint per season — 1,1,1 (summer) leaves the baked leaf/bush colors untouched.
+ *  Winter keeps an autumn-dormant cast (not green) so First frost → Winter doesn't re-leaf. */
 const SEASON_LEAF_TINT: Record<Season, readonly [number, number, number]> = {
     spring: [0.86, 1.12, 0.82],
     summer: [1, 1, 1],
     autumn: [1.35, 0.78, 0.34],
-    winter: [0.74, 0.82, 0.88],
+    winter: [1.18, 0.72, 0.4],
 };
 
 /** Materials that receive the shared season leaf-tint uniform (oak/bush — pines stay green). */
@@ -537,7 +538,8 @@ export async function loadSceneryBillboards(): Promise<void> {
                         spring: springTex ?? tex,
                         summer: tex,
                         autumn: autumnTex ?? tex,
-                        winter: tex,
+                        // keep autumn foliage into winter (snow mix layers on top)
+                        winter: autumnTex ?? tex,
                     } satisfies BillboardSeasonMaps;
                     const maps = card.material.userData.seasonMaps as BillboardSeasonMaps;
                     const fromTex = maps[billboardFromSeason] ?? tex;

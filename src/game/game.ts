@@ -373,8 +373,9 @@ export class Game {
 
         // cheats / debug hotkeys (visual or single-player only)
         if (e.code === 'KeyN') {
-            // cycle season: spring → summer → autumn → winter → …
-            this.weather?.nextSeason();
+            // year-tour atmosphere scenes + supply/HP/time cheats
+            this.weather?.nextScene();
+            this.refreshCinemaHint();
             this.economy.credit('player', 1000);
             this.playerHp += 5000;
             this.enemyHp += 5000;
@@ -385,14 +386,22 @@ export class Game {
             }
             return;
         }
-        if (e.code === 'KeyV') {
-            // cycle weather: clear → rain 0.45 → rain 1 → snow 0.4 → snow 1 → …
-            this.weather?.nextWeather();
+        if (e.code === 'KeyX') {
+            // season only (weather + time unchanged) — left of C on DE
+            this.weather?.nextSeason();
+            this.refreshCinemaHint();
             return;
         }
-        if (e.code === 'KeyB') {
-            // cycle time of day: dawn → day → golden → dusk → night → …
+        if (e.code === 'KeyV') {
+            // weather only — right of C on DE
+            this.weather?.nextWeather();
+            this.refreshCinemaHint();
+            return;
+        }
+        if (e.code === 'KeyY') {
+            // time of day only — next to X on DE (was B)
             this.weather?.nextTime();
+            this.refreshCinemaHint();
             return;
         }
         if (e.code === 'KeyU' && !this.net) {
@@ -400,10 +409,70 @@ export class Game {
             this.cheatSpawnAllUnits();
             return;
         }
+        if (e.code === 'KeyC') {
+            this.toggleUiHidden();
+            return;
+        }
 
         if (e.code !== 'Escape') return;
+        if (this.hud.isUiHidden) {
+            this.toggleUiHidden();
+            return;
+        }
         this.togglePauseMenu();
     };
+
+    /** Hide all match UI (HUD, debug, HP bars) for clean viewing / screenshots.
+     *  Also switches the world to battle presentation (no grid / deploy markers). */
+    private toggleUiHidden(): void {
+        const hide = !this.hud.isUiHidden;
+        this.hud.setUiHidden(hide);
+        this.hpBars.view.visible = !hide;
+        this.debug.el.style.visibility = hide ? 'hidden' : '';
+        this.applyCinemaWorld(hide);
+        if (hide) this.refreshCinemaHint();
+    }
+
+    /** Cinema footer: `C — 1/11 Spring morning` (same scene text as the debug overlay). */
+    private refreshCinemaHint(): void {
+        if (!this.hud.isUiHidden) return;
+        this.hud.setCinemaHint(`C — ${this.weather?.sceneStatus() ?? '—'}`);
+    }
+
+    /**
+     * World-side half of cinema mode: same look as attack phase — grid off,
+     * placement chrome off, flyers at combat height, no deploy tactic outlines.
+     * Call with `true` again after any phase transition that might re-show deploy chrome.
+     */
+    private applyCinemaWorld(hide: boolean): void {
+        if (hide) {
+            this.placement.deselect();
+            this.selectedActor = null;
+            this.armedItem = null;
+            this.cancelTacticPlacement();
+            this.placement.enabled = false;
+            this.gridOverlay.visible = false;
+            // same flyer climb as startBattlePhase
+            this.placement.beginBattle();
+            this.oilVisuals.setDraft(null);
+            this.oilVisuals.sync(this.oilField, 0, [], false);
+            this.spellVisuals.clear();
+            this.rallyVisuals.sync([], null);
+            return;
+        }
+        // Exit cinema: restore deploy chrome only while freely placing
+        if (this.phase === 'build' && !this.deployReady.player && !this.matchOver) {
+            this.placement.enabled = true;
+            this.gridOverlay.visible = true;
+            this.placement.beginDeployment();
+            this.syncTacticVisuals();
+        }
+    }
+
+    /** Keep cinema world look after phase code that re-enables the grid / placement. */
+    private enforceCinemaWorld(): void {
+        if (this.hud.isUiHidden) this.applyCinemaWorld(true);
+    }
 
     /** Escape / the topbar ☰ button: open or close the pause menu */
     private togglePauseMenu(): void {
@@ -1103,6 +1172,7 @@ export class Game {
             if (!m) return;
             for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
         });
+        this.enforceCinemaWorld();
     }
 
     destroy(): void {
@@ -1356,6 +1426,8 @@ export class Game {
 
         // between-round cards (schedule is a match setting — see roundCards)
         if (shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
+        // cinema mode: startBuildPhase re-shows grid / deploy chrome — put it back away
+        this.enforceCinemaWorld();
     }
 
     /**
@@ -3370,6 +3442,7 @@ export class Game {
             this.net.send({ type: 'check', round: this.round, hash });
             this.verifyCheck(this.round);
         }
+        this.enforceCinemaWorld();
     }
 
     /**
@@ -3598,12 +3671,14 @@ export class Game {
 
     /** swaps the build-phase overlay for one matching the current zone rules */
     private refreshOverlay(): void {
+        const wasVisible = this.gridOverlay.visible;
         this.scene.remove(this.gridOverlay);
         const material = this.gridOverlay.material as import('three').MeshBasicMaterial;
         material.map?.dispose();
         material.dispose();
         this.gridOverlay.geometry.dispose();
         this.gridOverlay = this.map.createOverlayMesh();
+        this.gridOverlay.visible = wasVisible;
         this.scene.add(this.gridOverlay);
     }
 
@@ -3716,7 +3791,7 @@ export class Game {
         this.map.setSnowCover(this.scenery.groundSnowCover);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
-        if (this.phase === 'build') this.syncTacticVisuals();
+        if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();
         if (profile) cpu.end('world/ui');
         if (profile) cpu.begin();
         this.unitInstances.sync();
