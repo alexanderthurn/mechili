@@ -598,6 +598,11 @@ export class BattleSim {
         return this.isOver || this.elapsed >= this.config.battleSeconds - 1e-9;
     }
 
+    /** debug/cheat: stretch the battle timeout mid-fight */
+    setBattleSeconds(seconds: number): void {
+        this.config.battleSeconds = seconds;
+    }
+
     /** the round ends as soon as one side has no units left besides its towers */
     get isOver(): boolean {
         return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');

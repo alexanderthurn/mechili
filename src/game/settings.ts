@@ -3,17 +3,26 @@ import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
 /**
+ * Phase length in seconds: a constant, or a per-round schedule
+ * (round 1 → index 0, round 2 → index 1, …; last entry repeats).
+ */
+export type RoundTimer = number | number[];
+
+/**
  * Everything that defines a match, as one plain JSON-serializable object —
  * so different game modes are just different settings, and multiplayer can
  * pass them around (lobby, server list, replay header).
  */
 export interface GameSettings {
     map: MapSize;
-    /** phase lengths in seconds */
-    buildTimeSeconds: number;
-    battleTimeSeconds: number;
+    /** deployment / build-phase length */
+    buildTimeSeconds: RoundTimer;
+    /** battle / attacking-phase length */
+    battleTimeSeconds: RoundTimer;
     /** seconds to choose the specialist card; on expiry one is auto-picked */
-    specialistTimeSeconds: number;
+    specialistTimeSeconds: RoundTimer;
+    /** between-round card pick length (before the deploy clock starts) */
+    cardTimeSeconds: RoundTimer;
     /** each player's hit points; surviving enemy units bite into these after every battle */
     startingHp: number;
     economy: EconomySettings;
@@ -36,6 +45,14 @@ export interface GameSettings {
      * seats). Local modes only for now — never sent over the wire.
      */
     seats?: SeatDef[];
+    /**
+     * Between-round card offers (not the round-0 specialist pick).
+     * - `false` — never (current default)
+     * - `true`  — every round ≥ 2
+     * - number[] — only those rounds, e.g. `[3, 6, 9]`
+     * Custom games can override this later.
+     */
+    roundCards: boolean | number[];
 }
 
 export interface HordeSettings {
@@ -176,6 +193,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     buildTimeSeconds: 90,
     battleTimeSeconds: 90,
     specialistTimeSeconds: 15,
+    cardTimeSeconds: 15,
     startingHp: 2000,
     economy: {
         startingSupply: 200,
@@ -238,7 +256,24 @@ export const DEFAULT_SETTINGS: GameSettings = {
         levelCostFactor: 0.5,
         recruitLevel2Cost: 100,
     },
+    roundCards: false,
 };
+
+/** resolve a constant or per-round timer for the given round (round 1 → index 0) */
+export function secondsForRound(timer: RoundTimer, round: number): number {
+    if (typeof timer === 'number') return timer;
+    if (timer.length === 0) return 0;
+    const i = Math.max(0, round - 1);
+    return timer[Math.min(i, timer.length - 1)]!;
+}
+
+/** whether this build-phase round should open a between-round card offer */
+export function shouldOfferRoundCards(settings: GameSettings, round: number): boolean {
+    const schedule = settings.roundCards;
+    if (schedule === false) return false;
+    if (Array.isArray(schedule)) return schedule.includes(round);
+    return round >= 2;
+}
 
 /** fills in settings added after older saves/replays were recorded */
 export function normalizeGameSettings(settings: GameSettings): GameSettings {

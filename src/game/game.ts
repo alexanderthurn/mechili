@@ -6,6 +6,8 @@ import {
     DirectionalLight,
     Fog,
     HemisphereLight,
+    MeshBasicMaterial,
+    MeshLambertMaterial,
     PCFSoftShadowMap,
     PMREMGenerator,
     Scene,
@@ -92,7 +94,7 @@ import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
-import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
+import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, secondsForRound, shouldOfferRoundCards, type GameSettings } from './settings';
 import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
     BIG_METEOR_ID,
@@ -212,6 +214,10 @@ export class Game {
     private appliedShadows: ShadowQuality = prefs().shadows;
     private readonly blobShadows: BlobShadows;
     private shadowMapFrame = 0;
+    /** debug: scene.overrideMaterial — off | clay (no textures) | wireframe */
+    private materialDebug: 'off' | 'clay' | 'wire' = 'off';
+    private readonly clayOverride = new MeshLambertMaterial({ color: 0xc8c2b4 });
+    private readonly wireOverride = new MeshBasicMaterial({ color: 0x1a1a1a, wireframe: true });
     private readonly rallyVisuals: RallyVisuals;
     private readonly spellVisuals: SpellVisuals;
     /** hammer charge rings for the current battle (visual countdown) */
@@ -429,8 +435,35 @@ export class Game {
 
         // cheats / debug hotkeys (visual or single-player only)
         if (e.code === 'KeyN') {
-            // cycle weather: sunny → rain → night → …
-            this.weather?.next();
+            // year-tour atmosphere scenes + supply/HP/time cheats
+            this.weather?.nextScene();
+            this.refreshCinemaHint();
+            this.economy.credit(this.humanSeat, 1000);
+            this.playerHp += 5000;
+            this.enemyHp += 5000;
+            this.settings.battleTimeSeconds = 500;
+            if (this.phase === 'battle' && this.sim) {
+                this.sim.setBattleSeconds(500);
+                this.phaseRemaining = 500 - this.sim.elapsed;
+            }
+            return;
+        }
+        if (e.code === 'KeyX') {
+            // season only (weather + time unchanged) — left of C on DE
+            this.weather?.nextSeason();
+            this.refreshCinemaHint();
+            return;
+        }
+        if (e.code === 'KeyV') {
+            // weather only — right of C on DE
+            this.weather?.nextWeather();
+            this.refreshCinemaHint();
+            return;
+        }
+        if (e.code === 'KeyY') {
+            // time of day only — next to X on DE (was B)
+            this.weather?.nextTime();
+            this.refreshCinemaHint();
             return;
         }
         if (e.code === 'KeyU' && !this.net && !this.star) {
@@ -438,10 +471,86 @@ export class Game {
             this.cheatSpawnAllUnits();
             return;
         }
+        if (e.code === 'KeyT') {
+            // T = clay (no textures); Shift+T = wireframe
+            this.toggleMaterialDebug(e.shiftKey ? 'wire' : 'clay');
+            return;
+        }
+        if (e.code === 'KeyC') {
+            this.toggleUiHidden();
+            return;
+        }
 
         if (e.code !== 'Escape') return;
+        if (this.hud.isUiHidden) {
+            this.toggleUiHidden();
+            return;
+        }
         this.togglePauseMenu();
     };
+
+    /** Hide all match UI (HUD, debug, HP bars) for clean viewing / screenshots.
+     *  Also switches the world to battle presentation (no grid / deploy markers). */
+    private toggleUiHidden(): void {
+        const hide = !this.hud.isUiHidden;
+        this.hud.setUiHidden(hide);
+        this.hpBars.view.visible = !hide;
+        this.debug.el.style.visibility = hide ? 'hidden' : '';
+        this.applyCinemaWorld(hide);
+        if (hide) this.refreshCinemaHint();
+    }
+
+    /** Cinema footer: `C — 1/11 Spring morning` (same scene text as the debug overlay). */
+    private refreshCinemaHint(): void {
+        if (!this.hud.isUiHidden) return;
+        this.hud.setCinemaHint(`C — ${this.weather?.sceneStatus() ?? '—'}`);
+    }
+
+    /** T / Shift+T debug: flat clay or wireframe for every mesh (no textures). */
+    private toggleMaterialDebug(mode: 'clay' | 'wire'): void {
+        if (this.materialDebug === mode) {
+            this.materialDebug = 'off';
+            this.scene.overrideMaterial = null;
+            return;
+        }
+        this.materialDebug = mode;
+        this.scene.overrideMaterial = mode === 'clay' ? this.clayOverride : this.wireOverride;
+    }
+
+    /**
+     * World-side half of cinema mode: same look as attack phase — grid off,
+     * placement chrome off, flyers at combat height, no deploy tactic outlines.
+     * Call with `true` again after any phase transition that might re-show deploy chrome.
+     */
+    private applyCinemaWorld(hide: boolean): void {
+        if (hide) {
+            this.placement.deselect();
+            this.selectedActor = null;
+            this.armedItem = null;
+            this.cancelTacticPlacement();
+            this.placement.enabled = false;
+            this.gridOverlay.visible = false;
+            // same flyer climb as startBattlePhase
+            this.placement.beginBattle();
+            this.oilVisuals.setDraft(null);
+            this.oilVisuals.sync(this.oilField, 0, [], false);
+            this.spellVisuals.clear();
+            this.rallyVisuals.sync([], null);
+            return;
+        }
+        // Exit cinema: restore deploy chrome only while freely placing
+        if (this.phase === 'build' && !this.deployReady.player && !this.matchOver) {
+            this.placement.enabled = true;
+            this.gridOverlay.visible = true;
+            this.placement.beginDeployment();
+            this.syncTacticVisuals();
+        }
+    }
+
+    /** Keep cinema world look after phase code that re-enables the grid / placement. */
+    private enforceCinemaWorld(): void {
+        if (this.hud.isUiHidden) this.applyCinemaWorld(true);
+    }
 
     /** Escape / the topbar ☰ button: open or close the pause menu */
     private togglePauseMenu(): void {
@@ -685,7 +794,7 @@ export class Game {
         };
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
-            ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
+            ? this.scenery.createWeather(this.scene, sun, hemi, this.renderer, seedFrom(this.seed, 'weather'))
             : null;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // specialist streams are keyed by canonical side (different draws)
@@ -757,7 +866,7 @@ export class Game {
             },
             clock: () => ({
                 round: this.round,
-                t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
+                t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
             }),
             onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
@@ -1285,16 +1394,22 @@ export class Game {
         this.gridOverlay.visible = gridVisible;
         this.scene.add(this.gridOverlay);
 
-        // outer world + weather (restore the current scenario)
-        const currentWeather = this.weather?.currentId ?? 'sunny';
+        // outer world + weather (restore the current atmosphere)
+        const weatherSnapshot = this.weather?.snapshot ?? null;
         this.scene.remove(this.scenery.group);
         disposeTree(this.scenery.group);
         this.scenery = new Scenery(this.map);
         this.scene.add(this.scenery.group);
         if (sceneryWeatherFx(scenery)) {
             if (!this.scene.fog) this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
-            this.weather = this.scenery.createWeather(this.scene, this.sun, this.hemi, seedFrom(this.seed, 'weather'));
-            this.weather.setTarget(currentWeather);
+            this.weather = this.scenery.createWeather(
+                this.scene,
+                this.sun,
+                this.hemi,
+                this.renderer,
+                seedFrom(this.seed, 'weather'),
+            );
+            if (weatherSnapshot) this.weather.setAtmosphere(weatherSnapshot);
         } else {
             // weather off: no fog and the default calm daylight
             this.weather = null;
@@ -1322,6 +1437,7 @@ export class Game {
             if (!m) return;
             for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
         });
+        this.enforceCinemaWorld();
     }
 
     destroy(): void {
@@ -1352,6 +1468,9 @@ export class Game {
         this.pixiApp.stage.removeChild(this.hpBars.view);
         this.hpBars.view.destroy({ children: true });
         this.debug.destroy();
+        this.scene.overrideMaterial = null;
+        this.clayOverride.dispose();
+        this.wireOverride.dispose();
         // drop any HTML HUD nodes still attached to the pixi canvas (html-in-canvas mode)
         for (const node of [...this.pixiApp.canvas.children]) {
             if (node instanceof HTMLElement) node.remove();
@@ -1523,7 +1642,7 @@ export class Game {
         this.round++;
         this.weather?.onRound(this.round);
         this.phase = 'build';
-        this.phaseRemaining = this.settings.buildTimeSeconds;
+        this.phaseRemaining = this.deploySeconds();
         // scars fade each round so the field heals over a few battles
         if (this.round > 1) this.map.fadeWear(0.68);
         this.placement.beginDeployment();
@@ -1642,8 +1761,10 @@ export class Game {
             for (const e of this.extraAis) e.ai.onBuildPhase(this.round);
         }
 
-        // from round 2 on, both sides get a card offer at the round's start
-        if (this.round >= 2) this.offerRoundCards();
+        // between-round cards (schedule is a match setting — see roundCards)
+        if (shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
+        // cinema mode: startBuildPhase re-shows grid / deploy chrome — put it back away
+        this.enforceCinemaWorld();
     }
 
     /**
@@ -1920,7 +2041,7 @@ export class Game {
     private showStarterPick(offer: StartCard[]): void {
         this.playerStarterOffer = [...offer];
         // the pick has its own short clock — expiry auto-picks at random
-        this.phaseRemaining = this.settings.specialistTimeSeconds;
+        this.phaseRemaining = secondsForRound(this.settings.specialistTimeSeconds, this.round);
         // team modes: everyone still picks their own troops/gear from their
         // own card, but only the side's primary seat's card sets the shared
         // speciality/HP — make that explicit so a non-primary teammate isn't
@@ -1977,7 +2098,7 @@ export class Game {
         this.afterStarterPick();
     }
 
-    /** timer ran out during deployment with the round-card overlay still open — skip */
+    /** timer ran out during the card-pick clock — skip the offer */
     private autoSkipRoundCard(): void {
         if (this.round < 2 || this.roundCardTaken[this.humanSeat] || !this.awaitingCards) return;
         this.hud.hideCardOverlay();
@@ -1985,14 +2106,21 @@ export class Game {
         this.awaitingCards = false;
     }
 
-    /** build-phase clock hit zero — resolve any open card pick, then lock in */
+    /** build-phase clock hit zero — finish card pick, or lock in deployment */
     private onDeployTimerExpired(): void {
         if (this.round === 0 && !this.starterPicked[this.humanSeat]) {
             this.autoPickSpecialist();
             return;
         }
         if (this.phase !== 'build' || this.seatReady[this.humanSeat]) return;
-        this.autoSkipRoundCard();
+        // card pick has its own (shorter) clock; when IT expires, auto-skip
+        // and start a fresh deploy clock instead of falling straight through
+        // to ending deployment with whatever near-zero time is left
+        if (this.awaitingCards) {
+            this.autoSkipRoundCard();
+            this.phaseRemaining = this.deploySeconds();
+            return;
+        }
         this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
     }
 
@@ -2512,6 +2640,7 @@ export class Game {
             this.phase === 'build'
         ) {
             this.awaitingCards = true;
+            this.phaseRemaining = this.cardSeconds();
             this.showRoundOffer(this.pendingOffer);
         }
         this.pendingOffer = null;
@@ -2537,7 +2666,7 @@ export class Game {
      */
     private tickReplayPlayback(): void {
         if (!this.replayLog) return;
-        const elapsed = Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining);
+        const elapsed = Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining);
         while (this.replayCursor < this.replayLog.length) {
             const entry = this.replayLog[this.replayCursor]!;
             if (entry.round !== this.round || entry.t > elapsed) break;
@@ -2581,7 +2710,7 @@ export class Game {
             this.sim.consumeEvents(); // discard visuals
         }
         if (!this.sim) return;
-        this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
+        this.phaseRemaining = this.battleSeconds() - this.sim.elapsed;
         if (toElapsed === undefined) {
             this.endBattlePhase();
         } else {
@@ -3128,11 +3257,34 @@ export class Game {
         return deck.slice(0, n);
     }
 
+    private deploySeconds(): number {
+        return secondsForRound(this.settings.buildTimeSeconds, this.round);
+    }
+
+    private battleSeconds(): number {
+        return secondsForRound(this.settings.battleTimeSeconds, this.round);
+    }
+
+    private cardSeconds(): number {
+        return secondsForRound(this.settings.cardTimeSeconds, this.round);
+    }
+
+    /** active build-phase budget (specialist / card pick / deploy) for the action clock */
+    private phaseBudgetSeconds(): number {
+        if (this.round === 0) {
+            return secondsForRound(this.settings.specialistTimeSeconds, this.round);
+        }
+        if (this.awaitingCards) return this.cardSeconds();
+        return this.deploySeconds();
+    }
+
     /**
      * The between-round card offer: every SEAT gets its own independent
      * draw and picks for itself (own economy, own units/items/tactics) —
      * same per-seat model as the starter pick's extraAis already use, no
-     * shared side-wide resource left here to race over.
+     * shared side-wide resource left here to race over. Runs on its own
+     * dedicated card-pick clock (separate from the deploy clock); skipping
+     * pays a small consolation instead (see showRoundOffer).
      */
     private offerRoundCards(): void {
         this.roundCardTaken.fill(false);
@@ -3155,6 +3307,7 @@ export class Game {
         }
         this.opponent.onRoundCards(enemyOffer);
         this.awaitingCards = true;
+        this.phaseRemaining = this.cardSeconds();
         this.showRoundOffer(myOffer);
     }
 
@@ -3173,6 +3326,7 @@ export class Game {
             (cardId) => {
                 this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId });
                 this.awaitingCards = false;
+                this.phaseRemaining = this.deploySeconds();
             },
         );
     }
@@ -4065,7 +4219,7 @@ export class Game {
     private startBattlePhase(): void {
         this.placement.beginBattle();
         this.phase = 'battle';
-        this.phaseRemaining = this.settings.battleTimeSeconds;
+        this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
         this.placement.hiddenPlacements = false;
         this.placement.deselect();
@@ -4326,7 +4480,7 @@ export class Game {
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
-            battleSeconds: this.settings.battleTimeSeconds,
+            battleSeconds: this.battleSeconds(),
             seatRank: (seat) => this.seatRank(seat),
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
@@ -4369,6 +4523,7 @@ export class Game {
                 this.verifyStarChecks();
             }
         }
+        this.enforceCinemaWorld();
     }
 
     /**
@@ -4725,12 +4880,14 @@ export class Game {
 
     /** swaps the build-phase overlay for one matching the current zone rules */
     private refreshOverlay(): void {
+        const wasVisible = this.gridOverlay.visible;
         this.scene.remove(this.gridOverlay);
         const material = this.gridOverlay.material as import('three').MeshBasicMaterial;
         material.map?.dispose();
         material.dispose();
         this.gridOverlay.geometry.dispose();
         this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
+        this.gridOverlay.visible = wasVisible;
         this.scene.add(this.gridOverlay);
     }
 
@@ -4837,7 +4994,7 @@ export class Game {
                 );
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
-                this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
+                this.phaseRemaining = this.battleSeconds() - this.sim.elapsed;
                 if (this.sim.finished) this.endBattlePhase();
             }
         }
@@ -4849,9 +5006,10 @@ export class Game {
         this.rig.update(dtSeconds);
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
+        this.map.setSnowCover(this.scenery.groundSnowCover);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
-        if (this.phase === 'build') this.syncTacticVisuals();
+        if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();
         if (profile) cpu.end('world/ui');
         if (profile) cpu.begin();
         this.unitInstances.sync();
@@ -4962,6 +5120,7 @@ export class Game {
             cpu: profile ? cpu.snapshot() : undefined,
             simCpu: simCpu,
             simSteps: simSteps || undefined,
+            weatherLines: this.weather?.debugLines(),
         }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.net && !this.star && !this.matchOver && !this.hydrating) {

@@ -5,16 +5,19 @@ import { HORDE_COLOR, teamColors } from './game/colors';
  * Single source of truth for palette — tweak here to shift the whole look.
  */
 export const THEME = {
-    // atmosphere (three.js hex) — warm sunny day, not murky dusk
+    // atmosphere (three.js hex) — crisp sunny day: deep blue sky, punchy warm
+    // sun, not murky dusk. Matches TIME_PRESETS.day in game/weather.ts so
+    // there's no color pop once the weather system takes over (and it's the
+    // only sky ever seen with scenery 'off', which never runs the weather sim).
     // `sky` is the fog color and must match the sky dome's horizon band
-    sky: 0xb8d4c8,
-    fogNear: 520,
-    fogFar: 1300,
-    hemiSky: 0xd0e8b8,
+    sky: 0xace0f0,
+    fogNear: 820,
+    fogFar: 2700,
+    hemiSky: 0xe8f6cc,
     hemiGround: 0x6a9a48,
-    hemiIntensity: 1.15,
-    sun: 0xfff4c8,
-    sunIntensity: 1.55,
+    hemiIntensity: 1.0,
+    sun: 0xfff2c8,
+    sunIntensity: 2.05,
 
     // factions (three.js hex) — vivid RA2-style team colors
     player: 0x3d8cd4,
@@ -61,8 +64,6 @@ export const THEME = {
         base: '#55a244',
         // large soft meadow variation — same hue family, gentle contrast
         meadow: ['#63b44e', '#478e38', '#5ba84f', '#6dbe56'],
-        // mown-lawn stripes
-        stripe: 'rgba(210, 245, 170, 0.06)',
         // grass blade strokes
         bladeDark: '#3c7c30',
         bladeBright: '#8ad85e',
@@ -87,9 +88,9 @@ export const THEME = {
 
     scenery: {
         // sky dome gradient, zenith to horizon (horizon must equal `sky` above)
-        skyZenith: '#5aa8dc',
-        skyMid: '#8cc4e4',
-        skyHorizon: '#b8d4c8',
+        skyZenith: '#1f6fc4',
+        skyMid: '#4f9fe0',
+        skyHorizon: '#ace0f0',
         sunGlow: 'rgba(255, 244, 200, 1)',
         // the world beyond the battlefield — matches terrain.base so the
         // meadow reads as one continuous surface with the field
@@ -1204,6 +1205,27 @@ export function hudStyles(): string {
     const pc = teamColors.player.css;
     const ec = teamColors.enemy.css;
     return `
+.mechili-cinema-hide {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+.mechili-cinema-hint {
+    position: absolute;
+    left: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 200;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(8, 12, 6, 0.72);
+    border: 1px solid rgba(168, 216, 120, 0.35);
+    color: ${u.debug};
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0;
+    pointer-events: none;
+    user-select: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+    white-space: pre;
+}
 .mechili-shop-col {
     position: absolute;
     right: env(safe-area-inset-right);

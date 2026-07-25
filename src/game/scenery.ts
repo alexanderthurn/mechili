@@ -26,9 +26,10 @@ import {
     type DirectionalLight,
     type HemisphereLight,
     type Scene,
+    type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { Weather } from './weather';
+import { Weather, TRANSITION_TAU, type Season } from './weather';
 import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
@@ -42,6 +43,7 @@ import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND } from './grou
 import {
     barkUrl,
     foliageUrl,
+    iceAlbedoUrl,
     sandAlbedoUrl,
     loadGrassTextures,
     loadRockTextures,
@@ -49,6 +51,9 @@ import {
 } from './worldTextures';
 import {
     BILLBOARD_SCALE,
+    BILLBOARD_Y_SINK,
+    attachSeasonTint,
+    attachVegetationSnow,
     createBillboardInstances,
     createVegetationInstances,
     loadSceneryBillboards,
@@ -56,6 +61,9 @@ import {
     NEAR_TREE_DIST,
     placeVegetationInstance,
     sceneryHqVegetation,
+    setVegetationSeason,
+    setVegetationSnowCover,
+    updateVegetationSeason,
     type VegetationKind,
 } from './sceneryVegetation';
 
@@ -157,6 +165,18 @@ export class Scenery {
     private weather: Weather | null = null;
 
     private waterTexture: CanvasTexture | null = null;
+    private waterMaterial: MeshStandardMaterial | null = null;
+    private waterFreezeUniform: { value: number } | null = null;
+    /** drives the outer meadow's weather-driven snow blend (see `applyMeadowTexture`) */
+    private outerGroundSnowUniform: { value: number } | null = null;
+
+    /** wildflower materials (meadow clumps + lake blossoms) — opacity-boosted in spring */
+    private readonly flowerMaterials: MeshStandardMaterial[] = [];
+    /** target opacity for wildflower / lily blossom materials (lerped in update) */
+    private flowerOpacityTarget = 1;
+    /** fallen-leaf litter on the meadow — built once, opacity eased in autumn */
+    private leafLitter: InstancedMesh | null = null;
+    private litterOpacityTarget = 0;
 
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
@@ -325,13 +345,20 @@ export class Scenery {
         return this.rockFactorAt(x, z) < 0.32;
     }
 
-    /** builds the scenario system driving sky, fog, lights, clouds, rain, stars */
-    createWeather(scene: Scene, sun: DirectionalLight, hemi: HemisphereLight, seed: number): Weather {
+    /** builds the scenario system driving sky, fog, lights, clouds, rain/snow, stars */
+    createWeather(
+        scene: Scene,
+        sun: DirectionalLight,
+        hemi: HemisphereLight,
+        renderer: WebGLRenderer,
+        seed: number,
+    ): Weather {
         this.weather = new Weather(
             {
                 scene,
                 sun,
                 hemi,
+                renderer,
                 repaintSky: this.repaintSky,
                 glow: this.sunGlow,
                 cloudMaterial: this.cloudMaterial,
@@ -342,15 +369,53 @@ export class Scenery {
                 skyGroup: this.skyGroup,
                 worldGroup: this.group,
                 map: this.map,
+                onSeasonChange: (season) => this.setSeason(season),
             },
             seed,
         );
         return this.weather;
     }
 
+    /** 0..1 how much snow currently lies on the ground (drives the board's own snow blend too) */
+    get groundSnowCover(): number {
+        return this.weather?.groundSnow ?? 0;
+    }
+
+    /**
+     * Begin easing foliage toward a season (tint, billboard maps, flowers, litter).
+     * Atmosphere already lerps on its own clock; foliage uses the same {@link TRANSITION_TAU}.
+     */
+    setSeason(season: Season): void {
+        setVegetationSeason(season);
+        this.flowerOpacityTarget =
+            season === 'spring' ? 1 : season === 'summer' ? 0.85 : season === 'autumn' ? 0.45 : 0.15;
+        this.litterOpacityTarget = season === 'autumn' ? 1 : 0;
+    }
+
     update(dtSeconds: number, cameraPos: Vector3): void {
         this.skyGroup.position.set(cameraPos.x, 0, cameraPos.z);
         this.weather?.update(dtSeconds, cameraPos);
+        updateVegetationSeason(dtSeconds);
+        const seasonK = Math.min(1, dtSeconds / TRANSITION_TAU);
+        for (const m of this.flowerMaterials) {
+            m.opacity += (this.flowerOpacityTarget - m.opacity) * seasonK;
+        }
+        if (this.leafLitter) {
+            const mat = this.leafLitter.material as MeshStandardMaterial;
+            mat.opacity += (this.litterOpacityTarget - mat.opacity) * seasonK;
+            this.leafLitter.visible = mat.opacity > 0.02;
+        }
+        if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
+        setVegetationSnowCover(this.groundSnowCover);
+        // lakes freeze once snow reaches meadow/board level (same snow-line gate)
+        if (this.waterFreezeUniform && this.waterMaterial?.userData.iceReady) {
+            const cover = this.groundSnowCover;
+            const snowLine = 220 - (220 - -15) * cover;
+            const freeze = Math.min(1, Math.max(0, (0 - (snowLine - 40)) / 55));
+            this.waterFreezeUniform.value = freeze;
+            this.waterMaterial.roughness = 0.18 + freeze * 0.55;
+            this.waterMaterial.opacity = 0.86 + freeze * 0.12;
+        }
         const mat = this.cloudShadow.material as MeshBasicMaterial;
         mat.map!.offset.x += dtSeconds * 0.0035;
         mat.map!.offset.y += dtSeconds * 0.0012;
@@ -366,10 +431,11 @@ export class Scenery {
             f.mesh.position.x = f.baseX + Math.sin(this.time * f.speed + f.phase) * 8;
             f.mesh.visible = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
         }
-        // slow ripple drift on the lakes
-        if (this.waterTexture) {
-            this.waterTexture.offset.x += dtSeconds * 0.006;
-            this.waterTexture.offset.y += dtSeconds * 0.0035;
+        // slow ripple drift on the lakes — stops once mostly frozen
+        if (this.waterTexture && (this.waterFreezeUniform?.value ?? 0) < 0.85) {
+            const thaw = 1 - (this.waterFreezeUniform?.value ?? 0);
+            this.waterTexture.offset.x += dtSeconds * 0.006 * thaw;
+            this.waterTexture.offset.y += dtSeconds * 0.0035 * thaw;
         }
         if (this.tuftMaterial?.userData.shader) {
             this.tuftMaterial.userData.shader.uniforms.uTime!.value = this.time;
@@ -379,7 +445,8 @@ export class Scenery {
     /**
      * The water table: one flat translucent plane at y = -1.1. It is hidden
      * under the terrain everywhere, EXCEPT where a lake basin dips below it.
-     * A painted ripple texture drifts slowly to make it read as water.
+     * A painted ripple texture drifts slowly to make it read as water; under
+     * snow cover it crossfades to a frozen ice albedo.
      */
     private createWater(): Mesh {
         const canvas = document.createElement('canvas');
@@ -419,16 +486,42 @@ export class Scenery {
 
         const geometry = new PlaneGeometry(3000, 3000);
         geometry.rotateX(-Math.PI / 2);
-        const mesh = new Mesh(
-            geometry,
-            new MeshStandardMaterial({
-                map: this.waterTexture,
-                transparent: true,
-                opacity: 0.86,
-                roughness: 0.18,
-                metalness: 0,
-            }),
-        );
+        const freezeUniform = { value: 0 };
+        const iceUniform: { value: import('three').Texture | null } = { value: null };
+        this.waterFreezeUniform = freezeUniform;
+        const material = new MeshStandardMaterial({
+            map: this.waterTexture,
+            transparent: true,
+            opacity: 0.86,
+            roughness: 0.18,
+            metalness: 0,
+        });
+        this.waterMaterial = material;
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.uFreeze = freezeUniform;
+            shader.uniforms.uIce = iceUniform;
+            shader.fragmentShader =
+                'uniform float uFreeze;\nuniform sampler2D uIce;\n' +
+                shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    `#include <map_fragment>
+	if (uFreeze > 0.001) {
+		vec3 iceCol = texture2D(uIce, vMapUv).rgb;
+		diffuseColor.rgb = mix(diffuseColor.rgb, iceCol, uFreeze);
+	}`,
+                );
+        };
+        void loadWorldTexture(iceAlbedoUrl).then((ice) => {
+            if (!ice) return;
+            ice.wrapS = ice.wrapT = RepeatWrapping;
+            ice.repeat.set(90, 90);
+            ice.colorSpace = SRGBColorSpace;
+            iceUniform.value = ice;
+            material.userData.iceReady = true;
+            material.needsUpdate = true;
+        });
+
+        const mesh = new Mesh(geometry, material);
         mesh.position.y = -1.1;
         mesh.receiveShadow = true;
         return mesh;
@@ -576,7 +669,36 @@ export class Scenery {
         }
         mushrooms.count = mushI;
 
-        this.group.add(tufts, stones, logs, mushrooms);
+        // --- fallen leaf litter: built now, opacity eased in for autumn (see setSeason)
+        const LITTER = scaleCount(1200, this.density.meadow);
+        const litterGeo = new PlaneGeometry(0.55, 0.55).rotateX(-Math.PI / 2);
+        const litterMaterial = new MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 1,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+        });
+        const litter = new InstancedMesh(litterGeo, litterMaterial, LITTER);
+        litter.visible = false;
+        const litterTones = [0xc86a2c, 0xd8902c, 0xb84824, 0xe0b840];
+        let litterI = 0;
+        for (let i = 0; i < LITTER; i++) {
+            const spot = meadowSpot(30);
+            if (!spot) break;
+            const sc = 0.6 + rng() * 1.0;
+            dummy.position.set(spot.x, spot.h + 0.03, spot.z);
+            dummy.scale.setScalar(sc);
+            dummy.rotation.set((rng() - 0.5) * 0.3, rng() * Math.PI * 2, (rng() - 0.5) * 0.3);
+            dummy.updateMatrix();
+            litter.setMatrixAt(litterI, dummy.matrix);
+            color.set(litterTones[Math.floor(rng() * litterTones.length)]!).lerp(new Color(0xffffff), rng() * 0.15);
+            litter.setColorAt(litterI++, color);
+        }
+        litter.count = litterI;
+        this.leafLitter = litter;
+
+        this.group.add(tufts, stones, logs, mushrooms, litter);
     }
 
     /**
@@ -641,6 +763,7 @@ export class Scenery {
             }),
             PADS,
         );
+        this.flowerMaterials.push(blossoms.material as MeshStandardMaterial);
         const flowerTones = THEME.terrain.flowers;
         let padI = 0;
         let blossomI = 0;
@@ -884,6 +1007,8 @@ export class Scenery {
                 shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
             }
             if (sand) shader.uniforms.uSand = { value: sand };
+            shader.uniforms.uSnowCover = { value: 0 };
+            this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
@@ -950,7 +1075,14 @@ export class Scenery {
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${tileSize.toFixed(1)}).rgb, vBeach);`;
             }
             inject += `
-    float snowF = smoothstep(170.0, 235.0, vTerrainH);
+    // permanent alpine snowcap — always on, independent of weather
+    float alpineSnow = smoothstep(170.0, 235.0, vTerrainH);
+    // weather-driven cover: soft snow line descending from the peaks
+    // (full white at meadow level — matches the board wash).
+    float snowLine = mix(220.0, -15.0, uSnowCover);
+    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * (1.0 - vBeach);
+    // alpine stays bright; weather frost on meadow/board is softer (matches map.ts)
+    float snowF = max(alpineSnow, weatherSnow * 0.82);
     float rockF = 0.0;`;
             if (rock) {
                 inject += `
@@ -973,10 +1105,11 @@ export class Scenery {
                 }
                 inject += `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+    // same snow tint as the board (see map.ts) so the field edge matches
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`;
             } else {
                 inject += `
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
@@ -987,6 +1120,7 @@ export class Scenery {
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
+                'uniform float uSnowCover;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
             if (useDetail && normal) {
@@ -1009,7 +1143,7 @@ export class Scenery {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v8${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v10${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -1141,6 +1275,11 @@ export class Scenery {
                 new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
                 (LEAFY + FIELD_LEAFY + BELT_LEAFY) * 2,
             );
+            attachVegetationSnow(trunks.material as MeshStandardMaterial, { strength: 0.55 });
+            attachVegetationSnow(cones.material as MeshStandardMaterial, { strength: 0.92 });
+            attachVegetationSnow(blobs.material as MeshStandardMaterial, { strength: 0.92 });
+            // pines stay green year-round — only the leafy (oak) canopy retints
+            attachSeasonTint(blobs.material as MeshStandardMaterial);
         }
         const rocks = new InstancedMesh(
             new IcosahedronGeometry(1.4, 0),
@@ -1153,6 +1292,8 @@ export class Scenery {
                 new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
                 bushCapacity,
             );
+            attachVegetationSnow(bushes.material as MeshStandardMaterial, { strength: 0.92 });
+            attachSeasonTint(bushes.material as MeshStandardMaterial);
         }
 
         let trunkI = 0;
@@ -1311,6 +1452,7 @@ export class Scenery {
             }),
             FLOWERS,
         );
+        this.flowerMaterials.push(flowers.material as MeshStandardMaterial);
         const flowerTones = THEME.terrain.flowers;
         const meadowSpot = (): { x: number; z: number } => {
             for (;;) {
@@ -1383,7 +1525,7 @@ export class Scenery {
                 placeVegetationInstance(
                     mesh,
                     p.x,
-                    groundY(p.x, p.z),
+                    groundY(p.x, p.z) - BILLBOARD_Y_SINK,
                     p.z,
                     p.sc * BILLBOARD_SCALE,
                     rng() * Math.PI * 2,
@@ -1551,7 +1693,7 @@ export class Scenery {
                         placeVegetationInstance(
                             mesh,
                             p.x,
-                            groundY(p.x, p.z),
+                            groundY(p.x, p.z) - BILLBOARD_Y_SINK,
                             p.z,
                             p.sc * BILLBOARD_SCALE,
                             rng() * Math.PI * 2,

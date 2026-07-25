@@ -258,6 +258,9 @@ export class Hud {
     private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
     /** every HUD root passed through mount() — needed for dom-overlay teardown */
     private readonly mountedRoots: HTMLElement[] = [];
+    /** cinema / screenshot mode — all chrome hidden except the exit hint */
+    private uiHidden = false;
+    private cinemaHint: HTMLDivElement | null = null;
     private readonly pixiCanvas: HTMLCanvasElement;
     private readonly app: Application;
     private readonly overlayParent: HTMLElement;
@@ -2192,6 +2195,7 @@ export class Hud {
             el.addEventListener(type, (e) => e.stopPropagation());
         }
         this.mountedRoots.push(el);
+        if (this.uiHidden) el.classList.add('mechili-cinema-hide');
         if (this.mode === 'html-in-canvas') {
             // must be a direct child of the Pixi canvas; mirrored to the GPU each repaint
             this.pixiCanvas.appendChild(el);
@@ -2203,6 +2207,40 @@ export class Hud {
         }
     }
 
+    get isUiHidden(): boolean {
+        return this.uiHidden;
+    }
+
+    /**
+     * Hide every HUD chrome element (shop, topbar, panels, overlays) for
+     * clean screenshots / atmosphere viewing. Leaves a tiny keyboard hint.
+     */
+    setUiHidden(hidden: boolean): void {
+        if (this.uiHidden === hidden) return;
+        this.uiHidden = hidden;
+        for (const el of this.mountedRoots) {
+            el.classList.toggle('mechili-cinema-hide', hidden);
+        }
+        if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
+        if (hidden) {
+            if (!this.cinemaHint) {
+                const hint = document.createElement('div');
+                hint.className = 'mechili-cinema-hint';
+                this.overlayParent.appendChild(hint);
+                this.cinemaHint = hint;
+            }
+            this.cinemaHint.style.display = '';
+        } else if (this.cinemaHint) {
+            this.cinemaHint.style.display = 'none';
+        }
+    }
+
+    /** Update the cinema footer (e.g. `C — 1/11 Spring morning`). */
+    setCinemaHint(text: string): void {
+        if (!this.cinemaHint) return;
+        this.cinemaHint.textContent = text;
+    }
+
     /** removes every HUD element from the page / canvas mirror */
     destroy(): void {
         this.hidePauseMenu();
@@ -2211,6 +2249,8 @@ export class Hud {
         this.hideBattleReport();
         this.itemGhost?.remove();
         this.itemGhost = null;
+        this.cinemaHint?.remove();
+        this.cinemaHint = null;
         for (const { sprite } of this.sprites) {
             sprite.destroy();
         }

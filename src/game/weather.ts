@@ -19,16 +19,30 @@ import {
     type HemisphereLight,
     type Scene,
     type Texture,
+    type WebGLRenderer,
 } from 'three';
 import { mulberry32, type BattleMap } from './map';
 import { sceneryFogScale } from './prefs';
 import { loadWorldTexture, moonUrl } from './worldTextures';
 
-export type WeatherId = 'sunny' | 'rain' | 'night';
+/** slow seasonal look — biases the sky tint and drives vegetation via `onSeasonChange` */
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+/** precipitation, independent of time of day and season */
+export type WeatherKind = 'clear' | 'rain' | 'snow';
+/** where the sun/moon sits — owns the base sky, sun, stars, exposure, sun direction */
+export type TimeOfDay = 'dawn' | 'day' | 'golden' | 'dusk' | 'night';
 
-/** everything a scenario tunes — all lerpable, so switching is a smooth fade */
-export interface WeatherPreset {
-    id: WeatherId;
+/** the three independent axes composed into one atmosphere every update */
+export interface Atmosphere {
+    season: Season;
+    weatherKind: WeatherKind;
+    /** 0..1, meaningless while weatherKind is 'clear' */
+    weatherIntensity: number;
+    timeOfDay: TimeOfDay;
+}
+
+/** everything a time-of-day owns — base sky/sun/stars/exposure/sun direction */
+interface TimePreset {
     skyZenith: number;
     skyMid: number;
     skyHorizon: number;
@@ -52,63 +66,143 @@ export interface WeatherPreset {
     /** opacity of the fog cards drifting between the forest trees */
     forestFog: number;
     stars: number;
-    rain: number;
+    /** multiplies the renderer's base tone-mapping exposure */
+    exposureMul: number;
 }
 
-export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
-    // warm bright day — haze pushed far out, saturated sky, strong warm sun
-    sunny: {
-        id: 'sunny',
-        skyZenith: 0x3888d8,
-        skyMid: 0x7cc0ec,
-        skyHorizon: 0xc4e0ee,
-        fogNear: 700,
-        fogFar: 2600,
-        sun: 0xffe9b0,
-        sunIntensity: 1.8,
+/** what rain/snow tug the composed sky/light/cloud values toward, blended in by intensity */
+interface WeatherOverlay {
+    skyZenith: number;
+    skyMid: number;
+    skyHorizon: number;
+    fogNear: number;
+    fogFar: number;
+    sun: number;
+    sunIntensity: number;
+    hemiSky: number;
+    hemiGround: number;
+    hemiIntensity: number;
+    glow: number;
+    glowScale: number;
+    glowOpacity: number;
+    cloudTint: number;
+    cloudOpacity: number;
+    cloudShadowOpacity: number;
+    nearCloudOpacity: number;
+    forestFog: number;
+    exposureMul: number;
+}
+
+/** the fully composed, still-numeric (not yet lerped) target for one frame */
+interface ComposedTarget extends TimePreset {
+    rain: number;
+    snow: number;
+}
+
+const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
+    // early morning: cool blue up top fading into a soft peach horizon, low
+    // sun still gathering strength, a little dawn haze and a few fading stars
+    dawn: {
+        skyZenith: 0x1c3f72,
+        skyMid: 0x6a80ab,
+        skyHorizon: 0xf0b98c,
+        fogNear: 380,
+        fogFar: 1350,
+        sun: 0xffd8a8,
+        sunIntensity: 1.15,
+        sunPos: { x: -170, y: 50, z: 30 },
+        hemiSky: 0xcdd6ec,
+        hemiGround: 0x5c6c4a,
+        hemiIntensity: 0.85,
+        glow: 0xffe0b4,
+        glowScale: 300,
+        glowOpacity: 0.9,
+        cloudTint: 0xffd9c2,
+        cloudOpacity: 0.55,
+        cloudShadowOpacity: 0.08,
+        nearCloudOpacity: 0.18,
+        forestFog: 0.32,
+        stars: 0.08,
+        exposureMul: 0.95,
+    },
+    // crisp bright day — deep saturated sky, minimal haze, strong warm sun with
+    // real contrast against the ambient fill so it reads as "fresh", not flat
+    day: {
+        skyZenith: 0x1560b8,
+        skyMid: 0x2f86d4,
+        skyHorizon: 0x6eb8e8,
+        fogNear: 820,
+        fogFar: 2700,
+        sun: 0xfff2c8,
+        sunIntensity: 2.05,
         sunPos: { x: 120, y: 210, z: 60 },
-        hemiSky: 0xd8ecc0,
+        hemiSky: 0xe8f6cc,
         hemiGround: 0x6a9a48,
-        hemiIntensity: 1.2,
-        glow: 0xfff2cc,
+        hemiIntensity: 1.0,
+        glow: 0xfff6d8,
         glowScale: 340,
         glowOpacity: 1,
         cloudTint: 0xffffff,
-        cloudOpacity: 0.85,
-        cloudShadowOpacity: 0.16,
-        nearCloudOpacity: 0.16,
-        forestFog: 0.14,
+        cloudOpacity: 0.8,
+        cloudShadowOpacity: 0.14,
+        nearCloudOpacity: 0.12,
+        forestFog: 0.07,
         stars: 0,
-        rain: 0,
+        exposureMul: 1.08,
     },
-    // grey drizzle — close fog, dim cool light, heavy cloud work + rain streaks
-    rain: {
-        id: 'rain',
-        skyZenith: 0x5c6c7a,
-        skyMid: 0x8a969c,
-        skyHorizon: 0xa8b2b2,
-        fogNear: 130,
-        fogFar: 620,
-        sun: 0xc0ccd8,
-        sunIntensity: 0.75,
-        sunPos: { x: 120, y: 160, z: 80 },
-        hemiSky: 0x9ab0b8,
-        hemiGround: 0x4e6a48,
-        hemiIntensity: 0.95,
-        glow: 0xd8e0e8,
-        glowScale: 200,
-        glowOpacity: 0,
-        cloudTint: 0x8a949a,
-        cloudOpacity: 0.95,
-        cloudShadowOpacity: 0.2,
-        nearCloudOpacity: 0.42,
-        forestFog: 0.55,
+    // golden hour: low warm amber sun, rich orange-gold horizon, sky still
+    // bluish up high — punchiest light of the day
+    golden: {
+        skyZenith: 0x1c5aa0,
+        skyMid: 0x5f8fc4,
+        skyHorizon: 0xffb058,
+        fogNear: 520,
+        fogFar: 1950,
+        sun: 0xffb247,
+        sunIntensity: 1.9,
+        sunPos: { x: -195, y: 65, z: 85 },
+        hemiSky: 0xffdcac,
+        hemiGround: 0x8c6c3a,
+        hemiIntensity: 1.05,
+        glow: 0xffc670,
+        glowScale: 390,
+        glowOpacity: 1,
+        cloudTint: 0xffd39a,
+        cloudOpacity: 0.5,
+        cloudShadowOpacity: 0.1,
+        nearCloudOpacity: 0.14,
+        forestFog: 0.12,
         stars: 0,
-        rain: 1,
+        exposureMul: 1.18,
     },
-    // starlit night — "movie night": cool, dark-ish, but units stay readable
+    // sunset: deep purple-blue overhead, glowing orange-red horizon, sun low
+    // on the opposite side from dawn
+    dusk: {
+        skyZenith: 0x162a54,
+        skyMid: 0x6c4f7c,
+        skyHorizon: 0xd8703e,
+        fogNear: 360,
+        fogFar: 1300,
+        sun: 0xff9a5c,
+        sunIntensity: 1.05,
+        sunPos: { x: 175, y: 42, z: -55 },
+        hemiSky: 0xb99098,
+        hemiGround: 0x4a3a30,
+        hemiIntensity: 0.8,
+        glow: 0xffab6a,
+        glowScale: 330,
+        glowOpacity: 0.95,
+        cloudTint: 0xff9a6c,
+        cloudOpacity: 0.6,
+        cloudShadowOpacity: 0.1,
+        nearCloudOpacity: 0.2,
+        forestFog: 0.34,
+        stars: 0.12,
+        exposureMul: 0.88,
+    },
+    // starlit night — "movie night": cool, dark-ish, but units stay readable.
+    // No clouds (see composeTarget) unless a storm is actively rolling through.
     night: {
-        id: 'night',
         skyZenith: 0x050912,
         skyMid: 0x0b1428,
         skyHorizon: 0x18253e,
@@ -124,21 +218,212 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         glowScale: 170,
         glowOpacity: 0.95,
         cloudTint: 0x3a465a,
-        cloudOpacity: 0.3,
-        cloudShadowOpacity: 0.03,
-        nearCloudOpacity: 0.12,
+        cloudOpacity: 0,
+        cloudShadowOpacity: 0,
+        nearCloudOpacity: 0,
         forestFog: 0.28,
         stars: 1,
-        rain: 0,
+        exposureMul: 0.82,
     },
 };
 
-const CYCLE: WeatherId[] = ['sunny', 'rain', 'night'];
-/** seconds for the exponential ease toward a new preset */
-const TRANSITION_TAU = 3.5;
+// grey drizzle — close fog, dim cool light, heavy cloud work; blended in by
+// `weatherIntensity` on top of whatever the current time of day looks like
+const RAIN_OVERLAY: WeatherOverlay = {
+    skyZenith: 0x5c6c7a,
+    skyMid: 0x8a969c,
+    skyHorizon: 0xa8b2b2,
+    fogNear: 130,
+    fogFar: 620,
+    sun: 0xc0ccd8,
+    sunIntensity: 0.75,
+    hemiSky: 0x9ab0b8,
+    hemiGround: 0x4e6a48,
+    hemiIntensity: 0.95,
+    glow: 0xd8e0e8,
+    glowScale: 200,
+    glowOpacity: 0,
+    cloudTint: 0x8a949a,
+    cloudOpacity: 0.95,
+    cloudShadowOpacity: 0.2,
+    nearCloudOpacity: 0.42,
+    forestFog: 0.55,
+    exposureMul: 0.9,
+};
+
+// overcast snowfall — pale cold sky, soft even light; ground accumulation is
+// handled separately by `Weather.groundSnow` so it lags/lingers realistically.
+// Fog stays past the board (~288×256): a close fogNear + height-mist used to
+// paint a straight darkened band across the far half (view-depth isoline).
+const SNOW_OVERLAY: WeatherOverlay = {
+    skyZenith: 0x9fb4c4,
+    skyMid: 0xc6d6de,
+    skyHorizon: 0xe6eef2,
+    fogNear: 520,
+    fogFar: 1600,
+    sun: 0xe2ecf4,
+    sunIntensity: 1.0,
+    hemiSky: 0xe2ecee,
+    hemiGround: 0x84948a,
+    hemiIntensity: 1.15,
+    glow: 0xeef6fa,
+    glowScale: 220,
+    glowOpacity: 0.32,
+    cloudTint: 0xdfe7ea,
+    cloudOpacity: 0.9,
+    cloudShadowOpacity: 0.04,
+    nearCloudOpacity: 0.3,
+    forestFog: 0.35,
+    exposureMul: 0.97,
+};
+
+function lerpHex(a: number, b: number, t: number): number {
+    return new Color(a).lerp(new Color(b), t).getHex();
+}
+
+/** light seasonal push on the sky/ambient tint — fully washed out by a storm
+ *  (the weather overlay blend happens on top of this, see composeTarget) */
+function applySeasonBias(p: TimePreset, season: Season): void {
+    switch (season) {
+        case 'spring':
+            p.skyHorizon = lerpHex(p.skyHorizon, 0x9fe4f0, 0.12);
+            p.hemiGround = lerpHex(p.hemiGround, 0x78c058, 0.15);
+            break;
+        case 'autumn':
+            p.skyHorizon = lerpHex(p.skyHorizon, 0xd89858, 0.2);
+            p.hemiGround = lerpHex(p.hemiGround, 0x9a7c3c, 0.2);
+            break;
+        case 'winter':
+            p.skyHorizon = lerpHex(p.skyHorizon, 0xb9ccd8, 0.16);
+            p.hemiGround = lerpHex(p.hemiGround, 0x7c8c82, 0.18);
+            break;
+        case 'summer':
+            break; // current THEME greens — no bias
+    }
+}
+
+function lerpOverlay(p: TimePreset, overlay: WeatherOverlay, t: number): void {
+    p.skyZenith = lerpHex(p.skyZenith, overlay.skyZenith, t);
+    p.skyMid = lerpHex(p.skyMid, overlay.skyMid, t);
+    p.skyHorizon = lerpHex(p.skyHorizon, overlay.skyHorizon, t);
+    p.fogNear += (overlay.fogNear - p.fogNear) * t;
+    p.fogFar += (overlay.fogFar - p.fogFar) * t;
+    p.sun = lerpHex(p.sun, overlay.sun, t);
+    p.sunIntensity += (overlay.sunIntensity - p.sunIntensity) * t;
+    p.hemiSky = lerpHex(p.hemiSky, overlay.hemiSky, t);
+    p.hemiGround = lerpHex(p.hemiGround, overlay.hemiGround, t);
+    p.hemiIntensity += (overlay.hemiIntensity - p.hemiIntensity) * t;
+    p.glow = lerpHex(p.glow, overlay.glow, t);
+    p.glowScale += (overlay.glowScale - p.glowScale) * t;
+    p.glowOpacity += (overlay.glowOpacity - p.glowOpacity) * t;
+    p.cloudTint = lerpHex(p.cloudTint, overlay.cloudTint, t);
+    p.cloudOpacity += (overlay.cloudOpacity - p.cloudOpacity) * t;
+    p.cloudShadowOpacity += (overlay.cloudShadowOpacity - p.cloudShadowOpacity) * t;
+    p.nearCloudOpacity += (overlay.nearCloudOpacity - p.nearCloudOpacity) * t;
+    p.forestFog += (overlay.forestFog - p.forestFog) * t;
+    p.exposureMul += (overlay.exposureMul - p.exposureMul) * t;
+}
+
+/**
+ * Composes the three independent axes into one numeric target: time of day
+ * owns the base sky/sun/stars/exposure/sun-direction, season lightly biases
+ * the tint, and — unless clear — the weather kind pulls sky/fog/light/clouds
+ * toward its overlay by `weatherIntensity`. Night keeps zero clouds only
+ * while clear; a storm can still roll clouds in over a clear night sky.
+ */
+function composeTarget(atmosphere: Atmosphere): ComposedTarget {
+    const time = TIME_PRESETS[atmosphere.timeOfDay];
+    const p: TimePreset = { ...time, sunPos: time.sunPos };
+    applySeasonBias(p, atmosphere.season);
+    if (atmosphere.weatherKind === 'clear' && atmosphere.timeOfDay === 'night') {
+        p.cloudOpacity = 0;
+        p.cloudShadowOpacity = 0;
+        p.nearCloudOpacity = 0;
+    }
+    if (atmosphere.weatherKind !== 'clear') {
+        lerpOverlay(p, atmosphere.weatherKind === 'rain' ? RAIN_OVERLAY : SNOW_OVERLAY, atmosphere.weatherIntensity);
+    }
+    return {
+        ...p,
+        rain: atmosphere.weatherKind === 'rain' ? atmosphere.weatherIntensity : 0,
+        snow: atmosphere.weatherKind === 'snow' ? atmosphere.weatherIntensity : 0,
+    };
+}
+
+const SEASON_CYCLE: Season[] = ['spring', 'summer', 'autumn', 'winter'];
+const TIME_CYCLE: TimeOfDay[] = ['dawn', 'day', 'golden', 'dusk', 'night'];
+const WEATHER_STEPS: { kind: WeatherKind; intensity: number }[] = [
+    { kind: 'clear', intensity: 0 },
+    { kind: 'rain', intensity: 0.45 },
+    { kind: 'rain', intensity: 1 },
+    { kind: 'snow', intensity: 0.4 },
+    { kind: 'snow', intensity: 1 },
+];
+
+/** Named year-tour beat: coherent season × time × weather (hotkey N). */
+export interface AtmosphereScene {
+    label: string;
+    atmosphere: Atmosphere;
+}
+
+/**
+ * Linear showcase tour (no snow in warm seasons). Hotkey N advances;
+ * hotkey X cycles season alone (Y = time, V = weather — clustered by C).
+ */
+export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
+    {
+        label: 'Spring morning',
+        atmosphere: { season: 'spring', timeOfDay: 'dawn', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Spring rain',
+        atmosphere: { season: 'spring', timeOfDay: 'day', weatherKind: 'rain', weatherIntensity: 0.5 },
+    },
+    {
+        label: 'Summer noon',
+        atmosphere: { season: 'summer', timeOfDay: 'day', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Summer golden',
+        atmosphere: { season: 'summer', timeOfDay: 'golden', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Summer night',
+        atmosphere: { season: 'summer', timeOfDay: 'night', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Autumn dusk',
+        atmosphere: { season: 'autumn', timeOfDay: 'dusk', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Autumn storm',
+        atmosphere: { season: 'autumn', timeOfDay: 'day', weatherKind: 'rain', weatherIntensity: 0.85 },
+    },
+    {
+        label: 'Winter snow',
+        atmosphere: { season: 'winter', timeOfDay: 'day', weatherKind: 'snow', weatherIntensity: 0.9 },
+    },
+    {
+        label: 'Deep winter',
+        atmosphere: { season: 'winter', timeOfDay: 'night', weatherKind: 'snow', weatherIntensity: 1 },
+    },
+];
+
+/** seconds for the exponential ease toward a new target (sky + foliage share this) */
+export const TRANSITION_TAU = 3.5;
 const RAIN_DROPS = 2200;
 const RAIN_BOX = { x: 170, y: 80, z: 170 };
 const STAR_COUNT = 1400;
+const SNOW_FLAKES = 1600;
+/** World-space slab around the camera. `y` is the vertical span above the camera. */
+const SNOW_BOX = { x: 190, y: 110, z: 190 };
+/** How far below the camera flakes may fall before respawning (keeps near-ground fill). */
+const SNOW_BELOW = 55;
+/** ground snow builds up while it's snowing and melts (slower) once it stops.
+ *  Seconds for an exponential ease — lower = faster. Production ~45 / 100;
+ *  use ~8 / 20 while testing the look. */
+const SNOW_COVER_GROW_TAU = 8;
+const SNOW_COVER_MELT_TAU = 20;
 
 /** hooks into the scene/scenery objects the weather drives */
 export interface WeatherHandles {
@@ -161,9 +446,12 @@ export interface WeatherHandles {
     /** world-space scenery group — rain + near clouds live here */
     worldGroup: Group;
     map: BattleMap;
+    renderer: WebGLRenderer;
+    /** fired whenever the season changes, so scenery can retint vegetation */
+    onSeasonChange?: (season: Season) => void;
 }
 
-/** a fully numeric/lerpable copy of a preset, used as the live state */
+/** a fully numeric/lerpable copy of a composed target, used as the live state */
 class WeatherState {
     skyZenith = new Color();
     skyMid = new Color();
@@ -186,12 +474,14 @@ class WeatherState {
     forestFog = 0;
     stars = 0;
     rain = 0;
+    snow = 0;
+    exposureMul = 1;
 
-    set(p: WeatherPreset): void {
+    set(p: ComposedTarget): void {
         this.lerpToward(p, 1);
     }
 
-    lerpToward(p: WeatherPreset, k: number): void {
+    lerpToward(p: ComposedTarget, k: number): void {
         this.skyZenith.lerp(new Color(p.skyZenith), k);
         this.skyMid.lerp(new Color(p.skyMid), k);
         this.skyHorizon.lerp(new Color(p.skyHorizon), k);
@@ -213,24 +503,49 @@ class WeatherState {
         this.forestFog += (p.forestFog - this.forestFog) * k;
         this.stars += (p.stars - this.stars) * k;
         this.rain += (p.rain - this.rain) * k;
+        this.snow += (p.snow - this.snow) * k;
+        this.exposureMul += (p.exposureMul - this.exposureMul) * k;
     }
 }
 
 /**
- * Scenario system: sunny / rain / night presets eased into smoothly.
- * Deterministically rolls a new scenario at most once per round (seeded, so
- * network peers stay in sync); `next()` cycles manually (hotkey N).
+ * Atmosphere system: season / weather / time of day are independent axes,
+ * composed into one numeric target every time any of them changes and eased
+ * into smoothly (see `composeTarget` + `WeatherState`). Named year-tour
+ * scenes (`ATMOSPHERE_SCENES`) drive each deployment via `onRound` (round 1 =
+ * first scene, then advance; wraps). Cheat keys N / X / V / Y override live
+ * for debugging until the next deploy start.
  */
 export class Weather {
     private readonly state = new WeatherState();
-    private target: WeatherPreset = WEATHER_PRESETS.sunny;
+    private atmosphere: Atmosphere = {
+        season: 'spring',
+        weatherKind: 'clear',
+        weatherIntensity: 0,
+        timeOfDay: 'dawn',
+    };
+    /** index into {@link ATMOSPHERE_SCENES}; -1 until first N / explicit apply */
+    private sceneIndex = 0; // Spring morning
+    private target: ComposedTarget;
     private readonly rng: () => number;
+    /** renderer's tone-mapping exposure before the weather system starts driving it */
+    private readonly baseExposure: number;
 
     private readonly rainGroup = new Group();
     private readonly rainMaterial: PointsMaterial;
     private readonly rainPositions: Float32Array;
     private readonly rainSpeeds: Float32Array;
     private readonly rainGeometry: BufferGeometry;
+
+    private readonly snowGroup = new Group();
+    private readonly snowMaterial: PointsMaterial;
+    private readonly snowPositions: Float32Array;
+    private readonly snowSpeeds: Float32Array;
+    private readonly snowPhase: Float32Array;
+    private readonly snowGeometry: BufferGeometry;
+    private snowTime = 0;
+    /** 0..1 ground accumulation — builds while it snows, melts (slower) once it stops */
+    private snowCover = 0;
 
     private readonly starMaterial: PointsMaterial;
     private readonly nearClouds: { mesh: Mesh; speed: number }[] = [];
@@ -242,7 +557,10 @@ export class Weather {
         seed: number,
     ) {
         this.rng = mulberry32(seed);
+        this.target = composeTarget(this.atmosphere);
         this.state.set(this.target);
+        this.baseExposure = h.renderer.toneMappingExposure;
+        h.onSeasonChange?.(this.atmosphere.season);
 
         // --- rain: one Points cloud in a camera-following box
         this.rainPositions = new Float32Array(RAIN_DROPS * 3);
@@ -269,6 +587,35 @@ export class Weather {
         this.rainGroup.add(rain);
         this.rainGroup.visible = false;
         h.worldGroup.add(this.rainGroup);
+
+        // --- snow: soft round flakes, much slower than rain and drifting side to side
+        this.snowPositions = new Float32Array(SNOW_FLAKES * 3);
+        this.snowSpeeds = new Float32Array(SNOW_FLAKES);
+        this.snowPhase = new Float32Array(SNOW_FLAKES);
+        const snowRoll = mulberry32(seed ^ 0x50f7);
+        for (let i = 0; i < SNOW_FLAKES; i++) {
+            this.snowPositions[i * 3] = (snowRoll() * 2 - 1) * SNOW_BOX.x;
+            // start distributed through a tall column; first updates re-anchor to camera
+            this.snowPositions[i * 3 + 1] = snowRoll() * (SNOW_BOX.y + SNOW_BELOW);
+            this.snowPositions[i * 3 + 2] = (snowRoll() * 2 - 1) * SNOW_BOX.z;
+            this.snowSpeeds[i] = 4 + snowRoll() * 7;
+            this.snowPhase[i] = snowRoll() * Math.PI * 2;
+        }
+        this.snowGeometry = new BufferGeometry();
+        this.snowGeometry.setAttribute('position', new BufferAttribute(this.snowPositions, 3));
+        this.snowMaterial = new PointsMaterial({
+            map: makeSnowflakeTexture(),
+            color: 0xffffff,
+            size: 3.4,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+        });
+        const snowPoints = new Points(this.snowGeometry, this.snowMaterial);
+        snowPoints.frustumCulled = false;
+        this.snowGroup.add(snowPoints);
+        this.snowGroup.visible = false;
+        h.worldGroup.add(this.snowGroup);
 
         // --- stars: points pinned to the (camera-following) sky dome shell
         const starPositions = new Float32Array(STAR_COUNT * 3);
@@ -380,31 +727,126 @@ export class Weather {
     private readonly sunDisc: Sprite;
     private readonly moon: Sprite;
 
-    get currentId(): WeatherId {
-        return this.target.id;
+    get season(): Season {
+        return this.atmosphere.season;
     }
 
-    /** manual cycle (hotkey) */
-    next(): void {
-        const i = CYCLE.indexOf(this.target.id);
-        this.setTarget(CYCLE[(i + 1) % CYCLE.length]!);
+    get weatherKind(): WeatherKind {
+        return this.atmosphere.weatherKind;
     }
 
-    setTarget(id: WeatherId): void {
-        this.target = WEATHER_PRESETS[id];
+    get weatherIntensity(): number {
+        return this.atmosphere.weatherIntensity;
+    }
+
+    get timeOfDay(): TimeOfDay {
+        return this.atmosphere.timeOfDay;
+    }
+
+    /** immutable copy of the current atmosphere — stash it, then `setAtmosphere` it back later */
+    get snapshot(): Atmosphere {
+        return { ...this.atmosphere };
     }
 
     /**
-     * Once per round: maybe drift to another scenario. Consumes the seeded
-     * stream identically on every peer, so the sky stays in sync online.
+     * 0..1 how much snow currently lies on the ground — lags the sky, melts
+     * slowly. Quadratic ease-in on top of the raw accumulator (see
+     * `snowCover`) so the very start of a snowfall stays close to bare ground
+     * for a while instead of an immediately-visible wash.
+     */
+    get groundSnow(): number {
+        return this.snowCover * this.snowCover;
+    }
+
+    /** compact label for cinema / debug — e.g. `1/11 Spring morning` or `custom` */
+    sceneStatus(): string {
+        const scene = ATMOSPHERE_SCENES[this.sceneIndex];
+        if (!scene) return 'custom';
+        return `${this.sceneIndex + 1}/${ATMOSPHERE_SCENES.length} ${scene.label}`;
+    }
+
+    /** compact live-state dump for the debug overlay — for finetuning presets */
+    debugLines(): string[] {
+        const s = this.state;
+        const a = this.atmosphere;
+        const hex = (c: Color) => `#${c.getHexString()}`;
+        return [
+            `scene ${this.sceneStatus()}`,
+            `season ${a.season}  weather ${a.weatherKind} ${(a.weatherIntensity * 100).toFixed(0)}%  time ${a.timeOfDay}`,
+            `ground-snow accum ${(this.snowCover * 100).toFixed(0)}% visual ${(this.groundSnow * 100).toFixed(0)}%`,
+            `sky zenith ${hex(s.skyZenith)} mid ${hex(s.skyMid)} horizon ${hex(s.skyHorizon)}`,
+            `fog near ${s.fogNear.toFixed(0)} far ${s.fogFar.toFixed(0)}`,
+            `sun ${hex(s.sun)} int ${s.sunIntensity.toFixed(2)}  hemi ${hex(s.hemiSky)}/${hex(s.hemiGround)} int ${s.hemiIntensity.toFixed(2)}`,
+            `exposureMul ${s.exposureMul.toFixed(2)}  glow ${hex(s.glow)} op ${s.glowOpacity.toFixed(2)}`,
+            `rain ${s.rain.toFixed(2)}  snow ${s.snow.toFixed(2)}  stars ${s.stars.toFixed(2)}  forestFog ${s.forestFog.toFixed(2)}`,
+        ];
+    }
+
+    /** partial update — merge in whichever axes changed and recompose the target */
+    setAtmosphere(partial: Partial<Atmosphere>): void {
+        const prevSeason = this.atmosphere.season;
+        this.atmosphere = { ...this.atmosphere, ...partial };
+        this.target = composeTarget(this.atmosphere);
+        if (this.atmosphere.season !== prevSeason) this.h.onSeasonChange?.(this.atmosphere.season);
+    }
+
+    /**
+     * Apply a full named scene (season + weather + time). Used by the N carousel;
+     * keeps {@link sceneIndex} in sync when `index` is passed.
+     */
+    setScene(scene: Atmosphere, index?: number): void {
+        if (index !== undefined) this.sceneIndex = index;
+        else this.sceneIndex = -1;
+        const prevSeason = this.atmosphere.season;
+        this.atmosphere = { ...scene };
+        this.target = composeTarget(this.atmosphere);
+        if (this.atmosphere.season !== prevSeason) this.h.onSeasonChange?.(this.atmosphere.season);
+    }
+
+    /** Hotkey N: next year-tour beat (season × time × weather). */
+    nextScene(): void {
+        const i = this.sceneIndex < 0 ? 0 : (this.sceneIndex + 1) % ATMOSPHERE_SCENES.length;
+        const scene = ATMOSPHERE_SCENES[i]!;
+        this.setScene(scene.atmosphere, i);
+    }
+
+    /** Hotkey X: season only — weather & time stay put (marks scene as custom). */
+    nextSeason(): void {
+        const i = SEASON_CYCLE.indexOf(this.atmosphere.season);
+        this.sceneIndex = -1;
+        this.setAtmosphere({ season: SEASON_CYCLE[(i + 1) % SEASON_CYCLE.length]! });
+    }
+
+    /** manual cycle (hotkey V): clear → rain 0.45 → rain 1 → snow 0.4 → snow 1 → clear… */
+    nextWeather(): void {
+        const i = WEATHER_STEPS.findIndex(
+            (step) =>
+                step.kind === this.atmosphere.weatherKind &&
+                Math.abs(step.intensity - this.atmosphere.weatherIntensity) < 0.01,
+        );
+        const next = WEATHER_STEPS[(i + 1) % WEATHER_STEPS.length]!;
+        this.sceneIndex = -1;
+        this.setAtmosphere({ weatherKind: next.kind, weatherIntensity: next.intensity });
+    }
+
+    /** manual cycle (hotkey Y): dawn → day → golden → dusk → night → dawn… */
+    nextTime(): void {
+        const i = TIME_CYCLE.indexOf(this.atmosphere.timeOfDay);
+        this.sceneIndex = -1;
+        this.setAtmosphere({ timeOfDay: TIME_CYCLE[(i + 1) % TIME_CYCLE.length]! });
+    }
+
+    /**
+     * Each deployment start: apply the year-tour scene for this round
+     * (round 1 → scene 1, … wraps after the last). Deterministic — no RNG —
+     * so peers stay in sync. Cheat keys (N / X / V / Y) still override live
+     * for debugging; the next deploy start snaps back to the round's scene.
      */
     onRound(round: number): void {
-        const roll = this.rng();
-        const pick = this.rng();
-        if (round <= 1 || roll >= 0.45) return;
-        // weighted: sunny half the time, rain/night a quarter each
-        const id: WeatherId = pick < 0.5 ? 'sunny' : pick < 0.75 ? 'rain' : 'night';
-        this.setTarget(id);
+        const n = ATMOSPHERE_SCENES.length;
+        const i = ((round - 1) % n + n) % n;
+        const scene = ATMOSPHERE_SCENES[i]!;
+        this.setScene(scene.atmosphere, i);
     }
 
     update(dtSeconds: number, cameraPos: Vector3): void {
@@ -438,6 +880,7 @@ export class Weather {
         h.hemi.color.copy(s.hemiSky);
         h.hemi.groundColor.copy(s.hemiGround);
         h.hemi.intensity = s.hemiIntensity;
+        h.renderer.toneMappingExposure = this.baseExposure * s.exposureMul;
 
         const glowMat = h.glow.material;
         glowMat.color.copy(s.glow);
@@ -478,6 +921,13 @@ export class Weather {
         }
 
         this.updateRain(dtSeconds, cameraPos);
+        this.updateSnow(dtSeconds, cameraPos);
+
+        // ground accumulation lags well behind the sky: builds slowly while it
+        // actively snows, melts even slower once the weather moves on
+        const targetCover = this.atmosphere.weatherKind === 'snow' ? this.atmosphere.weatherIntensity : 0;
+        const tau = targetCover > this.snowCover ? SNOW_COVER_GROW_TAU : SNOW_COVER_MELT_TAU;
+        this.snowCover += (targetCover - this.snowCover) * Math.min(1, dtSeconds / tau);
     }
 
     private updateRain(dt: number, cameraPos: Vector3): void {
@@ -507,6 +957,58 @@ export class Weather {
         }
         this.rainGeometry.attributes.position!.needsUpdate = true;
     }
+
+    private updateSnow(dt: number, cameraPos: Vector3): void {
+        this.snowMaterial.opacity = this.state.snow * 0.8;
+        const active = this.state.snow > 0.02;
+        this.snowGroup.visible = active;
+        if (!active) return;
+        this.snowTime += dt;
+        // Camera-relative volume: XZ wraps like rain; Y spans from below the
+        // camera up into the sky so the top of the frustum stays filled when
+        // zoomed out / pitched (fixed world Y=90 left the upper screen empty).
+        const p = this.snowPositions;
+        const wind = 4;
+        const yCeil = cameraPos.y + SNOW_BOX.y;
+        const yFloor = cameraPos.y - SNOW_BELOW;
+        for (let i = 0; i < SNOW_FLAKES; i++) {
+            const sway = Math.sin(this.snowTime * 0.6 + this.snowPhase[i]!) * 3.2;
+            p[i * 3] = p[i * 3]! + (wind + sway) * dt;
+            p[i * 3 + 1] = p[i * 3 + 1]! - this.snowSpeeds[i]! * dt;
+            if (p[i * 3 + 1]! < yFloor) {
+                p[i * 3 + 1] = yCeil;
+                p[i * 3] = cameraPos.x + (Math.random() * 2 - 1) * SNOW_BOX.x;
+                p[i * 3 + 2] = cameraPos.z + (Math.random() * 2 - 1) * SNOW_BOX.z;
+            } else if (p[i * 3 + 1]! > yCeil + 5) {
+                // camera zoomed/moved under a flake — drop it back into the slab
+                p[i * 3 + 1] = yFloor + Math.random() * (yCeil - yFloor);
+            }
+            const dx = p[i * 3]! - cameraPos.x;
+            if (dx > SNOW_BOX.x) p[i * 3] = p[i * 3]! - 2 * SNOW_BOX.x;
+            else if (dx < -SNOW_BOX.x) p[i * 3] = p[i * 3]! + 2 * SNOW_BOX.x;
+            const dz = p[i * 3 + 2]! - cameraPos.z;
+            if (dz > SNOW_BOX.z) p[i * 3 + 2] = p[i * 3 + 2]! - 2 * SNOW_BOX.z;
+            else if (dz < -SNOW_BOX.z) p[i * 3 + 2] = p[i * 3 + 2]! + 2 * SNOW_BOX.z;
+        }
+        this.snowGeometry.attributes.position!.needsUpdate = true;
+    }
+}
+
+/** soft round flake — a diffuse dot, unlike rain's crisp streak */
+function makeSnowflakeTexture(): CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 24;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(12, 12, 0, 12, 12, 12);
+    grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0.7)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 24, 24);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
 }
 
 /** thin vertical white streak — reads as a falling drop at RTS pitch */
