@@ -181,7 +181,10 @@ const RAIN_DROPS = 2200;
 const RAIN_BOX = { x: 170, y: 80, z: 170 };
 const STAR_COUNT = 1400;
 const SNOW_FLAKES = 1600;
-const SNOW_BOX = { x: 190, y: 90, z: 190 };
+/** World-space slab around the camera. `y` is the vertical span above the camera. */
+const SNOW_BOX = { x: 190, y: 110, z: 190 };
+/** How far below the camera flakes may fall before respawning (keeps near-ground fill). */
+const SNOW_BELOW = 55;
 /** ground snow builds up while it's snowing and melts (slower) once it stops.
  *  Seconds for an exponential ease — lower = faster. Production ~45 / 100;
  *  use ~8 / 20 while testing the look. */
@@ -343,7 +346,8 @@ export class Weather {
         const snowRoll = mulberry32(seed ^ 0x50f7);
         for (let i = 0; i < SNOW_FLAKES; i++) {
             this.snowPositions[i * 3] = (snowRoll() * 2 - 1) * SNOW_BOX.x;
-            this.snowPositions[i * 3 + 1] = snowRoll() * SNOW_BOX.y;
+            // start distributed through a tall column; first updates re-anchor to camera
+            this.snowPositions[i * 3 + 1] = snowRoll() * (SNOW_BOX.y + SNOW_BELOW);
             this.snowPositions[i * 3 + 2] = (snowRoll() * 2 - 1) * SNOW_BOX.z;
             this.snowSpeeds[i] = 4 + snowRoll() * 7;
             this.snowPhase[i] = snowRoll() * Math.PI * 2;
@@ -641,18 +645,24 @@ export class Weather {
         this.snowGroup.visible = active;
         if (!active) return;
         this.snowTime += dt;
-        // same world-space wrap-around-camera trick as rain, but flakes fall
-        // slowly and sway side to side instead of streaking on the wind
+        // Camera-relative volume: XZ wraps like rain; Y spans from below the
+        // camera up into the sky so the top of the frustum stays filled when
+        // zoomed out / pitched (fixed world Y=90 left the upper screen empty).
         const p = this.snowPositions;
         const wind = 4;
+        const yCeil = cameraPos.y + SNOW_BOX.y;
+        const yFloor = cameraPos.y - SNOW_BELOW;
         for (let i = 0; i < SNOW_FLAKES; i++) {
             const sway = Math.sin(this.snowTime * 0.6 + this.snowPhase[i]!) * 3.2;
             p[i * 3] = p[i * 3]! + (wind + sway) * dt;
             p[i * 3 + 1] = p[i * 3 + 1]! - this.snowSpeeds[i]! * dt;
-            if (p[i * 3 + 1]! < 0) {
-                p[i * 3 + 1] = SNOW_BOX.y;
+            if (p[i * 3 + 1]! < yFloor) {
+                p[i * 3 + 1] = yCeil;
                 p[i * 3] = cameraPos.x + (Math.random() * 2 - 1) * SNOW_BOX.x;
                 p[i * 3 + 2] = cameraPos.z + (Math.random() * 2 - 1) * SNOW_BOX.z;
+            } else if (p[i * 3 + 1]! > yCeil + 5) {
+                // camera zoomed/moved under a flake — drop it back into the slab
+                p[i * 3 + 1] = yFloor + Math.random() * (yCeil - yFloor);
             }
             const dx = p[i * 3]! - cameraPos.x;
             if (dx > SNOW_BOX.x) p[i * 3] = p[i * 3]! - 2 * SNOW_BOX.x;
