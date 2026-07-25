@@ -60,8 +60,9 @@ export function setHeightFogStrength(scale: number): void {
 		float mistHaze = clamp( 1.0 - fogNear / 1500.0, 0.0, 1.0 );
 		float mistCeil = mix( 4.0, 22.0, mistHaze );
 		float mist = 1.0 - smoothstep( mistCeil * 0.15, mistCeil, vFogWorldY );
-		// needs some distance before it builds up — keeps nearby units readable
-		mist *= smoothstep( 40.0, fogNear * 0.55 + 120.0, vFogDepth );
+		// hold mist off until past typical board depth so close weather fog
+		// doesn't stripe the field with a straight view-depth band
+		mist *= smoothstep( max( 180.0, fogNear * 0.45 ), fogNear * 0.85 + 160.0, vFogDepth );
 		fogFactor = max( fogFactor, mist * mix( 0.18, 0.5, mistHaze ) * ${scale.toFixed(2)} );`
                 : ''
         }

@@ -252,13 +252,15 @@ const RAIN_OVERLAY: WeatherOverlay = {
 };
 
 // overcast snowfall — pale cold sky, soft even light; ground accumulation is
-// handled separately by `Weather.groundSnow` so it lags/lingers realistically
+// handled separately by `Weather.groundSnow` so it lags/lingers realistically.
+// Fog stays past the board (~288×256): a close fogNear + height-mist used to
+// paint a straight darkened band across the far half (view-depth isoline).
 const SNOW_OVERLAY: WeatherOverlay = {
     skyZenith: 0x9fb4c4,
     skyMid: 0xc6d6de,
     skyHorizon: 0xe6eef2,
-    fogNear: 260,
-    fogFar: 950,
+    fogNear: 520,
+    fogFar: 1600,
     sun: 0xe2ecf4,
     sunIntensity: 1.0,
     hemiSky: 0xe2ecee,
