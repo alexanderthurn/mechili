@@ -60,6 +60,7 @@ import {
     NEAR_TREE_DIST,
     placeVegetationInstance,
     sceneryHqVegetation,
+    setBillboardSeason,
     setVegetationSeasonTint,
     setVegetationSnowCover,
     type VegetationKind,
@@ -377,12 +378,13 @@ export class Scenery {
     }
 
     /**
-     * Retints leaf/bush foliage (procedural + Tripo/billboard) via the shared
-     * `uSeasonLeaf` shader uniform — live, no scenery rebuild — and toggles
-     * the autumn leaf litter / spring flower bloom.
+     * Retints leaf/bush foliage (procedural + Tripo) via `uSeasonLeaf`, swaps
+     * far billboard albedo maps for spring/autumn art, and toggles autumn leaf
+     * litter / spring flower bloom.
      */
     setSeason(season: Season): void {
         setVegetationSeasonTint(season);
+        setBillboardSeason(season);
         if (this.leafLitter) this.leafLitter.visible = season === 'autumn';
         const flowerOpacity =
             season === 'spring' ? 1 : season === 'summer' ? 0.85 : season === 'autumn' ? 0.45 : 0.15;

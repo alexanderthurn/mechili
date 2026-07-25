@@ -55,9 +55,12 @@ const SPECS: Record<
         url: string;
         /** target local height in world units */
         height: number;
+        /** summer / default albedo */
         billboard: string;
         /** snow-laden billboard variant (mixed in by snow-line cover) */
         billboardSnow: string;
+        billboardSpring: string;
+        billboardAutumn: string;
     }
 > = {
     oak: {
@@ -66,6 +69,14 @@ const SPECS: Record<
         billboard: new URL('../../assets/textures/scenery/billboard-oak.png', import.meta.url).href,
         billboardSnow: new URL('../../assets/textures/scenery/billboard-oak-snow.png', import.meta.url)
             .href,
+        billboardSpring: new URL(
+            '../../assets/textures/scenery/billboard-oak-spring.png',
+            import.meta.url,
+        ).href,
+        billboardAutumn: new URL(
+            '../../assets/textures/scenery/billboard-oak-autumn.png',
+            import.meta.url,
+        ).href,
     },
     pine: {
         url: new URL('../../assets/models/scenery/tree-pine.glb', import.meta.url).href,
@@ -73,6 +84,14 @@ const SPECS: Record<
         billboard: new URL('../../assets/textures/scenery/billboard-pine.png', import.meta.url).href,
         billboardSnow: new URL('../../assets/textures/scenery/billboard-pine-snow.png', import.meta.url)
             .href,
+        billboardSpring: new URL(
+            '../../assets/textures/scenery/billboard-pine-spring.png',
+            import.meta.url,
+        ).href,
+        billboardAutumn: new URL(
+            '../../assets/textures/scenery/billboard-pine-autumn.png',
+            import.meta.url,
+        ).href,
     },
     bushRound: {
         url: new URL('../../assets/models/scenery/bush-round.glb', import.meta.url).href,
@@ -81,6 +100,14 @@ const SPECS: Record<
             .href,
         billboardSnow: new URL(
             '../../assets/textures/scenery/billboard-bush-round-snow.png',
+            import.meta.url,
+        ).href,
+        billboardSpring: new URL(
+            '../../assets/textures/scenery/billboard-bush-round-spring.png',
+            import.meta.url,
+        ).href,
+        billboardAutumn: new URL(
+            '../../assets/textures/scenery/billboard-bush-round-autumn.png',
             import.meta.url,
         ).href,
     },
@@ -93,6 +120,14 @@ const SPECS: Record<
             '../../assets/textures/scenery/billboard-bush-tall-snow.png',
             import.meta.url,
         ).href,
+        billboardSpring: new URL(
+            '../../assets/textures/scenery/billboard-bush-tall-spring.png',
+            import.meta.url,
+        ).href,
+        billboardAutumn: new URL(
+            '../../assets/textures/scenery/billboard-bush-tall-autumn.png',
+            import.meta.url,
+        ).href,
     },
 };
 
@@ -102,6 +137,10 @@ const cache = new Map<VegetationKind, VegetationAsset>();
 const billboardCache = new Map<VegetationKind, { geometry: BufferGeometry; material: MeshBasicMaterial }>();
 let loadPromise: Promise<void> | null = null;
 let billboardPromise: Promise<void> | null = null;
+/** Last season applied to billboard albedo maps (spring/autumn art; winter uses summer + snow mix). */
+let billboardSeason: Season = 'summer';
+
+type BillboardSeasonMaps = Record<Season, Texture>;
 
 /** Materials that receive the shared weather snow-line uniform. */
 const snowMaterials: { userData: { snowCoverUniform?: { value: number } } }[] = [];
@@ -195,6 +234,26 @@ export function setVegetationSeasonTint(season: Season): void {
     for (const m of seasonMaterials) {
         m.userData.seasonTintUniform?.value.set(r, g, b);
     }
+}
+
+/**
+ * Swap far-tree billboard albedo for spring/autumn art. Winter keeps the summer
+ * map and relies on the snow-line mix; no multiply tint (avoids double-staining).
+ */
+export function setBillboardSeason(season: Season): void {
+    billboardSeason = season;
+    for (const card of billboardCache.values()) {
+        applyBillboardSeasonMap(card.material, season);
+    }
+}
+
+function applyBillboardSeasonMap(material: MeshBasicMaterial, season: Season): void {
+    const maps = material.userData.seasonMaps as BillboardSeasonMaps | undefined;
+    if (!maps) return;
+    const next = maps[season] ?? maps.summer;
+    if (material.map === next) return;
+    material.map = next;
+    material.needsUpdate = true;
 }
 
 /**
@@ -344,12 +403,24 @@ export async function loadSceneryBillboards(): Promise<void> {
                 if (billboardCache.has(id)) return;
                 const spec = SPECS[id]!;
                 try {
-                    const [tex, snowTex] = await Promise.all([
+                    const [tex, snowTex, springTex, autumnTex] = await Promise.all([
                         texLoader.loadAsync(spec.billboard),
                         texLoader.loadAsync(spec.billboardSnow).catch(() => null),
+                        texLoader.loadAsync(spec.billboardSpring).catch(() => null),
+                        texLoader.loadAsync(spec.billboardAutumn).catch(() => null),
                     ]);
+                    for (const t of [tex, snowTex, springTex, autumnTex]) {
+                        if (t) t.colorSpace = SRGBColorSpace;
+                    }
                     const card = makeCrossCard(tex, spec.height, snowTex);
-                    if (id !== 'pine') attachSeasonTint(card.material); // pines stay green
+                    // Seasonal look comes from dedicated maps — skip multiply tint.
+                    card.material.userData.seasonMaps = {
+                        spring: springTex ?? tex,
+                        summer: tex,
+                        autumn: autumnTex ?? tex,
+                        winter: tex,
+                    } satisfies BillboardSeasonMaps;
+                    applyBillboardSeasonMap(card.material, billboardSeason);
                     billboardCache.set(id, card);
                     console.info(`[sceneryVegetation] billboard '${id}'`);
                 } catch (e) {
