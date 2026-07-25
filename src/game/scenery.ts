@@ -49,6 +49,7 @@ import {
 } from './worldTextures';
 import {
     BILLBOARD_SCALE,
+    attachVegetationSnow,
     createBillboardInstances,
     createVegetationInstances,
     loadSceneryBillboards,
@@ -56,6 +57,7 @@ import {
     NEAR_TREE_DIST,
     placeVegetationInstance,
     sceneryHqVegetation,
+    setVegetationSnowCover,
     type VegetationKind,
 } from './sceneryVegetation';
 
@@ -366,6 +368,7 @@ export class Scenery {
         this.skyGroup.position.set(cameraPos.x, 0, cameraPos.z);
         this.weather?.update(dtSeconds, cameraPos);
         if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
+        setVegetationSnowCover(this.groundSnowCover);
         const mat = this.cloudShadow.material as MeshBasicMaterial;
         mat.map!.offset.x += dtSeconds * 0.0035;
         mat.map!.offset.y += dtSeconds * 0.0012;
@@ -1154,6 +1157,9 @@ export class Scenery {
                 new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
                 (LEAFY + FIELD_LEAFY) * 2,
             );
+            attachVegetationSnow(trunks.material as MeshStandardMaterial, { strength: 0.55 });
+            attachVegetationSnow(cones.material as MeshStandardMaterial, { strength: 0.92 });
+            attachVegetationSnow(blobs.material as MeshStandardMaterial, { strength: 0.92 });
         }
         const rocks = new InstancedMesh(
             new IcosahedronGeometry(1.4, 0),
@@ -1166,6 +1172,7 @@ export class Scenery {
                 new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
                 bushCapacity,
             );
+            attachVegetationSnow(bushes.material as MeshStandardMaterial, { strength: 0.92 });
         }
 
         let trunkI = 0;

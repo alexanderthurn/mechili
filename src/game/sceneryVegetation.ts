@@ -47,29 +47,48 @@ export const BILLBOARD_BRIGHTNESS = 1.55;
 
 const SPECS: Record<
     VegetationKind,
-    { url: string; /** target local height in world units */ height: number; billboard: string }
+    {
+        url: string;
+        /** target local height in world units */
+        height: number;
+        billboard: string;
+        /** snow-laden billboard variant (mixed in by snow-line cover) */
+        billboardSnow: string;
+    }
 > = {
     oak: {
         url: new URL('../../assets/models/scenery/tree-oak.glb', import.meta.url).href,
         height: 10,
         billboard: new URL('../../assets/textures/scenery/billboard-oak.png', import.meta.url).href,
+        billboardSnow: new URL('../../assets/textures/scenery/billboard-oak-snow.png', import.meta.url)
+            .href,
     },
     pine: {
         url: new URL('../../assets/models/scenery/tree-pine.glb', import.meta.url).href,
         height: 12,
         billboard: new URL('../../assets/textures/scenery/billboard-pine.png', import.meta.url).href,
+        billboardSnow: new URL('../../assets/textures/scenery/billboard-pine-snow.png', import.meta.url)
+            .href,
     },
     bushRound: {
         url: new URL('../../assets/models/scenery/bush-round.glb', import.meta.url).href,
         height: 2.4,
         billboard: new URL('../../assets/textures/scenery/billboard-bush-round.png', import.meta.url)
             .href,
+        billboardSnow: new URL(
+            '../../assets/textures/scenery/billboard-bush-round-snow.png',
+            import.meta.url,
+        ).href,
     },
     bushTall: {
         url: new URL('../../assets/models/scenery/bush-tall.glb', import.meta.url).href,
         height: 3.2,
         billboard: new URL('../../assets/textures/scenery/billboard-bush-tall.png', import.meta.url)
             .href,
+        billboardSnow: new URL(
+            '../../assets/textures/scenery/billboard-bush-tall-snow.png',
+            import.meta.url,
+        ).href,
     },
 };
 
@@ -79,6 +98,76 @@ const cache = new Map<VegetationKind, VegetationAsset>();
 const billboardCache = new Map<VegetationKind, { geometry: BufferGeometry; material: MeshBasicMaterial }>();
 let loadPromise: Promise<void> | null = null;
 let billboardPromise: Promise<void> | null = null;
+
+/** Materials that receive the shared weather snow-line uniform. */
+const snowMaterials: { userData: { snowCoverUniform?: { value: number } } }[] = [];
+
+/**
+ * Drive vegetation snow from the same cover value as the ground shaders.
+ * Per-tree factor uses instance world Y against the descending snow line.
+ */
+export function setVegetationSnowCover(v: number): void {
+    for (const m of snowMaterials) {
+        if (m.userData.snowCoverUniform) m.userData.snowCoverUniform.value = v;
+    }
+}
+
+/**
+ * Mix toward snow when the tree's base sits under the advancing snow line
+ * (same math as meadow/board). Optional snowMap swaps billboard albedo.
+ */
+export function attachVegetationSnow(
+    material: MeshStandardMaterial | MeshBasicMaterial,
+    opts: { snowMap?: Texture | null; strength?: number } = {},
+): void {
+    if (material.userData.vegSnowAttached) return;
+    material.userData.vegSnowAttached = true;
+    snowMaterials.push(material);
+
+    const strength = opts.strength ?? 0.9;
+    const snowMap = opts.snowMap ?? null;
+    const prevCompile = material.onBeforeCompile;
+
+    material.onBeforeCompile = (shader, renderer) => {
+        prevCompile?.call(material, shader, renderer);
+        const cover = material.userData.snowCoverUniform ?? { value: 0 };
+        material.userData.snowCoverUniform = cover;
+        shader.uniforms.uSnowCover = cover;
+        if (snowMap) shader.uniforms.uSnowMap = { value: snowMap };
+
+        let header = 'uniform float uSnowCover;\n';
+        if (snowMap) header += 'uniform sampler2D uSnowMap;\n';
+
+        const inject =
+            `
+#ifdef USE_INSTANCING
+  vec3 treeBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+#else
+  vec3 treeBase = vec3(0.0);
+#endif
+  float alpineSnow = smoothstep(170.0, 235.0, treeBase.y);
+  float snowLine = mix(220.0, -15.0, uSnowCover);
+  float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, treeBase.y);
+  float snowF = max(alpineSnow, weatherSnow);
+` +
+            (snowMap
+                ? `
+  vec3 snowAlbedo = texture2D(uSnowMap, vMapUv).rgb;
+  diffuseColor.rgb = mix(diffuseColor.rgb, snowAlbedo, snowF * ${strength.toFixed(3)});
+`
+                : `
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF * ${strength.toFixed(3)});
+`);
+
+        shader.fragmentShader =
+            header +
+            shader.fragmentShader.replace(
+                '#include <color_fragment>',
+                `#include <color_fragment>\n${inject}`,
+            );
+    };
+    material.needsUpdate = true;
+}
 
 /** True when Tripo mid-poly trees replace the procedural forest (ultra only). */
 export function sceneryHqVegetation(quality: SceneryQuality): boolean {
@@ -135,12 +224,17 @@ function bake(root: Group): VegetationAsset {
     merged.computeBoundingSphere();
     matOut.envMapIntensity = 1.05;
     if (typeof matOut.metalness === 'number') matOut.metalness = Math.min(matOut.metalness, 0.15);
+    attachVegetationSnow(matOut, { strength: 0.88 });
     const box = new Box3().setFromObject(root);
     return { geometry: merged, material: matOut, height: box.max.y - box.min.y };
 }
 
 /** Crossed card: two planes at 90° so it reads from most RTS angles. */
-function makeCrossCard(tex: Texture, height: number): { geometry: BufferGeometry; material: MeshBasicMaterial } {
+function makeCrossCard(
+    tex: Texture,
+    height: number,
+    snowTex: Texture | null,
+): { geometry: BufferGeometry; material: MeshBasicMaterial } {
     const width = height * 1.05;
     const a = new PlaneGeometry(width, height);
     a.translate(0, height * 0.5, 0);
@@ -152,6 +246,7 @@ function makeCrossCard(tex: Texture, height: number): { geometry: BufferGeometry
     if (geometry !== a) b.dispose();
 
     tex.colorSpace = SRGBColorSpace;
+    if (snowTex) snowTex.colorSpace = SRGBColorSpace;
     const material = new MeshBasicMaterial({
         map: tex,
         color: new Color().setScalar(BILLBOARD_BRIGHTNESS),
@@ -160,6 +255,7 @@ function makeCrossCard(tex: Texture, height: number): { geometry: BufferGeometry
         side: DoubleSide,
         depthWrite: true,
     });
+    attachVegetationSnow(material, { snowMap: snowTex, strength: 1 });
     return { geometry, material };
 }
 
@@ -198,8 +294,11 @@ export async function loadSceneryBillboards(): Promise<void> {
                 if (billboardCache.has(id)) return;
                 const spec = SPECS[id]!;
                 try {
-                    const tex = await texLoader.loadAsync(spec.billboard);
-                    billboardCache.set(id, makeCrossCard(tex, spec.height));
+                    const [tex, snowTex] = await Promise.all([
+                        texLoader.loadAsync(spec.billboard),
+                        texLoader.loadAsync(spec.billboardSnow).catch(() => null),
+                    ]);
+                    billboardCache.set(id, makeCrossCard(tex, spec.height, snowTex));
                     console.info(`[sceneryVegetation] billboard '${id}'`);
                 } catch (e) {
                     console.error(`[sceneryVegetation] billboard '${id}' failed`, e);
