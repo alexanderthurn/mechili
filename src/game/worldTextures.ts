@@ -19,6 +19,7 @@ const barkUrl = url('../../assets/textures/bark.webp');
 const foliageUrl = url('../../assets/textures/foliage.webp');
 const rockUrl = url('../../assets/textures/rock.webp');
 const moonUrl = url('../../assets/textures/moon.webp');
+const iceAlbedoUrl = url('../../assets/textures/ice-albedo.webp');
 
 /** Field-photo tiles (processed from misc/photos/ via process-ground-photos.py). */
 const GRASS_PHOTO = [
@@ -51,6 +52,7 @@ export {
     foliageUrl,
     rockUrl,
     moonUrl,
+    iceAlbedoUrl,
 };
 
 export interface PhotoTextureSet {
@@ -70,6 +72,7 @@ const SRGB_URLS = new Set<string>([
     foliageUrl,
     rockUrl,
     moonUrl,
+    iceAlbedoUrl,
     ...GRASS_PHOTO.map((p) => p.albedo),
     ...DIRT_PHOTO.map((p) => p.albedo),
     ...ROCK_PHOTO.map((p) => p.albedo),
@@ -84,6 +87,7 @@ export const WORLD_TEXTURE_URLS: readonly string[] = [
     foliageUrl,
     rockUrl,
     moonUrl,
+    iceAlbedoUrl,
 ];
 
 /** HQ + field-photo set — only preloaded when the active tier wants it. */

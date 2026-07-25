@@ -785,6 +785,18 @@ export class BattleMap {
                     '\tvec3 pgDetail = pgTex / pgLum;\n' +
                     `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * ${g.strength.toFixed(2)} );\n`;
             }
+            // Soft macro before snow so the white wash matches the outer meadow
+            // (macro after snow was tinting the board frost green again).
+            inject +=
+                '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
+                '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
+            // Full weather snow UNDER board effects — same snow line as the
+            // meadow. Wear / oil / fire / acid paint on top so trails and
+            // hazards stay readable (snow never washes them out).
+            inject +=
+                '\tfloat snowLine = mix( 220.0, -15.0, uSnowCover );\n' +
+                '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
+                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.90, 0.94, 0.97 ), snowMask * 0.92 );\n';
             if (sand && sandMask) {
                 shader.uniforms.uSand = { value: sand };
                 shader.uniforms.uSandMask = { value: sandMask };
@@ -813,19 +825,6 @@ export class BattleMap {
                 '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
                 '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
-            // Soft macro only partially remaps HQ grass so desktop detail survives.
-            inject +=
-                '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
-                '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
-            // weather-driven snow — same descending snow line as outer meadow
-            // (scenery.ts), evaluated at board height (~0) so the field stays
-            // bare until snow reaches the foothills, then board + meadow floor
-            // whiten together. Hazards still melt snow locally.
-            inject +=
-                '\tfloat snowMelt = max( oilM, max( fireM, acidM ) );\n' +
-                '\tfloat snowLine = mix( 220.0, -15.0, uSnowCover );\n' +
-                '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
-                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.90, 0.94, 0.97 ), snowMask * 0.92 * ( 1.0 - snowMelt ) );\n';
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
@@ -912,7 +911,7 @@ export class BattleMap {
     /**
      * Swaps the macro-only ground material for the detailed one once the
      * generated grass textures arrive: a high-frequency tiled albedo+normal
-     * carries the blade detail, while the macro canvas (meadow drift, stripes,
+     * carries the blade detail, while the macro canvas (meadow drift,
      * dirt, flowers, sun wash, vignette, border) modulates it — divided by the
      * base tone so it acts as pure relative variation. Until then (or if the
      * files are missing) the ground keeps the plain macro look.
@@ -1019,21 +1018,6 @@ export class BattleMap {
             ctx.fill();
         }
 
-        // mown-lawn stripes: gentle diagonal light bands
-        {
-            const stripePx = 4 * CELL * TEX_SCALE;
-            const diag = Math.hypot(w, h);
-            ctx.save();
-            ctx.translate(w / 2, h / 2);
-            ctx.rotate(-0.32);
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = t.stripe;
-            for (let x = -diag / 2; x < diag / 2; x += stripePx * 2) {
-                ctx.fillRect(x, -diag / 2, stripePx, diag);
-            }
-            ctx.restore();
-        }
-
         // faint worn-earth patches — a lived-on field, kept very subtle
         for (let i = 0; i < 6 * density; i++) {
             const cx = rng() * w;
@@ -1097,7 +1081,7 @@ export class BattleMap {
         ctx.fillRect(0, 0, w, h);
 
         // wash unique lawn paint out near the border so the field edge meets
-        // the outer grass instead of cutting from stripes → plain meadow
+        // the outer grass instead of a hard painted cut
         {
             const rim = 16 * TEX_SCALE;
             ctx.fillStyle = t.base;

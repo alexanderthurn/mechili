@@ -64,8 +64,6 @@ export const THEME = {
         base: '#55a244',
         // large soft meadow variation — same hue family, gentle contrast
         meadow: ['#63b44e', '#478e38', '#5ba84f', '#6dbe56'],
-        // mown-lawn stripes
-        stripe: 'rgba(210, 245, 170, 0.06)',
         // grass blade strokes
         bladeDark: '#3c7c30',
         bladeBright: '#8ad85e',

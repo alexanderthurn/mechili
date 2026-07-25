@@ -42,6 +42,7 @@ import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND } from './grou
 import {
     barkUrl,
     foliageUrl,
+    iceAlbedoUrl,
     sandAlbedoUrl,
     loadGrassTextures,
     loadRockTextures,
@@ -159,6 +160,8 @@ export class Scenery {
     private weather: Weather | null = null;
 
     private waterTexture: CanvasTexture | null = null;
+    private waterMaterial: MeshStandardMaterial | null = null;
+    private waterFreezeUniform: { value: number } | null = null;
     /** drives the outer meadow's weather-driven snow blend (see `applyMeadowTexture`) */
     private outerGroundSnowUniform: { value: number } | null = null;
 
@@ -369,6 +372,15 @@ export class Scenery {
         this.weather?.update(dtSeconds, cameraPos);
         if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
         setVegetationSnowCover(this.groundSnowCover);
+        // lakes freeze once snow reaches meadow/board level (same snow-line gate)
+        if (this.waterFreezeUniform && this.waterMaterial?.userData.iceReady) {
+            const cover = this.groundSnowCover;
+            const snowLine = 220 - (220 - -15) * cover;
+            const freeze = Math.min(1, Math.max(0, (0 - (snowLine - 40)) / 55));
+            this.waterFreezeUniform.value = freeze;
+            this.waterMaterial.roughness = 0.18 + freeze * 0.55;
+            this.waterMaterial.opacity = 0.86 + freeze * 0.12;
+        }
         const mat = this.cloudShadow.material as MeshBasicMaterial;
         mat.map!.offset.x += dtSeconds * 0.0035;
         mat.map!.offset.y += dtSeconds * 0.0012;
@@ -384,10 +396,11 @@ export class Scenery {
             f.mesh.position.x = f.baseX + Math.sin(this.time * f.speed + f.phase) * 8;
             f.mesh.visible = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
         }
-        // slow ripple drift on the lakes
-        if (this.waterTexture) {
-            this.waterTexture.offset.x += dtSeconds * 0.006;
-            this.waterTexture.offset.y += dtSeconds * 0.0035;
+        // slow ripple drift on the lakes — stops once mostly frozen
+        if (this.waterTexture && (this.waterFreezeUniform?.value ?? 0) < 0.85) {
+            const thaw = 1 - (this.waterFreezeUniform?.value ?? 0);
+            this.waterTexture.offset.x += dtSeconds * 0.006 * thaw;
+            this.waterTexture.offset.y += dtSeconds * 0.0035 * thaw;
         }
         if (this.tuftMaterial?.userData.shader) {
             this.tuftMaterial.userData.shader.uniforms.uTime!.value = this.time;
@@ -397,7 +410,8 @@ export class Scenery {
     /**
      * The water table: one flat translucent plane at y = -1.1. It is hidden
      * under the terrain everywhere, EXCEPT where a lake basin dips below it.
-     * A painted ripple texture drifts slowly to make it read as water.
+     * A painted ripple texture drifts slowly to make it read as water; under
+     * snow cover it crossfades to a frozen ice albedo.
      */
     private createWater(): Mesh {
         const canvas = document.createElement('canvas');
@@ -437,16 +451,42 @@ export class Scenery {
 
         const geometry = new PlaneGeometry(3000, 3000);
         geometry.rotateX(-Math.PI / 2);
-        const mesh = new Mesh(
-            geometry,
-            new MeshStandardMaterial({
-                map: this.waterTexture,
-                transparent: true,
-                opacity: 0.86,
-                roughness: 0.18,
-                metalness: 0,
-            }),
-        );
+        const freezeUniform = { value: 0 };
+        const iceUniform: { value: import('three').Texture | null } = { value: null };
+        this.waterFreezeUniform = freezeUniform;
+        const material = new MeshStandardMaterial({
+            map: this.waterTexture,
+            transparent: true,
+            opacity: 0.86,
+            roughness: 0.18,
+            metalness: 0,
+        });
+        this.waterMaterial = material;
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.uFreeze = freezeUniform;
+            shader.uniforms.uIce = iceUniform;
+            shader.fragmentShader =
+                'uniform float uFreeze;\nuniform sampler2D uIce;\n' +
+                shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    `#include <map_fragment>
+	if (uFreeze > 0.001) {
+		vec3 iceCol = texture2D(uIce, vMapUv).rgb;
+		diffuseColor.rgb = mix(diffuseColor.rgb, iceCol, uFreeze);
+	}`,
+                );
+        };
+        void loadWorldTexture(iceAlbedoUrl).then((ice) => {
+            if (!ice) return;
+            ice.wrapS = ice.wrapT = RepeatWrapping;
+            ice.repeat.set(90, 90);
+            ice.colorSpace = SRGBColorSpace;
+            iceUniform.value = ice;
+            material.userData.iceReady = true;
+            material.needsUpdate = true;
+        });
+
+        const mesh = new Mesh(geometry, material);
         mesh.position.y = -1.1;
         mesh.receiveShadow = true;
         return mesh;
@@ -972,10 +1012,8 @@ export class Scenery {
             inject += `
     // permanent alpine snowcap — always on, independent of weather
     float alpineSnow = smoothstep(170.0, 235.0, vTerrainH);
-    // weather-driven cover: a soft snow line that descends from the peaks
-    // toward the meadow as uSnowCover grows (area-wide, not patchy).
-    // cover=0 → line near alpine (~220); cover=1 → below board level.
-    // Soft band keeps the advancing front from reading as a hard cliff.
+    // weather-driven cover: soft snow line descending from the peaks
+    // (full white at meadow level — matches the board wash).
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * (1.0 - vBeach);
     float snowF = max(alpineSnow, weatherSnow);
