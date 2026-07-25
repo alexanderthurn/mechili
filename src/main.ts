@@ -302,7 +302,9 @@ menu.innerHTML = `
     </div>
     <div class="m-matchmaking" style="display:none">
         <div class="m-spmode-title">Matchmaking</div>
-        <div class="m-toggle-row">
+        <!-- mode/Horde choice hidden for now (focus: 1v1 Horde only) — not
+             removed, just forced+hidden, so it's a one-line revert later -->
+        <div class="m-toggle-row" style="display:none">
             <label class="m-toggle-card">
                 <input type="radio" name="mmteam" value="1v1" checked>
                 <span class="m-ico">🧍</span><span class="m-label">1v1</span>
@@ -312,8 +314,8 @@ menu.innerHTML = `
                 <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
             </label>
         </div>
-        <label class="m-toggle-pill">
-            <input type="checkbox" class="mm-horde">
+        <label class="m-toggle-pill" style="display:none">
+            <input type="checkbox" class="mm-horde" checked>
             <span class="m-ico">🐗</span><span class="m-label">Horde Mode</span>
         </label>
         <div class="m-seats">
@@ -1940,7 +1942,8 @@ menu.addEventListener('click', (e) => {
     const mode = button.dataset.mode;
     if (
         !bootReady &&
-        (mode === 'sp-1v1' ||
+        (mode === 'single' ||
+            mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
             mode === 'matchmaking' ||
@@ -1968,10 +1971,10 @@ menu.addEventListener('click', (e) => {
 
     switch (mode) {
         case 'single':
-            lobbyEl.style.display = 'none';
-            stopRoomPoll();
-            mainButtonsEl.style.display = 'none';
-            spModeEl.style.display = '';
+            // simplified to 1v1 Horde only for now (see sp-1v1/sp-2v2 below,
+            // kept but unreachable from this button — not removed, so the
+            // full picker is a one-line revert away)
+            startLocalMatch({ horde: true });
             break;
         case 'sp-back':
             spModeEl.style.display = 'none';
@@ -2003,17 +2006,15 @@ menu.addEventListener('click', (e) => {
                 // creates a real public Steam lobby the instant it starts
                 // waiting, and safely abandoning that lobby if the player
                 // changes their mind first needs its own pass before the
-                // probe-first shortcut below is safe to extend there too
+                // probe-first shortcut below is safe to extend there too.
+                // Mode/Horde choice is forced+hidden in the HTML for now
+                // (1v1 Horde only) — Invite/Play still work as before.
                 showMatchmakingPicker();
                 break;
             }
-            // Try to find someone already waiting BEFORE asking anything.
-            // Joining an existing wait means taking the host's settings
-            // as-is (see beginNetGame: only the host's choices ever apply),
-            // so there's nothing meaningful to pick in that case — the
-            // simplified picker only ever appears for whoever ends up
-            // waiting themselves, the one point where a choice still matters.
-            tryQuickMatch(false);
+            // simplified to 1v1 Horde only for now — always committed (no
+            // picker to fall back to, there's nothing left to choose)
+            tryQuickMatch(true, true);
             break;
         }
         case 'mms-1v1':
