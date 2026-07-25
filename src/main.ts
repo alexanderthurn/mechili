@@ -36,16 +36,46 @@ import { openSuggest } from './suggest';
 import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
 import { THEME, menuStyles } from './theme';
 
-// dev override: tweak match settings from the URL, e.g. ?hp=100&build=20
+// dev override: tweak match settings from the URL, e.g. ?hp=100&build=20&nocards
 function settingsFromUrl(): GameSettings {
     const params = new URLSearchParams(location.search);
     const settings = structuredClone(DEFAULT_SETTINGS);
     const hp = Number(params.get('hp'));
     if (hp > 0) settings.startingHp = hp;
-    const build = Number(params.get('build'));
-    if (build > 0) settings.buildTimeSeconds = build;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
+
+    const parseTimer = (raw: string | null): number | number[] | null => {
+        if (!raw) return null;
+        const parts = raw
+            .split(',')
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isFinite(n) && n > 0);
+        if (parts.length === 0) return null;
+        return parts.length === 1 ? parts[0]! : parts;
+    };
+    const build = parseTimer(params.get('build'));
+    if (build !== null) settings.buildTimeSeconds = build;
+    const battle = parseTimer(params.get('battle'));
+    if (battle !== null) settings.battleTimeSeconds = battle;
+    const specialist = parseTimer(params.get('specialist'));
+    if (specialist !== null) settings.specialistTimeSeconds = specialist;
+    const card = parseTimer(params.get('card'));
+    if (card !== null) settings.cardTimeSeconds = card;
+
+    // between-round cards: ?nocards | ?roundCards=off | ?roundCards=3,6,9
+    if (params.has('nocards') || params.get('roundCards') === 'off') {
+        settings.roundCards = false;
+    } else {
+        const raw = params.get('roundCards');
+        if (raw) {
+            const rounds = raw
+                .split(',')
+                .map((s) => Number(s.trim()))
+                .filter((n) => Number.isFinite(n) && n > 0);
+            if (rounds.length > 0) settings.roundCards = rounds;
+        }
+    }
     return settings;
 }
 
@@ -998,6 +1028,7 @@ menu.addEventListener('click', (e) => {
             const settings = settingsFromUrl();
             settings.buildTimeSeconds = 60 * 60;
             settings.specialistTimeSeconds = 60 * 60;
+            settings.cardTimeSeconds = 60 * 60;
             startGame(settings);
             break;
         }

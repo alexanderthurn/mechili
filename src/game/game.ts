@@ -90,7 +90,7 @@ import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
-import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, type GameSettings } from './settings';
+import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, secondsForRound, shouldOfferRoundCards, type GameSettings } from './settings';
 import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
     BIG_METEOR_ID,
@@ -373,8 +373,14 @@ export class Game {
 
         // cheats / debug hotkeys (visual or single-player only)
         if (e.code === 'KeyN') {
-            // cycle weather: sunny → rain → night → …
+            // cycle weather: sunny → rain → snow → night → …
             this.weather?.next();
+            this.economy.credit('player', 1000);
+            this.settings.battleTimeSeconds = 500;
+            if (this.phase === 'battle' && this.sim) {
+                this.sim.setBattleSeconds(500);
+                this.phaseRemaining = 500 - this.sim.elapsed;
+            }
             return;
         }
         if (e.code === 'KeyU' && !this.net) {
@@ -547,7 +553,7 @@ export class Game {
         };
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
-            ? this.scenery.createWeather(this.scene, sun, hemi, seedFrom(this.seed, 'weather'))
+            ? this.scenery.createWeather(this.scene, sun, hemi, this.renderer, seedFrom(this.seed, 'weather'))
             : null;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // specialist streams are keyed by canonical side (different draws);
@@ -606,7 +612,7 @@ export class Game {
             },
             clock: () => ({
                 round: this.round,
-                t: Math.max(0, this.settings.buildTimeSeconds - this.phaseRemaining),
+                t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
             }),
             onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
@@ -1050,7 +1056,13 @@ export class Game {
         this.scene.add(this.scenery.group);
         if (sceneryWeatherFx(scenery)) {
             if (!this.scene.fog) this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
-            this.weather = this.scenery.createWeather(this.scene, this.sun, this.hemi, seedFrom(this.seed, 'weather'));
+            this.weather = this.scenery.createWeather(
+                this.scene,
+                this.sun,
+                this.hemi,
+                this.renderer,
+                seedFrom(this.seed, 'weather'),
+            );
             this.weather.setTarget(currentWeather);
         } else {
             // weather off: no fog and the default calm daylight
@@ -1230,7 +1242,7 @@ export class Game {
         this.round++;
         this.weather?.onRound(this.round);
         this.phase = 'build';
-        this.phaseRemaining = this.settings.buildTimeSeconds;
+        this.phaseRemaining = this.deploySeconds();
         // scars fade each round so the field heals over a few battles
         if (this.round > 1) this.map.fadeWear(0.68);
         this.placement.beginDeployment();
@@ -1330,8 +1342,8 @@ export class Game {
             this.opponent.onBuildPhase(this.round);
         }
 
-        // from round 2 on, both sides get a card offer at the round's start
-        if (this.round >= 2) this.offerRoundCards();
+        // between-round cards (schedule is a match setting — see roundCards)
+        if (shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
     }
 
     /**
@@ -1469,7 +1481,7 @@ export class Game {
     private showStarterPick(offer: StartCard[]): void {
         this.playerStarterOffer = [...offer];
         // the pick has its own short clock — expiry auto-picks at random
-        this.phaseRemaining = this.settings.specialistTimeSeconds;
+        this.phaseRemaining = secondsForRound(this.settings.specialistTimeSeconds, this.round);
         this.hud.showStartCards(offer, (cardId) => {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
@@ -1497,22 +1509,27 @@ export class Game {
         this.afterStarterPick();
     }
 
-    /** timer ran out during deployment with the round-card overlay still open — skip */
+    /** timer ran out during the card-pick clock — skip the offer */
     private autoSkipRoundCard(): void {
-        if (this.round < 2 || this.roundCardTaken.player || !this.awaitingCards) return;
+        if (this.roundCardTaken.player || !this.awaitingCards) return;
         this.hud.hideCardOverlay();
         this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId: null });
         this.awaitingCards = false;
     }
 
-    /** build-phase clock hit zero — resolve any open card pick, then lock in */
+    /** build-phase clock hit zero — finish card pick, or lock in deployment */
     private onDeployTimerExpired(): void {
         if (this.round === 0 && this.speciality.player === null) {
             this.autoPickSpecialist();
             return;
         }
         if (this.phase !== 'build' || this.deployReady.player) return;
-        this.autoSkipRoundCard();
+        // card pick has its own clock; when it ends, start the deploy clock
+        if (this.awaitingCards) {
+            this.autoSkipRoundCard();
+            this.phaseRemaining = this.deploySeconds();
+            return;
+        }
         this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
     }
 
@@ -1875,6 +1892,7 @@ export class Game {
             this.showStarterPick(starterOffer);
         } else if (this.pendingOffer && !this.roundCardTaken.player && this.phase === 'build') {
             this.awaitingCards = true;
+            this.phaseRemaining = this.cardSeconds();
             this.showRoundOffer(this.pendingOffer);
         }
         this.pendingOffer = null;
@@ -1897,7 +1915,7 @@ export class Game {
             this.sim.consumeEvents(); // discard visuals
         }
         if (!this.sim) return;
-        this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
+        this.phaseRemaining = this.battleSeconds() - this.sim.elapsed;
         if (toElapsed === undefined) {
             this.endBattlePhase();
         } else {
@@ -2142,10 +2160,32 @@ export class Game {
         return deck.slice(0, n);
     }
 
+    private deploySeconds(): number {
+        return secondsForRound(this.settings.buildTimeSeconds, this.round);
+    }
+
+    private battleSeconds(): number {
+        return secondsForRound(this.settings.battleTimeSeconds, this.round);
+    }
+
+    private cardSeconds(): number {
+        return secondsForRound(this.settings.cardTimeSeconds, this.round);
+    }
+
+    /** active build-phase budget (specialist / card pick / deploy) for the action clock */
+    private phaseBudgetSeconds(): number {
+        if (this.round === 0) {
+            return secondsForRound(this.settings.specialistTimeSeconds, this.round);
+        }
+        if (this.awaitingCards) return this.cardSeconds();
+        return this.deploySeconds();
+    }
+
     /**
      * The between-round card offer: both sides get the same 4 cards from a
      * shared stream. The enemy quietly picks; the player gets the overlay
-     * (the round clock waits). Skipping pays a small consolation instead.
+     * on a dedicated card-pick clock, then the deploy clock starts.
+     * Skipping pays a small consolation instead.
      */
     private offerRoundCards(): void {
         this.roundCardTaken.player = false;
@@ -2161,6 +2201,7 @@ export class Game {
         }
         this.opponent.onRoundCards(offer);
         this.awaitingCards = true;
+        this.phaseRemaining = this.cardSeconds();
         this.showRoundOffer(offer);
     }
 
@@ -2171,6 +2212,7 @@ export class Game {
             (cardId) => {
                 this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId });
                 this.awaitingCards = false;
+                this.phaseRemaining = this.deploySeconds();
             },
         );
     }
@@ -3025,7 +3067,7 @@ export class Game {
     private startBattlePhase(): void {
         this.placement.beginBattle();
         this.phase = 'battle';
-        this.phaseRemaining = this.settings.battleTimeSeconds;
+        this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
         this.placement.hiddenPlacements = false;
         this.placement.deselect();
@@ -3286,7 +3328,7 @@ export class Game {
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
-            battleSeconds: this.settings.battleTimeSeconds,
+            battleSeconds: this.battleSeconds(),
             hostParity: this.side === 'a' ? 0 : 1,
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
@@ -3647,7 +3689,7 @@ export class Game {
                 );
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
-                this.phaseRemaining = this.settings.battleTimeSeconds - this.sim.elapsed;
+                this.phaseRemaining = this.battleSeconds() - this.sim.elapsed;
                 if (this.sim.finished) this.endBattlePhase();
             }
         }
@@ -3659,6 +3701,7 @@ export class Game {
         this.rig.update(dtSeconds);
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
+        this.map.setSnowCover(this.scenery.groundSnowCover);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         this.placement.update(this.time, gameDt);
         if (this.phase === 'build') this.syncTacticVisuals();
@@ -3743,6 +3786,7 @@ export class Game {
             cpu: profile ? cpu.snapshot() : undefined,
             simCpu: simCpu,
             simSteps: simSteps || undefined,
+            weatherLines: this.weather?.debugLines(),
         }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.net && !this.matchOver && !this.hydrating) {
