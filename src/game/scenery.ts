@@ -1039,10 +1039,11 @@ export class Scenery {
                 }
                 inject += `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+    // same snow tint/strength as the board (see map.ts) so the field edge matches
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF * 0.92);`;
             } else {
                 inject += `
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), snowF);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF * 0.92);`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
