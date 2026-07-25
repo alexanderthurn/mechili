@@ -190,6 +190,8 @@ export class BattleMap {
 
     /** live sand-wear mask (null until ground textures finish loading) */
     private sandMask: CanvasTexture | null = null;
+    /** static match-start mud patches — drawn under snow; not stamped by units */
+    private baseSandMask: CanvasTexture | null = null;
     private sandCtx: CanvasRenderingContext2D | null = null;
     private sandW = 0;
     private sandH = 0;
@@ -380,21 +382,32 @@ export class BattleMap {
 
     /**
      * Ground wear mask (RGB): R = sand, G = blood, B = scorch.
-     * Starts with light sand patches; combat stamps accumulate. Sand stamps
-     * use source-over red so walking gradually washes blood/burns back to sand.
+     * Dynamic only — unit footprints / combat. Match-start mud lives in
+     * {@link baseSandMask} so weather snow can cover it.
      */
     private createSandMask(seed: number): CanvasTexture {
         const w = this.groundEffects === 'medium' ? 256 : 512;
         const h = Math.round((w * this.height) / this.width);
+        this.sandW = w;
+        this.sandH = h;
+        this.sandSeed = seed;
+
+        // static base mud (under snow)
+        const baseCanvas = document.createElement('canvas');
+        baseCanvas.width = w;
+        baseCanvas.height = h;
+        const baseCtx = baseCanvas.getContext('2d')!;
+        this.paintBaseSand(baseCtx, w, h, seed);
+        this.baseSandMask = new CanvasTexture(baseCanvas);
+
+        // live stamp mask starts empty
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d')!;
-        this.sandW = w;
-        this.sandH = h;
-        this.sandSeed = seed;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
         this.sandCtx = ctx;
-        this.paintBaseSand(ctx, w, h, seed);
         const tex = new CanvasTexture(canvas);
         this.sandMask = tex;
         return tex;
@@ -689,6 +702,7 @@ export class BattleMap {
             hazardMask: CanvasTexture;
             sand?: import('three').Texture | null;
             sandMask?: CanvasTexture | null;
+            baseSandMask?: CanvasTexture | null;
             // Soft circular field-photo accents (texture bombing + multiply).
             photoGrass?: readonly [import('three').Texture, import('three').Texture] | null;
             detail?: boolean;
@@ -698,6 +712,7 @@ export class BattleMap {
             hazardMask,
             sand = null,
             sandMask = null,
+            baseSandMask = null,
             photoGrass = null,
             detail = false,
         } = opts;
@@ -790,27 +805,43 @@ export class BattleMap {
             inject +=
                 '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
                 '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
-            // Full weather snow UNDER board effects — same snow line as the
-            // meadow. Wear / oil / fire / acid paint on top so trails and
-            // hazards stay readable (snow never washes them out).
+            if (sand && (baseSandMask || sandMask)) {
+                shader.uniforms.uSand = { value: sand };
+                extraUniforms += 'uniform sampler2D uSand;\n';
+            }
+            inject +=
+                '\tfloat preSnowLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );\n';
+            // Match-start mud UNDER snow (shows again when frost melts).
+            if (sand && baseSandMask) {
+                shader.uniforms.uBaseSandMask = { value: baseSandMask };
+                extraUniforms += 'uniform sampler2D uBaseSandMask;\n';
+                inject +=
+                    '\tfloat baseWearR = texture2D(uBaseSandMask, vMacroUv).r;\n' +
+                    '\tfloat baseSandM = smoothstep(0.06, 0.38, baseWearR - (preSnowLum - 0.25) * 0.35);\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vMapUv).rgb, baseSandM);\n';
+            }
+            // Soft weather frost. Unit footprints / blood / scorch paint after.
             inject +=
                 '\tfloat snowLine = mix( 220.0, -15.0, uSnowCover );\n' +
                 '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
-                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.92, 0.95, 0.98 ), snowMask * 0.92 );\n';
+                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.92, 0.95, 0.98 ), snowMask * 0.42 );\n';
             if (sand && sandMask) {
-                shader.uniforms.uSand = { value: sand };
                 shader.uniforms.uSandMask = { value: sandMask };
-                extraUniforms += 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n';
+                extraUniforms += 'uniform sampler2D uSandMask;\n';
                 inject +=
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
-                    '\tfloat sandLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n' +
+                    '\tfloat sandLum = preSnowLum;\n' +
                     '\tfloat scorchM = smoothstep(0.12, 0.45, wear.b);\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n' +
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
+                    // In snow: footprints = pressed pack (darker frost), not bare mud.
+                    // snowMask 0 → dirt trails; snowMask 1 → compacted snow with a hint of grit.
+                    '\tvec3 packedSnow = diffuseColor.rgb * vec3( 0.52, 0.58, 0.68 );\n' +
+                    '\tvec3 trailCol = mix( sandTexel, mix( packedSnow, sandTexel, 0.22 ), snowMask );\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandM);\n';
             }
             // oil / fire / acid — always, gameplay-readable on every quality setting
             inject +=
@@ -853,7 +884,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v10${sand && sandMask ? '-wear-rgb' : ''}${photoGrass ? '-pgblob' : ''}-${
+            `ground-hazard-v14${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pgblob' : ''}-${
                 useDetail ? groundDetailCacheKey(profile) : 'plain'
             }`;
     }
@@ -877,11 +908,12 @@ export class BattleMap {
         this.sandFlushAt = performance.now();
     }
 
-    /** Wipe unit wear and reseed light base patches (new match only). */
+    /** Wipe unit wear (new match). Base mud patches stay on their own layer. */
     clearSandWear(): void {
         const ctx = this.sandCtx;
         if (!ctx || !this.sandMask) return;
-        this.paintBaseSand(ctx, this.sandW, this.sandH, this.sandSeed);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, this.sandW, this.sandH);
         this.sandMask.needsUpdate = true;
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
@@ -945,6 +977,7 @@ export class BattleMap {
         const sandMask = sand && wearOn ? this.createSandMask(seed) : null;
         if (!sandMask) {
             this.sandMask = null;
+            this.baseSandMask = null;
             this.sandCtx = null;
         }
         const hazardMask = this.ensureHazardMask();
@@ -966,6 +999,7 @@ export class BattleMap {
             hazardMask,
             sand: sandMask ? sand : null,
             sandMask,
+            baseSandMask: this.baseSandMask,
             photoGrass,
             detail: true,
         });

@@ -1016,7 +1016,8 @@ export class Scenery {
     // (full white at meadow level — matches the board wash).
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * (1.0 - vBeach);
-    float snowF = max(alpineSnow, weatherSnow);
+    // alpine stays bright; weather frost on meadow/board is softer (matches map.ts)
+    float snowF = max(alpineSnow, weatherSnow * 0.42);
     float rockF = 0.0;`;
             if (rock) {
                 inject += `
@@ -1039,11 +1040,11 @@ export class Scenery {
                 }
                 inject += `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
-    // same snow tint/strength as the board (see map.ts) so the field edge matches
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF * 0.92);`;
+    // same snow tint as the board (see map.ts) so the field edge matches
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`;
             } else {
                 inject += `
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF * 0.92);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
