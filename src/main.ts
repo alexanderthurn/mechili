@@ -2189,6 +2189,12 @@ if (bulkVerify) {
             else runPending(joinLobby(roomParam, setStatus));
         });
     }
+    // ?spectate=mangoo — deep link straight into watching that host's match.
+    // Doesn't depend on the Rooms list showing it (spectate-register/-lookup
+    // predate today's list change) — the fastest way to test/share watching
+    // a specific match without waiting on a backend redeploy.
+    const spectateParam = new URLSearchParams(location.search).get('spectate');
+    if (spectateParam) startSpectateGame(spectateParam);
 }
 
 // Keep the main-menu gamepad cursor moving while the menu is visible.

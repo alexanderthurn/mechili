@@ -204,9 +204,11 @@ export type NetMessage =
      * Sent after flushing the outbound build buffer to the peer. Battle must
      * not start until both sides have locked in AND each has received the
      * other's `deployCaughtUp` (otherwise the second locker races ahead of
-     * the first's sell/buys still in flight).
-     */
-    | { type: 'deployCaughtUp'; round: number }
+     * the first's sell/buys still in flight). `side` is unused between the
+     * two real players (each already knows it can only mean "the other
+     * one") — set only when mirrored to spectators, who need to tell the
+     * two confirmations apart since they're watching both sides at once. */
+    | { type: 'deployCaughtUp'; round: number; side?: 'a' | 'b' }
     // ---- star topology (2v2+, N seats): host-relayed, own message family so
     // the classic 2-seat path above stays completely untouched ------------
     /** guest's opening handshake on connecting to a star (2v2+) room */

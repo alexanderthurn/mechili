@@ -277,6 +277,15 @@ export class Game {
     private deployFlushedToPeer = false;
     /** peer has flushed their build log to us this round (MP fog) */
     private deployCaughtUpFromPeer = false;
+    /** spectator-only equivalent of deployFlushedToPeer/deployCaughtUpFromPeer
+     *  — a spectator watches BOTH sides, so it needs both sides' confirmed-
+     *  flush signal (mirrored deployCaughtUp) before battle may start, or it
+     *  can flip phase the instant it merely SEES both endDeployment actions
+     *  — which (thanks to classic 1v1's gate-bypasses-buffer wire ordering)
+     *  can happen before one side's actual pre-lock-in build content has
+     *  even reached the host yet, let alone the spectator. See
+     *  maybeStartBattleAfterDeploy. */
+    private readonly spectateCaughtUp: Record<'a' | 'b', boolean> = { a: false, b: false };
     /** which sides finished watching this round's battle — the next build
      *  phase starts once both have (fast-forward speed is per-client) */
     private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
@@ -284,6 +293,10 @@ export class Game {
     private readonly remoteQueue: { round: number; action?: Action; undo?: boolean }[] = [];
     /** star mode's own incoming queue — canonical seat ids need no swapPerspective */
     private readonly starRemoteQueue: { round: number; seat: SeatId; action?: Action; undo?: boolean }[] = [];
+    /** spectator-only incoming queue — see drainSpectateQueue for why this
+     *  can't reuse starRemoteQueue/drainStarRemoteQueue despite the
+     *  identical shape */
+    private readonly spectateQueue: { round: number; seat: SeatId; action?: Action; undo?: boolean }[] = [];
     /** star host only: which (human) seats have finished watching this round's battle */
     private readonly starBattleReadySeats = new Set<SeatId>();
     /** star host only: this round's battle-start hash per seat (diagnostic desync check) */
@@ -1565,6 +1578,8 @@ export class Game {
         this.outboundBuildBuffer.length = 0;
         this.deployFlushedToPeer = false;
         this.deployCaughtUpFromPeer = false;
+        this.spectateCaughtUp.a = false;
+        this.spectateCaughtUp.b = false;
         this.battleReady.player = false;
         this.battleReady.enemy = false;
         this.starBattleReadySeats.clear();
@@ -1836,6 +1851,7 @@ export class Game {
         // marks end of our flush so the peer can start battle only after
         // applying the backlog (sells/buys/moves) that preceded this
         this.net.send({ type: 'deployCaughtUp', round: this.round });
+        this.mirrorToSpectators({ type: 'deployCaughtUp', round: this.round, side: this.localSeat() });
         this.maybeStartBattleAfterDeploy();
     }
 
@@ -1850,6 +1866,14 @@ export class Game {
         // during hydrate the full log is already applied — no wire catch-up wait
         if (this.net && !this.hydrating) {
             if (!this.deployFlushedToPeer || !this.deployCaughtUpFromPeer) return;
+        } else if (this.spectateSession && !this.hydrating && this.seats.length === 2) {
+            // classic-1v1-sourced spectating only: both endDeployment actions
+            // arriving is NOT sufficient proof everything for this round has
+            // arrived — see spectateCaughtUp. Star (2v2+) matches never send
+            // deployCaughtUp at all (every seat sends immediately there, no
+            // wire reordering risk — see sendStarBuildMessage's doc comment),
+            // so a spectator watching one has nothing to wait for here.
+            if (!this.spectateCaughtUp.a || !this.spectateCaughtUp.b) return;
         }
         this.spectatorHub?.flushBuildBuffers();
         this.startBattlePhase();
@@ -2181,18 +2205,26 @@ export class Game {
         }
     }
 
-    /** Wires a spectator's read-only connection to the host. Reuses the
-     *  exact same queue+drain path star matches already use for a passive
-     *  viewer's build traffic (`starRemoteQueue`/`drainStarRemoteQueue`,
-     *  which no-ops its relay half whenever `this.star` is null) — no
-     *  separate spectator-specific dispatch logic needed. Phase transitions
-     *  (build→battle, round advance) fall out for free too: once an
-     *  `endDeployment` for every seat on a side has been dispatched in the
-     *  order the host applied them, the same organic
-     *  `maybeStartBattleAfterDeploy`/`maybeStartNextRound` cascade that
-     *  already drives classic replay-watch of a FINISHED (2v2 or 1v1) match
-     *  fires identically here — determinism guarantees it, so there's no
-     *  need to also relay/handle `starBattleStart`/`starNextRound`. */
+    /** Wires a spectator's read-only connection to the host. Applies
+     *  incoming build actions via its own queue (`spectateQueue`/
+     *  `drainSpectateQueue`) — shaped just like `drainStarRemoteQueue` but
+     *  deliberately a separate copy, not a reuse: that method's "peer's seat
+     *  already locked in, ignore" guard is correct for a real star match
+     *  (every seat sends immediately, no reordering possible) but wrong here
+     *  — classic-1v1-sourced traffic relayed through `SpectatorHub` inherits
+     *  that protocol's own gate-vs-buffer reordering (an `endDeployment` can
+     *  reach the spectator before that same seat's earlier, still-buffered
+     *  build actions), which fed this spectator's copy of the exact bug
+     *  just fixed in `drainRemoteQueue` — a legitimate late-arriving buy/
+     *  move getting discarded because the seat already looked "ready".
+     *  Round-advance (battle→build) falls out for free from the same
+     *  organic `maybeStartNextRound` cascade already used by classic
+     *  replay-watch — no need to relay/handle `starBattleStart`/
+     *  `starNextRound`. Build→battle needs one more thing beyond "both
+     *  endDeployment actions arrived": see spectateCaughtUp/
+     *  maybeStartBattleAfterDeploy — merely SEEING both endDeployments is
+     *  not proof everything for the round has arrived, thanks to classic
+     *  1v1's gate-bypasses-buffer wire ordering. */
     private wireSpectateSession(session: SpectatorSession): void {
         this.spectateSession = session;
         session.attach((msg) => this.onSpectateMessage(msg));
@@ -2207,12 +2239,18 @@ export class Game {
         if (this.disposed || this.matchOver) return;
         if (msg.type === 'action') {
             const seat = msg.action.seat ?? primarySeatOf(this.seats, msg.action.team);
-            this.starRemoteQueue.push({ round: msg.round, seat, action: { ...msg.action, seat } });
-            this.drainStarRemoteQueue();
+            this.spectateQueue.push({ round: msg.round, seat, action: { ...msg.action, seat } });
+            this.drainSpectateQueue();
         } else if (msg.type === 'undo') {
             const seat = msg.seat ?? 0;
-            this.starRemoteQueue.push({ round: msg.round, seat, undo: true });
-            this.drainStarRemoteQueue();
+            this.spectateQueue.push({ round: msg.round, seat, undo: true });
+            this.drainSpectateQueue();
+        } else if (msg.type === 'deployCaughtUp') {
+            if (msg.side) this.spectateCaughtUp[msg.side] = true;
+            if (msg.round === this.round && this.phase === 'build') {
+                this.drainSpectateQueue();
+                this.maybeStartBattleAfterDeploy();
+            }
         } else if (msg.type === 'roster') {
             this.receivedRoster = msg.entries;
             this.pushSpectatorBadge();
@@ -2861,6 +2899,8 @@ export class Game {
             // would see the guest's still-withheld action early too
             this.mirrorBuildToSpectators(msg.payload, 'b');
         } else if (msg.type === 'deployCaughtUp') {
+            const peerSeat: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
+            this.mirrorToSpectators({ type: 'deployCaughtUp', round: msg.round, side: peerSeat });
             if (msg.round !== this.round || this.phase !== 'build') return;
             // peer's build backlog was sent just before this — apply any
             // still-queued actions first so sells/buys land before battle
@@ -3043,6 +3083,35 @@ export class Game {
                         { type: 'action', round: head.round, action: resolved },
                         head.seat,
                     );
+                }
+            }
+            this.syncRallyVisuals();
+        }
+    }
+
+    /** Spectator-only queue+drain — see the doc comment on
+     *  `wireSpectateSession` for why this is a deliberate copy of
+     *  `drainStarRemoteQueue` rather than a reuse. No "already locked in"
+     *  skip guard (a spectator never generates its own actions to send
+     *  back, so there's nothing to defend against here) and no relay call
+     *  (a spectator never forwards anything onward). */
+    private drainSpectateQueue(): void {
+        while (this.spectateQueue.length > 0) {
+            const head = this.spectateQueue[0]!;
+            if (head.round !== this.round || this.phase !== 'build') return;
+            this.spectateQueue.shift();
+            if (head.undo) {
+                this.dispatcher.undoLast(head.round, head.seat);
+            } else if (head.action) {
+                const team = this.seats[head.seat]?.team;
+                if (team) {
+                    const resolved = { ...head.action, team, seat: head.seat };
+                    this.dispatcher.dispatch(resolved);
+                    if (head.action.kind === 'chooseCard') {
+                        this.refreshShopHud();
+                        this.syncSpecialities();
+                        this.maybeStartMatch();
+                    }
                 }
             }
             this.syncRallyVisuals();
@@ -4794,6 +4863,7 @@ export class Game {
         this.updateSelectionUi();
         this.drainRemoteQueue();
         this.drainStarRemoteQueue();
+        this.drainSpectateQueue();
         const waitingForPeer =
             (this.net !== null &&
                 !this.matchOver &&
