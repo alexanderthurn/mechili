@@ -26,6 +26,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { SceneryQuality } from './prefs';
+import type { Season } from './weather';
 
 export type VegetationKind = 'oak' | 'pine' | 'bushRound' | 'bushTall';
 
@@ -177,6 +178,50 @@ export function sceneryHqVegetation(quality: SceneryQuality): boolean {
     return quality === 'ultra';
 }
 
+/** multiply tint per season — 1,1,1 (summer) leaves the baked leaf/bush colors untouched */
+const SEASON_LEAF_TINT: Record<Season, readonly [number, number, number]> = {
+    spring: [0.86, 1.12, 0.82],
+    summer: [1, 1, 1],
+    autumn: [1.35, 0.78, 0.34],
+    winter: [0.74, 0.82, 0.88],
+};
+
+/** Materials that receive the shared season leaf-tint uniform (oak/bush — pines stay green). */
+const seasonMaterials: { userData: { seasonTintUniform?: { value: Vector3 } } }[] = [];
+
+/** Retints every registered leaf/bush material live — no rebuild needed (hotkey N). */
+export function setVegetationSeasonTint(season: Season): void {
+    const [r, g, b] = SEASON_LEAF_TINT[season];
+    for (const m of seasonMaterials) {
+        m.userData.seasonTintUniform?.value.set(r, g, b);
+    }
+}
+
+/**
+ * Multiplies diffuse color by the shared `uSeasonLeaf` uniform — a live
+ * season retint that survives instance-baked colors without a scenery rebuild.
+ */
+export function attachSeasonTint(material: MeshStandardMaterial | MeshBasicMaterial): void {
+    if (material.userData.seasonTintAttached) return;
+    material.userData.seasonTintAttached = true;
+    seasonMaterials.push(material);
+    const prevCompile = material.onBeforeCompile;
+
+    material.onBeforeCompile = (shader, renderer) => {
+        prevCompile?.call(material, shader, renderer);
+        const tint = material.userData.seasonTintUniform ?? { value: new Vector3(1, 1, 1) };
+        material.userData.seasonTintUniform = tint;
+        shader.uniforms.uSeasonLeaf = tint;
+        shader.fragmentShader =
+            'uniform vec3 uSeasonLeaf;\n' +
+            shader.fragmentShader.replace(
+                '#include <color_fragment>',
+                '#include <color_fragment>\n  diffuseColor.rgb *= uSeasonLeaf;\n',
+            );
+    };
+    material.needsUpdate = true;
+}
+
 function normalize(scene: Obj3D, targetHeight: number): Group {
     const holder = new Group();
     holder.add(scene);
@@ -276,7 +321,9 @@ export async function loadSceneryVegetation(): Promise<void> {
                     const gltf = await loader.loadAsync(spec.url);
                     if (budget) applyTextureBudget(gltf.scene, budget);
                     const root = normalize(gltf.scene, spec.height);
-                    cache.set(id, bake(root));
+                    const asset = bake(root);
+                    if (id !== 'pine') attachSeasonTint(asset.material); // pines stay green
+                    cache.set(id, asset);
                     console.info(`[sceneryVegetation] loaded '${id}'`);
                 } catch (e) {
                     console.error(`[sceneryVegetation] '${id}' failed`, e);
@@ -301,7 +348,9 @@ export async function loadSceneryBillboards(): Promise<void> {
                         texLoader.loadAsync(spec.billboard),
                         texLoader.loadAsync(spec.billboardSnow).catch(() => null),
                     ]);
-                    billboardCache.set(id, makeCrossCard(tex, spec.height, snowTex));
+                    const card = makeCrossCard(tex, spec.height, snowTex);
+                    if (id !== 'pine') attachSeasonTint(card.material); // pines stay green
+                    billboardCache.set(id, card);
                     console.info(`[sceneryVegetation] billboard '${id}'`);
                 } catch (e) {
                     console.error(`[sceneryVegetation] billboard '${id}' failed`, e);

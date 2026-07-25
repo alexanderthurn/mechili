@@ -29,7 +29,7 @@ import {
     type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { Weather } from './weather';
+import { Weather, type Season } from './weather';
 import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
@@ -51,6 +51,7 @@ import {
 import {
     BILLBOARD_SCALE,
     BILLBOARD_Y_SINK,
+    attachSeasonTint,
     attachVegetationSnow,
     createBillboardInstances,
     createVegetationInstances,
@@ -59,6 +60,7 @@ import {
     NEAR_TREE_DIST,
     placeVegetationInstance,
     sceneryHqVegetation,
+    setVegetationSeasonTint,
     setVegetationSnowCover,
     type VegetationKind,
 } from './sceneryVegetation';
@@ -165,6 +167,11 @@ export class Scenery {
     private waterFreezeUniform: { value: number } | null = null;
     /** drives the outer meadow's weather-driven snow blend (see `applyMeadowTexture`) */
     private outerGroundSnowUniform: { value: number } | null = null;
+
+    /** wildflower materials (meadow clumps + lake blossoms) — opacity-boosted in spring */
+    private readonly flowerMaterials: MeshStandardMaterial[] = [];
+    /** fallen-leaf litter on the meadow — built once, only shown in autumn */
+    private leafLitter: InstancedMesh | null = null;
 
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
@@ -357,6 +364,7 @@ export class Scenery {
                 skyGroup: this.skyGroup,
                 worldGroup: this.group,
                 map: this.map,
+                onSeasonChange: (season) => this.setSeason(season),
             },
             seed,
         );
@@ -366,6 +374,19 @@ export class Scenery {
     /** 0..1 how much snow currently lies on the ground (drives the board's own snow blend too) */
     get groundSnowCover(): number {
         return this.weather?.groundSnow ?? 0;
+    }
+
+    /**
+     * Retints leaf/bush foliage (procedural + Tripo/billboard) via the shared
+     * `uSeasonLeaf` shader uniform — live, no scenery rebuild — and toggles
+     * the autumn leaf litter / spring flower bloom.
+     */
+    setSeason(season: Season): void {
+        setVegetationSeasonTint(season);
+        if (this.leafLitter) this.leafLitter.visible = season === 'autumn';
+        const flowerOpacity =
+            season === 'spring' ? 1 : season === 'summer' ? 0.85 : season === 'autumn' ? 0.45 : 0.15;
+        for (const m of this.flowerMaterials) m.opacity = flowerOpacity;
     }
 
     update(dtSeconds: number, cameraPos: Vector3): void {
@@ -635,7 +656,30 @@ export class Scenery {
         }
         mushrooms.count = mushI;
 
-        this.group.add(tufts, stones, logs, mushrooms);
+        // --- fallen leaf litter: built now, only shown once autumn hits (see setSeason)
+        const LITTER = scaleCount(1200, this.density.meadow);
+        const litterGeo = new PlaneGeometry(0.55, 0.55).rotateX(-Math.PI / 2);
+        const litterMaterial = new MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+        const litter = new InstancedMesh(litterGeo, litterMaterial, LITTER);
+        litter.visible = false;
+        const litterTones = [0xc86a2c, 0xd8902c, 0xb84824, 0xe0b840];
+        let litterI = 0;
+        for (let i = 0; i < LITTER; i++) {
+            const spot = meadowSpot(30);
+            if (!spot) break;
+            const sc = 0.6 + rng() * 1.0;
+            dummy.position.set(spot.x, spot.h + 0.03, spot.z);
+            dummy.scale.setScalar(sc);
+            dummy.rotation.set((rng() - 0.5) * 0.3, rng() * Math.PI * 2, (rng() - 0.5) * 0.3);
+            dummy.updateMatrix();
+            litter.setMatrixAt(litterI, dummy.matrix);
+            color.set(litterTones[Math.floor(rng() * litterTones.length)]!).lerp(new Color(0xffffff), rng() * 0.15);
+            litter.setColorAt(litterI++, color);
+        }
+        litter.count = litterI;
+        this.leafLitter = litter;
+
+        this.group.add(tufts, stones, logs, mushrooms, litter);
     }
 
     /**
@@ -700,6 +744,7 @@ export class Scenery {
             }),
             PADS,
         );
+        this.flowerMaterials.push(blossoms.material as MeshStandardMaterial);
         const flowerTones = THEME.terrain.flowers;
         let padI = 0;
         let blossomI = 0;
@@ -1201,6 +1246,8 @@ export class Scenery {
             attachVegetationSnow(trunks.material as MeshStandardMaterial, { strength: 0.55 });
             attachVegetationSnow(cones.material as MeshStandardMaterial, { strength: 0.92 });
             attachVegetationSnow(blobs.material as MeshStandardMaterial, { strength: 0.92 });
+            // pines stay green year-round — only the leafy (oak) canopy retints
+            attachSeasonTint(blobs.material as MeshStandardMaterial);
         }
         const rocks = new InstancedMesh(
             new IcosahedronGeometry(1.4, 0),
@@ -1214,6 +1261,7 @@ export class Scenery {
                 bushCapacity,
             );
             attachVegetationSnow(bushes.material as MeshStandardMaterial, { strength: 0.92 });
+            attachSeasonTint(bushes.material as MeshStandardMaterial);
         }
 
         let trunkI = 0;
@@ -1360,6 +1408,7 @@ export class Scenery {
             }),
             FLOWERS,
         );
+        this.flowerMaterials.push(flowers.material as MeshStandardMaterial);
         const flowerTones = THEME.terrain.flowers;
         const meadowSpot = (): { x: number; z: number } => {
             for (;;) {

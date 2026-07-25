@@ -6,7 +6,7 @@ import { teamColors } from './game/colors';
  */
 export const THEME = {
     // atmosphere (three.js hex) — crisp sunny day: deep blue sky, punchy warm
-    // sun, not murky dusk. Matches WEATHER_PRESETS.sunny in game/weather.ts so
+    // sun, not murky dusk. Matches TIME_PRESETS.day in game/weather.ts so
     // there's no color pop once the weather system takes over (and it's the
     // only sky ever seen with scenery 'off', which never runs the weather sim).
     // `sky` is the fog color and must match the sky dome's horizon band

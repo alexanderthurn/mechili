@@ -373,8 +373,8 @@ export class Game {
 
         // cheats / debug hotkeys (visual or single-player only)
         if (e.code === 'KeyN') {
-            // cycle weather: sunny → rain → snow → night → …
-            this.weather?.next();
+            // cycle season: spring → summer → autumn → winter → …
+            this.weather?.nextSeason();
             this.economy.credit('player', 1000);
             this.playerHp += 5000;
             this.enemyHp += 5000;
@@ -383,6 +383,16 @@ export class Game {
                 this.sim.setBattleSeconds(500);
                 this.phaseRemaining = 500 - this.sim.elapsed;
             }
+            return;
+        }
+        if (e.code === 'KeyV') {
+            // cycle weather: clear → rain 0.45 → rain 1 → snow 0.4 → snow 1 → …
+            this.weather?.nextWeather();
+            return;
+        }
+        if (e.code === 'KeyB') {
+            // cycle time of day: dawn → day → golden → dusk → night → …
+            this.weather?.nextTime();
             return;
         }
         if (e.code === 'KeyU' && !this.net) {
@@ -1050,8 +1060,8 @@ export class Game {
         this.gridOverlay.visible = gridVisible;
         this.scene.add(this.gridOverlay);
 
-        // outer world + weather (restore the current scenario)
-        const currentWeather = this.weather?.currentId ?? 'sunny';
+        // outer world + weather (restore the current atmosphere)
+        const weatherSnapshot = this.weather?.snapshot ?? null;
         this.scene.remove(this.scenery.group);
         disposeTree(this.scenery.group);
         this.scenery = new Scenery(this.map);
@@ -1065,7 +1075,7 @@ export class Game {
                 this.renderer,
                 seedFrom(this.seed, 'weather'),
             );
-            this.weather.setTarget(currentWeather);
+            if (weatherSnapshot) this.weather.setAtmosphere(weatherSnapshot);
         } else {
             // weather off: no fog and the default calm daylight
             this.weather = null;
