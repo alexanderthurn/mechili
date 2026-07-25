@@ -164,10 +164,13 @@ export class Hud {
     onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
     onQuitToMenu: (() => void) | null = null;
-    /** grant/revoke live deploy vision for a spectator (own seat) */
+    /** grant/revoke live deploy vision for a spectator (own seat). Left null
+     *  by a spectating client itself — it has no seat to grant from, so the
+     *  badge list below renders plain names with no checkboxes. */
     onGrantSpectatorLive: ((name: string, grant: boolean) => void) | null = null;
-    /** names of current spectators for the pause-menu grant toggles */
-    spectatorNamesForMenu: (() => string[]) | null = null;
+    private readonly spectatorBadgeEl: HTMLButtonElement;
+    private spectatorListEl: HTMLDivElement | null = null;
+    private lastSpectatorNames: string[] = [];
     private pauseMenu: HTMLDivElement | null = null;
     private cardOverlay: HTMLDivElement | null = null;
     private lastPanelKey = '';
@@ -580,7 +583,13 @@ export class Hud {
         this.roundEl.className = 'round';
         this.phaseEl = document.createElement('span');
         this.phaseEl.className = 'phase';
-        topMeta.append(this.roundEl, this.phaseEl);
+        this.spectatorBadgeEl = document.createElement('button');
+        this.spectatorBadgeEl.type = 'button';
+        this.spectatorBadgeEl.className = 'spectator-badge';
+        this.spectatorBadgeEl.style.display = 'none';
+        this.spectatorBadgeEl.title = 'Spectators watching this match';
+        this.spectatorBadgeEl.addEventListener('click', () => this.toggleSpectatorList());
+        topMeta.append(this.roundEl, this.phaseEl, this.spectatorBadgeEl);
         this.timerEl = document.createElement('span');
         this.timerEl.className = 'timer';
         const endButton = document.createElement('button');
@@ -1795,28 +1804,11 @@ export class Hud {
         this.hidePauseMenu();
         const el = document.createElement('div');
         el.className = 'mechili-pause';
-        const spectators = this.spectatorNamesForMenu?.() ?? [];
-        const spectateHtml =
-            spectators.length === 0
-                ? ''
-                : `<div class="pause-spectators">` +
-                  `<div class="pause-subtitle">Spectators — share my deploy live</div>` +
-                  spectators
-                      .map(
-                          (name) =>
-                              `<label class="pause-spectate-row">` +
-                              `<input type="checkbox" data-spectate-name="${escapeAttr(name)}" />` +
-                              `<span>${escapeHtml(name)}</span>` +
-                              `</label>`,
-                      )
-                      .join('') +
-                  `</div>`;
         el.innerHTML =
             `<div class="pause-box">` +
             `<div class="pause-title">Menu</div>` +
             `<button type="button" class="pause-resume">Continue</button>` +
             `<button type="button" class="pause-settings">Settings</button>` +
-            spectateHtml +
             `<button type="button" class="pause-quit">Quit to menu</button>` +
             `</div>`;
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
@@ -1825,15 +1817,59 @@ export class Hud {
             this.hidePauseMenu();
             this.onQuitToMenu?.();
         });
+        this.pauseMenu = el;
+        this.syncOverlayOpen();
+        this.mount(el);
+    }
+
+    /** persistent topbar indicator: eye + count, hidden while nobody's
+     *  watching. Click expands the full name list (with live-grant
+     *  checkboxes, when `onGrantSpectatorLive` is wired — a spectating
+     *  client itself never wires that, so its own badge lists plain names). */
+    setSpectators(names: string[]): void {
+        this.lastSpectatorNames = names;
+        this.spectatorBadgeEl.style.display = names.length === 0 ? 'none' : '';
+        this.spectatorBadgeEl.textContent = `\u{1F441} ${names.length}`;
+        if (names.length === 0) {
+            this.spectatorListEl?.remove();
+            this.spectatorListEl = null;
+            return;
+        }
+        if (this.spectatorListEl) this.renderSpectatorList();
+    }
+
+    private toggleSpectatorList(): void {
+        if (this.spectatorListEl) {
+            this.spectatorListEl.remove();
+            this.spectatorListEl = null;
+            return;
+        }
+        this.renderSpectatorList();
+    }
+
+    private renderSpectatorList(): void {
+        this.spectatorListEl?.remove();
+        const el = document.createElement('div');
+        el.className = 'spectator-list';
+        const canGrant = this.onGrantSpectatorLive !== null;
+        el.innerHTML = this.lastSpectatorNames
+            .map((name) =>
+                canGrant
+                    ? `<label class="spectator-row">` +
+                      `<input type="checkbox" data-spectate-name="${escapeAttr(name)}" />` +
+                      `<span>${escapeHtml(name)}</span>` +
+                      `</label>`
+                    : `<div class="spectator-row"><span>${escapeHtml(name)}</span></div>`,
+            )
+            .join('');
         for (const input of el.querySelectorAll<HTMLInputElement>('input[data-spectate-name]')) {
             input.addEventListener('change', () => {
                 const name = input.dataset.spectateName;
                 if (name) this.onGrantSpectatorLive?.(name, input.checked);
             });
         }
-        this.pauseMenu = el;
-        this.syncOverlayOpen();
-        this.mount(el);
+        this.spectatorListEl = el;
+        this.topBar.append(el);
     }
 
     /** the face of a specialist card (static data only — safe for innerHTML) */

@@ -14,14 +14,17 @@
  *       shows it so a joiner knows which connection flow to use.
  *       {"ok":true} or {"error":"..."}
  *   ?action=list
- *       Open public rooms: {"rooms":[{"name":"...","peer":"...","mode":"..."}]}
+ *       Open public rooms AND currently-running (spectatable) matches:
+ *       {"rooms":[{"name":"...","peer":"...","mode":"...","kind":"lobby"|"spectate"}]}
+ *       `kind=lobby` rows are joinable (waiting for a player); `kind=spectate`
+ *       rows are a running match — connect to `peer` as a spectator instead.
  *   ?action=leave&peer=<peerjs-id>
  *       Remove the caller's queue, lobby, or spectate entry.
- *   ?action=spectate-register&peer=<peerjs-id>&name=<room-name>
+ *   ?action=spectate-register&peer=<peerjs-id>&name=<room-name>&mode=<1v1|2v2>
  *       Register/heartbeat a live match's spectator broadcast endpoint —
  *       same shape as ?action=host, but tagged kind=spectate and kept alive
  *       for the WHOLE match (not just pre-match), so a match stays
- *       discoverable-for-watching after it starts. Not shown by ?action=list.
+ *       discoverable-for-watching after it starts. Shown by ?action=list.
  *   ?action=spectate-lookup&name=<room-name>
  *       Find a live match's spectate endpoint by room name.
  *       {"peer":"<peerjs-id>"|null}
@@ -57,9 +60,15 @@ if ($action === 'list') {
     $now = time();
     $open = [];
     foreach ($rooms as $r) {
-        if (($r['kind'] ?? '') !== 'lobby') continue;
+        $kind = $r['kind'] ?? '';
+        if ($kind !== 'lobby' && $kind !== 'spectate') continue;
         if ($now - ($r['ts'] ?? 0) > TTL) continue;
-        $open[] = ['name' => $r['name'] ?? '', 'peer' => $r['peer'] ?? '', 'mode' => $r['mode'] ?? '1v1'];
+        $open[] = [
+            'name' => $r['name'] ?? '',
+            'peer' => $r['peer'] ?? '',
+            'mode' => $r['mode'] ?? '1v1',
+            'kind' => $kind,
+        ];
     }
     echo json_encode(['rooms' => $open]);
     exit;
@@ -153,7 +162,7 @@ if ($action === 'leave') {
     }
     // one spectate entry per peer id; name is the room it's spectating for
     $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
-    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'spectate', 'ts' => $now];
+    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'spectate', 'mode' => $mode, 'ts' => $now];
     echo json_encode(['ok' => true]);
     ftruncate($fp, 0);
     rewind($fp);

@@ -34,6 +34,7 @@ import {
     type NetMessage,
     type RosterEntry,
     type Session,
+    type SpectatorSession,
     type SpectatorVision,
     type StarRole,
 } from './net';
@@ -288,10 +289,19 @@ export class Game {
     /** star host only: this round's battle-start hash per seat (diagnostic desync check) */
     private readonly starChecks = new Map<SeatId, number>();
     /** host-only: dedicated broadcast connection point for spectators, opened
-     *  once a multiplayer match starts (side 'a' only — see startSpectatorHub) */
+     *  once a multiplayer match starts (classic 1v1 host, or a star host —
+     *  see startSpectatorHub) */
     private spectatorHub: SpectatorHub | null = null;
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
     private stopSpectateRegistration: (() => void) | null = null;
+    /** set only for a spectating client — its one connection to the host's
+     *  SpectatorHub (mutually exclusive with net/star) */
+    private spectateSession: SpectatorSession | null = null;
+    /** classic 1v1 guest only: does at least one spectator currently have
+     *  live vision granted on THIS seat? (see spectatorFeed/spectatorWantsLive) */
+    private spectatorWantsMyLive = false;
+    /** spectate mode only: the watcher's own name (see the `spectate` ctor param) */
+    private readonly watcherName: string | null;
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
     private readonly recruitLevel: number[]; // per seat
     /** per-SEAT sell ability: `owned` is a permanent unlock, `used` resets per round */
@@ -495,8 +505,26 @@ export class Game {
             mode?: MatchMode;
             expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
         } | null = null,
+        /** spectate mode: a read-only live view of someone else's running
+         *  match, joined via `joinAsSpectator` (see net.ts). Mutually
+         *  exclusive with `net`/`star`/`resume`/`replay`. `initial` is the
+         *  same shape `resume` consumes — catch-up reuses `hydrate()`
+         *  verbatim, no perspective swap (there is no "my side" to swap to).
+         *  Ongoing play streams in over `session` exactly like any other
+         *  seat's build traffic (see `onSpectateMessage`/`starRemoteQueue`);
+         *  no build UI ever shows because `this.watching` is true, the same
+         *  guard replay playback already relies on throughout this class. */
+        spectate: {
+            session: SpectatorSession;
+            /** the watching user's own name — distinct from `playerNames`,
+             *  which for spectate mode holds the two PLAYERS' names (for
+             *  sideLabel/roster display, not "who is chatting") */
+            watcherName: string;
+            initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+        } | null = null,
     ) {
-        this.watching = replay !== null;
+        this.watching = replay !== null || spectate !== null;
+        this.watcherName = spectate?.watcherName ?? null;
         this.replayVerify = replay?.verify === true;
         this.replayOriginalMode = replay?.mode ?? null;
         this.replayExpected = replay?.expected ?? null;
@@ -852,11 +880,8 @@ export class Game {
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.onQuitToMenu = () => this.quitToMenu();
-        this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
-        this.hud.spectatorNamesForMenu = () =>
-            this.roster()
-                .filter((e) => e.role === 'spectator')
-                .map((e) => e.name);
+        // a spectator has no seat of its own to grant vision from
+        if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
         this.hud.setPlayers(this.sideLabel('player'), this.sideLabel('enemy'), settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
@@ -870,8 +895,10 @@ export class Game {
             const now = performance.now();
             if (now - this.lastChatSent < CHAT_COOLDOWN_MS) return;
             this.lastChatSent = now;
-            this.hud.addChat(this.playerNames.local, item, 'local');
-            this.broadcast({ type: 'chat', item, from: { name: this.playerNames.local, role: 'player' } });
+            const myName = this.watcherName ?? this.playerNames.local;
+            this.hud.addChat(myName, item, 'local');
+            const role: 'player' | 'spectator' = this.watcherName ? 'spectator' : 'player';
+            this.broadcast({ type: 'chat', item, from: { name: myName, role } });
         };
         this.hud.onArmItem = (itemId, index) => {
             if (!this.playerCanAct || this.armedTactic) return;
@@ -1044,6 +1071,13 @@ export class Game {
             if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
                 this.fastForwardReplayThroughRound(replay.jumpToRound);
             }
+        } else if (spectate) {
+            // same catch-up machinery as a reconnecting player — no
+            // perspective swap, we render the match exactly as recorded
+            this.hydrate(spectate.initial.actions, spectate.initial.battleElapsed, false);
+            if (this.phase === 'build') {
+                this.phaseRemaining = spectate.initial.phaseRemaining;
+            }
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
@@ -1054,8 +1088,9 @@ export class Game {
             // until the peer confirms it's ready too; see awaitPeerReady()
             this.awaitPeerReady();
         }
-        if (this.net && this.side === 'a') this.startSpectatorHub();
+        if ((this.net && this.side === 'a') || this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
+        if (spectate) this.wireSpectateSession(spectate.session);
 
         // Escape toggles the in-game menu (the match keeps running underneath)
         window.addEventListener('keydown', this.onEscapeKey);
@@ -1316,6 +1351,8 @@ export class Game {
         this.spectatorHub = null;
         this.stopSpectateRegistration?.();
         this.stopSpectateRegistration = null;
+        this.spectateSession?.close();
+        this.spectateSession = null;
     }
 
     /**
@@ -1677,7 +1714,20 @@ export class Game {
             return;
         }
         this.outboundBuildBuffer.push(msg);
+        // no-op on the guest (mirrorBuildToSpectators needs spectatorHub,
+        // which only ever exists on the host) — the real relay for a
+        // buffered message is the spectatorFeed side channel just below
         this.mirrorBuildToSpectators(msg, this.localSeat());
+        // this message is still withheld from the OPPONENT (wire fog), but
+        // a spectator has been granted live vision on THIS seat — send a
+        // copy straight to the host for spectator-only relay. Never skip
+        // this for the host's own seat: the host doesn't need it (its own
+        // actions already reach spectators independent of wire fog), and
+        // this.net is the connection to the opponent either way, so this
+        // only ever fires meaningfully on a classic 1v1 guest.
+        if (this.spectatorWantsMyLive) {
+            this.net?.send({ type: 'spectatorFeed', payload: msg });
+        }
     }
 
     /**
@@ -1705,6 +1755,11 @@ export class Game {
     ): void {
         if (!this.star || this.star.role !== 'host') return;
         this.star.hub.relayBuild(msg, fromSeat, (side) => this.starSideLocked(side));
+        // single choke point for every star seat's build traffic, self- or
+        // guest-originated alike — mirrors classic 1v1's two separate
+        // mirrorBuildToSpectators call sites (own outgoing + peer incoming)
+        // in one place
+        this.mirrorBuildToSpectators(msg, this.star.hub.sideOf(fromSeat));
         if (msg.type === 'action' && msg.action.kind === 'endDeployment') this.maybeStartStarBattle();
     }
 
@@ -1922,23 +1977,47 @@ export class Game {
     /** the guest has no hub of its own — it just tracks whatever the host broadcasts */
     private receivedRoster: RosterEntry[] = [];
 
-    /** everyone currently seated at the match, for future UI use — the host
-     *  always has the live answer, the guest has whatever it was last told */
+    /** everyone currently seated at the match, for future UI use — a host
+     *  (classic or star) always has the live answer; a guest or spectator
+     *  has whatever it was last told */
     roster(): RosterEntry[] {
+        if (this.spectateSession) return this.receivedRoster;
         return this.side === 'a' ? this.buildRoster() : this.receivedRoster;
     }
 
-    /** everyone currently seated at the match, for roster display */
+    /** everyone currently seated at the match, for roster display. Classic
+     *  1v1 keeps its original two hardcoded entries (no seat model there);
+     *  star matches list every seat instead. */
     private buildRoster(): RosterEntry[] {
+        const players: RosterEntry[] = this.star
+            ? this.seats.map((def, seat) => ({
+                  name: seat === this.humanSeat ? this.playerNames.local : def.name,
+                  role: 'player' as const,
+                  team: def.team,
+              }))
+            : [
+                  { name: this.playerNames.local, role: 'player', team: 'player' },
+                  { name: this.playerNames.opponent, role: 'player', team: 'enemy' },
+              ];
         return [
-            { name: this.playerNames.local, role: 'player', team: 'player' },
-            { name: this.playerNames.opponent, role: 'player', team: 'enemy' },
+            ...players,
             ...(this.spectatorHub?.names().map((name) => ({ name, role: 'spectator' as const })) ?? []),
         ];
     }
 
     private broadcastRoster(): void {
         this.broadcast({ type: 'roster', entries: this.buildRoster() });
+        this.pushSpectatorBadge();
+    }
+
+    /** current spectator names, pushed to the persistent topbar badge —
+     *  called whenever the roster changes, from whichever side learns of it */
+    private pushSpectatorBadge(): void {
+        this.hud.setSpectators(
+            this.roster()
+                .filter((e) => e.role === 'spectator')
+                .map((e) => e.name),
+        );
     }
 
     /** sends to the opponent AND mirrors to any connected spectators */
@@ -1948,6 +2027,7 @@ export class Game {
             if (this.star.role === 'guest') this.star.session.send(msg);
             else this.star.hub.broadcast(msg);
         }
+        this.spectateSession?.send(msg);
         this.mirrorToSpectators(msg);
     }
 
@@ -1973,9 +2053,11 @@ export class Game {
 
     /**
      * Host-only: opens the dedicated spectator broadcast Peer for this
-     * match's lifetime. Best-effort — if it fails to open (e.g. offline),
-     * spectating just isn't available this match; it never blocks or
-     * disrupts play, which only ever depends on `this.net`.
+     * match's lifetime — the classic 1v1 host, or (per TEAM_MODES_PLAN §5b)
+     * a star host, since `SpectatorHub`/`SpectatorVision` are already
+     * side-based, not seat-count-based. Best-effort — if it fails to open
+     * (e.g. offline), spectating just isn't available this match; it never
+     * blocks or disrupts play, which only ever depends on `this.net`/`this.star`.
      */
     private startSpectatorHub(): void {
         void (async () => {
@@ -1993,11 +2075,22 @@ export class Game {
             // discoverable under the same room name a "Host Room" match
             // already uses — spectators look it up the same way a joining
             // player would find the room
-            this.stopSpectateRegistration = registerSpectateEndpoint(hub.peerId, this.playerNames.local);
-            hub.onRosterChange = () => this.broadcastRoster();
+            this.stopSpectateRegistration = registerSpectateEndpoint(
+                hub.peerId,
+                this.playerNames.local,
+                this.star ? '2v2' : '1v1',
+            );
+            hub.onRosterChange = () => {
+                this.broadcastRoster();
+                // covers a live-granted spectator disconnecting (or a new
+                // one joining) changing the aggregate "does anyone want the
+                // guest's live feed" answer, not just explicit grant clicks
+                this.notifySpectatorLiveWant();
+            };
             hub.onSpectatorChat = (name, item) => {
                 const relayed: NetMessage = { type: 'chat', item, from: { name, role: 'spectator' } };
                 this.net?.send(relayed);
+                if (this.star?.role === 'host') this.star.hub.broadcast(relayed);
                 hub.broadcast(relayed);
             };
             hub.listen((name, version, conn) => {
@@ -2019,15 +2112,37 @@ export class Game {
         })();
     }
 
-    /** grant or revoke live deploy vision for a spectator (own seat only) */
+    /** grant or revoke live deploy vision for a spectator (own side only).
+     *  Works for the classic 1v1 host/guest and for a star host granting its
+     *  own side ('a'). A star GUEST has no wire path to request this yet —
+     *  known gap, same side-granularity limitation noted in TEAM_MODES_PLAN
+     *  §5b; not needed for this pass. */
     grantSpectatorLive(spectatorName: string, grant: boolean): void {
         const seat = this.localSeat();
         if (this.side === 'a' && this.spectatorHub) {
             this.spectatorHub.setSeatLive(spectatorName, seat, grant);
+            this.notifySpectatorLiveWant();
             return;
         }
         // guest asks the host to update vision
         this.net?.send({ type: 'spectateGrant', spectatorName, seat, grant });
+    }
+
+    /**
+     * Classic 1v1 host only: tell the guest whether any spectator currently
+     * has live vision on their seat ('b'). The host's own actions already
+     * reach spectators live regardless of wire fog (mirrored at decision
+     * time in sendPlayerBuildMessage, independent of outboundBuildBuffer) —
+     * but the guest's build actions are withheld from the HOST ITSELF, not
+     * just the opponent, until mutual lock-in (that's the whole point of
+     * the fog), so the host has nothing early to relay on its own. This
+     * lets the guest open the spectatorFeed side channel instead. Star mode
+     * never needs this — every seat's actions already reach the host
+     * immediately there (see sendStarBuildMessage's doc comment).
+     */
+    private notifySpectatorLiveWant(): void {
+        if (this.star || this.side !== 'a' || !this.spectatorHub || !this.net) return;
+        this.net.send({ type: 'spectatorWantsLive', want: this.spectatorHub.anyLiveFor('b') });
     }
 
     /** connects (or re-connects) a peer session to this game */
@@ -2064,6 +2179,56 @@ export class Game {
                 this.suspend(`Lost connection to ${name}.`);
             };
         }
+    }
+
+    /** Wires a spectator's read-only connection to the host. Reuses the
+     *  exact same queue+drain path star matches already use for a passive
+     *  viewer's build traffic (`starRemoteQueue`/`drainStarRemoteQueue`,
+     *  which no-ops its relay half whenever `this.star` is null) — no
+     *  separate spectator-specific dispatch logic needed. Phase transitions
+     *  (build→battle, round advance) fall out for free too: once an
+     *  `endDeployment` for every seat on a side has been dispatched in the
+     *  order the host applied them, the same organic
+     *  `maybeStartBattleAfterDeploy`/`maybeStartNextRound` cascade that
+     *  already drives classic replay-watch of a FINISHED (2v2 or 1v1) match
+     *  fires identically here — determinism guarantees it, so there's no
+     *  need to also relay/handle `starBattleStart`/`starNextRound`. */
+    private wireSpectateSession(session: SpectatorSession): void {
+        this.spectateSession = session;
+        session.attach((msg) => this.onSpectateMessage(msg));
+        session.onClose = () => {
+            if (this.matchOver) return;
+            this.matchOver = true;
+            this.hud.showDisconnect();
+        };
+    }
+
+    private onSpectateMessage(msg: NetMessage): void {
+        if (this.disposed || this.matchOver) return;
+        if (msg.type === 'action') {
+            const seat = msg.action.seat ?? primarySeatOf(this.seats, msg.action.team);
+            this.starRemoteQueue.push({ round: msg.round, seat, action: { ...msg.action, seat } });
+            this.drainStarRemoteQueue();
+        } else if (msg.type === 'undo') {
+            const seat = msg.seat ?? 0;
+            this.starRemoteQueue.push({ round: msg.round, seat, undo: true });
+            this.drainStarRemoteQueue();
+        } else if (msg.type === 'roster') {
+            this.receivedRoster = msg.entries;
+            this.pushSpectatorBadge();
+        } else if (msg.type === 'chat') {
+            const now = performance.now();
+            if (now - this.lastChatReceived < CHAT_COOLDOWN_MS * 0.5) return;
+            this.lastChatReceived = now;
+            const item: ChatItem =
+                msg.item.kind === 'text'
+                    ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
+                    : msg.item;
+            this.hud.addChat(msg.from.name, item, 'remote');
+        }
+        // 'visionUpdate'/'check'/'speed': nothing for a spectator to act on —
+        // the host already withholds bytes per vision, and the local sim
+        // recomputes deterministically at whatever local speed is chosen.
     }
 
     // --- reconnect / resync ------------------------------------------------
@@ -2297,10 +2462,17 @@ export class Game {
         }
         this.hydrating = false;
 
-        // reopen whatever decision was pending when the state was captured
-        if (!this.starterPicked[this.humanSeat]) {
+        // reopen whatever decision was pending when the state was captured —
+        // never for a spectator, who has no seat of its own to decide with
+        // (this.humanSeat is just an arbitrary display reference for it)
+        if (!this.watching && !this.starterPicked[this.humanSeat]) {
             this.showStarterPick(starterOffer);
-        } else if (this.pendingOffer && !this.roundCardTaken[this.humanSeat] && this.phase === 'build') {
+        } else if (
+            !this.watching &&
+            this.pendingOffer &&
+            !this.roundCardTaken[this.humanSeat] &&
+            this.phase === 'build'
+        ) {
             this.awaitingCards = true;
             this.showRoundOffer(this.pendingOffer);
         }
@@ -2671,11 +2843,23 @@ export class Game {
             // only the host actually tracks spectators (see buildRoster());
             // the guest just holds onto whatever it's told for display
             this.receivedRoster = msg.entries;
+            this.pushSpectatorBadge();
         } else if (msg.type === 'spectateGrant') {
             // host only: guest may grant/revoke live vision for seat 'b'
             if (this.side !== 'a' || !this.spectatorHub) return;
             if (msg.seat !== 'b') return;
             this.spectatorHub.setSeatLive(msg.spectatorName, msg.seat, msg.grant);
+            this.notifySpectatorLiveWant();
+        } else if (msg.type === 'spectatorWantsLive') {
+            // guest only: bypass the wire-fog buffer for the spectator
+            // side channel while at least one spectator has live vision on
+            // this seat (see sendPlayerBuildMessage/spectatorFeed)
+            this.spectatorWantsMyLive = msg.want;
+        } else if (msg.type === 'spectatorFeed') {
+            // host only: relay straight to spectators — deliberately NEVER
+            // touches remoteQueue/the dispatcher, or the opponent player
+            // would see the guest's still-withheld action early too
+            this.mirrorBuildToSpectators(msg.payload, 'b');
         } else if (msg.type === 'deployCaughtUp') {
             if (msg.round !== this.round || this.phase !== 'build') return;
             // peer's build backlog was sent just before this — apply any
@@ -2721,7 +2905,9 @@ export class Game {
                     : msg.item;
             this.hud.addChat(msg.from.name, item, 'remote');
             if (isHost && fromSeat !== undefined) {
-                star.hub.broadcast({ type: 'chat', item, from: msg.from }, fromSeat);
+                const relayed: NetMessage = { type: 'chat', item, from: msg.from };
+                star.hub.broadcast(relayed, fromSeat);
+                this.mirrorToSpectators(relayed);
             }
         } else if (msg.type === 'speed') {
             const index = Game.SPEED_STEPS.indexOf(msg.multiplier);
@@ -2729,7 +2915,10 @@ export class Game {
                 this.speedIndex = index;
                 this.hud.setSpeed(msg.multiplier);
             }
-            if (isHost && fromSeat !== undefined) star.hub.broadcast(msg, fromSeat);
+            if (isHost && fromSeat !== undefined) {
+                star.hub.broadcast(msg, fromSeat);
+                this.mirrorToSpectators(msg);
+            }
         } else if (msg.type === 'battleEnd') {
             if (isHost && fromSeat !== undefined && msg.round === this.round) {
                 this.markStarBattleReady(fromSeat);
@@ -2743,6 +2932,11 @@ export class Game {
                 this.starChecks.set(msg.seat, msg.hash);
                 this.verifyStarChecks();
             }
+        } else if (msg.type === 'roster') {
+            // guest-side: the host is the only one that ever sends this for
+            // a star match — mirrors classic 1v1's onNetMessage roster case
+            this.receivedRoster = msg.entries;
+            this.pushSpectatorBadge();
         }
     }
 
@@ -2763,9 +2957,22 @@ export class Game {
             const head = this.remoteQueue[0]!;
             if (head.round !== this.round || this.phase !== 'build') return;
             this.remoteQueue.shift();
-            // same authority check as drainStarRemoteQueue: the peer's own
-            // seat already locked in has nothing legitimate left to send
-            if (this.seatReady[primarySeatOf(this.seats, 'enemy')]) continue;
+            // NOTE: deliberately no "peer's seat already locked in, skip"
+            // guard here (unlike drainStarRemoteQueue). Classic 1v1 sends
+            // endDeployment as an immediate gate signal that bypasses the
+            // sender's own outbound build buffer (see sendPlayerBuildMessage
+            // / flushOutboundBuildBuffer) — so on the wire, the peer's
+            // endDeployment can (and typically does) arrive BEFORE the
+            // peer's own earlier, still-buffered build actions (a move/buy
+            // made before they locked in). Those actions set seatReady
+            // false→true only once actually dispatched, which happens right
+            // here — so a "the seat is already ready, this must be illegal"
+            // check would (and did) discard genuinely pre-lock-in content
+            // just because it arrived late, desyncing state hashes at
+            // battle start (repro: move a unit, then End Deployment). Star
+            // mode has no such reordering (every seat sends immediately,
+            // no local buffering — see sendStarBuildMessage's doc comment),
+            // so its equivalent guard in drainStarRemoteQueue stays valid.
             if (head.undo) {
                 this.dispatcher.undoLast(head.round, primarySeatOf(this.seats, 'enemy'));
             } else if (head.action) {

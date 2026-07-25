@@ -71,6 +71,9 @@ export interface LobbyRoom {
     name: string;
     peer: string;
     mode: '1v1' | '2v2';
+    /** `lobby` = waiting for a player, join normally; `spectate` = a match
+     *  already running — connect to `peer` as a spectator instead */
+    kind: 'lobby' | 'spectate';
 }
 
 /** the menu's global chat endpoint — chat.php next to matchmaking.php */
@@ -182,6 +185,21 @@ export type NetMessage =
     /** guest asks host to grant/revoke live deploy vision for a spectator
      *  (guest may only grant its own seat `'b'`) */
     | { type: 'spectateGrant'; spectatorName: string; seat: 'a' | 'b'; grant: boolean }
+    /** host → guest only: whether at least one spectator currently has live
+     *  vision granted on the GUEST's seat ('b'). The host's own actions
+     *  already reach spectators live regardless of wire fog (mirrored at
+     *  decision time, independent of `outboundBuildBuffer`) — but the
+     *  guest's build actions are withheld from the HOST ITSELF (not just
+     *  the opponent) until mutual lock-in, so the host has no early
+     *  knowledge to relay. This tells the guest to open the `spectatorFeed`
+     *  side channel below instead of waiting for the normal flush. */
+    | { type: 'spectatorWantsLive'; want: boolean }
+    /** guest → host only: a copy of a build action/undo the guest is STILL
+     *  WITHHOLDING from the opponent (wire fog) but a live-granted spectator
+     *  should see now. The host relays it straight to spectators — it must
+     *  NEVER touch the normal action-application path, or the opponent
+     *  would see it early too. */
+    | { type: 'spectatorFeed'; payload: Extract<NetMessage, { type: 'action' | 'undo' }> }
     /**
      * Sent after flushing the outbound build buffer to the peer. Battle must
      * not start until both sides have locked in AND each has received the
@@ -809,6 +827,14 @@ export class SpectatorHub {
         return null;
     }
 
+    /** does at least one connected spectator currently have live vision on `seat`? */
+    anyLiveFor(seat: 'a' | 'b'): boolean {
+        for (const viewer of this.viewers.values()) {
+            if (viewer.vision.mode === 'live' && viewer.vision.seats.includes(seat)) return true;
+        }
+        return false;
+    }
+
     private onData(conn: DataConnection, msg: NetMessage): void {
         if (msg.type !== 'chat') return; // spectators may only ever chat
         const viewer = this.viewers.get(conn);
@@ -1157,11 +1183,15 @@ async function lobbyRegister(peerId: string, name: string, mode: '1v1' | '2v2' =
  * already establish, just tagged separately so it never shows up in the
  * normal "join as a player" room list.
  */
-export function registerSpectateEndpoint(peerId: string, roomName: string): () => void {
+export function registerSpectateEndpoint(
+    peerId: string,
+    roomName: string,
+    mode: '1v1' | '2v2' = '1v1',
+): () => void {
     let stopped = false;
     const beat = () => {
         void fetch(
-            `${matchUrl()}?action=spectate-register&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(roomName)}`,
+            `${matchUrl()}?action=spectate-register&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(roomName)}&mode=${mode}`,
         ).catch(() => undefined);
     };
     beat();

@@ -15,10 +15,12 @@ import {
     hostLobby,
     hostStarRoom,
     isMelodanPlayHost,
+    joinAsSpectator,
     joinLobby,
     joinStarRoom,
     loadResumeMarker,
     loadSinglePlayer,
+    lookupSpectateEndpoint,
     NetSession,
     postGlobalChat,
     quickMatch,
@@ -31,6 +33,7 @@ import {
     type ResumeMarker,
     type Session,
     type SinglePlayerSave,
+    type SpectatorSession,
     type StarRole,
 } from './game/net';
 import { isElectron, lobby as steamLobby, steam, win } from 'steam-electron-build/native';
@@ -286,7 +289,7 @@ menu.innerHTML = `
     <div class="m-main">
         <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
         <button class="m-btn" data-mode="matchmaking"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
-        <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
+        <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Rooms</span></button>
     </div>
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
@@ -785,10 +788,13 @@ async function refreshRoomList(): Promise<void> {
             ...others.map((r) => {
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.className = 'm-room';
+                button.className = r.kind === 'spectate' ? 'm-room m-room-spectate' : 'm-room';
                 button.dataset.room = r.name;
                 button.dataset.roomMode = r.mode;
-                button.textContent = r.mode === '2v2' ? `${r.name} (2v2)` : r.name;
+                button.dataset.roomKind = r.kind;
+                const modeTag = r.mode === '2v2' ? ' (2v2)' : '';
+                button.textContent =
+                    r.kind === 'spectate' ? `Watch ${r.name}${modeTag}` : `${r.name}${modeTag}`;
                 return button;
             }),
         );
@@ -875,6 +881,15 @@ function startGame(
         mode?: MatchMode;
         expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
     } | null = null,
+    /** spectate mode: a read-only live view of someone else's running match —
+     *  mutually exclusive with everything above; never persists/resumes/reports
+     *  (see game.ts). `watcherName` is the spectator's own name, distinct from
+     *  `names` (which holds the two PLAYERS' names, for display). */
+    spectate: {
+        session: SpectatorSession;
+        watcherName: string;
+        initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+    } | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -907,20 +922,21 @@ function startGame(
                 ownPeerId: net.ownId,
             });
         }
-    } else if (!replay) {
-        // watching a replay touches neither marker — it isn't a new match,
-        // and clearing either here would wipe out the player's real,
-        // unrelated saved game just because they clicked Watch
+    } else if (!replay && !spectate) {
+        // watching a replay/spectating a live match touches neither marker —
+        // it isn't a new match of ours, and clearing either here would wipe
+        // out the player's real, unrelated saved game just because they
+        // clicked Watch
         clearResumeMarker();
         // star matches have no save/resume story yet (v1 scope) — never
         // persist or resume one via the single-player slot
         if (!resume?.local && !star) clearSinglePlayer();
     }
-    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star, replay);
+    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star, replay, spectate);
     activeGame = game;
     game.onReturnToMenu = returnToMenu;
     if (net instanceof NetSession) wireReconnect(game, net, side, names);
-    else if (!net && !star && !replay) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    else if (!net && !star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */
@@ -1783,27 +1799,37 @@ function showMatchmakingPicker(): void {
 }
 
 /**
- * Plain (non-Steam) 1v1 quick match, probe-first — used both for the
- * default "just clicked Matchmaking" attempt and for the simplified
- * picker's own 1v1/Horde buttons (retrying is the same operation). Finds
- * someone already waiting → connects immediately with their settings, no
- * further UI. Finds no one → becomes the one waiting, and reveals the
- * simplified picker (mode buttons only, no invite — see mmSimpleEl) so the
- * player can pick a different mode, or just wait as-is.
+ * Plain (non-Steam) 1v1 quick match, probe-first.
+ *
+ * `committed=false` (the default): used for the initial "just clicked
+ * Matchmaking" attempt, before the player has chosen a mode. Finds someone
+ * already waiting → connects immediately. Finds no one → gives up on this
+ * probe and reveals the simplified picker (mmSimpleEl) so the player can
+ * choose a mode.
+ *
+ * `committed=true`: used by the picker's OWN mode buttons (mms-1v1/
+ * mms-horde) — the player already chose, so "nobody's waiting" here means
+ * actually queue and wait (status + Cancel button), not bounce back to the
+ * same picker. Bug fix: this used to call the same not-committed path, so
+ * picking a mode from the picker re-ran the exact same probe-and-bail
+ * behavior that got them there, cancelling the wait instead of starting it —
+ * looked like the click did nothing (a quick flicker back to the picker).
  */
-function tryQuickMatch(horde: boolean): void {
+function tryQuickMatch(horde: boolean, committed = false): void {
     mmSimpleEl.style.display = 'none';
     setStatus('Looking for a match…');
     setMenuBusy(true);
     const probe = quickMatch(
         (s) => setStatus(s),
-        () => {
-            pending = null;
-            probe.cancel();
-            setMenuBusy(false);
-            setStatus('');
-            mmSimpleEl.style.display = '';
-        },
+        committed
+            ? undefined
+            : () => {
+                  pending = null;
+                  probe.cancel();
+                  setMenuBusy(false);
+                  setStatus('');
+                  mmSimpleEl.style.display = '';
+              },
     );
     pending = probe;
     probe.session
@@ -1832,6 +1858,53 @@ function try2v2Match(horde: boolean): void {
     });
 }
 
+/**
+ * Joins a live match as a read-only spectator, by the host's discoverable
+ * room name (same identifier a "Host Room"/2v2 star host already registers
+ * under — see registerSpectateEndpoint in net.ts). Reached by clicking a
+ * "👁 Watch <name>" row in the Custom Room list (populated from running,
+ * spectatable matches alongside open joinable rooms — see refreshRoomList).
+ */
+function startSpectateGame(hostName: string): void {
+    const name = hostName.trim();
+    if (!name) return;
+    setMenuBusy(true);
+    setStatus(`Looking for "${name}"…`);
+    void (async () => {
+        try {
+            const peerId = await lookupSpectateEndpoint(name);
+            if (!peerId) {
+                setMenuBusy(false);
+                setStatus(`No live match found for "${name}".`);
+                return;
+            }
+            setStatus('Connecting…');
+            const result = await joinAsSpectator(peerId, getPlayerName());
+            setMenuBusy(false);
+            setStatus('');
+            const players = result.roster.filter((r) => r.role === 'player');
+            const names = {
+                local: players[0]?.name ?? 'Player',
+                opponent: players[1]?.name ?? 'Opponent',
+            };
+            const settings = result.settings;
+            settings.seed = result.seed;
+            startGame(settings, null, 'a', names, null, null, null, {
+                session: result.session,
+                watcherName: getPlayerName(),
+                initial: {
+                    actions: result.actions,
+                    battleElapsed: result.battleElapsed,
+                    phaseRemaining: result.phaseRemaining,
+                },
+            });
+        } catch (e) {
+            setMenuBusy(false);
+            setStatus(`Could not watch: ${e instanceof Error ? e.message : e}`);
+        }
+    })();
+}
+
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
@@ -1839,7 +1912,8 @@ menu.addEventListener('click', (e) => {
             setStatus('Still loading — one moment…');
             return;
         }
-        if (roomBtn.dataset.roomMode === '2v2') beginStarJoin(roomBtn.dataset.room);
+        if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
+        else if (roomBtn.dataset.roomMode === '2v2') beginStarJoin(roomBtn.dataset.room);
         else runPending(joinLobby(roomBtn.dataset.room, setStatus));
         return;
     }
@@ -1854,6 +1928,12 @@ menu.addEventListener('click', (e) => {
         cancelSteamStarHost();
         setMenuBusy(false);
         setStatus('');
+        // a quick-match probe/wait hides every panel including mainButtonsEl
+        // (see tryQuickMatch/try2v2Match) — restore a sane menu state rather
+        // than leaving the player at a blank screen with nothing clickable
+        mmModeEl.style.display = 'none';
+        mmSimpleEl.style.display = 'none';
+        mainButtonsEl.style.display = '';
         return;
     }
 
@@ -1937,10 +2017,10 @@ menu.addEventListener('click', (e) => {
             break;
         }
         case 'mms-1v1':
-            tryQuickMatch(false);
+            tryQuickMatch(false, true);
             break;
         case 'mms-horde':
-            tryQuickMatch(true);
+            tryQuickMatch(true, true);
             break;
         case 'mms-2v2':
             try2v2Match(false);
