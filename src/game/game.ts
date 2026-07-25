@@ -376,6 +376,8 @@ export class Game {
             // cycle weather: sunny → rain → snow → night → …
             this.weather?.next();
             this.economy.credit('player', 1000);
+            this.playerHp += 5000;
+            this.enemyHp += 5000;
             this.settings.battleTimeSeconds = 500;
             if (this.phase === 'battle' && this.sim) {
                 this.sim.setBattleSeconds(500);

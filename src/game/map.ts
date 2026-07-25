@@ -672,7 +672,7 @@ export class BattleMap {
         if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
     }
 
-    /** Weather-driven snow dusting on the board (visual only, melts under fire/oil/acid). */
+    /** Weather-driven snow wash on the board (visual only, melts under fire/oil/acid). */
     setSnowCover(v: number): void {
         if (this.snowCoverUniform) this.snowCoverUniform.value = v;
     }
@@ -817,18 +817,14 @@ export class BattleMap {
             inject +=
                 '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
                 '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
-            // weather-driven snow dusting — patchy, not a uniform wash: a static
-            // per-spot pseudo-noise gives each patch its own "landing" threshold
-            // against uSnowCover, so coverage fills in gradually/unevenly instead
-            // of the whole board fading white in lockstep. Backs off near active
-            // hazards so oil/fire/acid stay gameplay-readable.
-            // tuning: raise the 0.35 / 0.6 below to delay/shrink the reveal
-            // window; raise 0.14 for a softer edge between snowy/bare patches.
+            // weather-driven snow — same descending snow line as outer meadow
+            // (scenery.ts), evaluated at board height (~0) so the field stays
+            // bare until snow reaches the foothills, then board + meadow floor
+            // whiten together. Hazards still melt snow locally.
             inject +=
                 '\tfloat snowMelt = max( oilM, max( fireM, acidM ) );\n' +
-                '\tfloat snowNoise = 0.5 + 0.5 * sin( vMacroUv.x * 26.0 + sin( vMacroUv.y * 21.0 + 1.7 ) * 2.6 ) * sin( vMacroUv.y * 29.0 + sin( vMacroUv.x * 18.0 + 4.1 ) * 2.2 );\n' +
-                '\tfloat snowThreshold = 0.35 + snowNoise * 0.6;\n' +
-                '\tfloat snowMask = smoothstep( snowThreshold - 0.14, snowThreshold + 0.14, uSnowCover );\n' +
+                '\tfloat snowLine = mix( 220.0, -15.0, uSnowCover );\n' +
+                '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
                 '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.90, 0.94, 0.97 ), snowMask * 0.92 * ( 1.0 - snowMelt ) );\n';
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +

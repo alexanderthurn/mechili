@@ -182,9 +182,11 @@ const RAIN_BOX = { x: 170, y: 80, z: 170 };
 const STAR_COUNT = 1400;
 const SNOW_FLAKES = 1600;
 const SNOW_BOX = { x: 190, y: 90, z: 190 };
-/** ground snow builds up while it's snowing and melts (slower) once it stops */
-const SNOW_COVER_GROW_TAU = 45;
-const SNOW_COVER_MELT_TAU = 100;
+/** ground snow builds up while it's snowing and melts (slower) once it stops.
+ *  Seconds for an exponential ease — lower = faster. Production ~45 / 100;
+ *  use ~8 / 20 while testing the look. */
+const SNOW_COVER_GROW_TAU = 8;
+const SNOW_COVER_MELT_TAU = 20;
 
 /** hooks into the scene/scenery objects the weather drives */
 export interface WeatherHandles {

@@ -969,16 +969,12 @@ export class Scenery {
             inject += `
     // permanent alpine snowcap — always on, independent of weather
     float alpineSnow = smoothstep(170.0, 235.0, vTerrainH);
-    // weather-driven cover: same patchy-noise technique as the board (see
-    // map.ts), so both surfaces fill in gradually/unevenly instead of one
-    // washing uniformly while the other pops all at once. Biased by height
-    // so higher ground still catches snow before the flat meadow does.
-    // tuning: widen the mix(0.85, 0.05, ...) gap to spread mountain-vs-meadow
-    // timing further apart; raise 0.14 for a softer patch edge.
-    float groundNoise = 0.5 + 0.5 * sin(vWorldXZ.x * 0.045 + sin(vWorldXZ.y * 0.037 + 1.7) * 2.6) * sin(vWorldXZ.y * 0.052 + sin(vWorldXZ.x * 0.031 + 4.1) * 2.2);
-    float elevationFactor = smoothstep(-20.0, 210.0, vTerrainH); // 0 at board level, 1 high on the slopes
-    float snowThreshold = clamp(mix(0.85, 0.05, elevationFactor) + (groundNoise - 0.5) * 0.5, 0.02, 0.98);
-    float weatherSnow = smoothstep(snowThreshold - 0.14, snowThreshold + 0.14, uSnowCover) * (1.0 - vBeach);
+    // weather-driven cover: a soft snow line that descends from the peaks
+    // toward the meadow as uSnowCover grows (area-wide, not patchy).
+    // cover=0 → line near alpine (~220); cover=1 → below board level.
+    // Soft band keeps the advancing front from reading as a hard cliff.
+    float snowLine = mix(220.0, -15.0, uSnowCover);
+    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * (1.0 - vBeach);
     float snowF = max(alpineSnow, weatherSnow);
     float rockF = 0.0;`;
             if (rock) {
