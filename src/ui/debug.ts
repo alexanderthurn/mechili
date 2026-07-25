@@ -28,6 +28,8 @@ export interface DebugPerfStats {
     /** battle-sim internal breakdown when in combat */
     simCpu?: CpuTimings;
     simSteps?: number;
+    /** Weather.debugLines() — live sky/fog/light state for finetuning presets */
+    weatherLines?: string[];
 }
 
 /**
@@ -94,8 +96,14 @@ export class DebugOverlay {
     readonly el: HTMLDivElement;
     private accumulator = 0;
     private enabled = false;
+    /** click both copies the report AND toggles this */
+    private collapsed = false;
     /** last full report — what a click copies */
     private lastReport = '';
+    /** full multi-line readout, shown while expanded */
+    private lastHud = '';
+    /** one-line readout, shown while collapsed */
+    private lastSummary = '';
     private flashTimer = 0;
     /** rolling averages so the HUD doesn't flicker every frame */
     private readonly cpuAvg: Record<string, number> = {};
@@ -104,7 +112,7 @@ export class DebugOverlay {
     constructor(parent: HTMLElement, enabled = false) {
         this.el = document.createElement('div');
         this.el.className = 'mechili-debug';
-        this.el.title = 'Click to copy perf report';
+        this.el.title = 'Click to copy perf report and collapse/expand';
         this.el.style.cssText = [
             'position:absolute',
             'left:140px',
@@ -126,6 +134,7 @@ export class DebugOverlay {
         this.el.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
+            this.collapsed = !this.collapsed;
             void this.copyReport();
         });
         // don't let the click fall through to the game canvas
@@ -208,10 +217,12 @@ export class DebugOverlay {
             (stats.instanceCount !== undefined
                 ? `\ninst ${stats.instanceCount} in ${stats.instancePools ?? 0} pools`
                 : '') +
+            (stats.weatherLines?.length ? `\n${stats.weatherLines[0]}` : '') +
             cpuBlock +
             `\n(click to copy)`;
-
-        this.el.textContent = hud;
+        this.lastHud = hud;
+        this.lastSummary = `fps ${fps.toFixed(0)}`;
+        this.renderText();
 
         const lines = [
             '=== mechili perf ===',
@@ -230,6 +241,7 @@ export class DebugOverlay {
             `scene drawables=${sceneStats.drawables}  meshes=${sceneStats.meshes}  instancedMeshes=${sceneStats.instanced}  sprites=${sceneStats.sprites}`,
             `inst  count=${stats.instanceCount ?? 0}  pools=${stats.instancePools ?? 0}`,
             ...(stats.instanceLines ?? []),
+            ...(stats.weatherLines?.length ? ['--- weather ---', ...stats.weatherLines] : []),
             '--- cpu frame (avg) ---',
             ...formatCpuLines(this.cpuAvg),
         ];
@@ -245,8 +257,13 @@ export class DebugOverlay {
         this.lastReport = lines.join('\n');
     }
 
+    /** shows whichever mode is active — collapsed one-liner or the full readout */
+    private renderText(): void {
+        this.el.textContent = this.collapsed ? this.lastSummary : this.lastHud;
+    }
+
     private async copyReport(): Promise<void> {
-        const text = this.lastReport || this.el.textContent || '';
+        const text = this.lastReport || this.lastHud || '';
         if (!text) return;
         try {
             await navigator.clipboard.writeText(text);
@@ -262,8 +279,10 @@ export class DebugOverlay {
         }
         this.el.style.borderColor = 'rgba(220,255,160,0.95)';
         this.flashTimer = 1.2;
-        const base = this.el.textContent ?? '';
-        this.el.textContent = base.replace(/\n\(click to copy\)$/, '\n(copied!)');
+        // the collapsed view is fps-only — the border flash is its only "copied" feedback
+        if (!this.collapsed) {
+            this.el.textContent = this.lastHud.replace(/\n\(click to copy\)$/, '\n(copied!)');
+        }
     }
 }
 

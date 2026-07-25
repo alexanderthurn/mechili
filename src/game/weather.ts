@@ -19,12 +19,13 @@ import {
     type HemisphereLight,
     type Scene,
     type Texture,
+    type WebGLRenderer,
 } from 'three';
 import { mulberry32, type BattleMap } from './map';
 import { sceneryFogScale } from './prefs';
 import { loadWorldTexture, moonUrl } from './worldTextures';
 
-export type WeatherId = 'sunny' | 'rain' | 'night';
+export type WeatherId = 'sunny' | 'rain' | 'snow' | 'night';
 
 /** everything a scenario tunes — all lerpable, so switching is a smooth fade */
 export interface WeatherPreset {
@@ -53,33 +54,40 @@ export interface WeatherPreset {
     forestFog: number;
     stars: number;
     rain: number;
+    /** opacity of the falling-snow particles (ground accumulation is separate, see `Weather.groundSnow`) */
+    snow: number;
+    /** multiplies the renderer's base tone-mapping exposure — punchy on a clear day, flatter under cloud */
+    exposureMul: number;
 }
 
 export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
-    // warm bright day — haze pushed far out, saturated sky, strong warm sun
+    // crisp bright day — deep saturated sky, minimal haze, strong warm sun with
+    // real contrast against the ambient fill so it reads as "fresh", not flat
     sunny: {
         id: 'sunny',
-        skyZenith: 0x3888d8,
-        skyMid: 0x7cc0ec,
-        skyHorizon: 0xc4e0ee,
-        fogNear: 700,
-        fogFar: 2600,
-        sun: 0xffe9b0,
-        sunIntensity: 1.8,
+        skyZenith: 0x1f6fc4,
+        skyMid: 0x4f9fe0,
+        skyHorizon: 0xace0f0,
+        fogNear: 820,
+        fogFar: 2700,
+        sun: 0xfff2c8,
+        sunIntensity: 2.05,
         sunPos: { x: 120, y: 210, z: 60 },
-        hemiSky: 0xd8ecc0,
+        hemiSky: 0xe8f6cc,
         hemiGround: 0x6a9a48,
-        hemiIntensity: 1.2,
-        glow: 0xfff2cc,
+        hemiIntensity: 1.0,
+        glow: 0xfff6d8,
         glowScale: 340,
         glowOpacity: 1,
         cloudTint: 0xffffff,
-        cloudOpacity: 0.85,
-        cloudShadowOpacity: 0.16,
-        nearCloudOpacity: 0.16,
-        forestFog: 0.14,
+        cloudOpacity: 0.8,
+        cloudShadowOpacity: 0.14,
+        nearCloudOpacity: 0.12,
+        forestFog: 0.07,
         stars: 0,
         rain: 0,
+        snow: 0,
+        exposureMul: 1.08,
     },
     // grey drizzle — close fog, dim cool light, heavy cloud work + rain streaks
     rain: {
@@ -105,6 +113,37 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         forestFog: 0.55,
         stars: 0,
         rain: 1,
+        snow: 0,
+        exposureMul: 0.9,
+    },
+    // overcast snowfall — pale cold sky, soft even light (big diffuse bounce,
+    // almost no shadow contrast), gently falling flakes; ground cover is
+    // handled separately by `Weather.groundSnow` so it lags/lingers realistically
+    snow: {
+        id: 'snow',
+        skyZenith: 0x9fb4c4,
+        skyMid: 0xc6d6de,
+        skyHorizon: 0xe6eef2,
+        fogNear: 260,
+        fogFar: 950,
+        sun: 0xe2ecf4,
+        sunIntensity: 1.0,
+        sunPos: { x: 100, y: 180, z: 40 },
+        hemiSky: 0xe2ecee,
+        hemiGround: 0x84948a,
+        hemiIntensity: 1.15,
+        glow: 0xeef6fa,
+        glowScale: 220,
+        glowOpacity: 0.32,
+        cloudTint: 0xdfe7ea,
+        cloudOpacity: 0.9,
+        cloudShadowOpacity: 0.04,
+        nearCloudOpacity: 0.3,
+        forestFog: 0.35,
+        stars: 0,
+        rain: 0,
+        snow: 1,
+        exposureMul: 0.97,
     },
     // starlit night — "movie night": cool, dark-ish, but units stay readable
     night: {
@@ -130,15 +169,22 @@ export const WEATHER_PRESETS: Record<WeatherId, WeatherPreset> = {
         forestFog: 0.28,
         stars: 1,
         rain: 0,
+        snow: 0,
+        exposureMul: 0.82,
     },
 };
 
-const CYCLE: WeatherId[] = ['sunny', 'rain', 'night'];
+const CYCLE: WeatherId[] = ['sunny', 'rain', 'snow', 'night'];
 /** seconds for the exponential ease toward a new preset */
 const TRANSITION_TAU = 3.5;
 const RAIN_DROPS = 2200;
 const RAIN_BOX = { x: 170, y: 80, z: 170 };
 const STAR_COUNT = 1400;
+const SNOW_FLAKES = 1600;
+const SNOW_BOX = { x: 190, y: 90, z: 190 };
+/** ground snow builds up while it's snowing and melts (slower) once it stops */
+const SNOW_COVER_GROW_TAU = 45;
+const SNOW_COVER_MELT_TAU = 100;
 
 /** hooks into the scene/scenery objects the weather drives */
 export interface WeatherHandles {
@@ -161,6 +207,7 @@ export interface WeatherHandles {
     /** world-space scenery group — rain + near clouds live here */
     worldGroup: Group;
     map: BattleMap;
+    renderer: WebGLRenderer;
 }
 
 /** a fully numeric/lerpable copy of a preset, used as the live state */
@@ -186,6 +233,8 @@ class WeatherState {
     forestFog = 0;
     stars = 0;
     rain = 0;
+    snow = 0;
+    exposureMul = 1;
 
     set(p: WeatherPreset): void {
         this.lerpToward(p, 1);
@@ -213,11 +262,13 @@ class WeatherState {
         this.forestFog += (p.forestFog - this.forestFog) * k;
         this.stars += (p.stars - this.stars) * k;
         this.rain += (p.rain - this.rain) * k;
+        this.snow += (p.snow - this.snow) * k;
+        this.exposureMul += (p.exposureMul - this.exposureMul) * k;
     }
 }
 
 /**
- * Scenario system: sunny / rain / night presets eased into smoothly.
+ * Scenario system: sunny / rain / snow / night presets eased into smoothly.
  * Deterministically rolls a new scenario at most once per round (seeded, so
  * network peers stay in sync); `next()` cycles manually (hotkey N).
  */
@@ -225,12 +276,24 @@ export class Weather {
     private readonly state = new WeatherState();
     private target: WeatherPreset = WEATHER_PRESETS.sunny;
     private readonly rng: () => number;
+    /** renderer's tone-mapping exposure before the weather system starts driving it */
+    private readonly baseExposure: number;
 
     private readonly rainGroup = new Group();
     private readonly rainMaterial: PointsMaterial;
     private readonly rainPositions: Float32Array;
     private readonly rainSpeeds: Float32Array;
     private readonly rainGeometry: BufferGeometry;
+
+    private readonly snowGroup = new Group();
+    private readonly snowMaterial: PointsMaterial;
+    private readonly snowPositions: Float32Array;
+    private readonly snowSpeeds: Float32Array;
+    private readonly snowPhase: Float32Array;
+    private readonly snowGeometry: BufferGeometry;
+    private snowTime = 0;
+    /** 0..1 ground accumulation — builds while it snows, melts (slower) once it stops */
+    private snowCover = 0;
 
     private readonly starMaterial: PointsMaterial;
     private readonly nearClouds: { mesh: Mesh; speed: number }[] = [];
@@ -243,6 +306,7 @@ export class Weather {
     ) {
         this.rng = mulberry32(seed);
         this.state.set(this.target);
+        this.baseExposure = h.renderer.toneMappingExposure;
 
         // --- rain: one Points cloud in a camera-following box
         this.rainPositions = new Float32Array(RAIN_DROPS * 3);
@@ -269,6 +333,34 @@ export class Weather {
         this.rainGroup.add(rain);
         this.rainGroup.visible = false;
         h.worldGroup.add(this.rainGroup);
+
+        // --- snow: soft round flakes, much slower than rain and drifting side to side
+        this.snowPositions = new Float32Array(SNOW_FLAKES * 3);
+        this.snowSpeeds = new Float32Array(SNOW_FLAKES);
+        this.snowPhase = new Float32Array(SNOW_FLAKES);
+        const snowRoll = mulberry32(seed ^ 0x50f7);
+        for (let i = 0; i < SNOW_FLAKES; i++) {
+            this.snowPositions[i * 3] = (snowRoll() * 2 - 1) * SNOW_BOX.x;
+            this.snowPositions[i * 3 + 1] = snowRoll() * SNOW_BOX.y;
+            this.snowPositions[i * 3 + 2] = (snowRoll() * 2 - 1) * SNOW_BOX.z;
+            this.snowSpeeds[i] = 4 + snowRoll() * 7;
+            this.snowPhase[i] = snowRoll() * Math.PI * 2;
+        }
+        this.snowGeometry = new BufferGeometry();
+        this.snowGeometry.setAttribute('position', new BufferAttribute(this.snowPositions, 3));
+        this.snowMaterial = new PointsMaterial({
+            map: makeSnowflakeTexture(),
+            color: 0xffffff,
+            size: 3.4,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+        });
+        const snowPoints = new Points(this.snowGeometry, this.snowMaterial);
+        snowPoints.frustumCulled = false;
+        this.snowGroup.add(snowPoints);
+        this.snowGroup.visible = false;
+        h.worldGroup.add(this.snowGroup);
 
         // --- stars: points pinned to the (camera-following) sky dome shell
         const starPositions = new Float32Array(STAR_COUNT * 3);
@@ -384,6 +476,30 @@ export class Weather {
         return this.target.id;
     }
 
+    /**
+     * 0..1 how much snow currently lies on the ground — lags the sky, melts
+     * slowly. Quadratic ease-in on top of the raw accumulator (see
+     * `snowCover`) so the very start of a snowfall stays close to bare ground
+     * for a while instead of an immediately-visible wash.
+     */
+    get groundSnow(): number {
+        return this.snowCover * this.snowCover;
+    }
+
+    /** compact live-state dump for the debug overlay — for finetuning presets */
+    debugLines(): string[] {
+        const s = this.state;
+        const hex = (c: Color) => `#${c.getHexString()}`;
+        return [
+            `target ${this.target.id}  ground-snow accum ${(this.snowCover * 100).toFixed(0)}% visual ${(this.groundSnow * 100).toFixed(0)}%`,
+            `sky zenith ${hex(s.skyZenith)} mid ${hex(s.skyMid)} horizon ${hex(s.skyHorizon)}`,
+            `fog near ${s.fogNear.toFixed(0)} far ${s.fogFar.toFixed(0)}`,
+            `sun ${hex(s.sun)} int ${s.sunIntensity.toFixed(2)}  hemi ${hex(s.hemiSky)}/${hex(s.hemiGround)} int ${s.hemiIntensity.toFixed(2)}`,
+            `exposureMul ${s.exposureMul.toFixed(2)}  glow ${hex(s.glow)} op ${s.glowOpacity.toFixed(2)}`,
+            `rain ${s.rain.toFixed(2)}  snow ${s.snow.toFixed(2)}  stars ${s.stars.toFixed(2)}  forestFog ${s.forestFog.toFixed(2)}`,
+        ];
+    }
+
     /** manual cycle (hotkey) */
     next(): void {
         const i = CYCLE.indexOf(this.target.id);
@@ -402,8 +518,9 @@ export class Weather {
         const roll = this.rng();
         const pick = this.rng();
         if (round <= 1 || roll >= 0.45) return;
-        // weighted: sunny half the time, rain/night a quarter each
-        const id: WeatherId = pick < 0.5 ? 'sunny' : pick < 0.75 ? 'rain' : 'night';
+        // weighted: sunny most often, rain/snow/night sharing the rest
+        const id: WeatherId =
+            pick < 0.42 ? 'sunny' : pick < 0.62 ? 'rain' : pick < 0.84 ? 'snow' : 'night';
         this.setTarget(id);
     }
 
@@ -438,6 +555,7 @@ export class Weather {
         h.hemi.color.copy(s.hemiSky);
         h.hemi.groundColor.copy(s.hemiGround);
         h.hemi.intensity = s.hemiIntensity;
+        h.renderer.toneMappingExposure = this.baseExposure * s.exposureMul;
 
         const glowMat = h.glow.material;
         glowMat.color.copy(s.glow);
@@ -478,6 +596,13 @@ export class Weather {
         }
 
         this.updateRain(dtSeconds, cameraPos);
+        this.updateSnow(dtSeconds, cameraPos);
+
+        // ground accumulation lags well behind the sky: builds slowly while it
+        // actively snows, melts even slower once the scenario moves on
+        const targetCover = this.target.id === 'snow' ? 1 : 0;
+        const tau = targetCover > this.snowCover ? SNOW_COVER_GROW_TAU : SNOW_COVER_MELT_TAU;
+        this.snowCover += (targetCover - this.snowCover) * Math.min(1, dtSeconds / tau);
     }
 
     private updateRain(dt: number, cameraPos: Vector3): void {
@@ -507,6 +632,52 @@ export class Weather {
         }
         this.rainGeometry.attributes.position!.needsUpdate = true;
     }
+
+    private updateSnow(dt: number, cameraPos: Vector3): void {
+        this.snowMaterial.opacity = this.state.snow * 0.8;
+        const active = this.state.snow > 0.02;
+        this.snowGroup.visible = active;
+        if (!active) return;
+        this.snowTime += dt;
+        // same world-space wrap-around-camera trick as rain, but flakes fall
+        // slowly and sway side to side instead of streaking on the wind
+        const p = this.snowPositions;
+        const wind = 4;
+        for (let i = 0; i < SNOW_FLAKES; i++) {
+            const sway = Math.sin(this.snowTime * 0.6 + this.snowPhase[i]!) * 3.2;
+            p[i * 3] = p[i * 3]! + (wind + sway) * dt;
+            p[i * 3 + 1] = p[i * 3 + 1]! - this.snowSpeeds[i]! * dt;
+            if (p[i * 3 + 1]! < 0) {
+                p[i * 3 + 1] = SNOW_BOX.y;
+                p[i * 3] = cameraPos.x + (Math.random() * 2 - 1) * SNOW_BOX.x;
+                p[i * 3 + 2] = cameraPos.z + (Math.random() * 2 - 1) * SNOW_BOX.z;
+            }
+            const dx = p[i * 3]! - cameraPos.x;
+            if (dx > SNOW_BOX.x) p[i * 3] = p[i * 3]! - 2 * SNOW_BOX.x;
+            else if (dx < -SNOW_BOX.x) p[i * 3] = p[i * 3]! + 2 * SNOW_BOX.x;
+            const dz = p[i * 3 + 2]! - cameraPos.z;
+            if (dz > SNOW_BOX.z) p[i * 3 + 2] = p[i * 3 + 2]! - 2 * SNOW_BOX.z;
+            else if (dz < -SNOW_BOX.z) p[i * 3 + 2] = p[i * 3 + 2]! + 2 * SNOW_BOX.z;
+        }
+        this.snowGeometry.attributes.position!.needsUpdate = true;
+    }
+}
+
+/** soft round flake — a diffuse dot, unlike rain's crisp streak */
+function makeSnowflakeTexture(): CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 24;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(12, 12, 0, 12, 12, 12);
+    grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0.7)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 24, 24);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
 }
 
 /** thin vertical white streak — reads as a falling drop at RTS pitch */

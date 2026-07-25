@@ -209,6 +209,8 @@ export class BattleMap {
     private hazardFlushAt = 0;
     /** updated each frame for fire flicker in the ground shader */
     private hazardTimeUniform: { value: number } | null = null;
+    /** 0..1 weather-driven snow dusting on the board (see `setSnowCover`) */
+    private snowCoverUniform: { value: number } | null = null;
 
     /** ground texture + wear quality (the board's SHAPE is never gated) */
     private groundEffects: GroundEffectsQuality = prefs().groundEffects;
@@ -670,6 +672,11 @@ export class BattleMap {
         if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
     }
 
+    /** Weather-driven snow dusting on the board (visual only, melts under fire/oil/acid). */
+    setSnowCover(v: number): void {
+        if (this.snowCoverUniform) this.snowCoverUniform.value = v;
+    }
+
     /**
      * Shared ground fragment inject: optional wear (sand/blood/scorch) + always
      * oil/fire hazard. High/ultra dual-scale / texture-bomb the grass, ease off
@@ -704,6 +711,8 @@ export class BattleMap {
             shader.uniforms.uHazardTime = { value: 0 };
             shader.uniforms.uHazardMask = { value: hazardMask };
             this.hazardTimeUniform = shader.uniforms.uHazardTime as { value: number };
+            shader.uniforms.uSnowCover = { value: 0 };
+            this.snowCoverUniform = shader.uniforms.uSnowCover as { value: number };
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
@@ -716,7 +725,7 @@ export class BattleMap {
                 );
             let inject = '';
             let extraUniforms =
-                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\n';
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\n';
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
@@ -808,6 +817,19 @@ export class BattleMap {
             inject +=
                 '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
                 '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
+            // weather-driven snow dusting — patchy, not a uniform wash: a static
+            // per-spot pseudo-noise gives each patch its own "landing" threshold
+            // against uSnowCover, so coverage fills in gradually/unevenly instead
+            // of the whole board fading white in lockstep. Backs off near active
+            // hazards so oil/fire/acid stay gameplay-readable.
+            // tuning: raise the 0.35 / 0.6 below to delay/shrink the reveal
+            // window; raise 0.14 for a softer edge between snowy/bare patches.
+            inject +=
+                '\tfloat snowMelt = max( oilM, max( fireM, acidM ) );\n' +
+                '\tfloat snowNoise = 0.5 + 0.5 * sin( vMacroUv.x * 26.0 + sin( vMacroUv.y * 21.0 + 1.7 ) * 2.6 ) * sin( vMacroUv.y * 29.0 + sin( vMacroUv.x * 18.0 + 4.1 ) * 2.2 );\n' +
+                '\tfloat snowThreshold = 0.35 + snowNoise * 0.6;\n' +
+                '\tfloat snowMask = smoothstep( snowThreshold - 0.14, snowThreshold + 0.14, uSnowCover );\n' +
+                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.90, 0.94, 0.97 ), snowMask * 0.92 * ( 1.0 - snowMelt ) );\n';
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
@@ -836,7 +858,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v8${sand && sandMask ? '-wear-rgb' : ''}${photoGrass ? '-pgblob' : ''}-${
+            `ground-hazard-v10${sand && sandMask ? '-wear-rgb' : ''}${photoGrass ? '-pgblob' : ''}-${
                 useDetail ? groundDetailCacheKey(profile) : 'plain'
             }`;
     }

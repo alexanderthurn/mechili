@@ -26,6 +26,7 @@ import {
     type DirectionalLight,
     type HemisphereLight,
     type Scene,
+    type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather } from './weather';
@@ -156,6 +157,8 @@ export class Scenery {
     private weather: Weather | null = null;
 
     private waterTexture: CanvasTexture | null = null;
+    /** drives the outer meadow's weather-driven snow blend (see `applyMeadowTexture`) */
+    private outerGroundSnowUniform: { value: number } | null = null;
 
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
@@ -324,13 +327,20 @@ export class Scenery {
         return this.rockFactorAt(x, z) < 0.32;
     }
 
-    /** builds the scenario system driving sky, fog, lights, clouds, rain, stars */
-    createWeather(scene: Scene, sun: DirectionalLight, hemi: HemisphereLight, seed: number): Weather {
+    /** builds the scenario system driving sky, fog, lights, clouds, rain/snow, stars */
+    createWeather(
+        scene: Scene,
+        sun: DirectionalLight,
+        hemi: HemisphereLight,
+        renderer: WebGLRenderer,
+        seed: number,
+    ): Weather {
         this.weather = new Weather(
             {
                 scene,
                 sun,
                 hemi,
+                renderer,
                 repaintSky: this.repaintSky,
                 glow: this.sunGlow,
                 cloudMaterial: this.cloudMaterial,
@@ -347,9 +357,15 @@ export class Scenery {
         return this.weather;
     }
 
+    /** 0..1 how much snow currently lies on the ground (drives the board's own snow blend too) */
+    get groundSnowCover(): number {
+        return this.weather?.groundSnow ?? 0;
+    }
+
     update(dtSeconds: number, cameraPos: Vector3): void {
         this.skyGroup.position.set(cameraPos.x, 0, cameraPos.z);
         this.weather?.update(dtSeconds, cameraPos);
+        if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
         const mat = this.cloudShadow.material as MeshBasicMaterial;
         mat.map!.offset.x += dtSeconds * 0.0035;
         mat.map!.offset.y += dtSeconds * 0.0012;
@@ -883,6 +899,8 @@ export class Scenery {
                 shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
             }
             if (sand) shader.uniforms.uSand = { value: sand };
+            shader.uniforms.uSnowCover = { value: 0 };
+            this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
@@ -949,7 +967,19 @@ export class Scenery {
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${tileSize.toFixed(1)}).rgb, vBeach);`;
             }
             inject += `
-    float snowF = smoothstep(170.0, 235.0, vTerrainH);
+    // permanent alpine snowcap — always on, independent of weather
+    float alpineSnow = smoothstep(170.0, 235.0, vTerrainH);
+    // weather-driven cover: same patchy-noise technique as the board (see
+    // map.ts), so both surfaces fill in gradually/unevenly instead of one
+    // washing uniformly while the other pops all at once. Biased by height
+    // so higher ground still catches snow before the flat meadow does.
+    // tuning: widen the mix(0.85, 0.05, ...) gap to spread mountain-vs-meadow
+    // timing further apart; raise 0.14 for a softer patch edge.
+    float groundNoise = 0.5 + 0.5 * sin(vWorldXZ.x * 0.045 + sin(vWorldXZ.y * 0.037 + 1.7) * 2.6) * sin(vWorldXZ.y * 0.052 + sin(vWorldXZ.x * 0.031 + 4.1) * 2.2);
+    float elevationFactor = smoothstep(-20.0, 210.0, vTerrainH); // 0 at board level, 1 high on the slopes
+    float snowThreshold = clamp(mix(0.85, 0.05, elevationFactor) + (groundNoise - 0.5) * 0.5, 0.02, 0.98);
+    float weatherSnow = smoothstep(snowThreshold - 0.14, snowThreshold + 0.14, uSnowCover) * (1.0 - vBeach);
+    float snowF = max(alpineSnow, weatherSnow);
     float rockF = 0.0;`;
             if (rock) {
                 inject += `
@@ -986,6 +1016,7 @@ export class Scenery {
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
+                'uniform float uSnowCover;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
             if (useDetail && normal) {
@@ -1008,7 +1039,7 @@ export class Scenery {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v8${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v10${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
