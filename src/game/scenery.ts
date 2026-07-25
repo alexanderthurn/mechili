@@ -50,6 +50,7 @@ import {
 } from './worldTextures';
 import {
     BILLBOARD_SCALE,
+    BILLBOARD_Y_SINK,
     attachVegetationSnow,
     createBillboardInstances,
     createVegetationInstances,
@@ -1431,7 +1432,7 @@ export class Scenery {
                 placeVegetationInstance(
                     mesh,
                     p.x,
-                    groundY(p.x, p.z),
+                    groundY(p.x, p.z) - BILLBOARD_Y_SINK,
                     p.z,
                     p.sc * BILLBOARD_SCALE,
                     rng() * Math.PI * 2,
@@ -1599,7 +1600,7 @@ export class Scenery {
                         placeVegetationInstance(
                             mesh,
                             p.x,
-                            groundY(p.x, p.z),
+                            groundY(p.x, p.z) - BILLBOARD_Y_SINK,
                             p.z,
                             p.sc * BILLBOARD_SCALE,
                             rng() * Math.PI * 2,

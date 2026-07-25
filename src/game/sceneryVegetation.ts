@@ -42,6 +42,9 @@ export const NEAR_TREE_DIST = 48;
 /** Far cards read thinner than volumetric trees — bump scale so the belt matches. */
 export const BILLBOARD_SCALE = 1.55;
 
+/** Sink billboards into the ground a bit (transparent PNG padding reads as floating). */
+export const BILLBOARD_Y_SINK = 1.85;
+
 /** MeshBasic cards miss sun lift; multiply albedo so they match lit near trees. */
 export const BILLBOARD_BRIGHTNESS = 1.55;
 
