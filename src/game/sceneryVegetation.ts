@@ -26,7 +26,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { SceneryQuality } from './prefs';
-import type { Season } from './weather';
+import { TRANSITION_TAU, type Season } from './weather';
 
 export type VegetationKind = 'oak' | 'pine' | 'bushRound' | 'bushTall';
 
@@ -137,10 +137,17 @@ const cache = new Map<VegetationKind, VegetationAsset>();
 const billboardCache = new Map<VegetationKind, { geometry: BufferGeometry; material: MeshBasicMaterial }>();
 let loadPromise: Promise<void> | null = null;
 let billboardPromise: Promise<void> | null = null;
-/** Last season applied to billboard albedo maps (spring/autumn art; winter uses summer + snow mix). */
-let billboardSeason: Season = 'summer';
-
 type BillboardSeasonMaps = Record<Season, Texture>;
+
+/** Season shown on billboard `map` (fade source). */
+let billboardFromSeason: Season = 'summer';
+/** Season bound to `uSeasonMapB` (fade target). */
+let billboardToSeason: Season = 'summer';
+/** Shared 0→1 crossfade; when ≥1 we commit `map` to the target and reset. */
+const seasonFadeUniform = { value: 0 };
+/** Live leaf tint (lerped) vs target set by {@link setVegetationSeason}. */
+const seasonTintCurrent = new Vector3(1, 1, 1);
+const seasonTintTarget = new Vector3(1, 1, 1);
 
 /** Materials that receive the shared weather snow-line uniform. */
 const snowMaterials: { userData: { snowCoverUniform?: { value: number } } }[] = [];
@@ -228,31 +235,140 @@ const SEASON_LEAF_TINT: Record<Season, readonly [number, number, number]> = {
 /** Materials that receive the shared season leaf-tint uniform (oak/bush — pines stay green). */
 const seasonMaterials: { userData: { seasonTintUniform?: { value: Vector3 } } }[] = [];
 
-/** Retints every registered leaf/bush material live — no rebuild needed (hotkey N). */
+function tintForSeason(season: Season): readonly [number, number, number] {
+    return SEASON_LEAF_TINT[season];
+}
+
+/**
+ * Begin a foliage season transition (tint target + billboard map crossfade).
+ * Call {@link updateVegetationSeason} each frame to ease.
+ */
+export function setVegetationSeason(season: Season): void {
+    const [r, g, b] = tintForSeason(season);
+    seasonTintTarget.set(r, g, b);
+    beginBillboardSeasonFade(season);
+}
+
+/** @deprecated use {@link setVegetationSeason} */
 export function setVegetationSeasonTint(season: Season): void {
-    const [r, g, b] = SEASON_LEAF_TINT[season];
-    for (const m of seasonMaterials) {
-        m.userData.seasonTintUniform?.value.set(r, g, b);
+    setVegetationSeason(season);
+}
+
+/**
+ * Ease leaf tint + billboard crossfade toward the pending season.
+ * Uses the same tau as atmosphere so sky and foliage land together.
+ */
+export function updateVegetationSeason(dtSeconds: number): void {
+    const k = Math.min(1, dtSeconds / TRANSITION_TAU);
+    seasonTintCurrent.lerp(seasonTintTarget, k);
+
+    if (billboardFromSeason === billboardToSeason) {
+        seasonFadeUniform.value = 0;
+        return;
+    }
+    seasonFadeUniform.value = Math.min(1, seasonFadeUniform.value + dtSeconds / TRANSITION_TAU);
+    if (seasonFadeUniform.value >= 1 - 1e-4) {
+        commitBillboardSeason(billboardToSeason);
     }
 }
 
 /**
- * Swap far-tree billboard albedo for spring/autumn art. Winter keeps the summer
- * map and relies on the snow-line mix; no multiply tint (avoids double-staining).
+ * Crossfade far-tree billboard albedo (spring/autumn art; winter = summer map + snow).
+ * Mid-fade retargets from the dominant side so rapid N-taps stay coherent.
  */
 export function setBillboardSeason(season: Season): void {
-    billboardSeason = season;
+    beginBillboardSeasonFade(season);
+}
+
+function beginBillboardSeasonFade(season: Season): void {
+    if (season === billboardToSeason && seasonFadeUniform.value > 0) return;
+    if (season === billboardFromSeason && seasonFadeUniform.value < 1e-4) {
+        billboardToSeason = season;
+        return;
+    }
+    // Mid-crossfade: lock in whichever side we're closer to, then fade toward `season`.
+    if (seasonFadeUniform.value > 0.5) {
+        commitBillboardSeason(billboardToSeason);
+    } else if (seasonFadeUniform.value > 1e-4) {
+        seasonFadeUniform.value = 0;
+        syncBillboardMapB(billboardFromSeason); // reset B; about to set new target
+    }
+    if (season === billboardFromSeason) {
+        billboardToSeason = season;
+        seasonFadeUniform.value = 0;
+        syncBillboardMapB(season);
+        return;
+    }
+    billboardToSeason = season;
+    seasonFadeUniform.value = 0;
     for (const card of billboardCache.values()) {
-        applyBillboardSeasonMap(card.material, season);
+        const maps = card.material.userData.seasonMaps as BillboardSeasonMaps | undefined;
+        if (!maps) continue;
+        const fromTex = maps[billboardFromSeason] ?? maps.summer;
+        const toTex = maps[season] ?? maps.summer;
+        card.material.map = fromTex;
+        const mapB = card.material.userData.seasonMapBUniform as { value: Texture } | undefined;
+        if (mapB) mapB.value = toTex;
+        card.material.needsUpdate = true;
     }
 }
 
-function applyBillboardSeasonMap(material: MeshBasicMaterial, season: Season): void {
-    const maps = material.userData.seasonMaps as BillboardSeasonMaps | undefined;
-    if (!maps) return;
-    const next = maps[season] ?? maps.summer;
-    if (material.map === next) return;
-    material.map = next;
+function commitBillboardSeason(season: Season): void {
+    billboardFromSeason = season;
+    billboardToSeason = season;
+    seasonFadeUniform.value = 0;
+    for (const card of billboardCache.values()) {
+        const maps = card.material.userData.seasonMaps as BillboardSeasonMaps | undefined;
+        if (!maps) continue;
+        const tex = maps[season] ?? maps.summer;
+        card.material.map = tex;
+        const mapB = card.material.userData.seasonMapBUniform as { value: Texture } | undefined;
+        if (mapB) mapB.value = tex;
+        card.material.needsUpdate = true;
+    }
+}
+
+function syncBillboardMapB(season: Season): void {
+    for (const card of billboardCache.values()) {
+        const maps = card.material.userData.seasonMaps as BillboardSeasonMaps | undefined;
+        if (!maps) continue;
+        const tex = maps[season] ?? maps.summer;
+        const mapB = card.material.userData.seasonMapBUniform as { value: Texture } | undefined;
+        if (mapB) mapB.value = tex;
+    }
+}
+
+/**
+ * Mix `map` → `uSeasonMapB` by shared `uSeasonFade` (after map_fragment, before snow).
+ */
+function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
+    if (material.userData.seasonFadeAttached) return;
+    material.userData.seasonFadeAttached = true;
+    const mapB = { value: material.map as Texture };
+    material.userData.seasonMapBUniform = mapB;
+    const prevCompile = material.onBeforeCompile;
+
+    material.onBeforeCompile = (shader, renderer) => {
+        prevCompile?.call(material, shader, renderer);
+        shader.uniforms.uSeasonFade = seasonFadeUniform;
+        shader.uniforms.uSeasonMapB = mapB;
+        shader.fragmentShader =
+            'uniform float uSeasonFade;\nuniform sampler2D uSeasonMapB;\n' +
+            shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `#include <map_fragment>
+#ifdef USE_MAP
+  if (uSeasonFade > 0.001) {
+    vec4 seasonTexA = texture2D(map, vMapUv);
+    vec4 seasonTexB = texture2D(uSeasonMapB, vMapUv);
+    vec4 seasonMixed = mix(seasonTexA, seasonTexB, uSeasonFade);
+    diffuseColor /= max(seasonTexA, vec4(1e-4));
+    diffuseColor *= seasonMixed;
+  }
+#endif
+`,
+            );
+    };
     material.needsUpdate = true;
 }
 
@@ -268,8 +384,10 @@ export function attachSeasonTint(material: MeshStandardMaterial | MeshBasicMater
 
     material.onBeforeCompile = (shader, renderer) => {
         prevCompile?.call(material, shader, renderer);
-        const tint = material.userData.seasonTintUniform ?? { value: new Vector3(1, 1, 1) };
+        // Shared live vector — updateVegetationSeason lerps it in place.
+        const tint = material.userData.seasonTintUniform ?? { value: seasonTintCurrent };
         material.userData.seasonTintUniform = tint;
+        tint.value = seasonTintCurrent;
         shader.uniforms.uSeasonLeaf = tint;
         shader.fragmentShader =
             'uniform vec3 uSeasonLeaf;\n' +
@@ -363,6 +481,7 @@ function makeCrossCard(
         depthWrite: true,
     });
     attachVegetationSnow(material, { snowMap: snowTex, strength: 1 });
+    attachBillboardSeasonFade(material);
     return { geometry, material };
 }
 
@@ -420,7 +539,12 @@ export async function loadSceneryBillboards(): Promise<void> {
                         autumn: autumnTex ?? tex,
                         winter: tex,
                     } satisfies BillboardSeasonMaps;
-                    applyBillboardSeasonMap(card.material, billboardSeason);
+                    const maps = card.material.userData.seasonMaps as BillboardSeasonMaps;
+                    const fromTex = maps[billboardFromSeason] ?? tex;
+                    const toTex = maps[billboardToSeason] ?? tex;
+                    card.material.map = fromTex;
+                    const mapB = card.material.userData.seasonMapBUniform as { value: Texture } | undefined;
+                    if (mapB) mapB.value = toTex;
                     billboardCache.set(id, card);
                     console.info(`[sceneryVegetation] billboard '${id}'`);
                 } catch (e) {

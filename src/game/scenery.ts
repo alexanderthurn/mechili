@@ -29,7 +29,7 @@ import {
     type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { Weather, type Season } from './weather';
+import { Weather, TRANSITION_TAU, type Season } from './weather';
 import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
@@ -60,9 +60,9 @@ import {
     NEAR_TREE_DIST,
     placeVegetationInstance,
     sceneryHqVegetation,
-    setBillboardSeason,
-    setVegetationSeasonTint,
+    setVegetationSeason,
     setVegetationSnowCover,
+    updateVegetationSeason,
     type VegetationKind,
 } from './sceneryVegetation';
 
@@ -171,8 +171,11 @@ export class Scenery {
 
     /** wildflower materials (meadow clumps + lake blossoms) — opacity-boosted in spring */
     private readonly flowerMaterials: MeshStandardMaterial[] = [];
-    /** fallen-leaf litter on the meadow — built once, only shown in autumn */
+    /** target opacity for wildflower / lily blossom materials (lerped in update) */
+    private flowerOpacityTarget = 0.85;
+    /** fallen-leaf litter on the meadow — built once, opacity eased in autumn */
     private leafLitter: InstancedMesh | null = null;
+    private litterOpacityTarget = 0;
 
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
@@ -378,22 +381,29 @@ export class Scenery {
     }
 
     /**
-     * Retints leaf/bush foliage (procedural + Tripo) via `uSeasonLeaf`, swaps
-     * far billboard albedo maps for spring/autumn art, and toggles autumn leaf
-     * litter / spring flower bloom.
+     * Begin easing foliage toward a season (tint, billboard maps, flowers, litter).
+     * Atmosphere already lerps on its own clock; foliage uses the same {@link TRANSITION_TAU}.
      */
     setSeason(season: Season): void {
-        setVegetationSeasonTint(season);
-        setBillboardSeason(season);
-        if (this.leafLitter) this.leafLitter.visible = season === 'autumn';
-        const flowerOpacity =
+        setVegetationSeason(season);
+        this.flowerOpacityTarget =
             season === 'spring' ? 1 : season === 'summer' ? 0.85 : season === 'autumn' ? 0.45 : 0.15;
-        for (const m of this.flowerMaterials) m.opacity = flowerOpacity;
+        this.litterOpacityTarget = season === 'autumn' ? 1 : 0;
     }
 
     update(dtSeconds: number, cameraPos: Vector3): void {
         this.skyGroup.position.set(cameraPos.x, 0, cameraPos.z);
         this.weather?.update(dtSeconds, cameraPos);
+        updateVegetationSeason(dtSeconds);
+        const seasonK = Math.min(1, dtSeconds / TRANSITION_TAU);
+        for (const m of this.flowerMaterials) {
+            m.opacity += (this.flowerOpacityTarget - m.opacity) * seasonK;
+        }
+        if (this.leafLitter) {
+            const mat = this.leafLitter.material as MeshStandardMaterial;
+            mat.opacity += (this.litterOpacityTarget - mat.opacity) * seasonK;
+            this.leafLitter.visible = mat.opacity > 0.02;
+        }
         if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
         setVegetationSnowCover(this.groundSnowCover);
         // lakes freeze once snow reaches meadow/board level (same snow-line gate)
@@ -658,10 +668,16 @@ export class Scenery {
         }
         mushrooms.count = mushI;
 
-        // --- fallen leaf litter: built now, only shown once autumn hits (see setSeason)
+        // --- fallen leaf litter: built now, opacity eased in for autumn (see setSeason)
         const LITTER = scaleCount(1200, this.density.meadow);
         const litterGeo = new PlaneGeometry(0.55, 0.55).rotateX(-Math.PI / 2);
-        const litterMaterial = new MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+        const litterMaterial = new MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 1,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+        });
         const litter = new InstancedMesh(litterGeo, litterMaterial, LITTER);
         litter.visible = false;
         const litterTones = [0xc86a2c, 0xd8902c, 0xb84824, 0xe0b840];

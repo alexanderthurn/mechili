@@ -358,8 +358,8 @@ const WEATHER_STEPS: { kind: WeatherKind; intensity: number }[] = [
     { kind: 'snow', intensity: 1 },
 ];
 
-/** seconds for the exponential ease toward a new target */
-const TRANSITION_TAU = 3.5;
+/** seconds for the exponential ease toward a new target (sky + foliage share this) */
+export const TRANSITION_TAU = 3.5;
 const RAIN_DROPS = 2200;
 const RAIN_BOX = { x: 170, y: 80, z: 170 };
 const STAR_COUNT = 1400;
