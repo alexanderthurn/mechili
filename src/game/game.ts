@@ -2351,7 +2351,25 @@ export class Game {
         seat: 'a' | 'b',
     ): void {
         const bothLocked = this.deployReady.player && this.deployReady.enemy;
-        this.spectatorHub?.relayBuild({ ...msg, side: seat }, seat, bothLocked);
+        // A guest-originated ('b') action arrives here in the GUEST's own
+        // wire-perspective — exactly like translateRemote's input, its
+        // unitId is numbered from the guest's own "mine" (seat 0) counter,
+        // not from the canonical seat the spectator's roster assigns it
+        // (seat 1). Canonicalize it the same way translateRemote already
+        // does for our own local simulation (swapPerspective flips team AND
+        // any embedded unitId's parity) — otherwise the spectator's
+        // placement, which agrees with the HOST's numbering, resolves the
+        // unitId to a completely unrelated unit (see buyLevel/sellUnit/etc
+        // failing on the spectator only, root-caused via [buylevel-debug]).
+        // Host-originated ('a') messages are already in that canonical
+        // form, so there's nothing to flip. The backfill/seed path
+        // (excludedActionsForSpectatorResume) is unaffected — it already
+        // reads from this.dispatcher.serializable(), the host's own
+        // post-translation log, so double-flipping it here would be wrong;
+        // it never goes through this function.
+        const canonical: Extract<NetMessage, { type: 'action' | 'undo' }> =
+            seat === 'b' && msg.type === 'action' ? { ...msg, action: this.swapPerspective(msg.action) } : msg;
+        this.spectatorHub?.relayBuild({ ...canonical, side: seat }, seat, bothLocked);
     }
 
     /**
@@ -2899,6 +2917,18 @@ export class Game {
             }
         }
         this.hydrating = false;
+        console.info(
+            '[hp-debug] hydrate done',
+            JSON.stringify({
+                watching: this.watching,
+                processed: i,
+                logLength: log.length,
+                round: this.round,
+                phase: this.phase,
+                playerHp: this.playerHp,
+                enemyHp: this.enemyHp,
+            }),
+        );
 
         // reopen whatever decision was pending when the state was captured —
         // never for a spectator, who has no seat of its own to decide with
@@ -5237,6 +5267,21 @@ export class Game {
         if (!enemySurvived) damageToEnemy += hordeValue;
         this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
         this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
+        console.info(
+            '[hp-debug] applyBattleResult',
+            JSON.stringify({
+                watching: this.watching,
+                round: this.round,
+                damageToPlayer,
+                damageToEnemy,
+                hordeValue,
+                playerSurvived,
+                enemySurvived,
+                playerHp: this.playerHp,
+                enemyHp: this.enemyHp,
+                unitCount: sim.unitSurvivors().size,
+            }),
+        );
     }
 
     /** swaps the build-phase overlay for one matching the current zone rules */

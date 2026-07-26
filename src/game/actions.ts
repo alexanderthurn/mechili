@@ -627,11 +627,29 @@ export class ActionDispatcher {
             }
             case 'buyLevel': {
                 const unit = placement.unitById(action.unitId);
+                const cost = unit ? levelCost(unit.type, economy, leveling) : -1;
+                const threshold = unit ? xpForNextLevel(unit, economy, leveling) : -1;
+                console.info(
+                    '[buylevel-debug]',
+                    JSON.stringify({
+                        unitId: action.unitId,
+                        seat,
+                        actionTeam: action.team,
+                        found: !!unit,
+                        unitTeam: unit?.team,
+                        unitSeat: unit?.seat,
+                        isStructure: unit?.type.structure,
+                        level: unit?.level,
+                        maxLevel: leveling.maxLevel,
+                        xp: unit?.xp,
+                        threshold,
+                        cost,
+                        balance: economy.balance(seat),
+                    }),
+                );
                 if (!unit || unit.team !== action.team || unit.type.structure) return false;
                 if (unit.level >= leveling.maxLevel) return false;
-                const threshold = xpForNextLevel(unit, economy, leveling);
                 if (unit.xp < threshold) return false;
-                const cost = levelCost(unit.type, economy, leveling);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 entry.xpBefore = unit.xp;
