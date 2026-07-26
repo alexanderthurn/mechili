@@ -59,23 +59,16 @@ import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/setti
 import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
 import { THEME, menuStyles } from './theme';
 
-/** `?nohorde=1` — the one escape hatch back to plain 1v1 for testing, now
- *  that the menu has no non-Horde path at all */
-function hordeDisabledViaUrl(): boolean {
-    const v = new URLSearchParams(location.search).get('nohorde');
-    return v === '1' || v === 'true';
-}
-
 // the only mode right now (Single Player / Matchmaking both force this) —
 // PvPvE: a neutral dwarf horde spawns from the forest ring outside the
 // normal board and marches in, hostile to both players. The normal map's
 // own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
-// mode specifically) — no more widened center belt. `?nohorde=1` disables
-// it entirely; `?hordeFactor=` overrides HordeFactor for manual testing of
-// the presets (low/medium/high/ultra) or an explicit round list
+// mode specifically) — no more widened center belt. Horde is always on;
+// `?hordeFactor=` is the one lever, including `off` (see hordeEnabled) —
+// no separate opt-out param, to keep this down to a single URL knob.
+// Accepts a preset (low/medium/high/ultra/off) or an explicit round list
 // (`?hordeFactor=2,4,9`) without an in-menu picker yet.
 function applyHordeMode(settings: GameSettings): void {
-    if (hordeDisabledViaUrl()) return;
     settings.horde = structuredClone(DEFAULT_HORDE);
     const factorParam = new URLSearchParams(location.search).get('hordeFactor');
     if (!factorParam) return;
@@ -122,8 +115,8 @@ function settingsFromUrl(): GameSettings {
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
     // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
-    // now that Horde is the only mode; see hordeDisabledViaUrl for the
-    // opt-out and ?hordeFactor= for overriding the level
+    // now that Horde is the only mode; ?hordeFactor= (including `off`)
+    // overrides the level — see applyHordeMode
     if (params.get('duo')) applyDuoMode(settings);
 
     const parseTimer = (raw: string | null): number | number[] | null => {

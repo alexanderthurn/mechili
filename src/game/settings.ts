@@ -104,11 +104,12 @@ const HORDE_FACTOR_PRESET_ROUNDS: Record<'low' | 'medium' | 'high', number[]> = 
 
 /**
  * Whether horde mode is structurally active at all (any round ever spawns a
- * wave) — `undefined` (never opted in, e.g. `?nohorde=1`) and an explicit
- * `factor: 'off'` (e.g. `?hordeFactor=off`) both count as "not active" here,
- * so the two escape hatches behave identically for anything gated on horde
- * mode being on — not just whether a wave spawns this round, but things
- * like the neutral-strip lock and the wider horde-mode camera bounds too.
+ * wave) — `undefined` (settings built without horde at all, e.g. replays
+ * older than this feature) and an explicit `factor: 'off'` (the one on/off
+ * lever, `?hordeFactor=off`) both count as "not active" here, so anything
+ * gated on horde mode being on — not just whether a wave spawns this round,
+ * but things like the neutral-strip lock and the wider horde-mode camera
+ * bounds too — treats them identically.
  */
 export function hordeEnabled(horde: HordeSettings | undefined): horde is HordeSettings {
     return !!horde && horde.factor !== 'off';
