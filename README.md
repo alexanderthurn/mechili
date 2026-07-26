@@ -34,6 +34,30 @@ for the desktop / Steam client.
 
 Match rules (map, timers, economy, tower debuffs) live in one JSON-serializable settings object — see `src/game/settings.ts`. Architecture notes: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Match settings
+
+Default values from `src/game/settings.ts` (`DEFAULT_SETTINGS` / `DEFAULT_HORDE`) — the same numbers rendered live on [melodan.com/#settings](https://melodan.com/#settings). Everything here is tunable in code.
+
+**Timers & HP** — Deployment 90s · Battle 90s · Specialist pick 15s · Round card pick 15s · Starting HP 2000.
+
+**Economy** — 200 supply round-1 income, +200/round growth (round N grants `startingSupply + (N-1) × growth`); tech cost escalation +200 per tech already owned of that unit type.
+
+**Round cards** — off by default; from round 2 onward when on, or an explicit round list like `[3, 6, 9]`.
+
+**Horde mode** — default level Medium (waves on round 5 and the final round 10; `low` = final round only, `high` = also rounds 3 & 7, `ultra` = every round, `off` = disabled). Round 1 wave value 300 supply, +200/active round, ×4 on the final round (which always fires, boosted, regardless of level). 65% of a wave is biased toward whoever is currently ahead on HP.
+
+**Towers** — losing one of your own towers applies ×0.1 speed, ×0.1 attack, ×2.0 damage taken to that side (stacks multiplicatively) for 10s at tower level 1, −2s per level above that (a new loss adds its duration on top). Upgrading costs 100 supply +50/level, up to level 5.
+
+**Deploy** — 2 buys per round. Command Tower one-shots (this round only): +1 buy for 50 supply, +5 ranged range for 100 supply, +3 army speed for 50 supply, Credit (+200 now, −300 next round). Shields/rockets share a 500-supply budget per round. First flank deploys stay armed 5s once flanks open.
+
+**Leveling** — +100% hp/damage per level, up to level 9 (a purchase, never automatic) at 50% of the pack's base cost per level. A once-per-round 100-supply switch makes new recruits arrive at level 2.
+
+**Sell** — one-time 100-supply Research Center purchase; once owned, sell up to 1 deployed pack per round for a 100% base-cost refund.
+
+**Rally Route** — one-time 100-supply Research Center purchase granting one rally-route tactic charge (route new deploys to a rally point automatically).
+
+**Boosts** — Research Center army-wide stat tiers, one bought after the other: Tier 1 100 supply → +10% damage/+15% hp; Tier 2 300 supply → +20% damage/+30% hp (totals, not stacked on top of the previous tier).
+
 ## Units & buildings
 
 Your army and buildings: dwarves, archers, crow riders, ballistae, ward stones, fire bolts, command tower, research center, stronghold — each with stats, techs, and building abilities. Browse them on [melodan.com](https://melodan.com).
