@@ -60,6 +60,7 @@ import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATI
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
+import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
@@ -551,13 +552,17 @@ export class Game {
         this.economy = new Economy(settings.economy);
         this.playerHp = settings.startingHp;
         this.enemyHp = settings.startingHp;
-        this.renderer = new WebGLRenderer({
-            canvas: threeCanvas,
-            antialias: prefs().antialias,
-            // mobile Safari kills tabs that push the GPU too hard — prefer the
-            // efficient tier there; desktops ignore or barely notice this hint
-            powerPreference: touchFirstDevice() ? 'low-power' : 'default',
-        });
+        // Prefer the boot-warmed GL context so flame/projectile programs survive;
+        // fall back to a fresh renderer after return-to-menu (new canvas).
+        this.renderer =
+            takePrewarmedRenderer() ??
+            new WebGLRenderer({
+                canvas: threeCanvas,
+                antialias: prefs().antialias,
+                // mobile Safari kills tabs that push the GPU too hard — prefer the
+                // efficient tier there; desktops ignore or barely notice this hint
+                powerPreference: touchFirstDevice() ? 'low-power' : 'default',
+            });
         this.renderer.outputColorSpace = SRGBColorSpace;
         this.renderer.toneMapping = ACESFilmicToneMapping;
         // Slightly above 1 so the denser grass normals/albedo still read under ACES
@@ -976,18 +981,74 @@ export class Game {
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', this.onWindowResize);
+        // Compile remaining cold programs (ground + point-light variants, weather,
+        // flame tongues) before the first tick — hides the hitch at match start
+        // rather than mid-battle. Boot already warmed the shared context when possible.
+        this.warmGpuPrograms();
         pixiApp.ticker.add(this.boundTick);
     }
 
-    /** stop the loop, release GPU/DOM resources — main restores the menu */
+    /**
+     * Force first-draw of VFX that stay count=0 / hidden until combat or weather,
+     * then sync-compile so mid-match first use does not stall the frame.
+     * Safe to call again after graphics pref changes (shadows / scenery / fire).
+     */
+    private warmGpuPrograms(): void {
+        this.fireFx.primeForCompile();
+        this.projectileRenderer.primeForCompile();
+        this.particles.burst(0, 2, 0, { count: 4, color: 0xff6a18, speed: 1, life: 0.2, up: 2 });
+        this.particles.burst(0, 2, 0, {
+            count: 4,
+            color: 0x2c2824,
+            speed: 1,
+            life: 0.2,
+            up: 1,
+            blood: true,
+        });
+        this.particles.update(1 / 60);
+        if (shadowUsesBlobs()) {
+            this.blobShadows.sync([{ x: 0, z: 0, radius: 1 }]);
+        }
+        this.weather?.primeForCompile();
+
+        this.renderer.compile(this.scene, this.rig.camera);
+        this.renderer.render(this.scene, this.rig.camera);
+
+        // restore live combat VFX — clear would blank an in-progress battle frame
+        this.fireFx.clear();
+        this.fireFx.setQuality(prefs().fireVfx);
+        if (this.sim && this.phase === 'battle') {
+            this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
+            this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+        } else {
+            this.projectileRenderer.clear();
+        }
+        // snap weather back to the real atmosphere (prime left rain/stars visible)
+        if (this.weather) {
+            this.scenery.update(0, this.rig.camera.position);
+        }
+        this.updateBlobShadows();
+        // replace the primed frame so the player never sees a flash of rain/flames
+        this.renderer.render(this.scene, this.rig.camera);
+    }
+
     /**
      * Live-applies prefs from the settings menu: scenery rebuild, DPR cap,
-     * and unit shadow casting.
+     * and unit shadow casting. Re-warms GPU programs when graphics tiers change
+     * so new shadow/fog/fire variants are compiled before the next combat frame.
      */
     private applyPrefs(): void {
         if (this.disposed) return;
+        const p = prefs();
+        const gpuDirty =
+            p.fireVfx !== this.appliedFireVfx ||
+            p.shadows !== this.appliedShadows ||
+            p.scenery !== this.appliedScenery ||
+            p.groundEffects !== this.appliedGroundEffects ||
+            effectiveDpr() !== this.renderer.getPixelRatio();
         this.applyRenderPrefs();
         this.applySceneryQuality();
+        if (gpuDirty) this.warmGpuPrograms();
     }
 
     private applyRenderPrefs(): void {

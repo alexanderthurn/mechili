@@ -723,6 +723,25 @@ export class Weather {
         }
     }
 
+    /**
+     * Briefly unhide rain/snow/stars/sun/moon so their materials compile during
+     * match start — first N-key weather swap otherwise pays a shader hitch.
+     */
+    primeForCompile(): void {
+        this.rainGroup.visible = true;
+        this.rainMaterial.opacity = 0.3;
+        this.snowGroup.visible = true;
+        this.snowMaterial.opacity = 0.3;
+        this.starsMesh.visible = true;
+        this.starMaterial.opacity = 0.5;
+        this.sunDisc.visible = true;
+        this.sunDisc.material.opacity = 0.5;
+        this.moon.visible = true;
+        this.moon.material.opacity = 0.5;
+        this.nearCloudMaterial.opacity = 0.3;
+        for (const c of this.nearClouds) c.mesh.visible = true;
+    }
+
     private readonly starsMesh: Points;
     private readonly sunDisc: Sprite;
     private readonly moon: Sprite;

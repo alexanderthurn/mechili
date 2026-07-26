@@ -200,6 +200,22 @@ export class FlameRenderer {
         this.mesh.count = 0;
     }
 
+    /**
+     * Force one visible tongue so WebGL compiles this ShaderMaterial during
+     * boot / match start — otherwise the first mid-battle blaze pays the hitch.
+     */
+    primeForCompile(): void {
+        this.mesh.visible = true;
+        this.dummy.position.set(0, 1, 0);
+        this.dummy.scale.set(1.2, 0.8, 1);
+        this.dummy.updateMatrix();
+        this.mesh.setMatrixAt(0, this.dummy.matrix);
+        this.phases.setX(0, 0);
+        this.mesh.count = 1;
+        this.mesh.instanceMatrix.needsUpdate = true;
+        this.phases.needsUpdate = true;
+    }
+
     dispose(): void {
         this.mesh.removeFromParent();
         this.mesh.geometry.dispose();
