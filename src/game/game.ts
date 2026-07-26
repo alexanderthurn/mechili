@@ -130,7 +130,7 @@ import {
 } from './units';
 import { DebugOverlay, CpuSampler } from '../ui/debug';
 import { HpBars } from '../ui/hpBars';
-import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
+import { Hud, isCompactChrome, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -3156,31 +3156,46 @@ export class Game {
         );
     }
 
-    /** HUD buy button: resolve a spawn spot, then run it through the action system */
-    private buyUnit(type: UnitType): void {
-        if (!this.playerCanAct) return;
-        if (!type.extra && !this.unlockedUnits.player.includes(type.id)) return;
-        if (this.economy.balance('player') < this.effectiveCost(type)) return;
+    /** HUD buy button: resolve a spawn spot, then run it through the action system.
+     *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
+    private buyUnit(type: UnitType): boolean {
+        if (!this.playerCanAct) return false;
+        if (!type.extra && !this.unlockedUnits.player.includes(type.id)) return false;
+        if (this.economy.balance('player') < this.effectiveCost(type)) return false;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
             const left =
                 this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent.player;
-            if (this.economy.costOf(type) > left) return; // extras budget exhausted
+            if (this.economy.costOf(type) > left) return false; // extras budget exhausted
             this.placement.beginPlacing(type);
-            return;
+            return true;
         }
-        // Unified: drop the pack near where the camera is looking and resolve
-        // it immediately into the buy action as a concrete anchor.
-        const view = this.rig.target;
-        const anchor = this.placement.findBuySpotNear(type, view.x, view.z);
-        if (!anchor) return;
-        this.dispatchPlayer({
+        // Drop the pack under a visible screen point (not the orbit target —
+        // that sits behind the compact shop sheet on phone/small desktop).
+        const aim = this.buyAimWorld();
+        const anchor = this.placement.findBuySpotNear(type, aim.x, aim.z);
+        if (!anchor) return false;
+        return this.dispatchPlayer({
             kind: 'buy',
             team: 'player',
             typeId: type.id,
             anchor,
             rotated: false,
         });
+    }
+
+    /**
+     * Ground point to seed shop auto-placement. Desktop: view center.
+     * Compact chrome: center of the free band above the bottom sheet (~52vh).
+     */
+    private buyAimWorld(): { x: number; z: number } {
+        const w = this.wrapper.clientWidth;
+        const h = this.wrapper.clientHeight;
+        const screenY = isCompactChrome() ? h * 0.28 : h * 0.5;
+        const hit = this.rig.screenToGround(w * 0.5, screenY, w, h);
+        if (hit) return { x: hit.x, z: hit.z };
+        const t = this.rig.target;
+        return { x: t.x, z: t.z };
     }
 
     /**

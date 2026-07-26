@@ -16,6 +16,10 @@ const PHONE_MQ =
         ? matchMedia('(max-width: 599px), (max-height: 540px)')
         : null;
 
+export function isCompactChrome(): boolean {
+    return PHONE_MQ?.matches ?? false;
+}
+
 /** escapes a string for safe use inside a double-quoted HTML attribute */
 function escapeAttr(s: string): string {
     return s
@@ -265,7 +269,7 @@ export class Hud {
         app: Application,
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
-        onBuy: (type: UnitType) => void,
+        onBuy: (type: UnitType) => boolean,
     ) {
         this.app = app;
         this.pixiCanvas = app.canvas;
@@ -299,9 +303,11 @@ export class Hud {
                 `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
                 ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
             button.addEventListener('click', () => {
-                onBuy(UNIT_TYPES[index]!);
-                // phone sheet covers the field — close it so the ghost is placeable
-                this.setPhoneTab(null);
+                const bought = UNIT_TYPES[index]!;
+                // extras need the field for the place-ghost; regular packs only
+                // dismiss the sheet when this buy fills the last deploy slot
+                const lastSlot = !bought.extra && this.deploysLeft <= 1;
+                if (onBuy(bought) && (bought.extra || lastSlot)) this.setPhoneTab(null);
             });
             this.buttons.push({ el: button, type });
             return button;
