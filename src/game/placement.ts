@@ -36,6 +36,8 @@ interface IntelEntry {
     unitId: number;
     typeId: string;
     team: BattleTeam;
+    /** which seat owns this pack — needed to resolve per-seat spectator live vision (see isFoggedSnapshot) */
+    seat: SeatId;
     cell: Cell;
     rotated: boolean;
     facing: number;
@@ -116,6 +118,17 @@ export class PlacementController {
     hiddenPlacements = false;
     /** when true, enemy packs render at {@link intelSnapshot} poses instead of live */
     private intelFog = false;
+    /**
+     * `null` (default): real-player fog rules — my own side (`'player'`) is
+     * never fogged, only `'enemy'` is, exactly as before.
+     * A Set (even empty): spectator mode — NEITHER team is "mine", so both
+     * are fogged symmetrically the same way `'enemy'` used to be alone,
+     * except any seat in this set (an active live-vision grant) is exempt.
+     * Set by Game whenever this match's spectator vision state changes (see
+     * Game.syncSpectatorVision) — always non-null while watching, even when
+     * empty (battle-vision-only, no live grants yet).
+     */
+    spectatorLiveSeats: ReadonlySet<SeatId> | null = null;
     /** unit poses at deployment-phase start — the opponent's stale intel view */
     private readonly intelSnapshot = new Map<number, IntelEntry>();
     /** sold snapshotted enemy packs kept visible at their intel pose */
@@ -392,6 +405,7 @@ export class PlacementController {
             unitId: unit.id,
             typeId: unit.type.id,
             team: unit.team,
+            seat: unit.seat,
             cell: { col: unit.cell.col, row: unit.cell.row },
             rotated: unit.rotated,
             facing: unit.facing,
@@ -417,10 +431,29 @@ export class PlacementController {
         return this.intelFog;
     }
 
-    /** true when the opponent may see this enemy pack (snapshot or live reveal). */
+    /**
+     * Whether `unit` should currently render fogged: for a real player, only
+     * ever the opponent's side (`spectatorLiveSeats === null`, own side is
+     * never fogged from itself). For a spectator watching both sides with
+     * no "mine", both teams are fogged the same way, exempted only by an
+     * active per-seat live-vision grant.
+     */
+    private isFogged(unit: Unit): boolean {
+        if (!this.intelFog) return false;
+        if (this.spectatorLiveSeats === null) return unit.team === 'enemy';
+        return !this.spectatorLiveSeats.has(unit.seat);
+    }
+
+    /** same as {@link isFogged}, for a frozen snapshot entry (no live Unit) */
+    private isFoggedSnapshot(snap: IntelEntry): boolean {
+        if (!this.intelFog) return false;
+        if (this.spectatorLiveSeats === null) return snap.team === 'enemy';
+        return !this.spectatorLiveSeats.has(snap.seat);
+    }
+
+    /** true when the opponent (or a spectator without live/battle vision) may see this pack. */
     enemyIntelVisible(unit: Unit): boolean {
-        if (unit.team !== 'enemy') return true;
-        if (!this.intelFog) return true;
+        if (!this.isFogged(unit)) return true;
         return this.intelSnapshot.has(unit.id);
     }
 
@@ -438,7 +471,7 @@ export class PlacementController {
      * null = use the live unit (own packs, or fog off / not yet snapshotted).
      */
     intelOf(unit: Unit): { level: number; xp: number; items: readonly string[] } | null {
-        if (!this.intelFog || unit.team !== 'enemy') return null;
+        if (!this.isFogged(unit)) return null;
         const snap = this.intelSnapshot.get(unit.id);
         if (!snap) return null;
         return { level: snap.level, xp: snap.xp, items: snap.items };
@@ -490,7 +523,7 @@ export class PlacementController {
     /** carried packs go back to their committed / visible intel spots */
     private restoreSelectedView(): void {
         const restore = (u: Unit) => {
-            if (this.intelFog && u.team === 'enemy') {
+            if (this.isFogged(u)) {
                 const snap = this.intelSnapshot.get(u.id);
                 if (snap) {
                     this.applySnapshotPose(u, snap);
@@ -887,12 +920,7 @@ export class PlacementController {
 
     /** Removes a unit from the board entirely (buy-action undo). */
     removeUnit(unit: Unit): void {
-        if (
-            this.intelFog &&
-            unit.team === 'enemy' &&
-            this.intelSnapshot.has(unit.id) &&
-            !this.intelGhosts.has(unit.id)
-        ) {
+        if (this.isFogged(unit) && this.intelSnapshot.has(unit.id) && !this.intelGhosts.has(unit.id)) {
             this.ensureSoldGhost(this.intelSnapshot.get(unit.id)!);
         }
         if (this.selectedUnit === unit) this.selectedUnit = null;
@@ -1023,7 +1051,7 @@ export class PlacementController {
             }
             if (this.intelFog) {
                 for (const [id, snap] of this.intelSnapshot) {
-                    if (snap.team !== 'enemy' || snap.items.length === 0) continue;
+                    if (!this.isFoggedSnapshot(snap) || snap.items.length === 0) continue;
                     if (this.units.some((u) => u.id === id)) continue;
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
@@ -1114,7 +1142,7 @@ export class PlacementController {
             };
 
             for (const unit of this.units) {
-                if (unit.team === 'enemy' && this.intelFog) {
+                if (this.isFogged(unit)) {
                     const snap = this.intelSnapshot.get(unit.id);
                     if (!snap?.upgradeReady) continue;
                     place(unit, unit.id);
@@ -1124,10 +1152,10 @@ export class PlacementController {
                 place(unit, unit.id);
             }
 
-            // sold snapshotted enemies keep their stale upgrade arrow on the ghost
+            // sold snapshotted packs keep their stale upgrade arrow on the ghost
             if (this.intelFog) {
                 for (const [id, snap] of this.intelSnapshot) {
-                    if (snap.team !== 'enemy' || !snap.upgradeReady) continue;
+                    if (!this.isFoggedSnapshot(snap) || !snap.upgradeReady) continue;
                     if (this.units.some((u) => u.id === id)) continue;
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
@@ -1206,6 +1234,7 @@ export class PlacementController {
         const type = unitTypeById(entry.typeId)!;
         ghost = new Unit(type, entry.cell, entry.team, entry.world.clone(), entry.rotated);
         ghost.id = entry.unitId;
+        ghost.seat = entry.seat;
         ghost.facing = entry.facing;
         ghost.level = entry.level;
         ghost.refreshLevelBadge();
@@ -1231,7 +1260,7 @@ export class PlacementController {
     }
 
     private intelWorldOf(unit: Unit): Vector3 {
-        if (this.intelFog && unit.team === 'enemy') {
+        if (this.isFogged(unit)) {
             const snap = this.intelSnapshot.get(unit.id);
             if (snap) return snap.world;
         }
@@ -1239,7 +1268,7 @@ export class PlacementController {
     }
 
     private intelItemIcon(unit: Unit): string | null {
-        if (unit.team === 'player') {
+        if (!this.isFogged(unit)) {
             return unit.items[0] ? (ITEMS[unit.items[0]]?.icon ?? '?') : null;
         }
         if (!this.enemyIntelVisible(unit)) return null;
@@ -1267,10 +1296,12 @@ export class PlacementController {
             return;
         }
 
-        const liveEnemy = new Set(this.units.filter((u) => u.team === 'enemy').map((u) => u.id));
+        // "live" here means "not fogged" — real players' own side, or (while
+        // spectating) any seat with an active live-vision grant
+        const liveIds = new Set(this.units.filter((u) => !this.isFogged(u)).map((u) => u.id));
 
         for (const u of this.units) {
-            if (u.team === 'player') {
+            if (!this.isFogged(u)) {
                 this.setPackVisible(u, true);
                 u.view.position.copy(u.world);
                 continue;
@@ -1281,19 +1312,19 @@ export class PlacementController {
                 this.applySnapshotPose(u, snap);
                 u.refreshLevelBadge(snap.level);
             } else {
-                // newly placed enemy packs — hide mesh AND shadows until reveal
+                // newly placed fogged packs — hide mesh AND shadows until reveal
                 this.setPackVisible(u, false);
             }
         }
 
         for (const [id, snap] of this.intelSnapshot) {
-            if (snap.team !== 'enemy' || liveEnemy.has(id)) continue;
+            if (!this.isFoggedSnapshot(snap) || liveIds.has(id)) continue;
             const ghost = this.ensureSoldGhost(snap);
             this.setPackVisible(ghost, true);
             this.applySnapshotPose(ghost, snap);
         }
         for (const [id, ghost] of this.intelGhosts) {
-            if (!liveEnemy.has(id) && this.intelSnapshot.has(id)) continue;
+            if (!liveIds.has(id) && this.intelSnapshot.has(id)) continue;
             this.setPackVisible(ghost, false);
         }
     }
@@ -1339,15 +1370,15 @@ export class PlacementController {
 
         const unit = this.occupied.get(cellKey(cell)) ?? (opts?.skipExtras ? undefined : this.extraAt(cell));
         if (!unit || unit.destroyed) return undefined;
-        // live enemy cell under fog may be a hidden post-move position — ignore
-        if (this.intelFog && unit.team === 'enemy') return undefined;
+        // live fogged cell may be a hidden post-move position — ignore
+        if (this.isFogged(unit)) return undefined;
         return unit;
     }
 
-    /** enemy pack or sold ghost whose snapshot footprint covers `cell` */
+    /** fogged pack or sold ghost whose snapshot footprint covers `cell` */
     private enemyAtIntelCell(cell: Cell): Unit | undefined {
         for (const [id, snap] of this.intelSnapshot) {
-            if (snap.team !== 'enemy') continue;
+            if (!this.isFoggedSnapshot(snap)) continue;
             const type = unitTypeById(snap.typeId);
             if (!type) continue;
             const fp = this.footprintOf(type, snap.rotated);
@@ -1718,10 +1749,7 @@ export class PlacementController {
         } else {
             // fogged enemies stay at their phase-start pose — selection must
             // not reveal the live cell by snapping the mesh there
-            const snap =
-                this.intelFog && sel.team === 'enemy'
-                    ? this.intelSnapshot.get(sel.id)
-                    : undefined;
+            const snap = this.isFogged(sel) ? this.intelSnapshot.get(sel.id) : undefined;
             const world = snap?.world ?? sel.world;
             const cell = snap?.cell ?? sel.cell;
             const plateFp = snap

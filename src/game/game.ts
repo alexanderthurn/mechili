@@ -311,15 +311,32 @@ export class Game {
     private deployFlushedToPeer = false;
     /** peer has flushed their build log to us this round (MP fog) */
     private deployCaughtUpFromPeer = false;
-    /** spectator-only equivalent of deployFlushedToPeer/deployCaughtUpFromPeer
-     *  — a spectator watches BOTH sides, so it needs both sides' confirmed-
-     *  flush signal (mirrored deployCaughtUp) before battle may start, or it
-     *  can flip phase the instant it merely SEES both endDeployment actions
-     *  — which (thanks to classic 1v1's gate-bypasses-buffer wire ordering)
-     *  can happen before one side's actual pre-lock-in build content has
-     *  even reached the host yet, let alone the spectator. See
-     *  maybeStartBattleAfterDeploy. */
-    private readonly spectateCaughtUp: Record<'a' | 'b', boolean> = { a: false, b: false };
+    /**
+     * spectator-only equivalent of deployFlushedToPeer/deployCaughtUpFromPeer
+     * — a spectator watches BOTH sides, so it needs both sides' confirmed-
+     * flush signal (mirrored deployCaughtUp) before battle may start, or it
+     * can flip phase the instant it merely SEES both endDeployment actions
+     * — which (thanks to classic 1v1's gate-bypasses-buffer wire ordering)
+     * can happen before one side's actual pre-lock-in build content has
+     * even reached the host yet, let alone the spectator. See
+     * maybeStartBattleAfterDeploy.
+     *
+     * Stores the LAST ROUND each side's deployCaughtUp arrived for (-1 =
+     * none yet), not a plain boolean that resets every round: real players
+     * can fast-forward battle playback independently, so a freshly-joined
+     * (or simply slower) spectator can still be watching round N's battle
+     * when both players have already flushed round N+1's build phase and
+     * moved on — that deployCaughtUp arrives "early" relative to the
+     * spectator's own `this.round`. A boolean reset in startBuildPhase
+     * would wipe that already-correct signal out from under it (the
+     * message is never resent), permanently stalling the spectator one
+     * round behind with nothing left to unstick it. Storing the round
+     * number instead means an early arrival simply satisfies the `>=`
+     * check the moment the spectator's own round catches up — no reset
+     * needed, and a stale round from a previous cycle naturally fails the
+     * check on its own.
+     */
+    private readonly spectateCaughtUpRound: Record<'a' | 'b', number> = { a: -1, b: -1 };
     /** which sides finished watching this round's battle — the next build
      *  phase starts once both have (fast-forward speed is per-client) */
     private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
@@ -331,6 +348,8 @@ export class Game {
      *  can't reuse starRemoteQueue/drainStarRemoteQueue despite the
      *  identical shape */
     private readonly spectateQueue: { round: number; seat: SeatId; action?: Action; undo?: boolean }[] = [];
+    /** temporary debug-log dedup key so drainSpectateQueue's BLOCKED log doesn't spam every frame */
+    private lastSpectateBlockLog = '';
     /** star host only: which (human) seats have finished watching this round's battle */
     private readonly starBattleReadySeats = new Set<SeatId>();
     /** star host only: this round's battle-start hash per seat (diagnostic desync check) */
@@ -818,6 +837,13 @@ export class Game {
         this.inputDisposers.push(onInputModeChange(syncEdgeScroll));
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
+        // spectator watching a LIVE match (not a replay, which has no
+        // "vision" concept — it's a neutral post-hoc view of everything):
+        // neither side is "mine", so both are fogged symmetrically from the
+        // start (empty = no live grants yet, battle-vision default). Kept in
+        // sync with the host's actual grants via 'visionUpdate' messages —
+        // see onSpectateMessage.
+        if (spectate) this.placement.spectatorLiveSeats = new Set();
         // one-finger drags aim the carried ghost/tactic instead of panning
         this.controls.suppressTouchPan = () => this.placement.pointerCarries;
         // gamepad: virtual cursor over the same click pipeline (Halo Wars style)
@@ -909,7 +935,23 @@ export class Game {
             }),
             onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
-                if (team === 'player') {
+                // watching: 'player' here just means "the host's endDeployment
+                // was applied to this simulation" — none of the "freeze MY OWN
+                // input, reveal MY OWN board early" side effects below make
+                // sense for a spectator (there's no local input, and an early
+                // reveal tied to one specific side locking in isn't the same
+                // as both sides locking in or battle actually starting). Most
+                // importantly: `placement.enabled = false` gates the ENTIRE
+                // render-update loop (applyIntelFog, level arrows, item
+                // badges — see PlacementController.update's `if (!enabled)
+                // return`), so setting it here would freeze the spectator's
+                // whole board the instant the host locks in, even while the
+                // guest is still deploying and its live-fed actions keep
+                // arriving — exactly the "action received but doesn't show"
+                // symptom. The real, symmetric reveal for a spectator is
+                // startBattlePhase's own revealAll() call, which already
+                // fires for every mode once battle actually starts.
+                if (team === 'player' && !this.watching) {
                     // freeze local input; request peer's buffered deploy (they
                     // flush when they see our endDeployment). Locally we only
                     // have last-known enemy state until that backlog arrives.
@@ -920,7 +962,7 @@ export class Game {
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
                     this.enemyIntelSnapshot = null;
-                } else if (!this.star) {
+                } else if (team !== 'player' && !this.star) {
                     // classic 1v1 only: release our buffered build stream to
                     // the peer. Star mode never buffers locally — the host
                     // does all fog buffering on the way OUT (see relayBuild).
@@ -995,8 +1037,17 @@ export class Game {
         }
         this.placement.localSeat = this.humanSeat;
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
-        // gold pulse under packs whose next level is buyable right now
-        this.placement.levelReady = (unit) => this.canLevel(unit);
+        // gold pulse under packs whose next level is buyable right now.
+        // canLevel gates on playerCanAct, which is unconditionally false
+        // while watching (this.watching — replay OR spectate) — a spectator
+        // has no "my turn" concept, so that gate always failed for the
+        // side updateLevelArrows treats as "mine" (only the OTHER side gets
+        // a fog-fallback snapshot; real players never needed one for their
+        // own units). Route watching instances through the gate-free
+        // packUpgradeReady directly so both sides' arrows work correctly.
+        this.placement.levelReady = this.watching
+            ? (unit) => this.packUpgradeReady(unit, unit.level, unit.xp)
+            : (unit) => this.canLevel(unit);
         // freeze upgrade-arrow intel at phase start (survives enemy leveling mid-deploy)
         this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
         // an armed inventory item lands on the next own pack that gets clicked
@@ -1739,8 +1790,10 @@ export class Game {
         this.outboundBuildBuffer.length = 0;
         this.deployFlushedToPeer = false;
         this.deployCaughtUpFromPeer = false;
-        this.spectateCaughtUp.a = false;
-        this.spectateCaughtUp.b = false;
+        // spectateCaughtUpRound is intentionally NOT reset here — see its
+        // field doc comment: an early-arriving deployCaughtUp for a round
+        // the spectator hasn't reached yet must survive until this.round
+        // catches up to it, not get wiped by this round's reset.
         this.battleReady.player = false;
         this.battleReady.enemy = false;
         this.starBattleReadySeats.clear();
@@ -2054,6 +2107,22 @@ export class Game {
      * second locker races into battle before the first's sells/buys arrive.
      */
     private maybeStartBattleAfterDeploy(): void {
+        if (this.spectateSession) {
+            console.info(
+                '[spectate-debug] maybeStartBattleAfterDeploy',
+                JSON.stringify({
+                    round: this.round,
+                    phase: this.phase,
+                    matchOver: this.matchOver,
+                    deployReadyPlayer: this.deployReady.player,
+                    deployReadyEnemy: this.deployReady.enemy,
+                    hydrating: this.hydrating,
+                    seatsLen: this.seats.length,
+                    caughtUpA: this.spectateCaughtUpRound.a,
+                    caughtUpB: this.spectateCaughtUpRound.b,
+                }),
+            );
+        }
         if (this.phase !== 'build' || this.matchOver) return;
         if (!this.deployReady.player || !this.deployReady.enemy) return;
         // during hydrate the full log is already applied — no wire catch-up wait
@@ -2062,12 +2131,16 @@ export class Game {
         } else if (this.spectateSession && !this.hydrating && this.seats.length === 2) {
             // classic-1v1-sourced spectating only: both endDeployment actions
             // arriving is NOT sufficient proof everything for this round has
-            // arrived — see spectateCaughtUp. Star (2v2+) matches never send
-            // deployCaughtUp at all (every seat sends immediately there, no
-            // wire reordering risk — see sendStarBuildMessage's doc comment),
-            // so a spectator watching one has nothing to wait for here.
-            if (!this.spectateCaughtUp.a || !this.spectateCaughtUp.b) return;
+            // arrived — see spectateCaughtUpRound. Star (2v2+) matches never
+            // send deployCaughtUp at all (every seat sends immediately
+            // there, no wire reordering risk — see sendStarBuildMessage's
+            // doc comment), so a spectator watching one has nothing to wait
+            // for here. >= (not ===): a fast-forwarding pair of players can
+            // flush this round before a slower/just-joined spectator has
+            // locally reached it yet.
+            if (this.spectateCaughtUpRound.a < this.round || this.spectateCaughtUpRound.b < this.round) return;
         }
+        if (this.spectateSession) console.info('[spectate-debug] gate PASSED, starting battle');
         this.spectatorHub?.flushBuildBuffers();
         this.startBattlePhase();
     }
@@ -2128,7 +2201,7 @@ export class Game {
         this.hud.showStartCards(offer, note, (cardId) => {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
-            this.broadcast({ type: 'starter', cardId });
+            this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
             this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
             this.triggerExtraStarters('player');
             this.triggerExtraStarters('enemy');
@@ -2163,7 +2236,7 @@ export class Game {
         this.hud.hideCardOverlay();
         this.playerStarterOffer = null;
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
-        this.broadcast({ type: 'starter', cardId: pick.id });
+        this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
         this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
         this.triggerExtraStarters('player');
         this.triggerExtraStarters('enemy');
@@ -2266,13 +2339,19 @@ export class Game {
         this.spectatorHub?.broadcast(msg);
     }
 
-    /** vision-filtered relay of build action/undo to spectators */
+    /**
+     * Vision-filtered relay of build action/undo to spectators. Stamps the
+     * WIRE-LEVEL `side` onto the message — action.seat/undo.seat are
+     * perspective-relative ("0 = mine" on every client, see seatRank's doc
+     * comment), so without this a spectator can't tell the two real
+     * players' actions apart (see onSpectateMessage).
+     */
     private mirrorBuildToSpectators(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
         seat: 'a' | 'b',
     ): void {
         const bothLocked = this.deployReady.player && this.deployReady.enemy;
-        this.spectatorHub?.relayBuild(msg, seat, bothLocked);
+        this.spectatorHub?.relayBuild({ ...msg, side: seat }, seat, bothLocked);
     }
 
     /**
@@ -2421,7 +2500,7 @@ export class Game {
      *  organic `maybeStartNextRound` cascade already used by classic
      *  replay-watch — no need to relay/handle `starBattleStart`/
      *  `starNextRound`. Build→battle needs one more thing beyond "both
-     *  endDeployment actions arrived": see spectateCaughtUp/
+     *  endDeployment actions arrived": see spectateCaughtUpRound/
      *  maybeStartBattleAfterDeploy — merely SEEING both endDeployments is
      *  not proof everything for the round has arrived, thanks to classic
      *  1v1's gate-bypasses-buffer wire ordering. */
@@ -2437,17 +2516,68 @@ export class Game {
 
     private onSpectateMessage(msg: NetMessage): void {
         if (this.disposed || this.matchOver) return;
-        if (msg.type === 'action') {
-            const seat = msg.action.seat ?? primarySeatOf(this.seats, msg.action.team);
+        if (msg.type === 'starter') {
+            console.info(
+                '[spectate-debug] recv starter',
+                JSON.stringify({ side: msg.side, myRound: this.round, awaitingCards: this.awaitingCards }),
+            );
+            // round 0 specialist pick: the two real players never need a
+            // side tag (each just dispatches its OWN pick locally, then
+            // hardcodes 'enemy' for whatever it receives — see
+            // onNetMessage's 'starter' handling below) — a spectator
+            // watching both sides needs msg.side to know which one this is.
+            // No explicit `seat` on the dispatched action: actorSeat's own
+            // team-based fallback (primarySeatOf) resolves it correctly,
+            // exactly like the real players' own 'enemy'-side handling does.
+            const team: Team = msg.side === 'b' ? 'enemy' : 'player';
+            this.dispatcher.dispatch({ kind: 'chooseCard', team, cardId: msg.cardId });
+            this.refreshShopHud();
+            this.syncSpecialities();
+            this.maybeStartMatch();
+        } else if (msg.type === 'action') {
+            console.info(
+                '[spectate-debug] recv action',
+                JSON.stringify({
+                    round: msg.round,
+                    kind: msg.action.kind,
+                    side: msg.side,
+                    myRound: this.round,
+                    myPhase: this.phase,
+                }),
+            );
+            // classic 1v1 ONLY: action.seat is perspective-relative ("0 =
+            // mine" on EVERY client — see mirrorBuildToSpectators' doc
+            // comment), so it can't tell the two real players apart on its
+            // own; msg.side (wire-level 'a'/'b') is what actually does. Star
+            // (2v2+) seats are already real/canonical (StarHub assigns
+            // them), and `side` there is which SIDE (of up to 4 seats), not
+            // which seat — using it here would collapse every seat on a
+            // side onto just seat 0 or 1, so this stays classic-1v1-only.
+            const seat: SeatId =
+                this.seats.length === 2 && msg.side
+                    ? msg.side === 'a'
+                        ? 0
+                        : 1
+                    : (msg.action.seat ?? primarySeatOf(this.seats, msg.action.team));
             this.spectateQueue.push({ round: msg.round, seat, action: { ...msg.action, seat } });
             this.drainSpectateQueue();
         } else if (msg.type === 'undo') {
-            const seat = msg.seat ?? 0;
+            const seat: SeatId =
+                this.seats.length === 2 && msg.side ? (msg.side === 'a' ? 0 : 1) : (msg.seat ?? 0);
             this.spectateQueue.push({ round: msg.round, seat, undo: true });
             this.drainSpectateQueue();
         } else if (msg.type === 'deployCaughtUp') {
-            if (msg.side) this.spectateCaughtUp[msg.side] = true;
-            if (msg.round === this.round && this.phase === 'build') {
+            console.info(
+                '[spectate-debug] recv deployCaughtUp',
+                JSON.stringify({ side: msg.side, round: msg.round, myRound: this.round, myPhase: this.phase }),
+            );
+            // recorded regardless of this.round/phase — a fast-forwarding
+            // pair of players can flush a round before a slower/just-joined
+            // spectator has locally reached it yet (see
+            // spectateCaughtUpRound's doc comment); maybeStartBattleAfterDeploy
+            // itself is the round-aware gate and simply no-ops if not ready
+            if (msg.side) this.spectateCaughtUpRound[msg.side] = msg.round;
+            if (this.phase === 'build') {
                 this.drainSpectateQueue();
                 this.maybeStartBattleAfterDeploy();
             }
@@ -2463,10 +2593,33 @@ export class Game {
                     ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
                     : msg.item;
             this.hud.addChat(msg.from.name, item, 'remote');
+        } else if (msg.type === 'speed') {
+            // follow whichever real player's speed message arrives most
+            // recently (last write wins) — otherwise a spectator stuck at 1x
+            // while both players fast-forward drifts further behind every
+            // round, which is exactly the scenario that starves
+            // spectateCaughtUpRound of a timely local round-advance. Search
+            // `this.speedSteps` (REPLAY_SPEED_STEPS while watching), NOT the
+            // real players' own Game.SPEED_STEPS — same multiplier values,
+            // different index positions in the two arrays.
+            const index = this.speedSteps.indexOf(msg.multiplier);
+            if (index >= 0) {
+                this.speedIndex = index;
+                this.hud.setSpeed(msg.multiplier);
+            }
+        } else if (msg.type === 'visionUpdate') {
+            // this spectator's own vision grants changed — feed it straight
+            // to the fog system so already-fogged units (both teams,
+            // symmetric while watching — see PlacementController.isFogged)
+            // stop being hidden the instant a grant lands, not just once
+            // the round's normal both-locked reveal happens
+            this.placement.spectatorLiveSeats =
+                msg.vision.mode === 'live'
+                    ? new Set(msg.vision.seats.map((s) => (s === 'a' ? 0 : 1)))
+                    : new Set();
         }
-        // 'visionUpdate'/'check'/'speed': nothing for a spectator to act on —
-        // the host already withholds bytes per vision, and the local sim
-        // recomputes deterministically at whatever local speed is chosen.
+        // 'check': nothing for a spectator to act on — hash verification is
+        // a player-to-player concern only.
     }
 
     // --- reconnect / resync ------------------------------------------------
@@ -3299,7 +3452,24 @@ export class Game {
     private drainSpectateQueue(): void {
         while (this.spectateQueue.length > 0) {
             const head = this.spectateQueue[0]!;
-            if (head.round !== this.round || this.phase !== 'build') return;
+            if (head.round !== this.round || this.phase !== 'build') {
+                const key = `${head.round}:${this.round}:${this.phase}`;
+                if (this.lastSpectateBlockLog !== key) {
+                    this.lastSpectateBlockLog = key;
+                    console.info(
+                        '[spectate-debug] drainSpectateQueue BLOCKED',
+                        JSON.stringify({
+                            headRound: head.round,
+                            headSeat: head.seat,
+                            headKind: head.action?.kind,
+                            myRound: this.round,
+                            myPhase: this.phase,
+                            queueLen: this.spectateQueue.length,
+                        }),
+                    );
+                }
+                return;
+            }
             this.spectateQueue.shift();
             if (head.undo) {
                 this.dispatcher.undoLast(head.round, head.seat);
@@ -3307,12 +3477,18 @@ export class Game {
                 const team = this.seats[head.seat]?.team;
                 if (team) {
                     const resolved = { ...head.action, team, seat: head.seat };
-                    this.dispatcher.dispatch(resolved);
+                    const ok = this.dispatcher.dispatch(resolved);
+                    console.info(
+                        '[spectate-debug] dispatched',
+                        JSON.stringify({ kind: head.action.kind, seat: head.seat, team, round: head.round, ok }),
+                    );
                     if (head.action.kind === 'chooseCard') {
                         this.refreshShopHud();
                         this.syncSpecialities();
                         this.maybeStartMatch();
                     }
+                } else {
+                    console.info('[spectate-debug] NO TEAM for seat', head.seat, JSON.stringify(this.seats));
                 }
             }
             this.syncRallyVisuals();

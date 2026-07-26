@@ -121,11 +121,25 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
 export type NetMessage =
     | { type: 'hello'; name: string }
     | { type: 'setup'; version: number; seed: number; settings: GameSettings; hostName: string; guestName: string }
-    | { type: 'starter'; cardId: string }
-    | { type: 'action'; round: number; action: Action }
+    /** `side` (wire-level 'a'/'b') is who picked — the two real players never
+     *  need it (each just knows "mine" vs "the peer's"), but a spectator
+     *  watching both sides can't tell the two picks apart without it; see
+     *  onSpectateMessage's 'starter' handling. */
+    | { type: 'starter'; cardId: string; side?: 'a' | 'b' }
+    /**
+     * `side` is the WIRE-LEVEL, canonical host/guest tag ('a'/'b') this
+     * message was relayed for — set only when mirroring to spectators, who
+     * otherwise have no way to tell the two real players apart. `action.seat`
+     * is perspective-relative ("0 = mine", identical on both real clients —
+     * see Game.seatRank's doc comment), so a spectator resolving team from
+     * `action.seat` alone collapses both players onto the same seat. The
+     * two real players never read this field; they already know who they are.
+     */
+    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b' }
     /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
-     *  needs it since more than one remote seat can send an undo */
-    | { type: 'undo'; round: number; seat?: SeatId }
+     *  needs it since more than one remote seat can send an undo. `side` is
+     *  the same spectator-only wire tag as on `action` above. */
+    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b' }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
