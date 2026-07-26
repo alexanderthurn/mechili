@@ -437,3 +437,205 @@ export class Economy {
         this.balances[seat] = this.balance(seat) - amount;
     }
 }
+
+export interface SettingRow {
+    label: string;
+    value: string;
+    note?: string;
+}
+export interface SettingGroup {
+    title: string;
+    rows: SettingRow[];
+}
+
+function fmtTimer(t: RoundTimer): string {
+    return typeof t === 'number' ? `${t}s` : t.map((v) => `${v}s`).join('/');
+}
+
+/**
+ * Human-readable reference tables for a GameSettings object — the single
+ * source both the homepage's "Match settings" section and the in-game
+ * settings panel (click the supply counter) render from, so there's exactly
+ * one place turning raw settings numbers into labeled rows. Describes the
+ * SETTINGS PASSED IN, not just the defaults — the horde group in particular
+ * reflects whatever factor is actually active for this match (including a
+ * custom round list or `?hordeFactor=` override), not a hardcoded "Medium".
+ */
+export function describeGameSettings(settings: GameSettings): SettingGroup[] {
+    const pct = (n: number) => `${Math.round(n * 100)}%`;
+    const horde = settings.horde;
+    const hordeRows: SettingRow[] = [];
+    if (!hordeEnabled(horde)) {
+        hordeRows.push({ label: 'Status', value: 'Off' });
+    } else {
+        const activeRounds: number[] = [];
+        for (let r = 1; r <= HORDE_FINAL_ROUND; r++) {
+            if (isHordeRoundActive(horde, r)) activeRounds.push(r);
+        }
+        hordeRows.push(
+            {
+                label: 'Active rounds',
+                value: Array.isArray(horde.factor) ? 'Custom' : horde.factor,
+                note: `waves on round ${activeRounds.join(', ')}`,
+            },
+            { label: 'Round 1 wave value', value: `${horde.baseBudget} supply` },
+            { label: 'Growth per active round', value: `+${horde.budgetPerRound} supply` },
+            {
+                label: 'Final round multiplier',
+                value: `${horde.finaleBudgetMultiplier}×`,
+                note: `round ${HORDE_FINAL_ROUND} always fires, boosted, no matter the level`,
+            },
+            {
+                label: 'Leader bias',
+                value: pct(horde.leaderShare),
+                note: 'share of the wave aimed at whoever is currently ahead on HP',
+            },
+        );
+    }
+
+    return [
+        {
+            title: 'Timers & HP',
+            rows: [
+                { label: 'Deployment phase', value: fmtTimer(settings.buildTimeSeconds) },
+                { label: 'Battle phase', value: fmtTimer(settings.battleTimeSeconds) },
+                { label: 'Specialist pick', value: fmtTimer(settings.specialistTimeSeconds) },
+                { label: 'Round card pick', value: fmtTimer(settings.cardTimeSeconds) },
+                { label: 'Starting HP', value: `${settings.startingHp}` },
+            ],
+        },
+        {
+            title: 'Economy',
+            rows: [
+                { label: 'Round 1 income', value: `${settings.economy.startingSupply} supply` },
+                {
+                    label: 'Income growth',
+                    value: `+${settings.economy.supplyGrowthPerRound}/round`,
+                    note: 'round N grants startingSupply + (N-1) × growth',
+                },
+                {
+                    label: 'Tech cost escalation',
+                    value: `+${settings.economy.techCostEscalation}`,
+                    note: 'added to a tech’s price per tech already owned of that unit type',
+                },
+            ],
+        },
+        {
+            title: 'Round cards',
+            rows: [
+                {
+                    label: 'Schedule',
+                    value:
+                        settings.roundCards === false ? 'Off' : settings.roundCards === true ? 'On' : 'Custom',
+                    note: Array.isArray(settings.roundCards)
+                        ? `rounds ${settings.roundCards.join(', ')}`
+                        : 'from round 2 onward when on',
+                },
+            ],
+        },
+        { title: 'Horde mode', rows: hordeRows },
+        {
+            title: 'Towers',
+            rows: [
+                {
+                    label: 'Per lost tower',
+                    value: `×${settings.towers.debuffPerLostTower.speedMult} speed, ×${settings.towers.debuffPerLostTower.attackMult} attack, ×${settings.towers.debuffPerLostTower.damageTakenMult} damage taken`,
+                    note: 'applies to that side’s units only, stacking multiplicatively, while the debuff runs',
+                },
+                {
+                    label: 'Debuff duration',
+                    value: `${settings.towers.debuffDuration.baseSeconds}s at level 1`,
+                    note: `−${settings.towers.debuffDuration.stepSeconds}s per level above 1; a new tower loss adds its duration on top`,
+                },
+                {
+                    label: 'Upgrade cost',
+                    value: `${settings.towers.upgrade.baseCost} supply, +${settings.towers.upgrade.costStep}/level`,
+                    note: `up to level ${settings.towers.upgrade.maxLevel}`,
+                },
+            ],
+        },
+        {
+            title: 'Deploy',
+            rows: [
+                { label: 'Buys per round', value: `${settings.deploy.unitsPerRound}` },
+                {
+                    label: 'Extra buy slot',
+                    value: `${settings.deploy.extraSlotCost} supply`,
+                    note: 'Command Tower — this round only',
+                },
+                {
+                    label: 'Ranged range boost',
+                    value: `${settings.deploy.rangedRangeBoostCost} supply → +${settings.deploy.rangeBoost} range`,
+                    note: 'Command Tower — all ranged units, this round only',
+                },
+                {
+                    label: 'Army speed boost',
+                    value: `${settings.deploy.armySpeedBoostCost} supply → +${settings.deploy.speedBoost} speed`,
+                    note: 'Command Tower — whole army, this round only',
+                },
+                {
+                    label: 'Credit',
+                    value: `+${settings.deploy.creditGain} now, −${settings.deploy.creditDebt} next round`,
+                    note: 'Command Tower — once per round',
+                },
+                {
+                    label: 'Extras budget',
+                    value: `${settings.deploy.extrasBudgetPerRound} supply/round`,
+                    note: 'shields, rockets',
+                },
+                {
+                    label: 'Flank grace',
+                    value: `${settings.deploy.flankSpawnSeconds}s`,
+                    note: 'first flank deploys once flanks open',
+                },
+            ],
+        },
+        {
+            title: 'Leveling',
+            rows: [
+                { label: 'Stat bonus per level', value: `+${pct(settings.leveling.statBonusPerLevel)} hp/damage` },
+                { label: 'Max level', value: `${settings.leveling.maxLevel}` },
+                {
+                    label: 'Level cost',
+                    value: `${pct(settings.leveling.levelCostFactor)} of pack cost`,
+                    note: 'leveling is a purchase, never automatic',
+                },
+                {
+                    label: 'Recruit at level 2',
+                    value: `${settings.leveling.recruitLevel2Cost} supply`,
+                    note: 'once-per-round switch — new recruits arrive pre-leveled',
+                },
+            ],
+        },
+        {
+            title: 'Sell',
+            rows: [
+                {
+                    label: 'Ability cost',
+                    value: `${settings.sell.abilityCost} supply, one-time`,
+                    note: 'Research Center — once bought, permanent',
+                },
+                { label: 'Sells per round', value: `${settings.sell.maxPerRound}` },
+                { label: 'Refund', value: pct(settings.sell.refundFactor), note: 'of the unit’s base cost' },
+            ],
+        },
+        {
+            title: 'Rally Route',
+            rows: [
+                {
+                    label: 'Ability cost',
+                    value: `${settings.rallyRoute.abilityCost} supply, one-time`,
+                    note: 'Research Center — grants one rally-route tactic charge',
+                },
+            ],
+        },
+        {
+            title: 'Boosts',
+            rows: settings.boosts.costs.map((cost, i) => ({
+                label: `Tier ${i + 1}`,
+                value: `${cost} supply → +${pct(settings.boosts.attackTiers[i]!)} damage, +${pct(settings.boosts.hpTiers[i]!)} hp`,
+                note: 'Research Center — totals, not stacked on top of the previous tier',
+            })),
+        },
+    ];
+}

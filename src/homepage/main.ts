@@ -1,7 +1,7 @@
 import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { GAME_VERSION } from '../game/net';
-import { DEFAULT_HORDE, DEFAULT_SETTINGS, HORDE_FINAL_ROUND } from '../game/settings';
+import { DEFAULT_HORDE, DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { TACTICS, formatTacticStats } from '../game/tactics';
 import {
     COMMAND_TOWER,
@@ -247,183 +247,15 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
 </article>`;
 }
 
-interface SettingRow {
-    label: string;
-    value: string;
-    note?: string;
-}
-interface SettingGroup {
-    title: string;
-    rows: SettingRow[];
-}
-
-const DS = DEFAULT_SETTINGS;
-const DH = DEFAULT_HORDE;
-/** DEFAULT_HORDE.leaderShare, refundFactor, boost tiers, etc. are already
- *  fractions (0.65 = 65%) — this just formats them as a percentage. */
-const pct = (n: number) => `${Math.round(n * 100)}%`;
-
-/**
- * Reference tables for the homepage's "Match settings" section. Values are
- * pulled live from DEFAULT_SETTINGS/DEFAULT_HORDE so they can't drift from
- * what actually ships; labels/notes are hand-written (source comments
- * aren't available at runtime in a built bundle).
- */
-const SETTINGS_GROUPS: SettingGroup[] = [
-    {
-        title: 'Timers & HP',
-        rows: [
-            { label: 'Deployment phase', value: `${DS.buildTimeSeconds}s` },
-            { label: 'Battle phase', value: `${DS.battleTimeSeconds}s` },
-            { label: 'Specialist pick', value: `${DS.specialistTimeSeconds}s` },
-            { label: 'Round card pick', value: `${DS.cardTimeSeconds}s` },
-            { label: 'Starting HP', value: `${DS.startingHp}` },
-        ],
-    },
-    {
-        title: 'Economy',
-        rows: [
-            { label: 'Round 1 income', value: `${DS.economy.startingSupply} supply` },
-            {
-                label: 'Income growth',
-                value: `+${DS.economy.supplyGrowthPerRound}/round`,
-                note: 'round N grants startingSupply + (N-1) × growth',
-            },
-            {
-                label: 'Tech cost escalation',
-                value: `+${DS.economy.techCostEscalation}`,
-                note: 'added to a tech’s price per tech already owned of that unit type',
-            },
-        ],
-    },
-    {
-        title: 'Round cards',
-        rows: [
-            {
-                label: 'Default',
-                value: DS.roundCards === false ? 'Off' : 'On',
-                note: 'from round 2 onward when on; can also be an explicit round list like [3, 6, 9]',
-            },
-        ],
-    },
-    {
-        title: 'Horde mode',
-        rows: [
-            {
-                label: 'Default level',
-                value: 'Medium',
-                note: `waves on round 5 and the final round (${HORDE_FINAL_ROUND}) — low = final round only, high = also rounds 3 & 7, ultra = every round, off = disabled`,
-            },
-            { label: 'Round 1 wave value', value: `${DH.baseBudget} supply` },
-            { label: 'Growth per active round', value: `+${DH.budgetPerRound} supply` },
-            {
-                label: 'Final round multiplier',
-                value: `${DH.finaleBudgetMultiplier}×`,
-                note: `round ${HORDE_FINAL_ROUND} always fires, boosted, no matter the level`,
-            },
-            {
-                label: 'Leader bias',
-                value: pct(DH.leaderShare),
-                note: 'share of the wave aimed at whoever is currently ahead on HP',
-            },
-        ],
-    },
-    {
-        title: 'Towers',
-        rows: [
-            {
-                label: 'Per lost tower',
-                value: `×${DS.towers.debuffPerLostTower.speedMult} speed, ×${DS.towers.debuffPerLostTower.attackMult} attack, ×${DS.towers.debuffPerLostTower.damageTakenMult} damage taken`,
-                note: 'applies to that side’s units only, stacking multiplicatively, while the debuff runs',
-            },
-            {
-                label: 'Debuff duration',
-                value: `${DS.towers.debuffDuration.baseSeconds}s at level 1`,
-                note: `−${DS.towers.debuffDuration.stepSeconds}s per level above 1; a new tower loss adds its duration on top`,
-            },
-            {
-                label: 'Upgrade cost',
-                value: `${DS.towers.upgrade.baseCost} supply, +${DS.towers.upgrade.costStep}/level`,
-                note: `up to level ${DS.towers.upgrade.maxLevel}`,
-            },
-        ],
-    },
-    {
-        title: 'Deploy',
-        rows: [
-            { label: 'Buys per round', value: `${DS.deploy.unitsPerRound}` },
-            {
-                label: 'Extra buy slot',
-                value: `${DS.deploy.extraSlotCost} supply`,
-                note: 'Command Tower — this round only',
-            },
-            {
-                label: 'Ranged range boost',
-                value: `${DS.deploy.rangedRangeBoostCost} supply → +${DS.deploy.rangeBoost} range`,
-                note: 'Command Tower — all ranged units, this round only',
-            },
-            {
-                label: 'Army speed boost',
-                value: `${DS.deploy.armySpeedBoostCost} supply → +${DS.deploy.speedBoost} speed`,
-                note: 'Command Tower — whole army, this round only',
-            },
-            {
-                label: 'Credit',
-                value: `+${DS.deploy.creditGain} now, −${DS.deploy.creditDebt} next round`,
-                note: 'Command Tower — once per round',
-            },
-            { label: 'Extras budget', value: `${DS.deploy.extrasBudgetPerRound} supply/round`, note: 'shields, rockets' },
-            { label: 'Flank grace', value: `${DS.deploy.flankSpawnSeconds}s`, note: 'first flank deploys once flanks open' },
-        ],
-    },
-    {
-        title: 'Leveling',
-        rows: [
-            { label: 'Stat bonus per level', value: `+${pct(DS.leveling.statBonusPerLevel)} hp/damage` },
-            { label: 'Max level', value: `${DS.leveling.maxLevel}` },
-            {
-                label: 'Level cost',
-                value: `${pct(DS.leveling.levelCostFactor)} of pack cost`,
-                note: 'leveling is a purchase, never automatic',
-            },
-            {
-                label: 'Recruit at level 2',
-                value: `${DS.leveling.recruitLevel2Cost} supply`,
-                note: 'once-per-round switch — new recruits arrive pre-leveled',
-            },
-        ],
-    },
-    {
-        title: 'Sell',
-        rows: [
-            {
-                label: 'Ability cost',
-                value: `${DS.sell.abilityCost} supply, one-time`,
-                note: 'Research Center — once bought, permanent',
-            },
-            { label: 'Sells per round', value: `${DS.sell.maxPerRound}` },
-            { label: 'Refund', value: pct(DS.sell.refundFactor), note: 'of the unit’s base cost' },
-        ],
-    },
-    {
-        title: 'Rally Route',
-        rows: [
-            {
-                label: 'Ability cost',
-                value: `${DS.rallyRoute.abilityCost} supply, one-time`,
-                note: 'Research Center — grants one rally-route tactic charge',
-            },
-        ],
-    },
-    {
-        title: 'Boosts',
-        rows: DS.boosts.costs.map((cost, i) => ({
-            label: `Tier ${i + 1}`,
-            value: `${cost} supply → +${pct(DS.boosts.attackTiers[i]!)} damage, +${pct(DS.boosts.hpTiers[i]!)} hp`,
-            note: 'Research Center — totals, not stacked on top of the previous tier',
-        })),
-    },
-];
+// the homepage shows the defaults as if applyHordeMode had run (Single
+// Player/Matchmaking's forced default), so horde mode reads as "on" here
+// too instead of "unset" — describeGameSettings is shared with the
+// in-game settings panel (see hud.ts/game.ts), which passes the REAL
+// per-match settings instead of these defaults.
+const SETTINGS_GROUPS: SettingGroup[] = describeGameSettings({
+    ...DEFAULT_SETTINGS,
+    horde: DEFAULT_HORDE,
+});
 
 function settingsGroupHtml(g: SettingGroup): string {
     return `

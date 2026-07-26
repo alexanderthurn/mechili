@@ -96,6 +96,7 @@ import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
 import {
     DEFAULT_SETTINGS,
+    describeGameSettings,
     Economy,
     hordeBudgetForRound,
     hordeEnabled,
@@ -1030,6 +1031,9 @@ export class Game {
             (type) => this.buyUnit(type),
         );
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        // this match's real settings (including any ?hordeFactor= override) —
+        // fixed for the match's lifetime, so a one-time snapshot is enough
+        this.hud.setSettingsGroups(describeGameSettings(this.settings));
         // watching's own wider-range speed control (replayControls.ts)
         // replaces this button entirely — watching never changes for a
         // Game instance's lifetime, so this is a one-time hide, not a toggle

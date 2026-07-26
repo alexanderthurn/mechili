@@ -1272,6 +1272,13 @@ export function hudStyles(): string {
     line-height: 1;
     color: ${u.brass};
 }
+.mechili-supply.clickable {
+    pointer-events: auto;
+    cursor: pointer;
+    transition: border-color 0.12s, transform 0.12s;
+}
+.mechili-supply.clickable:hover { border-color: ${u.brassLight}; }
+.mechili-supply.clickable:active { transform: translateY(1px); }
 .shop-toolbar {
     display: flex;
     align-items: center;
@@ -2119,6 +2126,14 @@ export function hudStyles(): string {
     background: rgba(12, 20, 8, 0.55);
     font-family: system-ui, sans-serif;
     user-select: none;
+    /* .mechili-topbar sets z-index: 1 to sit above ordinary HUD elements —
+     * without an explicit z-index here (auto) a card-style overlay (round
+     * cards, specialist reveal, unlock dialog, and now the settings panel)
+     * still lost that stacking fight and rendered BEHIND the topbar's own
+     * stacking context, regardless of DOM order. Comfortably above the
+     * topbar, below .mechili-pause's 55 (pause should still win if both
+     * were ever open at once). */
+    z-index: 50;
 }
 .mechili-cards .cards-title {
     font-size: 26px;
@@ -2290,6 +2305,88 @@ export function hudStyles(): string {
 .mechili-cards .cards-skip { transition: transform 0.14s ease, background 0.14s ease; }
 .mechili-cards .cards-skip:hover { background: ${u.undoHover}; transform: translateY(-1px); }
 .mechili-cards .cards-skip:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
+
+.settings-panel {
+    position: relative;
+    max-width: min(92vw, 920px);
+    max-height: 84vh;
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+    border-radius: 14px;
+    border: 2px solid ${u.border};
+    background: ${u.panelBgDark};
+    user-select: text;
+}
+.settings-panel-title {
+    margin: 0 0 14px;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: ${u.brassLight};
+    text-align: center;
+}
+.settings-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: ${u.textMuted};
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+}
+.settings-close:hover { color: ${u.text}; }
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 14px;
+}
+.settings-card {
+    padding: 12px 14px 14px;
+    border-radius: 10px;
+    border: 1.5px solid ${u.divider};
+    background: rgba(0, 0, 0, 0.15);
+}
+.settings-card h3 {
+    margin: 0 0 8px;
+    color: ${u.brassLight};
+    font-size: 14px;
+}
+.settings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+.settings-table th,
+.settings-table td {
+    text-align: left;
+    padding: 4px 0;
+    vertical-align: top;
+}
+.settings-table tr:not(:last-child) th,
+.settings-table tr:not(:last-child) td {
+    border-bottom: 1px solid ${u.divider};
+}
+.settings-table th {
+    color: ${u.textMuted};
+    font-weight: 600;
+    padding-right: 10px;
+    white-space: nowrap;
+}
+.settings-table td {
+    color: ${u.text};
+    font-variant-numeric: tabular-nums;
+}
+.settings-desc {
+    display: block;
+    color: ${u.textMuted};
+    font-size: 11px;
+    font-weight: 400;
+    font-variant-numeric: normal;
+    margin-top: 2px;
+    white-space: normal;
+}
 
 .mechili-pause {
     position: absolute;
@@ -2661,6 +2758,10 @@ export function hudStyles(): string {
 .mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
 .mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-topbar.battle .speed { display: inline-block; }
+/* the settings panel (or a card overlay) is up — no speeding through the
+ * battle you can't see behind it; !important since .battle .speed's own
+ * display:inline-block would otherwise win when both classes are present */
+.mechili-topbar.overlay-open .speed { display: none !important; }
 
 /*
  * Touch-first devices (tablet/phone): same layout, but tap targets meet the

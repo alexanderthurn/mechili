@@ -4,6 +4,7 @@ import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
+import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
 import { THEME, hudStyles } from '../theme';
@@ -214,6 +215,9 @@ export class Hud {
     /** which commander's detail is open (so live pick updates can refresh it) */
     private specDetailTeam: 'player' | 'enemy' | null = null;
     private specDetailViaHover = false;
+    /** this match's settings, described for the click-to-open panel — set once via setSettingsGroups */
+    private settingsGroups: SettingGroup[] = [];
+    private settingsDetailOverlay: HTMLDivElement | null = null;
     private readonly playerHpFill: HTMLDivElement;
     private readonly enemyHpFill: HTMLDivElement;
     private readonly playerHpVal: HTMLSpanElement;
@@ -340,10 +344,12 @@ export class Hud {
         toolbarRight.append(this.levelAllGlobalBtn);
 
         this.supplyFrame = document.createElement('div');
-        this.supplyFrame.className = 'mechili-supply';
+        this.supplyFrame.className = 'mechili-supply clickable';
+        this.supplyFrame.title = 'Match settings';
         this.supplyEl = document.createElement('span');
         this.supplyEl.className = 'supply';
         this.supplyFrame.append(this.supplyEl);
+        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
         toolbarRight.append(this.supplyFrame);
         shopToolbar.append(toolbarRight);
 
@@ -674,10 +680,12 @@ export class Hud {
         this.phoneUndoEl.textContent = '↩ Undo';
         this.phoneUndoEl.addEventListener('click', () => this.onUndo?.());
         const phoneSupplyFrame = document.createElement('div');
-        phoneSupplyFrame.className = 'mechili-supply';
+        phoneSupplyFrame.className = 'mechili-supply clickable';
+        phoneSupplyFrame.title = 'Match settings';
         this.phoneSupplyEl = document.createElement('span');
         this.phoneSupplyEl.className = 'supply';
         phoneSupplyFrame.append(this.phoneSupplyEl);
+        phoneSupplyFrame.addEventListener('click', () => this.showSettingsDetail());
         this.phoneLevelAllEl = document.createElement('button');
         this.phoneLevelAllEl.className = 'level-all-global';
         this.phoneLevelAllEl.style.display = 'none';
@@ -1756,13 +1764,16 @@ export class Hud {
     }
 
     /**
-     * Full-screen overlays (card picks, pause) own the screen: the phone tab
-     * bar and field-action buttons step aside. The topbar keeps its original
-     * cards-only rule (a card pick blocks End Deployment; pause does not).
+     * Full-screen overlays (card picks, pause, match settings) own the
+     * screen: the phone tab bar and field-action buttons step aside. The
+     * topbar keeps its original cards-only rule (a card pick or the
+     * settings panel blocks End Deployment and speed controls; pause does
+     * not — pause already stops everything itself).
      */
     private syncOverlayOpen(): void {
-        const open = this.cardOverlay !== null || this.pauseMenu !== null;
-        this.topBar.classList.toggle('overlay-open', this.cardOverlay !== null);
+        const blocksTopBar = this.cardOverlay !== null || this.settingsDetailOverlay !== null;
+        const open = blocksTopBar || this.pauseMenu !== null;
+        this.topBar.classList.toggle('overlay-open', blocksTopBar);
         this.phoneBar.classList.toggle('overlay-open', open);
         this.phoneStatusEl.classList.toggle('overlay-open', open);
     }
@@ -2033,6 +2044,58 @@ export class Hud {
         this.specDetailTeam = null;
         this.specDetailViaHover = false;
         this.enemyInventoryEl.classList.remove('reveal');
+    }
+
+    /** this match's settings, described once at match start (see game/settings.ts's
+     *  describeGameSettings) — reflects the REAL settings for this match, including
+     *  any ?hordeFactor= override, not just the defaults */
+    setSettingsGroups(groups: SettingGroup[]): void {
+        this.settingsGroups = groups;
+    }
+
+    /** a dismissible popup listing this match's settings (click the supply counter) */
+    private showSettingsDetail(): void {
+        if (this.settingsDetailOverlay) this.settingsDetailOverlay.remove();
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards detail settings-detail';
+        overlay.innerHTML =
+            `<div class="settings-panel">` +
+            `<button type="button" class="settings-close" aria-label="Close">&times;</button>` +
+            `<div class="settings-panel-title">Match Settings</div>` +
+            `<div class="settings-grid">` +
+            this.settingsGroups
+                .map(
+                    (g) =>
+                        `<div class="settings-card"><h3>${escapeHtml(g.title)}</h3><table class="settings-table"><tbody>` +
+                        g.rows
+                            .map(
+                                (r) =>
+                                    `<tr><th>${escapeHtml(r.label)}</th><td>${escapeHtml(r.value)}${
+                                        r.note ? `<span class="settings-desc">${escapeHtml(r.note)}</span>` : ''
+                                    }</td></tr>`,
+                            )
+                            .join('') +
+                        `</tbody></table></div>`,
+                )
+                .join('') +
+            `</div></div>`;
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay || (e.target as HTMLElement).closest('.settings-close')) {
+                this.hideSettingsDetail();
+            }
+        });
+        this.settingsDetailOverlay = overlay;
+        this.mount(overlay);
+        this.syncOverlayOpen();
+    }
+
+    /** dismiss the match-settings popup */
+    private hideSettingsDetail(): void {
+        if (this.settingsDetailOverlay) {
+            this.settingsDetailOverlay.remove();
+            this.settingsDetailOverlay = null;
+        }
+        this.syncOverlayOpen();
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
