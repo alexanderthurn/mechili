@@ -38,7 +38,11 @@ export interface GameSettings {
      * game rolls one at startup.
      */
     seed?: number;
-    /** horde PvPvE mode: a neutral pink dwarf horde spawns in the center every round. Unset = off. */
+    /**
+     * horde PvPvE mode: a neutral dwarf horde spawns from a ring in the
+     * surrounding forest and marches inward, hostile to both players.
+     * Unset, or `factor: 'off'`, both mean off — see {@link hordeEnabled}.
+     */
     horde?: HordeSettings;
     /**
      * the match roster (seats on sides). Unset = classic 1v1 (two implicit
