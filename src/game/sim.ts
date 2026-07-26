@@ -13,7 +13,7 @@ import {
 } from './fire';
 import { ITEMS } from './items';
 import type { SeatId } from './seats';
-import { groundSupportAt, mulberry32, simGroundHeightAt, simGroundSupportAt } from './map';
+import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
@@ -1319,7 +1319,12 @@ export class BattleSim {
             // walkers clear the uphill side of mounds instead of sinking in.
             // Slight negative seat: strong ground normals make the lawn look
             // higher than the mesh, so a tiny sink kills the hover look.
-            const groundY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + GROUND_UNIT_Y;
+            // worldHeightAt (board relief + outer world) instead of the board-only
+            // groundSupportAt — otherwise a marching horde actor spawned outside
+            // the board renders flat against sloped/hilly outer terrain. Purely
+            // cosmetic (mesh.position.y only): the sim itself walks the flat
+            // plane (see feetY), so this can't affect determinism.
+            const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
             if (!a.mesh.userData.animated) {
                 const gait = Math.sin(timeSeconds * 9 + a.index);
                 a.mesh.position.y = groundY + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
@@ -1333,7 +1338,7 @@ export class BattleSim {
             // air layer via unit.flightLift — battle used to snap to altitude
             // immediately, which read as a teleport especially on hills
             const lift = a.unit.flightLift;
-            const fromY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + DEPLOY_AIR_Y;
+            const fromY = worldHeightAt(a.rx, a.rz) + DEPLOY_AIR_Y;
             const y = fromY + (a.altitude - fromY) * lift;
             a.mesh.position.y = y + Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
         }
@@ -1434,7 +1439,7 @@ export class BattleSim {
             // tip over and stay as a battlefield wreck until the round resets
             // (air units crash to the ground)
             target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
-            target.mesh.position.y = groundSupportAt(target.x, target.z, target.radius * 0.65) + GROUND_UNIT_Y;
+            target.mesh.position.y = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
             target.mesh.userData.dead = true;
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }

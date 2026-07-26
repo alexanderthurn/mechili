@@ -128,6 +128,7 @@ import {
 import { TechTree } from './tech';
 import {
     COMMAND_TOWER,
+    HORDE_DWARF,
     RESEARCH_CENTER,
     STRONGHOLD,
     UNIT_TYPES,
@@ -151,10 +152,13 @@ import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 const SPECIALIST_REVEAL_MS = 2000;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
-/** ring starts this far past the board edge (world units) */
-const HORDE_RING_NEAR = 6;
+/** ring starts this far past the board edge (world units) — well into the
+ *  treeline (medium quality's forest belt already ramps up by 25 past the
+ *  edge), so the wave visibly emerges from the woods instead of appearing
+ *  right at the board's doorstep */
+const HORDE_RING_NEAR = 45;
 /** ring extends this much further past HORDE_RING_NEAR */
-const HORDE_RING_SPAN = 60;
+const HORDE_RING_SPAN = 80;
 /** bounded, deterministic retries when a candidate spot's straight walk to
  *  center would cross deep water */
 const HORDE_SPAWN_ATTEMPTS = 24;
@@ -491,6 +495,14 @@ export class Game {
         if (e.code === 'KeyU' && !this.net && !this.star) {
             // single-player: one of every unit type on both sides + huge HP
             this.cheatSpawnAllUnits();
+            return;
+        }
+        if (e.code === 'KeyH' && !this.net && !this.star) {
+            // single-player: extra horde packs right now — stress-test
+            // marchIn perf and eyeball the ring spawn/lake-avoidance logic
+            // independent of the round's normal budget. Press repeatedly to
+            // keep piling more on.
+            this.cheatSpawnHordePacks();
             return;
         }
         if (e.code === 'KeyT') {
@@ -1827,6 +1839,36 @@ export class Game {
                 }
             }
         }
+    }
+
+    /**
+     * SP cheat (H): dumps extra horde packs into the forest ring right now —
+     * for stress-testing marchIn performance and eyeballing the ring
+     * spawn/lake-avoidance logic (findHordeRingSpot) without waiting on a
+     * round's normal wave budget. Build-phase only: battle's actor list is
+     * fixed at battle start (see BattleSim's constructor), so packs spawned
+     * mid-battle would sit there without ever joining the sim. Not logged as
+     * an action — press again after a reload if you want more.
+     */
+    private cheatSpawnHordePacks(count = 40): void {
+        if (this.phase !== 'build') {
+            console.info('[cheat] KeyH only works during build phase (battle actors are already fixed)');
+            return;
+        }
+        const rng = mulberry32(seedFrom(this.seed, `horde-cheat:${this.round}:${Date.now()}`));
+        const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
+        const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
+        let spawned = 0;
+        for (let i = 0; i < count; i++) {
+            const spot = this.findHordeRingSpot(rng, 0, outerHalfW, outerHalfH);
+            if (!spot) continue;
+            const unit = this.placement.spawnAtWorld(HORDE_DWARF, spot.x, spot.z);
+            unit.summoned = true;
+            unit.deployedRound = this.round;
+            unit.marchIn = true;
+            spawned++;
+        }
+        console.info(`[cheat] KeyH: spawned ${spawned}/${count} extra horde packs`);
     }
 
     /** local player input — refused once this deployment is locked in.
@@ -4616,8 +4658,9 @@ export class Game {
     private spawnHordeWave(): void {
         const horde = this.settings.horde;
         if (!horde || !isHordeRoundActive(horde, this.round)) return;
-        const type = unitTypeById('dwarf');
-        if (!type) return;
+        // HORDE_DWARF: same model/stats/headcount as the buildable dwarf pack,
+        // just spread into a mob instead of a drilled rectangle (see units.ts)
+        const type = HORDE_DWARF;
         const budget = hordeBudgetForRound(horde, this.round);
         const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
@@ -4664,7 +4707,13 @@ export class Game {
             const x = (rng() * 2 - 1) * outerHalfW;
             const zBase = (rng() * 2 - 1) * outerHalfH;
             const z = zSign === 0 ? zBase : zSign * Math.abs(zBase) * 0.55 + zBase * 0.45;
-            if (Math.abs(x) <= this.map.halfW && Math.abs(z) <= this.map.halfH) continue; // actually on the board
+            // true distance past the board edge (0 inside/on the rectangle;
+            // same metric scenery.ts's forest belt uses). Rejecting only
+            // "literally inside the board" let spots land right at the edge
+            // whenever just one axis barely cleared it — this enforces the
+            // real HORDE_RING_NEAR..+SPAN annulus instead.
+            const d = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
+            if (d < HORDE_RING_NEAR || d > HORDE_RING_NEAR + HORDE_RING_SPAN) continue;
             if (this.hordePathCrossesWater(x, z)) continue;
             return { x, z };
         }
@@ -4921,24 +4970,38 @@ export class Game {
     }
 
     /**
-     * Every surviving unit deals its value as player damage: the unit's base
-     * price scaled by how much of it survived (half the dwarf pack alive =
-     * half its cost), always a whole number. A wiped side has no survivors,
-     * so only the losing player takes damage; on a timeout both usually do.
-     * Horde survivors bite into BOTH sides — ignoring the horde is punished.
+     * Every surviving PLAYER-owned unit deals its value as damage to the
+     * other side: the unit's base price scaled by how much of it survived
+     * (half the dwarf pack alive = half its cost), always a whole number. On
+     * a timeout both sides usually still have some survivors and both take
+     * some damage. Horde survivors deal no HP damage while EITHER player
+     * still has forces standing — the horde thins out packs (and therefore
+     * score) without being a third scoring party of its own. Only once a
+     * side is fully wiped (no survivors of its own) does it also take the
+     * horde's surviving value on top of the opposing player's: nothing of
+     * its own was left to stop either force.
      */
     private applyBattleResult(sim: BattleSim): void {
         let damageToPlayer = 0;
         let damageToEnemy = 0;
+        let playerSurvived = false;
+        let enemySurvived = false;
+        let hordeValue = 0;
         for (const [unit, s] of sim.unitSurvivors()) {
             const value = Math.round(this.economy.costOf(unit.type) * (s.alive / s.total));
-            if (unit.team === 'player') damageToEnemy += value;
-            else if (unit.team === 'enemy') damageToPlayer += value;
-            else {
-                damageToPlayer += value;
+            if (unit.team === 'player') {
                 damageToEnemy += value;
+                if (s.alive > 0) playerSurvived = true;
+            } else if (unit.team === 'enemy') {
+                damageToPlayer += value;
+                if (s.alive > 0) enemySurvived = true;
+            } else {
+                hordeValue += value;
             }
         }
+        // a wiped side had nothing left to stop the horde either
+        if (!playerSurvived) damageToPlayer += hordeValue;
+        if (!enemySurvived) damageToEnemy += hordeValue;
         this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
         this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
     }
@@ -5217,7 +5280,13 @@ export class Game {
             for (const a of this.sim.actors) {
                 if (!a.alive || a.altitude > 0) continue;
                 const t = a.unit.type;
-                if (t.structure || t.extra || t.flying) continue;
+                // horde packs are numerous enough that even normal per-unit
+                // wear stamping (same rate as a player's army) turns the
+                // whole board sandy within a match, with a hard rectangular
+                // edge at the board boundary (marching units outside never
+                // stamp at all) — so horde never stamps ground wear, on or
+                // off the board
+                if (t.structure || t.extra || t.flying || a.unit.team === 'horde') continue;
                 const prev = this.sandLastPos.get(a);
                 if (!prev) {
                     this.sandLastPos.set(a, { x: a.x, z: a.z });

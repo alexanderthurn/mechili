@@ -64,7 +64,7 @@ function makeWardRuneTexture(): CanvasTexture {
     return texture;
 }
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
-import { CELL, groundSupportAt, mulberry32, type Cell } from './map';
+import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
@@ -228,6 +228,35 @@ export interface UnitType {
     techs: TechDef[];
     /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;
+    /**
+     * Scatters each member off its grid slot by up to this fraction of the
+     * slot spacing (0 = the usual tight rectangle). Deterministic — a pure
+     * hash of the member's grid index, so every client renders/simulates the
+     * identical scatter. Used by horde packs so a wave reads as a mob instead
+     * of a drilled formation; regular buildable packs leave this unset.
+     */
+    formationSpread?: number;
+    /**
+     * Id to use for 3D model / InstancedMesh-pool lookups (unitModels.ts,
+     * unitAnimated.ts, UnitInstanceRenderer) instead of this type's own `id`.
+     * Lets a variant type (e.g. HORDE_DWARF) reuse a buildable type's exact
+     * model asset with no separate GLB registration. Defaults to `id`.
+     */
+    modelId?: string;
+}
+
+/**
+ * Deterministic 0..1 pseudo-random from an integer key — pure bitwise
+ * integer ops (no floats/trig), so it's bit-identical on every client.
+ * Used for {@link UnitType.formationSpread}, which offsets member spawn
+ * positions and therefore must stay network-safe.
+ */
+function hash01(n: number): number {
+    let h = (n ^ 0x9e3779b9) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0;
+    h = (h ^ (h >>> 16)) >>> 0;
+    return h / 4294967296;
 }
 
 
@@ -454,6 +483,36 @@ export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 1600);
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
 export const SHIELD_HEIGHT = 17;
+
+/**
+ * Horde-only wave unit: same model, stats, and headcount as {@link
+ * UNIT_TYPES}'s `dwarf` pack, but spread across a much looser footprint
+ * with `formationSpread` scatter — reads as a wild mob marching out of the
+ * forest instead of a drilled 24-strong rectangle. Deliberately excluded
+ * from `UNIT_TYPES` (never buildable, never offered by AI/deck/cheat-spawn)
+ * — resolved only via `unitTypeById`, same pattern as the tower types above.
+ */
+export const HORDE_DWARF: UnitType = {
+    id: 'hordeDwarf',
+    name: 'Horde Dwarf',
+    cost: 100,
+    modelId: 'dwarf', // reuse the buildable dwarf's exact model/instance pool
+    footprint: { cols: 10, rows: 6 }, // much looser than dwarf's 5x2 — spreads the mob out
+    formation: { cols: 8, rows: 3 }, // same 24-strong headcount as dwarf
+    formationSpread: 0.8,
+    meshScale: 1,
+    burn: { takenMult: 0.5 },
+    targets: { ground: true, air: false },
+    collisionRadius: 0.5,
+    colliders: [{ y: 0.35, r: 0.55 }],
+    hp: 40,
+    damage: 8,
+    range: 2,
+    attackInterval: 0.7,
+    speed: 9,
+    techs: [], // horde never buys techs
+    build: buildDwarf,
+};
 
 export const UNIT_TYPES: UnitType[] = [
     {
@@ -715,6 +774,11 @@ export class Unit {
         const formation = rotated ? swapExtent(type.formation) : type.formation;
         const spacingX = (footprint.cols * CELL) / formation.cols;
         const spacingZ = (footprint.rows * CELL) / formation.rows;
+        // which model/instance-pool asset to use — defaults to the type's own
+        // id, but a horde-only variant (e.g. HORDE_DWARF) can point this at a
+        // buildable type's id to reuse its exact model/pool without a second
+        // asset registration (see UnitType.modelId)
+        const modelKey = type.modelId ?? type.id;
         for (let i = 0; i < formation.cols; i++) {
             for (let j = 0; j < formation.rows; j++) {
                 const mesh = new Group();
@@ -722,20 +786,20 @@ export class Unit {
                 // possible), else procedural primitives. Models are
                 // pre-normalized to the procedural LOCAL size, so meshScale
                 // below (and wreck/reset scaling) is uniform.
-                const animated = hasAnimatedModel(type.id) ? cloneAnimatedModel(type.id, team) : null;
+                const animated = hasAnimatedModel(modelKey) ? cloneAnimatedModel(modelKey, team) : null;
                 if (animated) {
                     mesh.userData.animated = true;
                     mesh.add(animated);
                 } else if (
                     !type.structure &&
-                    UnitInstanceRenderer.canInstance(type.id) &&
+                    UnitInstanceRenderer.canInstance(modelKey) &&
                     getUnitInstanceRenderer()
                 ) {
                     // empty proxy — UnitInstanceRenderer draws the shared mesh
                     // (structures stay as clones: one each, often quantized/heavy)
-                    getUnitInstanceRenderer()!.register(mesh, type.id, team);
+                    getUnitInstanceRenderer()!.register(mesh, modelKey, team);
                 } else {
-                    const model = hasUnitModel(type.id) ? cloneUnitModel(type.id, team) : null;
+                    const model = hasUnitModel(modelKey) ? cloneUnitModel(modelKey, team) : null;
                     if (model) {
                         mesh.add(model);
                         // GLB replaces the stone mesh, not the energy dome — attach
@@ -752,8 +816,13 @@ export class Unit {
                     }
                 }
                 mesh.scale.setScalar(type.meshScale);
-                const ox = (i - (formation.cols - 1) / 2) * spacingX;
-                const oz = (j - (formation.rows - 1) / 2) * spacingZ;
+                let ox = (i - (formation.cols - 1) / 2) * spacingX;
+                let oz = (j - (formation.rows - 1) / 2) * spacingZ;
+                if (type.formationSpread) {
+                    const key = i * 131 + j * 7919;
+                    ox += (hash01(key + 1) - 0.5) * spacingX * type.formationSpread;
+                    oz += (hash01(key + 104729) - 0.5) * spacingZ * type.formationSpread;
+                }
                 mesh.position.set(ox, 0, oz);
                 this.view.add(mesh);
                 this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: new Vector3(ox, 0, oz) });
@@ -785,7 +854,6 @@ export class Unit {
      * Defaults to the current view xz so drag previews follow the hills.
      */
     seatMembers(originX = this.view.position.x, originZ = this.view.position.z): void {
-        const r = this.type.collisionRadius * 0.65;
         const rocketAlt = this.type.rocket ? this.type.flying : undefined;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
@@ -793,8 +861,11 @@ export class Unit {
                 m.mesh.position.y = rocketAlt;
                 continue;
             }
+            // worldHeightAt (board + outer world) rather than the board-only
+            // groundSupportAt — horde packs spawn/stand outside the board
+            // during deployment and need to sit on the outer relief too
             m.mesh.position.y =
-                groundSupportAt(originX + m.home.x, originZ + m.home.z, r) + this.memberBaseY();
+                worldHeightAt(originX + m.home.x, originZ + m.home.z) + this.memberBaseY();
         }
     }
 
@@ -970,10 +1041,9 @@ export class Unit {
         const amplitude = 0.04;
         const ox = this.view.position.x;
         const oz = this.view.position.z;
-        const r = this.type.collisionRadius * 0.65;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
-            const ground = groundSupportAt(ox + m.home.x, oz + m.home.z, r);
+            const ground = worldHeightAt(ox + m.home.x, oz + m.home.z);
             m.mesh.position.y = ground + base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;
         }
     }
@@ -1193,5 +1263,6 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;
+    if (id === HORDE_DWARF.id) return HORDE_DWARF;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
 }

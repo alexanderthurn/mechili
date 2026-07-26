@@ -252,12 +252,18 @@ export class Scenery {
             return (rolling + mountain) * (1 - lake) + depth * lake;
         };
 
-        // minimal scenery: flat terrain heights (the closures above return
-        // real values, but heightAt/lakeAt get bypassed below) + no decoration
-        if (!this.detailed) {
-            this.terrainHeight = () => 0;
-            this.lakeAt = () => 0;
-        }
+        // NOTE: terrainHeight/lakeAt stay real at every quality tier (including
+        // 'low'/'off') — this feeds registerOuterHeight below, which in turn
+        // feeds worldHeightAt, which horde mode uses for GAMEPLAY decisions
+        // (lake avoidance when picking a spawn point, see hordePathCrossesWater
+        // in game.ts). Quality is a per-client preference, not synced over the
+        // wire — if this height data were quality-gated, a 'low'-quality
+        // client and a 'high'-quality client could compute different horde
+        // spawn points from the identical seed and desync. Only the DECORATION
+        // (trees, lake props, meadow texture, forest fog) stays gated by
+        // `detailed` below; the outer ground mesh itself now follows the real
+        // heights at every tier too (see createOuterGround's SEGS), just
+        // without decoration on 'low'/'off'.
         // the camera rig uses this to stay above the mountains
         registerOuterHeight((x, z) => this.terrainHeight(x, z));
 
@@ -864,7 +870,12 @@ export class Scenery {
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
         const SIZE = 3000;
-        const SEGS = this.detailed ? this.density.segs : 1;
+        // 'low'/'off' skip decoration (trees, lake props, meadow texture) but
+        // still get a real, if coarse, heightmapped ground — terrainHeight is
+        // no longer flattened at these tiers (see the constructor), so a flat
+        // 1-segment quad would visibly float/sink units against the relief
+        // they and the deterministic horde spawn logic both see.
+        const SEGS = this.detailed ? this.density.segs : 96;
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
         geometry.rotateX(-Math.PI / 2);
 
@@ -1842,7 +1853,7 @@ export class Scenery {
         // summit wisps: parked just below the white peaks, swaying in place.
         // They share the horizon clouds' material, so every weather scenario
         // tints and fades them automatically.
-        if (!this.detailed) return; // flat world has no summits
+        if (!this.detailed) return; // decoration only — low/off skip it regardless of relief
         const peakCap = this.density.peakClouds;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {
