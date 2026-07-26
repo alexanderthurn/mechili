@@ -59,11 +59,41 @@ import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/setti
 import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
 import { THEME, menuStyles } from './theme';
 
-// ?horde=1 / the Horde menu button — PvPvE: a neutral pink dwarf horde owns
-// a wide forest belt in the map center and spawns a bigger wave every round
+/** `?nohorde=1` — the one escape hatch back to plain 1v1 for testing, now
+ *  that the menu has no non-Horde path at all */
+function hordeDisabledViaUrl(): boolean {
+    const v = new URLSearchParams(location.search).get('nohorde');
+    return v === '1' || v === 'true';
+}
+
+// the only mode right now (Single Player / Matchmaking both force this) —
+// PvPvE: a neutral dwarf horde spawns from the forest ring outside the
+// normal board and marches in, hostile to both players. The normal map's
+// own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
+// mode specifically) — no more widened center belt. `?nohorde=1` disables
+// it entirely; `?hordeFactor=` overrides HordeFactor for manual testing of
+// the presets (low/medium/high/ultra) or an explicit round list
+// (`?hordeFactor=2,4,9`) without an in-menu picker yet.
 function applyHordeMode(settings: GameSettings): void {
+    if (hordeDisabledViaUrl()) return;
     settings.horde = structuredClone(DEFAULT_HORDE);
-    settings.map = { ...settings.map, neutralRows: settings.horde.beltRows };
+    const factorParam = new URLSearchParams(location.search).get('hordeFactor');
+    if (!factorParam) return;
+    if (
+        factorParam === 'off' ||
+        factorParam === 'low' ||
+        factorParam === 'medium' ||
+        factorParam === 'high' ||
+        factorParam === 'ultra'
+    ) {
+        settings.horde.factor = factorParam;
+    } else {
+        const rounds = factorParam
+            .split(',')
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isFinite(n) && n > 0);
+        if (rounds.length > 0) settings.horde.factor = rounds;
+    }
 }
 
 // shared by local duo-vs-AI and online 2v2 — 4 armies need more elbow room
@@ -91,7 +121,9 @@ function settingsFromUrl(): GameSettings {
     if (hp > 0) settings.startingHp = hp;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
-    if (params.get('horde')) applyHordeMode(settings);
+    // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
+    // now that Horde is the only mode; see hordeDisabledViaUrl for the
+    // opt-out and ?hordeFactor= for overriding the level
     if (params.get('duo')) applyDuoMode(settings);
 
     const parseTimer = (raw: string | null): number | number[] | null => {

@@ -97,6 +97,15 @@ export interface SimConfig {
     hazardPours?: readonly HazardPour[];
     /** summoned packs materialize this many seconds after the freeze (0 = normal) */
     summonDelayOf?: (unit: Unit) => number;
+    /**
+     * Half-extents of the playable board (world units) — used only to detect
+     * when a `marchIn` horde actor (spawned outside the board, walking
+     * straight toward center) crosses into the AABB and should switch to
+     * normal combat AI. Actors that never have `marchIn` set don't need this
+     * at all; harmless to omit for matches without horde mode.
+     */
+    boardHalfW?: number;
+    boardHalfZ?: number;
 }
 
 /** one scheduled area strike (meteor, hammer, …) */
@@ -539,7 +548,10 @@ export class BattleSim {
 
         let mobile = 0;
         for (const a of this.actors) {
-            if (a.alive && !a.unit.type.structure) mobile++;
+            // marchIn horde actors don't count toward the soft-crowd budget —
+            // hundreds of them walking in from the forest shouldn't disable
+            // crowd separation for the actual battle
+            if (a.alive && !a.unit.type.structure && !a.unit.marchIn) mobile++;
         }
         this.lastMobileCount = mobile;
         this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
@@ -1474,7 +1486,10 @@ export class BattleSim {
         this.stepIndex++;
         let mobile = 0;
         for (const a of this.actors) {
-            if (a.alive && !a.unit.type.structure) mobile++;
+            // marchIn horde actors don't count toward the soft-crowd budget —
+            // hundreds of them walking in from the forest shouldn't disable
+            // crowd separation for the actual battle
+            if (a.alive && !a.unit.type.structure && !a.unit.marchIn) mobile++;
         }
         this.lastMobileCount = mobile;
         this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
@@ -1491,6 +1506,10 @@ export class BattleSim {
         mark();
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
+            if (a.unit.marchIn) {
+                this.stepMarchIn(a, dt);
+                continue;
+            }
             if (this.isSpawning(a)) continue;
 
             const onPath = this.updatePathProgress(a, dt);
@@ -1674,6 +1693,31 @@ export class BattleSim {
             a.z += steerZ * move;
             a.mesh.rotation.y = Math.atan2(-steerX, -steerZ);
         }
+    }
+
+    /**
+     * Horde forest-ring spawn, walking in: no targeting, no crowd/blocker
+     * avoidance, no attacks — just a straight seek toward board center at
+     * the unit's own normal speed, until it crosses into the playable AABB
+     * (checked against `config.boardHalfW`/`boardHalfZ`), at which point
+     * `marchIn` clears for good and every other system in `step()` starts
+     * treating it as a completely ordinary combat actor from the very next
+     * step. One-way and deliberately cheap — see `SimConfig.boardHalfW`.
+     */
+    private stepMarchIn(a: Actor, dt: number): void {
+        const halfW = this.config.boardHalfW;
+        const halfZ = this.config.boardHalfZ;
+        if (halfW !== undefined && halfZ !== undefined && Math.abs(a.x) <= halfW && Math.abs(a.z) <= halfZ) {
+            a.unit.marchIn = false;
+            return;
+        }
+        const dist = hypot(a.x, a.z) || 1e-6;
+        const stats = this.resolved.get(a.unit);
+        const speed = stats?.speed ?? 0;
+        const move = speed * dt;
+        a.x += (-a.x / dist) * move;
+        a.z += (-a.z / dist) * move;
+        a.mesh.rotation.y = Math.atan2(a.x / dist, a.z / dist);
     }
 
     /**
@@ -2007,7 +2051,7 @@ export class BattleSim {
     private resolveOverlaps(): void {
         // soft mech-vs-mech is staggered across steps — one pass per involved mech
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.structure) continue;
+            if (!a.alive || a.unit.type.structure || a.unit.marchIn) continue;
             if (this.softCrowdActive(a)) {
                 for (const b of this.nearby(a)) {
                     if (b.index <= a.index || !b.alive || b.unit.type.structure) continue;
@@ -2085,7 +2129,7 @@ export class BattleSim {
     private rebuildHash(): void {
         this.hash.clear();
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.structure) continue;
+            if (!a.alive || a.unit.type.structure || a.unit.marchIn) continue;
             const key = this.hashKey(a.x, a.z);
             const bucket = this.hash.get(key);
             if (bucket) bucket.push(a);
@@ -2093,11 +2137,12 @@ export class BattleSim {
         }
     }
 
-    /** attackable actors (mechs + structures) for targeting and projectile hits */
+    /** attackable actors (mechs + structures) for targeting and projectile hits —
+     *  marchIn actors are deliberately untargetable until they cross onto the board */
     private rebuildTargetHash(): void {
         this.targetHash.clear();
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.extra) continue;
+            if (!a.alive || a.unit.type.extra || a.unit.marchIn) continue;
             const key = this.hashKey(a.x, a.z);
             const bucket = this.targetHash.get(key);
             if (bucket) bucket.push(a);

@@ -672,6 +672,12 @@ export class Unit {
     flankSpawnDone = false;
     /** battle-only summon (spawn spell): removed when the battle ends */
     summoned = false;
+    /** horde forest-ring spawn: outside the playable board, walking straight
+     *  toward center — no combat AI, no hashing, not a target, no footprint.
+     *  Cleared (one-way) the moment it crosses into the board's AABB, at
+     *  which point it becomes a completely normal combat actor. See
+     *  BattleSim's per-tick handling in sim.ts. */
+    marchIn = false;
     /** seconds after the opening freeze until a summon materializes */
     summonDelay = 0;
     /** lifetime EFFECTIVE damage dealt (capped at each victim's remaining hp) */

@@ -770,6 +770,30 @@ export class PlacementController {
         return unit;
     }
 
+    /**
+     * Free-world horde spawn — no grid cell, no occupancy bookkeeping, no
+     * economy charge, spawns literally anywhere including well off the
+     * playable board. Deliberately bypasses `spawn()`'s cell/zone machinery
+     * (which requires an in-bounds `Cell` and fails outside it) but reuses
+     * its EXACT horde id-allocation (same `nextHordeId` counter) — these
+     * units must be indistinguishable from belt-spawned horde units for
+     * `stateHash`/`hydrate`/replay purposes; a separate id scheme would
+     * desync exactly like the two bugs fixed earlier this session.
+     */
+    spawnAtWorld(type: UnitType, x: number, z: number): Unit {
+        // `cell` is stored on Unit but never read for rendering — only
+        // `world` (below) positions the mesh/formation — so a placeholder
+        // is fine for a unit that never occupies a grid cell at all
+        const unit = new Unit(type, { col: 0, row: 0 }, 'horde', new Vector3(x, 0, z), false);
+        unit.seat = -1;
+        unit.id = HORDE_ID_BASE + ++this.nextHordeId;
+        unit.deployedRound = this.currentRound;
+        this.units.push(unit);
+        this.scene.add(unit.view);
+        unit.faceClosestOf(this.opponentMechPositions('horde', unit));
+        return unit;
+    }
+
     /** Soft sand under base buildings only (packs leave no courtyard wear). */
     private stampSandUnder(unit: Unit): void {
         const t = unit.type;

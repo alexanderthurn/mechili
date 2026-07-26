@@ -94,7 +94,16 @@ import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
-import { DEFAULT_SETTINGS, Economy, normalizeGameSettings, secondsForRound, shouldOfferRoundCards, type GameSettings } from './settings';
+import {
+    DEFAULT_SETTINGS,
+    Economy,
+    hordeBudgetForRound,
+    isHordeRoundActive,
+    normalizeGameSettings,
+    secondsForRound,
+    shouldOfferRoundCards,
+    type GameSettings,
+} from './settings';
 import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
     BIG_METEOR_ID,
@@ -140,6 +149,19 @@ import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 /** how long the both-specialists reveal stays up before deployment takes over */
 const SPECIALIST_REVEAL_MS = 2000;
+
+// --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
+/** ring starts this far past the board edge (world units) */
+const HORDE_RING_NEAR = 6;
+/** ring extends this much further past HORDE_RING_NEAR */
+const HORDE_RING_SPAN = 60;
+/** bounded, deterministic retries when a candidate spot's straight walk to
+ *  center would cross deep water */
+const HORDE_SPAWN_ATTEMPTS = 24;
+/** points sampled along that straight walk (besides the spawn point itself) */
+const HORDE_PATH_SAMPLES = 8;
+/** worldHeightAt below this reads as deep water (per HORDE_MODE_NOTES.md) */
+const HORDE_LAKE_HEIGHT = -0.5;
 
 /** SP cheat (U): tactic ids topped up for free testing (see cheatGrantAllTactics) */
 const CHEAT_TACTIC_GRANTS = [
@@ -760,8 +782,11 @@ export class Game {
 
         // input listens on the Pixi canvas — it's the top-most surface
         const surface = pixiApp.canvas;
-        // keep the camera target well inside the field so the view never leaves the map
-        this.rig.setBounds(this.map.halfW - 8, this.map.halfH - 16);
+        // keep the camera target well inside the field so the view never leaves the map —
+        // horde mode widens this so the player can pan out far enough to see the wave
+        // approaching through the forest ring (see spawnHordeWave)
+        const hordeReach = this.settings.horde ? HORDE_RING_NEAR + HORDE_RING_SPAN : 0;
+        this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);
         this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
         // open centered on the player's own zone (where the starting army
         // stands) — the far-side owner looks at the shared board rotated 180°
@@ -4502,6 +4527,8 @@ export class Game {
             spellIgnites,
             hazardPours,
             summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
+            boardHalfW: this.map.halfW,
+            boardHalfZ: this.map.halfH,
         });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
@@ -4573,48 +4600,86 @@ export class Game {
     }
 
     /**
-     * Horde mode (`settings.horde`): materializes this round's neutral pink
-     * wave inside the belt (the widened neutral strip) at BUILD-phase start,
-     * so both players see the wave standing in its forest and deploy against
-     * it. Fully derived from the match seed + round + HP standings — every
-     * client computes the identical wave, nothing ever crosses the wire.
-     * Positioning IS the aiming: packs biased to the leader-facing edge of
-     * the belt march at the leader when battle starts (nearest hostile),
-     * while packs at the weaker player's edge harass him locally.
+     * Horde mode (`settings.horde`): on active rounds (see `isHordeRoundActive`
+     * — which rounds spawn a wave, and the last round always does, boosted),
+     * materializes this round's neutral dwarf wave in a ring OUTSIDE the
+     * playable board at BUILD-phase start, marching straight toward center
+     * (`Unit.marchIn`, see `BattleSim.stepMarchIn`) — normal combat AI takes
+     * over the moment a unit crosses onto the board. Fully derived from the
+     * match seed + round + HP standings — every client computes the
+     * identical wave, nothing ever crosses the wire. Positioning IS the
+     * aiming: packs biased toward the leader's half of the ring march at the
+     * leader once they arrive, while packs near the weaker player's half
+     * harass him locally — same idea the old center-belt spawn used, just
+     * generalized from a strip position to a ring half.
      */
     private spawnHordeWave(): void {
         const horde = this.settings.horde;
-        if (!horde) return;
+        if (!horde || !isHordeRoundActive(horde, this.round)) return;
         const type = unitTypeById('dwarf');
         if (!type) return;
-        const budget = horde.baseBudget + horde.budgetPerRound * (this.round - 1);
+        const budget = hordeBudgetForRound(horde, this.round);
         const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
         const leader: Team | null =
             this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
         // The board is canonical; which z-half is "mine" flips with ownAtFar
-        // (guest side). Team identity ('player') and edge-sign both flip per
-        // client, so the canonical spawn positions come out identical on
-        // every machine. All spawns stay INSIDE the belt — never in a
-        // player's deploy zone.
+        // (guest side). Team identity and edge-sign both flip per client, so
+        // the canonical spawn positions come out identical on every machine.
         const ownSign = this.map.ownAtFar ? -1 : 1;
-        const beltHalf = Math.max(CELL, (this.settings.map.neutralRows * CELL) / 2 - CELL);
+        const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
+        const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
         for (let i = 0; i < packs; i++) {
-            let zCenter = 0;
+            let zSign = 0;
             if (leader !== null) {
                 const target = rng() < horde.leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
-                // biased toward the target's edge of the belt, still inside it
-                zCenter = (target === 'player' ? ownSign : -ownSign) * beltHalf * 0.55;
+                zSign = target === 'player' ? ownSign : -ownSign;
             }
-            const x = (rng() * 2 - 1) * (this.map.halfW * 0.85);
-            const z = Math.max(-beltHalf, Math.min(beltHalf, zCenter + (rng() * 2 - 1) * beltHalf * 0.45));
-            const anchor = this.placement.findSpotNearWorld(type, x, z);
-            if (!anchor) continue;
-            const unit = this.placement.spawn(type, anchor, 'horde', false, true);
-            if (!unit) continue;
+            const spot = this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
+            if (!spot) continue;
+            const unit = this.placement.spawnAtWorld(type, spot.x, spot.z);
             unit.summoned = true; // battle-only: leaves the board at the round reset
             unit.deployedRound = this.round;
+            unit.marchIn = true;
         }
+    }
+
+    /**
+     * A deterministic spawn point outside the playable board, biased toward
+     * `zSign`'s half when there's a leader to hunt (0 = unbiased, full
+     * frame). Rejects anything actually inside the board, and anything
+     * whose straight walk to center would cross deep water — `marchIn` is a
+     * plain straight-line seek with no pathfinding, so lakes have to be
+     * avoided here, at spawn time, or not at all. Bounded, deterministic
+     * retries (same rng stream ⇒ same outcome on every client); `null` if
+     * nothing clears in the attempt budget (that pack is simply skipped).
+     */
+    private findHordeRingSpot(
+        rng: () => number,
+        zSign: number,
+        outerHalfW: number,
+        outerHalfH: number,
+    ): { x: number; z: number } | null {
+        for (let attempt = 0; attempt < HORDE_SPAWN_ATTEMPTS; attempt++) {
+            const x = (rng() * 2 - 1) * outerHalfW;
+            const zBase = (rng() * 2 - 1) * outerHalfH;
+            const z = zSign === 0 ? zBase : zSign * Math.abs(zBase) * 0.55 + zBase * 0.45;
+            if (Math.abs(x) <= this.map.halfW && Math.abs(z) <= this.map.halfH) continue; // actually on the board
+            if (this.hordePathCrossesWater(x, z)) continue;
+            return { x, z };
+        }
+        return null;
+    }
+
+    /** deep water at the spawn point itself, or anywhere along the straight
+     *  line to board center (0,0) — sampled at a handful of points along it */
+    private hordePathCrossesWater(x: number, z: number): boolean {
+        if (worldHeightAt(x, z) < HORDE_LAKE_HEIGHT) return true;
+        for (let s = 1; s <= HORDE_PATH_SAMPLES; s++) {
+            const t = s / (HORDE_PATH_SAMPLES + 1);
+            if (worldHeightAt(x * (1 - t), z * (1 - t)) < HORDE_LAKE_HEIGHT) return true;
+        }
+        return false;
     }
 
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */

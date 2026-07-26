@@ -55,30 +55,77 @@ export interface GameSettings {
     roundCards: boolean | number[];
 }
 
+/**
+ * Which rounds spawn a horde wave, shaped exactly like {@link GameSettings.roundCards}
+ * (`boolean | number[]`) rather than a hand-built per-level table:
+ * - `'off'` — horde mode disabled entirely (no waves at all, not even the finale).
+ * - `'low' | 'medium' | 'high'` — shorthand for a canonical round list (see
+ *   `HORDE_FACTOR_PRESET_ROUNDS`).
+ * - `'ultra'` — every round gets a wave.
+ * - `number[]` — an explicit round list, bypassing presets entirely (like
+ *   `roundCards: [3, 6, 9]` today).
+ * The final round (`HORDE_FINAL_ROUND`) always spawns a wave whenever the
+ * factor isn't `'off'`, regardless of which preset/array is chosen — see
+ * `isHordeRoundActive`.
+ */
+export type HordeFactor = 'off' | 'low' | 'medium' | 'high' | 'ultra' | number[];
+
 export interface HordeSettings {
-    /** supply value of the round-1 wave (spent entirely on dwarf packs) */
+    /** which rounds spawn a wave — see {@link HordeFactor} */
+    factor: HordeFactor;
+    /** supply value of round 1's wave (spent entirely on dwarf packs) */
     baseBudget: number;
-    /** extra supply value added to the wave each round after the first */
+    /** extra supply value added to the wave each active round after the first */
     budgetPerRound: number;
     /**
+     * flat multiplier applied to the final round's budget on top of the
+     * normal growth formula — deliberately just "bigger" for now; the one
+     * lever to make the finale feel overwhelming without a separate
+     * special-cased mechanic.
+     */
+    finaleBudgetMultiplier: number;
+    /**
      * share of the wave that hunts the match-HP leader (spawns biased to the
-     * leader-facing edge of the belt); the rest spawns near the weaker
-     * player's edge. On equal HP the wave centers in the belt.
+     * leader's half of the spawn ring); the rest spawns near the weaker
+     * player's half. On equal HP the wave has no bias.
      */
     leaderShare: number;
-    /**
-     * depth of the horde's belt in grid rows — replaces `map.neutralRows`
-     * for the mode. The belt never unlocks for player deployment and grows
-     * a forest (the horde's home).
-     */
-    beltRows: number;
+}
+
+/** the last round of the match — the horde's wave here always fires,
+ *  boosted by `finaleBudgetMultiplier`, regardless of `factor` */
+export const HORDE_FINAL_ROUND = 10;
+
+const HORDE_FACTOR_PRESET_ROUNDS: Record<'low' | 'medium' | 'high', number[]> = {
+    low: [HORDE_FINAL_ROUND],
+    medium: [5, HORDE_FINAL_ROUND],
+    high: [3, 5, 7, HORDE_FINAL_ROUND],
+};
+
+/** whether this round spawns a horde wave — mirrors `shouldOfferRoundCards`'s shape */
+export function isHordeRoundActive(horde: HordeSettings | undefined, round: number): boolean {
+    if (!horde || horde.factor === 'off') return false;
+    if (round === HORDE_FINAL_ROUND) return true;
+    const { factor } = horde;
+    if (factor === 'ultra') return true;
+    if (Array.isArray(factor)) return factor.includes(round);
+    return HORDE_FACTOR_PRESET_ROUNDS[factor].includes(round);
+}
+
+/** this round's wave budget — existing linear growth, times the finale
+ *  multiplier on the last round. Caller is expected to have already
+ *  checked `isHordeRoundActive`. */
+export function hordeBudgetForRound(horde: HordeSettings, round: number): number {
+    const base = horde.baseBudget + horde.budgetPerRound * (round - 1);
+    return round === HORDE_FINAL_ROUND ? base * horde.finaleBudgetMultiplier : base;
 }
 
 export const DEFAULT_HORDE: HordeSettings = {
+    factor: 'medium',
     baseBudget: 300,
     budgetPerRound: 200,
+    finaleBudgetMultiplier: 4,
     leaderShare: 0.65,
-    beltRows: 40,
 };
 
 export interface LevelingSettings {
