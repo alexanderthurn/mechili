@@ -2411,6 +2411,22 @@ export class Game {
                     vision,
                 });
                 hub.admit(name, conn, vision);
+                // backfill whatever the snapshot just excluded (already
+                // happened before this connection existed, so relayBuild's
+                // buffer never saw it) — flushes naturally at the next
+                // reveal (see excludedActionsForSpectatorResume). team is
+                // reliably canonical in OUR OWN log (host's own entries are
+                // 'player', the guest's are 'enemy' — see swapTeams:false
+                // in hydrate's doc comment), so it directly gives the side
+                // tag onSpectateMessage now expects on every action.
+                for (const e of this.excludedActionsForSpectatorResume(vision)) {
+                    hub.seedBuildBuffer(conn, {
+                        type: 'action',
+                        round: e.round,
+                        action: e.action,
+                        side: e.action.team === 'player' ? 'a' : 'b',
+                    });
+                }
             });
         })();
     }
@@ -2815,6 +2831,37 @@ export class Game {
     }
 
     /**
+     * The exact complement of {@link actionsForSpectatorResume} — whatever
+     * that function excludes from the initial catch-up snapshot because it
+     * isn't revealable to this vision policy YET. Without backfilling these,
+     * they're lost forever the moment they DO become revealable: unlike a
+     * real player (whose peer already has its own copy either way), a
+     * spectator's per-connection relay buffer (`SpectatorHub.relayBuild`)
+     * only starts accumulating messages relayed from the moment of
+     * admission onward — anything that happened strictly before this
+     * spectator connected was never buffered for them at all. Seeded into
+     * that same buffer at admission time (see `seedBuildBuffer`), these
+     * flush naturally the next time `flushBuildBuffers` runs — this
+     * round's both-locked reveal, or round 0's specialists resolving.
+     */
+    private excludedActionsForSpectatorResume(vision: SpectatorVision): LoggedAction[] {
+        const all = this.dispatcher.serializable();
+        if (this.phase !== 'build') return [];
+        if (this.deployReady.player && this.deployReady.enemy) return [];
+        if (vision.mode === 'battle') {
+            return all.filter((e) => e.round === this.round);
+        }
+        const livePlayer = vision.seats.includes('a');
+        const liveEnemy = vision.seats.includes('b');
+        return all.filter((e) => {
+            if (e.round !== this.round) return false;
+            if (e.action.team === 'player') return !livePlayer;
+            if (e.action.team === 'enemy') return !liveEnemy;
+            return true;
+        });
+    }
+
+    /**
      * Rebuilds the whole match from a recorded log: actions re-apply in
      * order, battles fast-forward headlessly to their exact deterministic
      * end. Used for reconnects, desync recovery — and replays later.
@@ -3151,6 +3198,11 @@ export class Game {
         this.awaitingCards = false;
         this.hud.hideCardOverlay(); // the waiting card, if one is up
         this.syncSpecialities();
+        // round 0's own "everything is revealed now" moment — flushes any
+        // spectator's backfilled-but-still-buffered starter picks (see
+        // excludedActionsForSpectatorResume/seedBuildBuffer); host-only,
+        // a no-op everywhere else via optional chaining
+        this.spectatorHub?.flushBuildBuffers();
         this.startBuildPhase();
         // reveal both picks for a beat, then it auto-dismisses into deployment
         // (watching: no reveal at all — every other overlay is suppressed too)

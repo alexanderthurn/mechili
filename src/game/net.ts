@@ -872,6 +872,22 @@ export class SpectatorHub {
     }
 
     /**
+     * Seeds a just-admitted spectator's build backlog directly, bypassing
+     * {@link relayBuild}'s live/bothLocked check. Used to backfill actions
+     * that were excluded from their initial catch-up snapshot (they already
+     * happened before this spectator connected, per the same vision policy
+     * `relayBuild` enforces going forward) — without this, that content is
+     * lost forever: `relayBuild`'s per-connection buffer only starts
+     * accumulating messages relayed from admission onward, so an action
+     * from before this exact connection was never buffered at all. Seeding
+     * it here means it flushes naturally the next time
+     * {@link flushBuildBuffers} runs (both sides lock in, round resolves).
+     */
+    seedBuildBuffer(conn: DataConnection, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        this.viewers.get(conn)?.buildBuffer.push(msg);
+    }
+
+    /**
      * Relay a build-phase action/undo with vision filtering.
      * `seat` is which player originated it (`'a'` host, `'b'` guest).
      * When `bothLocked`, battle-vision spectators receive their backlog + this msg.
