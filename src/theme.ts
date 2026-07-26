@@ -1098,14 +1098,15 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 /* the twins hide by default (button.* outranks the shared component rules
-   below regardless of order): money returns on phone, undo/level-all on any
-   coarse pointer — tablets get them top-right too */
+   below regardless of order): money returns in compact chrome; undo/level-all
+   move to the top strip on touch devices OR any compact window (shop toolbar
+   is sheeted away) */
 .mechili-phone-status .mechili-supply,
 .mechili-phone-status button.undo,
 .mechili-phone-status button.level-all-global {
     display: none;
 }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 599px), (max-height: 540px) {
     .mechili-phone-status button.undo,
     .mechili-phone-status button.level-all-global {
         display: flex;
@@ -2440,10 +2441,11 @@ export function hudStyles(): string {
 }
 
 /*
- * Phone-size screens: the fixed desktop panels become one bottom sheet at a
- * time, driven by a bottom tab bar. The bar and the .phone-open class are
- * always maintained by the Hud, but only take visual effect inside the phone
- * media query below — desktop/tablet render exactly as before.
+ * Compact windows (narrow or short): side panels become bottom sheets behind a
+ * tab bar. Same chrome on phone and small desktop — hover peeks stay on
+ * inputMode() in JS; GPU/texture budgets stay on touchFirstDevice().
+ * The bar and .phone-open class are always maintained by the Hud; they only
+ * take visual effect inside this size query (and the tablet pill above).
  */
 .mechili-phonebar {
     display: none;
@@ -2570,9 +2572,9 @@ ${gamepadCursorStyles(u)}
     pointer-events: none;
 }
 
-@media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px) {
+@media (max-width: 599px), (max-height: 540px) {
     .mechili-phonebar { display: flex; }
-    /* phone: back to the full-width bottom strip (tablet uses a pill) */
+    /* compact: full-width bottom strip (tablet pill above is overridden here) */
     .mechili-phonebar {
         left: 0;
         right: 0;

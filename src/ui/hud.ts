@@ -10,12 +10,10 @@ import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
 
-/** phone-size screens — MUST match the phone media query in theme.ts */
+/** Compact / phone chrome — MUST match the size media query in theme.ts */
 const PHONE_MQ =
     typeof matchMedia === 'function'
-        ? matchMedia(
-              '(pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px)',
-          )
+        ? matchMedia('(max-width: 599px), (max-height: 540px)')
         : null;
 
 /** escapes a string for safe use inside a double-quoted HTML attribute */
@@ -762,9 +760,9 @@ export class Hud {
         upgrade?: { cost: number; affordable: boolean } | null;
     }): void {
         const { rotate, move, carrying } = opts;
-        // tablet (coarse but not phone-size): the details panel is visible and
-        // already offers level/upgrade tiles — the bar only covers what touch
-        // cannot do otherwise (move/rotate), as a compact pill
+        // compact layout (narrow/short window): the details sheet is behind a tab,
+        // so Level/Upgrade live on the bar. Wider windows keep those on the panel;
+        // tablets (coarse, not compact) only get move/rotate as a pill.
         const phone = PHONE_MQ?.matches ?? false;
         const levelUp = phone ? opts.levelUp : null;
         const levelAll = phone ? opts.levelAll : null;
