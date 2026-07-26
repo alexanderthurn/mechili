@@ -98,6 +98,7 @@ import {
     DEFAULT_SETTINGS,
     Economy,
     hordeBudgetForRound,
+    hordeEnabled,
     isHordeRoundActive,
     normalizeGameSettings,
     secondsForRound,
@@ -797,7 +798,7 @@ export class Game {
         // keep the camera target well inside the field so the view never leaves the map —
         // horde mode widens this so the player can pan out far enough to see the wave
         // approaching through the forest ring (see spawnHordeWave)
-        const hordeReach = this.settings.horde ? HORDE_RING_NEAR + HORDE_RING_SPAN : 0;
+        const hordeReach = hordeEnabled(this.settings.horde) ? HORDE_RING_NEAR + HORDE_RING_SPAN : 0;
         this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);
         this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
         // open centered on the player's own zone (where the starting army
@@ -1705,7 +1706,7 @@ export class Game {
         // flanks and the neutral strip open up after the first round — but in
         // horde mode the widened strip is the horde's belt and never opens
         const unlocked = this.round >= 2;
-        const neutralOpen = unlocked && !this.settings.horde;
+        const neutralOpen = unlocked && !hordeEnabled(this.settings.horde);
         if (unlocked !== this.map.flanksUnlocked || neutralOpen !== this.map.neutralUnlocked) {
             this.map.flanksUnlocked = unlocked;
             this.map.neutralUnlocked = neutralOpen;

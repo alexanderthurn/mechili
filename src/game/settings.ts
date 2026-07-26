@@ -102,11 +102,24 @@ const HORDE_FACTOR_PRESET_ROUNDS: Record<'low' | 'medium' | 'high', number[]> = 
     high: [3, 5, 7, HORDE_FINAL_ROUND],
 };
 
+/**
+ * Whether horde mode is structurally active at all (any round ever spawns a
+ * wave) — `undefined` (never opted in, e.g. `?nohorde=1`) and an explicit
+ * `factor: 'off'` (e.g. `?hordeFactor=off`) both count as "not active" here,
+ * so the two escape hatches behave identically for anything gated on horde
+ * mode being on — not just whether a wave spawns this round, but things
+ * like the neutral-strip lock and the wider horde-mode camera bounds too.
+ */
+export function hordeEnabled(horde: HordeSettings | undefined): horde is HordeSettings {
+    return !!horde && horde.factor !== 'off';
+}
+
 /** whether this round spawns a horde wave — mirrors `shouldOfferRoundCards`'s shape */
 export function isHordeRoundActive(horde: HordeSettings | undefined, round: number): boolean {
-    if (!horde || horde.factor === 'off') return false;
+    if (!hordeEnabled(horde)) return false;
     if (round === HORDE_FINAL_ROUND) return true;
     const { factor } = horde;
+    if (factor === 'off') return false; // narrows the preset-lookup below; hordeEnabled already excluded this
     if (factor === 'ultra') return true;
     if (Array.isArray(factor)) return factor.includes(round);
     return HORDE_FACTOR_PRESET_ROUNDS[factor].includes(round);
