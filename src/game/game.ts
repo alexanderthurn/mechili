@@ -142,7 +142,8 @@ import {
     type Unit,
     type UnitType,
 } from './units';
-import { DebugOverlay, CpuSampler } from '../ui/debug';
+import { DebugOverlay, DebugDumpButton, CpuSampler } from '../ui/debug';
+import { DebugLog, type DebugEvent } from './debugLog';
 import { classicSeats, primarySeatOf, seatIdsOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { HpBars } from '../ui/hpBars';
 import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
@@ -307,6 +308,15 @@ export class Game {
     private peerDeployReady = false;
     /** build messages withheld until {@link peerDeployReady} */
     private readonly outboundBuildBuffer: Extract<NetMessage, { type: 'action' | 'undo' }>[] = [];
+    /** classic 1v1 only: monotonic counter stamped onto our own outgoing
+     *  action/undo messages (see sendPlayerBuildMessage's `seq` doc comment) */
+    private outboundBuildSeq = 0;
+    /** host-only: this seat's build-action seqs already relayed to spectators —
+     *  a spectator-fed-early action (see sendPlayerBuildMessage's
+     *  spectatorFeed branch) arrives again for real once the peer locks in;
+     *  without this it gets mirrored to spectators twice (see
+     *  mirrorBuildToSpectators) */
+    private readonly spectatorRelayedSeq: Record<'a' | 'b', Set<number>> = { a: new Set(), b: new Set() };
     /** we have flushed our build log to the peer this round (MP fog) */
     private deployFlushedToPeer = false;
     /** peer has flushed their build log to us this round (MP fog) */
@@ -358,6 +368,12 @@ export class Game {
      *  once a multiplayer match starts (classic 1v1 host, or a star host —
      *  see startSpectatorHub) */
     private spectatorHub: SpectatorHub | null = null;
+    /** dev-only (`?debug`) cross-client debug event bus — see debugLog.ts */
+    private readonly debugLog: DebugLog;
+    /** seconds accumulated since the last debug-event flush to the host (non-host clients only) */
+    private debugFlushAccum = 0;
+    /** host-only: click/dblclick-to-copy button for debugLog's aggregated dump */
+    private debugDumpButton: DebugDumpButton | null = null;
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
     private stopSpectateRegistration: (() => void) | null = null;
     /** set only for a spectating client — its one connection to the host's
@@ -709,6 +725,34 @@ export class Game {
         // REPLAY_SPEED_STEPS has 1 at a different position, so correct it
         // now that `watching` (and therefore `speedSteps`) is known
         if (this.watching) this.speedIndex = this.speedSteps.indexOf(1);
+        // dev-only cross-client debug bus: "host" here means "where
+        // SpectatorHub lives" — classic 1v1's side 'a', or a star host.
+        // A spectator is never the host and never streams anywhere else.
+        this.debugLog = new DebugLog(
+            spectate ? 'spectator' : star ? (star.role === 'host' ? 'host' : 'star-guest') : side === 'a' ? 'host' : 'guest',
+            spectate ? spectate.watcherName : playerNames.local,
+            spectate ? false : star ? star.role === 'host' : side === 'a',
+            new URLSearchParams(location.search).has('debug'),
+        );
+        this.debugLog.onThresholdReached = () => this.sendDebugBatch();
+        // console-callable dump of the aggregated cross-client timeline —
+        // only meaningful wherever SpectatorHub/the aggregator actually
+        // lives (this "host"); a guest/star-guest/spectator only ever holds
+        // its OWN unaggregated events, so exposing this there would be
+        // misleading (looks complete, isn't)
+        if (this.debugLog.enabled && this.debugLog.isHost) {
+            const debugWindow = window as unknown as {
+                mechiliDebugDump?: (opts?: {
+                    clientId?: string;
+                    category?: string;
+                    sinceMs?: number;
+                    verbose?: boolean;
+                }) => string;
+                mechiliDebugClear?: () => void;
+            };
+            debugWindow.mechiliDebugDump = (opts) => this.debugLog.dump(opts);
+            debugWindow.mechiliDebugClear = () => this.debugLog.clear();
+        }
         this.settings = normalizeGameSettings(settingsInput);
         const settings = this.settings;
         this.wrapper = wrapper;
@@ -933,6 +977,7 @@ export class Game {
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
             }),
+            debugLog: (category, data) => this.debugLog.log(category, data),
             onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
                 // watching: 'player' here just means "the host's endDeployment
@@ -1237,6 +1282,9 @@ export class Game {
             wrapper,
             new URLSearchParams(location.search).has('debug'),
         );
+        if (this.debugLog.enabled && this.debugLog.isHost) {
+            this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
+        }
         pixiApp.stage.addChild(this.hpBars.view);
 
         // battle phase: left click selects a single mech, own or enemy
@@ -1561,6 +1609,7 @@ export class Game {
         this.pixiApp.stage.removeChild(this.hpBars.view);
         this.hpBars.view.destroy({ children: true });
         this.debug.destroy();
+        this.debugDumpButton?.destroy();
         this.scene.overrideMaterial = null;
         this.clayOverride.dispose();
         this.wireOverride.dispose();
@@ -1967,6 +2016,12 @@ export class Game {
             this.sendStarBuildMessage(msg);
             return;
         }
+        // stamped once, here — whichever path(s) below end up sending this
+        // exact message (immediately, buffered-then-flushed-for-real, and/or
+        // fed early via spectatorFeed) all carry the SAME seq, so the host
+        // can recognize a spectator-fed-then-real-flush repeat (see
+        // mirrorBuildToSpectators) as the one logical action it is.
+        msg.seq = ++this.outboundBuildSeq;
         const isGate =
             msg.type === 'action' && msg.action.kind === 'endDeployment';
         if (!this.net || this.peerDeployReady || isGate) {
@@ -2108,20 +2163,17 @@ export class Game {
      */
     private maybeStartBattleAfterDeploy(): void {
         if (this.spectateSession) {
-            console.info(
-                '[spectate-debug] maybeStartBattleAfterDeploy',
-                JSON.stringify({
-                    round: this.round,
-                    phase: this.phase,
-                    matchOver: this.matchOver,
-                    deployReadyPlayer: this.deployReady.player,
-                    deployReadyEnemy: this.deployReady.enemy,
-                    hydrating: this.hydrating,
-                    seatsLen: this.seats.length,
-                    caughtUpA: this.spectateCaughtUpRound.a,
-                    caughtUpB: this.spectateCaughtUpRound.b,
-                }),
-            );
+            this.debugLog.log('spectate.gate', {
+                round: this.round,
+                phase: this.phase,
+                matchOver: this.matchOver,
+                deployReadyPlayer: this.deployReady.player,
+                deployReadyEnemy: this.deployReady.enemy,
+                hydrating: this.hydrating,
+                seatsLen: this.seats.length,
+                caughtUpA: this.spectateCaughtUpRound.a,
+                caughtUpB: this.spectateCaughtUpRound.b,
+            });
         }
         if (this.phase !== 'build' || this.matchOver) return;
         if (!this.deployReady.player || !this.deployReady.enemy) return;
@@ -2140,7 +2192,7 @@ export class Game {
             // locally reached it yet.
             if (this.spectateCaughtUpRound.a < this.round || this.spectateCaughtUpRound.b < this.round) return;
         }
-        if (this.spectateSession) console.info('[spectate-debug] gate PASSED, starting battle');
+        if (this.spectateSession) this.debugLog.log('spectate.gatePassed');
         this.spectatorHub?.flushBuildBuffers();
         this.startBattlePhase();
     }
@@ -2350,6 +2402,17 @@ export class Game {
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
         seat: 'a' | 'b',
     ): void {
+        // A buffered (fog-withheld) action gets fed to spectators twice on
+        // the wire — once immediately via spectatorFeed (while a live-vision
+        // spectator waits on it), and again for real once the peer locks in
+        // and the sender's outboundBuildBuffer actually flushes (see
+        // sendPlayerBuildMessage) — both copies carry the same `seq`, so a
+        // spectator that already saw this one doesn't get it applied twice.
+        if (msg.seq !== undefined) {
+            const seen = this.spectatorRelayedSeq[seat];
+            if (seen.has(msg.seq)) return;
+            seen.add(msg.seq);
+        }
         const bothLocked = this.deployReady.player && this.deployReady.enemy;
         // A guest-originated ('b') action arrives here in the GUEST's own
         // wire-perspective — exactly like translateRemote's input, its
@@ -2360,16 +2423,22 @@ export class Game {
         // any embedded unitId's parity) — otherwise the spectator's
         // placement, which agrees with the HOST's numbering, resolves the
         // unitId to a completely unrelated unit (see buyLevel/sellUnit/etc
-        // failing on the spectator only, root-caused via [buylevel-debug]).
+        // failing on the spectator only, root-caused via the 'buylevel'
+        // debugLog category).
         // Host-originated ('a') messages are already in that canonical
         // form, so there's nothing to flip. The backfill/seed path
         // (excludedActionsForSpectatorResume) is unaffected — it already
         // reads from this.dispatcher.serializable(), the host's own
         // post-translation log, so double-flipping it here would be wrong;
         // it never goes through this function.
+        // Classic 1v1 ONLY: swapPerspective's flipId assumes exactly two
+        // seats (id parity). Star (2v2+) seats are already canonical/real
+        // (StarHub assigns them directly) — never translate those.
         const canonical: Extract<NetMessage, { type: 'action' | 'undo' }> =
-            seat === 'b' && msg.type === 'action' ? { ...msg, action: this.swapPerspective(msg.action) } : msg;
-        this.spectatorHub?.relayBuild({ ...canonical, side: seat }, seat, bothLocked);
+            !this.star && seat === 'b' && msg.type === 'action'
+                ? { ...msg, action: this.swapPerspective(msg.action) }
+                : msg;
+        this.spectatorHub?.relayBuild({ ...canonical, side: seat }, bothLocked);
     }
 
     /**
@@ -2384,7 +2453,7 @@ export class Game {
         void (async () => {
             let hub: SpectatorHub;
             try {
-                hub = await SpectatorHub.open();
+                hub = await SpectatorHub.open((category, data) => this.debugLog.log(category, data));
             } catch {
                 return;
             }
@@ -2414,6 +2483,7 @@ export class Game {
                 if (this.star?.role === 'host') this.star.hub.broadcast(relayed);
                 hub.broadcast(relayed);
             };
+            hub.onSpectatorDebugLog = (events) => this.debugLog.ingest(events);
             hub.listen((name, version, conn) => {
                 if (version !== GAME_VERSION) {
                     conn.send({ type: 'spectateRejected', reason: 'Version mismatch' });
@@ -2437,7 +2507,19 @@ export class Game {
                 // 'player', the guest's are 'enemy' — see swapTeams:false
                 // in hydrate's doc comment), so it directly gives the side
                 // tag onSpectateMessage now expects on every action.
-                for (const e of this.excludedActionsForSpectatorResume(vision)) {
+                const excluded = this.excludedActionsForSpectatorResume(vision);
+                this.debugLog.log('vision.admitSeed', {
+                    name,
+                    round: this.round,
+                    phase: this.phase,
+                    seededCount: excluded.length,
+                    seeded: excluded.map((e) => ({
+                        kind: e.action.kind,
+                        team: e.action.team,
+                        round: e.round,
+                    })),
+                });
+                for (const e of excluded) {
                     hub.seedBuildBuffer(conn, {
                         type: 'action',
                         round: e.round,
@@ -2551,10 +2633,11 @@ export class Game {
     private onSpectateMessage(msg: NetMessage): void {
         if (this.disposed || this.matchOver) return;
         if (msg.type === 'starter') {
-            console.info(
-                '[spectate-debug] recv starter',
-                JSON.stringify({ side: msg.side, myRound: this.round, awaitingCards: this.awaitingCards }),
-            );
+            this.debugLog.log('spectate.recvStarter', {
+                side: msg.side,
+                myRound: this.round,
+                awaitingCards: this.awaitingCards,
+            });
             // round 0 specialist pick: the two real players never need a
             // side tag (each just dispatches its OWN pick locally, then
             // hardcodes 'enemy' for whatever it receives — see
@@ -2569,16 +2652,13 @@ export class Game {
             this.syncSpecialities();
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
-            console.info(
-                '[spectate-debug] recv action',
-                JSON.stringify({
-                    round: msg.round,
-                    kind: msg.action.kind,
-                    side: msg.side,
-                    myRound: this.round,
-                    myPhase: this.phase,
-                }),
-            );
+            this.debugLog.log('spectate.recvAction', {
+                round: msg.round,
+                kind: msg.action.kind,
+                side: msg.side,
+                myRound: this.round,
+                myPhase: this.phase,
+            });
             // classic 1v1 ONLY: action.seat is perspective-relative ("0 =
             // mine" on EVERY client — see mirrorBuildToSpectators' doc
             // comment), so it can't tell the two real players apart on its
@@ -2601,10 +2681,12 @@ export class Game {
             this.spectateQueue.push({ round: msg.round, seat, undo: true });
             this.drainSpectateQueue();
         } else if (msg.type === 'deployCaughtUp') {
-            console.info(
-                '[spectate-debug] recv deployCaughtUp',
-                JSON.stringify({ side: msg.side, round: msg.round, myRound: this.round, myPhase: this.phase }),
-            );
+            this.debugLog.log('spectate.recvDeployCaughtUp', {
+                side: msg.side,
+                round: msg.round,
+                myRound: this.round,
+                myPhase: this.phase,
+            });
             // recorded regardless of this.round/phase — a fast-forwarding
             // pair of players can flush a round before a slower/just-joined
             // spectator has locally reached it yet (see
@@ -2917,18 +2999,15 @@ export class Game {
             }
         }
         this.hydrating = false;
-        console.info(
-            '[hp-debug] hydrate done',
-            JSON.stringify({
-                watching: this.watching,
-                processed: i,
-                logLength: log.length,
-                round: this.round,
-                phase: this.phase,
-                playerHp: this.playerHp,
-                enemyHp: this.enemyHp,
-            }),
-        );
+        this.debugLog.log('hp.hydrateDone', {
+            watching: this.watching,
+            processed: i,
+            logLength: log.length,
+            round: this.round,
+            phase: this.phase,
+            playerHp: this.playerHp,
+            enemyHp: this.enemyHp,
+        });
 
         // reopen whatever decision was pending when the state was captured —
         // never for a spectator, who has no seat of its own to decide with
@@ -3269,6 +3348,11 @@ export class Game {
         } else if (msg.type === 'check') {
             this.peerChecks.set(msg.round, msg.hash);
             this.verifyCheck(msg.round);
+        } else if (msg.type === 'debugLog') {
+            // only the guest ever populates/sends this over `this.net` (the
+            // host ingests its own events directly, never over the wire —
+            // see DebugLog.log's isHost branch)
+            this.debugLog.ingest(msg.events);
         } else if (msg.type === 'chat') {
             // clamp the peer's rate too (P2P — never trust the sender) and
             // re-truncate text before it reaches the DOM
@@ -3371,6 +3455,10 @@ export class Game {
             const seat = isHost ? fromSeat! : (msg.seat ?? this.humanSeat);
             this.starRemoteQueue.push({ round: msg.round, seat, undo: true });
             this.drainStarRemoteQueue();
+        } else if (msg.type === 'debugLog') {
+            // only a star guest ever sends this (the host ingests its own
+            // events directly, never over the wire)
+            if (isHost) this.debugLog.ingest(msg.events);
         } else if (msg.type === 'chat') {
             const now = performance.now();
             if (now - this.lastChatReceived < CHAT_COOLDOWN_MS * 0.5) return;
@@ -3538,17 +3626,14 @@ export class Game {
                 const key = `${head.round}:${this.round}:${this.phase}`;
                 if (this.lastSpectateBlockLog !== key) {
                     this.lastSpectateBlockLog = key;
-                    console.info(
-                        '[spectate-debug] drainSpectateQueue BLOCKED',
-                        JSON.stringify({
-                            headRound: head.round,
-                            headSeat: head.seat,
-                            headKind: head.action?.kind,
-                            myRound: this.round,
-                            myPhase: this.phase,
-                            queueLen: this.spectateQueue.length,
-                        }),
-                    );
+                    this.debugLog.log('spectate.blocked', {
+                        headRound: head.round,
+                        headSeat: head.seat,
+                        headKind: head.action?.kind,
+                        myRound: this.round,
+                        myPhase: this.phase,
+                        queueLen: this.spectateQueue.length,
+                    });
                 }
                 return;
             }
@@ -3560,17 +3645,20 @@ export class Game {
                 if (team) {
                     const resolved = { ...head.action, team, seat: head.seat };
                     const ok = this.dispatcher.dispatch(resolved);
-                    console.info(
-                        '[spectate-debug] dispatched',
-                        JSON.stringify({ kind: head.action.kind, seat: head.seat, team, round: head.round, ok }),
-                    );
+                    this.debugLog.log('spectate.dispatched', {
+                        kind: head.action.kind,
+                        seat: head.seat,
+                        team,
+                        round: head.round,
+                        ok,
+                    });
                     if (head.action.kind === 'chooseCard') {
                         this.refreshShopHud();
                         this.syncSpecialities();
                         this.maybeStartMatch();
                     }
                 } else {
-                    console.info('[spectate-debug] NO TEAM for seat', head.seat, JSON.stringify(this.seats));
+                    this.debugLog.log('spectate.noTeam', { seat: head.seat, seats: this.seats });
                 }
             }
             this.syncRallyVisuals();
@@ -4835,6 +4923,51 @@ export class Game {
             boardHalfW: this.map.halfW,
             boardHalfZ: this.map.halfH,
         });
+        this.debugLog.log('sim.battleStart', {
+            watching: this.watching,
+            hydrating: this.hydrating,
+            round: this.round,
+            hash: this.stateHash(),
+            unitCount: this.sim.actors.length,
+            actors: this.sim.actors
+                .map((a) => ({
+                    id: a.unit.id,
+                    seat: a.unit.seat,
+                    team: a.unit.team,
+                    level: a.unit.level,
+                    hp: a.hp,
+                    x: Math.round(a.x * 100) / 100,
+                    z: Math.round(a.z * 100) / 100,
+                }))
+                .sort((a, b) => a.id - b.id),
+        });
+        // per-(type, seat) resolved combat stats — one representative actor
+        // per combination, not per actor (sim.battleStart already covers
+        // composition; this is for comparing WHY two clients' otherwise
+        // identical-looking rosters fight differently, e.g. a tech/boost
+        // applied on one client but not yet reflected on another).
+        const seenTypeSeat = new Set<string>();
+        const statsRows: unknown[] = [];
+        for (const a of this.sim.actors) {
+            const key = `${a.unit.type.id}:${a.unit.seat}`;
+            if (seenTypeSeat.has(key)) continue;
+            seenTypeSeat.add(key);
+            statsRows.push({
+                typeId: a.unit.type.id,
+                seat: a.unit.seat,
+                team: a.unit.team,
+                level: a.unit.level,
+                stats: this.resolvedStats(a.unit),
+                techs: [...this.techTree.ownedFor(a.unit.seat, a.unit.type.id)],
+                attackBoostTier: this.boostState.attack[a.unit.seat],
+                hpBoostTier: this.boostState.hp[a.unit.seat],
+                speciality: this.speciality[a.unit.seat],
+                roundBoostSpeed: this.roundBoosts.speed[a.unit.seat],
+                roundBoostRange: this.roundBoosts.range[a.unit.seat],
+                items: a.unit.items,
+            });
+        }
+        this.debugLog.log('sim.battleStartStats', { round: this.round, rows: statsRows });
         // the sync point: both peers hash the identical battle-start state
         if (this.net && !this.hydrating) {
             const hash = this.stateHash();
@@ -5267,21 +5400,18 @@ export class Game {
         if (!enemySurvived) damageToEnemy += hordeValue;
         this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
         this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
-        console.info(
-            '[hp-debug] applyBattleResult',
-            JSON.stringify({
-                watching: this.watching,
-                round: this.round,
-                damageToPlayer,
-                damageToEnemy,
-                hordeValue,
-                playerSurvived,
-                enemySurvived,
-                playerHp: this.playerHp,
-                enemyHp: this.enemyHp,
-                unitCount: sim.unitSurvivors().size,
-            }),
-        );
+        this.debugLog.log('hp.applyBattleResult', {
+            watching: this.watching,
+            round: this.round,
+            damageToPlayer,
+            damageToEnemy,
+            hordeValue,
+            playerSurvived,
+            enemySurvived,
+            playerHp: this.playerHp,
+            enemyHp: this.enemyHp,
+            unitCount: sim.unitSurvivors().size,
+        });
     }
 
     /** swaps the build-phase overlay for one matching the current zone rules */
@@ -5302,8 +5432,34 @@ export class Game {
         this.rig.resize(width, height);
     }
 
+    /** dev-only (`?debug`): periodically ships pending debug events to the
+     *  host over whichever channel this client has — real elapsed time, not
+     *  `gameDt`, so the cadence doesn't stall when speed is 0 or watching a
+     *  paused replay. No-op on the host itself (nothing ever queues there —
+     *  see DebugLog.log's isHost branch). */
+    private flushDebugLog(dtSeconds: number): void {
+        if (!this.debugLog.enabled) return;
+        this.debugFlushAccum += dtSeconds;
+        if (this.debugFlushAccum < 0.3) return;
+        this.debugFlushAccum = 0;
+        this.sendDebugBatch();
+    }
+
+    private sendDebugBatch(): void {
+        const events = this.debugLog.takePending();
+        if (events.length === 0) return;
+        if (this.spectateSession) {
+            this.spectateSession.send({ type: 'debugLog', events });
+        } else if (this.star && this.star.role === 'guest') {
+            this.star.session.send({ type: 'debugLog', events });
+        } else if (this.net) {
+            this.net.send({ type: 'debugLog', events });
+        }
+    }
+
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        this.flushDebugLog(dtSeconds);
         // reconnect grace ticks in real time, independent of phase/suspend —
         // an unreturned opponent forfeits once it hits zero
         if (this.reconnectGraceRemaining !== null) {

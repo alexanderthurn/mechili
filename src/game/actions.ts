@@ -397,6 +397,8 @@ export interface ActionContext {
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
     onEndDeployment: (team: Team) => void;
+    /** dev-only (`?debug`) cross-client debug bus — see debugLog.ts */
+    debugLog: (category: string, data?: unknown) => void;
 }
 
 /** supply price of raising a pack of this type by one level */
@@ -629,24 +631,21 @@ export class ActionDispatcher {
                 const unit = placement.unitById(action.unitId);
                 const cost = unit ? levelCost(unit.type, economy, leveling) : -1;
                 const threshold = unit ? xpForNextLevel(unit, economy, leveling) : -1;
-                console.info(
-                    '[buylevel-debug]',
-                    JSON.stringify({
-                        unitId: action.unitId,
-                        seat,
-                        actionTeam: action.team,
-                        found: !!unit,
-                        unitTeam: unit?.team,
-                        unitSeat: unit?.seat,
-                        isStructure: unit?.type.structure,
-                        level: unit?.level,
-                        maxLevel: leveling.maxLevel,
-                        xp: unit?.xp,
-                        threshold,
-                        cost,
-                        balance: economy.balance(seat),
-                    }),
-                );
+                this.ctx.debugLog('buylevel', {
+                    unitId: action.unitId,
+                    seat,
+                    actionTeam: action.team,
+                    found: !!unit,
+                    unitTeam: unit?.team,
+                    unitSeat: unit?.seat,
+                    isStructure: unit?.type.structure,
+                    level: unit?.level,
+                    maxLevel: leveling.maxLevel,
+                    xp: unit?.xp,
+                    threshold,
+                    cost,
+                    balance: economy.balance(seat),
+                });
                 if (!unit || unit.team !== action.team || unit.type.structure) return false;
                 if (unit.level >= leveling.maxLevel) return false;
                 if (unit.xp < threshold) return false;

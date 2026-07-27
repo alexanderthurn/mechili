@@ -1,6 +1,7 @@
 import Peer, { type DataConnection } from 'peerjs';
 import type { Action, LoggedAction } from './actions';
 import type { Opponent } from './ai';
+import type { DebugEvent } from './debugLog';
 import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { CanonicalSeatDef, SeatId } from './seats';
@@ -134,12 +135,21 @@ export type NetMessage =
      * see Game.seatRank's doc comment), so a spectator resolving team from
      * `action.seat` alone collapses both players onto the same seat. The
      * two real players never read this field; they already know who they are.
+     * `seq` (classic 1v1 only) is the sender's own monotonic build-action
+     * counter — set once, at the moment sendPlayerBuildMessage first decides
+     * to send-or-buffer this action, so it's identical on every copy of the
+     * same logical action (the immediate `spectatorFeed` copy AND the later
+     * real flush once the peer locks in carry the SAME seq). Lets the host
+     * dedupe a spectator-feed-then-real-flush double-delivery of one action
+     * (see mirrorBuildToSpectators) — undefined for messages that never flow
+     * through that path (seeded backfill, star mode).
      */
-    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b' }
+    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b'; seq?: number }
     /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
      *  needs it since more than one remote seat can send an undo. `side` is
-     *  the same spectator-only wire tag as on `action` above. */
-    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b' }
+     *  the same spectator-only wire tag as on `action` above. `seq` is the
+     *  same dedup counter described on `action` above. */
+    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq?: number }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
@@ -164,6 +174,10 @@ export type NetMessage =
      *  connection") because spectators mean more than one possible sender —
      *  the host relays a spectator's chat to the player link too. */
     | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' } }
+    /** dev-only (`?debug`): batched debug events, streamed to whichever
+     *  client is the host so `DebugLog.dump()` can print one aggregated,
+     *  cross-client timeline — never part of game state, never rendered */
+    | { type: 'debugLog'; events: DebugEvent[] }
     /** local battle sim finished — the peer may still be watching theirs
      *  (fast-forward speed is per-client); the next build phase waits for both */
     /** `seat` unused by classic 1v1 (implicitly "the opponent"); star mode's
@@ -770,12 +784,20 @@ export class SpectatorHub {
     /** fired for chat relayed FROM a spectator (needs mirroring to the
      *  player link and every other spectator) */
     onSpectatorChat: ((name: string, item: ChatItem) => void) | null = null;
+    /** fired for a batch of debug events from a spectator (dev-only, `?debug`) */
+    onSpectatorDebugLog: ((events: DebugEvent[]) => void) | null = null;
 
-    private constructor(private readonly peer: Peer) {}
+    private constructor(
+        private readonly peer: Peer,
+        /** dev-only (`?debug`): routes through the owning Game's DebugLog
+         *  instead of a bare console.info, so these events join the
+         *  aggregated cross-client timeline too — see debugLog.ts */
+        private readonly debugLog: (category: string, data?: unknown) => void,
+    ) {}
 
-    static async open(): Promise<SpectatorHub> {
+    static async open(debugLog: (category: string, data?: unknown) => void = () => {}): Promise<SpectatorHub> {
         const peer = await openPeer();
-        return new SpectatorHub(peer);
+        return new SpectatorHub(peer, debugLog);
     }
 
     get peerId(): string {
@@ -830,6 +852,12 @@ export class SpectatorHub {
 
     /** grant or revoke live build vision for a seat on a named spectator */
     setSeatLive(spectatorName: string, seat: 'a' | 'b', grant: boolean): SpectatorVision | null {
+        this.debugLog('vision.setSeatLive', {
+            spectatorName,
+            seat,
+            grant,
+            knownNames: [...this.viewers.values()].map((v) => v.name),
+        });
         for (const [conn, viewer] of this.viewers) {
             if (viewer.name !== spectatorName) continue;
             const seats =
@@ -838,9 +866,54 @@ export class SpectatorHub {
             else seats.delete(seat);
             viewer.vision = seats.size === 0 ? { mode: 'battle' } : { mode: 'live', seats: [...seats] };
             conn.send({ type: 'visionUpdate', vision: viewer.vision });
+            this.debugLog('vision.setSeatLiveMatched', {
+                vision: viewer.vision,
+                bufferLenBeforeFlush: viewer.buildBuffer.length,
+            });
+            // Grant takes effect immediately — anything of this seat's
+            // already sitting in the backlog (bought/leveled before the
+            // checkbox was clicked) would otherwise sit invisible until
+            // this seat's next action happens to trigger a flush, which
+            // reads as "vision granted but nothing changed" to a spectator.
+            if (grant) this.flushRevealable(conn, viewer, false);
+            this.debugLog('vision.setSeatLiveFlushed', { bufferLenAfterFlush: viewer.buildBuffer.length });
             return viewer.vision;
         }
+        this.debugLog('vision.setSeatLiveNoMatch', { spectatorName });
         return null;
+    }
+
+    /** is this build message revealable to `viewer` right now? */
+    private isRevealable(
+        viewer: { vision: SpectatorVision },
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        bothLocked: boolean,
+    ): boolean {
+        if (bothLocked) return true;
+        return viewer.vision.mode === 'live' && !!msg.side && viewer.vision.seats.includes(msg.side);
+    }
+
+    /**
+     * Sends every currently-revealable entry out of `viewer`'s backlog,
+     * keeping still-fogged entries buffered in order. Per-message, not
+     * all-or-nothing: the backlog can hold both seats' withheld actions at
+     * once (e.g. one seat live, the other not), so a flush triggered by one
+     * seat becoming revealable must not leak the other seat's still-fogged
+     * actions along with it.
+     */
+    private flushRevealable(
+        conn: DataConnection,
+        viewer: { vision: SpectatorVision; buildBuffer: NetMessage[] },
+        bothLocked: boolean,
+    ): void {
+        if (viewer.buildBuffer.length === 0) return;
+        const remaining: NetMessage[] = [];
+        for (const buffered of viewer.buildBuffer) {
+            const m = buffered as Extract<NetMessage, { type: 'action' | 'undo' }>;
+            if (this.isRevealable(viewer, m, bothLocked)) conn.send(buffered);
+            else remaining.push(buffered);
+        }
+        viewer.buildBuffer = remaining;
     }
 
     /** does at least one connected spectator currently have live vision on `seat`? */
@@ -852,7 +925,12 @@ export class SpectatorHub {
     }
 
     private onData(conn: DataConnection, msg: NetMessage): void {
-        if (msg.type !== 'chat') return; // spectators may only ever chat
+        // spectators may only ever chat, or (dev-only) stream debug events
+        if (msg.type === 'debugLog') {
+            this.onSpectatorDebugLog?.(msg.events);
+            return;
+        }
+        if (msg.type !== 'chat') return;
         const viewer = this.viewers.get(conn);
         if (!viewer) return;
         this.onSpectatorChat?.(viewer.name, msg.item);
@@ -889,26 +967,31 @@ export class SpectatorHub {
 
     /**
      * Relay a build-phase action/undo with vision filtering.
-     * `seat` is which player originated it (`'a'` host, `'b'` guest).
+     * `msg.side` is which player originated it (`'a'` host, `'b'` guest).
      * When `bothLocked`, battle-vision spectators receive their backlog + this msg.
      */
     relayBuild(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
-        seat: 'a' | 'b',
         bothLocked: boolean,
     ): void {
         for (const [conn, viewer] of this.viewers) {
-            const live =
-                viewer.vision.mode === 'live' && viewer.vision.seats.includes(seat);
-            if (live || bothLocked) {
-                if (viewer.buildBuffer.length > 0) {
-                    for (const buffered of viewer.buildBuffer) conn.send(buffered);
-                    viewer.buildBuffer.length = 0;
-                }
-                conn.send(msg);
-            } else {
-                viewer.buildBuffer.push(msg);
-            }
+            // flush whatever's newly revealable first (e.g. a seat granted
+            // live vision since its last action) — per-message, so a
+            // still-fogged OTHER seat's backlog entries never leak along
+            // with it (see flushRevealable's doc comment)
+            this.flushRevealable(conn, viewer, bothLocked);
+            const revealNow = this.isRevealable(viewer, msg, bothLocked);
+            this.debugLog('vision.relayBuild', {
+                viewerName: viewer.name,
+                msgKind: msg.type === 'action' ? msg.action.kind : 'undo',
+                msgSide: msg.side,
+                vision: viewer.vision,
+                bothLocked,
+                revealNow,
+                bufferLenAfter: revealNow ? viewer.buildBuffer.length : viewer.buildBuffer.length + 1,
+            });
+            if (revealNow) conn.send(msg);
+            else viewer.buildBuffer.push(msg);
         }
     }
 
