@@ -713,8 +713,13 @@ authoritative "tournament relay" for N-player is still not required for 1v1.
 
 - Each spectator connection carries `vision: { mode: 'battle' } | { mode: 'live', seats: ('a'|'b')[] }`.
   `spectateAccepted` includes the field; `visionUpdate` pushes changes mid-match.
-- **Granting:** pause menu "share my deploy live" — host updates hub directly;
-  guest sends `spectateGrant` for seat `'b'`.
+- **Granting:** pause menu "share my deploy live" — host updates hub
+  directly; any guest (classic 1v1's or a star room's, ally or enemy
+  alike) sends `spectateGrant` for its own side over its own connection
+  to the host (`this.net` for classic, `this.star.session` for star —
+  originally only the former was wired, a real gap fixed 2026-07-27).
+  The host trusts the CONNECTION's side (`fromSeat` → `hub.sideOf`),
+  never the message's own claimed `seat`.
 - Mode presets: 1v1 and horde spectators default to battle-only; casual
   party rooms can later default to live; big-screen host is always
   live/all.

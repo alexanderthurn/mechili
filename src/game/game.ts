@@ -2687,11 +2687,14 @@ export class Game {
         })();
     }
 
-    /** grant or revoke live deploy vision for a spectator (own side only).
-     *  Works for the classic 1v1 host/guest and for a star host granting its
-     *  own side ('a'). A star GUEST has no wire path to request this yet —
-     *  known gap, same side-granularity limitation noted in TEAM_MODES_PLAN
-     *  §5b; not needed for this pass. */
+    /**
+     * Grant or revoke live deploy vision for a spectator, for MY OWN side
+     * only (never someone else's — that side's own players consent for
+     * themselves). Works for every real player: the classic 1v1 host/guest,
+     * a star host (covers its own seat AND any ally on the same side, since
+     * vision is side-keyed, not per-seat), and any star guest (ally or
+     * enemy) via its own connection to the host.
+     */
     grantSpectatorLive(spectatorName: string, grant: boolean): void {
         const seat = this.localSeat();
         if (this.side === 'a' && this.spectatorHub) {
@@ -2699,8 +2702,12 @@ export class Game {
             this.notifySpectatorLiveWant();
             return;
         }
-        // guest asks the host to update vision
-        this.net?.send({ type: 'spectateGrant', spectatorName, seat, grant });
+        // guest asks the host to update vision — a star guest's connection
+        // to the host is `this.star.session`, never `this.net` (that field
+        // is classic 1v1's own peer-to-peer link, unused in star mode)
+        const msg: NetMessage = { type: 'spectateGrant', spectatorName, seat, grant };
+        if (this.star?.role === 'guest') this.star.session.send(msg);
+        else this.net?.send(msg);
     }
 
     /**
@@ -3647,6 +3654,15 @@ export class Game {
             // a star match — mirrors classic 1v1's onNetMessage roster case
             this.receivedRoster = msg.entries;
             this.pushSpectatorBadge();
+        } else if (msg.type === 'spectateGrant') {
+            // host only: ANY seat may grant/revoke live vision for its own
+            // side — trust the CONNECTION-derived side (fromSeat), never
+            // msg.seat itself; a guest's own claimed side is not proof of
+            // which side it's actually on, same reasoning as onStarMessage's
+            // 'action' handling above.
+            if (!isHost || fromSeat === undefined || !this.spectatorHub) return;
+            const side = star.hub.sideOf(fromSeat);
+            this.spectatorHub.setSeatLive(msg.spectatorName, side, msg.grant);
         }
     }
 
