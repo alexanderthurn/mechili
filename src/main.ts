@@ -1732,6 +1732,10 @@ async function beginStarHost(
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // let every currently-connected guest see the same live roster
+        // preview instead of just a static "waiting for the host" — see
+        // runStarPending's 'starRoster' handling
+        hub.broadcast({ type: 'starRoster', roster });
         // auto-start once `waitForJoined` have joined — no manual "click
         // Start" step; the Start button (still shown) is only for "give up
         // waiting, go vs AI now" while the room hasn't reached that yet
@@ -1825,7 +1829,7 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
     };
     setMenuBusy(true);
     p.session
-        .then(async (session) => {
+        .then((session) => {
             if (cancelled) return;
             setStatus('Connected — waiting for the host to start…');
             session.onClose = () => {
@@ -1835,28 +1839,39 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                 setMenuBusy(false);
                 setStatus('Host closed the room.');
             };
-            const msg = await session.once();
-            pending = null;
-            setMenuBusy(false);
-            if (cancelled) return;
-            if (msg.type === 'starRejected') {
-                setStatus(msg.reason);
-                session.close();
-                return;
-            }
-            if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
-                setStatus('Version mismatch — both players need the same game version.');
-                session.close();
-                return;
-            }
-            const settings = msg.settings;
-            settings.seed = msg.seed;
-            settings.seats = localizeRoster(msg.roster, msg.yourSide);
-            const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
-            startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
-                role: 'guest',
-                session,
-                mySeat: msg.yourSeat,
+            // attach() (not once()): the host may send several 'starRoster'
+            // previews as others join before the eventual starSetup/
+            // starRejected arrives — see beginStarHost's refresh().
+            session.attach((msg) => {
+                if (cancelled) return;
+                if (msg.type === 'starRoster') {
+                    const names = msg.roster
+                        .map((s, i) => (i === 0 ? `${s.name} (host)` : s.name))
+                        .join(', ');
+                    setStatus(`Connected — waiting for the host to start… (${names})`);
+                    return;
+                }
+                pending = null;
+                setMenuBusy(false);
+                if (msg.type === 'starRejected') {
+                    setStatus(msg.reason);
+                    session.close();
+                    return;
+                }
+                if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+                    setStatus('Version mismatch — both players need the same game version.');
+                    session.close();
+                    return;
+                }
+                const settings = msg.settings;
+                settings.seed = msg.seed;
+                settings.seats = localizeRoster(msg.roster, msg.yourSide);
+                const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+                startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+                    role: 'guest',
+                    session,
+                    mySeat: msg.yourSeat,
+                });
             });
         })
         .catch((e: unknown) => {
@@ -1887,6 +1902,10 @@ function wireSteamStarHub(hub: SteamStarHub): void {
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // let every currently-connected guest see the same live roster
+        // preview instead of just a static "waiting for the host" — see
+        // runSteamStarPending's 'starRoster' handling
+        hub.broadcast({ type: 'starRoster', roster });
         if (joined > 1) {
             setStatus(`Steam lobby — ${joined}/4 joined: ${names}. Starting…`);
             startSteamStarMatch();
@@ -1978,7 +1997,7 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
         },
     };
     setMenuBusy(true);
-    p.then(async (session) => {
+    p.then((session) => {
         if (cancelled) return;
         setStatus('Connected — waiting for the host to start…');
         session.onClose = () => {
@@ -1988,28 +2007,37 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
             setMenuBusy(false);
             setStatus('Host closed the room.');
         };
-        const msg = await session.once();
-        pending = null;
-        setMenuBusy(false);
-        if (cancelled) return;
-        if (msg.type === 'starRejected') {
-            setStatus(msg.reason);
-            session.close();
-            return;
-        }
-        if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
-            setStatus('Version mismatch — both players need the same game version.');
-            session.close();
-            return;
-        }
-        const settings = msg.settings;
-        settings.seed = msg.seed;
-        settings.seats = localizeRoster(msg.roster, msg.yourSide);
-        const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
-        startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
-            role: 'guest',
-            session,
-            mySeat: msg.yourSeat,
+        // attach() (not once()): the host may send several 'starRoster'
+        // previews as others join before the eventual starSetup/
+        // starRejected arrives — see wireSteamStarHub's refresh().
+        session.attach((msg) => {
+            if (cancelled) return;
+            if (msg.type === 'starRoster') {
+                const names = msg.roster.map((s, i) => (i === 0 ? `${s.name} (host)` : s.name)).join(', ');
+                setStatus(`Connected — waiting for the host to start… (${names})`);
+                return;
+            }
+            pending = null;
+            setMenuBusy(false);
+            if (msg.type === 'starRejected') {
+                setStatus(msg.reason);
+                session.close();
+                return;
+            }
+            if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+                setStatus('Version mismatch — both players need the same game version.');
+                session.close();
+                return;
+            }
+            const settings = msg.settings;
+            settings.seed = msg.seed;
+            settings.seats = localizeRoster(msg.roster, msg.yourSide);
+            const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+            startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+                role: 'guest',
+                session,
+                mySeat: msg.yourSeat,
+            });
         });
     }).catch((e: unknown) => {
         pending = null;
