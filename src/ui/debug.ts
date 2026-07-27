@@ -108,6 +108,8 @@ export class DebugOverlay {
     /** rolling averages so the HUD doesn't flicker every frame */
     private readonly cpuAvg: Record<string, number> = {};
     private readonly simCpuAvg: Record<string, number> = {};
+    /** fired whenever collapsed/expanded is toggled (e.g. to hide the event-dump button while collapsed) */
+    onCollapsedChange: ((collapsed: boolean) => void) | null = null;
 
     constructor(parent: HTMLElement, enabled = false) {
         this.el = document.createElement('div');
@@ -135,6 +137,7 @@ export class DebugOverlay {
             e.stopPropagation();
             e.preventDefault();
             this.collapsed = !this.collapsed;
+            this.onCollapsedChange?.(this.collapsed);
             void this.copyReport();
         });
         // don't let the click fall through to the game canvas
@@ -145,6 +148,10 @@ export class DebugOverlay {
 
     get isEnabled(): boolean {
         return this.enabled;
+    }
+
+    get isCollapsed(): boolean {
+        return this.collapsed;
     }
 
     setEnabled(enabled: boolean): void {
@@ -308,12 +315,12 @@ export class DebugDumpButton {
     ) {
         this.el = document.createElement('div');
         this.el.className = 'mechili-debug-dump';
-        this.el.textContent = 'dump';
-        this.el.title = 'Click: copy short debug dump. Double-click: copy full (verbose) dump.';
+        this.el.textContent = 'event dump';
+        this.el.title = 'Click: copy short event dump. Double-click: copy full (verbose) dump.';
         this.el.style.cssText = [
             'position:absolute',
-            'left:140px',
-            'top:290px', // below the perf overlay, clear of its expanded height
+            'left:12px',
+            'bottom:12px',
             'z-index:50',
             'pointer-events:auto',
             'cursor:pointer',
@@ -343,8 +350,13 @@ export class DebugDumpButton {
         this.el.textContent = verbose ? 'copied (full)' : 'copied (short)';
         setTimeout(() => {
             this.el.style.borderColor = 'rgba(168,216,120,0.35)';
-            this.el.textContent = 'dump';
+            this.el.textContent = 'event dump';
         }, 1200);
+    }
+
+    /** hides the button while the perf overlay is collapsed (see DebugOverlay.onCollapsedChange) */
+    setVisible(visible: boolean): void {
+        this.el.style.display = visible ? '' : 'none';
     }
 
     destroy(): void {

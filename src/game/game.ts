@@ -1289,6 +1289,8 @@ export class Game {
         );
         if (this.debugLog.enabled && this.debugLog.isHost) {
             this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
+            this.debugDumpButton.setVisible(!this.debug.isCollapsed);
+            this.debug.onCollapsedChange = (collapsed) => this.debugDumpButton?.setVisible(!collapsed);
         }
         pixiApp.stage.addChild(this.hpBars.view);
 
