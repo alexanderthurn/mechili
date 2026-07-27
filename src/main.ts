@@ -1948,6 +1948,25 @@ function try2v2Match(horde: boolean, waitForJoined = 2): void {
 }
 
 /**
+ * Plain Matchmaking click, no `?test2v2=` of its own: the host defines
+ * the game (via its own `?test2v2=` value, or the normal 1v1 flow), and a
+ * client should just connect to whatever's next — it never needs to know
+ * in advance whether that's a 2v2 test room or an ordinary 1v1. Checks
+ * for an already-open 2v2 room first; only falls back to the normal 1v1
+ * quick match if none is found, so a client tab needs no param at all to
+ * join a `?test2v2=` host's room.
+ */
+function tryMatchmaking(): void {
+    setStatus('Looking for a match…');
+    void fetchLobbyRooms().then((rooms) => {
+        const mine = getPlayerName().toLowerCase();
+        const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
+        if (open) beginStarJoin(open.name);
+        else tryQuickMatch(true, true);
+    });
+}
+
+/**
  * Joins a live match as a read-only spectator, by the host's discoverable
  * room name (same identifier a "Host Room"/2v2 star host already registers
  * under — see registerSpectateEndpoint in net.ts). Reached by clicking a
@@ -2091,7 +2110,7 @@ menu.addEventListener('click', (e) => {
             mainButtonsEl.style.display = 'none';
             const test2v2 = test2v2Param();
             if (test2v2 !== null) {
-                try2v2Match(false, test2v2);
+                try2v2Match(true, test2v2);
                 break;
             }
             if (steam.isAvailable()) {
@@ -2106,8 +2125,12 @@ menu.addEventListener('click', (e) => {
                 break;
             }
             // simplified to 1v1 Horde only for now — always committed (no
-            // picker to fall back to, there's nothing left to choose)
-            tryQuickMatch(true, true);
+            // picker to fall back to, there's nothing left to choose). Still
+            // checks for an open 2v2 room first (see tryMatchmaking's doc
+            // comment) so a `?test2v2=` host's other tabs need no param of
+            // their own at all — clicking plain Matchmaking already finds
+            // whatever's open.
+            tryMatchmaking();
             break;
         }
         case 'mms-1v1':

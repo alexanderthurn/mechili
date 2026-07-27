@@ -2251,10 +2251,17 @@ export class Hud {
         this.mount(el);
     }
 
-    showGameOver(result: 'victory' | 'defeat' | 'draw', options?: { note?: string; backLabel?: string }): void {
+    showGameOver(
+        result: 'victory' | 'defeat' | 'draw',
+        options?: { note?: string; backLabel?: string; title?: string },
+    ): void {
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;
-        const title = result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW';
+        // `options.title` overrides the perspective-relative default — a
+        // spectator has no side of their own, so "VICTORY"/"DEFEAT" (which
+        // side THEY happen to be arbitrarily anchored to) is meaningless;
+        // see finishMatch's watching branch for the neutral "X wins" label.
+        const title = options?.title ?? (result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW');
         const note = options?.note ? `<div class="go-note">${escapeHtml(options.note)}</div>` : '';
         const backLabel = options?.backLabel ?? 'Back to main menu';
         el.innerHTML =

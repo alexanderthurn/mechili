@@ -26,7 +26,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 15; // v15: dropped classic 1v1's spectatorFeed/spectatorWantsLive side-channel + seq dedup (build fog buffering itself is unchanged)
+export const GAME_VERSION = 16; // v16: reinstated classic 1v1's spectatorFeed/spectatorWantsLive + seq dedup — needed after all (live testing found the guest's early actions never reached a live-vision spectator without it)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -135,12 +135,21 @@ export type NetMessage =
      * see Game.seatRank's doc comment), so a spectator resolving team from
      * `action.seat` alone collapses both players onto the same seat. The
      * two real players never read this field; they already know who they are.
+     * `seq` (classic 1v1 only) is the sender's own monotonic build-action
+     * counter — set once, at the moment sendPlayerBuildMessage first decides
+     * to send-or-buffer this action, so it's identical on every copy of the
+     * same logical action (the immediate `spectatorFeed` copy AND the later
+     * real flush once the peer locks in carry the SAME seq). Lets the host
+     * dedupe a spectator-feed-then-real-flush double-delivery of one action
+     * (see mirrorBuildToSpectators) — undefined for messages that never flow
+     * through that path (seeded backfill, star mode).
      */
-    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b' }
+    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b'; seq?: number }
     /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
      *  needs it since more than one remote seat can send an undo. `side` is
-     *  the same spectator-only wire tag as on `action` above. */
-    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b' }
+     *  the same spectator-only wire tag as on `action` above. `seq` is the
+     *  same dedup counter described on `action` above. */
+    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq?: number }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
@@ -204,15 +213,29 @@ export type NetMessage =
     /** guest asks host to grant/revoke live deploy vision for a spectator
      *  (guest may only grant its own seat `'b'`) */
     | { type: 'spectateGrant'; spectatorName: string; seat: 'a' | 'b'; grant: boolean }
+    /** host → guest only: whether at least one spectator currently has live
+     *  vision granted on the GUEST's seat ('b'). The host's own actions
+     *  already reach spectators live regardless of wire fog (mirrored at
+     *  decision time, independent of `outboundBuildBuffer`) — but the
+     *  guest's build actions are withheld from the HOST ITSELF (not just
+     *  the opponent) until mutual lock-in, so the host has no early
+     *  knowledge to relay. This tells the guest to open the `spectatorFeed`
+     *  side channel below instead of waiting for the normal flush. */
+    | { type: 'spectatorWantsLive'; want: boolean }
+    /** guest → host only: a copy of a build action/undo the guest is STILL
+     *  WITHHOLDING from the opponent (wire fog) but a live-granted spectator
+     *  should see now. The host relays it straight to spectators — it must
+     *  NEVER touch the normal action-application path, or the opponent
+     *  would see it early too. */
+    | { type: 'spectatorFeed'; payload: Extract<NetMessage, { type: 'action' | 'undo' }> }
     /**
-     * Classic 1v1's build actions/undos stream to the peer immediately, same
-     * as star mode (see Game.sendPlayerBuildMessage) — each side's own
-     * `deployCaughtUp` just confirms "I've sent everything I have for this
-     * round" once it observes the peer's `endDeployment`, so a spectator
-     * (who watches both sides at once and can't otherwise tell) knows when
-     * each side is done. Battle waits for both. `side` is unused between the
+     * Sent after flushing the outbound build buffer to the peer. Battle must
+     * not start until both sides have locked in AND each has received the
+     * other's `deployCaughtUp` (otherwise the second locker races ahead of
+     * the first's sell/buys still in flight). `side` is unused between the
      * two real players (each already knows it can only mean "the other
-     * one") — set only when mirrored to spectators. */
+     * one") — set only when mirrored to spectators, who need to tell the
+     * two confirmations apart since they're watching both sides at once. */
     | { type: 'deployCaughtUp'; round: number; side?: 'a' | 'b' }
     // ---- star topology (2v2+, N seats): host-relayed, own message family so
     // the classic 2-seat path above stays completely untouched ------------
@@ -453,6 +476,7 @@ export interface HostHub {
     flushAllBuffers(): void;
     connectedSeats(): SeatId[];
     sideOf(seat: SeatId): 'a' | 'b';
+    close(): void;
 }
 
 /**
@@ -621,6 +645,7 @@ export interface GuestSession {
     onClose: (() => void) | null;
     attach(handler: (msg: NetMessage) => void): void;
     send(msg: NetMessage): void;
+    close(): void;
 }
 
 /**
