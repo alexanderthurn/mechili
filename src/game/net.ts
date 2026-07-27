@@ -30,6 +30,9 @@ export const GAME_VERSION = 16; // v16: reinstated classic 1v1's spectatorFeed/s
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
+/** how long a star seat's connection may stay dropped before the host gives
+ *  up and frees it — matches classic 1v1's RECONNECT_GRACE_SECONDS (main.ts) */
+export const STAR_RECONNECT_GRACE_MS = 30_000;
 
 /**
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
@@ -269,8 +272,34 @@ export type NetMessage =
     | { type: 'starNextRound'; round: number }
     /** every client's battle-start state fingerprint, sent to the host for
      *  N-way comparison. Detection only for v1 — a mismatch is logged, not
-     *  auto-resynced (star mode has no reconnect/resume story yet either) */
-    | { type: 'starCheck'; round: number; seat: SeatId; hash: number };
+     *  auto-resynced. */
+    | { type: 'starCheck'; round: number; seat: SeatId; hash: number }
+    /**
+     * A guest whose connection to the host dropped, redialing the SAME
+     * host peer id with its OWN still-alive Peer object (no page reload —
+     * that's a separate, still-unbuilt story for star mode, same as
+     * before). `seat` is what it remembers being assigned; the host only
+     * accepts this if that seat is currently marked "awaiting reconnect"
+     * (see StarHub.dropSeat/reclaimSeat) — never treated as proof on its
+     * own, same "trust the outcome, not the claim" spirit as elsewhere,
+     * though here the claim IS the seat we're trying to identify by, so
+     * the host cross-checks it against its own pending-reconnect state.
+     */
+    | { type: 'starRejoin'; seat: SeatId; version: number }
+    /** host's answer to a valid starRejoin: the full state to hydrate from,
+     *  vision-filtered by isRevealable for the RECLAIMING seat's own side
+     *  (same predicate StarHub.relayBuild already uses) — shaped like
+     *  classic 1v1's 'state' message. */
+    | {
+          type: 'starResumeState';
+          version: number;
+          actions: LoggedAction[];
+          battleElapsed: number | null;
+          phaseRemaining: number;
+      }
+    /** host declines a starRejoin (seat not actually pending, version
+     *  mismatch, or the seat was already reclaimed by a race winner) */
+    | { type: 'starRejoinRejected'; reason: string };
 
 /**
  * What a spectator may see during the build phase.
@@ -466,8 +495,15 @@ export class NetSession implements Session {
  */
 export interface HostHub {
     onMessage: ((seat: SeatId, msg: NetMessage) => void) | null;
+    /** grace window elapsed with no reconnect — final, seat is freed */
     onSeatDropped: ((seat: SeatId) => void) | null;
+    /** connection just dropped — seat stays reserved, awaiting a
+     *  starRejoin within the grace window (see StarHub.dropSeat) */
+    onSeatSuspended: ((seat: SeatId) => void) | null;
+    /** a previously-suspended seat successfully reclaimed its connection */
+    onSeatReconnected: ((seat: SeatId) => void) | null;
     broadcast(msg: NetMessage, exclude?: SeatId): void;
+    send(seat: SeatId, msg: NetMessage): void;
     relayBuild(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
         fromSeat: SeatId,
@@ -495,15 +531,25 @@ export interface HostHub {
  * acceptable for friend games. See TEAM_MODES_PLAN.md §3.
  */
 export class StarHub implements HostHub {
-    private readonly bySeat = new Map<SeatId, { conn: DataConnection; buffer: NetMessage[] }>();
+    // conn: null means the seat is reserved but currently disconnected —
+    // awaiting a starRejoin within its grace window (see dropSeat). Kept in
+    // the map (not deleted) so nextOpenSeat still treats it as occupied,
+    // not up for grabs by a brand new joiner.
+    private readonly bySeat = new Map<SeatId, { conn: DataConnection | null; buffer: NetMessage[] }>();
+    private readonly reconnectTimers = new Map<SeatId, ReturnType<typeof setTimeout>>();
     private roster: CanonicalSeatDef[];
 
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
     /** fired once a connected guest sends a message post-setup (actions, chat, etc.) */
     onMessage: ((seat: SeatId, msg: NetMessage) => void) | null = null;
-    /** fired if a connected (post-setup) guest's connection drops */
+    /** grace window elapsed with no reconnect — final, seat is freed */
     onSeatDropped: ((seat: SeatId) => void) | null = null;
+    /** connection just dropped — seat stays reserved, awaiting a
+     *  starRejoin within the grace window */
+    onSeatSuspended: ((seat: SeatId) => void) | null = null;
+    /** a previously-suspended seat successfully reclaimed its connection */
+    onSeatReconnected: ((seat: SeatId) => void) | null = null;
 
     private constructor(
         private readonly peer: Peer,
@@ -542,12 +588,26 @@ export class StarHub implements HostHub {
      * Accepts connections until every human seat is filled or the host
      * starts early (remaining open seats get AI-filled by the caller).
      * `onJoin` may reject (room full, version mismatch) before `admit`.
+     * Also accepts `starRejoin` from a previously-connected seat trying to
+     * reclaim its (still-reserved, see dropSeat) slot after a drop — that
+     * path never calls `onJoin` at all, since it isn't a new join.
      */
     listen(onJoin: (name: string, version: number, conn: DataConnection) => SeatId | null): void {
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
                 const onData = (data: unknown) => {
                     const msg = data as NetMessage;
+                    if (msg.type === 'starRejoin') {
+                        conn.off('data', onData);
+                        if (msg.version !== GAME_VERSION || !this.reclaimSeat(msg.seat, conn)) {
+                            conn.send({
+                                type: 'starRejoinRejected',
+                                reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
+                            });
+                            conn.close();
+                        }
+                        return;
+                    }
                     if (msg.type !== 'starJoin') {
                         conn.close();
                         return;
@@ -566,19 +626,66 @@ export class StarHub implements HostHub {
         });
     }
 
+    /**
+     * A previously-connected seat's connection just came back — swap the
+     * dead connection out for the new one and cancel its grace timer.
+     * Returns false if this seat isn't actually pending (already gone,
+     * never existed, or a race already reclaimed it), in which case the
+     * caller must reject the attempt rather than silently no-op.
+     */
+    private reclaimSeat(seat: SeatId, conn: DataConnection): boolean {
+        const viewer = this.bySeat.get(seat);
+        if (!viewer || viewer.conn !== null) return false;
+        const timer = this.reconnectTimers.get(seat);
+        if (timer !== undefined) {
+            clearTimeout(timer);
+            this.reconnectTimers.delete(seat);
+        }
+        viewer.conn = conn;
+        conn.on('data', (d) => this.onMessage?.(seat, d as NetMessage));
+        conn.on('close', () => this.dropSeat(seat));
+        conn.on('error', () => this.dropSeat(seat));
+        this.onSeatReconnected?.(seat);
+        this.onRosterChange?.();
+        return true;
+    }
+
     /** call once a joining connection is accepted, before/with `starSetup` */
     setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void {
         this.roster = this.roster.map((s, i) => (i === seat ? entry : s));
     }
 
+    /**
+     * A seat's connection just closed/errored. Doesn't free the seat
+     * immediately — keeps it reserved (conn: null) for STAR_RECONNECT_GRACE_MS,
+     * awaiting a starRejoin, before giving up for good. A stale event for
+     * an already-handled drop (e.g. both 'close' and 'error' firing for
+     * the same connection) or a seat that already reclaimed itself is a
+     * safe no-op (viewer.conn !== null check below).
+     */
     private dropSeat(seat: SeatId): void {
-        if (!this.bySeat.delete(seat)) return;
-        this.onSeatDropped?.(seat);
+        const viewer = this.bySeat.get(seat);
+        if (!viewer || viewer.conn === null) return;
+        viewer.conn = null;
+        // the live-relay buffer is moot now — a successful reclaim gets a
+        // fresh, authoritative starResumeState instead (see Game's
+        // onSeatReconnected), so stale buffered entries would only risk
+        // double-delivery once StarHub.relayBuild resumes flushing to them
+        viewer.buffer.length = 0;
+        this.onSeatSuspended?.(seat);
         this.onRosterChange?.();
+        const timer = setTimeout(() => {
+            this.reconnectTimers.delete(seat);
+            if (this.bySeat.get(seat)?.conn !== null) return; // reclaimed in the meantime
+            this.bySeat.delete(seat);
+            this.onSeatDropped?.(seat);
+            this.onRosterChange?.();
+        }, STAR_RECONNECT_GRACE_MS);
+        this.reconnectTimers.set(seat, timer);
     }
 
     send(seat: SeatId, msg: NetMessage): void {
-        this.bySeat.get(seat)?.conn.send(msg);
+        this.bySeat.get(seat)?.conn?.send(msg);
     }
 
     /** every connected guest (not the host's own seat(s)); `exclude` skips
@@ -586,7 +693,7 @@ export class StarHub implements HostHub {
      *  doesn't get echoed back to its own sender */
     broadcast(msg: NetMessage, exclude?: SeatId): void {
         for (const [seat, { conn }] of this.bySeat) {
-            if (seat === exclude) continue;
+            if (seat === exclude || !conn) continue;
             conn.send(msg);
         }
     }
@@ -607,7 +714,10 @@ export class StarHub implements HostHub {
     ): void {
         const fromSide = this.sideOf(fromSeat);
         for (const [seat, viewer] of this.bySeat) {
-            if (seat === fromSeat) continue; // never echo back to the sender
+            // never echo back to the sender; a currently-disconnected
+            // recipient gets fully caught up via starResumeState on
+            // reconnect instead — nothing useful to buffer for them here
+            if (seat === fromSeat || !viewer.conn) continue;
             const policy: VisionPolicy = { kind: 'seat', side: this.sideOf(seat) };
             if (isRevealable(policy, fromSide, sideLocked)) {
                 if (viewer.buffer.length > 0) {
@@ -624,17 +734,21 @@ export class StarHub implements HostHub {
     /** force-flush every recipient's buffer (all sides now locked) */
     flushAllBuffers(): void {
         for (const viewer of this.bySeat.values()) {
+            if (!viewer.conn) continue;
             for (const buffered of viewer.buffer) viewer.conn.send(buffered);
             viewer.buffer.length = 0;
         }
     }
 
+    /** connected AND currently reachable — excludes a seat mid-reconnect-gap */
     connectedSeats(): SeatId[] {
-        return [...this.bySeat.keys()];
+        return [...this.bySeat.entries()].filter(([, v]) => v.conn !== null).map(([seat]) => seat);
     }
 
     close(): void {
-        for (const { conn } of this.bySeat.values()) conn.close();
+        for (const timer of this.reconnectTimers.values()) clearTimeout(timer);
+        this.reconnectTimers.clear();
+        for (const { conn } of this.bySeat.values()) conn?.close();
         this.bySeat.clear();
         this.peer.destroy();
     }
@@ -645,7 +759,9 @@ export interface GuestSession {
     onClose: (() => void) | null;
     attach(handler: (msg: NetMessage) => void): void;
     send(msg: NetMessage): void;
+    once(): Promise<NetMessage>;
     close(): void;
+    redial(mySeat: SeatId, signal: AbortSignal, delayMs?: number): Promise<GuestSession>;
 }
 
 /**
@@ -705,6 +821,69 @@ export class StarGuestSession implements GuestSession {
         this.conn.close();
         this.peer.destroy();
     }
+
+    /**
+     * Redials the SAME host peer id with our OWN still-alive Peer object —
+     * an in-session reconnect after a dropped connection, never a full page
+     * reload (that's a separate, still-unbuilt story for star mode, same
+     * as before this). Retries until `signal` aborts (caller's grace
+     * window owns that). Sends `starRejoin` as soon as the raw connection
+     * opens and returns a fresh `StarGuestSession` wrapping it — whether
+     * the host actually ACCEPTS the rejoin (vs. `starRejoinRejected`, e.g.
+     * the grace window already elapsed on their end) is the caller's own
+     * `.once()` to interpret, same as `joinStarRoom`'s initial `starJoin`.
+     */
+    async redial(mySeat: SeatId, signal: AbortSignal, delayMs = 3000): Promise<StarGuestSession> {
+        const hostId = this.conn.peer;
+        for (;;) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            try {
+                const conn = await connectRawTo(this.peer, hostId, signal);
+                conn.send({ type: 'starRejoin', seat: mySeat, version: GAME_VERSION });
+                return new StarGuestSession(this.peer, conn);
+            } catch (e) {
+                if (e instanceof DOMException && e.name === 'AbortError') throw e;
+                await delay(delayMs, signal);
+            }
+        }
+    }
+}
+
+/** Like `connectTo`, but returns the raw connection instead of a `NetSession`
+ *  — used by star mode's own handshake shapes (starJoin/starRejoin), which
+ *  aren't NetSession's hello/setup protocol. */
+function connectRawTo(peer: Peer, remoteId: string, signal?: AbortSignal): Promise<DataConnection> {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'));
+            return;
+        }
+        const timer = setTimeout(
+            () => reject(new Error('Room not found or host offline')),
+            CONNECT_TIMEOUT_MS,
+        );
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(new DOMException('Aborted', 'AbortError'));
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+        const conn = peer.connect(remoteId, { reliable: true });
+        conn.on('open', () => {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
+            resolve(conn);
+        });
+        conn.on('error', (e) => {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
+            reject(e);
+        });
+        peer.on('error', (e) => {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
+            reject(e);
+        });
+    });
 }
 
 /**

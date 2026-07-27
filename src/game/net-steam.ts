@@ -251,6 +251,13 @@ export class SteamGuestSession implements GuestSession {
         this.channel.send(msg);
     }
 
+    /** Steam star matches have no reconnect story yet (still v1 scope, same
+     *  as `SteamStarHub`'s onSeatSuspended/onSeatReconnected stubs) — always
+     *  fails so callers fall back to today's existing suspend/give-up UX. */
+    async redial(): Promise<GuestSession> {
+        throw new Error('Steam star reconnect is not implemented');
+    }
+
     close(): void {
         this.onClose = null;
         this.unsubscribe();
@@ -269,6 +276,11 @@ export class SteamGuestSession implements GuestSession {
 export class SteamStarHub implements HostHub {
     onMessage: ((seat: SeatId, msg: NetMessage) => void) | null = null;
     onSeatDropped: ((seat: SeatId) => void) | null = null;
+    // Steam star matches have no reconnect story yet (still v1 scope, same
+    // as before) — a drop goes straight to onSeatDropped like it always
+    // has; these two are here only to satisfy HostHub and are never fired.
+    onSeatSuspended: ((seat: SeatId) => void) | null = null;
+    onSeatReconnected: ((seat: SeatId) => void) | null = null;
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
 
