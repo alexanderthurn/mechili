@@ -567,6 +567,41 @@ export function menuStyles(): string {
     outline: none;
     box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
 }
+/* Custom Game screen: mode toggle reuses m-toggle-row/card above; these are
+   just the timer/horde/roundcards form rows */
+.mechili-menu .m-custom { display: flex; flex-direction: column; align-items: stretch; gap: 14px; width: 100%; }
+.mechili-menu .m-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; width: 100%; }
+.mechili-menu .m-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: ${u.textMuted};
+    text-transform: uppercase;
+}
+.mechili-menu .m-field input[type="number"],
+.mechili-menu .m-field select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(24, 36, 20, 0.85);
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: normal;
+}
+.mechili-menu .m-field input[type="number"]:focus,
+.mechili-menu .m-field select:focus {
+    outline: none;
+    border-color: ${u.brassLight};
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3);
+}
+.mechili-menu .m-field input[type="checkbox"] { width: 16px; height: 16px; accent-color: ${u.brass}; }
 .mechili-menu .m-seats { display: flex; gap: 10px; width: 100%; }
 .mechili-menu .m-seat {
     flex: 1;
