@@ -260,6 +260,36 @@ export type SpectatorVision =
     | { mode: 'live'; seats: Array<'a' | 'b'> };
 
 /**
+ * Which of the two host-relay "who sees this build action and when" gates
+ * a viewer uses — a real seat (StarHub) or a spectator (SpectatorHub).
+ * Both hubs independently implement the same "per-viewer buffer, flush
+ * whatever just became revealable, then send-or-buffer this message"
+ * shape; `isRevealable` below is the one gate predicate shared between
+ * them, so there's a single place that decides visibility instead of two
+ * slightly different reimplementations of the same idea.
+ */
+export type VisionPolicy = { kind: 'seat'; side: 'a' | 'b' } | { kind: 'spectator'; vision: SpectatorVision };
+
+/**
+ * Is a build action/undo FROM `fromSide` visible to a viewer with `policy`
+ * right now? `sideLocked` is supplied by the caller (Game owns lock-in
+ * state; this module only knows connections): for a seat viewer it's
+ * queried per side (an ally always sees their own side immediately; an
+ * enemy side waits for `sideLocked(fromSide)`); a spectator only ever cares
+ * about the combined `sideLocked('a') && sideLocked('b')` ("both locked"),
+ * alongside any standing live-vision grant on that specific side.
+ */
+export function isRevealable(
+    policy: VisionPolicy,
+    fromSide: 'a' | 'b',
+    sideLocked: (side: 'a' | 'b') => boolean,
+): boolean {
+    if (policy.kind === 'seat') return policy.side === fromSide || sideLocked(fromSide);
+    if (sideLocked('a') && sideLocked('b')) return true;
+    return policy.vision.mode === 'live' && policy.vision.seats.includes(fromSide);
+}
+
+/**
  * One seat at the match, for roster display. `team` is a plain string (not
  * the current 2-value `Team` union) and `role`/team are already separated —
  * neither should need to change shape when a future multi-player mode adds
@@ -542,7 +572,9 @@ export class StarHub implements HostHub {
      * ally (same side) recipient immediately; buffered per-recipient for
      * enemy-side recipients until `sideLocked(fromSide)` is true, at which
      * point that recipient's WHOLE buffer flushes (only one enemy side
-     * exists per recipient — Tier 1, sides stay binary).
+     * exists per recipient — Tier 1, sides stay binary). Gate itself is the
+     * shared `isRevealable` predicate (see its doc comment) — same one
+     * SpectatorHub uses, just with a `{kind:'seat'}` policy per recipient.
      */
     relayBuild(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
@@ -552,8 +584,8 @@ export class StarHub implements HostHub {
         const fromSide = this.sideOf(fromSeat);
         for (const [seat, viewer] of this.bySeat) {
             if (seat === fromSeat) continue; // never echo back to the sender
-            const isAlly = this.sideOf(seat) === fromSide;
-            if (isAlly || sideLocked(fromSide)) {
+            const policy: VisionPolicy = { kind: 'seat', side: this.sideOf(seat) };
+            if (isRevealable(policy, fromSide, sideLocked)) {
                 if (viewer.buffer.length > 0) {
                     for (const buffered of viewer.buffer) viewer.conn.send(buffered);
                     viewer.buffer.length = 0;
@@ -860,14 +892,24 @@ export class SpectatorHub {
         return null;
     }
 
-    /** is this build message revealable to `viewer` right now? */
+    /**
+     * Is this build message revealable to `viewer` right now? Delegates to
+     * the shared `isRevealable` (see its doc comment) — `bothLocked`
+     * already collapses "both sides locked" into one boolean here (a
+     * spectator never needs to ask about one side alone), so the shared
+     * predicate's `sideLocked` callback just returns that same value
+     * regardless of which side it's asked about. `msg.side` is only
+     * absent for message shapes this hub never actually relays through
+     * here in practice (see mirrorBuildToSpectators/relayStarBuildMessage,
+     * which always stamp it) — falls back to the bothLocked-only gate.
+     */
     private isRevealable(
         viewer: { vision: SpectatorVision },
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
         bothLocked: boolean,
     ): boolean {
-        if (bothLocked) return true;
-        return viewer.vision.mode === 'live' && !!msg.side && viewer.vision.seats.includes(msg.side);
+        if (!msg.side) return bothLocked;
+        return isRevealable({ kind: 'spectator', vision: viewer.vision }, msg.side, () => bothLocked);
     }
 
     /**
