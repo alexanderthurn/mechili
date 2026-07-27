@@ -14,8 +14,20 @@ import type { Team } from './units';
  */
 export type SeatId = number;
 
+/**
+ * A battle faction — hostility, match HP, tower debuffs (per
+ * TEAM_MODES_PLAN.md §2b's Tier 2: "side-keyed state becomes arrays over
+ * SideId instead of a {player,enemy} pair"). CANONICAL — identical value
+ * for the same physical side on every client, unlike `SeatDef.team` (each
+ * client's own "player = mine" local relabeling). Only ever 0/1 today (no
+ * mode ships a 3rd side yet), but nothing here hardcodes that.
+ */
+export type SideId = number;
+
 export interface SeatDef {
     team: Team;
+    /** canonical — see SideId's doc comment */
+    side: SideId;
     controller: 'human' | 'ai';
     name: string;
 }
@@ -23,18 +35,35 @@ export interface SeatDef {
 /** the implicit 1v1 roster — classic behavior, seat 0 = the local player */
 export function classicSeats(localName: string, opponentName: string): SeatDef[] {
     return [
-        { team: 'player', controller: 'human', name: localName },
-        { team: 'enemy', controller: 'ai', name: opponentName },
+        { team: 'player', side: 0, controller: 'human', name: localName },
+        { team: 'enemy', side: 1, controller: 'ai', name: opponentName },
+    ];
+}
+
+/**
+ * Classic 1v1's canonical roster: host is always canonical side 'a', guest
+ * is always canonical side 'b' — identical content on every client, exactly
+ * like a star room's `CanonicalSeatDef[]`. `localizeRoster` turns this into
+ * each client's own local `SeatDef[]` ("player" = mine), same as star mode.
+ * Unlike a star room, there's no `starSetup` handshake to exchange this —
+ * both clients already know each other's name (`playerNames`) and their own
+ * `side`, so each independently reconstructs the identical canonical roster
+ * without needing a wire message for it.
+ */
+export function canonicalClassicSeats(hostName: string, guestName: string): CanonicalSeatDef[] {
+    return [
+        { side: 'a', controller: 'human', name: hostName },
+        { side: 'b', controller: 'human', name: guestName },
     ];
 }
 
 /** 2v2 skirmish roster: human + AI ally vs two AI commanders */
 export function duoSeats(localName: string): SeatDef[] {
     return [
-        { team: 'player', controller: 'human', name: localName },
-        { team: 'player', controller: 'ai', name: 'Ally' },
-        { team: 'enemy', controller: 'ai', name: 'Foe West' },
-        { team: 'enemy', controller: 'ai', name: 'Foe East' },
+        { team: 'player', side: 0, controller: 'human', name: localName },
+        { team: 'player', side: 0, controller: 'ai', name: 'Ally' },
+        { team: 'enemy', side: 1, controller: 'ai', name: 'Foe West' },
+        { team: 'enemy', side: 1, controller: 'ai', name: 'Foe East' },
     ];
 }
 
@@ -48,6 +77,25 @@ export function seatIdsOf(seats: readonly SeatDef[], team: Team): SeatId[] {
     const ids: SeatId[] = [];
     for (let i = 0; i < seats.length; i++) if (seats[i]!.team === team) ids.push(i);
     return ids;
+}
+
+/** every seat on a given canonical side, in roster order */
+export function sideIdsOf(seats: readonly SeatDef[], side: SideId): SeatId[] {
+    const ids: SeatId[] = [];
+    for (let i = 0; i < seats.length; i++) if (seats[i]!.side === side) ids.push(i);
+    return ids;
+}
+
+/** a seat's own canonical side */
+export function sideOf(seats: readonly SeatDef[], seat: SeatId): SideId {
+    return seats[seat]?.side ?? 0;
+}
+
+/** how many distinct canonical sides this roster has (today: always 2) */
+export function sideCount(seats: readonly SeatDef[]): number {
+    let max = -1;
+    for (const s of seats) if (s.side > max) max = s.side;
+    return max + 1;
 }
 
 /**
@@ -76,6 +124,9 @@ export interface CanonicalSeatDef {
 export function localizeRoster(canonical: readonly CanonicalSeatDef[], mySide: 'a' | 'b'): SeatDef[] {
     return canonical.map((c) => ({
         team: c.side === mySide ? 'player' : 'enemy',
+        // canonical numeric SideId — 'a' -> 0, 'b' -> 1, SAME on every
+        // client regardless of `mySide` (unlike `team` above)
+        side: c.side === 'a' ? 0 : 1,
         controller: c.controller,
         name: c.name,
     }));

@@ -145,7 +145,18 @@ import {
 } from './units';
 import { DebugOverlay, DebugDumpButton, CpuSampler } from '../ui/debug';
 import { DebugLog, type DebugEvent } from './debugLog';
-import { classicSeats, primarySeatOf, seatIdsOf, seatLane, type SeatDef, type SeatId } from './seats';
+import {
+    canonicalClassicSeats,
+    localizeRoster,
+    primarySeatOf,
+    seatIdsOf,
+    seatLane,
+    sideCount,
+    sideIdsOf,
+    type SeatDef,
+    type SeatId,
+    type SideId,
+} from './seats';
 import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
@@ -270,8 +281,14 @@ export class Game {
     private round = 0;
     private phaseRemaining = 0;
     private speedIndex = Game.SPEED_STEPS.indexOf(1);
-    private playerHp: number;
-    private enemyHp: number;
+    // Real storage is per-SIDE (canonical index — see SideId's doc comment
+    // in seats.ts), sized to however many sides this roster actually has
+    // (today: always 2). `playerHp`/`enemyHp` below are a transparent 2-
+    // bucket VIEW over it ("mine" vs "everyone else, combined") — every
+    // existing consumer (HUD, telemetry, match-end, cheats, replay-verify)
+    // keeps reading/writing them completely unchanged; only genuinely
+    // N-side-aware code (stateHash) touches `hp` directly.
+    private hp: number[] = [];
     private matchOver = false;
     private disposed = false;
     private sim: BattleSim | null = null;
@@ -302,23 +319,23 @@ export class Game {
     /** extra AI brains beyond the classic opponent (duo modes: ally + 2nd foe) */
     private readonly extraAis: { ai: AiOpponent; rng: () => number; team: Team; seat: SeatId }[] = [];
     /**
-     * Peer has locked in this build round — we may stream them our build
-     * actions. Until then, outbound build `action`/`undo` sit in
-     * {@link outboundBuildBuffer} (wire-level fog).
+     * Classic 1v1 only: our own build `action`/`undo` sit here until the
+     * PEER locks in (see sendPlayerBuildMessage), then flush as one burst
+     * (see flushOutboundBuildBuffer) — the wire-level fog gate. Safe even
+     * though the release condition is about the RECIPIENT, not us: neither
+     * side ever receives anything from the other while BOTH are still
+     * deciding (whichever side locks in first only triggers the OTHER's
+     * release, and that other side's own lock-in is what triggers OUR
+     * release back to them) — the only party who ever sees "new" data is
+     * whoever already locked in, and they can't act on it (placement is
+     * already disabled). That's also what makes it safe for the
+     * already-locked side to keep watching the opponent's REMAINING moves
+     * stream in live after this flush (peerDeployReady-equivalent, i.e.
+     * deployReady.enemy, stays true for the rest of the round) — a
+     * deliberate feature, not just a one-time reveal.
      */
-    private peerDeployReady = false;
-    /** build messages withheld until {@link peerDeployReady} */
     private readonly outboundBuildBuffer: Extract<NetMessage, { type: 'action' | 'undo' }>[] = [];
-    /** classic 1v1 only: monotonic counter stamped onto our own outgoing
-     *  action/undo messages (see sendPlayerBuildMessage's `seq` doc comment) */
-    private outboundBuildSeq = 0;
-    /** host-only: this seat's build-action seqs already relayed to spectators —
-     *  a spectator-fed-early action (see sendPlayerBuildMessage's
-     *  spectatorFeed branch) arrives again for real once the peer locks in;
-     *  without this it gets mirrored to spectators twice (see
-     *  mirrorBuildToSpectators) */
-    private readonly spectatorRelayedSeq: Record<'a' | 'b', Set<number>> = { a: new Set(), b: new Set() };
-    /** we have flushed our build log to the peer this round (MP fog) */
+    /** we've flushed our build log to the peer this round (MP fog) */
     private deployFlushedToPeer = false;
     /** peer has flushed their build log to us this round (MP fog) */
     private deployCaughtUpFromPeer = false;
@@ -352,8 +369,8 @@ export class Game {
      *  phase starts once both have (fast-forward speed is per-client) */
     private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
     /** streamed peer events, applied in order once our game reaches their round */
-    private readonly remoteQueue: { round: number; action?: Action; undo?: boolean }[] = [];
-    /** star mode's own incoming queue — canonical seat ids need no swapPerspective */
+    private readonly remoteQueue: { round: number; action?: Action; undo?: boolean; seat?: SeatId }[] = [];
+    /** star mode's own incoming queue — parallel to remoteQueue */
     private readonly starRemoteQueue: { round: number; seat: SeatId; action?: Action; undo?: boolean }[] = [];
     /** spectator-only incoming queue — see drainSpectateQueue for why this
      *  can't reuse starRemoteQueue/drainStarRemoteQueue despite the
@@ -380,9 +397,6 @@ export class Game {
     /** set only for a spectating client — its one connection to the host's
      *  SpectatorHub (mutually exclusive with net/star) */
     private spectateSession: SpectatorSession | null = null;
-    /** classic 1v1 guest only: does at least one spectator currently have
-     *  live vision granted on THIS seat? (see spectatorFeed/spectatorWantsLive) */
-    private spectatorWantsMyLive = false;
     /** spectate mode only: the watcher's own name (see the `spectate` ctor param) */
     private readonly watcherName: string | null;
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
@@ -769,8 +783,24 @@ export class Game {
         // one SHARED board for both peers: the guest owns the far half and
         // only its camera differs — no coordinates are ever mirrored
         this.map.ownAtFar = side === 'b';
-        this.seats = settings.seats ?? classicSeats(this.playerNames.local, this.playerNames.opponent);
-        this.humanSeat = star?.mySeat ?? 0;
+        // Canonical roster, same convention as a star room's
+        // CanonicalSeatDef: host is always side 'a'/seat 0, guest is always
+        // side 'b'/seat 1, on every client — both clients can reconstruct
+        // the identical roster locally (each already knows `side` and both
+        // names) without a wire handshake for it. `localizeRoster` then
+        // relabels it to THIS client's own "player = mine" view, same as
+        // star mode. Solo/AI play (`side` defaults to 'a') gets the exact
+        // same seat 0/1 split as before, just also side-tagged.
+        this.seats =
+            settings.seats ??
+            localizeRoster(
+                canonicalClassicSeats(
+                    side === 'a' ? this.playerNames.local : this.playerNames.opponent,
+                    side === 'a' ? this.playerNames.opponent : this.playerNames.local,
+                ),
+                side,
+            );
+        this.humanSeat = star?.mySeat ?? (side === 'a' ? 0 : 1);
         this.economy = new Economy(settings.economy, this.seats.length);
         this.recruitLevel = this.seats.map(() => 1);
         this.creditUsed = this.seats.map(() => false);
@@ -786,9 +816,12 @@ export class Game {
         // own startingHp in chooseCard (additive, so it's safe regardless of
         // which seat's pick a client applies first) — settings.startingHp is
         // only ever a pre-pick placeholder for the HUD's initial bar max
-        // (see setPlayers below), never the real baseline
-        this.playerHp = 0;
-        this.enemyHp = 0;
+        // (see setPlayers below), never the real baseline. Explicitly sized
+        // to the roster's real side count (not just "however far the
+        // playerHp/enemyHp setters happen to have written") so the
+        // enemyHp getter's "sum every other side" loop sees every side
+        // from the start, even ones nothing has assigned to yet.
+        this.hp = new Array(sideCount(this.seats)).fill(0);
         // Prefer the boot-warmed GL context so flame/projectile programs survive;
         // fall back to a fresh renderer after return-to-menu (new canvas).
         this.renderer =
@@ -990,32 +1023,38 @@ export class Game {
                 // input, reveal MY OWN board early" side effects below make
                 // sense for a spectator (there's no local input, and an early
                 // reveal tied to one specific side locking in isn't the same
-                // as both sides locking in or battle actually starting). Most
-                // importantly: `placement.enabled = false` gates the ENTIRE
-                // render-update loop (applyIntelFog, level arrows, item
-                // badges — see PlacementController.update's `if (!enabled)
-                // return`), so setting it here would freeze the spectator's
-                // whole board the instant the host locks in, even while the
-                // guest is still deploying and its live-fed actions keep
-                // arriving — exactly the "action received but doesn't show"
-                // symptom. The real, symmetric reveal for a spectator is
-                // startBattlePhase's own revealAll() call, which already
-                // fires for every mode once battle actually starts.
+                // as both sides locking in or battle actually starting).
                 if (team === 'player' && !this.watching) {
-                    // freeze local input; request peer's buffered deploy (they
-                    // flush when they see our endDeployment). Locally we only
-                    // have last-known enemy state until that backlog arrives.
+                    // Cancel any pending placement/tactic and drop selection —
+                    // but do NOT disable placement entirely. `enabled = false`
+                    // gates the ENTIRE render-update loop (applyIntelFog,
+                    // level arrows, item badges — see PlacementController
+                    // .update's per-function `if (!enabled) return` checks),
+                    // which would freeze the whole board the instant we lock
+                    // in — same "action received but doesn't show" symptom
+                    // the spectator exemption above already avoids. Leaving
+                    // it enabled lets us keep inspecting any pack (ours or,
+                    // once visible, the enemy's — handleClick's own
+                    // enemyIntelVisible check already allows that) and see
+                    // the enemy's remaining moves render live as they arrive.
+                    // Actually placing/moving/buying is still safely refused
+                    // — dispatchPlayer rejects everything once
+                    // seatReady[humanSeat] is set, regardless of `enabled`
+                    // — and the shop stays disabled in the HUD (see
+                    // waitingForPeer/shopColumn), so nothing can re-arm a
+                    // pending buy after this point.
                     this.placement.deselect();
-                    this.placement.enabled = false;
                     this.armedItem = null;
                     this.cancelTacticPlacement();
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
                     this.enemyIntelSnapshot = null;
                 } else if (team !== 'player' && !this.star) {
-                    // classic 1v1 only: release our buffered build stream to
-                    // the peer. Star mode never buffers locally — the host
-                    // does all fog buffering on the way OUT (see relayBuild).
+                    // classic 1v1 only: the peer just locked in — release
+                    // OUR buffered build stream to them now (see
+                    // outboundBuildBuffer's doc comment for why this is
+                    // safe: we can watch them decide from here on, but we
+                    // can't act on it ourselves since we're already frozen).
                     this.flushOutboundBuildBuffer();
                 }
                 // Star mode deliberately does NOT check maybeStartStarBattle
@@ -1089,15 +1128,20 @@ export class Game {
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
         // gold pulse under packs whose next level is buyable right now.
         // canLevel gates on playerCanAct, which is unconditionally false
-        // while watching (this.watching — replay OR spectate) — a spectator
-        // has no "my turn" concept, so that gate always failed for the
-        // side updateLevelArrows treats as "mine" (only the OTHER side gets
-        // a fog-fallback snapshot; real players never needed one for their
-        // own units). Route watching instances through the gate-free
-        // packUpgradeReady directly so both sides' arrows work correctly.
-        this.placement.levelReady = this.watching
-            ? (unit) => this.packUpgradeReady(unit, unit.level, unit.xp)
-            : (unit) => this.canLevel(unit);
+        // while watching (this.watching — replay OR spectate) OR once WE'VE
+        // locked in (seatReady[humanSeat]) — neither case means the arrow
+        // itself should disappear, since it's purely informational ("this
+        // pack could level up"), not an action button; the actual level-up
+        // purchase stays correctly blocked elsewhere via playerCanAct.
+        // Route both cases through the gate-free packUpgradeReady directly
+        // so arrows for both sides keep showing until battle actually
+        // starts (placement.enabled=false there hides them like everything
+        // else). Checked per-call (not once at assignment) since
+        // seatReady flips mid-round, unlike `watching`.
+        this.placement.levelReady = (unit) =>
+            this.watching || this.seatReady[this.humanSeat]
+                ? this.packUpgradeReady(unit, unit.level, unit.xp)
+                : this.canLevel(unit);
         // freeze upgrade-arrow intel at phase start (survives enemy leveling mid-deploy)
         this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
         // an armed inventory item lands on the next own pack that gets clicked
@@ -1898,7 +1942,6 @@ export class Game {
         this.deployReady.enemy = false;
         this.seatReady.length = 0;
         for (const _ of this.seats) this.seatReady.push(false);
-        this.peerDeployReady = false;
         this.outboundBuildBuffer.length = 0;
         this.deployFlushedToPeer = false;
         this.deployCaughtUpFromPeer = false;
@@ -2070,43 +2113,76 @@ export class Game {
     }
 
     /**
+     * The trusted canonical seat of whoever is on the other end of `this.net`
+     * — classic 1v1 has exactly one peer, so this is a fixed function of our
+     * own side, not something to trust from message *content*. Mirrors why
+     * `onStarMessage`'s host path uses the connection-derived `fromSeat`
+     * rather than `msg.action.seat` — a message's own claimed seat is never
+     * itself proof of who actually sent it.
+     */
+    private peerSeat(): SeatId {
+        return this.side === 'a' ? 1 : 0;
+    }
+
+    /** my own seat's canonical side */
+    private mySide(): SideId {
+        return this.seats[this.humanSeat]?.side ?? 0;
+    }
+
+    /**
+     * 2-bucket VIEW over the real per-side `hp` array: "mine" vs "everyone
+     * else, combined". Exact for today's only shipped case (exactly 2
+     * sides — "everyone else" is exactly one side, so summing changes
+     * nothing); a deliberately simple placeholder for a hypothetical 3+-
+     * side match later (every non-mine side reads as one merged pool, and
+     * `enemyHp = v` sets every one of them to `v`) — no mode ships that
+     * yet, and this is exactly the "left = mine+allies, right = everyone
+     * else" grouping the HUD itself uses.
+     */
+    private get playerHp(): number {
+        return this.hp[this.mySide()] ?? 0;
+    }
+    private set playerHp(v: number) {
+        this.hp[this.mySide()] = v;
+    }
+    private get enemyHp(): number {
+        let sum = 0;
+        for (let side = 0; side < this.hp.length; side++) {
+            if (side !== this.mySide()) sum += this.hp[side] ?? 0;
+        }
+        return sum;
+    }
+    private set enemyHp(v: number) {
+        for (let side = 0; side < this.hp.length; side++) {
+            if (side !== this.mySide()) this.hp[side] = v;
+        }
+    }
+
+    /**
      * Send or buffer a build-phase action/undo. `endDeployment` always goes
      * out immediately (gate signal). Other build traffic waits until the
-     * peer has locked in, then flushes.
+     * PEER has locked in (deployReady.enemy), then flushes — see
+     * outboundBuildBuffer's doc comment for why this recipient-gated
+     * release (not our own lock) is both safe and the intended feature.
      */
     private sendPlayerBuildMessage(msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
         if (this.star) {
             this.sendStarBuildMessage(msg);
             return;
         }
-        // stamped once, here — whichever path(s) below end up sending this
-        // exact message (immediately, buffered-then-flushed-for-real, and/or
-        // fed early via spectatorFeed) all carry the SAME seq, so the host
-        // can recognize a spectator-fed-then-real-flush repeat (see
-        // mirrorBuildToSpectators) as the one logical action it is.
-        msg.seq = ++this.outboundBuildSeq;
-        const isGate =
-            msg.type === 'action' && msg.action.kind === 'endDeployment';
-        if (!this.net || this.peerDeployReady || isGate) {
+        const isGate = msg.type === 'action' && msg.action.kind === 'endDeployment';
+        if (!this.net || this.deployReady.enemy || isGate) {
             this.net?.send(msg);
             this.mirrorBuildToSpectators(msg, this.localSeat());
             return;
         }
         this.outboundBuildBuffer.push(msg);
-        // no-op on the guest (mirrorBuildToSpectators needs spectatorHub,
-        // which only ever exists on the host) — the real relay for a
-        // buffered message is the spectatorFeed side channel just below
+        // local-only call (never over the wire) — the host's own actions
+        // reach spectators live regardless of peer-fog; a no-op on the
+        // guest client (no spectatorHub there). A live-vision-granted
+        // spectator watching the GUEST's seat sees their moves arrive in
+        // one burst once the peer locks in, same as the real opponent does.
         this.mirrorBuildToSpectators(msg, this.localSeat());
-        // this message is still withheld from the OPPONENT (wire fog), but
-        // a spectator has been granted live vision on THIS seat — send a
-        // copy straight to the host for spectator-only relay. Never skip
-        // this for the host's own seat: the host doesn't need it (its own
-        // actions already reach spectators independent of wire fog), and
-        // this.net is the connection to the opponent either way, so this
-        // only ever fires meaningfully on a classic 1v1 guest.
-        if (this.spectatorWantsMyLive) {
-            this.net?.send({ type: 'spectatorFeed', payload: msg });
-        }
     }
 
     /**
@@ -2197,24 +2273,21 @@ export class Game {
         }
     }
 
-    /** release withheld build traffic now that the peer may receive it */
+    /**
+     * Classic 1v1 only: release our own withheld build stream now that the
+     * PEER has locked in (called from onEndDeployment's team!=='player'
+     * branch — see outboundBuildBuffer's doc comment for why this
+     * recipient-gated release is safe). Each buffered message was already
+     * mirrored to spectators at buffer time; this loop only needs to reach
+     * the peer.
+     */
     private flushOutboundBuildBuffer(): void {
-        this.peerDeployReady = true;
-        if (!this.net) {
-            this.outboundBuildBuffer.length = 0;
-            this.deployFlushedToPeer = true;
-            return;
-        }
-        for (const msg of this.outboundBuildBuffer) {
-            this.net.send(msg);
-            // already mirrored to live spectators when buffered; battle-vision
-            // spectators catch up via flushBuildBuffers when both lock
+        if (this.net) {
+            for (const msg of this.outboundBuildBuffer) this.net.send(msg);
         }
         this.outboundBuildBuffer.length = 0;
         this.deployFlushedToPeer = true;
-        // marks end of our flush so the peer can start battle only after
-        // applying the backlog (sells/buys/moves) that preceded this
-        this.net.send({ type: 'deployCaughtUp', round: this.round });
+        this.net?.send({ type: 'deployCaughtUp', round: this.round });
         this.mirrorToSpectators({ type: 'deployCaughtUp', round: this.round, side: this.localSeat() });
         this.maybeStartBattleAfterDeploy();
     }
@@ -2456,52 +2529,30 @@ export class Game {
 
     /**
      * Vision-filtered relay of build action/undo to spectators. Stamps the
-     * WIRE-LEVEL `side` onto the message — action.seat/undo.seat are
-     * perspective-relative ("0 = mine" on every client, see seatRank's doc
-     * comment), so without this a spectator can't tell the two real
-     * players' actions apart (see onSpectateMessage).
+     * WIRE-LEVEL `side` onto the message so a spectator watching both real
+     * players at once can tell whose action this is without needing to
+     * decode a seat number (see onSpectateMessage) — `action.seat`/
+     * `undo.seat` are canonical roster indices now (host=0, guest=1 on
+     * every client), so this is purely a display-label convenience, not a
+     * perspective fix.
      */
     private mirrorBuildToSpectators(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
         seat: 'a' | 'b',
     ): void {
-        // A buffered (fog-withheld) action gets fed to spectators twice on
-        // the wire — once immediately via spectatorFeed (while a live-vision
-        // spectator waits on it), and again for real once the peer locks in
-        // and the sender's outboundBuildBuffer actually flushes (see
-        // sendPlayerBuildMessage) — both copies carry the same `seq`, so a
-        // spectator that already saw this one doesn't get it applied twice.
-        if (msg.seq !== undefined) {
-            const seen = this.spectatorRelayedSeq[seat];
-            if (seen.has(msg.seq)) return;
-            seen.add(msg.seq);
-        }
         const bothLocked = this.deployReady.player && this.deployReady.enemy;
-        // A guest-originated ('b') action arrives here in the GUEST's own
-        // wire-perspective — exactly like translateRemote's input, its
-        // unitId is numbered from the guest's own "mine" (seat 0) counter,
-        // not from the canonical seat the spectator's roster assigns it
-        // (seat 1). Canonicalize it the same way translateRemote already
-        // does for our own local simulation (swapPerspective flips team AND
-        // any embedded unitId's parity) — otherwise the spectator's
-        // placement, which agrees with the HOST's numbering, resolves the
-        // unitId to a completely unrelated unit (see buyLevel/sellUnit/etc
-        // failing on the spectator only, root-caused via the 'buylevel'
-        // debugLog category).
-        // Host-originated ('a') messages are already in that canonical
-        // form, so there's nothing to flip. The backfill/seed path
-        // (excludedActionsForSpectatorResume) is unaffected — it already
-        // reads from this.dispatcher.serializable(), the host's own
-        // post-translation log, so double-flipping it here would be wrong;
-        // it never goes through this function.
-        // Classic 1v1 ONLY: swapPerspective's flipId assumes exactly two
-        // seats (id parity). Star (2v2+) seats are already canonical/real
-        // (StarHub assigns them directly) — never translate those.
-        const canonical: Extract<NetMessage, { type: 'action' | 'undo' }> =
-            !this.star && seat === 'b' && msg.type === 'action'
-                ? { ...msg, action: this.swapPerspective(msg.action) }
-                : msg;
-        this.spectatorHub?.relayBuild({ ...canonical, side: seat }, bothLocked);
+        // `action.seat` (and therefore unit ids derived from it) is
+        // canonical on every client now — a guest's own seat is a fixed
+        // roster index (host=0, guest=1), not "0 = mine" — so a spectator's
+        // placement, which agrees with that same canonical numbering,
+        // resolves it correctly with no translation. `action.team` is
+        // whatever the sender's own local roster calls its side (still
+        // "player" for a guest's own actions), but nothing downstream
+        // trusts it — every consumer (drainRemoteQueue, drainStarRemoteQueue,
+        // drainSpectateQueue) re-derives team fresh from its OWN local
+        // `seats[seat].team` before dispatching, keyed by the canonical
+        // seat, so a stale sender-perspective team string here is harmless.
+        this.spectatorHub?.relayBuild({ ...msg, side: seat }, bothLocked);
     }
 
     /**
@@ -2535,10 +2586,6 @@ export class Game {
             );
             hub.onRosterChange = () => {
                 this.broadcastRoster();
-                // covers a live-granted spectator disconnecting (or a new
-                // one joining) changing the aggregate "does anyone want the
-                // guest's live feed" answer, not just explicit grant clicks
-                this.notifySpectatorLiveWant();
             };
             hub.onSpectatorChat = (name, item) => {
                 const relayed: NetMessage = { type: 'chat', item, from: { name, role: 'spectator' } };
@@ -2603,28 +2650,10 @@ export class Game {
         const seat = this.localSeat();
         if (this.side === 'a' && this.spectatorHub) {
             this.spectatorHub.setSeatLive(spectatorName, seat, grant);
-            this.notifySpectatorLiveWant();
             return;
         }
         // guest asks the host to update vision
         this.net?.send({ type: 'spectateGrant', spectatorName, seat, grant });
-    }
-
-    /**
-     * Classic 1v1 host only: tell the guest whether any spectator currently
-     * has live vision on their seat ('b'). The host's own actions already
-     * reach spectators live regardless of wire fog (mirrored at decision
-     * time in sendPlayerBuildMessage, independent of outboundBuildBuffer) —
-     * but the guest's build actions are withheld from the HOST ITSELF, not
-     * just the opponent, until mutual lock-in (that's the whole point of
-     * the fog), so the host has nothing early to relay on its own. This
-     * lets the guest open the spectatorFeed side channel instead. Star mode
-     * never needs this — every seat's actions already reach the host
-     * immediately there (see sendStarBuildMessage's doc comment).
-     */
-    private notifySpectatorLiveWant(): void {
-        if (this.star || this.side !== 'a' || !this.spectatorHub || !this.net) return;
-        this.net.send({ type: 'spectatorWantsLive', want: this.spectatorHub.anyLiveFor('b') });
     }
 
     /** connects (or re-connects) a peer session to this game */
@@ -3035,9 +3064,20 @@ export class Game {
         swapTeams = true,
     ): void {
         this.hydrating = true;
-        // foreign logs (peer export) flip teams; our own single-player save does not
+        // A foreign log (peer export) carries each action's canonical seat
+        // (unaffected by whose machine logged it — seat ids are the same on
+        // every client), but `team` is a LOCAL label ("player" always means
+        // "the exporting peer's own side"). Re-derive team fresh from MY OWN
+        // roster, keyed by that canonical seat — the same pattern every
+        // other remote-action consumer uses (drainRemoteQueue,
+        // drainStarRemoteQueue, drainSpectateQueue). Our own single-player
+        // save never needs this: its actions are already in our own local
+        // convention.
         const log = swapTeams
-            ? sourceLog.map((e) => ({ ...e, action: this.swapPerspective(e.action) }))
+            ? sourceLog.map((e) => {
+                  const team = this.seats[e.action.seat!]?.team;
+                  return team ? { ...e, action: { ...e.action, team } } : e;
+              })
             : sourceLog;
         const starterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
         this.draw(START_CARDS, 4, this.rngCards.enemy);
@@ -3089,7 +3129,6 @@ export class Game {
         }
         this.pendingOffer = null;
         // peer already locked in the rebuilt state — stream live to them
-        this.peerDeployReady = this.deployReady.enemy;
         this.outboundBuildBuffer.length = 0;
         this.deployFlushedToPeer = this.deployReady.enemy;
         this.deployCaughtUpFromPeer = this.deployReady.player;
@@ -3164,47 +3203,25 @@ export class Game {
     }
 
     /**
-     * Flips team and unit-id parity — translates actions between the two
-     * perspectives (the peer's 'player' is our 'enemy'; coordinates pass
-     * through untouched because both peers hold the identical board).
-     * NEW ACTION KINDS THAT CARRY UNIT IDS MUST BE ADDED HERE — a missed
-     * case desyncs peers silently.
-     */
-    private swapPerspective(action: Action): Action {
-        const team: Team = action.team === 'player' ? 'enemy' : 'player';
-        const flipId = (id: number) => (id % 2 === 0 ? id + 1 : id - 1);
-        switch (action.kind) {
-            case 'move':
-            case 'rotate':
-            case 'buyLevel':
-            case 'sellUnit':
-            case 'upgradeTower':
-            case 'applyItem':
-                return { ...action, team, unitId: flipId(action.unitId) };
-            case 'moveGroup':
-                return { ...action, team, unitIds: action.unitIds.map(flipId) };
-            default:
-                return { ...action, team };
-        }
-    }
-
-    /**
-     * Canonical (cross-client) rank for a LOCAL seat id: which side it
-     * belongs to canonically (host side always ranks first — both peers
-     * agree on this regardless of who's asking, exactly like the old
-     * hostParity did), then its position among that side's own seats.
-     * `unit.seat` itself is perspective-relative (0 = mine, on EVERY
-     * client), so this re-maps it into a value both clients compute
-     * identically for the SAME physical seat — needed wherever unit order
-     * must agree exactly (sim battle order, stateHash).
+     * Canonical (cross-client) rank for a seat id: which side it belongs to
+     * canonically (host side always ranks first — both peers agree on this
+     * regardless of who's asking), then its position among that side's own
+     * seats. `SeatId` itself is canonical now (host=0, guest=1 on every
+     * client — see the canonicalClassicSeats/localizeRoster construction in the
+     * constructor), but this stays a distinct concept: it's a RANK for
+     * ordering purposes (sim battle order, stateHash), not just the seat
+     * number — needed because a canonical roster can interleave sides by
+     * index (e.g. a future N-side mode), so "host side first" isn't
+     * automatically true of the raw seat number alone.
      */
     private seatRank(seat: SeatId): number {
         const def = this.seats[seat];
         if (!def) return 0;
-        const hostSide: Team = this.side === 'a' ? 'player' : 'enemy';
-        const isHostSide = def.team === hostSide;
-        const within = seatIdsOf(this.seats, def.team).indexOf(seat);
-        return (isHostSide ? 0 : 1000) + within;
+        // `def.side` is canonical now (0 = 'a'/host, on every client) — no
+        // per-client reordering needed, and this generalizes to N sides
+        // for free (side 2 ranks 2000+, etc.), not just today's pair.
+        const within = sideIdsOf(this.seats, def.side).indexOf(seat);
+        return def.side * 1000 + within;
     }
 
     /** canonical state fingerprint, exchanged at battle start to catch desyncs */
@@ -3216,15 +3233,14 @@ export class Game {
             h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
             h = Math.imul(h ^ buffer.getUint32(4), 0x9e3779b1);
         };
-        const hostFirst = (player: number, enemy: number) =>
-            this.side === 'a' ? [player, enemy] : [enemy, player];
         mix(this.round);
-        for (const v of hostFirst(this.playerHp, this.enemyHp)) mix(v);
-        // every seat's balance: host-side seats first, roster order within a side
-        // (for the classic two-seat roster this is exactly the old two-value mix)
-        const teamOrder: Team[] = this.side === 'a' ? ['player', 'enemy'] : ['enemy', 'player'];
-        for (const t of teamOrder) {
-            for (const seat of seatIdsOf(this.seats, t)) mix(this.economy.balance(seat));
+        // `hp`/`side` are canonical now (0 = 'a'/host, on every client) — no
+        // per-client reordering needed (that's what the old hostFirst/
+        // teamOrder tricks existed for), and this iterates however many
+        // sides the roster actually has, not just today's pair.
+        for (const v of this.hp) mix(v);
+        for (let s = 0; s < sideCount(this.seats); s++) {
+            for (const seat of sideIdsOf(this.seats, s)) mix(this.economy.balance(seat));
         }
         for (const a of this.sim?.actors ?? []) {
             // canonicalize: the seat's own counter (client-independent —
@@ -3399,14 +3415,17 @@ export class Game {
             this.syncSpecialities();
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
-            const seat: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            this.mirrorBuildToSpectators(msg, seat);
-            this.remoteQueue.push({ round: msg.round, action: msg.action });
+            const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
+            this.mirrorBuildToSpectators(msg, side);
+            // trust the CONNECTION's identity for who this is, never the
+            // message's own claimed seat — same reasoning as onStarMessage's
+            // host path using `fromSeat` instead of `msg.action.seat`
+            this.remoteQueue.push({ round: msg.round, action: msg.action, seat: this.peerSeat() });
             this.drainRemoteQueue();
         } else if (msg.type === 'undo') {
-            const seat: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            this.mirrorBuildToSpectators(msg, seat);
-            this.remoteQueue.push({ round: msg.round, undo: true });
+            const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
+            this.mirrorBuildToSpectators(msg, side);
+            this.remoteQueue.push({ round: msg.round, undo: true, seat: this.peerSeat() });
             this.drainRemoteQueue();
         } else if (msg.type === 'check') {
             this.peerChecks.set(msg.round, msg.hash);
@@ -3470,17 +3489,6 @@ export class Game {
             if (this.side !== 'a' || !this.spectatorHub) return;
             if (msg.seat !== 'b') return;
             this.spectatorHub.setSeatLive(msg.spectatorName, msg.seat, msg.grant);
-            this.notifySpectatorLiveWant();
-        } else if (msg.type === 'spectatorWantsLive') {
-            // guest only: bypass the wire-fog buffer for the spectator
-            // side channel while at least one spectator has live vision on
-            // this seat (see sendPlayerBuildMessage/spectatorFeed)
-            this.spectatorWantsMyLive = msg.want;
-        } else if (msg.type === 'spectatorFeed') {
-            // host only: relay straight to spectators — deliberately NEVER
-            // touches remoteQueue/the dispatcher, or the opponent player
-            // would see the guest's still-withheld action early too
-            this.mirrorBuildToSpectators(msg.payload, 'b');
         } else if (msg.type === 'deployCaughtUp') {
             const peerSeat: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
             this.mirrorToSpectators({ type: 'deployCaughtUp', round: msg.round, side: peerSeat });
@@ -3585,47 +3593,52 @@ export class Game {
             if (head.round !== this.round || this.phase !== 'build') return;
             this.remoteQueue.shift();
             // NOTE: deliberately no "peer's seat already locked in, skip"
-            // guard here (unlike drainStarRemoteQueue). Classic 1v1 sends
-            // endDeployment as an immediate gate signal that bypasses the
-            // sender's own outbound build buffer (see sendPlayerBuildMessage
-            // / flushOutboundBuildBuffer) — so on the wire, the peer's
-            // endDeployment can (and typically does) arrive BEFORE the
-            // peer's own earlier, still-buffered build actions (a move/buy
-            // made before they locked in). Those actions set seatReady
-            // false→true only once actually dispatched, which happens right
-            // here — so a "the seat is already ready, this must be illegal"
-            // check would (and did) discard genuinely pre-lock-in content
-            // just because it arrived late, desyncing state hashes at
-            // battle start (repro: move a unit, then End Deployment). Star
-            // mode has no such reordering (every seat sends immediately,
-            // no local buffering — see sendStarBuildMessage's doc comment),
-            // so its equivalent guard in drainStarRemoteQueue stays valid.
+            // guard here (unlike drainStarRemoteQueue). Classic 1v1's
+            // outbound buffer releases when the RECIPIENT locks in, not the
+            // sender (see outboundBuildBuffer's doc comment) — so the
+            // peer's endDeployment (sent immediately, gate bypass) reaches
+            // us BEFORE the peer's own earlier, still-buffered build
+            // actions (a move/buy made before they locked in, released
+            // only once THEY observe OUR lock, which may be well after
+            // their endDeployment already arrived). Those actions set
+            // seatReady false→true only once actually dispatched, which
+            // happens right here — so a "the seat is already ready, this
+            // must be illegal" check would (and did) discard genuinely
+            // pre-lock-in content just because it arrived late, desyncing
+            // state hashes at battle start (repro: move a unit, then End
+            // Deployment). Star mode has no such reordering (every seat
+            // sends immediately, no local buffering — see
+            // sendStarBuildMessage's doc comment), so its equivalent guard
+            // in drainStarRemoteQueue stays valid.
+            // `head.seat` is the CONNECTION-trusted seat (see peerSeat's doc
+            // comment), never the message's own claimed seat — classic 1v1
+            // has exactly one peer, so it's a fixed identity, not something
+            // to trust from content.
             if (head.undo) {
-                this.dispatcher.undoLast(head.round, primarySeatOf(this.seats, 'enemy'));
+                this.dispatcher.undoLast(head.round, head.seat!);
             } else if (head.action) {
-                const translated = this.translateRemote(head.action);
-                if (translated) this.dispatcher.dispatch(translated);
+                // seat ids are canonical on every client now (host=0,
+                // guest=1 — see the canonicalClassicSeats/localizeRoster
+                // construction in the constructor), so no id/team flip is
+                // needed, same as drainStarRemoteQueue. `team` is still
+                // whatever the SENDER's own local roster calls its side —
+                // re-derive it fresh from OUR OWN roster, keyed by the
+                // trusted seat.
+                const seat = head.seat!;
+                const team = this.seats[seat]?.team;
+                if (team) this.dispatcher.dispatch({ ...head.action, team, seat });
             }
             this.syncRallyVisuals();
         }
     }
 
-    /** a streamed peer action, validated and flipped into our perspective */
-    private translateRemote(action: Action): Action | null {
-        if (action.team !== 'player') return null; // peers only send their own side
-        const swapped = this.swapPerspective(action);
-        // seat ids are local roster indices — a peer's are meaningless here.
-        // Re-derive from the flipped team (1v1: the enemy side's only seat).
-        swapped.seat = primarySeatOf(this.seats, swapped.team);
-        return swapped;
-    }
-
     /**
-     * Star mode's own queue+drain, parallel to `drainRemoteQueue`/
-     * `translateRemote` — kept separate so the classic 1v1 path above is
-     * never touched. Canonical seat ids need no swapPerspective/id-flip:
-     * the seat already tells us exactly which physical commander this is,
-     * so we just look up OUR OWN local team for it and dispatch verbatim.
+     * Star mode's own queue+drain, parallel to `drainRemoteQueue` — kept
+     * separate for now so each mode's own quirks (see the reordering note
+     * on `drainRemoteQueue`) stay easy to reason about independently. The
+     * seat already tells us exactly which physical commander this is, so we
+     * just look up OUR OWN local team for it and dispatch — same pattern as
+     * `drainRemoteQueue` now uses too.
      *
      * Relay (host only — `relayStarBuildMessage` no-ops for a guest) always
      * happens AFTER the local dispatch, never before: relaying first would
@@ -5030,6 +5043,19 @@ export class Game {
             const key = `${a.unit.type.id}:${a.unit.seat}`;
             if (seenTypeSeat.has(key)) continue;
             seenTypeSeat.add(key);
+            // the horde pseudo-faction owns no economy/tech/boost/speciality
+            // state (see resolvedStats' own early return for it) — every
+            // per-seat table below is indexed by real seats only
+            if (a.unit.team === 'horde') {
+                statsRows.push({
+                    typeId: a.unit.type.id,
+                    seat: a.unit.seat,
+                    team: a.unit.team,
+                    level: a.unit.level,
+                    stats: this.resolvedStats(a.unit),
+                });
+                continue;
+            }
             statsRows.push({
                 typeId: a.unit.type.id,
                 seat: a.unit.seat,

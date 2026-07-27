@@ -1731,6 +1731,11 @@ export class Hud {
         this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
         this.shopColumn.classList.toggle('battle', phase === 'battle');
+        // locked in: nothing left to buy/use/undo — hide our own action UI
+        // entirely (not just dim it). The enemy's sidebar stays up (its
+        // items are already `readonly` display, not action buttons) since
+        // we can still watch what they're doing.
+        this.inventoryEl.classList.toggle('waiting', waitingForPeer);
         this.inventoryEl.classList.toggle('battle', phase === 'battle');
         this.enemyInventoryEl.classList.toggle('battle', phase === 'battle');
         this.phoneBar.classList.toggle('battle', phase === 'battle');

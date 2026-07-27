@@ -1238,7 +1238,7 @@ export function hudStyles(): string {
     user-select: none;
     pointer-events: none;
 }
-.mechili-shop-col.disabled { opacity: 0.35; pointer-events: none; }
+.mechili-shop-col.disabled { display: none; }
 .mechili-shop-col.battle { display: none; }
 .mechili-supply {
     display: flex;
@@ -1810,6 +1810,7 @@ export function hudStyles(): string {
     z-index: 60;
 }
 .mechili-sidebar.battle { display: none; }
+.mechili-sidebar.left.waiting { display: none; }
 /* the hover peek must not sit under the cursor — it would steal the hover
    from the commander card and flicker */
 .mechili-cards.detail.peek { pointer-events: none; }
