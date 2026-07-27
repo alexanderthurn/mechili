@@ -2806,11 +2806,14 @@ export class Game {
             // hardcodes 'enemy' for whatever it receives — see
             // onNetMessage's 'starter' handling below) — a spectator
             // watching both sides needs msg.side to know which one this is.
-            // No explicit `seat` on the dispatched action: actorSeat's own
-            // team-based fallback (primarySeatOf) resolves it correctly,
-            // exactly like the real players' own 'enemy'-side handling does.
+            // Explicit canonical `seat` (matching onNetMessage's own fix):
+            // actorSeat's team-based fallback resolves the same seat for an
+            // immediate dispatch, but that fallback is never persisted onto
+            // the logged action — a future re-export of this spectator's
+            // own log would silently mislabel this entry without it.
             const team: Team = msg.side === 'b' ? 'enemy' : 'player';
-            this.dispatcher.dispatch({ kind: 'chooseCard', team, cardId: msg.cardId });
+            const seat: SeatId = msg.side === 'a' ? 0 : 1;
+            this.dispatcher.dispatch({ kind: 'chooseCard', team, cardId: msg.cardId, seat });
             this.refreshShopHud();
             this.syncSpecialities();
             this.maybeStartMatch();
@@ -3481,7 +3484,17 @@ export class Game {
         if (this.disposed || this.matchOver) return;
         if (msg.type === 'starter') {
             this.mirrorToSpectators(msg);
-            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId });
+            // Stamp the trusted, canonical seat explicitly — actorSeat's own
+            // team-based fallback (primarySeatOf) resolves it correctly for
+            // an immediate dispatch, but that fallback is never persisted
+            // onto the logged action (serializable() returns it verbatim).
+            // A reconnecting peer's hydrate() later needs a real `seat` here
+            // to remap this entry's team into ITS OWN perspective — without
+            // it, the remap silently no-ops and the entry keeps OUR
+            // perspective's label, crediting the wrong seat's starterPicked
+            // flag on their end (repro: reconnect as the side that picked
+            // first — you get asked to pick again).
+            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId, seat: this.peerSeat() });
             this.refreshShopHud();
             this.syncSpecialities();
             this.maybeStartMatch();
@@ -3565,7 +3578,27 @@ export class Game {
             // guest only: bypass the wire-fog buffer for the spectator
             // side channel while at least one spectator has live vision on
             // this seat (see sendPlayerBuildMessage/spectatorFeed)
+            const wasWanted = this.spectatorWantsMyLive;
             this.spectatorWantsMyLive = msg.want;
+            // a grant newly turning on mid-round means spectatorFeed only
+            // covers actions from THIS point forward — anything already
+            // sitting in our own outboundBuildBuffer (bought/moved before
+            // the checkbox was clicked) was never sent anywhere, since it's
+            // still withheld from the opponent too. Without backfilling it
+            // here, it only reaches the spectator later via the real flush
+            // (once the opponent locks in) — arriving AFTER everything we
+            // sent live in between, so our own action stream would apply
+            // to the spectator's sim out of order (repro: buy/sell or move
+            // sequences depend on order — a spectator that dispatches them
+            // out of order can genuinely diverge, not just display wrong).
+            // Each backfilled message keeps its original seq, so the real
+            // flush later still dedupes it correctly (see
+            // mirrorBuildToSpectators).
+            if (msg.want && !wasWanted) {
+                for (const buffered of this.outboundBuildBuffer) {
+                    this.net?.send({ type: 'spectatorFeed', payload: buffered });
+                }
+            }
         } else if (msg.type === 'spectatorFeed') {
             // host only: relay straight to spectators — deliberately NEVER
             // touches remoteQueue/the dispatcher, or the opponent player
