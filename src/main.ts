@@ -470,7 +470,7 @@ menu.innerHTML = `
             </label>
             <label class="m-toggle-card">
                 <input type="radio" name="cgmode" value="2v2ai">
-                <span class="m-ico">🤖</span><span class="m-label">2v2 vs AI</span>
+                <span class="m-ico">🤖</span><span class="m-label">2vAI</span>
             </label>
         </div>
         <div class="m-field-grid">
@@ -729,6 +729,15 @@ function readCustomGameForm(): CustomGameConfig {
     };
 }
 
+/** undoes 'custom' case's wide-layout/no-logo treatment — shared by both
+ *  Back (return to the normal-width main menu) and actually hosting
+ *  (the shared waiting-for-connection status screen is normal-width too) */
+function closeCustomGameScreen(): void {
+    customEl.style.display = 'none';
+    menu.classList.remove('m-wide');
+    title.visible = true;
+}
+
 /** host a game with the Custom Game screen's current settings — 1v1 reuses
  *  the plain lobby host flow (settings applied via runPending's applyMode
  *  hook, same shape as the horde-only quickMatch case), 2v2/2v2ai reuse
@@ -737,7 +746,7 @@ function readCustomGameForm(): CustomGameConfig {
 function hostCustomGame(): void {
     const cfg = readCustomGameForm();
     saveCustomGameConfig(cfg);
-    customEl.style.display = 'none';
+    closeCustomGameScreen();
     mainButtonsEl.style.display = 'none';
     if (cfg.mode === '1v1') {
         runPending(hostLobby(setStatus), (settings) => applyCustomGameConfig(settings, cfg));
@@ -1059,7 +1068,7 @@ function returnToMenu(): void {
     spModeEl.style.display = 'none';
     mmModeEl.style.display = 'none';
     mmSimpleEl.style.display = 'none';
-    customEl.style.display = 'none';
+    closeCustomGameScreen();
     mainButtonsEl.style.display = '';
     pending?.cancel();
     pending = null;
@@ -2403,10 +2412,12 @@ menu.addEventListener('click', (e) => {
             mainButtonsEl.style.display = 'none';
             populateCustomGameForm(loadCustomGameConfig());
             customEl.style.display = '';
+            menu.classList.add('m-wide');
+            title.visible = false;
             break;
         }
         case 'cg-back':
-            customEl.style.display = 'none';
+            closeCustomGameScreen();
             mainButtonsEl.style.display = '';
             break;
         case 'cg-reset':

@@ -239,6 +239,17 @@ export function menuStyles(): string {
     font-family: system-ui, sans-serif;
     user-select: none;
 }
+/* Custom Game screen: wider, near-fullscreen, scrollable — the settings
+   form (mode + 4 timers + horde + roundcards) doesn't fit the normal
+   compact button-list width, and the logo (hidden separately via
+   title.visible) would just eat vertical space it needs instead. */
+.mechili-menu.m-wide {
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(720px, 94vw);
+    max-height: 92vh;
+    overflow-y: auto;
+}
 /* brass accent line across the top of the console */
 .mechili-menu::before {
     content: '';
@@ -570,7 +581,7 @@ export function menuStyles(): string {
 /* Custom Game screen: mode toggle reuses m-toggle-row/card above; these are
    just the timer/horde/roundcards form rows */
 .mechili-menu .m-custom { display: flex; flex-direction: column; align-items: stretch; gap: 14px; width: 100%; }
-.mechili-menu .m-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; width: 100%; }
+.mechili-menu .m-field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 14px; width: 100%; }
 .mechili-menu .m-field {
     display: flex;
     flex-direction: column;
