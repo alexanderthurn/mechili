@@ -899,8 +899,24 @@ function returnToMenu(): void {
     setGameLayerVisible(false);
     title.visible = true;
     layoutTitle();
-    app.renderer.on('resize', layoutTitle);
     app.render();
+    // Reset to the top-level panel regardless of which sub-panel was
+    // showing when the match started (Matchmaking/Single Player/Rooms all
+    // hide mainButtonsEl and show their own panel, but nothing was ever
+    // resetting that back on return — the menu container itself became
+    // visible again via setMenuChromeVisible below, but with every child
+    // still hidden from mid-flow, rendering as an empty, collapsed frame;
+    // a spectator reaches the game through a different button entirely
+    // and never touches these, which is why only real players hit this).
+    spModeEl.style.display = 'none';
+    mmModeEl.style.display = 'none';
+    mmSimpleEl.style.display = 'none';
+    lobbyEl.style.display = 'none';
+    mainButtonsEl.style.display = '';
+    stopRoomPoll();
+    pending?.cancel();
+    pending = null;
+    cancelStarHost();
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
     wrapper.appendChild(versionEl);
