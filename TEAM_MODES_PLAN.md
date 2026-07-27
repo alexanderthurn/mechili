@@ -471,10 +471,13 @@ message; `localizeRoster()` is the *only* place a canonical seat becomes
 a client's own local `SeatDef[]` (team relabeled to the viewer's
 perspective, array order/index preserved). Everything downstream —
 economy, zones, AI, HUD, unit ids — consumes the result exactly like the
-already-built local duo roster, unaware a seat is networked. `swapPerspective`
-and the id-parity trick are untouched and **still used for classic 1v1**
-— a new, fully separate code path handles star mode, gated on
-`settings.seats.length > 2`, so 1v1 carries zero risk from any of this.
+already-built local duo roster, unaware a seat is networked. **Update
+(2026-07-27, see §3c): classic 1v1 now uses this same canonical model
+too** — `swapPerspective`/`translateRemote` and the unit-id parity trick
+described here as "untouched" are deleted; both were always meant to be
+temporary (§2's "Canonical everything"), and once star mode proved
+canonical seats work, there was no reason left for 1v1 to keep its own
+translation layer.
 
 **Gating, generalized.** Battle-start and next-round transitions are both
 host-arbitrated single broadcasts (`starBattleStart`, `starNextRound`),
@@ -494,9 +497,103 @@ with a "give up" button, no redial/grace window/host migration).
 
 **What's deferred, not silently dropped:** the mesh itself (§3, if the
 listen-server tradeoff ever needs closing for real), matchmaking-queue-
-based 2v2 pairing (§10), spectators for star matches, a live seat-picker
-for waiting guests (they just see "waiting for host," no roster preview),
-and full reconnect (resume/redial/grace window/host migration).
+based 2v2 pairing (§10), a live seat-picker for waiting guests (they just
+see "waiting for host," no roster preview), and full reconnect (resume/
+redial/grace window/host migration). Spectators for star matches
+shipped since this was written — `SpectatorHub` extends to a star host
+exactly as §5b already described.
+
+---
+
+## 3c. Netcode cleanup (2026-07-27): canonical 1v1, N-side HP, one vision predicate
+
+Zero live players, so this was the calm-period cleanup pass §0 always
+called for. What actually shipped, and — as important — what turned out
+*not* to be worth doing once real testing pushed back:
+
+**Landed.**
+- Classic 1v1 rebuilt on canonical seats from construction (host = seat
+  0/side `'a'`, guest = seat 1/side `'b'`, via `canonicalClassicSeats` +
+  `localizeRoster` — the exact same construction star mode already used).
+  `swapPerspective`/`translateRemote` and the unit-id parity trick are
+  gone; every remote-action consumer re-derives `team` fresh from its own
+  `seats[seat].team`, the same pattern `drainStarRemoteQueue` already used.
+  A new `peerSeat()` closed a real trust gap along the way: classic 1v1's
+  one peer connection is a fixed identity by `this.side`, never something
+  to trust from a message's own claimed `seat` field.
+- Side-keyed state generalized to N (Tier 2, §2b) for the pieces actually
+  touched: `SeatDef.side: SideId` (canonical, numeric), `sideIdsOf`/
+  `sideOf`/`sideCount` helpers, match HP as a real `hp: number[]` per-side
+  array (with `playerHp`/`enemyHp` kept as get/set accessors — "mine" vs.
+  "everyone else, combined" — so ~30 existing call sites needed zero
+  changes), and `stateHash`/`seatRank` iterating canonical side order
+  instead of a per-client-relabeled one. `CanonicalSeatDef.side` itself
+  stays `'a'|'b'` — true N-side roster construction (a 3rd side as a menu
+  option) is still deferred, this only made the *state*, not the roster
+  shape, N-ready.
+- `StarHub` and `SpectatorHub` shared the same "per-viewer buffer, flush
+  what's newly revealable, send-or-buffer this message" shape with two
+  separately-written gate checks. Extracted one `VisionPolicy`/
+  `isRevealable` predicate in `net.ts` that both delegate to now — verified
+  by hand to be exactly behavior-preserving before shipping, since neither
+  hub's call sites needed to change.
+- The `spectatorFeed`/`spectatorWantsLive` side channel and its `seq`
+  dedup are deleted. They existed only because a classic-1v1 guest's
+  build actions were invisible to the *host itself* until mutual lock-in,
+  so a live-vision-granted spectator needed a bypass to see them early.
+  That premise never changed (see below) — the channel is gone because,
+  once `mirrorBuildToSpectators` already fires exactly once per real
+  action, a second delivery path was pure duplication, not because the
+  underlying fog model changed. `GAME_VERSION` bumped 14→15.
+
+**Tried, then reverted after live testing.** The first attempt at this
+cleanup assumed classic 1v1's sender-side fog buffer (§5b: released once
+the *receiving* player locks in) could simply be deleted to "match star
+mode," reasoning that render-time fog (`PlacementController`/
+`enemyIntelSnapshot`) alone was proven sufficient. Two live-tested
+regressions followed, in order:
+1. Removing the buffer entirely (stream every action immediately) meant
+   *neither* side ever had wire-level withholding — weaker than star
+   mode's own `sideLocked` gate, and a real regression (a devtools-
+   reading opponent could watch you decide in real time, not just after
+   you'd locked in).
+2. The fix-for-that (flip the release trigger to "I release once **I've**
+   locked in," matching star's per-side gate) was safe but silently
+   dropped a real, intentional feature: today's actual design lets the
+   side that locked in first keep watching the other decide, live, right
+   up until battle starts — safe because a locked side can't act on
+   anything it sees. Live testing caught this immediately ("ended
+   deployment... was not able to see what the enemy is doing").
+
+Net result: **classic 1v1's fog buffer is unchanged from before this
+session** (§5b's "trust model" section above was, and still is, accurate)
+— only the redundant `spectatorFeed` plumbing around it is gone. The
+lesson generalizes: this codebase already had two *different*, each
+individually-correct fog algorithms for two different topologies (direct
+P2P vs. host-relay); "unify them" was the wrong frame. B2 (merging
+`sendPlayerBuildMessage`/`sendStarBuildMessage`) was dropped for the same
+reason once this became clear.
+
+**Also fixed along the way (not netcode, but found while testing it):**
+locking in used to disable `PlacementController` entirely
+(`enabled = false`), which also silently froze `applyIntelFog`/level
+arrows/item badges — so a locked-in player couldn't see the opponent's
+remaining moves render, inspect any pack, or see upgrade-ready arrows,
+even though the underlying data was arriving correctly. Mutation was
+already independently safe via `dispatchPlayer`'s `seatReady` gate, so
+`enabled` no longer gets set false on lock-in; the arrow's own
+`canLevel`/`playerCanAct` gate got the same fix spectator mode already
+needed (route through gate-free `packUpgradeReady` instead). The shop
+and the player's own item/tactics sidebar now fully hide (not just dim)
+while waiting, since nothing there still works.
+
+**Deliberately not attempted this pass:** Phase C (a unified
+`eventsSince(seat, seq)` replacing reconnect/spectate-catchup/desync-
+resync's three separate mechanisms). Every "safe-looking" change above
+needed a live multi-client test to actually verify — reconnect and
+spectator-catchup are exactly the kind of code where a regression stays
+invisible until someone needs it mid-match. Revisit with real test
+capacity, not blind.
 
 ---
 
