@@ -899,6 +899,7 @@ function returnToMenu(): void {
     setGameLayerVisible(false);
     title.visible = true;
     layoutTitle();
+    app.renderer.on('resize', layoutTitle);
     app.render();
     // Reset to the top-level panel regardless of which sub-panel was
     // showing when the match started (Matchmaking/Single Player/Rooms all
