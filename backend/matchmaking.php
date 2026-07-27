@@ -8,18 +8,23 @@
  *   ?action=join&peer=<peerjs-id>
  *       Quick match: pair with another waiting quick-match peer, or queue.
  *       {"match":"<their-peer-id>"|null}
- *   ?action=host&peer=<peerjs-id>&name=<display-name>
+ *   ?action=host&peer=<peerjs-id>&name=<display-name>&mode=<1v1|2v2>
  *       Register a public custom room (heartbeat via repeat calls).
+ *       mode is a display/routing hint only (default "1v1") — the room list
+ *       shows it so a joiner knows which connection flow to use.
  *       {"ok":true} or {"error":"..."}
  *   ?action=list
- *       Open public rooms: {"rooms":[{"name":"...","peer":"..."}]}
+ *       Open public rooms AND currently-running (spectatable) matches:
+ *       {"rooms":[{"name":"...","peer":"...","mode":"...","kind":"lobby"|"spectate"}]}
+ *       `kind=lobby` rows are joinable (waiting for a player); `kind=spectate`
+ *       rows are a running match — connect to `peer` as a spectator instead.
  *   ?action=leave&peer=<peerjs-id>
  *       Remove the caller's queue, lobby, or spectate entry.
- *   ?action=spectate-register&peer=<peerjs-id>&name=<room-name>
+ *   ?action=spectate-register&peer=<peerjs-id>&name=<room-name>&mode=<1v1|2v2>
  *       Register/heartbeat a live match's spectator broadcast endpoint —
  *       same shape as ?action=host, but tagged kind=spectate and kept alive
  *       for the WHOLE match (not just pre-match), so a match stays
- *       discoverable-for-watching after it starts. Not shown by ?action=list.
+ *       discoverable-for-watching after it starts. Shown by ?action=list.
  *   ?action=spectate-lookup&name=<room-name>
  *       Find a live match's spectate endpoint by room name.
  *       {"peer":"<peerjs-id>"|null}
@@ -38,6 +43,8 @@ header('Cache-Control: no-store');
 $action = $_GET['action'] ?? '';
 $peer = $_GET['peer'] ?? '';
 $name = trim($_GET['name'] ?? '');
+$mode = trim($_GET['mode'] ?? '1v1');
+if (!in_array($mode, ['1v1', '2v2'], true)) $mode = '1v1';
 
 if ($action === 'list') {
     $fp = fopen(STORE, 'c+');
@@ -53,9 +60,15 @@ if ($action === 'list') {
     $now = time();
     $open = [];
     foreach ($rooms as $r) {
-        if (($r['kind'] ?? '') !== 'lobby') continue;
+        $kind = $r['kind'] ?? '';
+        if ($kind !== 'lobby' && $kind !== 'spectate') continue;
         if ($now - ($r['ts'] ?? 0) > TTL) continue;
-        $open[] = ['name' => $r['name'] ?? '', 'peer' => $r['peer'] ?? ''];
+        $open[] = [
+            'name' => $r['name'] ?? '',
+            'peer' => $r['peer'] ?? '',
+            'mode' => $r['mode'] ?? '1v1',
+            'kind' => $kind,
+        ];
     }
     echo json_encode(['rooms' => $open]);
     exit;
@@ -130,7 +143,7 @@ if ($action === 'leave') {
     }
     // one lobby entry per peer id; name is the display label
     $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
-    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'lobby', 'ts' => $now];
+    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'lobby', 'mode' => $mode, 'ts' => $now];
     echo json_encode(['ok' => true]);
     ftruncate($fp, 0);
     rewind($fp);
@@ -149,7 +162,7 @@ if ($action === 'leave') {
     }
     // one spectate entry per peer id; name is the room it's spectating for
     $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
-    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'spectate', 'ts' => $now];
+    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'spectate', 'mode' => $mode, 'ts' => $now];
     echo json_encode(['ok' => true]);
     ftruncate($fp, 0);
     rewind($fp);

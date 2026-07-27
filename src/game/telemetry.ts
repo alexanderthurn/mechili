@@ -12,7 +12,7 @@ import type { Team, Unit } from './units';
 /** bumped when economy / unit numbers change for balance comparison (independent of GAME_VERSION) */
 export const BALANCE_PATCH_ID = '1';
 
-export type MatchMode = 'ai' | 'mp';
+export type MatchMode = 'ai' | 'mp' | '2v2';
 export type MatchResult = 'victory' | 'defeat' | 'draw';
 
 export interface UnitPresence {
@@ -29,6 +29,13 @@ export interface MatchTelemetry {
     balancePatchId: string;
     mode: MatchMode;
     side: 'a' | 'b';
+    /** 'player': the match's own end-of-game report (default, omitted =
+     *  'player' for records predating this field). 'verify': a later
+     *  headless re-check (Game's `replay.verify`, main.ts's
+     *  verifyReplayAndReturn) re-submitting the recomputed result —
+     *  stats.php's per-side dedupe means a matching one never creates a
+     *  new file; a mismatching one does, which is the point. */
+    source?: 'player' | 'verify';
     result: MatchResult;
     rounds: number;
     playerHp: number;
@@ -51,7 +58,7 @@ const SUBMIT_TIMEOUT_MS = 8_000;
 export function summarizeUnits(units: readonly Unit[]): Record<Team, Record<string, UnitPresence>> {
     const out: Record<Team, Record<string, UnitPresence>> = { player: {}, enemy: {} };
     for (const u of units) {
-        if (u.type.structure) continue;
+        if (u.type.structure || u.team === 'horde') continue; // horde stays out of balance data
         const bag = out[u.team];
         const cur = bag[u.type.id] ?? { count: 0, levels: 0 };
         cur.count += 1;
@@ -63,19 +70,18 @@ export function summarizeUnits(units: readonly Unit[]): Record<Team, Record<stri
 
 /**
  * Fetch a previously-submitted match by id — everything needed to replay it
- * is already in `replay` (same seed+settings+action-log shape `hydrate()`
- * already knows how to rebuild from for reconnects). Returns null on any
- * failure (not found, unreachable, bad id) rather than throwing; callers
- * decide how to surface that.
- *
- * NOTE: this only covers fetching a stored match by id — an actual
- * watchable playback mode (stepping through the log at a natural pace with
- * pause/speed/scrub controls, instead of hydrate()'s headless fast-forward)
- * is separate, not-yet-built work.
+ * is already in `replay` (same seed+settings+action-log shape a watch-mode
+ * `Game` plays back at a natural pace). Returns null on any failure (not
+ * found, unreachable, bad id) rather than throwing; callers decide how to
+ * surface that. `side` disambiguates the rare case where two different
+ * sides' records share a content-fingerprint id (see stats.php) — pass it
+ * whenever the caller already knows which side's record it wants (e.g. a
+ * specific "Watch" link in replays.html).
  */
-export async function fetchMatchReplay(id: string): Promise<MatchTelemetry | null> {
+export async function fetchMatchReplay(id: string, side?: 'a' | 'b'): Promise<MatchTelemetry | null> {
     try {
-        const res = await fetch(`${statsUrl()}?action=get&id=${encodeURIComponent(id)}`);
+        const sideParam = side ? `&side=${encodeURIComponent(side)}` : '';
+        const res = await fetch(`${statsUrl()}?action=get&id=${encodeURIComponent(id)}${sideParam}`);
         if (!res.ok) return null;
         const data = (await res.json()) as Partial<MatchTelemetry> | null;
         if (!data || !data.replay) return null;

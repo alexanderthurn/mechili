@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MECHILI — match replays</title>
+  <style>
+    :root {
+      --bg: #1a1814;
+      --panel: #242018;
+      --ink: #e8e0d0;
+      --muted: #9a9080;
+      --accent: #c4a574;
+      --line: #3a3428;
+      --good: #7a9e6a;
+      --bad: #b86a5a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 24px;
+    }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 4px; letter-spacing: 0.02em; }
+    .sub { color: var(--muted); margin-bottom: 20px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 16px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+    input, select, button {
+      font: inherit;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--panel);
+      color: var(--ink);
+    }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #1a1814;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .status { color: var(--muted); min-height: 1.2em; margin-bottom: 16px; }
+    .groups { display: flex; flex-direction: column; gap: 4px; }
+    .group {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .group-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .group-head:hover { background: #2a2519; }
+    .group-head .chevron { color: var(--muted); font-size: 11px; width: 1em; }
+    .badge {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    .badge.verified { color: var(--good); border-color: var(--good); }
+    .badge.unverified { color: var(--muted); }
+    .badge.mismatch { color: var(--bad); border-color: var(--bad); }
+    .score-line { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+    .score-line .side-name { font-weight: 600; }
+    .score-line .side-name.winner { color: var(--good); font-weight: 700; }
+    .score-line .side-name.loser { opacity: 0.55; font-weight: 400; }
+    .score-line .side-name.draw { color: var(--muted); }
+    .score-line .score { font-variant-numeric: tabular-nums; color: var(--muted); }
+    .score-line .vs { color: var(--muted); font-size: 12px; }
+    .when, .mode-tag { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .group-body { display: none; padding: 4px 12px 12px; border-top: 1px solid var(--line); }
+    .group.open .group-body { display: block; }
+    .group.open .chevron { transform: rotate(90deg); display: inline-block; }
+    .verify-summary { margin: 4px 0 10px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .verify-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); font-size: 11px; white-space: nowrap; }
+    .verify-chip.ok { color: var(--good); border-color: var(--good); }
+    .verify-chip.bad { color: var(--bad); border-color: var(--bad); }
+    .verify-chip .vc-meta { color: var(--muted); }
+    .records { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
+    .rec {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px 10px;
+      background: #1e1b15;
+    }
+    .rec .name { font-weight: 600; }
+    .rec .source-tag { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; margin-left: 6px; text-transform: uppercase; }
+    .rec .vs { color: var(--muted); }
+    .rec .result { font-weight: 600; }
+    .rec .result.victory { color: var(--good); }
+    .rec .result.defeat { color: var(--bad); }
+    .rec .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .rec .raw-link { font-size: 12px; margin-top: 6px; margin-right: 8px; display: inline-block; cursor: pointer; color: var(--accent); }
+    .rec pre {
+      margin-top: 8px;
+      max-height: 220px;
+      overflow: auto;
+      background: #14120e;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 11px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 24px; max-width: 52em; }
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+      display: flex; align-items: center; justify-content: center; z-index: 10;
+    }
+    .modal {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 20px 22px; max-width: 560px; width: calc(100% - 40px); max-height: 80vh;
+      overflow: auto;
+    }
+    .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    .modal .summary-counts { display: flex; gap: 16px; margin-bottom: 14px; }
+    .modal .summary-counts .n { font-size: 1.4rem; font-weight: 700; }
+    .modal .summary-counts .good .n { color: var(--good); }
+    .modal .summary-counts .bad .n { color: var(--bad); }
+    .modal .mismatch-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .modal .mismatch-list .item { border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; font-size: 12px; }
+    .modal .mismatch-list .item .n2 { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>Match replays</h1>
+  <p class="sub">Every real client submits its own replay at match end — records sharing a matchKey are the same match (plus any later Verify re-checks).</p>
+
+  <div class="row">
+    <label>API base
+      <input id="api" size="40" value="" placeholder="stats.php" />
+    </label>
+    <label>Mode
+      <select id="mode">
+        <option value="all">all</option>
+        <option value="mp">multiplayer</option>
+        <option value="ai">vs AI</option>
+        <option value="2v2">2v2</option>
+      </select>
+    </label>
+    <label>Version
+      <input id="version" size="6" placeholder="any" />
+    </label>
+    <label>Status
+      <select id="status">
+        <option value="all">all</option>
+        <option value="verified">verified</option>
+        <option value="unverified">unverified</option>
+        <option value="mismatch">mismatch</option>
+      </select>
+    </label>
+    <label>Limit
+      <input id="limit" size="6" value="100" />
+    </label>
+    <button id="load">Load</button>
+    <button id="bulk-verify" title="Re-checks every original (non-verify) record currently shown by re-simulating it headlessly">⚡ Bulk Verify</button>
+  </div>
+  <div class="status" id="status-line">Ready.</div>
+
+  <div class="groups" id="groups"></div>
+
+  <p class="hint">
+    "Verified" means at least one ⚡ Verify re-check (a headless re-simulation
+    of the stored action log) has been run against this match and nothing it
+    touched disagreed — with itself, or with the opposing side. "Unverified"
+    just means no one has run Verify on it yet (solo matches — only one side
+    ever submitted — count the same as paired ones here; whether both sides
+    reported is shown in the score line, not the badge). "Mismatch" means a
+    disagreement was found — between two records on the same side, between
+    the two sides, or between an original submission and a later Verify.
+    Click a row to expand it: it lists every Verify run so far (who, when,
+    match/mismatch), plus the full raw record per submission.
+  </p>
+
+  <script>
+    const apiInput = document.getElementById('api');
+    const statusEl = document.getElementById('status-line');
+    const groupsEl = document.getElementById('groups');
+    // the groups currently on screen after filtering — Bulk Verify works off
+    // exactly what's visible, not the full unfiltered fetch
+    let lastFilteredGroups = [];
+
+    // default: same folder as this page
+    apiInput.value = new URL('stats.php', location.href).href;
+
+    document.getElementById('load').addEventListener('click', () => load().catch((e) => {
+      statusEl.textContent = 'Failed: ' + (e.message || e);
+    }));
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[c]);
+    }
+
+    function fmtTime(ts) {
+      if (!ts) return '—';
+      return new Date(ts * 1000).toLocaleString();
+    }
+
+    /**
+     * Cheap consistency + verification check on already-submitted summary
+     * fields — not a real divergence check (that needs actually
+     * re-simulating each side's action log, which is exactly what a Verify
+     * run does). Generalizes to N records per side (verify re-checks can
+     * add more than one per side): every record on a side must agree with
+     * every other record on that side (result/rounds/HP), and — when both
+     * sides have reported — the two sides' results must complement.
+     * "Verified" and "solo" are independent of each other on purpose: a
+     * solo match (only one side ever submitted) can still be verified by
+     * re-checking that lone side's own action log.
+     */
+    function analyzeGroup(records) {
+      const aRecords = records.filter((r) => r.side === 'a');
+      const bRecords = records.filter((r) => r.side === 'b');
+      const sameSideAgree = (list) => list.every((r) =>
+        r.result === list[0].result && r.rounds === list[0].rounds &&
+        r.playerHp === list[0].playerHp && r.enemyHp === list[0].enemyHp);
+      const aAgree = aRecords.length === 0 || sameSideAgree(aRecords);
+      const bAgree = bRecords.length === 0 || sameSideAgree(bRecords);
+      let crossOk = true;
+      if (aRecords.length && bRecords.length) {
+        const a = aRecords[0], b = bRecords[0];
+        const oppositeResults =
+          (a.result === 'victory' && b.result === 'defeat') ||
+          (a.result === 'defeat' && b.result === 'victory') ||
+          (a.result === 'draw' && b.result === 'draw');
+        crossOk = oppositeResults && a.rounds === b.rounds;
+      }
+      const mismatch = !aAgree || !bAgree || !crossOk;
+      // an exactly-matching Verify re-check dedupes away server-side and
+      // never becomes its own record — it instead bumps verifiedCount on
+      // the record it matched (see stats.php's recordVerification), so the
+      // true count is discrepant verify records (each their own row) PLUS
+      // matching ones tracked as a counter on the original.
+      const verifyRecords = records.filter((r) => r.source === 'verify');
+      const dedupedVerifies = records.reduce((sum, r) => sum + (r.verifiedCount || 0), 0);
+      return {
+        solo: aRecords.length === 0 || bRecords.length === 0,
+        mismatch,
+        verified: !mismatch && (verifyRecords.length > 0 || dedupedVerifies > 0),
+        verifyCount: verifyRecords.length + dedupedVerifies,
+        verifyRecords,
+      };
+    }
+
+    /** the canonical record to show as "the" score for a side — the
+     *  original player report if one exists, else whatever's there */
+    function primaryForSide(records, side) {
+      return records.find((r) => r.side === side && r.source !== 'verify') ||
+        records.find((r) => r.side === side) || null;
+    }
+
+    function resultClass(result) {
+      return result === 'victory' ? 'winner' : result === 'defeat' ? 'loser' : 'draw';
+    }
+
+    /** left-vs-right score line for the collapsed row, winner highlighted.
+     *  Solo matches (only one side ever submitted) still get a full "vs"
+     *  line — a single record already carries both playerHp and enemyHp
+     *  from its own perspective, so no second record is needed. */
+    function renderScoreLine(records) {
+      const a = primaryForSide(records, 'a');
+      const b = primaryForSide(records, 'b');
+      let left, right;
+      if (a && b) {
+        left = { name: a.names.local || 'Side A', score: a.playerHp, result: a.result };
+        right = { name: b.names.local || 'Side B', score: b.playerHp, result: b.result };
+      } else {
+        const solo = a || b;
+        if (!solo) return '';
+        const opposite = solo.result === 'victory' ? 'defeat' : solo.result === 'defeat' ? 'victory' : 'draw';
+        left = { name: solo.names.local || '(unknown)', score: solo.playerHp, result: solo.result };
+        right = { name: solo.names.opponent || 'AI', score: solo.enemyHp, result: opposite };
+      }
+      const leftCls = resultClass(left.result);
+      const rightCls = resultClass(right.result);
+      const crown = (cls) => (cls === 'winner' ? '🏆 ' : '');
+      return `<span class="score-line">
+        <span class="side-name ${leftCls}">${crown(leftCls)}${escapeHtml(left.name)}</span>
+        <span class="score">${left.score}</span>
+        <span class="vs">vs</span>
+        <span class="score">${right.score}</span>
+        <span class="side-name ${rightCls}">${crown(rightCls)}${escapeHtml(right.name)}</span>
+      </span>`;
+    }
+
+    /** per-match Verify history — who ran it and whether it matched — shown
+     *  only when the row is expanded (the collapsed badge already carries
+     *  the count via analyzeGroup().verifyCount). Two kinds of evidence:
+     *  a discrepant verify gets its own stored record (source: 'verify');
+     *  a matching one leaves no record of its own, just a verifiedCount/
+     *  lastVerifiedAt bump on the record it matched — both are shown. */
+    function renderVerifySummary(records, info) {
+      const chips = [];
+      for (const r of records) {
+        if (r.source === 'verify' || !r.verifiedCount) continue;
+        chips.push(`<span class="verify-chip ok">✓ ${escapeHtml(r.names.local || '(unknown)')}` +
+          `<span class="vc-meta">side ${escapeHtml(r.side)} · verified ×${r.verifiedCount} · last ${fmtTime(r.lastVerifiedAt)}</span></span>`);
+      }
+      for (const r of info.verifyRecords) {
+        const baseline = records.find((o) => o.side === r.side && o.source !== 'verify' && o !== r);
+        const matches = !baseline ||
+          (r.result === baseline.result && r.rounds === baseline.rounds &&
+            r.playerHp === baseline.playerHp && r.enemyHp === baseline.enemyHp);
+        const cls = matches ? 'ok' : 'bad';
+        const icon = matches ? '✓' : '⚠';
+        chips.push(`<span class="verify-chip ${cls}">${icon} ${escapeHtml(r.names.local || '(unknown)')}` +
+          `<span class="vc-meta">side ${escapeHtml(r.side)} · ${fmtTime(r.ts)}</span></span>`);
+      }
+      if (chips.length === 0) return '<div class="verify-summary">No verifications yet.</div>';
+      return `<div class="verify-summary"><strong>Verifications (${info.verifyCount}):</strong>${chips.join('')}</div>`;
+    }
+
+    function renderGroup(group, idx) {
+      const records = group.records.slice().sort((r1, r2) => (r1.side < r2.side ? -1 : 1));
+      const info = analyzeGroup(records);
+      const status = info.mismatch ? 'mismatch' : info.verified ? 'verified' : 'unverified';
+      const badge =
+        status === 'mismatch' ? '<span class="badge mismatch">⚠ mismatch</span>'
+        : status === 'verified' ? `<span class="badge verified">✓ verified${info.verifyCount > 1 ? ` ×${info.verifyCount}` : ''}</span>`
+        : '<span class="badge unverified">○ unverified</span>';
+
+      const scoreLine = renderScoreLine(records);
+      const modeTag = `<span class="mode-tag">${escapeHtml(records[0].mode)}${info.solo ? ' · solo' : ''}</span>`;
+
+      const recsHtml = records.map((r) => {
+        const uid = `${group.matchKey}-${r.side}-${r.id}-${idx}`;
+        const watchUrl = `../index.html?watch=${encodeURIComponent(r.id)}&side=${encodeURIComponent(r.side)}`;
+        // instant, no-watching re-check: fast-forwards headlessly and
+        // redirects straight back here, so a whole batch can be clicked
+        // through quickly — see verifyReplayAndReturn in main.ts
+        const verifyUrl = `../index.html?verify=${encodeURIComponent(r.id)}&side=${encodeURIComponent(r.side)}`;
+        const sourceTag = r.source === 'verify' ? '<span class="source-tag">verify</span>' : '';
+        return `<div class="rec">
+          <div class="name">${escapeHtml(r.names.local || '(unknown)')}${sourceTag}</div>
+          <div class="vs">vs ${escapeHtml(r.names.opponent || '(unknown)')} · side ${escapeHtml(r.side)}</div>
+          <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)} · ${r.playerHp} - ${r.enemyHp}</div>
+          <div class="meta">${r.rounds} rounds · v${r.gameVersion} · ${fmtTime(r.ts)}</div>
+          <a class="raw-link" href="${watchUrl}">▶ Watch</a>
+          <a class="raw-link" href="${verifyUrl}" title="Instantly recomputes the result and re-submits it — no new file if it still matches, a second one if it doesn't">⚡ Verify</a>
+          <a class="raw-link" data-id="${escapeHtml(r.id)}" data-side="${escapeHtml(r.side)}" data-target="raw-${uid}">View raw ▸</a>
+          <pre id="raw-${uid}" hidden></pre>
+        </div>`;
+      }).join('');
+
+      const verifySummary = renderVerifySummary(records, info);
+
+      return `<div class="group" data-status="${status}">
+        <div class="group-head">
+          <span class="chevron">▸</span>
+          ${badge}
+          ${scoreLine}
+          ${modeTag}
+          <span class="when">${fmtTime(group.ts)}</span>
+        </div>
+        <div class="group-body">
+          ${verifySummary}
+          <div class="records">${recsHtml}</div>
+        </div>
+      </div>`;
+    }
+
+    groupsEl.addEventListener('click', async (e) => {
+      const link = e.target.closest('.raw-link');
+      if (link) {
+        e.stopPropagation();
+        const pre = document.getElementById(link.dataset.target);
+        if (!pre) return;
+        if (!pre.hidden) {
+          pre.hidden = true;
+          link.textContent = 'View raw ▸';
+          return;
+        }
+        const base = apiInput.value.replace(/\?.*$/, '');
+        link.textContent = 'Loading…';
+        try {
+          const res = await fetch(`${base}?action=get&id=${encodeURIComponent(link.dataset.id)}&side=${encodeURIComponent(link.dataset.side)}`);
+          const data = await res.json();
+          pre.textContent = JSON.stringify(data, null, 2);
+          pre.hidden = false;
+          link.textContent = 'Hide raw ▾';
+        } catch (err) {
+          link.textContent = 'View raw ▸ (failed)';
+        }
+        return;
+      }
+      const head = e.target.closest('.group-head');
+      if (head) head.closest('.group').classList.toggle('open');
+    });
+
+    async function load() {
+      const btn = document.getElementById('load');
+      const mode = document.getElementById('mode').value;
+      const version = document.getElementById('version').value.trim();
+      const status = document.getElementById('status').value;
+      const limit = Math.max(1, parseInt(document.getElementById('limit').value, 10) || 100);
+      const base = apiInput.value.replace(/\?.*$/, '');
+      btn.disabled = true;
+      statusEl.textContent = 'Loading…';
+      try {
+        const res = await fetch(`${base}?action=grouped&limit=${limit}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        let groups = data.groups || [];
+        if (mode !== 'all') {
+          groups = groups
+            .map((g) => ({ ...g, records: g.records.filter((r) => r.mode === mode) }))
+            .filter((g) => g.records.length > 0);
+        }
+        if (version) {
+          groups = groups
+            .map((g) => ({ ...g, records: g.records.filter((r) => String(r.gameVersion) === version) }))
+            .filter((g) => g.records.length > 0);
+        }
+        if (status !== 'all') {
+          groups = groups.filter((g) => {
+            const info = analyzeGroup(g.records);
+            const s = info.mismatch ? 'mismatch' : info.verified ? 'verified' : 'unverified';
+            return s === status;
+          });
+        }
+        groupsEl.innerHTML = groups.map((g, i) => renderGroup(g, i)).join('') ||
+          '<p class="sub">No matches found.</p>';
+        lastFilteredGroups = groups;
+        const verifiedCount = groups.filter((g) => analyzeGroup(g.records).verified).length;
+        const mismatched = groups.filter((g) => analyzeGroup(g.records).mismatch).length;
+        statusEl.textContent =
+          `${groups.length} match(es) · ${verifiedCount} verified` +
+          (mismatched ? ` · ${mismatched} mismatch(es)` : '') + '.';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById('bulk-verify').addEventListener('click', () => {
+      const queue = [];
+      for (const g of lastFilteredGroups) {
+        for (const r of g.records) {
+          if (r.source !== 'verify') queue.push({ id: r.id, side: r.side });
+        }
+      }
+      if (queue.length === 0) {
+        statusEl.textContent = 'Nothing to verify — load some replays first.';
+        return;
+      }
+      sessionStorage.setItem('mechili-bulk-verify-queue', JSON.stringify(queue));
+      location.href = new URL(`../index.html?bulkverify=1`, location.href).href;
+    });
+
+    /** shows the summary dialog left behind by main.ts's runBulkVerify,
+     *  then clears it so a plain refresh doesn't show it again */
+    function showBulkVerifySummaryIfAny() {
+      const raw = sessionStorage.getItem('mechili-bulk-verify-results');
+      if (!raw) return;
+      sessionStorage.removeItem('mechili-bulk-verify-results');
+      let results;
+      try {
+        results = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      const matched = results.filter((r) => r.ok && r.matches).length;
+      const mismatched = results.filter((r) => r.ok && !r.matches).length;
+      const failed = results.filter((r) => !r.ok).length;
+      const problems = results.filter((r) => !r.ok || !r.matches);
+      const problemsHtml = problems.map((r) => {
+        const who = escapeHtml(r.names ? (r.names.local || '(unknown)') : '(unknown)');
+        if (!r.ok) {
+          return `<div class="item">${who} · side ${escapeHtml(r.side)} — ${escapeHtml(r.error || 'failed')}</div>`;
+        }
+        return `<div class="item">${who} · side ${escapeHtml(r.side)} — recorded
+          <span class="n2">${escapeHtml(r.expected.result)}/${r.expected.rounds}r/${r.expected.playerHp}-${r.expected.enemyHp}</span>,
+          recomputed
+          <span class="n2">${r.actual ? escapeHtml(r.actual.result) + '/' + r.actual.rounds + 'r/' + r.actual.playerHp + '-' + r.actual.enemyHp : '(none)'}</span>
+        </div>`;
+      }).join('');
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      backdrop.innerHTML = `<div class="modal">
+        <h2>Bulk Verify complete</h2>
+        <div class="summary-counts">
+          <span>Checked <span class="n">${results.length}</span></span>
+          <span class="good">Matched <span class="n">${matched}</span></span>
+          <span class="bad">Mismatched <span class="n">${mismatched + failed}</span></span>
+        </div>
+        ${problems.length ? `<div class="mismatch-list">${problemsHtml}</div>` : '<p class="sub">Everything matched.</p>'}
+        <button id="bulk-verify-close">Close</button>
+      </div>`;
+      document.body.appendChild(backdrop);
+      const close = () => backdrop.remove();
+      backdrop.querySelector('#bulk-verify-close').addEventListener('click', close);
+      backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+    }
+
+    load().catch((e) => { statusEl.textContent = 'Failed: ' + (e.message || e); });
+    showBulkVerifySummaryIfAny();
+  </script>
+</body>
+</html>

@@ -1,20 +1,23 @@
-import { teamColors } from './game/colors';
+import { HORDE_COLOR, teamColors } from './game/colors';
 
 /**
  * Allied blue vs Soviet red on a bright, warm RA2-style green battlefield.
  * Single source of truth for palette — tweak here to shift the whole look.
  */
 export const THEME = {
-    // atmosphere (three.js hex) — warm sunny day, not murky dusk
+    // atmosphere (three.js hex) — crisp sunny day: deep blue sky, punchy warm
+    // sun, not murky dusk. Matches TIME_PRESETS.day in game/weather.ts so
+    // there's no color pop once the weather system takes over (and it's the
+    // only sky ever seen with scenery 'off', which never runs the weather sim).
     // `sky` is the fog color and must match the sky dome's horizon band
-    sky: 0xb8d4c8,
-    fogNear: 520,
-    fogFar: 1300,
-    hemiSky: 0xd0e8b8,
+    sky: 0xace0f0,
+    fogNear: 820,
+    fogFar: 2700,
+    hemiSky: 0xe8f6cc,
     hemiGround: 0x6a9a48,
-    hemiIntensity: 1.15,
-    sun: 0xfff4c8,
-    sunIntensity: 1.55,
+    hemiIntensity: 1.0,
+    sun: 0xfff2c8,
+    sunIntensity: 2.05,
 
     // factions (three.js hex) — vivid RA2-style team colors
     player: 0x3d8cd4,
@@ -61,8 +64,6 @@ export const THEME = {
         base: '#55a244',
         // large soft meadow variation — same hue family, gentle contrast
         meadow: ['#63b44e', '#478e38', '#5ba84f', '#6dbe56'],
-        // mown-lawn stripes
-        stripe: 'rgba(210, 245, 170, 0.06)',
         // grass blade strokes
         bladeDark: '#3c7c30',
         bladeBright: '#8ad85e',
@@ -74,6 +75,8 @@ export const THEME = {
         vignette: 'rgba(18, 42, 14, 0.04)',
         grid: 'rgba(255, 255, 255, 0.2)',
         centerLine: 'rgba(255, 220, 80, 0.6)',
+        /** duo/2v2: dashed divider marking where your own lane ends */
+        laneLine: 'rgba(255, 255, 255, 0.5)',
         flankLocked: 'rgba(140, 170, 100, 0.14)',
         sunWashTop: 'rgba(255, 248, 200, 0.18)',
         sunWashBottom: 'rgba(255, 248, 200, 0)',
@@ -85,9 +88,9 @@ export const THEME = {
 
     scenery: {
         // sky dome gradient, zenith to horizon (horizon must equal `sky` above)
-        skyZenith: '#5aa8dc',
-        skyMid: '#8cc4e4',
-        skyHorizon: '#b8d4c8',
+        skyZenith: '#1f6fc4',
+        skyMid: '#4f9fe0',
+        skyHorizon: '#ace0f0',
         sunGlow: 'rgba(255, 244, 200, 1)',
         // the world beyond the battlefield — matches terrain.base so the
         // meadow reads as one continuous surface with the field
@@ -438,8 +441,168 @@ export function menuStyles(): string {
 .mechili-menu .m-room::before { content: '▸ '; color: ${u.brass}; }
 .mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateX(2px); }
 .mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+/* a running match, joinable only as a spectator — visually distinct from
+   an open (joinable-as-player) room above */
+.mechili-menu .m-room-spectate { border-style: dashed; }
+.mechili-menu .m-room-spectate::before { content: '👁 '; }
+.mechili-menu .m-room-spectate:hover { border-color: ${u.hover}; }
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
+.mechili-menu .m-main {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+}
+.mechili-menu .m-spmode {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    width: 100%;
+}
+.mechili-menu .m-spmode-title {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-align: center;
+    color: ${u.brassLight};
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+}
+.mechili-menu .m-spmode-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    font-size: 15px;
+    color: ${u.text};
+}
+.mechili-menu .m-spmode-row label,
+.mechili-menu .m-spmode-horde {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.mechili-menu .m-spmode-horde { justify-content: center; font-size: 14px; color: ${u.text}; }
+/* card-style team-size / Horde toggles (Single Player) — same visual
+   language as .m-btn, built on real radio/checkbox inputs (hidden, not
+   removed) so the existing :checked-based JS needs no changes at all */
+.mechili-menu .m-toggle-row { display: flex; gap: 10px; width: 100%; }
+.mechili-menu .m-toggle-card {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    padding: 14px 10px;
+    background: linear-gradient(180deg, rgba(42, 58, 34, 0.95), rgba(24, 36, 20, 0.95));
+    border: 1.5px solid ${u.border};
+    border-radius: 11px;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease,
+        background 0.14s ease, color 0.14s ease;
+}
+.mechili-menu .m-toggle-card input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+.mechili-menu .m-toggle-card .m-ico { font-size: 20px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+.mechili-menu .m-toggle-card:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-2px); }
+.mechili-menu .m-toggle-card:has(input:checked) {
+    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
+    border-color: ${u.brassLight};
+    color: #20180a;
+    box-shadow: 0 4px 14px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.mechili-menu .m-toggle-card:has(input:checked) .m-ico { filter: none; }
+.mechili-menu .m-toggle-card:has(input:focus-visible) {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
+.mechili-menu .m-toggle-pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+.mechili-menu .m-toggle-pill input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+.mechili-menu .m-toggle-pill:hover { border-color: ${u.hover}; }
+.mechili-menu .m-toggle-pill:has(input:checked) {
+    background: linear-gradient(180deg, rgba(255, 216, 64, 0.22), rgba(255, 180, 40, 0.12));
+    border-color: ${u.brassLight};
+    color: ${u.brassLight};
+}
+.mechili-menu .m-toggle-pill:has(input:focus-visible) {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+}
+.mechili-menu .m-seats { display: flex; gap: 10px; width: 100%; }
+.mechili-menu .m-seat {
+    flex: 1;
+    box-sizing: border-box;
+    padding: 14px 10px;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+}
+.mechili-menu .m-seat-you { color: ${u.brassLight}; }
+button.m-seat-invite {
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+button.m-seat-invite:hover:not(:disabled) { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
+.mechili-menu .m-mm-link {
+    font-size: 12.5px;
+    color: ${u.textMuted};
+    text-align: center;
+    word-break: break-all;
+    padding: 8px 10px;
+    background: rgba(18, 28, 15, 0.6);
+    border: 1px solid ${u.border};
+    border-radius: 8px;
+}
 .mechili-username {
     position: absolute;
     right: calc(16px + env(safe-area-inset-right));
@@ -465,6 +628,72 @@ export function menuStyles(): string {
     .mechili-gchat { bottom: calc(68px + env(safe-area-inset-bottom)); }
 }
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+
+/* Electron only — stacked directly above the username pill, same corner */
+.mechili-exit-btn {
+    position: absolute;
+    right: calc(16px + env(safe-area-inset-right));
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    padding: 8px 14px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    color: ${u.text};
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    user-select: none;
+    z-index: 30;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.mechili-exit-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
+.mechili-exit-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+
+/* watch-mode-only jump/speed controls — top-right, deliberately NOT
+   top-center: the round/phase/timer readout (.mechili-topbar) already lives
+   there and this panel used to sit directly on top of it, hiding the one
+   piece of info (time left in the round) replay viewers actually want */
+.mechili-replay-controls {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    right: calc(16px + env(safe-area-inset-right));
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 12px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    color: ${u.text};
+}
+.mechili-replay-controls .rc-row { display: flex; align-items: center; gap: 8px; }
+.mechili-replay-controls label { display: flex; align-items: center; gap: 4px; }
+.mechili-replay-controls input, .mechili-replay-controls select {
+    font: inherit;
+    padding: 3px 6px;
+    border: 1px solid ${u.border};
+    border-radius: 4px;
+    background: #1e1b15;
+    color: ${u.text};
+}
+.mechili-replay-controls input.rc-round { width: 4.5em; }
+.mechili-replay-controls button {
+    font: inherit;
+    padding: 4px 10px;
+    border: 1.5px solid ${u.border};
+    border-radius: 6px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 
 /* big gear, top-right of the main menu */
 .mechili-settings-btn {
@@ -976,6 +1205,27 @@ export function hudStyles(): string {
     const pc = teamColors.player.css;
     const ec = teamColors.enemy.css;
     return `
+.mechili-cinema-hide {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+.mechili-cinema-hint {
+    position: absolute;
+    left: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 200;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(8, 12, 6, 0.72);
+    border: 1px solid rgba(168, 216, 120, 0.35);
+    color: ${u.debug};
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0;
+    pointer-events: none;
+    user-select: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+    white-space: pre;
+}
 .mechili-shop-col {
     position: absolute;
     right: env(safe-area-inset-right);
@@ -1022,6 +1272,13 @@ export function hudStyles(): string {
     line-height: 1;
     color: ${u.brass};
 }
+.mechili-supply.clickable {
+    pointer-events: auto;
+    cursor: pointer;
+    transition: border-color 0.12s, transform 0.12s;
+}
+.mechili-supply.clickable:hover { border-color: ${u.brassLight}; }
+.mechili-supply.clickable:active { transform: translateY(1px); }
 .shop-toolbar {
     display: flex;
     align-items: center;
@@ -1076,14 +1333,15 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 /* the twins hide by default (button.* outranks the shared component rules
-   below regardless of order): money returns on phone, undo/level-all on any
-   coarse pointer — tablets get them top-right too */
+   below regardless of order): money returns in compact chrome; undo/level-all
+   move to the top strip on touch devices OR any compact window (shop toolbar
+   is sheeted away) */
 .mechili-phone-status .mechili-supply,
 .mechili-phone-status button.undo,
 .mechili-phone-status button.level-all-global {
     display: none;
 }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 599px), (max-height: 540px) {
     .mechili-phone-status button.undo,
     .mechili-phone-status button.level-all-global {
         display: flex;
@@ -1386,11 +1644,13 @@ export function hudStyles(): string {
 .mechili-panel .team { font-size: 11px; letter-spacing: 0.5px; margin-bottom: 8px; }
 .mechili-panel .team.player { color: ${pc}; }
 .mechili-panel .team.enemy { color: ${ec}; }
+.mechili-panel .team.horde { color: ${HORDE_COLOR.css}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
 .mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(255, 255, 255, 0.38); border-radius: 3px; overflow: hidden; }
 .mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
 .mechili-panel .xpbar.enemy div { height: 100%; background: ${ec}; }
+.mechili-panel .xpbar.horde div { height: 100%; background: ${HORDE_COLOR.css}; }
 /* horizontal row of square action tiles (sell, techs, tower actions) */
 .mechili-panel .action-row {
     display: flex; flex-wrap: wrap; gap: 5px;
@@ -1863,19 +2123,42 @@ export function hudStyles(): string {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 26px;
+    gap: clamp(10px, 2vw, 26px);
     background: rgba(12, 20, 8, 0.55);
     font-family: system-ui, sans-serif;
     user-select: none;
+    /* .mechili-topbar sets z-index: 1 to sit above ordinary HUD elements —
+     * without an explicit z-index here (auto) a card-style overlay (round
+     * cards, specialist reveal, unlock dialog, and now the settings panel)
+     * still lost that stacking fight and rendered BEHIND the topbar's own
+     * stacking context, regardless of DOM order. Comfortably above the
+     * topbar, below .mechili-pause's 55 (pause should still win if both
+     * were ever open at once). */
+    z-index: 50;
+    overflow-y: auto;
 }
 .mechili-cards .cards-title {
-    font-size: 26px;
+    font-size: clamp(17px, 2.4vw, 26px);
     font-weight: 900;
-    letter-spacing: 4px;
+    letter-spacing: clamp(2px, 0.35vw, 4px);
     color: ${u.text};
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
-.mechili-cards .cards-row { display: flex; gap: 18px; }
+.mechili-cards .cards-note {
+    font-size: 13.5px;
+    color: ${u.phase};
+    max-width: 480px;
+    text-align: center;
+    margin-top: -8px;
+}
+.mechili-cards .cards-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 100vw;
+    gap: clamp(10px, 1.4vw, 18px);
+    padding: 4px 10px 12px;
+}
 .mechili-cards.unlock-dialog .unlock-picker {
     display: flex;
     flex-direction: column;
@@ -1970,13 +2253,13 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 .mechili-cards .card {
-    width: 215px;
-    min-height: 240px;
-    padding: 18px 14px;
+    width: clamp(150px, 22vw, 215px);
+    min-height: 0;
+    padding: clamp(12px, 1.4vw, 18px) clamp(10px, 1.1vw, 14px);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: clamp(8px, 1vw, 12px);
     background: ${u.panelBgDark};
     border: 2px solid ${u.border};
     border-radius: 14px;
@@ -2032,6 +2315,88 @@ export function hudStyles(): string {
 .mechili-cards .cards-skip:hover { background: ${u.undoHover}; transform: translateY(-1px); }
 .mechili-cards .cards-skip:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
 
+.settings-panel {
+    position: relative;
+    max-width: min(92vw, 920px);
+    max-height: 84vh;
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+    border-radius: 14px;
+    border: 2px solid ${u.border};
+    background: ${u.panelBgDark};
+    user-select: text;
+}
+.settings-panel-title {
+    margin: 0 0 14px;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: ${u.brassLight};
+    text-align: center;
+}
+.settings-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: ${u.textMuted};
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+}
+.settings-close:hover { color: ${u.text}; }
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 14px;
+}
+.settings-card {
+    padding: 12px 14px 14px;
+    border-radius: 10px;
+    border: 1.5px solid ${u.divider};
+    background: rgba(0, 0, 0, 0.15);
+}
+.settings-card h3 {
+    margin: 0 0 8px;
+    color: ${u.brassLight};
+    font-size: 14px;
+}
+.settings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+.settings-table th,
+.settings-table td {
+    text-align: left;
+    padding: 4px 0;
+    vertical-align: top;
+}
+.settings-table tr:not(:last-child) th,
+.settings-table tr:not(:last-child) td {
+    border-bottom: 1px solid ${u.divider};
+}
+.settings-table th {
+    color: ${u.textMuted};
+    font-weight: 600;
+    padding-right: 10px;
+    white-space: nowrap;
+}
+.settings-table td {
+    color: ${u.text};
+    font-variant-numeric: tabular-nums;
+}
+.settings-desc {
+    display: block;
+    color: ${u.textMuted};
+    font-size: 11px;
+    font-weight: 400;
+    font-variant-numeric: normal;
+    margin-top: 2px;
+    white-space: normal;
+}
+
 .mechili-pause {
     position: absolute;
     inset: 0;
@@ -2071,22 +2436,6 @@ export function hudStyles(): string {
     letter-spacing: 0.5px;
     color: ${u.textMuted};
     text-align: center;
-}
-.mechili-pause .pause-spectators {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px 0;
-    border-top: 1px solid ${u.border};
-    border-bottom: 1px solid ${u.border};
-}
-.mechili-pause .pause-spectate-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    color: ${u.text};
-    cursor: pointer;
 }
 .mechili-pause button {
     padding: 11px 16px;
@@ -2130,6 +2479,7 @@ export function hudStyles(): string {
 .mechili-gameover.defeat .go-title { color: ${ec}; }
 .mechili-gameover.draw .go-title { color: ${u.brassLight}; }
 .mechili-gameover .go-sub { font-size: 14px; letter-spacing: 1px; color: ${u.text}; opacity: 0.75; margin-top: -10px; }
+.mechili-gameover .go-note { font-size: 13px; color: ${u.text}; opacity: 0.85; max-width: 32em; text-align: center; }
 .mechili-cards .reconnect-timer { font-size: 32px; font-variant-numeric: tabular-nums; }
 .mechili-cards .reconnect-timer.urgent { animation: mechili-timer-pulse 0.7s ease-in-out infinite; }
 .mechili-gameover .go-restart {
@@ -2205,6 +2555,54 @@ export function hudStyles(): string {
 }
 .mechili-topbar .timer {
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+}
+.mechili-topbar .spectator-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: ${u.panelBgSolid};
+    border: 1px solid ${u.border};
+    border-radius: 999px;
+    color: ${u.text};
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    pointer-events: auto;
+}
+.mechili-topbar .spectator-badge:hover {
+    border-color: ${u.hover};
+}
+.mechili-topbar .spectator-list {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 6px;
+    min-width: 160px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
+    border: 1px solid ${u.border};
+    border-radius: 8px;
+    padding: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
+}
+.mechili-topbar .spectator-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.mechili-topbar label.spectator-row {
+    cursor: pointer;
+}
+.mechili-topbar .spectator-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
 }
 .mechili-fightbar {
     position: absolute;
@@ -2339,6 +2737,15 @@ export function hudStyles(): string {
 }
 .mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
 .mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.5); }
+/* a teammate (2v2/duo) already locked in — half the button turns green so
+   both seats on a side can see who's still holding things up */
+.mechili-topbar .end-deploy.ally-ready {
+    background: linear-gradient(90deg, #5ee36b 0%, #5ee36b 48%, ${u.brassLight} 52%, ${u.brass} 100%);
+    border-color: #5ee36b;
+}
+.mechili-topbar .end-deploy.ally-ready:hover {
+    background: linear-gradient(90deg, #7dfa8a 0%, #7dfa8a 48%, #fff0b0 52%, ${u.brassLight} 100%);
+}
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
 /* a card overlay is up (specialist pick, reveal, round card) — can't end yet */
@@ -2360,6 +2767,10 @@ export function hudStyles(): string {
 .mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
 .mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
 .mechili-topbar.battle .speed { display: inline-block; }
+/* the settings panel (or a card overlay) is up — no speeding through the
+ * battle you can't see behind it; !important since .battle .speed's own
+ * display:inline-block would otherwise win when both classes are present */
+.mechili-topbar.overlay-open .speed { display: none !important; }
 
 /*
  * Touch-first devices (tablet/phone): same layout, but tap targets meet the
@@ -2410,10 +2821,11 @@ export function hudStyles(): string {
 }
 
 /*
- * Phone-size screens: the fixed desktop panels become one bottom sheet at a
- * time, driven by a bottom tab bar. The bar and the .phone-open class are
- * always maintained by the Hud, but only take visual effect inside the phone
- * media query below — desktop/tablet render exactly as before.
+ * Compact windows (narrow or short): side panels become bottom sheets behind a
+ * tab bar. Same chrome on phone and small desktop — hover peeks stay on
+ * inputMode() in JS; GPU/texture budgets stay on touchFirstDevice().
+ * The bar and .phone-open class are always maintained by the Hud; they only
+ * take visual effect inside this size query (and the tablet pill above).
  */
 .mechili-phonebar {
     display: none;
@@ -2487,24 +2899,6 @@ export function hudStyles(): string {
         border-radius: 14px;
     }
     .mechili-phonebar button { flex: 0 0 auto; padding: 5px 14px; }
-
-    /* card drafts (specialist pick, round cards, unlock): smaller cards that
-       wrap — the fixed 4-in-a-row only fits desktop windows */
-    .mechili-cards { gap: 10px; overflow-y: auto; }
-    .mechili-cards .cards-title { font-size: 17px; letter-spacing: 2px; }
-    .mechili-cards .cards-row {
-        flex-wrap: wrap;
-        justify-content: center;
-        max-width: 100vw;
-        gap: 10px;
-        padding: 4px 10px 12px;
-    }
-    .mechili-cards .card {
-        width: clamp(150px, 22vw, 215px);
-        min-height: 0;
-        padding: 12px 10px;
-        gap: 8px;
-    }
 }
 
 /* iOS long-press: no text-selection loupe / copy callout on HUD chrome —
@@ -2558,9 +2952,9 @@ ${gamepadCursorStyles(u)}
     pointer-events: none;
 }
 
-@media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px) {
+@media (max-width: 599px), (max-height: 540px) {
     .mechili-phonebar { display: flex; }
-    /* phone: back to the full-width bottom strip (tablet uses a pill) */
+    /* compact: full-width bottom strip (tablet pill above is overridden here) */
     .mechili-phonebar {
         left: 0;
         right: 0;

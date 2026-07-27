@@ -12,7 +12,9 @@ import {
     type HazardPour,
 } from './fire';
 import { ITEMS } from './items';
-import { groundSupportAt, mulberry32, simGroundHeightAt, simGroundSupportAt } from './map';
+import type { SeatId } from './seats';
+import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
+import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     HAMMER_ID,
@@ -28,6 +30,7 @@ import {
     DEPLOY_AIR_Y,
     resolveDeathWear,
     syncBattleTint,
+    type BattleTeam,
     type DeathWear,
     type Team,
     type Unit,
@@ -53,19 +56,22 @@ export interface SimConfig {
     /** the battle's fixed length — the sim refuses to step past it */
     battleSeconds: number;
     /**
-     * which unit-id parity belongs to the HOST side (0 on the host client,
-     * 1 on the guest) — peers hold the identical board but label teams from
-     * their own perspective, so ordering must key off canonical sides
+     * canonical battle-order rank for a unit's seat (lower sorts first).
+     * With per-seat ids (SeatId embedded via id = counter*rosterLength+seat)
+     * ordering no longer needs parity math — it's a direct seat lookup, one
+     * that stays correct regardless of how many seats a side has.
      */
-    hostParity: 0 | 1;
+    seatRank: (seat: SeatId) => number;
     /** effective supply cost of a unit type (drives kill XP values) */
     costOf: (type: UnitType) => number;
     /** a pack's tech-resolved base stats (level scaling happens in the sim) */
     statsOf: (unit: Unit) => ResolvedStats;
-    hasTech: (team: Team, typeId: string, techId: string) => boolean;
-    /** base flank spawn duration in seconds (before team multiplier) */
+    /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
+    /** base flank spawn duration in seconds (before per-seat multiplier) */
     flankSpawnSeconds: number;
-    flankSpawnMult: (team: Team) => number;
+    /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
+    flankSpawnMult: (seat: SeatId) => number;
     needsFlankSpawn: (unit: Unit) => boolean;
     /** rally routes placed this deployment (player tactics only for now) */
     rallyRoutes?: readonly RallyRoute[];
@@ -91,6 +97,15 @@ export interface SimConfig {
     hazardPours?: readonly HazardPour[];
     /** summoned packs materialize this many seconds after the freeze (0 = normal) */
     summonDelayOf?: (unit: Unit) => number;
+    /**
+     * Half-extents of the playable board (world units) — used only to detect
+     * when a `marchIn` horde actor (spawned outside the board, walking
+     * straight toward center) crosses into the AABB and should switch to
+     * normal combat AI. Actors that never have `marchIn` set don't need this
+     * at all; harmless to omit for matches without horde mode.
+     */
+    boardHalfW?: number;
+    boardHalfZ?: number;
 }
 
 /** one scheduled area strike (meteor, hammer, …) */
@@ -227,7 +242,7 @@ export interface Projectile {
     vy: number;
     vz: number;
     damage: number;
-    team: Team;
+    team: BattleTeam;
     /** the pack that fired it (kill XP goes there) */
     source: Unit;
     /** render style copied from the shooter — visual only */
@@ -331,9 +346,10 @@ export class BattleSim {
     private events: SimEvent[] = [];
     private accumulator = 0;
     /** how many command towers each side has lost this battle (stack strength) */
-    private readonly lostTowers: Record<Team, number> = { player: 0, enemy: 0 };
+    // horde entries stay 0 forever — the horde has no towers and no debuffs
+    private readonly lostTowers: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
     /** sim clock time until which each side's tower-destruction debuff runs */
-    private readonly debuffUntil: Record<Team, number> = { player: 0, enemy: 0 };
+    private readonly debuffUntil: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
     private readonly hash = new Map<number, Actor[]>();
     /** spatial hash of every attackable actor (incl. structures) for targeting / bullets */
     private readonly targetHash = new Map<number, Actor[]>();
@@ -471,7 +487,7 @@ export class BattleSim {
             const base = this.config.flankSpawnSeconds ?? DEFAULT_SETTINGS.deploy.flankSpawnSeconds;
             // the ramp starts when the opening freeze ends, so the advertised
             // duration is real vulnerability time
-            a.spawnUntil = BATTLE_START_FREEZE + base * this.config.flankSpawnMult(a.unit.team);
+            a.spawnUntil = BATTLE_START_FREEZE + base * this.config.flankSpawnMult(a.unit.seat);
             a.hp = 1;
         }
         for (const unit of spawningUnits) unit.flankSpawnDone = true;
@@ -513,11 +529,10 @@ export class BattleSim {
         // (host units first, each side by spawn counter, members in pack
         // order via sort stability), so every order-dependent computation —
         // targeting ties, float accumulation, fire stagger — agrees exactly
-        const rank = (id: number) => (id % 2 === config.hostParity ? 0 : 1);
         this.actors.sort((a, b) => {
-            const r = rank(a.unit.id) - rank(b.unit.id);
+            const r = config.seatRank(a.unit.seat) - config.seatRank(b.unit.seat);
             if (r !== 0) return r;
-            return (a.unit.id >> 1) - (b.unit.id >> 1);
+            return a.unit.id - b.unit.id;
         });
         const perUnit = new Map<Unit, number>();
         this.actors.forEach((a, i) => {
@@ -533,7 +548,10 @@ export class BattleSim {
 
         let mobile = 0;
         for (const a of this.actors) {
-            if (a.alive && !a.unit.type.structure) mobile++;
+            // marchIn horde actors don't count toward the soft-crowd budget —
+            // hundreds of them walking in from the forest shouldn't disable
+            // crowd separation for the actual battle
+            if (a.alive && !a.unit.type.structure && !a.unit.marchIn) mobile++;
         }
         this.lastMobileCount = mobile;
         this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
@@ -590,6 +608,11 @@ export class BattleSim {
     /** deterministic end: timeout or one side wiped — never step past it */
     get finished(): boolean {
         return this.isOver || this.elapsed >= this.config.battleSeconds - 1e-9;
+    }
+
+    /** debug/cheat: stretch the battle timeout mid-fight */
+    setBattleSeconds(seconds: number): void {
+        this.config.battleSeconds = seconds;
     }
 
     /** the round ends as soon as one side has no units left besides its towers */
@@ -711,7 +734,7 @@ export class BattleSim {
     }
 
     private fireProfileOf(source: Unit): FireProfile | undefined {
-        return resolveFireProfile(source.type, source.team, this.config.hasTech);
+        return resolveFireProfile(source.type, source.seat, this.config.hasTech);
     }
 
     /** burn DoT + standing in ground fire (both friendly-fire) */
@@ -1193,7 +1216,7 @@ export class BattleSim {
     }
 
     /** extends (or starts) a side's debuff window — stacks time if already active */
-    private extendTeamDebuff(team: Team, towerLevel: number): void {
+    private extendTeamDebuff(team: BattleTeam, towerLevel: number): void {
         const add = this.debuffSecondsForTowerLevel(towerLevel);
         this.debuffUntil[team] = Math.max(this.debuffUntil[team], this.elapsed) + add;
     }
@@ -1243,7 +1266,7 @@ export class BattleSim {
         const expires = GOLDEN_AURA_APPLY_AT + GOLDEN_AURA_DURATION;
         for (const f of this.actors) {
             if (!f.alive || f.unit.type.id !== 'ballista') continue;
-            if (!this.config.hasTech(f.unit.team, 'ballista', 'golden')) continue;
+            if (!this.config.hasTech(f.unit.seat, 'ballista', 'golden')) continue;
             for (const a of this.actors) {
                 if (!a.alive || a.unit.team !== f.unit.team || a.unit.type.structure) continue;
                 const dx = a.x - f.x;
@@ -1293,8 +1316,15 @@ export class BattleSim {
         // from the skeleton, so only apply the procedural bob to the rest.
         if (a.altitude === 0) {
             // sample under the footprint (max of a ring) at the RENDERED xz so
-            // walkers clear the uphill side of mounds instead of sinking in
-            const groundY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + 0.08;
+            // walkers clear the uphill side of mounds instead of sinking in.
+            // Slight negative seat: strong ground normals make the lawn look
+            // higher than the mesh, so a tiny sink kills the hover look.
+            // worldHeightAt (board relief + outer world) instead of the board-only
+            // groundSupportAt — otherwise a marching horde actor spawned outside
+            // the board renders flat against sloped/hilly outer terrain. Purely
+            // cosmetic (mesh.position.y only): the sim itself walks the flat
+            // plane (see feetY), so this can't affect determinism.
+            const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
             if (!a.mesh.userData.animated) {
                 const gait = Math.sin(timeSeconds * 9 + a.index);
                 a.mesh.position.y = groundY + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
@@ -1308,7 +1338,7 @@ export class BattleSim {
             // air layer via unit.flightLift — battle used to snap to altitude
             // immediately, which read as a teleport especially on hills
             const lift = a.unit.flightLift;
-            const fromY = groundSupportAt(a.rx, a.rz, a.radius * 0.65) + DEPLOY_AIR_Y;
+            const fromY = worldHeightAt(a.rx, a.rz) + DEPLOY_AIR_Y;
             const y = fromY + (a.altitude - fromY) * lift;
             a.mesh.position.y = y + Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
         }
@@ -1409,7 +1439,7 @@ export class BattleSim {
             // tip over and stay as a battlefield wreck until the round resets
             // (air units crash to the ground)
             target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
-            target.mesh.position.y = groundSupportAt(target.x, target.z, target.radius * 0.65) + 0.08;
+            target.mesh.position.y = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
             target.mesh.userData.dead = true;
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
@@ -1461,7 +1491,10 @@ export class BattleSim {
         this.stepIndex++;
         let mobile = 0;
         for (const a of this.actors) {
-            if (a.alive && !a.unit.type.structure) mobile++;
+            // marchIn horde actors don't count toward the soft-crowd budget —
+            // hundreds of them walking in from the forest shouldn't disable
+            // crowd separation for the actual battle
+            if (a.alive && !a.unit.type.structure && !a.unit.marchIn) mobile++;
         }
         this.lastMobileCount = mobile;
         this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
@@ -1478,6 +1511,10 @@ export class BattleSim {
         mark();
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
+            if (a.unit.marchIn) {
+                this.stepMarchIn(a, dt);
+                continue;
+            }
             if (this.isSpawning(a)) continue;
 
             const onPath = this.updatePathProgress(a, dt);
@@ -1590,7 +1627,7 @@ export class BattleSim {
      */
     private feetY(a: Actor, x = a.x, z = a.z): number {
         if (a.altitude > 0) return a.altitude;
-        return simGroundSupportAt(x, z, a.radius * 0.65) + 0.08;
+        return simGroundSupportAt(x, z, a.radius * 0.65) + GROUND_UNIT_Y;
     }
 
     /** seek toward a direction with obstacle avoidance and crowd separation */
@@ -1661,6 +1698,31 @@ export class BattleSim {
             a.z += steerZ * move;
             a.mesh.rotation.y = Math.atan2(-steerX, -steerZ);
         }
+    }
+
+    /**
+     * Horde forest-ring spawn, walking in: no targeting, no crowd/blocker
+     * avoidance, no attacks — just a straight seek toward board center at
+     * the unit's own normal speed, until it crosses into the playable AABB
+     * (checked against `config.boardHalfW`/`boardHalfZ`), at which point
+     * `marchIn` clears for good and every other system in `step()` starts
+     * treating it as a completely ordinary combat actor from the very next
+     * step. One-way and deliberately cheap — see `SimConfig.boardHalfW`.
+     */
+    private stepMarchIn(a: Actor, dt: number): void {
+        const halfW = this.config.boardHalfW;
+        const halfZ = this.config.boardHalfZ;
+        if (halfW !== undefined && halfZ !== undefined && Math.abs(a.x) <= halfW && Math.abs(a.z) <= halfZ) {
+            a.unit.marchIn = false;
+            return;
+        }
+        const dist = hypot(a.x, a.z) || 1e-6;
+        const stats = this.resolved.get(a.unit);
+        const speed = stats?.speed ?? 0;
+        const move = speed * dt;
+        a.x += (-a.x / dist) * move;
+        a.z += (-a.z / dist) * move;
+        a.mesh.rotation.y = Math.atan2(a.x / dist, a.z / dist);
     }
 
     /**
@@ -1972,7 +2034,7 @@ export class BattleSim {
      * blast doesn't reach crow riders overhead).
      */
     private explode(
-        p: { damage: number; team: Team; source: Unit },
+        p: { damage: number; team: BattleTeam; source: Unit },
         x: number,
         z: number,
         radius: number,
@@ -1994,7 +2056,7 @@ export class BattleSim {
     private resolveOverlaps(): void {
         // soft mech-vs-mech is staggered across steps — one pass per involved mech
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.structure) continue;
+            if (!a.alive || a.unit.type.structure || a.unit.marchIn) continue;
             if (this.softCrowdActive(a)) {
                 for (const b of this.nearby(a)) {
                     if (b.index <= a.index || !b.alive || b.unit.type.structure) continue;
@@ -2072,7 +2134,7 @@ export class BattleSim {
     private rebuildHash(): void {
         this.hash.clear();
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.structure) continue;
+            if (!a.alive || a.unit.type.structure || a.unit.marchIn) continue;
             const key = this.hashKey(a.x, a.z);
             const bucket = this.hash.get(key);
             if (bucket) bucket.push(a);
@@ -2080,11 +2142,12 @@ export class BattleSim {
         }
     }
 
-    /** attackable actors (mechs + structures) for targeting and projectile hits */
+    /** attackable actors (mechs + structures) for targeting and projectile hits —
+     *  marchIn actors are deliberately untargetable until they cross onto the board */
     private rebuildTargetHash(): void {
         this.targetHash.clear();
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.extra) continue;
+            if (!a.alive || a.unit.type.extra || a.unit.marchIn) continue;
             const key = this.hashKey(a.x, a.z);
             const bucket = this.targetHash.get(key);
             if (bucket) bucket.push(a);
@@ -2127,7 +2190,7 @@ export class BattleSim {
         x1: number,
         z1: number,
         pad: number,
-        team: Team,
+        team: BattleTeam,
     ): Actor[] {
         const result = this.segmentScratch;
         result.length = 0;

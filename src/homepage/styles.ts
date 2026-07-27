@@ -1234,5 +1234,57 @@ body {
     flex-wrap: wrap;
     gap: 14px;
 }
+
+.mh-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+}
+.mh-settings-card {
+    padding: 14px 16px 16px;
+    border-radius: 14px;
+    border: 2px solid ${u.border};
+    background: ${u.panelBgDark};
+}
+.mh-settings-card h3 {
+    margin: 0 0 8px;
+    color: ${u.brassLight};
+    font-size: 1rem;
+}
+.mh-settings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.mh-settings-table th,
+.mh-settings-table td {
+    text-align: left;
+    padding: 5px 0;
+    vertical-align: top;
+}
+.mh-settings-table tr:not(:last-child) th,
+.mh-settings-table tr:not(:last-child) td {
+    border-bottom: 1px solid ${u.divider};
+}
+.mh-settings-table th {
+    color: ${u.textMuted};
+    font-weight: 600;
+    padding-right: 12px;
+    white-space: nowrap;
+}
+.mh-settings-table td {
+    color: ${u.text};
+    font-variant-numeric: tabular-nums;
+}
+.mh-settings-desc {
+    display: block;
+    color: ${u.textMuted};
+    font-size: 11.5px;
+    font-weight: 400;
+    font-variant-numeric: normal;
+    margin-top: 2px;
+    white-space: normal;
+}
 `;
 }

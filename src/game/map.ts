@@ -11,14 +11,20 @@ import {
     Vector3,
 } from 'three';
 
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
     sandAlbedoUrl,
+    loadGrassTextures,
+    loadWearGroundTextures,
     loadWorldTexture,
 } from './worldTextures';
 
-/** world units covered by one repeat of the grass detail texture (field AND outer meadow) */
+/**
+ * Default world units per grass tile (medium/low). High/ultra use a tighter
+ * tile from {@link groundMaterialProfile} so HQ 2K maps get more texels/wu.
+ */
 export const DETAIL_TILE = 20;
 export { grassAlbedoUrl, grassNormalUrl, sandAlbedoUrl };
 
@@ -184,6 +190,8 @@ export class BattleMap {
 
     /** live sand-wear mask (null until ground textures finish loading) */
     private sandMask: CanvasTexture | null = null;
+    /** static match-start mud patches — drawn under snow; not stamped by units */
+    private baseSandMask: CanvasTexture | null = null;
     private sandCtx: CanvasRenderingContext2D | null = null;
     private sandW = 0;
     private sandH = 0;
@@ -203,6 +211,8 @@ export class BattleMap {
     private hazardFlushAt = 0;
     /** updated each frame for fire flicker in the ground shader */
     private hazardTimeUniform: { value: number } | null = null;
+    /** 0..1 weather-driven snow dusting on the board (see `setSnowCover`) */
+    private snowCoverUniform: { value: number } | null = null;
 
     /** ground texture + wear quality (the board's SHAPE is never gated) */
     private groundEffects: GroundEffectsQuality = prefs().groundEffects;
@@ -372,27 +382,38 @@ export class BattleMap {
 
     /**
      * Ground wear mask (RGB): R = sand, G = blood, B = scorch.
-     * Starts with light sand patches; combat stamps accumulate. Sand stamps
-     * use source-over red so walking gradually washes blood/burns back to sand.
+     * Dynamic only — unit footprints / combat. Match-start mud lives in
+     * {@link baseSandMask} so weather snow can cover it.
      */
     private createSandMask(seed: number): CanvasTexture {
         const w = this.groundEffects === 'medium' ? 256 : 512;
         const h = Math.round((w * this.height) / this.width);
+        this.sandW = w;
+        this.sandH = h;
+        this.sandSeed = seed;
+
+        // static base mud (under snow)
+        const baseCanvas = document.createElement('canvas');
+        baseCanvas.width = w;
+        baseCanvas.height = h;
+        const baseCtx = baseCanvas.getContext('2d')!;
+        this.paintBaseSand(baseCtx, w, h, seed);
+        this.baseSandMask = new CanvasTexture(baseCanvas);
+
+        // live stamp mask starts empty
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d')!;
-        this.sandW = w;
-        this.sandH = h;
-        this.sandSeed = seed;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
         this.sandCtx = ctx;
-        this.paintBaseSand(ctx, w, h, seed);
         const tex = new CanvasTexture(canvas);
         this.sandMask = tex;
         return tex;
     }
 
-    /** faint loose sand patches only (R channel) — no building courtyards */
+    /** faint loose sand patches (R) — denser near base courtyards, still room for footprints */
     private paintBaseSand(
         ctx: CanvasRenderingContext2D,
         w: number,
@@ -403,20 +424,56 @@ export class BattleMap {
         ctx.fillRect(0, 0, w, h);
         const rng = mulberry32(seed ^ 0x5eed);
         const pxPerUnit = w / this.width;
-        const patches = Math.round((this.width * this.height) / 22000);
+        const worldToPx = (x: number, z: number) => ({
+            cx: ((x + this.halfW) / this.width) * w,
+            cy: ((z + this.halfH) / this.height) * h,
+        });
+
+        const paintCluster = (cx: number, cy: number, rBase: number, alpha: number, blobs: number) => {
+            for (let b = 0; b < blobs; b++) {
+                const r = rBase * (0.55 + rng() * 0.9);
+                this.drawWearBlob(
+                    ctx,
+                    cx + (rng() - 0.5) * r * 1.5,
+                    cy + (rng() - 0.5) * r * 1.5,
+                    r,
+                    alpha * (0.78 + rng() * 0.55),
+                    'r',
+                );
+            }
+        };
+
+        // scattered meadow wear
+        const patches = Math.round((this.width * this.height) / WEAR_BLEND.basePatchArea);
         for (let i = 0; i < patches; i++) {
             const cx = w * (0.08 + rng() * 0.84);
             const cy = h * (0.08 + rng() * 0.84);
-            const blobs = 2 + Math.floor(rng() * 3);
-            for (let b = 0; b < blobs; b++) {
-                const r = (2.5 + rng() * 5) * pxPerUnit;
-                this.drawWearBlob(
-                    ctx,
-                    cx + (rng() - 0.5) * r * 1.4,
-                    cy + (rng() - 0.5) * r * 1.4,
-                    r,
-                    0.35 + rng() * 0.25,
-                    'r',
+            paintCluster(
+                cx,
+                cy,
+                (2.5 + rng() * 5) * pxPerUnit,
+                WEAR_BLEND.basePatchAlpha,
+                2 + Math.floor(rng() * 3),
+            );
+        }
+
+        // lived-in rings around both armies' base buildings (houses look "used")
+        for (const a of this.baseAnchors()) {
+            const { cx, cy } = worldToPx(a.x, a.z);
+            const ringR = a.r * pxPerUnit;
+            // soft courtyard disk
+            paintCluster(cx, cy, ringR * 0.85, WEAR_BLEND.basePatchAlpha * 0.7, 4);
+            // a few irregular blotches around the ring edge
+            const blotches = 5 + Math.floor(rng() * 4);
+            for (let i = 0; i < blotches; i++) {
+                const ang = rng() * Math.PI * 2;
+                const dist = ringR * (0.45 + rng() * 0.85);
+                paintCluster(
+                    cx + Math.cos(ang) * dist,
+                    cy + Math.sin(ang) * dist,
+                    (1.8 + rng() * 3.2) * pxPerUnit,
+                    WEAR_BLEND.basePatchAlpha * 0.85,
+                    2 + Math.floor(rng() * 2),
                 );
             }
         }
@@ -466,8 +523,9 @@ export class BattleMap {
     /** Stamp sandy wear (R). Also scrubs blood/scorch underfoot. */
     stampSand(x: number, z: number, radius: number, strength = 0.09): void {
         if (!this.wearEnabled()) return;
-        const s = this.groundEffects === 'medium' ? strength * 0.55 : strength;
-        this.stampWearChannel(x, z, radius, s, 'r');
+        const s =
+            (this.groundEffects === 'medium' ? strength * 0.55 : strength) * WEAR_BLEND.stampStrength;
+        this.stampWearChannel(x, z, radius * WEAR_BLEND.stampRadius, s, 'r');
     }
 
     /** Stamp blood under a hit/kill (G) — tight stain, short soft edge. */
@@ -627,9 +685,15 @@ export class BattleMap {
         if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
     }
 
+    /** Weather-driven snow wash on the board (visual only, melts under fire/oil/acid). */
+    setSnowCover(v: number): void {
+        if (this.snowCoverUniform) this.snowCoverUniform.value = v;
+    }
+
     /**
      * Shared ground fragment inject: optional wear (sand/blood/scorch) + always
-     * oil/fire hazard. Used by both the plain macro material and the detailed upgrade.
+     * oil/fire hazard. High/ultra dual-scale / texture-bomb the grass, ease off
+     * the soft macro canvas, and derive micro roughness from albedo luminance.
      */
     private attachGroundShader(
         material: MeshStandardMaterial,
@@ -638,15 +702,36 @@ export class BattleMap {
             hazardMask: CanvasTexture;
             sand?: import('three').Texture | null;
             sandMask?: CanvasTexture | null;
+            baseSandMask?: CanvasTexture | null;
+            // Soft circular field-photo accents (texture bombing + multiply).
+            photoGrass?: readonly [import('three').Texture, import('three').Texture] | null;
+            detail?: boolean;
         },
     ): void {
-        const { hazardMask, sand = null, sandMask = null } = opts;
+        const {
+            hazardMask,
+            sand = null,
+            sandMask = null,
+            baseSandMask = null,
+            photoGrass = null,
+            detail = false,
+        } = opts;
+        const profile = groundMaterialProfile();
+        const useDetail = detail && profile.detailStrength > 0;
+        const bomb = useDetail && profile.textureBomb;
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uMacro = { value: macro };
             shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
+            shader.uniforms.uMacroStrength = { value: detail ? profile.macroStrength : 1 };
             shader.uniforms.uHazardTime = { value: 0 };
             shader.uniforms.uHazardMask = { value: hazardMask };
             this.hazardTimeUniform = shader.uniforms.uHazardTime as { value: number };
+            shader.uniforms.uSnowCover = { value: 0 };
+            this.snowCoverUniform = shader.uniforms.uSnowCover as { value: number };
+            if (useDetail) {
+                shader.uniforms.uDetailScale = { value: profile.detailScale };
+                shader.uniforms.uDetailStrength = { value: profile.detailStrength };
+            }
             shader.vertexShader =
                 'varying vec2 vMacroUv;\n' +
                 shader.vertexShader.replace(
@@ -655,21 +740,108 @@ export class BattleMap {
                 );
             let inject = '';
             let extraUniforms =
-                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\n';
-            if (sand && sandMask) {
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\n';
+            // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
+            const softBlobFn =
+                'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
+                '\tvec2 cell = floor( uv * cellScale );\n' +
+                '\tfloat acc = 0.0;\n' +
+                '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
+                '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
+                '\t\t\tvec2 c = cell + vec2( float( i ), float( j ) );\n' +
+                '\t\t\tfloat h = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+                '\t\t\tif ( h <= density ) {\n' +
+                '\t\t\t\tvec2 jitter = vec2(\n' +
+                '\t\t\t\t\tfract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 ),\n' +
+                '\t\t\t\t\tfract( sin( dot( c + 19.2, vec2( 113.5, 271.9 ) ) ) * 43758.5453 )\n' +
+                '\t\t\t\t);\n' +
+                '\t\t\t\tvec2 center = ( c + 0.5 + ( jitter - 0.5 ) * 0.9 ) / cellScale;\n' +
+                '\t\t\t\tfloat d = length( uv - center ) * cellScale;\n' +
+                '\t\t\t\tfloat r = radius * ( 0.5 + 0.5 * fract( h * 7.13 ) );\n' +
+                '\t\t\t\tacc = max( acc, 1.0 - smoothstep( r * 0.25, r, d ) );\n' +
+                '\t\t\t}\n' +
+                '\t\t}\n' +
+                '\t}\n' +
+                '\treturn clamp( acc, 0.0, 1.0 );\n' +
+                '}\n';
+            if (useDetail) {
+                extraUniforms += 'uniform float uDetailScale;\nuniform float uDetailStrength;\n';
+                if (bomb) {
+                    // Stochastic blend of rotated UV samples kills wallpaper tiling.
+                    inject +=
+                        '\tvec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );\n' +
+                        '\tfloat bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
+                        '\tbombW = smoothstep( 0.28, 0.72, bombW );\n' +
+                        '\tvec3 bombAlb = texture2D( map, bombUv ).rgb;\n' +
+                        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, bombAlb, bombW * 0.55 );\n';
+                }
+                // Micro albedo: multiply-blend a finer UV sample so the lawn
+                // doesn't read as a single wallpaper tile at desktop distance.
+                inject +=
+                    '\tvec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+            }
+            // HQ lawn stays dominant. Field photos multiply in via soft round
+            // blobs (texture bombing) so they never paint hard square tiles.
+            if (photoGrass) {
+                const g = PHOTO_BLEND.grass;
+                shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
+                shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
+                extraUniforms += 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n';
+                inject +=
+                    `\tfloat pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );\n` +
+                    `\tvec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};\n` +
+                    '\tfloat pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
+                    '\tvec3 pgTex = mix(\n' +
+                    '\t\ttexture2D( uPhotoGrass1, pgUv ).rgb,\n' +
+                    '\t\ttexture2D( uPhotoGrass2, pgUv.yx * 1.07 + 0.21 ).rgb,\n' +
+                    '\t\tstep( 0.5, pgWhich ) );\n' +
+                    '\tfloat pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );\n' +
+                    '\tvec3 pgDetail = pgTex / pgLum;\n' +
+                    `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * ${g.strength.toFixed(2)} );\n`;
+            }
+            // Soft macro before snow so the white wash matches the outer meadow
+            // (macro after snow was tinting the board frost green again).
+            inject +=
+                '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
+                '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
+            if (sand && (baseSandMask || sandMask)) {
                 shader.uniforms.uSand = { value: sand };
+                extraUniforms += 'uniform sampler2D uSand;\n';
+            }
+            inject +=
+                '\tfloat preSnowLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );\n';
+            // Match-start mud UNDER snow (shows again when frost melts).
+            if (sand && baseSandMask) {
+                shader.uniforms.uBaseSandMask = { value: baseSandMask };
+                extraUniforms += 'uniform sampler2D uBaseSandMask;\n';
+                inject +=
+                    '\tfloat baseWearR = texture2D(uBaseSandMask, vMacroUv).r;\n' +
+                    '\tfloat baseSandM = smoothstep(0.06, 0.38, baseWearR - (preSnowLum - 0.25) * 0.35);\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vMapUv).rgb, baseSandM);\n';
+            }
+            // Soft weather frost. Unit footprints / blood / scorch paint after.
+            inject +=
+                '\tfloat snowLine = mix( 220.0, -15.0, uSnowCover );\n' +
+                '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
+                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.92, 0.95, 0.98 ), snowMask * 0.82 );\n';
+            if (sand && sandMask) {
                 shader.uniforms.uSandMask = { value: sandMask };
-                extraUniforms += 'uniform sampler2D uSand;\nuniform sampler2D uSandMask;\n';
+                extraUniforms += 'uniform sampler2D uSandMask;\n';
                 inject +=
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
-                    '\tfloat sandLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));\n' +
+                    '\tfloat sandLum = preSnowLum;\n' +
                     '\tfloat scorchM = smoothstep(0.12, 0.45, wear.b);\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n' +
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, sandTexel, sandM);\n';
+                    // In snow: footprints = pressed pack (darker frost), not bare mud.
+                    // snowMask 0 → dirt trails; snowMask 1 → compacted snow with a hint of grit.
+                    '\tvec3 packedSnow = diffuseColor.rgb * vec3( 0.52, 0.58, 0.68 );\n' +
+                    '\tvec3 trailCol = mix( sandTexel, mix( packedSnow, sandTexel, 0.22 ), snowMask );\n' +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandM);\n';
             }
             // oil / fire / acid — always, gameplay-readable on every quality setting
             inject +=
@@ -684,14 +856,37 @@ export class BattleMap {
                 '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
                 '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
-            inject += '\tdiffuseColor.rgb *= texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n';
-            shader.fragmentShader =
+            let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
+                (photoGrass ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
+            if (useDetail && material.normalMap) {
+                // Micro normals in the same space as the already-perturbed map
+                // (cheap UDN-style). Avoids perturbNormalArb — removed/changed in r185.
+                frag = frag.replace(
+                    '#include <normal_fragment_maps>',
+                    `#include <normal_fragment_maps>
+\tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
+\tdetailN.xy *= uDetailStrength;
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
+                );
+            }
+            if (profile.roughnessFromAlbedo && detail) {
+                frag = frag.replace(
+                    '#include <roughnessmap_fragment>',
+                    `#include <roughnessmap_fragment>
+\tfloat grassLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
+\t// darker soil pockets slightly rougher; bright blades a touch less flat-matte
+\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );`,
+                );
+            }
+            shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard${sand && sandMask ? '-wear-rgb' : ''}`;
+            `ground-hazard-v14${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pgblob' : ''}-${
+                useDetail ? groundDetailCacheKey(profile) : 'plain'
+            }`;
     }
 
     /**
@@ -713,11 +908,12 @@ export class BattleMap {
         this.sandFlushAt = performance.now();
     }
 
-    /** Wipe unit wear and reseed light base patches (new match only). */
+    /** Wipe unit wear (new match). Base mud patches stay on their own layer. */
     clearSandWear(): void {
         const ctx = this.sandCtx;
         if (!ctx || !this.sandMask) return;
-        this.paintBaseSand(ctx, this.sandW, this.sandH, this.sandSeed);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, this.sandW, this.sandH);
         this.sandMask.needsUpdate = true;
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
@@ -747,55 +943,65 @@ export class BattleMap {
     /**
      * Swaps the macro-only ground material for the detailed one once the
      * generated grass textures arrive: a high-frequency tiled albedo+normal
-     * carries the blade detail, while the macro canvas (meadow drift, stripes,
+     * carries the blade detail, while the macro canvas (meadow drift,
      * dirt, flowers, sun wash, vignette, border) modulates it — divided by the
      * base tone so it acts as pure relative variation. Until then (or if the
      * files are missing) the ground keeps the plain macro look.
      */
     private async upgradeGroundMaterial(mesh: Mesh, macro: CanvasTexture, seed: number): Promise<void> {
-        const [albedo, normal] = await Promise.all([
-            loadWorldTexture(grassAlbedoUrl),
-            loadWorldTexture(grassNormalUrl),
-        ]);
-        if (!albedo || !normal) return;
-        // sand is optional garnish — without it the ground is plain grass
-        const sand = await loadWorldTexture(sandAlbedoUrl);
-        const repeat = new Vector2(
-            this.width / DETAIL_TILE,
-            this.height / DETAIL_TILE,
-        );
+        const grass = await loadGrassTextures();
+        if (!grass?.albedo) return;
+        const { albedo, normal } = grass;
+        const profile = groundMaterialProfile();
+        // Wear surface: packed dirt on HQ tiers, sand otherwise
+        const wear = await loadWearGroundTextures();
+        const sand = wear?.albedo ?? (await loadWorldTexture(sandAlbedoUrl));
+        const tileSize = profile.detailTile;
+        const repeat = new Vector2(this.width / tileSize, this.height / tileSize);
         const tile = (t: typeof albedo) => {
             t.wrapS = t.wrapT = RepeatWrapping;
             t.repeat.copy(repeat);
-            t.anisotropy = 8;
+            t.anisotropy = profile.anisotropy;
         };
         tile(albedo);
         // boot preload may already have set this; keep local path correct too
         albedo.colorSpace = SRGBColorSpace;
-        tile(normal);
+        if (normal) tile(normal);
         if (sand) {
             tile(sand);
             sand.colorSpace = SRGBColorSpace;
         }
+        if (wear?.normal) tile(wear.normal);
+        for (const v of grass.variants) tile(v);
         const wearOn = this.wearEnabled();
         const sandMask = sand && wearOn ? this.createSandMask(seed) : null;
         if (!sandMask) {
             this.sandMask = null;
+            this.baseSandMask = null;
             this.sandCtx = null;
         }
         const hazardMask = this.ensureHazardMask();
 
+        const n = profile.normalScale;
         const material = new MeshStandardMaterial({
             map: albedo,
-            normalMap: normal,
-            normalScale: new Vector2(0.35, 0.35),
+            normalMap: normal ?? undefined,
+            normalScale: new Vector2(n, n),
             roughness: THEME.terrain.groundRoughness,
             metalness: 0,
         });
+        // variants = grass photos only (HQ lawn is base; dirt photos unused here)
+        const photoGrass =
+            grass.variants[0] && grass.variants[1]
+                ? ([grass.variants[0], grass.variants[1]] as const)
+                : null;
         this.attachGroundShader(material, macro, {
             hazardMask,
             sand: sandMask ? sand : null,
             sandMask,
+            baseSandMask: this.baseSandMask,
+            photoGrass,
+            detail: true,
         });
 
         const previous = mesh.material as MeshStandardMaterial;
@@ -844,21 +1050,6 @@ export class BattleMap {
             ctx.fillStyle = grad;
             circle(cx, cy, r);
             ctx.fill();
-        }
-
-        // mown-lawn stripes: gentle diagonal light bands
-        {
-            const stripePx = 4 * CELL * TEX_SCALE;
-            const diag = Math.hypot(w, h);
-            ctx.save();
-            ctx.translate(w / 2, h / 2);
-            ctx.rotate(-0.32);
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = t.stripe;
-            for (let x = -diag / 2; x < diag / 2; x += stripePx * 2) {
-                ctx.fillRect(x, -diag / 2, stripePx, diag);
-            }
-            ctx.restore();
         }
 
         // faint worn-earth patches — a lived-on field, kept very subtle
@@ -924,7 +1115,7 @@ export class BattleMap {
         ctx.fillRect(0, 0, w, h);
 
         // wash unique lawn paint out near the border so the field edge meets
-        // the outer grass instead of cutting from stripes → plain meadow
+        // the outer grass instead of a hard painted cut
         {
             const rim = 16 * TEX_SCALE;
             ctx.fillStyle = t.base;
@@ -947,8 +1138,12 @@ export class BattleMap {
     /**
      * The placement helper overlay: tile grid + deployment zone tints. Only
      * shown during the build phase — the war phase plays on clean terrain.
+     * `lane` is the LOCAL seat's own half of the zone in team modes ('full'
+     * for a solo seat) — when it isn't 'full', a divider marks where the
+     * seat's own placeable half ends, since {@link laneOk} enforces this
+     * strictly but nothing used to show it.
      */
-    createOverlayMesh(): Mesh {
+    createOverlayMesh(lane: 'full' | 'left' | 'right' = 'full'): Mesh {
         const TEX_SCALE = 8;
         const w = this.width * TEX_SCALE;
         const h = this.height * TEX_SCALE;
@@ -965,24 +1160,53 @@ export class BattleMap {
         // the zones grow into the neutral strip once that is unlocked
         const zonePx = (this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0)) * cellPx;
         const flankPx = this.size.flankCols * cellPx;
-        const paintZone = (x: number, y: number, zw: number, zh: number, tint: string) => {
-            ctx.fillStyle = `${tint} 0.12)`;
+        const paintZone = (x: number, y: number, zw: number, zh: number, tint: string, dim = false) => {
+            ctx.fillStyle = `${tint} ${dim ? 0.04 : 0.12})`;
             ctx.fillRect(x, y, zw, zh);
-            ctx.strokeStyle = `${tint} 0.55)`;
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = `${tint} ${dim ? 0.22 : 0.55})`;
+            ctx.lineWidth = dim ? 2 : 3;
             ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
         };
         // texture top = far (-z) half; whose that is depends on ownAtFar
         const nearTint = this.ownAtFar ? teamColors.enemy.tint : teamColors.player.tint;
         const farTint = this.ownAtFar ? teamColors.player.tint : teamColors.enemy.tint;
-        paintZone(flankPx, 0, w - 2 * flankPx, zonePx, farTint);
-        paintZone(flankPx, h - zonePx, w - 2 * flankPx, zonePx, nearTint);
+        const midCol = Math.floor(this.cols / 2);
+        const midX = midCol * cellPx;
+        // which on-texture rect (top or bottom) is actually MY OWN zone —
+        // near/far tint naming is about texture position, not ownership, so
+        // this must be derived the same way the dashed divider below does
+        const myZoneIsTop = this.ownAtFar;
+        // duo/2v2: laneOk only lets a seat place in its OWN half of the
+        // zone — paint that half at full strength and the ally's half
+        // (still your team's territory, just not yours to click) dimmed,
+        // instead of one uniform tint across ground you can't actually use.
+        // Only MY OWN zone is ever split like this — the opponent's stays a
+        // single uniform tint regardless of my lane.
+        const paintMainZone = (y: number, tint: string, mine: boolean) => {
+            if (lane === 'full' || !mine) {
+                paintZone(flankPx, y, w - 2 * flankPx, zonePx, tint);
+                return;
+            }
+            const leftW = midX - flankPx;
+            const rightW = w - flankPx - midX;
+            paintZone(flankPx, y, leftW, zonePx, tint, lane !== 'left');
+            paintZone(midX, y, rightW, zonePx, tint, lane !== 'right');
+        };
+        paintMainZone(0, farTint, myZoneIsTop);
+        paintMainZone(h - zonePx, nearTint, !myZoneIsTop);
         if (this.flanksUnlocked) {
-            // flanks beside the opponent's half belong to you
-            paintZone(0, 0, flankPx, zonePx, nearTint);
-            paintZone(w - flankPx, 0, flankPx, zonePx, nearTint);
-            paintZone(0, h - zonePx, flankPx, zonePx, farTint);
-            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, farTint);
+            // flanks beside the OPPONENT's half belong to you — the crossed
+            // rule means flank ownership is the OPPOSITE of that row-band's
+            // main-zone ownership: top flanks are mine exactly when my own
+            // zone is at the BOTTOM (!myZoneIsTop), and vice versa. Each
+            // flank strip sits entirely in one lane (it's at the map edge),
+            // so it's either fully mine or fully dimmed, no split needed.
+            const dimFlank = (isMine: boolean, laneMatch: boolean) =>
+                isMine && lane !== 'full' && !laneMatch;
+            paintZone(0, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'left'));
+            paintZone(w - flankPx, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'right'));
+            paintZone(0, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'left'));
+            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'right'));
         } else {
             // locked in round 1: neutral grey
             ctx.fillStyle = t.flankLocked;
@@ -1011,6 +1235,24 @@ export class BattleMap {
         ctx.moveTo(0, h / 2);
         ctx.lineTo(w, h / 2);
         ctx.stroke();
+
+        // duo/2v2: a dashed line marking where MY OWN lane ends within my
+        // own zone — laneOk enforces this strictly (a click past it is
+        // rejected), so without this there's no visual cue at all for where
+        // a seat may actually place
+        if (lane !== 'full') {
+            const myZoneTop = this.ownAtFar ? 0 : h - zonePx;
+            const myZoneBottom = this.ownAtFar ? zonePx : h;
+            ctx.save();
+            ctx.strokeStyle = t.laneLine;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([14, 10]);
+            ctx.beginPath();
+            ctx.moveTo(midX, myZoneTop);
+            ctx.lineTo(midX, myZoneBottom);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;

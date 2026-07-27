@@ -14,7 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
-import type { Team } from './units';
+import type { BattleTeam, Team } from './units';
 
 /**
  * Units backed by a generated GLB model instead of procedural primitives.
@@ -40,7 +40,13 @@ export interface ModelSpec {
 export const MODEL_SPECS: Record<string, ModelSpec> = {
     // fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
     // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
-    dwarf: { url: new URL('../../assets/models/dwarf.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 3 },
+    dwarf: {
+        url: new URL('../../assets/models/dwarf.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW,
+        scale: 3,
+        // soles sit a hair above the bbox floor — nudge feet into the lawn
+        offset: { y: -0.04 },
+    },
     archer: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
     crowRider: { url: new URL('../../assets/models/crow-rider-fantasy-low.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(100) },
@@ -87,7 +93,7 @@ export function getUnitInstanceAsset(id: string): InstanceAsset | null {
  * `meshScale` yields the same world size the game already expects.
  * `@deprecated team` kept optional for call sites that still pass it.
  */
-export function cloneUnitModel(id: string, _team?: Team): Group | null {
+export function cloneUnitModel(id: string, _team?: BattleTeam): Group | null {
     const t = templates.get(id);
     if (!t) return null;
     const clone = skeletonClone(t) as Group;

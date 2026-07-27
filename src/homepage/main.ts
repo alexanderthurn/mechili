@@ -1,6 +1,7 @@
 import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { GAME_VERSION } from '../game/net';
+import { DEFAULT_HORDE, DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { TACTICS, formatTacticStats } from '../game/tactics';
 import {
     COMMAND_TOWER,
@@ -246,6 +247,33 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
 </article>`;
 }
 
+// the homepage shows the defaults as if applyHordeMode had run (Single
+// Player/Matchmaking's forced default), so horde mode reads as "on" here
+// too instead of "unset" — describeGameSettings is shared with the
+// in-game settings panel (see hud.ts/game.ts), which passes the REAL
+// per-match settings instead of these defaults.
+const SETTINGS_GROUPS: SettingGroup[] = describeGameSettings({
+    ...DEFAULT_SETTINGS,
+    horde: DEFAULT_HORDE,
+});
+
+function settingsGroupHtml(g: SettingGroup): string {
+    return `
+<div class="mh-settings-card">
+  <h3>${esc(g.title)}</h3>
+  <table class="mh-settings-table">
+    <tbody>
+      ${g.rows
+          .map(
+              (r) =>
+                  `<tr><th>${esc(r.label)}</th><td>${esc(r.value)}${r.note ? `<span class="mh-settings-desc">${esc(r.note)}</span>` : ''}</td></tr>`,
+          )
+          .join('')}
+    </tbody>
+  </table>
+</div>`;
+}
+
 const ALL_TACTICS = Object.values(TACTICS);
 
 const versionLabel = `v${__APP_VERSION__} · ${GAME_VERSION}`;
@@ -379,6 +407,15 @@ app.innerHTML = `
       ${ALL_TACTICS.map((t, i) => tacticCard(t, i === 0)).join('')}
     </div>
   </section>
+
+  <section class="mh-section" id="settings">
+    <h2>Match settings</h2>
+    <p class="mh-sub">The default rules for a match, pulled straight from the game's settings code so this can't drift from what actually ships. Everything here is tunable &mdash; it's open source.</p>
+    <div class="mh-settings-grid">
+      ${SETTINGS_GROUPS.map(settingsGroupHtml).join('')}
+    </div>
+  </section>
+
   <section class="mh-section mh-together" id="suggest">
     <h2>Contribute</h2>
     <p class="mh-sub">Melodan is developed by a single person, me. I am passionate about this game, but i can not make an AAA title and keep everything perfect, balanced and so on. The idea is to have an open game where anybody can contribute. <br /><br />Let&rsquo;s make this together. Balance, bugs, features, art ideas <span class="mh-sep">⬢</span> send a short note and I will read it. If you want to do more, welcome!</p>
