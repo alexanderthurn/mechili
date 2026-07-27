@@ -2141,9 +2141,22 @@ function tryMatchmaking(): void {
     setStatus('Looking for a match…');
     void fetchLobbyRooms().then((rooms) => {
         const mine = getPlayerName().toLowerCase();
-        const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
-        if (open) beginStarJoin(open.name);
-        else tryQuickMatch(true, true);
+        // any OPEN room (not a spectate-only entry for an already-running
+        // match) — 1v1 or 2v2 alike, so a plain "Matchmaking" click on one
+        // tab always finds what another tab's "Matchmaking" click just
+        // hosted, the same way both used to only work for 2v2
+        const open = rooms.find((r) => r.kind === 'lobby' && r.name.toLowerCase() !== mine);
+        if (open?.mode === '2v2') {
+            beginStarJoin(open.name);
+        } else if (open) {
+            runPending(joinLobby(open.name, setStatus));
+        } else {
+            // nothing open — host a discoverable room (not the old
+            // anonymous quickMatch queue, which never showed up in the
+            // room list at all) so the very next "Matchmaking" click,
+            // from any tab, finds this one instead of also hosting blind
+            runPending(hostLobby(setStatus), applyHordeMode);
+        }
     });
 }
 
