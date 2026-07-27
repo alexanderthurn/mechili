@@ -44,6 +44,17 @@ export interface MatchTelemetry {
     speciality: { player: SpecialityId | null; enemy: SpecialityId | null };
     units: Record<Team, Record<string, UnitPresence>>;
     unlocked: Record<Team, string[]>;
+    /**
+     * Every seat in the match, canonical (side 'a'/'b' — same on every
+     * submitter, unlike `names`/`speciality`/`units` above which are all
+     * reduced to "mine vs the other side" from the SUBMITTER's own
+     * perspective). `names` predates team modes and stays a 2-name
+     * reduction for existing consumers (replays.html); this is the only
+     * place a 2v2+ match's full participant list — including which seats
+     * are AI — is actually recorded. Optional so old records without it
+     * still parse.
+     */
+    roster?: { seat: number; side: 'a' | 'b'; controller: 'human' | 'ai'; name: string }[];
     replay: {
         version: number;
         seed: number;

@@ -27,7 +27,11 @@
  *       Lightweight index GROUPED by matchKey, most-recent-first — for a
  *       human browsing match history (replays.html), not a sync cursor.
  *       {"groups":[{matchKey,ts,records:[{id,ts,side,mode,gameVersion,result,rounds,
- *       playerHp,enemyHp,verifiedCount,lastVerifiedAt,names},...]}]}
+ *       playerHp,enemyHp,verifiedCount,lastVerifiedAt,names,roster},...]}]}
+ *       `roster` (2v2+ only) is the full canonical seat list — every
+ *       participant including AI-filled seats: [{seat,side,controller,name}].
+ *       `names`/playerHp/enemyHp stay a 2-bucket "mine vs the other side"
+ *       reduction regardless of how many seats are actually on each side.
  *   GET  ?action=get&id=<id>
  *       One full record.
  *   GET  ?action=count
@@ -298,6 +302,10 @@ function handleGrouped(): void {
                 'local' => $data['names']['local'] ?? '',
                 'opponent' => $data['names']['opponent'] ?? '',
             ],
+            // full canonical seat list (2v2+) — empty on records predating
+            // this field, or a solo/1v1 record where names above already
+            // says everything
+            'roster' => is_array($data['roster'] ?? null) ? $data['roster'] : [],
         ];
     }
 
@@ -326,6 +334,33 @@ function handleGet(): void {
         respond(['error' => 'corrupt'], 500);
     }
     respond($data);
+}
+
+/**
+ * Sanitize the full canonical seat list a 2v2+ match reports (the only
+ * place all participants — including AI-filled seats — are recorded;
+ * `names`/`speciality`/`units` stay a 2-bucket "mine vs the other side"
+ * reduction for existing consumers). Missing/malformed entries are
+ * dropped rather than defaulted — a partial roster is more honest than a
+ * fabricated one.
+ */
+function normalizeRoster($raw): array {
+    if (!is_array($raw)) return [];
+    $out = [];
+    foreach ($raw as $entry) {
+        if (!is_array($entry)) continue;
+        $side = (string)($entry['side'] ?? '');
+        if ($side !== 'a' && $side !== 'b') continue;
+        $controller = (string)($entry['controller'] ?? '');
+        if ($controller !== 'human' && $controller !== 'ai') continue;
+        $out[] = [
+            'seat' => max(0, (int)($entry['seat'] ?? 0)),
+            'side' => $side,
+            'controller' => $controller,
+            'name' => mb_substr((string)($entry['name'] ?? ''), 0, 32),
+        ];
+    }
+    return $out;
 }
 
 /**
@@ -361,6 +396,7 @@ function normalizeRecord(array $data): array {
     $units = is_array($data['units'] ?? null) ? $data['units'] : [];
     $unlocked = is_array($data['unlocked'] ?? null) ? $data['unlocked'] : [];
     $names = is_array($data['names'] ?? null) ? $data['names'] : [];
+    $roster = normalizeRoster($data['roster'] ?? null);
 
     // fingerprint: enough to identify the match without perspective noise
     $fp = json_encode([
@@ -411,6 +447,7 @@ function normalizeRecord(array $data): array {
         ],
         'units' => $units,
         'unlocked' => $unlocked,
+        'roster' => $roster,
         'replay' => [
             'version' => (int)($replay['version'] ?? 1),
             'seed' => $seed,

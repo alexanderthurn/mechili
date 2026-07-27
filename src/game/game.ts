@@ -5462,6 +5462,17 @@ export class Game {
                     player: [...new Set(seatIdsOf(this.seats, 'player').flatMap((s) => this.unlockedUnits[s]!))],
                     enemy: [...new Set(seatIdsOf(this.seats, 'enemy').flatMap((s) => this.unlockedUnits[s]!))],
                 },
+                // full canonical roster — the only place a 2v2+ match's
+                // complete participant list (including AI-filled seats)
+                // gets recorded; names/speciality/units above stay a
+                // 2-bucket "mine vs the other side" reduction for existing
+                // consumers (replays.html)
+                roster: this.seats.map((s, seat) => ({
+                    seat,
+                    side: s.side === 0 ? 'a' : ('b' as const),
+                    controller: s.controller,
+                    name: s.name,
+                })),
                 replay,
             });
         } catch {

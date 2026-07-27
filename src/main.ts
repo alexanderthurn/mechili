@@ -1523,7 +1523,15 @@ function cancelStarHost(): void {
 /** set by beginStarHost's caller right before hosting; read by startStarMatch */
 let starHordeFlag = false;
 
-async function beginStarHost(horde = false): Promise<void> {
+/**
+ * `waitForJoined`: total participants (host included) to wait for before
+ * auto-starting — default 2 (today's normal behavior: start the moment
+ * one guest joins, AI-filling whatever's left). The `?test2v2=<n>` param
+ * (see its own comment near the URL-param block) raises this to 3 or 4 so
+ * a real multi-tab test can actually gather everyone before the match
+ * begins, instead of racing the very first join.
+ */
+async function beginStarHost(horde = false, waitForJoined = 2): Promise<void> {
     starHordeFlag = horde;
     setMenuBusy(true);
     setStatus('Opening 2v2 room…');
@@ -1545,10 +1553,10 @@ async function beginStarHost(horde = false): Promise<void> {
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
-        // auto-start the moment anyone joins — no manual "click Start" step;
-        // the Start button (still shown) is only for "give up waiting, go
-        // vs AI now" while the room is still empty
-        if (joined > 1) {
+        // auto-start once `waitForJoined` have joined — no manual "click
+        // Start" step; the Start button (still shown) is only for "give up
+        // waiting, go vs AI now" while the room hasn't reached that yet
+        if (joined >= waitForJoined) {
             setStatus(`Room "${hostName}" — ${joined}/4 joined: ${names}. Starting…`);
             startStarMatch();
             return;
@@ -1904,16 +1912,38 @@ function tryQuickMatch(horde: boolean, committed = false): void {
         });
 }
 
-/** Plain (non-Steam) 2v2: join an open room if one exists, else host and
- *  wait (beginStarHost already auto-starts the moment anyone joins). */
-function try2v2Match(horde: boolean): void {
+/**
+ * `?test2v2=4` (4 real players) or `?test2v2=2` (2 real players, AI fills
+ * the other 2 — today's normal 2v2-vs-AI default, just explicit) lets the
+ * Matchmaking button skip straight to the star (2v2) flow instead of the
+ * simplified 1v1-only default, for testing without a lobby/mode picker.
+ * Every test tab — host or client — can carry the exact same param and
+ * just click Matchmaking: `try2v2Match` below already finds-and-joins an
+ * open room if one exists, so only whichever tab runs first ends up
+ * hosting (and is the only one for whom the wait-count matters).
+ */
+function test2v2Param(): number | null {
+    const raw = new URLSearchParams(location.search).get('test2v2');
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 2 && n <= 4 ? n : null;
+}
+
+/**
+ * Plain (non-Steam) 2v2: join an open room if one exists, else host and
+ * wait. `waitForJoined` only matters for whichever tab ends up hosting —
+ * a tab that finds and joins an existing room ignores it entirely, so
+ * every test tab can carry the same value and just "take what comes"
+ * (see `?test2v2=` above): whichever one runs first hosts and waits for
+ * the rest, everyone else finds that room and joins it.
+ */
+function try2v2Match(horde: boolean, waitForJoined = 2): void {
     mmSimpleEl.style.display = 'none';
     setStatus('Looking for an open 2v2 room…');
     void fetchLobbyRooms().then((rooms) => {
         const mine = getPlayerName().toLowerCase();
         const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
         if (open) beginStarJoin(open.name);
-        else void beginStarHost(horde);
+        else void beginStarHost(horde, waitForJoined);
     });
 }
 
@@ -2059,6 +2089,11 @@ menu.addEventListener('click', (e) => {
             mmSimpleEl.style.display = 'none';
             stopRoomPoll();
             mainButtonsEl.style.display = 'none';
+            const test2v2 = test2v2Param();
+            if (test2v2 !== null) {
+                try2v2Match(false, test2v2);
+                break;
+            }
             if (steam.isAvailable()) {
                 // unchanged for Steam: quickSteamMatch's "host" branch
                 // creates a real public Steam lobby the instant it starts
