@@ -4,6 +4,7 @@ import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
+import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
 import { THEME, hudStyles } from '../theme';
@@ -66,7 +67,7 @@ interface ActionTile {
 export interface SelectionInfo {
     name: string;
     /** local perspective: drives team-color CSS */
-    team: 'player' | 'enemy';
+    team: 'player' | 'enemy' | 'horde';
     /** display name of the owning player (e.g. "mangoo", "AI") */
     owner: string;
     hp: number;
@@ -119,6 +120,8 @@ export interface SelectionInfo {
     rallyRouteAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
+    /** gift supply to your ally (Stronghold only, team modes) */
+    sendSupply?: { amount: number; affordable: boolean };
 }
 
 /**
@@ -147,6 +150,8 @@ export class Hud {
     onBuyRoundSpeedBoost: (() => void) | null = null;
     onBuyCredit: (() => void) | null = null;
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
+    /** team modes only: gift supply to your ally, delivered at the start of next round */
+    onSendSupply: ((amount: number) => void) | null = null;
     onArmItem: ((itemId: string, index: number) => void) | null = null;
     onArmTactic: ((tacticId: string, index: number) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
@@ -162,10 +167,13 @@ export class Hud {
     onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
     onQuitToMenu: (() => void) | null = null;
-    /** grant/revoke live deploy vision for a spectator (own seat) */
+    /** grant/revoke live deploy vision for a spectator (own seat). Left null
+     *  by a spectating client itself — it has no seat to grant from, so the
+     *  badge list below renders plain names with no checkboxes. */
     onGrantSpectatorLive: ((name: string, grant: boolean) => void) | null = null;
-    /** names of current spectators for the pause-menu grant toggles */
-    spectatorNamesForMenu: (() => string[]) | null = null;
+    private readonly spectatorBadgeEl: HTMLButtonElement;
+    private spectatorListEl: HTMLDivElement | null = null;
+    private lastSpectatorNames: string[] = [];
     private pauseMenu: HTMLDivElement | null = null;
     private cardOverlay: HTMLDivElement | null = null;
     private lastPanelKey = '';
@@ -193,6 +201,7 @@ export class Hud {
     private readonly roundEl: HTMLSpanElement;
     private readonly phaseEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
+    private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
     private readonly playerNameEl: HTMLSpanElement;
     private readonly enemyNameEl: HTMLSpanElement;
@@ -208,6 +217,9 @@ export class Hud {
     /** which commander's detail is open (so live pick updates can refresh it) */
     private specDetailTeam: 'player' | 'enemy' | null = null;
     private specDetailViaHover = false;
+    /** this match's settings, described for the click-to-open panel — set once via setSettingsGroups */
+    private settingsGroups: SettingGroup[] = [];
+    private settingsDetailOverlay: HTMLDivElement | null = null;
     private readonly playerHpFill: HTMLDivElement;
     private readonly enemyHpFill: HTMLDivElement;
     private readonly playerHpVal: HTMLSpanElement;
@@ -341,10 +353,12 @@ export class Hud {
         toolbarRight.append(this.levelAllGlobalBtn);
 
         this.supplyFrame = document.createElement('div');
-        this.supplyFrame.className = 'mechili-supply';
+        this.supplyFrame.className = 'mechili-supply clickable';
+        this.supplyFrame.title = 'Match settings';
         this.supplyEl = document.createElement('span');
         this.supplyEl.className = 'supply';
         this.supplyFrame.append(this.supplyEl);
+        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
         toolbarRight.append(this.supplyFrame);
         shopToolbar.append(toolbarRight);
 
@@ -423,6 +437,7 @@ export class Hud {
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
             else if (button.dataset.speedboost) this.onBuyRoundSpeedBoost?.();
             else if (button.dataset.credit) this.onBuyCredit?.();
+            else if (button.dataset.sendsupply) this.onSendSupply?.(100);
             else if (button.dataset.boost) this.onBuyBoost?.(button.dataset.boost as 'attack' | 'hp');
             else if (button.dataset.tech) this.onBuyTech?.(button.dataset.tech);
         });
@@ -586,13 +601,20 @@ export class Hud {
         this.roundEl.className = 'round';
         this.phaseEl = document.createElement('span');
         this.phaseEl.className = 'phase';
-        topMeta.append(this.roundEl, this.phaseEl);
+        this.spectatorBadgeEl = document.createElement('button');
+        this.spectatorBadgeEl.type = 'button';
+        this.spectatorBadgeEl.className = 'spectator-badge';
+        this.spectatorBadgeEl.style.display = 'none';
+        this.spectatorBadgeEl.title = 'Spectators watching this match';
+        this.spectatorBadgeEl.addEventListener('click', () => this.toggleSpectatorList());
+        topMeta.append(this.roundEl, this.phaseEl, this.spectatorBadgeEl);
         this.timerEl = document.createElement('span');
         this.timerEl.className = 'timer';
         const endButton = document.createElement('button');
         endButton.className = 'end-deploy';
         endButton.textContent = 'End Deployment';
         endButton.addEventListener('click', () => this.onEndDeployment?.());
+        this.endButton = endButton;
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
@@ -667,10 +689,12 @@ export class Hud {
         this.phoneUndoEl.textContent = '↩ Undo';
         this.phoneUndoEl.addEventListener('click', () => this.onUndo?.());
         const phoneSupplyFrame = document.createElement('div');
-        phoneSupplyFrame.className = 'mechili-supply';
+        phoneSupplyFrame.className = 'mechili-supply clickable';
+        phoneSupplyFrame.title = 'Match settings';
         this.phoneSupplyEl = document.createElement('span');
         this.phoneSupplyEl.className = 'supply';
         phoneSupplyFrame.append(this.phoneSupplyEl);
+        phoneSupplyFrame.addEventListener('click', () => this.showSettingsDetail());
         this.phoneLevelAllEl = document.createElement('button');
         this.phoneLevelAllEl.className = 'level-all-global';
         this.phoneLevelAllEl.style.display = 'none';
@@ -1519,6 +1543,15 @@ export class Hud {
                 state: info.sellAbility.owned ? 'owned' : info.sellAbility.affordable ? 'buy' : 'locked',
             });
         }
+        if (info.sendSupply) {
+            tiles.push({
+                data: 'data-sendsupply="1"',
+                icon: '🎁',
+                title: `Send ${info.sendSupply.amount} to Ally`,
+                desc: `Gift ${info.sendSupply.amount} supply to your ally — arrives at the start of next round.`,
+                state: info.sendSupply.affordable ? 'buy' : 'locked',
+            });
+        }
         if (info.rallyRouteAbility) {
             tiles.push({
                 data: 'data-rallyroute="1"',
@@ -1661,7 +1694,13 @@ export class Hud {
         this.actionInfoFor = null;
     }
 
-    setPhase(round: number, phase: Phase, remainingSeconds: number, waitingForPeer = false): void {
+    setPhase(
+        round: number,
+        phase: Phase,
+        remainingSeconds: number,
+        waitingForPeer = false,
+        allyLockedIn = false,
+    ): void {
         // round 0 is the specialist pick, not a numbered round
         this.roundEl.textContent = round === 0 ? 'Specialists' : `Round ${round}`;
         this.phaseEl.textContent = waitingForPeer
@@ -1681,6 +1720,13 @@ export class Hud {
         );
         // locked in: only spectating remains — no buying, no ending twice
         this.topBar.classList.toggle('waiting', waitingForPeer);
+        // teammate (same side, team modes) has already locked in but I
+        // haven't yet — a visible cue on the button itself, since I still
+        // see the normal button (my side isn't "waiting" until I click too).
+        // Once I click myself, waitingForPeer covers it — full hide, same
+        // as classic 1v1's "locked in" treatment (see game.ts's waitingForPeer).
+        this.endButton.classList.toggle('ally-ready', allyLockedIn && !waitingForPeer);
+        this.endButton.title = allyLockedIn && !waitingForPeer ? 'Your ally is ready — waiting on you' : '';
         this.fightBar.classList.toggle('battle', phase === 'battle');
         this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
@@ -1698,6 +1744,13 @@ export class Hud {
 
     setSpeed(multiplier: number): void {
         this.speedEl.textContent = `${multiplier}×`;
+    }
+
+    /** watch mode replaces this with its own wider-range speed control
+     *  (replayControls.ts) — set once, never toggled back (a Game instance's
+     *  watching-ness never changes for its lifetime) */
+    setSpeedButtonVisible(visible: boolean): void {
+        this.speedEl.style.display = visible ? '' : 'none';
     }
 
     setHp(player: number, enemy: number): void {
@@ -1747,13 +1800,16 @@ export class Hud {
     }
 
     /**
-     * Full-screen overlays (card picks, pause) own the screen: the phone tab
-     * bar and field-action buttons step aside. The topbar keeps its original
-     * cards-only rule (a card pick blocks End Deployment; pause does not).
+     * Full-screen overlays (card picks, pause, match settings) own the
+     * screen: the phone tab bar and field-action buttons step aside. The
+     * topbar keeps its original cards-only rule (a card pick or the
+     * settings panel blocks End Deployment and speed controls; pause does
+     * not — pause already stops everything itself).
      */
     private syncOverlayOpen(): void {
-        const open = this.cardOverlay !== null || this.pauseMenu !== null;
-        this.topBar.classList.toggle('overlay-open', this.cardOverlay !== null);
+        const blocksTopBar = this.cardOverlay !== null || this.settingsDetailOverlay !== null;
+        const open = blocksTopBar || this.pauseMenu !== null;
+        this.topBar.classList.toggle('overlay-open', blocksTopBar);
         this.phoneBar.classList.toggle('overlay-open', open);
         this.phoneStatusEl.classList.toggle('overlay-open', open);
     }
@@ -1798,28 +1854,11 @@ export class Hud {
         this.hidePauseMenu();
         const el = document.createElement('div');
         el.className = 'mechili-pause';
-        const spectators = this.spectatorNamesForMenu?.() ?? [];
-        const spectateHtml =
-            spectators.length === 0
-                ? ''
-                : `<div class="pause-spectators">` +
-                  `<div class="pause-subtitle">Spectators — share my deploy live</div>` +
-                  spectators
-                      .map(
-                          (name) =>
-                              `<label class="pause-spectate-row">` +
-                              `<input type="checkbox" data-spectate-name="${escapeAttr(name)}" />` +
-                              `<span>${escapeHtml(name)}</span>` +
-                              `</label>`,
-                      )
-                      .join('') +
-                  `</div>`;
         el.innerHTML =
             `<div class="pause-box">` +
             `<div class="pause-title">Menu</div>` +
             `<button type="button" class="pause-resume">Continue</button>` +
             `<button type="button" class="pause-settings">Settings</button>` +
-            spectateHtml +
             `<button type="button" class="pause-quit">Quit to menu</button>` +
             `</div>`;
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
@@ -1828,15 +1867,59 @@ export class Hud {
             this.hidePauseMenu();
             this.onQuitToMenu?.();
         });
+        this.pauseMenu = el;
+        this.syncOverlayOpen();
+        this.mount(el);
+    }
+
+    /** persistent topbar indicator: eye + count, hidden while nobody's
+     *  watching. Click expands the full name list (with live-grant
+     *  checkboxes, when `onGrantSpectatorLive` is wired — a spectating
+     *  client itself never wires that, so its own badge lists plain names). */
+    setSpectators(names: string[]): void {
+        this.lastSpectatorNames = names;
+        this.spectatorBadgeEl.style.display = names.length === 0 ? 'none' : '';
+        this.spectatorBadgeEl.textContent = `\u{1F441} ${names.length}`;
+        if (names.length === 0) {
+            this.spectatorListEl?.remove();
+            this.spectatorListEl = null;
+            return;
+        }
+        if (this.spectatorListEl) this.renderSpectatorList();
+    }
+
+    private toggleSpectatorList(): void {
+        if (this.spectatorListEl) {
+            this.spectatorListEl.remove();
+            this.spectatorListEl = null;
+            return;
+        }
+        this.renderSpectatorList();
+    }
+
+    private renderSpectatorList(): void {
+        this.spectatorListEl?.remove();
+        const el = document.createElement('div');
+        el.className = 'spectator-list';
+        const canGrant = this.onGrantSpectatorLive !== null;
+        el.innerHTML = this.lastSpectatorNames
+            .map((name) =>
+                canGrant
+                    ? `<label class="spectator-row">` +
+                      `<input type="checkbox" data-spectate-name="${escapeAttr(name)}" />` +
+                      `<span>${escapeHtml(name)}</span>` +
+                      `</label>`
+                    : `<div class="spectator-row"><span>${escapeHtml(name)}</span></div>`,
+            )
+            .join('');
         for (const input of el.querySelectorAll<HTMLInputElement>('input[data-spectate-name]')) {
             input.addEventListener('change', () => {
                 const name = input.dataset.spectateName;
                 if (name) this.onGrantSpectatorLive?.(name, input.checked);
             });
         }
-        this.pauseMenu = el;
-        this.syncOverlayOpen();
-        this.mount(el);
+        this.spectatorListEl = el;
+        this.topBar.append(el);
     }
 
     /** the face of a specialist card (static data only — safe for innerHTML) */
@@ -1849,16 +1932,25 @@ export class Hud {
         );
     }
 
-    /** the pre-round-1 loadout pick: four cards, click one, the game begins */
-    showStartCards(cards: readonly StartCard[], onPick: (cardId: string) => void): void {
+    /** the pre-round-1 loadout pick: four cards, click one, the game begins.
+     *  `note` (team modes only) clarifies who decides the shared speciality —
+     *  set via textContent, never innerHTML, since it can embed a player name. */
+    showStartCards(
+        cards: readonly StartCard[],
+        note: string | undefined,
+        onPick: (cardId: string) => void,
+    ): void {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose your specialist</div><div class="cards-row">` +
+            `<div class="cards-title">Choose your specialist</div>` +
+            (note ? `<div class="cards-note"></div>` : '') +
+            `<div class="cards-row">` +
             cards
                 .map((c) => `<button class="card" data-card="${c.id}">${this.startCardFace(c)}</button>`)
                 .join('') +
             `</div>`;
+        if (note) overlay.querySelector('.cards-note')!.textContent = note;
         overlay.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card) return;
@@ -1990,6 +2082,58 @@ export class Hud {
         this.enemyInventoryEl.classList.remove('reveal');
     }
 
+    /** this match's settings, described once at match start (see game/settings.ts's
+     *  describeGameSettings) — reflects the REAL settings for this match, including
+     *  any ?hordeFactor= override, not just the defaults */
+    setSettingsGroups(groups: SettingGroup[]): void {
+        this.settingsGroups = groups;
+    }
+
+    /** a dismissible popup listing this match's settings (click the supply counter) */
+    private showSettingsDetail(): void {
+        if (this.settingsDetailOverlay) this.settingsDetailOverlay.remove();
+        const overlay = document.createElement('div');
+        overlay.className = 'mechili-cards detail settings-detail';
+        overlay.innerHTML =
+            `<div class="settings-panel">` +
+            `<button type="button" class="settings-close" aria-label="Close">&times;</button>` +
+            `<div class="settings-panel-title">Match Settings</div>` +
+            `<div class="settings-grid">` +
+            this.settingsGroups
+                .map(
+                    (g) =>
+                        `<div class="settings-card"><h3>${escapeHtml(g.title)}</h3><table class="settings-table"><tbody>` +
+                        g.rows
+                            .map(
+                                (r) =>
+                                    `<tr><th>${escapeHtml(r.label)}</th><td>${escapeHtml(r.value)}${
+                                        r.note ? `<span class="settings-desc">${escapeHtml(r.note)}</span>` : ''
+                                    }</td></tr>`,
+                            )
+                            .join('') +
+                        `</tbody></table></div>`,
+                )
+                .join('') +
+            `</div></div>`;
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay || (e.target as HTMLElement).closest('.settings-close')) {
+                this.hideSettingsDetail();
+            }
+        });
+        this.settingsDetailOverlay = overlay;
+        this.mount(overlay);
+        this.syncOverlayOpen();
+    }
+
+    /** dismiss the match-settings popup */
+    private hideSettingsDetail(): void {
+        if (this.settingsDetailOverlay) {
+            this.settingsDetailOverlay.remove();
+            this.settingsDetailOverlay = null;
+        }
+        this.syncOverlayOpen();
+    }
+
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
     showRoundCards(
         cards: readonly { id: string; title: string; body: string; cost: number; affordable: boolean }[],
@@ -2102,11 +2246,15 @@ export class Hud {
         this.mount(el);
     }
 
-    showGameOver(result: 'victory' | 'defeat' | 'draw'): void {
+    showGameOver(result: 'victory' | 'defeat' | 'draw', options?: { note?: string; backLabel?: string }): void {
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;
         const title = result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW';
-        el.innerHTML = `<div class="go-title">${title}</div><button class="go-restart">Back to main menu</button>`;
+        const note = options?.note ? `<div class="go-note">${escapeHtml(options.note)}</div>` : '';
+        const backLabel = options?.backLabel ?? 'Back to main menu';
+        el.innerHTML =
+            `<div class="go-title">${title}</div>${note}` +
+            `<button class="go-restart">${escapeHtml(backLabel)}</button>`;
         el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
     }

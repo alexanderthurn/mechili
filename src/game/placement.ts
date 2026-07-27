@@ -24,14 +24,20 @@ import {
     TargetPreviewVisuals,
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
-import { Unit, unitTypeById, type GridExtent, type Team, type UnitType } from './units';
+import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
+
+/** horde unit ids start here — far above anything the parity counters reach */
+const HORDE_ID_BASE = 1_000_000;
 import { getUnitInstanceRenderer } from './unitInstances';
 
 /** frozen enemy intel captured at deployment-phase start */
 interface IntelEntry {
     unitId: number;
     typeId: string;
-    team: Team;
+    team: BattleTeam;
+    /** which seat owns this pack — needed to resolve per-seat spectator live vision (see isFoggedSnapshot) */
+    seat: SeatId;
     cell: Cell;
     rotated: boolean;
     facing: number;
@@ -112,6 +118,17 @@ export class PlacementController {
     hiddenPlacements = false;
     /** when true, enemy packs render at {@link intelSnapshot} poses instead of live */
     private intelFog = false;
+    /**
+     * `null` (default): real-player fog rules — my own side (`'player'`) is
+     * never fogged, only `'enemy'` is, exactly as before.
+     * A Set (even empty): spectator mode — NEITHER team is "mine", so both
+     * are fogged symmetrically the same way `'enemy'` used to be alone,
+     * except any seat in this set (an active live-vision grant) is exempt.
+     * Set by Game whenever this match's spectator vision state changes (see
+     * Game.syncSpectatorVision) — always non-null while watching, even when
+     * empty (battle-vision-only, no live grants yet).
+     */
+    spectatorLiveSeats: ReadonlySet<SeatId> | null = null;
     /** unit poses at deployment-phase start — the opponent's stale intel view */
     private readonly intelSnapshot = new Map<number, IntelEntry>();
     /** sold snapshotted enemy packs kept visible at their intel pose */
@@ -142,7 +159,20 @@ export class PlacementController {
      * sequence, so peers applying each other's actions in any interleaving
      * still agree (player ids even, enemy ids odd)
      */
-    private readonly nextUnitId: Record<Team, number> = { player: 0, enemy: 0 };
+    /**
+     * Per-SEAT spawn counters (index = SeatId), lazily grown. Per-seat, not
+     * per-team: two seats sharing a side must never share a counter — a
+     * teammate's own actions are always locally sequential, so a per-seat
+     * counter is safe even once those seats are on different network
+     * clients (arrival order between DIFFERENT seats may vary; order
+     * WITHIN one seat's own stream never does).
+     */
+    private readonly nextUnitId: number[] = [];
+    private nextHordeId = 0;
+    /** the match roster — drives default seats and (duo modes) lane splits */
+    roster: SeatDef[] = classicSeats('You', 'Enemy');
+    /** the local human's seat — the placement/preview UI acts for this seat */
+    localSeat: SeatId = 0;
     private readonly units: Unit[] = [];
     private readonly occupied = new Map<string, Unit>();
     private readonly hoverMesh: Mesh;
@@ -375,6 +405,7 @@ export class PlacementController {
             unitId: unit.id,
             typeId: unit.type.id,
             team: unit.team,
+            seat: unit.seat,
             cell: { col: unit.cell.col, row: unit.cell.row },
             rotated: unit.rotated,
             facing: unit.facing,
@@ -400,10 +431,29 @@ export class PlacementController {
         return this.intelFog;
     }
 
-    /** true when the opponent may see this enemy pack (snapshot or live reveal). */
+    /**
+     * Whether `unit` should currently render fogged: for a real player, only
+     * ever the opponent's side (`spectatorLiveSeats === null`, own side is
+     * never fogged from itself). For a spectator watching both sides with
+     * no "mine", both teams are fogged the same way, exempted only by an
+     * active per-seat live-vision grant.
+     */
+    private isFogged(unit: Unit): boolean {
+        if (!this.intelFog) return false;
+        if (this.spectatorLiveSeats === null) return unit.team === 'enemy';
+        return !this.spectatorLiveSeats.has(unit.seat);
+    }
+
+    /** same as {@link isFogged}, for a frozen snapshot entry (no live Unit) */
+    private isFoggedSnapshot(snap: IntelEntry): boolean {
+        if (!this.intelFog) return false;
+        if (this.spectatorLiveSeats === null) return snap.team === 'enemy';
+        return !this.spectatorLiveSeats.has(snap.seat);
+    }
+
+    /** true when the opponent (or a spectator without live/battle vision) may see this pack. */
     enemyIntelVisible(unit: Unit): boolean {
-        if (unit.team !== 'enemy') return true;
-        if (!this.intelFog) return true;
+        if (!this.isFogged(unit)) return true;
         return this.intelSnapshot.has(unit.id);
     }
 
@@ -421,7 +471,7 @@ export class PlacementController {
      * null = use the live unit (own packs, or fog off / not yet snapshotted).
      */
     intelOf(unit: Unit): { level: number; xp: number; items: readonly string[] } | null {
-        if (!this.intelFog || unit.team !== 'enemy') return null;
+        if (!this.isFogged(unit)) return null;
         const snap = this.intelSnapshot.get(unit.id);
         if (!snap) return null;
         return { level: snap.level, xp: snap.xp, items: snap.items };
@@ -473,7 +523,7 @@ export class PlacementController {
     /** carried packs go back to their committed / visible intel spots */
     private restoreSelectedView(): void {
         const restore = (u: Unit) => {
-            if (this.intelFog && u.team === 'enemy') {
+            if (this.isFogged(u)) {
                 const snap = this.intelSnapshot.get(u.id);
                 if (snap) {
                     this.applySnapshotPose(u, snap);
@@ -496,9 +546,13 @@ export class PlacementController {
         );
     }
 
-    /** what the local player may pick up and carry */
+    /**
+     * What the local human may pick up and carry — their OWN seat's packs
+     * only. In duo modes an ally AI shares the side but not the lane; the
+     * human must never drag its packs (wrong lane, wrong purse).
+     */
     isMovable(unit: Unit): boolean {
-        return unit.team === 'player' && this.canReposition(unit);
+        return unit.seat === this.localSeat && this.canReposition(unit);
     }
 
     unitById(id: number): Unit | null {
@@ -511,7 +565,7 @@ export class PlacementController {
      * the buy action is created, so the action carries a concrete anchor.
      */
     findBuySpot(type: UnitType): Cell | null {
-        return this.findStartSpot('player', type);
+        return this.findStartSpot('player', type, this.localSeat);
     }
 
     /**
@@ -519,10 +573,18 @@ export class PlacementController {
      * rng-free). Both lockstep peers hold the identical board, so this is
      * trivially identical for either team on both clients.
      */
-    findStartSpot(team: Team, type: UnitType): Cell | null {
-        const centerCol = Math.floor(this.map.cols / 2);
+    findStartSpot(team: Team, type: UnitType, seat?: SeatId): Cell | null {
+        // duo lanes: start the ring search from the seat's lane center so the
+        // found spot lies inside the lane the zone check enforces
+        const lane = seat !== undefined && seat >= 0 ? seatLane(this.roster, seat) : 'full';
+        const centerCol =
+            lane === 'full'
+                ? Math.floor(this.map.cols / 2)
+                : lane === 'left'
+                  ? Math.floor(this.map.cols / 4)
+                  : Math.floor((3 * this.map.cols) / 4);
         const near = team === 'player' ? !this.map.ownAtFar : this.map.ownAtFar;
-        return this.searchSpotFrom(team, type, centerCol, this.map.zoneCenterRow(near));
+        return this.searchSpotFrom(team, type, centerCol, this.map.zoneCenterRow(near), seat);
     }
 
     /**
@@ -534,8 +596,8 @@ export class PlacementController {
         const x = Math.max(-this.map.halfW + 1, Math.min(this.map.halfW - 1, worldX));
         const z = Math.max(-this.map.halfH + 1, Math.min(this.map.halfH - 1, worldZ));
         const center = this.map.worldToCell(new Vector3(x, 0, z));
-        if (!center) return this.findStartSpot('player', type);
-        return this.searchSpotFrom('player', type, center.col, center.row);
+        if (!center) return this.findStartSpot('player', type, this.localSeat);
+        return this.searchSpotFrom('player', type, center.col, center.row, this.localSeat);
     }
 
     /** the shared ring search: nearest valid free anchor around a start cell */
@@ -544,6 +606,7 @@ export class PlacementController {
         type: UnitType,
         centerCol: number,
         centerRow: number,
+        seat?: SeatId,
     ): Cell | null {
         const fp = this.footprintOf(type, false);
         const maxRadius = Math.max(this.map.cols, this.map.rows);
@@ -558,7 +621,7 @@ export class PlacementController {
                     const cells = this.coveredCells(fp, anchor);
                     const ok =
                         cells !== null &&
-                        cells.every((c) => this.deployCellOk(team, c, type) && !this.occupied.has(cellKey(c)));
+                        cells.every((c) => this.deployCellOk(team, c, type, seat) && !this.occupied.has(cellKey(c)));
                     if (ok) return anchor;
                 }
             }
@@ -615,7 +678,7 @@ export class PlacementController {
     rotateSelected(): void {
         if (this.selectedGroup.length > 1) return; // formations don't rotate
         const unit = this.selectedUnit;
-        if (!unit || !this.enabled || !this.isMovable(unit)) return;
+        if (!unit || unit.team === 'horde' || !this.enabled || !this.isMovable(unit)) return;
         if (!this.carryingSelected) this.carryingSelected = true;
         this.dispatch?.({ kind: 'rotate', team: unit.team, unitId: unit.id });
     }
@@ -634,7 +697,8 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.deployCellOk(unit.team, c, unit.type) && (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type, unit.seat) &&
+            (unit.type.extra || this.freeFor(c, unit));
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.setRotated(rotated);
@@ -647,10 +711,11 @@ export class PlacementController {
 
     /** true when any tile under the pack sits in the flank strips (mechs only) */
     isOnFlank(unit: Unit): boolean {
-        if (unit.type.structure || unit.type.extra) return false;
+        const team = unit.team;
+        if (team === 'horde' || unit.type.structure || unit.type.extra) return false;
         const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), unit.cell);
         if (!cells) return false;
-        return cells.some((c) => this.map.isFlankDeployCell(c, unit.team));
+        return cells.some((c) => this.map.isFlankDeployCell(c, team));
     }
 
     /** a tile a team may deploy on */
@@ -659,10 +724,23 @@ export class PlacementController {
     }
 
     /** zone check plus type rules — shield and rocket may not sit on flank strips */
-    private deployCellOk(team: Team, cell: Cell, type: UnitType): boolean {
+    private deployCellOk(team: BattleTeam, cell: Cell, type: UnitType, seat?: SeatId): boolean {
+        if (team === 'horde') return false; // the horde never deploys — it spawns free at battle start
         if (!this.zoneCell(team, cell)) return false;
         if (type.extra && this.map.isFlankDeployCell(cell, team)) return false;
-        return true;
+        return this.laneOk(seat, cell);
+    }
+
+    /**
+     * Duo modes: a seat that shares its side owns one vertical lane of the
+     * zone (left/right half in canonical columns). Solo seats own it all.
+     */
+    private laneOk(seat: SeatId | undefined, cell: Cell): boolean {
+        if (seat === undefined || seat < 0) return true;
+        const lane = seatLane(this.roster, seat);
+        if (lane === 'full') return true;
+        const midCol = Math.floor(this.map.cols / 2);
+        return lane === 'left' ? cell.col < midCol : cell.col >= midCol;
     }
 
     /**
@@ -670,25 +748,48 @@ export class PlacementController {
      * in the buyer's territory and be free; spawning charges the cost.
      * Board extras take no space, so only the zone matters for them.
      */
-    placeUnit(team: Team, type: UnitType, anchor: Cell, rotated: boolean): Unit | null {
+    placeUnit(team: Team, type: UnitType, anchor: Cell, rotated: boolean, seat?: SeatId): Unit | null {
         const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
         const valid =
             cells !== null &&
             cells.every(
-                (c) => this.deployCellOk(team, c, type) && (type.extra || !this.occupied.has(cellKey(c))),
+                (c) =>
+                    this.deployCellOk(team, c, type, seat) &&
+                    (type.extra || !this.occupied.has(cellKey(c))),
             );
-        return valid ? this.spawn(type, anchor, team, rotated) : null;
+        return valid ? this.spawn(type, anchor, team, rotated, false, seat) : null;
     }
 
     /** Places a unit with its footprint anchored at `anchor` (no zone validation — callers validate). */
-    spawn(type: UnitType, anchor: Cell, team: Team, rotated = false, free = false): Unit | null {
+    spawn(
+        type: UnitType,
+        anchor: Cell,
+        team: BattleTeam,
+        rotated = false,
+        free = false,
+        seat?: SeatId,
+    ): Unit | null {
         const fp = this.footprintOf(type, rotated);
         const cells = this.coveredCells(fp, anchor);
         if (!cells) return null;
         if (!type.extra && cells.some((c) => this.occupied.has(cellKey(c)))) return null;
-        if (!free && !this.economy.charge(team, type)) return null;
+        const actorSeat = team === 'horde' ? -1 : (seat ?? primarySeatOf(this.roster, team));
+        // horde units are always free — they have no economy to charge
+        if (!free && (team === 'horde' || !this.economy.charge(actorSeat, type))) return null;
         const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
-        unit.id = ++this.nextUnitId[team] * 2 + (team === 'player' ? 0 : 1);
+        unit.seat = actorSeat;
+        // Canonical per-seat id: counter*rosterLength+seat. For the classic
+        // 2-seat roster this is byte-identical to the old team-parity
+        // formula (seat 0 ⟺ old player-id space, seat 1 ⟺ old enemy-id
+        // space) — no behavior change there. Horde ids live far above this
+        // space (never collide, no seat encoding needed — horde is always
+        // locally derived, identical on every client by construction).
+        if (team === 'horde') {
+            unit.id = HORDE_ID_BASE + ++this.nextHordeId;
+        } else {
+            this.nextUnitId[actorSeat] = (this.nextUnitId[actorSeat] ?? 0) + 1;
+            unit.id = this.nextUnitId[actorSeat]! * this.roster.length + actorSeat;
+        }
         unit.deployedRound = this.currentRound;
         // board extras take no space on the grid
         if (!type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
@@ -699,6 +800,30 @@ export class PlacementController {
         // command towers when nothing else is visible
         unit.faceClosestOf(this.opponentMechPositions(team, unit));
         this.stampSandUnder(unit);
+        return unit;
+    }
+
+    /**
+     * Free-world horde spawn — no grid cell, no occupancy bookkeeping, no
+     * economy charge, spawns literally anywhere including well off the
+     * playable board. Deliberately bypasses `spawn()`'s cell/zone machinery
+     * (which requires an in-bounds `Cell` and fails outside it) but reuses
+     * its EXACT horde id-allocation (same `nextHordeId` counter) — these
+     * units must be indistinguishable from belt-spawned horde units for
+     * `stateHash`/`hydrate`/replay purposes; a separate id scheme would
+     * desync exactly like the two bugs fixed earlier this session.
+     */
+    spawnAtWorld(type: UnitType, x: number, z: number): Unit {
+        // `cell` is stored on Unit but never read for rendering — only
+        // `world` (below) positions the mesh/formation — so a placeholder
+        // is fine for a unit that never occupies a grid cell at all
+        const unit = new Unit(type, { col: 0, row: 0 }, 'horde', new Vector3(x, 0, z), false);
+        unit.seat = -1;
+        unit.id = HORDE_ID_BASE + ++this.nextHordeId;
+        unit.deployedRound = this.currentRound;
+        this.units.push(unit);
+        this.scene.add(unit.view);
+        unit.faceClosestOf(this.opponentMechPositions('horde', unit));
         return unit;
     }
 
@@ -729,7 +854,24 @@ export class PlacementController {
      * with the result. Randomness comes from the match RNG for determinism.
      */
     findEnemySpot(type: UnitType, rng: () => number): { anchor: Cell; rotated: boolean } | null {
+        return this.findAiSpot('enemy', this.roster.findIndex((s) => s.team === 'enemy'), type, rng);
+    }
+
+    /**
+     * A valid AI spot for any seat: random scan of that seat's zone (lane-
+     * restricted in duo modes), melee toward the front, ranged toward the
+     * back, flanks avoided (the AI doesn't understand the spawn tax).
+     */
+    findAiSpot(
+        team: Team,
+        seat: SeatId,
+        type: UnitType,
+        rng: () => number,
+    ): { anchor: Cell; rotated: boolean } | null {
         const preferFront = type.range < 10;
+        // "front" (toward the middle) is a higher row for the near-edge side,
+        // a lower row for the far-edge side
+        const frontIsHigherRow = (team === 'player') !== this.map.ownAtFar;
         let best: { anchor: Cell; rotated: boolean } | null = null;
         let found = 0;
         for (let attempt = 0; attempt < 80 && found < 4; attempt++) {
@@ -741,14 +883,16 @@ export class PlacementController {
             };
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
-            if (!cells.every((c) => this.deployCellOk('enemy', c, type) && !this.occupied.has(cellKey(c)))) continue;
+            if (!cells.every((c) => this.deployCellOk(team, c, type, seat) && !this.occupied.has(cellKey(c)))) continue;
             // the AI doesn't understand the flank-spawn tax yet — keep it off
             // the flanks so its units don't arrive at 1 hp unaware
-            if (cells.some((c) => this.map.isFlankDeployCell(c, 'enemy'))) continue;
+            if (cells.some((c) => this.map.isFlankDeployCell(c, team))) continue;
             found++;
+            const frontward = (a: Cell, b: Cell) =>
+                frontIsHigherRow ? a.row > b.row : a.row < b.row;
             if (
                 !best ||
-                (preferFront ? anchor.row < best.anchor.row : anchor.row > best.anchor.row)
+                (preferFront ? frontward(anchor, best.anchor) : frontward(best.anchor, anchor))
             ) {
                 best = { anchor, rotated };
             }
@@ -776,12 +920,7 @@ export class PlacementController {
 
     /** Removes a unit from the board entirely (buy-action undo). */
     removeUnit(unit: Unit): void {
-        if (
-            this.intelFog &&
-            unit.team === 'enemy' &&
-            this.intelSnapshot.has(unit.id) &&
-            !this.intelGhosts.has(unit.id)
-        ) {
+        if (this.isFogged(unit) && this.intelSnapshot.has(unit.id) && !this.intelGhosts.has(unit.id)) {
             this.ensureSoldGhost(this.intelSnapshot.get(unit.id)!);
         }
         if (this.selectedUnit === unit) this.selectedUnit = null;
@@ -912,7 +1051,7 @@ export class PlacementController {
             }
             if (this.intelFog) {
                 for (const [id, snap] of this.intelSnapshot) {
-                    if (snap.team !== 'enemy' || snap.items.length === 0) continue;
+                    if (!this.isFoggedSnapshot(snap) || snap.items.length === 0) continue;
                     if (this.units.some((u) => u.id === id)) continue;
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
@@ -1003,7 +1142,7 @@ export class PlacementController {
             };
 
             for (const unit of this.units) {
-                if (unit.team === 'enemy' && this.intelFog) {
+                if (this.isFogged(unit)) {
                     const snap = this.intelSnapshot.get(unit.id);
                     if (!snap?.upgradeReady) continue;
                     place(unit, unit.id);
@@ -1013,10 +1152,10 @@ export class PlacementController {
                 place(unit, unit.id);
             }
 
-            // sold snapshotted enemies keep their stale upgrade arrow on the ghost
+            // sold snapshotted packs keep their stale upgrade arrow on the ghost
             if (this.intelFog) {
                 for (const [id, snap] of this.intelSnapshot) {
-                    if (snap.team !== 'enemy' || !snap.upgradeReady) continue;
+                    if (!this.isFoggedSnapshot(snap) || !snap.upgradeReady) continue;
                     if (this.units.some((u) => u.id === id)) continue;
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
@@ -1055,7 +1194,7 @@ export class PlacementController {
      * Positions of every individual opposing mech (not squad centers) that is
      * visible in enemy intel — snapshotted placements and sold ghosts count.
      */
-    private opponentMechPositions(team: Team, exclude: Unit): Vector3[] {
+    private opponentMechPositions(team: BattleTeam, exclude: Unit): Vector3[] {
         const positions: Vector3[] = [];
         for (const u of this.units) {
             if (u === exclude || u.team === team || u.destroyed) continue;
@@ -1095,6 +1234,7 @@ export class PlacementController {
         const type = unitTypeById(entry.typeId)!;
         ghost = new Unit(type, entry.cell, entry.team, entry.world.clone(), entry.rotated);
         ghost.id = entry.unitId;
+        ghost.seat = entry.seat;
         ghost.facing = entry.facing;
         ghost.level = entry.level;
         ghost.refreshLevelBadge();
@@ -1120,7 +1260,7 @@ export class PlacementController {
     }
 
     private intelWorldOf(unit: Unit): Vector3 {
-        if (this.intelFog && unit.team === 'enemy') {
+        if (this.isFogged(unit)) {
             const snap = this.intelSnapshot.get(unit.id);
             if (snap) return snap.world;
         }
@@ -1128,7 +1268,7 @@ export class PlacementController {
     }
 
     private intelItemIcon(unit: Unit): string | null {
-        if (unit.team === 'player') {
+        if (!this.isFogged(unit)) {
             return unit.items[0] ? (ITEMS[unit.items[0]]?.icon ?? '?') : null;
         }
         if (!this.enemyIntelVisible(unit)) return null;
@@ -1156,10 +1296,12 @@ export class PlacementController {
             return;
         }
 
-        const liveEnemy = new Set(this.units.filter((u) => u.team === 'enemy').map((u) => u.id));
+        // "live" here means "not fogged" — real players' own side, or (while
+        // spectating) any seat with an active live-vision grant
+        const liveIds = new Set(this.units.filter((u) => !this.isFogged(u)).map((u) => u.id));
 
         for (const u of this.units) {
-            if (u.team === 'player') {
+            if (!this.isFogged(u)) {
                 this.setPackVisible(u, true);
                 u.view.position.copy(u.world);
                 continue;
@@ -1170,19 +1312,19 @@ export class PlacementController {
                 this.applySnapshotPose(u, snap);
                 u.refreshLevelBadge(snap.level);
             } else {
-                // newly placed enemy packs — hide mesh AND shadows until reveal
+                // newly placed fogged packs — hide mesh AND shadows until reveal
                 this.setPackVisible(u, false);
             }
         }
 
         for (const [id, snap] of this.intelSnapshot) {
-            if (snap.team !== 'enemy' || liveEnemy.has(id)) continue;
+            if (!this.isFoggedSnapshot(snap) || liveIds.has(id)) continue;
             const ghost = this.ensureSoldGhost(snap);
             this.setPackVisible(ghost, true);
             this.applySnapshotPose(ghost, snap);
         }
         for (const [id, ghost] of this.intelGhosts) {
-            if (!liveEnemy.has(id) && this.intelSnapshot.has(id)) continue;
+            if (!liveIds.has(id) && this.intelSnapshot.has(id)) continue;
             this.setPackVisible(ghost, false);
         }
     }
@@ -1228,15 +1370,15 @@ export class PlacementController {
 
         const unit = this.occupied.get(cellKey(cell)) ?? (opts?.skipExtras ? undefined : this.extraAt(cell));
         if (!unit || unit.destroyed) return undefined;
-        // live enemy cell under fog may be a hidden post-move position — ignore
-        if (this.intelFog && unit.team === 'enemy') return undefined;
+        // live fogged cell may be a hidden post-move position — ignore
+        if (this.isFogged(unit)) return undefined;
         return unit;
     }
 
-    /** enemy pack or sold ghost whose snapshot footprint covers `cell` */
+    /** fogged pack or sold ghost whose snapshot footprint covers `cell` */
     private enemyAtIntelCell(cell: Cell): Unit | undefined {
         for (const [id, snap] of this.intelSnapshot) {
-            if (snap.team !== 'enemy') continue;
+            if (!this.isFoggedSnapshot(snap)) continue;
             const type = unitTypeById(snap.typeId);
             if (!type) continue;
             const fp = this.footprintOf(type, snap.rotated);
@@ -1407,7 +1549,7 @@ export class PlacementController {
         return (
             cells !== null &&
             cells.every((c) => {
-                if (!this.deployCellOk(unit.team, c, unit.type)) return false;
+                if (!this.deployCellOk(unit.team, c, unit.type, unit.seat)) return false;
                 if (unit.type.extra) return true; // extras overlap anything (but not flanks)
                 const holder = this.occupied.get(cellKey(c));
                 return holder === undefined || holder === unit || group.includes(holder);
@@ -1443,7 +1585,8 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, unit.rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.deployCellOk(unit.team, c, unit.type) && (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type, unit.seat) &&
+            (unit.type.extra || this.freeFor(c, unit));
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
@@ -1527,7 +1670,7 @@ export class PlacementController {
             const fp = this.footprintOf(type, false);
             const anchor = this.centeredAnchor(type, false, cell);
             const cells = this.coveredCells(fp, anchor);
-            const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type));
+            const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type, this.localSeat));
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             this.pendingUnit.view.position.set(center.x, 0, center.z);
             this.pendingUnit.seatMembers(center.x, center.z);
@@ -1587,7 +1730,7 @@ export class PlacementController {
                 const cells = this.coveredCells(fp, anchor);
                 const valid =
                     cells !== null &&
-                    cells.every((c) => this.deployCellOk('player', c, sel.type) && this.freeFor(c, sel));
+                    cells.every((c) => this.deployCellOk('player', c, sel.type, sel.seat) && this.freeFor(c, sel));
                 this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
             } else {
                 this.hoverMaterial.color.setHex(VALID_COLOR);
@@ -1606,10 +1749,7 @@ export class PlacementController {
         } else {
             // fogged enemies stay at their phase-start pose — selection must
             // not reveal the live cell by snapping the mesh there
-            const snap =
-                this.intelFog && sel.team === 'enemy'
-                    ? this.intelSnapshot.get(sel.id)
-                    : undefined;
+            const snap = this.isFogged(sel) ? this.intelSnapshot.get(sel.id) : undefined;
             const world = snap?.world ?? sel.world;
             const cell = snap?.cell ?? sel.cell;
             const plateFp = snap

@@ -33,6 +33,7 @@ import { Weather, TRANSITION_TAU, type Season } from './weather';
 import { THEME } from '../theme';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
+    CELL,
     makeValueNoise,
     mulberry32,
     registerOuterHeight,
@@ -251,12 +252,18 @@ export class Scenery {
             return (rolling + mountain) * (1 - lake) + depth * lake;
         };
 
-        // minimal scenery: flat terrain heights (the closures above return
-        // real values, but heightAt/lakeAt get bypassed below) + no decoration
-        if (!this.detailed) {
-            this.terrainHeight = () => 0;
-            this.lakeAt = () => 0;
-        }
+        // NOTE: terrainHeight/lakeAt stay real at every quality tier (including
+        // 'low'/'off') — this feeds registerOuterHeight below, which in turn
+        // feeds worldHeightAt, which horde mode uses for GAMEPLAY decisions
+        // (lake avoidance when picking a spawn point, see hordePathCrossesWater
+        // in game.ts). Quality is a per-client preference, not synced over the
+        // wire — if this height data were quality-gated, a 'low'-quality
+        // client and a 'high'-quality client could compute different horde
+        // spawn points from the identical seed and desync. Only the DECORATION
+        // (trees, lake props, meadow texture, forest fog) stays gated by
+        // `detailed` below; the outer ground mesh itself now follows the real
+        // heights at every tier too (see createOuterGround's SEGS), just
+        // without decoration on 'low'/'off'.
         // the camera rig uses this to stay above the mountains
         registerOuterHeight((x, z) => this.terrainHeight(x, z));
 
@@ -863,7 +870,12 @@ export class Scenery {
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
         const SIZE = 3000;
-        const SEGS = this.detailed ? this.density.segs : 1;
+        // 'low'/'off' skip decoration (trees, lake props, meadow texture) but
+        // still get a real, if coarse, heightmapped ground — terrainHeight is
+        // no longer flattened at these tiers (see the constructor), so a flat
+        // 1-segment quad would visibly float/sink units against the relief
+        // they and the deterministic horde spawn logic both see.
+        const SEGS = this.detailed ? this.density.segs : 96;
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
         geometry.rotateX(-Math.PI / 2);
 
@@ -1223,7 +1235,6 @@ export class Scenery {
         const color = new Color();
         const white = new Color(0xffffff);
         const lighten = (c: Color) => c.lerp(white, 0.45);
-
         // Ultra: Tripo owns all trees via addHqVegetation.
         // High: Tripo on the board, billboards outside (no procedural trees).
         // Medium: full procedural.
@@ -1235,9 +1246,23 @@ export class Scenery {
         const ROCKS = scaleCount(170, dens.outer);
         const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
         const FIELD_BUSHES = hq ? 0 : scaleCount(45, dens.field);
+        // horde mode widens the neutral strip into a real belt — grow a
+        // forest in it so the horde has somewhere to live (pure scenery, no
+        // collision; packs standing between trunks is the point). Treated
+        // as on-field vegetation like FIELD_* above: zeroed on Ultra,
+        // billboard/Tripo-routed on High, procedural on Medium.
+        const beltHalf = (map.size.neutralRows * CELL) / 2;
+        const beltWide = map.size.neutralRows > 8;
+        const BELT_PINES = hq || !beltWide ? 0 : scaleCount(26, dens.field);
+        const BELT_LEAFY = hq || !beltWide ? 0 : scaleCount(30, dens.field);
+        const BELT_BUSHES = hq || !beltWide ? 0 : scaleCount(28, dens.field);
+        const beltSpot = (): { x: number; z: number } => ({
+            x: (rng() * 2 - 1) * (map.halfW - 8),
+            z: (rng() * 2 - 1) * Math.max(0, beltHalf - 4),
+        });
 
-        const treeCapacity = PINES + LEAFY + FIELD_PINES + FIELD_LEAFY;
-        const bushCapacity = BUSHES + FIELD_BUSHES;
+        const treeCapacity = PINES + LEAFY + FIELD_PINES + FIELD_LEAFY + BELT_PINES + BELT_LEAFY;
+        const bushCapacity = BUSHES + FIELD_BUSHES + BELT_BUSHES;
         const placeProceduralTrees = treeCapacity > 0 && !highMix;
 
         let trunks: InstancedMesh | null = null;
@@ -1254,12 +1279,12 @@ export class Scenery {
             cones = new InstancedMesh(
                 new ConeGeometry(2.6, 6, 7),
                 new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
-                (PINES + FIELD_PINES) * 2,
+                (PINES + FIELD_PINES + BELT_PINES) * 2,
             );
             blobs = new InstancedMesh(
                 new IcosahedronGeometry(2.4, 1),
                 new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
-                (LEAFY + FIELD_LEAFY) * 2,
+                (LEAFY + FIELD_LEAFY + BELT_LEAFY) * 2,
             );
             attachVegetationSnow(trunks.material as MeshStandardMaterial, { strength: 0.55 });
             attachVegetationSnow(cones.material as MeshStandardMaterial, { strength: 0.92 });
@@ -1305,9 +1330,13 @@ export class Scenery {
         };
 
         // Always walk the counts on high (for billboard/Tripo routing) even with no procedural meshes.
-        for (let i = 0; i < PINES + FIELD_PINES; i++) {
+        for (let i = 0; i < PINES + FIELD_PINES + BELT_PINES; i++) {
             const onField = i >= PINES;
-            const { x, z } = onField ? fieldSpot(10) : forestSpot(84);
+            const { x, z } = onField
+                ? i < PINES + FIELD_PINES
+                    ? fieldSpot(10)
+                    : beltSpot()
+                : forestSpot(84);
             const sc = onField ? 0.7 + rng() * 0.5 : 0.8 + rng() * 1.1;
             if (routeHigh(onField, 'pine', x, z, sc)) continue;
             if (!trunks || !cones) continue;
@@ -1327,9 +1356,13 @@ export class Scenery {
             }
         }
 
-        for (let i = 0; i < LEAFY + FIELD_LEAFY; i++) {
+        for (let i = 0; i < LEAFY + FIELD_LEAFY + BELT_LEAFY; i++) {
             const onField = i >= LEAFY;
-            const { x, z } = onField ? fieldSpot(10) : forestSpot(72);
+            const { x, z } = onField
+                ? i < LEAFY + FIELD_LEAFY
+                    ? fieldSpot(10)
+                    : beltSpot()
+                : forestSpot(72);
             const sc = onField ? 0.75 + rng() * 0.55 : 0.9 + rng() * 1.2;
             if (routeHigh(onField, 'oak', x, z, sc)) continue;
             if (!trunks || !blobs) continue;
@@ -1373,9 +1406,13 @@ export class Scenery {
 
         if (bushes || highMix) {
             let bushI = 0;
-            for (let i = 0; i < BUSHES + FIELD_BUSHES; i++) {
+            for (let i = 0; i < BUSHES + FIELD_BUSHES + BELT_BUSHES; i++) {
                 const onField = i >= BUSHES;
-                const { x, z } = onField ? fieldSpot(5) : forestSpot(56);
+                const { x, z } = onField
+                    ? i < BUSHES + FIELD_BUSHES
+                        ? fieldSpot(5)
+                        : beltSpot()
+                    : forestSpot(56);
                 const sc = 0.6 + rng() * 0.8;
                 const kind: VegetationKind = rng() < 0.55 ? 'bushRound' : 'bushTall';
                 if (routeHigh(onField, kind, x, z, sc)) continue;
@@ -1816,7 +1853,7 @@ export class Scenery {
         // summit wisps: parked just below the white peaks, swaying in place.
         // They share the horizon clouds' material, so every weather scenario
         // tints and fades them automatically.
-        if (!this.detailed) return; // flat world has no summits
+        if (!this.detailed) return; // decoration only — low/off skip it regardless of relief
         const peakCap = this.density.peakClouds;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {

@@ -8,10 +8,10 @@ import {
     type Object3D,
     type Scene,
 } from 'three';
-import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
+import { HORDE_COLOR, LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
 import { prefs, type Prefs } from './prefs';
-import type { Team } from './units';
+import type { BattleTeam } from './units';
 
 /** Unit type ids that use `structure: true` — kept here to avoid a units↔instances cycle. */
 const STRUCTURE_IDS = new Set([
@@ -42,7 +42,7 @@ interface PoolMeta {
     key: PoolKey;
     index: number;
     typeId: string;
-    team: Team;
+    team: BattleTeam;
     level: number;
     life: 'alive' | 'dead';
 }
@@ -70,7 +70,7 @@ export class UnitInstanceRenderer {
         return hasUnitInstanceAsset(typeId);
     }
 
-    register(proxy: Group, typeId: string, team: Team): void {
+    register(proxy: Group, typeId: string, team: BattleTeam): void {
         if (this.ownerPool.has(proxy)) return;
         proxy.userData.instanced = true;
         proxy.userData.levelTintLevel = 1;
@@ -244,7 +244,7 @@ export class UnitInstanceRenderer {
     private moveTo(
         proxy: Group,
         typeId: string,
-        team: Team,
+        team: BattleTeam,
         life: 'alive' | 'dead',
         level: number,
     ): void {
@@ -308,7 +308,7 @@ export class UnitInstanceRenderer {
         for (const mesh of pool.parts) mesh.setMatrixAt(index, proxy.matrixWorld);
     }
 
-    private pool(typeId: string, team: Team, life: 'alive' | 'dead', level: number): Pool {
+    private pool(typeId: string, team: BattleTeam, life: 'alive' | 'dead', level: number): Pool {
         const key = poolKey(typeId, team, level, life);
         let pool = this.pools.get(key);
         if (pool) return pool;
@@ -316,7 +316,7 @@ export class UnitInstanceRenderer {
         const asset = getUnitInstanceAsset(typeId);
         if (!asset) throw new Error(`[unitInstances] no asset for ${typeId}`);
 
-        const parts = asset.parts.map((part) => makeInstanced(part, typeId, level));
+        const parts = asset.parts.map((part) => makeInstanced(part, typeId, level, team));
         for (const mesh of parts) this.scene.add(mesh);
         pool = { parts, owners: [] };
         this.pools.set(key, pool);
@@ -324,7 +324,7 @@ export class UnitInstanceRenderer {
     }
 }
 
-function poolKey(typeId: string, team: Team, level: number, life: 'alive' | 'dead'): PoolKey {
+function poolKey(typeId: string, team: BattleTeam, level: number, life: 'alive' | 'dead'): PoolKey {
     return `${typeId}:${team}:${level}:${life}`;
 }
 
@@ -334,7 +334,7 @@ function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
     return true;
 }
 
-function makeInstanced(part: InstancePart, typeId: string, level: number): InstancedMesh {
+function makeInstanced(part: InstancePart, typeId: string, level: number, team: BattleTeam): InstancedMesh {
     const mat = part.material.clone();
     const hex = level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level] : null;
     if (hex != null) {
@@ -342,6 +342,11 @@ function makeInstanced(part: InstancePart, typeId: string, level: number): Insta
         applyLevelTintColor(mat, _base, hex);
         mat.emissive.setRGB(0, 0, 0);
         mat.emissiveIntensity = 0;
+    }
+    // the neutral horde reads as its own faction: dye its pools pink
+    if (team === 'horde') {
+        _base.copy(mat.color);
+        applyLevelTintColor(mat, _base, HORDE_COLOR.hex, 0.55);
     }
     const mesh = new InstancedMesh(part.geometry.clone(), mat, POOL_CAPACITY);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);

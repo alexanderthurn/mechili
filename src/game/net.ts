@@ -1,8 +1,10 @@
 import Peer, { type DataConnection } from 'peerjs';
 import type { Action, LoggedAction } from './actions';
 import type { Opponent } from './ai';
+import type { DebugEvent } from './debugLog';
 import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
+import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings } from './settings';
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
@@ -69,6 +71,10 @@ export function matchUrl(): string {
 export interface LobbyRoom {
     name: string;
     peer: string;
+    mode: '1v1' | '2v2';
+    /** `lobby` = waiting for a player, join normally; `spectate` = a match
+     *  already running — connect to `peer` as a spectator instead */
+    kind: 'lobby' | 'spectate';
 }
 
 /** the menu's global chat endpoint — chat.php next to matchmaking.php */
@@ -116,9 +122,34 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
 export type NetMessage =
     | { type: 'hello'; name: string }
     | { type: 'setup'; version: number; seed: number; settings: GameSettings; hostName: string; guestName: string }
-    | { type: 'starter'; cardId: string }
-    | { type: 'action'; round: number; action: Action }
-    | { type: 'undo'; round: number }
+    /** `side` (wire-level 'a'/'b') is who picked — the two real players never
+     *  need it (each just knows "mine" vs "the peer's"), but a spectator
+     *  watching both sides can't tell the two picks apart without it; see
+     *  onSpectateMessage's 'starter' handling. */
+    | { type: 'starter'; cardId: string; side?: 'a' | 'b' }
+    /**
+     * `side` is the WIRE-LEVEL, canonical host/guest tag ('a'/'b') this
+     * message was relayed for — set only when mirroring to spectators, who
+     * otherwise have no way to tell the two real players apart. `action.seat`
+     * is perspective-relative ("0 = mine", identical on both real clients —
+     * see Game.seatRank's doc comment), so a spectator resolving team from
+     * `action.seat` alone collapses both players onto the same seat. The
+     * two real players never read this field; they already know who they are.
+     * `seq` (classic 1v1 only) is the sender's own monotonic build-action
+     * counter — set once, at the moment sendPlayerBuildMessage first decides
+     * to send-or-buffer this action, so it's identical on every copy of the
+     * same logical action (the immediate `spectatorFeed` copy AND the later
+     * real flush once the peer locks in carry the SAME seq). Lets the host
+     * dedupe a spectator-feed-then-real-flush double-delivery of one action
+     * (see mirrorBuildToSpectators) — undefined for messages that never flow
+     * through that path (seeded backfill, star mode).
+     */
+    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b'; seq?: number }
+    /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
+     *  needs it since more than one remote seat can send an undo. `side` is
+     *  the same spectator-only wire tag as on `action` above. `seq` is the
+     *  same dedup counter described on `action` above. */
+    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq?: number }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
@@ -143,9 +174,15 @@ export type NetMessage =
      *  connection") because spectators mean more than one possible sender —
      *  the host relays a spectator's chat to the player link too. */
     | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' } }
+    /** dev-only (`?debug`): batched debug events, streamed to whichever
+     *  client is the host so `DebugLog.dump()` can print one aggregated,
+     *  cross-client timeline — never part of game state, never rendered */
+    | { type: 'debugLog'; events: DebugEvent[] }
     /** local battle sim finished — the peer may still be watching theirs
      *  (fast-forward speed is per-client); the next build phase waits for both */
-    | { type: 'battleEnd'; round: number }
+    /** `seat` unused by classic 1v1 (implicitly "the opponent"); star mode's
+     *  host needs it to attribute + aggregate across N watchers */
+    | { type: 'battleEnd'; round: number; seat?: SeatId }
     /** post-reconnect: "I've finished rebuilding and am about to resume my
      *  clock" — a reloading peer's asset load takes real seconds, so a
      *  survivor that resumed instantly would otherwise burn that time for
@@ -176,13 +213,64 @@ export type NetMessage =
     /** guest asks host to grant/revoke live deploy vision for a spectator
      *  (guest may only grant its own seat `'b'`) */
     | { type: 'spectateGrant'; spectatorName: string; seat: 'a' | 'b'; grant: boolean }
+    /** host → guest only: whether at least one spectator currently has live
+     *  vision granted on the GUEST's seat ('b'). The host's own actions
+     *  already reach spectators live regardless of wire fog (mirrored at
+     *  decision time, independent of `outboundBuildBuffer`) — but the
+     *  guest's build actions are withheld from the HOST ITSELF (not just
+     *  the opponent) until mutual lock-in, so the host has no early
+     *  knowledge to relay. This tells the guest to open the `spectatorFeed`
+     *  side channel below instead of waiting for the normal flush. */
+    | { type: 'spectatorWantsLive'; want: boolean }
+    /** guest → host only: a copy of a build action/undo the guest is STILL
+     *  WITHHOLDING from the opponent (wire fog) but a live-granted spectator
+     *  should see now. The host relays it straight to spectators — it must
+     *  NEVER touch the normal action-application path, or the opponent
+     *  would see it early too. */
+    | { type: 'spectatorFeed'; payload: Extract<NetMessage, { type: 'action' | 'undo' }> }
     /**
      * Sent after flushing the outbound build buffer to the peer. Battle must
      * not start until both sides have locked in AND each has received the
      * other's `deployCaughtUp` (otherwise the second locker races ahead of
-     * the first's sell/buys still in flight).
-     */
-    | { type: 'deployCaughtUp'; round: number };
+     * the first's sell/buys still in flight). `side` is unused between the
+     * two real players (each already knows it can only mean "the other
+     * one") — set only when mirrored to spectators, who need to tell the
+     * two confirmations apart since they're watching both sides at once. */
+    | { type: 'deployCaughtUp'; round: number; side?: 'a' | 'b' }
+    // ---- star topology (2v2+, N seats): host-relayed, own message family so
+    // the classic 2-seat path above stays completely untouched ------------
+    /** guest's opening handshake on connecting to a star (2v2+) room */
+    | { type: 'starJoin'; name: string; version: number }
+    /** host's per-recipient match setup: canonical roster + which seat is theirs.
+     *  `settings.seats` is unset here — the LOCAL roster is derived per client
+     *  via `localizeRoster(roster, yourSide)`, never sent pre-relabeled. */
+    | {
+          type: 'starSetup';
+          version: number;
+          seed: number;
+          settings: GameSettings;
+          roster: CanonicalSeatDef[];
+          yourSeat: SeatId;
+          yourSide: 'a' | 'b';
+      }
+    /** lobby membership, broadcast whenever a seat's controller/name changes
+     *  (a friend joins, an empty seat gets AI-filled at start) */
+    | { type: 'starRoster'; roster: CanonicalSeatDef[] }
+    /** host declines a join (room full, version mismatch) */
+    | { type: 'starRejected'; reason: string }
+    /** host → each guest once every seat has locked in for the round and the
+     *  fog buffers are flushed (guaranteed delivered-before on an ordered
+     *  connection, so no separate per-client ack round-trip is needed) */
+    | { type: 'starBattleStart'; round: number }
+    /** host → every guest: everyone (all human seats) finished watching the
+     *  battle — start the next build phase now (fast-forward speed is
+     *  per-client, so this needs the same host-arbitrated go-signal as
+     *  starBattleStart rather than each client deciding independently) */
+    | { type: 'starNextRound'; round: number }
+    /** every client's battle-start state fingerprint, sent to the host for
+     *  N-way comparison. Detection only for v1 — a mismatch is logged, not
+     *  auto-resynced (star mode has no reconnect/resume story yet either) */
+    | { type: 'starCheck'; round: number; seat: SeatId; hash: number };
 
 /**
  * What a spectator may see during the build phase.
@@ -214,8 +302,23 @@ export class NetworkOpponent implements Opponent {
     onRoundCards(): void {}
 }
 
+/**
+ * What `Game` needs from a 1v1 connection during actual play — a narrow
+ * slice of `NetSession`'s full surface. Reconnect/redial/naming stay
+ * main.ts's concern, operating on the concrete `NetSession` class directly
+ * before handing a freshly-reconnected one to `Game.resumeWith`. Any
+ * transport that satisfies this (`NetSession`/PeerJS today, a Steam P2P
+ * equivalent later) can be passed to `Game` unchanged.
+ */
+export interface Session {
+    onClose: (() => void) | null;
+    attach(handler: (msg: NetMessage) => void): void;
+    send(msg: NetMessage): void;
+    close(): void;
+}
+
 /** one open peer-to-peer connection, host or guest */
-export class NetSession {
+export class NetSession implements Session {
     onClose: (() => void) | null = null;
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
@@ -326,6 +429,336 @@ export class NetSession {
 }
 
 /**
+ * What `Game` needs from the star (2v2+) host relay during actual play —
+ * lobby-formation concerns (`listen`/`setRosterEntry`/`currentRoster`/
+ * `nextOpenSeat`/`peerId`/`onRosterChange`) stay main.ts's concern,
+ * operating on the concrete `StarHub` directly before the match starts.
+ */
+export interface HostHub {
+    onMessage: ((seat: SeatId, msg: NetMessage) => void) | null;
+    onSeatDropped: ((seat: SeatId) => void) | null;
+    broadcast(msg: NetMessage, exclude?: SeatId): void;
+    relayBuild(
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        fromSeat: SeatId,
+        sideLocked: (side: 'a' | 'b') => boolean,
+    ): void;
+    flushAllBuffers(): void;
+    connectedSeats(): SeatId[];
+    sideOf(seat: SeatId): 'a' | 'b';
+}
+
+/**
+ * Host-side only, for 2v2+ "star" rooms (settings.seats.length > 2): one
+ * Peer accepting a connection per REMOTE seat-holding guest (never between
+ * guests — that's the whole point of the star: guests keep the exact same
+ * single-connection shape they already have for 1v1, only the HOST's side
+ * fans out). Deliberately parallel to `SpectatorHub`'s proven pattern
+ * (per-viewer buffer, vision-filtered relay) rather than a new design —
+ * lower risk than inventing a mesh from scratch. Pure relay: it knows
+ * connections, seats and sides, but NOT game rules — gating/AI/dispatch
+ * all stay in `Game`, exactly like `NetSession` today.
+ *
+ * Trust note: the host sees every guest's traffic in cleartext (listen-
+ * server model) — a deliberate, documented v1 tradeoff over a full mesh,
+ * acceptable for friend games. See TEAM_MODES_PLAN.md §3.
+ */
+export class StarHub implements HostHub {
+    private readonly bySeat = new Map<SeatId, { conn: DataConnection; buffer: NetMessage[] }>();
+    private roster: CanonicalSeatDef[];
+
+    /** fired whenever a guest joins/leaves before match start (lobby display) */
+    onRosterChange: (() => void) | null = null;
+    /** fired once a connected guest sends a message post-setup (actions, chat, etc.) */
+    onMessage: ((seat: SeatId, msg: NetMessage) => void) | null = null;
+    /** fired if a connected (post-setup) guest's connection drops */
+    onSeatDropped: ((seat: SeatId) => void) | null = null;
+
+    private constructor(
+        private readonly peer: Peer,
+        initialRoster: CanonicalSeatDef[],
+    ) {
+        this.roster = initialRoster;
+    }
+
+    static async open(initialRoster: CanonicalSeatDef[], id?: string): Promise<StarHub> {
+        const peer = await openPeer(id);
+        return new StarHub(peer, initialRoster);
+    }
+
+    get peerId(): string {
+        return this.peer.id;
+    }
+
+    currentRoster(): CanonicalSeatDef[] {
+        return this.roster;
+    }
+
+    sideOf(seat: SeatId): 'a' | 'b' {
+        return this.roster[seat]?.side ?? 'a';
+    }
+
+    /** the next open (human, unfilled) seat in canonical order, or null if full */
+    nextOpenSeat(): SeatId | null {
+        for (let i = 1; i < this.roster.length; i++) {
+            // seat 0 is always the host itself
+            if (this.roster[i]!.controller === 'human' && !this.bySeat.has(i)) return i;
+        }
+        return null;
+    }
+
+    /**
+     * Accepts connections until every human seat is filled or the host
+     * starts early (remaining open seats get AI-filled by the caller).
+     * `onJoin` may reject (room full, version mismatch) before `admit`.
+     */
+    listen(onJoin: (name: string, version: number, conn: DataConnection) => SeatId | null): void {
+        this.peer.on('connection', (conn) => {
+            conn.on('open', () => {
+                const onData = (data: unknown) => {
+                    const msg = data as NetMessage;
+                    if (msg.type !== 'starJoin') {
+                        conn.close();
+                        return;
+                    }
+                    conn.off('data', onData);
+                    const seat = onJoin(msg.name, msg.version, conn);
+                    if (seat === null) return; // onJoin already sent starRejected + closed
+                    this.bySeat.set(seat, { conn, buffer: [] });
+                    conn.on('data', (d) => this.onMessage?.(seat, d as NetMessage));
+                    conn.on('close', () => this.dropSeat(seat));
+                    conn.on('error', () => this.dropSeat(seat));
+                    this.onRosterChange?.();
+                };
+                conn.on('data', onData);
+            });
+        });
+    }
+
+    /** call once a joining connection is accepted, before/with `starSetup` */
+    setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void {
+        this.roster = this.roster.map((s, i) => (i === seat ? entry : s));
+    }
+
+    private dropSeat(seat: SeatId): void {
+        if (!this.bySeat.delete(seat)) return;
+        this.onSeatDropped?.(seat);
+        this.onRosterChange?.();
+    }
+
+    send(seat: SeatId, msg: NetMessage): void {
+        this.bySeat.get(seat)?.conn.send(msg);
+    }
+
+    /** every connected guest (not the host's own seat(s)); `exclude` skips
+     *  one seat — used when relaying a message THAT seat just sent, so it
+     *  doesn't get echoed back to its own sender */
+    broadcast(msg: NetMessage, exclude?: SeatId): void {
+        for (const [seat, { conn }] of this.bySeat) {
+            if (seat === exclude) continue;
+            conn.send(msg);
+        }
+    }
+
+    /**
+     * Vision-filtered relay of one build-phase action/undo: live to every
+     * ally (same side) recipient immediately; buffered per-recipient for
+     * enemy-side recipients until `sideLocked(fromSide)` is true, at which
+     * point that recipient's WHOLE buffer flushes (only one enemy side
+     * exists per recipient — Tier 1, sides stay binary).
+     */
+    relayBuild(
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        fromSeat: SeatId,
+        sideLocked: (side: 'a' | 'b') => boolean,
+    ): void {
+        const fromSide = this.sideOf(fromSeat);
+        for (const [seat, viewer] of this.bySeat) {
+            if (seat === fromSeat) continue; // never echo back to the sender
+            const isAlly = this.sideOf(seat) === fromSide;
+            if (isAlly || sideLocked(fromSide)) {
+                if (viewer.buffer.length > 0) {
+                    for (const buffered of viewer.buffer) viewer.conn.send(buffered);
+                    viewer.buffer.length = 0;
+                }
+                viewer.conn.send(msg);
+            } else {
+                viewer.buffer.push(msg);
+            }
+        }
+    }
+
+    /** force-flush every recipient's buffer (all sides now locked) */
+    flushAllBuffers(): void {
+        for (const viewer of this.bySeat.values()) {
+            for (const buffered of viewer.buffer) viewer.conn.send(buffered);
+            viewer.buffer.length = 0;
+        }
+    }
+
+    connectedSeats(): SeatId[] {
+        return [...this.bySeat.keys()];
+    }
+
+    close(): void {
+        for (const { conn } of this.bySeat.values()) conn.close();
+        this.bySeat.clear();
+        this.peer.destroy();
+    }
+}
+
+/** What `Game` needs from a star guest connection during actual play. */
+export interface GuestSession {
+    onClose: (() => void) | null;
+    attach(handler: (msg: NetMessage) => void): void;
+    send(msg: NetMessage): void;
+}
+
+/**
+ * Guest side of a star (2v2+) room: a single connection to the host,
+ * shaped like `NetSession` (attach/send/once) but without the host/guest
+ * role split — a star guest never accepts inbound connections itself.
+ */
+export class StarGuestSession implements GuestSession {
+    onClose: (() => void) | null = null;
+    private handler: ((msg: NetMessage) => void) | null = null;
+    private readonly backlog: NetMessage[] = [];
+
+    constructor(
+        private readonly peer: Peer,
+        private readonly conn: DataConnection,
+    ) {
+        conn.on('data', (data) => {
+            const msg = data as NetMessage;
+            if (this.handler) this.handler(msg);
+            else this.backlog.push(msg);
+        });
+        let closed = false;
+        const fireClose = () => {
+            if (closed) return;
+            closed = true;
+            this.onClose?.();
+        };
+        conn.on('close', fireClose);
+        conn.on('error', fireClose);
+        peer.on('error', fireClose);
+    }
+
+    attach(handler: (msg: NetMessage) => void): void {
+        this.handler = handler;
+        while (this.backlog.length > 0) handler(this.backlog.shift()!);
+    }
+
+    send(msg: NetMessage): void {
+        this.conn.send(msg);
+    }
+
+    once(): Promise<NetMessage> {
+        return new Promise((resolve) => {
+            if (this.backlog.length > 0) {
+                resolve(this.backlog.shift()!);
+                return;
+            }
+            this.handler = (msg) => {
+                this.handler = null;
+                resolve(msg);
+            };
+        });
+    }
+
+    close(): void {
+        this.onClose = null;
+        this.conn.close();
+        this.peer.destroy();
+    }
+}
+
+/**
+ * What `Game` needs to know about its star-mode connection: whether it's
+ * the relay (host) or a spoke (guest), and which canonical seat this
+ * client occupies. `mySeat` is NOT necessarily 0 for a guest — only the
+ * host is guaranteed seat 0 by the join-order convention. Typed against the
+ * `HostHub`/`GuestSession` interfaces (not the concrete `StarHub`/
+ * `StarGuestSession` classes) so a future transport (e.g. Steam P2P) can
+ * hand `Game` a same-shaped object without `Game` itself changing at all;
+ * `StarHub`/`StarGuestSession` (PeerJS) already satisfy them.
+ */
+export type StarRole =
+    | { role: 'host'; hub: HostHub; mySeat: SeatId }
+    | { role: 'guest'; session: GuestSession; mySeat: SeatId };
+
+/**
+ * Host a 2v2+ star room: opens a peer, registers it in the public/room-code
+ * lobby exactly like `hostLobby`, and returns the `StarHub` for the caller
+ * to drive the join/seat-assignment/start flow (kept in main.ts, alongside
+ * the seat-picker UI — connection plumbing only lives here).
+ */
+export async function hostStarRoom(
+    initialRoster: CanonicalSeatDef[],
+    onStatus: (status: string) => void,
+): Promise<{ hub: StarHub; roomId: string; cleanup: () => void }> {
+    const name = getPlayerName();
+    const roomId = peerRoomId(name);
+    onStatus('Opening room…');
+    let hub: StarHub;
+    try {
+        hub = await StarHub.open(initialRoster, roomId);
+    } catch {
+        throw new Error(`Name "${name}" is already hosting — pick another username`);
+    }
+    // reuses the SAME room-code registration as 1v1 custom rooms, tagged
+    // mode=2v2 so the room list can route joiners to the star join flow
+    await lobbyRegister(hub.peerId, name, '2v2');
+    const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, '2v2'), HEARTBEAT_MS);
+    return {
+        hub,
+        roomId,
+        cleanup: () => {
+            clearInterval(heartbeat);
+            void lobbyLeave(hub.peerId);
+        },
+    };
+}
+
+/** Join a 2v2+ star room by the host's username (room code) — same lookup as `joinLobby`. */
+export function joinStarRoom(hostName: string, onStatus: (status: string) => void): SessionPending<StarGuestSession> {
+    let peer: Peer | null = null;
+    const localName = getPlayerName();
+    const code = roomCodeFromName(hostName);
+    if (!code) {
+        return { session: Promise.reject(new Error('Invalid room name')), cancel: () => undefined };
+    }
+    const session = (async () => {
+        onStatus(`Joining "${hostName.trim()}"…`);
+        peer = await openPeer();
+        const conn = await new Promise<DataConnection>((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error('Room not found or host offline')),
+                CONNECT_TIMEOUT_MS,
+            );
+            const c = peer!.connect(peerRoomId(hostName), { reliable: true });
+            c.on('open', () => {
+                clearTimeout(timer);
+                resolve(c);
+            });
+            c.on('error', (e) => {
+                clearTimeout(timer);
+                reject(e);
+            });
+        });
+        conn.send({ type: 'starJoin', name: localName, version: GAME_VERSION });
+        return new StarGuestSession(peer, conn);
+    })();
+    return { session, cancel: () => peer?.destroy() };
+}
+
+/** identical shape to {@link Pending}, generalized (kept separate — `Pending` stays untouched for the existing 1v1 flow) */
+export interface SessionPending<T> {
+    session: Promise<T>;
+    cancel: () => void;
+}
+
+/**
  * Host-side only: a dedicated PeerJS connection point, entirely separate
  * from the player-link `NetSession`/`Peer`, that accepts any number of
  * spectator connections for the life of the match. Kept independent on
@@ -351,12 +784,20 @@ export class SpectatorHub {
     /** fired for chat relayed FROM a spectator (needs mirroring to the
      *  player link and every other spectator) */
     onSpectatorChat: ((name: string, item: ChatItem) => void) | null = null;
+    /** fired for a batch of debug events from a spectator (dev-only, `?debug`) */
+    onSpectatorDebugLog: ((events: DebugEvent[]) => void) | null = null;
 
-    private constructor(private readonly peer: Peer) {}
+    private constructor(
+        private readonly peer: Peer,
+        /** dev-only (`?debug`): routes through the owning Game's DebugLog
+         *  instead of a bare console.info, so these events join the
+         *  aggregated cross-client timeline too — see debugLog.ts */
+        private readonly debugLog: (category: string, data?: unknown) => void,
+    ) {}
 
-    static async open(): Promise<SpectatorHub> {
+    static async open(debugLog: (category: string, data?: unknown) => void = () => {}): Promise<SpectatorHub> {
         const peer = await openPeer();
-        return new SpectatorHub(peer);
+        return new SpectatorHub(peer, debugLog);
     }
 
     get peerId(): string {
@@ -411,6 +852,12 @@ export class SpectatorHub {
 
     /** grant or revoke live build vision for a seat on a named spectator */
     setSeatLive(spectatorName: string, seat: 'a' | 'b', grant: boolean): SpectatorVision | null {
+        this.debugLog('vision.setSeatLive', {
+            spectatorName,
+            seat,
+            grant,
+            knownNames: [...this.viewers.values()].map((v) => v.name),
+        });
         for (const [conn, viewer] of this.viewers) {
             if (viewer.name !== spectatorName) continue;
             const seats =
@@ -419,13 +866,71 @@ export class SpectatorHub {
             else seats.delete(seat);
             viewer.vision = seats.size === 0 ? { mode: 'battle' } : { mode: 'live', seats: [...seats] };
             conn.send({ type: 'visionUpdate', vision: viewer.vision });
+            this.debugLog('vision.setSeatLiveMatched', {
+                vision: viewer.vision,
+                bufferLenBeforeFlush: viewer.buildBuffer.length,
+            });
+            // Grant takes effect immediately — anything of this seat's
+            // already sitting in the backlog (bought/leveled before the
+            // checkbox was clicked) would otherwise sit invisible until
+            // this seat's next action happens to trigger a flush, which
+            // reads as "vision granted but nothing changed" to a spectator.
+            if (grant) this.flushRevealable(conn, viewer, false);
+            this.debugLog('vision.setSeatLiveFlushed', { bufferLenAfterFlush: viewer.buildBuffer.length });
             return viewer.vision;
         }
+        this.debugLog('vision.setSeatLiveNoMatch', { spectatorName });
         return null;
     }
 
+    /** is this build message revealable to `viewer` right now? */
+    private isRevealable(
+        viewer: { vision: SpectatorVision },
+        msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
+        bothLocked: boolean,
+    ): boolean {
+        if (bothLocked) return true;
+        return viewer.vision.mode === 'live' && !!msg.side && viewer.vision.seats.includes(msg.side);
+    }
+
+    /**
+     * Sends every currently-revealable entry out of `viewer`'s backlog,
+     * keeping still-fogged entries buffered in order. Per-message, not
+     * all-or-nothing: the backlog can hold both seats' withheld actions at
+     * once (e.g. one seat live, the other not), so a flush triggered by one
+     * seat becoming revealable must not leak the other seat's still-fogged
+     * actions along with it.
+     */
+    private flushRevealable(
+        conn: DataConnection,
+        viewer: { vision: SpectatorVision; buildBuffer: NetMessage[] },
+        bothLocked: boolean,
+    ): void {
+        if (viewer.buildBuffer.length === 0) return;
+        const remaining: NetMessage[] = [];
+        for (const buffered of viewer.buildBuffer) {
+            const m = buffered as Extract<NetMessage, { type: 'action' | 'undo' }>;
+            if (this.isRevealable(viewer, m, bothLocked)) conn.send(buffered);
+            else remaining.push(buffered);
+        }
+        viewer.buildBuffer = remaining;
+    }
+
+    /** does at least one connected spectator currently have live vision on `seat`? */
+    anyLiveFor(seat: 'a' | 'b'): boolean {
+        for (const viewer of this.viewers.values()) {
+            if (viewer.vision.mode === 'live' && viewer.vision.seats.includes(seat)) return true;
+        }
+        return false;
+    }
+
     private onData(conn: DataConnection, msg: NetMessage): void {
-        if (msg.type !== 'chat') return; // spectators may only ever chat
+        // spectators may only ever chat, or (dev-only) stream debug events
+        if (msg.type === 'debugLog') {
+            this.onSpectatorDebugLog?.(msg.events);
+            return;
+        }
+        if (msg.type !== 'chat') return;
         const viewer = this.viewers.get(conn);
         if (!viewer) return;
         this.onSpectatorChat?.(viewer.name, msg.item);
@@ -445,27 +950,48 @@ export class SpectatorHub {
     }
 
     /**
+     * Seeds a just-admitted spectator's build backlog directly, bypassing
+     * {@link relayBuild}'s live/bothLocked check. Used to backfill actions
+     * that were excluded from their initial catch-up snapshot (they already
+     * happened before this spectator connected, per the same vision policy
+     * `relayBuild` enforces going forward) — without this, that content is
+     * lost forever: `relayBuild`'s per-connection buffer only starts
+     * accumulating messages relayed from admission onward, so an action
+     * from before this exact connection was never buffered at all. Seeding
+     * it here means it flushes naturally the next time
+     * {@link flushBuildBuffers} runs (both sides lock in, round resolves).
+     */
+    seedBuildBuffer(conn: DataConnection, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        this.viewers.get(conn)?.buildBuffer.push(msg);
+    }
+
+    /**
      * Relay a build-phase action/undo with vision filtering.
-     * `seat` is which player originated it (`'a'` host, `'b'` guest).
+     * `msg.side` is which player originated it (`'a'` host, `'b'` guest).
      * When `bothLocked`, battle-vision spectators receive their backlog + this msg.
      */
     relayBuild(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
-        seat: 'a' | 'b',
         bothLocked: boolean,
     ): void {
         for (const [conn, viewer] of this.viewers) {
-            const live =
-                viewer.vision.mode === 'live' && viewer.vision.seats.includes(seat);
-            if (live || bothLocked) {
-                if (viewer.buildBuffer.length > 0) {
-                    for (const buffered of viewer.buildBuffer) conn.send(buffered);
-                    viewer.buildBuffer.length = 0;
-                }
-                conn.send(msg);
-            } else {
-                viewer.buildBuffer.push(msg);
-            }
+            // flush whatever's newly revealable first (e.g. a seat granted
+            // live vision since its last action) — per-message, so a
+            // still-fogged OTHER seat's backlog entries never leak along
+            // with it (see flushRevealable's doc comment)
+            this.flushRevealable(conn, viewer, bothLocked);
+            const revealNow = this.isRevealable(viewer, msg, bothLocked);
+            this.debugLog('vision.relayBuild', {
+                viewerName: viewer.name,
+                msgKind: msg.type === 'action' ? msg.action.kind : 'undo',
+                msgSide: msg.side,
+                vision: viewer.vision,
+                bothLocked,
+                revealNow,
+                bufferLenAfter: revealNow ? viewer.buildBuffer.length : viewer.buildBuffer.length + 1,
+            });
+            if (revealNow) conn.send(msg);
+            else viewer.buildBuffer.push(msg);
         }
     }
 
@@ -758,9 +1284,9 @@ async function lobbyLeave(peerId: string): Promise<void> {
     await fetch(`${matchUrl()}?action=leave&peer=${encodeURIComponent(peerId)}`).catch(() => undefined);
 }
 
-async function lobbyRegister(peerId: string, name: string): Promise<void> {
+async function lobbyRegister(peerId: string, name: string, mode: '1v1' | '2v2' = '1v1'): Promise<void> {
     await fetch(
-        `${matchUrl()}?action=host&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(name)}`,
+        `${matchUrl()}?action=host&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(name)}&mode=${mode}`,
     ).catch(() => undefined);
 }
 
@@ -772,11 +1298,15 @@ async function lobbyRegister(peerId: string, name: string): Promise<void> {
  * already establish, just tagged separately so it never shows up in the
  * normal "join as a player" room list.
  */
-export function registerSpectateEndpoint(peerId: string, roomName: string): () => void {
+export function registerSpectateEndpoint(
+    peerId: string,
+    roomName: string,
+    mode: '1v1' | '2v2' = '1v1',
+): () => void {
     let stopped = false;
     const beat = () => {
         void fetch(
-            `${matchUrl()}?action=spectate-register&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(roomName)}`,
+            `${matchUrl()}?action=spectate-register&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(roomName)}&mode=${mode}`,
         ).catch(() => undefined);
     };
     beat();
@@ -811,9 +1341,13 @@ export interface Pending {
 
 /**
  * Quick match via the PHP endpoint: register our PeerJS id as waiting, or
- * take a waiting one and connect to it.
+ * take a waiting one and connect to it. `onWaiting` fires the moment we
+ * learn no one's already waiting (right before we start waiting ourselves)
+ * — the one point where a caller can still meaningfully offer choices
+ * (e.g. match settings), since anyone who instead finds and joins an
+ * existing wait never sees this callback at all and just connects.
  */
-export function quickMatch(onStatus: (status: string) => void): Pending {
+export function quickMatch(onStatus: (status: string) => void, onWaiting?: () => void): Pending {
     let cancelled = false;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let peer: Peer | null = null;
@@ -842,6 +1376,7 @@ export function quickMatch(onStatus: (status: string) => void): Pending {
             );
         }, HEARTBEAT_MS);
         onStatus('Waiting for an opponent…');
+        onWaiting?.();
         const s = await awaitConnection(peer, localName);
         cleanup();
         return s;

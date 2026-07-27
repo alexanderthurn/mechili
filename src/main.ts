@@ -1,6 +1,8 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { Game } from './game/game';
+import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
+import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
 import {
@@ -11,21 +13,41 @@ import {
     GAME_VERSION,
     handshake,
     hostLobby,
+    hostStarRoom,
     isMelodanPlayHost,
+    joinAsSpectator,
     joinLobby,
+    joinStarRoom,
     loadResumeMarker,
     loadSinglePlayer,
+    lookupSpectateEndpoint,
+    NetSession,
     postGlobalChat,
     quickMatch,
     raceReconnectStrategies,
     resumeSession,
     saveResumeMarker,
     saveSinglePlayer,
-    type NetSession,
+    type NetMessage,
     type Pending,
     type ResumeMarker,
+    type Session,
     type SinglePlayerSave,
+    type SpectatorSession,
+    type StarRole,
 } from './game/net';
+import { isElectron, lobby as steamLobby, steam, win } from 'steam-electron-build/native';
+import {
+    hostOrJoinSteamStar,
+    hostSteamRoom,
+    hostSteamStarRoom,
+    joinSteamLobby,
+    onSteamJoinRequested,
+    quickSteamMatch,
+    type SteamGuestSession,
+    type SteamSession,
+    type SteamStarHub,
+} from './game/net-steam';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
 import { bootGameAssets } from './game/bootAssets';
@@ -34,17 +56,69 @@ import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabili
 import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
-import { DEFAULT_SETTINGS, type GameSettings } from './game/settings';
+import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/settings';
+import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
 import { THEME, menuStyles } from './theme';
+
+// the only mode right now (Single Player / Matchmaking both force this) —
+// PvPvE: a neutral dwarf horde spawns from the forest ring outside the
+// normal board and marches in, hostile to both players. The normal map's
+// own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
+// mode specifically) — no more widened center belt. Horde is always on;
+// `?hordeFactor=` is the one lever, including `off` (see hordeEnabled) —
+// no separate opt-out param, to keep this down to a single URL knob.
+// Accepts a preset (low/medium/high/ultra/off) or an explicit round list
+// (`?hordeFactor=2,4,9`) without an in-menu picker yet.
+function applyHordeMode(settings: GameSettings): void {
+    settings.horde = structuredClone(DEFAULT_HORDE);
+    const factorParam = new URLSearchParams(location.search).get('hordeFactor');
+    if (!factorParam) return;
+    if (
+        factorParam === 'off' ||
+        factorParam === 'low' ||
+        factorParam === 'medium' ||
+        factorParam === 'high' ||
+        factorParam === 'ultra'
+    ) {
+        settings.horde.factor = factorParam;
+    } else {
+        const rounds = factorParam
+            .split(',')
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isFinite(n) && n > 0);
+        if (rounds.length > 0) settings.horde.factor = rounds;
+    }
+}
+
+// shared by local duo-vs-AI and online 2v2 — 4 armies need more elbow room
+// (kept modest — each seat now gets its own pair of towers within its own
+// half-lane, so this doesn't need to be as wide as when towers were shared)
+function widenMapForDuo(settings: GameSettings): void {
+    settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.3) };
+}
+
+// ?duo=1 / the 2v2 Skirmish menu button — you + an AI ally against two AI
+// commanders, split lanes, wider board. Combines with horde mode.
+function applyDuoMode(settings: GameSettings): void {
+    settings.seats = duoSeats('You');
+    widenMapForDuo(settings);
+}
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20&nocards
 function settingsFromUrl(): GameSettings {
     const params = new URLSearchParams(location.search);
     const settings = structuredClone(DEFAULT_SETTINGS);
+    // NOTE: no longer shortens real matches for testing — actual match HP is
+    // additive per seat from a zero baseline (chooseCard), so this only
+    // affects the pre-pick placeholder shown before any card is chosen
     const hp = Number(params.get('hp'));
     if (hp > 0) settings.startingHp = hp;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
+    // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
+    // now that Horde is the only mode; ?hordeFactor= (including `off`)
+    // overrides the level — see applyHordeMode
+    if (params.get('duo')) applyDuoMode(settings);
 
     const parseTimer = (raw: string | null): number | number[] | null => {
         if (!raw) return null;
@@ -269,17 +343,67 @@ menu.style.position = 'relative';
 menu.style.zIndex = '30';
 menu.style.display = 'none';
 menu.innerHTML = `
-    <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
-    <button class="m-btn" data-mode="quick"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
-    <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Custom Room</span></button>
+    <div class="m-main">
+        <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
+        <button class="m-btn" data-mode="matchmaking"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
+        <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Rooms</span></button>
+    </div>
+    <div class="m-spmode" style="display:none">
+        <div class="m-spmode-title">Single Player</div>
+        <div class="m-toggle-row">
+            <button class="m-btn m-toggle-card" data-mode="sp-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="sp-back">Back</button>
+    </div>
+    <div class="m-matchmaking" style="display:none">
+        <div class="m-spmode-title">Matchmaking</div>
+        <!-- mode/Horde choice hidden for now (focus: 1v1 Horde only) — not
+             removed, just forced+hidden, so it's a one-line revert later -->
+        <div class="m-toggle-row" style="display:none">
+            <label class="m-toggle-card">
+                <input type="radio" name="mmteam" value="1v1" checked>
+                <span class="m-ico">🧍</span><span class="m-label">1v1</span>
+            </label>
+            <label class="m-toggle-card">
+                <input type="radio" name="mmteam" value="2v2">
+                <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
+            </label>
+        </div>
+        <label class="m-toggle-pill" style="display:none">
+            <input type="checkbox" class="mm-horde" checked>
+            <span class="m-ico">🐗</span><span class="m-label">Horde Mode</span>
+        </label>
+        <div class="m-seats">
+            <div class="m-seat m-seat-you"><span class="mm-you-name"></span></div>
+            <button class="m-seat m-seat-invite" data-mode="mm-invite">+ Invite a Friend</button>
+        </div>
+        <div class="m-mm-link" style="display:none"></div>
+        <div class="m-room-row">
+            <button class="m-btn m-small" data-mode="mm-back">Back</button>
+            <button class="m-btn m-primary m-small" data-mode="mm-play">Play</button>
+        </div>
+    </div>
+    <div class="m-mm-simple" style="display:none">
+        <div class="m-spmode-title">Matchmaking</div>
+        <div class="m-toggle-row">
+            <button class="m-btn m-toggle-card" data-mode="mms-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="mms-back">Back</button>
+    </div>
     <div class="m-lobby" style="display:none">
         <div class="m-room-row">
             <button class="m-btn m-small" data-mode="host">Host Room</button>
+            <button class="m-btn m-small" data-mode="host2v2">Host 2v2 Online</button>
             <button class="m-btn m-small" data-mode="refresh">Refresh</button>
         </div>
         <div class="m-room-list empty">No open rooms</div>
     </div>
     <div class="m-status" style="display:none"></div>
+    <button class="m-btn m-small" data-mode="startstar" style="display:none">Start 2v2 Match</button>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
@@ -300,6 +424,19 @@ settingsCornerEl.title = 'Settings';
 settingsCornerEl.style.display = 'none';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 wrapper.appendChild(settingsCornerEl);
+
+// Electron only — a browser tab has its own close affordance, but a
+// borderless/fullscreen Electron window doesn't; stacked just above the
+// username pill. Visibility is gated on isElectron() inside
+// setMenuChromeVisible, not just here, since it must also hide during play.
+const exitDesktopEl = document.createElement('button');
+exitDesktopEl.className = 'mechili-exit-btn';
+exitDesktopEl.type = 'button';
+exitDesktopEl.textContent = 'Exit to Desktop';
+exitDesktopEl.title = 'Quit the game';
+exitDesktopEl.style.display = 'none';
+exitDesktopEl.addEventListener('click', () => void win.close());
+wrapper.appendChild(exitDesktopEl);
 
 // suggest chip, top-left (same language as username button)
 const suggestCornerEl = document.createElement('button');
@@ -344,6 +481,7 @@ function setMenuChromeVisible(visible: boolean): void {
     versionEl.style.display = display;
     settingsCornerEl.style.display = display;
     suggestCornerEl.style.display = display;
+    exitDesktopEl.style.display = visible && isElectron() ? '' : 'none';
     applyGlobalChatVisibility();
     if (visible) ensureMenuGamepadCursor();
 }
@@ -450,6 +588,14 @@ const lobbyEl = menu.querySelector<HTMLDivElement>('.m-lobby')!;
 const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
+const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
+const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
+const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
+const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
+const mmYouNameEl = menu.querySelector<HTMLSpanElement>('.mm-you-name')!;
+const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
+const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
+const mmSimpleEl = menu.querySelector<HTMLDivElement>('.m-mm-simple')!;
 
 let started = false;
 let pending: Pending | null = null;
@@ -646,9 +792,28 @@ function showNameEditor(): void {
     wrapper.appendChild(overlay);
 }
 
+// under Steam, always sync the display name from the Steam identity — not
+// just a one-time seed: the click-to-edit/rename path below is disabled
+// under Steam (no account story there yet), so there's no way for a name to
+// have been legitimately customized while running under Steam, and a stale
+// pre-Steam localStorage name (from earlier testing, or the plain web
+// build) should not keep winning forever. Must be awaited before the very
+// first getPlayerName() call below, otherwise that call's own "no saved
+// name yet" fallback wins the race and persists a random Player#### name
+// first.
+if (steam.isAvailable()) {
+    const steamName = await steam.getUserName();
+    if (steamName) setPlayerName(steamName);
+}
 refreshUsernameLabel();
 void refreshOpenProfile();
-usernameEl.addEventListener('click', () => showNameEditor());
+// under Steam the name is seeded from your Steam identity (above) — the
+// web version's login/rename/password editor doesn't apply yet, so the
+// corner button is inert for now rather than opening it (revisit once
+// there's an actual Steam-side account/identity story)
+usernameEl.addEventListener('click', () => {
+    if (!steam.isAvailable()) showNameEditor();
+});
 
 function setStatus(text: string): void {
     statusEl.style.display = text ? '' : 'none';
@@ -682,9 +847,13 @@ async function refreshRoomList(): Promise<void> {
             ...others.map((r) => {
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.className = 'm-room';
+                button.className = r.kind === 'spectate' ? 'm-room m-room-spectate' : 'm-room';
                 button.dataset.room = r.name;
-                button.textContent = r.name;
+                button.dataset.roomMode = r.mode;
+                button.dataset.roomKind = r.kind;
+                const modeTag = r.mode === '2v2' ? ' (2v2)' : '';
+                button.textContent =
+                    r.kind === 'spectate' ? `Watch ${r.name}${modeTag}` : `${r.name}${modeTag}`;
                 return button;
             }),
         );
@@ -722,6 +891,9 @@ function returnToMenu(): void {
     clearMatchResumeData();
     activeGame?.destroy();
     activeGame = null;
+    replayControlsPanel?.remove();
+    replayControlsPanel = null;
+    currentReplayRecord = null;
     replaceThreeCanvas();
     started = false;
     setGameLayerVisible(false);
@@ -734,6 +906,7 @@ function returnToMenu(): void {
     wrapper.appendChild(versionEl);
     wrapper.appendChild(settingsCornerEl);
     wrapper.appendChild(suggestCornerEl);
+    wrapper.appendChild(exitDesktopEl);
     wrapper.appendChild(gchatEl);
     startGlobalChatPoll();
     refreshUsernameLabel();
@@ -745,13 +918,37 @@ function returnToMenu(): void {
 
 function startGame(
     settings: GameSettings,
-    net: NetSession | null = null,
+    net: Session | null = null,
     side: 'a' | 'b' = 'a',
     names: { local: string; opponent: string } = {
         local: getPlayerName(),
         opponent: net ? 'Opponent' : 'AI',
     },
     resume: MatchResume | null = null,
+    /** 2v2+ star-topology connection — mutually exclusive with `net` */
+    star: StarRole | null = null,
+    /** watching a finished match play back — mutually exclusive with
+     *  everything above; never persists/resumes/reports (see game.ts).
+     *  `jumpToRound` fast-forwards past everything before that round.
+     *  `verify` re-submits telemetry at the end despite watching;
+     *  `expected` is the originally-recorded outcome, shown alongside the
+     *  recomputed one on the game-over screen. */
+    replay: {
+        actions: LoggedAction[];
+        jumpToRound?: number;
+        verify?: boolean;
+        mode?: MatchMode;
+        expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    } | null = null,
+    /** spectate mode: a read-only live view of someone else's running match —
+     *  mutually exclusive with everything above; never persists/resumes/reports
+     *  (see game.ts). `watcherName` is the spectator's own name, distinct from
+     *  `names` (which holds the two PLAYERS' names, for display). */
+    spectate: {
+        session: SpectatorSession;
+        watcherName: string;
+        initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+    } | null = null,
 ): void {
     if (started) return;
     started = true;
@@ -769,24 +966,36 @@ function startGame(
     versionEl.remove();
     settingsCornerEl.remove();
     suggestCornerEl.remove();
+    exitDesktopEl.remove();
     gchatEl.remove();
     if (net) {
         clearSinglePlayer();
-        saveResumeMarker({
-            side,
-            names,
-            remotePeerId: net.remoteId,
-            ownPeerId: net.ownId,
-        });
-    } else {
+        // resume/redial is PeerJS-specific (peer ids) — a Steam session has
+        // no equivalent yet (v1 scope, see net-steam.ts), so it just skips
+        // the marker rather than saving one it could never actually resume
+        if (net instanceof NetSession) {
+            saveResumeMarker({
+                side,
+                names,
+                remotePeerId: net.remoteId,
+                ownPeerId: net.ownId,
+            });
+        }
+    } else if (!replay && !spectate) {
+        // watching a replay/spectating a live match touches neither marker —
+        // it isn't a new match of ours, and clearing either here would wipe
+        // out the player's real, unrelated saved game just because they
+        // clicked Watch
         clearResumeMarker();
-        if (!resume?.local) clearSinglePlayer();
+        // star matches have no save/resume story yet (v1 scope) — never
+        // persist or resume one via the single-player slot
+        if (!resume?.local && !star) clearSinglePlayer();
     }
-    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume);
+    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star, replay, spectate);
     activeGame = game;
     game.onReturnToMenu = returnToMenu;
-    if (net) wireReconnect(game, net, side, names);
-    else stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    if (net instanceof NetSession) wireReconnect(game, net, side, names);
+    else if (!net && !star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */
@@ -948,12 +1157,247 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
     });
 }
 
-async function beginNetGame(session: NetSession): Promise<void> {
+/** kept around so rebuildReplayAt (round jump / skip to end) can
+ *  reconstruct without re-fetching; cleared on return to menu */
+let currentReplayRecord: MatchTelemetry | null = null;
+/** survives across rebuildReplayAt's Game reconstructions — owned here,
+ *  not by Game, for exactly that reason */
+let replayControlsPanel: ReplayControls | null = null;
+
+/** ?watch=<id>&side=<a|b> from replays.html — plays a stored match back at
+ *  a natural pace instead of starting a new one. Checked ahead of any
+ *  resume marker/single-player save so a replay link is never preempted. */
+async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
+    setMenuChromeVisible(true);
+    setStatus('Loading replay…');
+    const record = await fetchMatchReplay(id, side);
+    if (!record) {
+        setStatus('Replay not found.');
+        return;
+    }
+    setStatus('');
+    currentReplayRecord = record;
+    const settings = record.replay.settings;
+    settings.seed = record.replay.seed;
+    startGame(
+        settings,
+        null,
+        record.side,
+        { local: record.names.local, opponent: record.names.opponent },
+        null,
+        null,
+        { actions: record.replay.actions, mode: record.mode },
+    );
+    const maxRound = Math.max(1, ...record.replay.actions.map((a) => a.round));
+    replayControlsPanel = new ReplayControls(
+        wrapper,
+        maxRound,
+        Game.REPLAY_SPEED_STEPS,
+        Game.REPLAY_SPEED_STEPS.indexOf(1),
+        {
+            onJump: (round) => void rebuildReplayAt(round),
+            onSkipToEnd: () => void rebuildReplayAt('end'),
+            onSkipDeployment: () => activeGame?.skipReplayDeployment(),
+            onSkipBattle: () => activeGame?.skipReplayBattle(),
+            onSpeedChange: (index) => activeGame?.setReplaySpeedIndex(index),
+        },
+    );
+}
+
+/** round-jump / skip-to-end: tear down the current replay Game and
+ *  reconstruct fresh, fast-forwarded to the target — state is always fully
+ *  reconstructible from {seed, settings, actions}, so this is simpler and
+ *  safer than trying to rewind a live instance in place. */
+async function rebuildReplayAt(target: number | 'end'): Promise<void> {
+    if (!currentReplayRecord) return;
+    activeGame?.destroy();
+    activeGame = null;
+    started = false;
+    const settings = currentReplayRecord.replay.settings;
+    settings.seed = currentReplayRecord.replay.seed;
+    startGame(
+        settings,
+        null,
+        currentReplayRecord.side,
+        { local: currentReplayRecord.names.local, opponent: currentReplayRecord.names.opponent },
+        null,
+        null,
+        {
+            actions: currentReplayRecord.replay.actions,
+            jumpToRound: target === 'end' ? Infinity : target,
+            mode: currentReplayRecord.mode,
+        },
+    );
+    // a fresh Game always starts at 1x — reapply whatever the panel (which
+    // survives the reconstruction) has selected. Explicit type restatement:
+    // TS over-narrows activeGame to `never` here otherwise, not accounting
+    // for startGame() (above) reassigning the module-level variable.
+    const game = activeGame as Game | null;
+    if (replayControlsPanel) {
+        game?.setReplaySpeedIndex(replayControlsPanel.getSpeedIndex());
+        const landedRound =
+            target === 'end' ? Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round)) : target;
+        replayControlsPanel.setCurrentRound(landedRound);
+    }
+}
+
+/**
+ * ?verify=<id>&side=<a|b> — a fast, no-watching way to re-check a stored
+ * replay: instantly fast-forwards the whole match headlessly (same as
+ * "skip to end", jumpToRound: Infinity), which re-submits the recomputed
+ * result through the normal telemetry pipeline (verify: true — see
+ * game.ts's finishMatch/reportMatchTelemetry). stats.php's per-side dedupe
+ * means an exact match stores nothing new; any divergence creates a second
+ * file for that side, visible in replays.html as a mismatch.
+ *
+ * Shows the normal game-over screen (with an added match/mismatch note —
+ * see `expected` below) instead of redirecting immediately: the whole
+ * point of Verify is to see whether it matched, so silently bouncing back
+ * to the list defeats that. The screen's "Back to replays" button (its
+ * label repointed here) sends you back when you're ready for the next
+ * one — still fast to click through a batch, just not literally invisible.
+ */
+async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void> {
+    setMenuChromeVisible(true);
+    setStatus('Verifying…');
+    const record = await fetchMatchReplay(id, side);
+    if (!record) {
+        setStatus('Replay not found.');
+        return;
+    }
+    const settings = record.replay.settings;
+    settings.seed = record.replay.seed;
+    startGame(
+        settings,
+        null,
+        record.side,
+        { local: record.names.local, opponent: record.names.opponent },
+        null,
+        null,
+        {
+            actions: record.replay.actions,
+            jumpToRound: Infinity,
+            verify: true,
+            mode: record.mode,
+            expected: {
+                result: record.result,
+                rounds: record.rounds,
+                playerHp: record.playerHp,
+                enemyHp: record.enemyHp,
+            },
+        },
+    );
+    // repoints the game-over screen's button (labeled "Back to replays" by
+    // finishMatch's verify branch) instead of the normal in-game menu —
+    // explicit type restatement for the same reason as rebuildReplayAt above
+    const game = activeGame as Game | null;
+    if (game) {
+        game.onReturnToMenu = () => {
+            location.href = new URL('backend/replays.html', location.href).href;
+        };
+    }
+}
+
+interface BulkVerifyResult {
+    id: string;
+    side: 'a' | 'b';
+    ok: boolean;
+    matches: boolean;
+    names: { local: string; opponent: string };
+    expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    actual?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    error?: string;
+}
+
+/**
+ * ?bulkverify=1 — chains verifyReplayAndReturn's headless re-check across a
+ * whole queue without a click per item (replays.html's Bulk Verify button
+ * seeds the queue into sessionStorage before navigating here). Each item's
+ * Game is fast-forwarded synchronously in its constructor (jumpToRound:
+ * Infinity), so no waiting on the interactive game-over screen is needed —
+ * just read getFinalResult() the instant `startGame` returns and move on.
+ * Writes a summary to sessionStorage and navigates back to replays.html,
+ * which renders it as a dialog on load.
+ */
+async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<void> {
+    setMenuChromeVisible(true);
+    const results: BulkVerifyResult[] = [];
+    for (let i = 0; i < queue.length; i++) {
+        const { id, side } = queue[i]!;
+        setStatus(`Bulk verifying ${i + 1}/${queue.length}…`);
+        const record = await fetchMatchReplay(id, side);
+        if (!record) {
+            results.push({
+                id,
+                side,
+                ok: false,
+                matches: false,
+                names: { local: '(unknown)', opponent: '(unknown)' },
+                error: 'replay not found',
+            });
+            continue;
+        }
+        activeGame?.destroy();
+        activeGame = null;
+        started = false;
+        const settings = record.replay.settings;
+        settings.seed = record.replay.seed;
+        startGame(
+            settings,
+            null,
+            record.side,
+            { local: record.names.local, opponent: record.names.opponent },
+            null,
+            null,
+            {
+                actions: record.replay.actions,
+                jumpToRound: Infinity,
+                verify: true,
+                mode: record.mode,
+                expected: {
+                    result: record.result,
+                    rounds: record.rounds,
+                    playerHp: record.playerHp,
+                    enemyHp: record.enemyHp,
+                },
+            },
+        );
+        // explicit type restatement — see rebuildReplayAt above
+        const game = activeGame as Game | null;
+        const actual = game?.getFinalResult() ?? undefined;
+        const expected = {
+            result: record.result,
+            rounds: record.rounds,
+            playerHp: record.playerHp,
+            enemyHp: record.enemyHp,
+        };
+        const matches =
+            !!actual &&
+            actual.result === expected.result &&
+            actual.rounds === expected.rounds &&
+            actual.playerHp === expected.playerHp &&
+            actual.enemyHp === expected.enemyHp;
+        results.push({ id, side, ok: true, matches, names: record.names, expected, actual });
+    }
+    activeGame?.destroy();
+    activeGame = null;
+    started = false;
+    sessionStorage.setItem('mechili-bulk-verify-results', JSON.stringify(results));
+    location.href = new URL('backend/replays.html', location.href).href;
+}
+
+async function beginNetGame(
+    session: NetSession,
+    applyMode?: (settings: GameSettings) => void,
+): Promise<void> {
     await handshake(session);
     const localName = session.localName;
 
     if (session.role === 'host') {
         const settings = settingsFromUrl();
+        applyMode?.(settings);
+        // networked matches are classic 1v1 — local-mode rosters never travel
+        delete settings.seats;
         settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         session.send({
             type: 'setup',
@@ -978,7 +1422,7 @@ async function beginNetGame(session: NetSession): Promise<void> {
     }
 }
 
-function runPending(p: Pending): void {
+function runPending(p: Pending, applyMode?: (settings: GameSettings) => void): void {
     pending?.cancel();
     pending = p;
     setMenuBusy(true);
@@ -986,7 +1430,7 @@ function runPending(p: Pending): void {
         .then((session) => {
             pending = null;
             setMenuBusy(false);
-            void beginNetGame(session);
+            void beginNetGame(session, applyMode);
         })
         .catch((e: unknown) => {
             pending = null;
@@ -996,6 +1440,530 @@ function runPending(p: Pending): void {
         });
 }
 
+// ---- Steam 1v1 (parallel to beginNetGame/runPending above; PeerJS's
+// NetSession has no equivalent on Steam, so this is its own small
+// orchestration rather than a shared function — see net-steam.ts) ----------
+
+const STEAM_HANDSHAKE_TIMEOUT_MS = 20_000;
+
+async function beginSteamNetGame(
+    session: SteamSession,
+    role: 'host' | 'guest',
+    applyMode?: (settings: GameSettings) => void,
+): Promise<void> {
+    const localName = getPlayerName();
+    if (role === 'guest') {
+        session.send({ type: 'hello', name: localName });
+        setStatus('Receiving match setup…');
+        const msg = await session.once();
+        if (msg.type !== 'setup' || msg.version !== GAME_VERSION) {
+            setStatus('Version mismatch — both players need the same game version.');
+            session.close();
+            return;
+        }
+        const settings = msg.settings;
+        settings.seed = msg.seed;
+        startGame(settings, session, 'b', { local: localName, opponent: msg.hostName });
+        return;
+    }
+    const helloMsg = await Promise.race([
+        session.once(),
+        new Promise<NetMessage>((_, reject) =>
+            setTimeout(() => reject(new Error('Opponent did not respond')), STEAM_HANDSHAKE_TIMEOUT_MS),
+        ),
+    ]);
+    if (helloMsg.type !== 'hello') throw new Error('Unexpected handshake');
+    const guestName = helloMsg.name;
+    const settings = settingsFromUrl();
+    applyMode?.(settings);
+    delete settings.seats;
+    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    session.send({ type: 'setup', version: GAME_VERSION, seed: settings.seed, settings, hostName: localName, guestName });
+    startGame(settings, session, 'a', { local: localName, opponent: guestName });
+}
+
+function runSteamPending(
+    p: Promise<SteamSession>,
+    role: 'host' | 'guest',
+    applyMode?: (settings: GameSettings) => void,
+): void {
+    setMenuBusy(true);
+    p.then((session) => {
+        setMenuBusy(false);
+        void beginSteamNetGame(session, role, applyMode);
+    }).catch((e: unknown) => {
+        setMenuBusy(false);
+        setStatus(`Could not connect: ${e instanceof Error ? e.message : e}`);
+    });
+}
+
+// ---- 2v2 online (star topology) ----------------------------------------
+
+/** host is always seat 0, side 'a'; the other 3 slots start open for joiners */
+function initialStarRoster(hostName: string): CanonicalSeatDef[] {
+    return [
+        { side: 'a', controller: 'human', name: hostName },
+        { side: 'a', controller: 'human', name: 'Waiting…' },
+        { side: 'b', controller: 'human', name: 'Waiting…' },
+        { side: 'b', controller: 'human', name: 'Waiting…' },
+    ];
+}
+/** fallback names for seats still empty when the host clicks Start */
+const STAR_AI_NAMES: Record<number, string> = { 1: 'Ally', 2: 'Foe West', 3: 'Foe East' };
+
+const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
+let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
+
+function cancelStarHost(): void {
+    starHosting?.cleanup();
+    starHosting = null;
+    startStarBtn.style.display = 'none';
+}
+
+/** set by beginStarHost's caller right before hosting; read by startStarMatch */
+let starHordeFlag = false;
+
+async function beginStarHost(horde = false): Promise<void> {
+    starHordeFlag = horde;
+    setMenuBusy(true);
+    setStatus('Opening 2v2 room…');
+    const hostName = getPlayerName();
+    let hosted: Awaited<ReturnType<typeof hostStarRoom>>;
+    try {
+        hosted = await hostStarRoom(initialStarRoster(hostName), setStatus);
+    } catch (e) {
+        setMenuBusy(false);
+        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        return;
+    }
+    setMenuBusy(false);
+    starHosting = hosted;
+    const { hub } = hosted;
+    startStarBtn.style.display = '';
+    const refresh = () => {
+        if (!starHosting) return;
+        const roster = hub.currentRoster();
+        const joined = hub.connectedSeats().length + 1;
+        const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // auto-start the moment anyone joins — no manual "click Start" step;
+        // the Start button (still shown) is only for "give up waiting, go
+        // vs AI now" while the room is still empty
+        if (joined > 1) {
+            setStatus(`Room "${hostName}" — ${joined}/4 joined: ${names}. Starting…`);
+            startStarMatch();
+            return;
+        }
+        setStatus(
+            `Room "${hostName}" — waiting for a friend to join (share your name: "${hostName}"). Click Start to play vs AI now instead.`,
+        );
+    };
+    hub.onRosterChange = refresh;
+    hub.listen((name, version, conn) => {
+        if (version !== GAME_VERSION) {
+            conn.send({
+                type: 'starRejected',
+                reason: 'Version mismatch — both players need the same game version.',
+            });
+            conn.close();
+            return null;
+        }
+        const seat = hub.nextOpenSeat();
+        if (seat === null) {
+            conn.send({ type: 'starRejected', reason: 'Room is full.' });
+            conn.close();
+            return null;
+        }
+        hub.setRosterEntry(seat, { side: hub.sideOf(seat), controller: 'human', name });
+        return seat;
+    });
+    refresh();
+}
+
+/** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
+function startStarMatch(): void {
+    if (!starHosting) return;
+    const { hub } = starHosting;
+    const connected = new Set(hub.connectedSeats());
+    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+        if (i > 0 && s.controller === 'human' && !connected.has(i)) {
+            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+        }
+        return s;
+    });
+    const settings = settingsFromUrl();
+    delete settings.seats; // canonical roster travels separately, localized per recipient
+    if (starHordeFlag) applyHordeMode(settings);
+    widenMapForDuo(settings);
+    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    for (const seat of connected) {
+        hub.send(seat, {
+            type: 'starSetup',
+            version: GAME_VERSION,
+            seed: settings.seed,
+            settings,
+            roster: finalRoster,
+            yourSeat: seat,
+            yourSide: hub.sideOf(seat),
+        });
+    }
+    startStarBtn.style.display = 'none';
+    const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
+    startGame(hostSettings, null, 'a', { local: getPlayerName(), opponent: '2v2' }, null, {
+        role: 'host',
+        hub,
+        mySeat: 0,
+    });
+    starHosting = null; // ownership passes to the running Game now
+}
+
+/** join a 2v2 room by the host's room name — waits for the host to Start */
+function beginStarJoin(hostName: string): void {
+    runStarPending(joinStarRoom(hostName, setStatus));
+}
+
+function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
+    pending?.cancel();
+    let cancelled = false;
+    pending = {
+        // never actually read back — `pending` only needs `.cancel()` here;
+        // this satisfies the shared Pending<NetSession> shape without
+        // touching it (star join has no NetSession at all)
+        session: Promise.resolve() as unknown as Promise<NetSession>,
+        cancel: () => {
+            cancelled = true;
+            p.cancel();
+        },
+    };
+    setMenuBusy(true);
+    p.session
+        .then(async (session) => {
+            if (cancelled) return;
+            setStatus('Connected — waiting for the host to start…');
+            session.onClose = () => {
+                if (started) return;
+                cancelled = true;
+                pending = null;
+                setMenuBusy(false);
+                setStatus('Host closed the room.');
+            };
+            const msg = await session.once();
+            pending = null;
+            setMenuBusy(false);
+            if (cancelled) return;
+            if (msg.type === 'starRejected') {
+                setStatus(msg.reason);
+                session.close();
+                return;
+            }
+            if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+                setStatus('Version mismatch — both players need the same game version.');
+                session.close();
+                return;
+            }
+            const settings = msg.settings;
+            settings.seed = msg.seed;
+            settings.seats = localizeRoster(msg.roster, msg.yourSide);
+            const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+            startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+                role: 'guest',
+                session,
+                mySeat: msg.yourSeat,
+            });
+        })
+        .catch((e: unknown) => {
+            pending = null;
+            setMenuBusy(false);
+            if (cancelled || String(e).includes('cancelled')) setStatus('');
+            else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+        });
+}
+
+// ---- Steam 2v2 (parallel to beginStarHost/startStarMatch/beginStarJoin/
+// runStarPending above; own state (steamStarHosting) since a PeerJS StarHub
+// and a SteamStarHub are never both active at once) -------------------------
+
+let steamStarHosting: { hub: SteamStarHub; lobbyId: string } | null = null;
+
+function cancelSteamStarHost(): void {
+    steamStarHosting?.hub.close();
+    steamStarHosting = null;
+    startStarBtn.style.display = 'none';
+}
+
+/** shared setup for a freshly-created SteamStarHub, whichever call site created it */
+function wireSteamStarHub(hub: SteamStarHub): void {
+    startStarBtn.style.display = '';
+    const refresh = () => {
+        if (!steamStarHosting) return;
+        const roster = hub.currentRoster();
+        const joined = hub.connectedSeats().length + 1;
+        const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        if (joined > 1) {
+            setStatus(`Steam lobby — ${joined}/4 joined: ${names}. Starting…`);
+            startSteamStarMatch();
+            return;
+        }
+        setStatus('Steam lobby open — invite a friend from the overlay, or click Start to play vs AI now instead.');
+    };
+    hub.onRosterChange = refresh;
+    hub.listen((name, version, _steamId64) => {
+        if (version !== GAME_VERSION) {
+            return { reject: 'Version mismatch — both players need the same game version.' };
+        }
+        const seat = hub.nextOpenSeat();
+        if (seat === null) return { reject: 'Room is full.' };
+        hub.setRosterEntry(seat, { side: hub.sideOf(seat), controller: 'human', name });
+        return seat;
+    });
+    refresh();
+}
+
+/** host a private 2v2 Steam lobby for a direct friend invite (Steam overlay) */
+async function beginSteamStarHost(horde = false): Promise<void> {
+    starHordeFlag = horde;
+    setMenuBusy(true);
+    setStatus('Opening Steam lobby…');
+    let hosted: { hub: SteamStarHub; lobbyId: string };
+    try {
+        hosted = await hostSteamStarRoom(initialStarRoster(getPlayerName()), false);
+    } catch (e) {
+        setMenuBusy(false);
+        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        return;
+    }
+    setMenuBusy(false);
+    steamStarHosting = hosted;
+    wireSteamStarHub(hosted.hub);
+    steamLobby.openInviteDialog();
+}
+
+/** host clicks Start: AI-fill empty seats, send each guest its own setup,
+ *  launch locally — mirrors startStarMatch */
+function startSteamStarMatch(): void {
+    if (!steamStarHosting) return;
+    const { hub } = steamStarHosting;
+    const connected = new Set(hub.connectedSeats());
+    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+        if (i > 0 && s.controller === 'human' && !connected.has(i)) {
+            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+        }
+        return s;
+    });
+    const settings = settingsFromUrl();
+    delete settings.seats;
+    if (starHordeFlag) applyHordeMode(settings);
+    widenMapForDuo(settings);
+    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    for (const seat of connected) {
+        hub.send(seat, {
+            type: 'starSetup',
+            version: GAME_VERSION,
+            seed: settings.seed,
+            settings,
+            roster: finalRoster,
+            yourSeat: seat,
+            yourSide: hub.sideOf(seat),
+        });
+    }
+    startStarBtn.style.display = 'none';
+    const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
+    startGame(hostSettings, null, 'a', { local: getPlayerName(), opponent: '2v2' }, null, {
+        role: 'host',
+        hub,
+        mySeat: 0,
+    });
+    steamStarHosting = null; // ownership passes to the running Game now
+}
+
+function runSteamStarPending(p: Promise<SteamGuestSession>): void {
+    pending?.cancel();
+    let cancelled = false;
+    pending = {
+        // never actually read back — `pending` only needs `.cancel()` here;
+        // this satisfies the shared Pending<NetSession> shape without
+        // touching it (star join has no NetSession at all — same trick as
+        // the PeerJS runStarPending above)
+        session: Promise.resolve() as unknown as Promise<NetSession>,
+        cancel: () => {
+            cancelled = true;
+        },
+    };
+    setMenuBusy(true);
+    p.then(async (session) => {
+        if (cancelled) return;
+        setStatus('Connected — waiting for the host to start…');
+        session.onClose = () => {
+            if (started) return;
+            cancelled = true;
+            pending = null;
+            setMenuBusy(false);
+            setStatus('Host closed the room.');
+        };
+        const msg = await session.once();
+        pending = null;
+        setMenuBusy(false);
+        if (cancelled) return;
+        if (msg.type === 'starRejected') {
+            setStatus(msg.reason);
+            session.close();
+            return;
+        }
+        if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+            setStatus('Version mismatch — both players need the same game version.');
+            session.close();
+            return;
+        }
+        const settings = msg.settings;
+        settings.seed = msg.seed;
+        settings.seats = localizeRoster(msg.roster, msg.yourSide);
+        const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+        startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+            role: 'guest',
+            session,
+            mySeat: msg.yourSeat,
+        });
+    }).catch((e: unknown) => {
+        pending = null;
+        setMenuBusy(false);
+        if (cancelled || String(e).includes('cancelled')) setStatus('');
+        else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+    });
+}
+
+// a Steam overlay/friends-list "Join Game" invite can be accepted from
+// anywhere (menu idle, another screen) — not just while mm-invite/mm-play
+// is open, mirroring the ?room= deep-link handling further down for the
+// web build's invite-link equivalent
+onSteamJoinRequested(({ lobbySteamId }) => {
+    if (started || pending || steamStarHosting) return;
+    void joinSteamLobby(lobbySteamId)
+        .then((result) => {
+            if (result.mode === '2v2') runSteamStarPending(Promise.resolve(result.session));
+            else runSteamPending(Promise.resolve(result.session), 'guest');
+        })
+        .catch((e: unknown) => setStatus(`Could not join: ${e instanceof Error ? e.message : e}`));
+});
+
+/** resets and reveals the Matchmaking picker (team size / Horde / Invite /
+ *  Play) — shown up front for Steam (see the 'matchmaking' case below for
+ *  why), and as the fallback for the plain PeerJS path once a quick probe
+ *  finds nobody already waiting to join. */
+function showMatchmakingPicker(): void {
+    mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
+    mmYouNameEl.textContent = getPlayerName();
+    mmInviteEl.disabled = false;
+    mmInviteEl.textContent = '+ Invite a Friend';
+    mmLinkEl.style.display = 'none';
+    mmModeEl.style.display = '';
+}
+
+/**
+ * Plain (non-Steam) 1v1 quick match, probe-first.
+ *
+ * `committed=false` (the default): used for the initial "just clicked
+ * Matchmaking" attempt, before the player has chosen a mode. Finds someone
+ * already waiting → connects immediately. Finds no one → gives up on this
+ * probe and reveals the simplified picker (mmSimpleEl) so the player can
+ * choose a mode.
+ *
+ * `committed=true`: used by the picker's OWN mode buttons (mms-1v1/
+ * mms-horde) — the player already chose, so "nobody's waiting" here means
+ * actually queue and wait (status + Cancel button), not bounce back to the
+ * same picker. Bug fix: this used to call the same not-committed path, so
+ * picking a mode from the picker re-ran the exact same probe-and-bail
+ * behavior that got them there, cancelling the wait instead of starting it —
+ * looked like the click did nothing (a quick flicker back to the picker).
+ */
+function tryQuickMatch(horde: boolean, committed = false): void {
+    mmSimpleEl.style.display = 'none';
+    setStatus('Looking for a match…');
+    setMenuBusy(true);
+    const probe = quickMatch(
+        (s) => setStatus(s),
+        committed
+            ? undefined
+            : () => {
+                  pending = null;
+                  probe.cancel();
+                  setMenuBusy(false);
+                  setStatus('');
+                  mmSimpleEl.style.display = '';
+              },
+    );
+    pending = probe;
+    probe.session
+        .then((session) => {
+            pending = null;
+            setMenuBusy(false);
+            setStatus('');
+            void beginNetGame(session, horde ? applyHordeMode : undefined);
+        })
+        .catch(() => {
+            // either the deliberate cancel-and-reveal above, or the
+            // player's own Cancel click — both handled where they happened
+        });
+}
+
+/** Plain (non-Steam) 2v2: join an open room if one exists, else host and
+ *  wait (beginStarHost already auto-starts the moment anyone joins). */
+function try2v2Match(horde: boolean): void {
+    mmSimpleEl.style.display = 'none';
+    setStatus('Looking for an open 2v2 room…');
+    void fetchLobbyRooms().then((rooms) => {
+        const mine = getPlayerName().toLowerCase();
+        const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
+        if (open) beginStarJoin(open.name);
+        else void beginStarHost(horde);
+    });
+}
+
+/**
+ * Joins a live match as a read-only spectator, by the host's discoverable
+ * room name (same identifier a "Host Room"/2v2 star host already registers
+ * under — see registerSpectateEndpoint in net.ts). Reached by clicking a
+ * "👁 Watch <name>" row in the Custom Room list (populated from running,
+ * spectatable matches alongside open joinable rooms — see refreshRoomList).
+ */
+function startSpectateGame(hostName: string): void {
+    const name = hostName.trim();
+    if (!name) return;
+    setMenuBusy(true);
+    setStatus(`Looking for "${name}"…`);
+    void (async () => {
+        try {
+            const peerId = await lookupSpectateEndpoint(name);
+            if (!peerId) {
+                setMenuBusy(false);
+                setStatus(`No live match found for "${name}".`);
+                return;
+            }
+            setStatus('Connecting…');
+            const result = await joinAsSpectator(peerId, getPlayerName());
+            setMenuBusy(false);
+            setStatus('');
+            const players = result.roster.filter((r) => r.role === 'player');
+            const names = {
+                local: players[0]?.name ?? 'Player',
+                opponent: players[1]?.name ?? 'Opponent',
+            };
+            const settings = result.settings;
+            settings.seed = result.seed;
+            startGame(settings, null, 'a', names, null, null, null, {
+                session: result.session,
+                watcherName: getPlayerName(),
+                initial: {
+                    actions: result.actions,
+                    battleElapsed: result.battleElapsed,
+                    phaseRemaining: result.phaseRemaining,
+                },
+            });
+        } catch (e) {
+            setMenuBusy(false);
+            setStatus(`Could not watch: ${e instanceof Error ? e.message : e}`);
+        }
+    })();
+}
+
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
@@ -1003,7 +1971,9 @@ menu.addEventListener('click', (e) => {
             setStatus('Still loading — one moment…');
             return;
         }
-        runPending(joinLobby(roomBtn.dataset.room, setStatus));
+        if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
+        else if (roomBtn.dataset.roomMode === '2v2') beginStarJoin(roomBtn.dataset.room);
+        else runPending(joinLobby(roomBtn.dataset.room, setStatus));
         return;
     }
 
@@ -1013,33 +1983,194 @@ menu.addEventListener('click', (e) => {
     if (button.classList.contains('m-cancel')) {
         pending?.cancel();
         pending = null;
+        cancelStarHost();
+        cancelSteamStarHost();
         setMenuBusy(false);
         setStatus('');
+        // a quick-match probe/wait hides every panel including mainButtonsEl
+        // (see tryQuickMatch/try2v2Match) — restore a sane menu state rather
+        // than leaving the player at a blank screen with nothing clickable
+        mmModeEl.style.display = 'none';
+        mmSimpleEl.style.display = 'none';
+        mainButtonsEl.style.display = '';
         return;
     }
 
     const mode = button.dataset.mode;
-    if (!bootReady && (mode === 'single' || mode === 'quick' || mode === 'host')) {
+    if (
+        !bootReady &&
+        (mode === 'single' ||
+            mode === 'sp-1v1' ||
+            mode === 'sp-2v2' ||
+            mode === 'sp-horde' ||
+            mode === 'matchmaking' ||
+            mode === 'mms-1v1' ||
+            mode === 'mms-2v2' ||
+            mode === 'mms-horde' ||
+            mode === 'mm-play' ||
+            mode === 'mm-invite' ||
+            mode === 'host' ||
+            mode === 'host2v2')
+    ) {
         setStatus('Still loading — one moment…');
         return;
     }
 
+    /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
+    const startLocalMatch = (opts: { duo?: boolean; horde?: boolean } = {}): void => {
+        const settings = settingsFromUrl();
+        settings.buildTimeSeconds = 60 * 60;
+        settings.specialistTimeSeconds = 60 * 60;
+        settings.cardTimeSeconds = 60 * 60;
+        if (opts.horde) applyHordeMode(settings);
+        if (opts.duo) applyDuoMode(settings);
+        startGame(settings);
+    };
+
     switch (mode) {
-        case 'single': {
-            // same fog rules as multiplayer; only timers are relaxed so you can think
-            const settings = settingsFromUrl();
-            settings.buildTimeSeconds = 60 * 60;
-            settings.specialistTimeSeconds = 60 * 60;
-            settings.cardTimeSeconds = 60 * 60;
-            startGame(settings);
+        case 'single':
+            // simplified to 1v1 Horde only for now (see sp-1v1/sp-2v2 below,
+            // kept but unreachable from this button — not removed, so the
+            // full picker is a one-line revert away)
+            startLocalMatch({ horde: true });
+            break;
+        case 'sp-back':
+            spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            break;
+        case 'sp-1v1':
+            spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            startLocalMatch();
+            break;
+        case 'sp-2v2':
+            spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            startLocalMatch({ duo: true });
+            break;
+        case 'sp-horde':
+            spModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            startLocalMatch({ horde: true });
+            break;
+        case 'matchmaking': {
+            spModeEl.style.display = 'none';
+            lobbyEl.style.display = 'none';
+            mmSimpleEl.style.display = 'none';
+            stopRoomPoll();
+            mainButtonsEl.style.display = 'none';
+            if (steam.isAvailable()) {
+                // unchanged for Steam: quickSteamMatch's "host" branch
+                // creates a real public Steam lobby the instant it starts
+                // waiting, and safely abandoning that lobby if the player
+                // changes their mind first needs its own pass before the
+                // probe-first shortcut below is safe to extend there too.
+                // Mode/Horde choice is forced+hidden in the HTML for now
+                // (1v1 Horde only) — Invite/Play still work as before.
+                showMatchmakingPicker();
+                break;
+            }
+            // simplified to 1v1 Horde only for now — always committed (no
+            // picker to fall back to, there's nothing left to choose)
+            tryQuickMatch(true, true);
             break;
         }
-        case 'quick':
-            lobbyEl.style.display = 'none';
-            stopRoomPoll();
-            runPending(quickMatch(setStatus));
+        case 'mms-1v1':
+            tryQuickMatch(false, true);
             break;
+        case 'mms-horde':
+            tryQuickMatch(true, true);
+            break;
+        case 'mms-2v2':
+            try2v2Match(false);
+            break;
+        case 'mms-back':
+            pending?.cancel();
+            pending = null;
+            cancelStarHost();
+            setMenuBusy(false);
+            setStatus('');
+            mmSimpleEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            break;
+        case 'mm-back':
+            pending?.cancel();
+            pending = null;
+            cancelStarHost();
+            cancelSteamStarHost();
+            setMenuBusy(false);
+            setStatus('');
+            mmModeEl.style.display = 'none';
+            mainButtonsEl.style.display = '';
+            break;
+        case 'mm-invite': {
+            const team = mmModeEl.querySelector<HTMLInputElement>('input[name="mmteam"]:checked')!.value;
+            const horde = mmHordeEl.checked;
+            mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
+            mmInviteEl.disabled = true;
+            if (steam.isAvailable()) {
+                // Steam's own overlay invite picker replaces the copy-paste
+                // link — no room code to show, just open it once the lobby exists
+                mmInviteEl.textContent = 'Waiting for your friend…';
+                mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
+                mmLinkEl.style.display = '';
+                if (team === '2v2') void beginSteamStarHost(horde);
+                else {
+                    const hosted = hostSteamRoom(false, () => steamLobby.openInviteDialog());
+                    runSteamPending(hosted.session, 'host', horde ? applyHordeMode : undefined);
+                }
+                break;
+            }
+            mmInviteEl.textContent = 'Waiting for your friend…';
+            const hostName = getPlayerName();
+            const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(hostName)}`;
+            mmLinkEl.textContent = `Send this to your friend: ${link}`;
+            mmLinkEl.style.display = '';
+            if (team === '2v2') void beginStarHost(horde);
+            else runPending(hostLobby(setStatus), horde ? applyHordeMode : undefined);
+            break;
+        }
+        case 'mm-play': {
+            const team = mmModeEl.querySelector<HTMLInputElement>('input[name="mmteam"]:checked')!.value;
+            const horde = mmHordeEl.checked;
+            mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
+            mmInviteEl.disabled = true;
+            if (steam.isAvailable()) {
+                setStatus('Looking for an open Steam lobby…');
+                if (team === '2v2') {
+                    void hostOrJoinSteamStar(initialStarRoster(getPlayerName())).then((result) => {
+                        if (result.role === 'guest') {
+                            runSteamStarPending(Promise.resolve(result.session));
+                        } else {
+                            starHordeFlag = horde;
+                            steamStarHosting = { hub: result.hub, lobbyId: result.lobbyId };
+                            wireSteamStarHub(result.hub);
+                        }
+                    });
+                } else {
+                    void quickSteamMatch().then(({ session, role }) =>
+                        runSteamPending(Promise.resolve(session), role, horde ? applyHordeMode : undefined),
+                    );
+                }
+                break;
+            }
+            if (team === '2v2') {
+                setStatus('Looking for an open 2v2 room…');
+                void fetchLobbyRooms().then((rooms) => {
+                    const mine = getPlayerName().toLowerCase();
+                    const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
+                    if (open) beginStarJoin(open.name);
+                    else void beginStarHost(horde);
+                });
+            } else {
+                runPending(quickMatch(setStatus), horde ? applyHordeMode : undefined);
+            }
+            break;
+        }
         case 'lobby': {
+            spModeEl.style.display = 'none';
+            mmModeEl.style.display = 'none';
+            mmSimpleEl.style.display = 'none';
             const open = lobbyEl.style.display === 'none';
             lobbyEl.style.display = open ? '' : 'none';
             if (open) startRoomPoll();
@@ -1048,6 +2179,14 @@ menu.addEventListener('click', (e) => {
         }
         case 'host':
             runPending(hostLobby(setStatus));
+            break;
+        case 'host2v2':
+            lobbyEl.style.display = 'none';
+            stopRoomPoll();
+            void beginStarHost();
+            break;
+        case 'startstar':
+            startStarMatch();
             break;
         case 'refresh':
             void refreshRoomList();
@@ -1067,9 +2206,29 @@ feuerwareEl.remove();
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
 setGameLayerVisible(false);
+const watchParams = new URLSearchParams(location.search);
+const watchId = watchParams.get('watch');
+const watchSide = watchParams.get('side');
+const verifyId = watchParams.get('verify');
+const bulkVerify = watchParams.get('bulkverify');
 const mpMarker = loadResumeMarker();
 const spSave = loadSinglePlayer();
-if (mpMarker) {
+if (bulkVerify) {
+    // seeded by replays.html's Bulk Verify button just before navigating
+    // here — outranks stale local state for the same reason ?verify=/
+    // ?watch= do below
+    const raw = sessionStorage.getItem('mechili-bulk-verify-queue');
+    sessionStorage.removeItem('mechili-bulk-verify-queue');
+    const queue: { id: string; side: 'a' | 'b' }[] = raw ? JSON.parse(raw) : [];
+    void runBulkVerify(queue);
+} else if (verifyId && (watchSide === 'a' || watchSide === 'b')) {
+    // same "outranks stale local state" reasoning as ?watch= below
+    void verifyReplayAndReturn(verifyId, watchSide);
+} else if (watchId && (watchSide === 'a' || watchSide === 'b')) {
+    // outranks any resume marker/single-player save — a replay link should
+    // never be silently preempted by stale local state
+    void startReplayWatch(watchId, watchSide);
+} else if (mpMarker) {
     void attemptResume(mpMarker);
 } else if (spSave) {
     if (spSave.version !== GAME_VERSION) {
@@ -1078,13 +2237,26 @@ if (mpMarker) {
     } else resumeSinglePlayer(spSave);
 } else {
     setMenuChromeVisible(true);
-    // ?room=mangoo — join that host's room directly
+    // ?room=mangoo — join that host's room directly. Unlike the room-list
+    // buttons, a deep link carries no mode — look it up first so a 2v2
+    // room routes to the star join flow instead of hanging forever on
+    // the classic one (a star host never answers a classic 'hello').
     const roomParam = new URLSearchParams(location.search).get('room');
     if (roomParam) {
         lobbyEl.style.display = '';
         startRoomPoll();
-        runPending(joinLobby(roomParam, setStatus));
+        void fetchLobbyRooms().then((rooms) => {
+            const match = rooms.find((r) => r.name.toLowerCase() === roomParam.toLowerCase());
+            if (match?.mode === '2v2') beginStarJoin(roomParam);
+            else runPending(joinLobby(roomParam, setStatus));
+        });
     }
+    // ?spectate=mangoo — deep link straight into watching that host's match.
+    // Doesn't depend on the Rooms list showing it (spectate-register/-lookup
+    // predate today's list change) — the fastest way to test/share watching
+    // a specific match without waiting on a backend redeploy.
+    const spectateParam = new URLSearchParams(location.search).get('spectate');
+    if (spectateParam) startSpectateGame(spectateParam);
 }
 
 // Keep the main-menu gamepad cursor moving while the menu is visible.

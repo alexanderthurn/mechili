@@ -15,7 +15,7 @@ import {
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { teamColors } from './colors';
-import type { Team } from './units';
+import type { BattleTeam, Team } from './units';
 
 /** Units driven by a rigged FBX (walk + idle clips) instead of a static GLB. */
 interface AnimSpec {
@@ -149,10 +149,12 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
  * A fresh animated clone: a skinned mesh with its own mixer, walk+idle actions,
  * registered for per-frame updates. Returns null if no template loaded.
  */
-export function cloneAnimatedModel(id: string, team: Team): Group | null {
+export function cloneAnimatedModel(id: string, team: BattleTeam): Group | null {
     const t = templates.get(id);
     if (!t) return null;
-    const root = skeletonClone(t[team]) as Group;
+    // horde reuses the enemy-tinted rig (system currently disabled for Melodan;
+    // proper pink retint comes with the rigged-animation pass, if ever)
+    const root = skeletonClone(t[team === 'horde' ? 'enemy' : team]) as Group;
     const mixer = new AnimationMixer(root);
     const walk = mixer.clipAction(t.walk);
     const idle = mixer.clipAction(t.idle);

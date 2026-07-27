@@ -1,5 +1,6 @@
 import { STANDARD_MAP, type MapSize } from './map';
-import type { Team, UnitType } from './units';
+import type { UnitType } from './units';
+import type { SeatDef, SeatId } from './seats';
 
 /**
  * Phase length in seconds: a constant, or a per-round schedule
@@ -38,6 +39,17 @@ export interface GameSettings {
      */
     seed?: number;
     /**
+     * horde PvPvE mode: a neutral dwarf horde spawns from a ring in the
+     * surrounding forest and marches inward, hostile to both players.
+     * Unset, or `factor: 'off'`, both mean off — see {@link hordeEnabled}.
+     */
+    horde?: HordeSettings;
+    /**
+     * the match roster (seats on sides). Unset = classic 1v1 (two implicit
+     * seats). Local modes only for now — never sent over the wire.
+     */
+    seats?: SeatDef[];
+    /**
      * Between-round card offers (not the round-0 specialist pick).
      * - `false` — never (current default)
      * - `true`  — every round ≥ 2
@@ -46,6 +58,93 @@ export interface GameSettings {
      */
     roundCards: boolean | number[];
 }
+
+/**
+ * Which rounds spawn a horde wave, shaped exactly like {@link GameSettings.roundCards}
+ * (`boolean | number[]`) rather than a hand-built per-level table:
+ * - `'off'` — horde mode disabled entirely (no waves at all, not even the finale).
+ * - `'low' | 'medium' | 'high'` — shorthand for a canonical round list (see
+ *   `HORDE_FACTOR_PRESET_ROUNDS`).
+ * - `'ultra'` — every round gets a wave.
+ * - `number[]` — an explicit round list, bypassing presets entirely (like
+ *   `roundCards: [3, 6, 9]` today).
+ * The final round (`HORDE_FINAL_ROUND`) always spawns a wave whenever the
+ * factor isn't `'off'`, regardless of which preset/array is chosen — see
+ * `isHordeRoundActive`.
+ */
+export type HordeFactor = 'off' | 'low' | 'medium' | 'high' | 'ultra' | number[];
+
+export interface HordeSettings {
+    /** which rounds spawn a wave — see {@link HordeFactor} */
+    factor: HordeFactor;
+    /** supply value of round 1's wave (spent entirely on dwarf packs) */
+    baseBudget: number;
+    /** extra supply value added to the wave each active round after the first */
+    budgetPerRound: number;
+    /**
+     * flat multiplier applied to the final round's budget on top of the
+     * normal growth formula — deliberately just "bigger" for now; the one
+     * lever to make the finale feel overwhelming without a separate
+     * special-cased mechanic.
+     */
+    finaleBudgetMultiplier: number;
+    /**
+     * share of the wave that hunts the match-HP leader (spawns biased to the
+     * leader's half of the spawn ring); the rest spawns near the weaker
+     * player's half. On equal HP the wave has no bias.
+     */
+    leaderShare: number;
+}
+
+/** the last round of the match — the horde's wave here always fires,
+ *  boosted by `finaleBudgetMultiplier`, regardless of `factor` */
+export const HORDE_FINAL_ROUND = 10;
+
+const HORDE_FACTOR_PRESET_ROUNDS: Record<'low' | 'medium' | 'high', number[]> = {
+    low: [HORDE_FINAL_ROUND],
+    medium: [5, HORDE_FINAL_ROUND],
+    high: [3, 5, 7, HORDE_FINAL_ROUND],
+};
+
+/**
+ * Whether horde mode is structurally active at all (any round ever spawns a
+ * wave) — `undefined` (settings built without horde at all, e.g. replays
+ * older than this feature) and an explicit `factor: 'off'` (the one on/off
+ * lever, `?hordeFactor=off`) both count as "not active" here, so anything
+ * gated on horde mode being on — not just whether a wave spawns this round,
+ * but things like the neutral-strip lock and the wider horde-mode camera
+ * bounds too — treats them identically.
+ */
+export function hordeEnabled(horde: HordeSettings | undefined): horde is HordeSettings {
+    return !!horde && horde.factor !== 'off';
+}
+
+/** whether this round spawns a horde wave — mirrors `shouldOfferRoundCards`'s shape */
+export function isHordeRoundActive(horde: HordeSettings | undefined, round: number): boolean {
+    if (!hordeEnabled(horde)) return false;
+    if (round === HORDE_FINAL_ROUND) return true;
+    const { factor } = horde;
+    if (factor === 'off') return false; // narrows the preset-lookup below; hordeEnabled already excluded this
+    if (factor === 'ultra') return true;
+    if (Array.isArray(factor)) return factor.includes(round);
+    return HORDE_FACTOR_PRESET_ROUNDS[factor].includes(round);
+}
+
+/** this round's wave budget — existing linear growth, times the finale
+ *  multiplier on the last round. Caller is expected to have already
+ *  checked `isHordeRoundActive`. */
+export function hordeBudgetForRound(horde: HordeSettings, round: number): number {
+    const base = horde.baseBudget + horde.budgetPerRound * (round - 1);
+    return round === HORDE_FINAL_ROUND ? base * horde.finaleBudgetMultiplier : base;
+}
+
+export const DEFAULT_HORDE: HordeSettings = {
+    factor: 'medium',
+    baseBudget: 300,
+    budgetPerRound: 200,
+    finaleBudgetMultiplier: 4,
+    leaderShare: 0.65,
+};
 
 export interface LevelingSettings {
     /**
@@ -273,11 +372,24 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
     };
 }
 
-/** Both players' supply balances, driven by an {@link EconomySettings}. */
+/**
+ * Every seat's supply balance, driven by an {@link EconomySettings}.
+ * Keyed by SeatId — in classic 1v1 that's seat 0 (player) and seat 1
+ * (enemy); in duo modes each of the four commanders has their own purse.
+ */
 export class Economy {
-    private readonly balances: Record<Team, number> = { player: 0, enemy: 0 };
+    private readonly balances: number[];
 
-    constructor(private readonly settings: EconomySettings) {}
+    constructor(
+        private readonly settings: EconomySettings,
+        seatCount = 2,
+    ) {
+        this.balances = new Array(seatCount).fill(0);
+    }
+
+    get seatCount(): number {
+        return this.balances.length;
+    }
 
     costOf(type: UnitType): number {
         return this.settings.unitCosts[type.id] ?? type.cost;
@@ -288,41 +400,242 @@ export class Economy {
         return tech.cost + ownedCountForType * this.settings.techCostEscalation;
     }
 
-    balance(team: Team): number {
-        return this.balances[team];
+    balance(seat: SeatId): number {
+        return this.balances[seat] ?? 0;
     }
 
-    /** escalating income: round 1 grants 200, round 2 grants 400, round 3 grants 600, ... */
+    /** escalating income: round 1 grants 200, round 2 grants 400, ... — every seat, full share */
     grantRoundIncome(round: number): void {
         const income =
             this.settings.startingSupply + (round - 1) * this.settings.supplyGrowthPerRound;
-        this.balances.player += income;
-        this.balances.enemy += income;
+        for (let s = 0; s < this.balances.length; s++) this.balances[s]! += income;
     }
 
-    canAfford(team: Team, type: UnitType): boolean {
-        return this.balances[team] >= this.costOf(type);
+    canAfford(seat: SeatId, type: UnitType): boolean {
+        return this.balance(seat) >= this.costOf(type);
     }
 
     /** deducts the cost; returns false (and deducts nothing) when unaffordable */
-    charge(team: Team, type: UnitType): boolean {
-        return this.spend(team, this.costOf(type));
+    charge(seat: SeatId, type: UnitType): boolean {
+        return this.spend(seat, this.costOf(type));
     }
 
     /** deducts an arbitrary amount (tech, items, ...) if affordable */
-    spend(team: Team, amount: number): boolean {
-        if (this.balances[team] < amount) return false;
-        this.balances[team] -= amount;
+    spend(seat: SeatId, amount: number): boolean {
+        if (this.balance(seat) < amount) return false;
+        this.balances[seat]! -= amount;
         return true;
     }
 
     /** pays an amount back (action undo refunds) */
-    credit(team: Team, amount: number): void {
-        this.balances[team] += amount;
+    credit(seat: SeatId, amount: number): void {
+        this.balances[seat] = this.balance(seat) + amount;
     }
 
     /** always deducts (Credit debt); may leave a negative balance */
-    debit(team: Team, amount: number): void {
-        this.balances[team] -= amount;
+    debit(seat: SeatId, amount: number): void {
+        this.balances[seat] = this.balance(seat) - amount;
     }
+}
+
+export interface SettingRow {
+    label: string;
+    value: string;
+    note?: string;
+}
+export interface SettingGroup {
+    title: string;
+    rows: SettingRow[];
+}
+
+function fmtTimer(t: RoundTimer): string {
+    return typeof t === 'number' ? `${t}s` : t.map((v) => `${v}s`).join('/');
+}
+
+/**
+ * Human-readable reference tables for a GameSettings object — the single
+ * source both the homepage's "Match settings" section and the in-game
+ * settings panel (click the supply counter) render from, so there's exactly
+ * one place turning raw settings numbers into labeled rows. Describes the
+ * SETTINGS PASSED IN, not just the defaults — the horde group in particular
+ * reflects whatever factor is actually active for this match (including a
+ * custom round list or `?hordeFactor=` override), not a hardcoded "Medium".
+ */
+export function describeGameSettings(settings: GameSettings): SettingGroup[] {
+    const pct = (n: number) => `${Math.round(n * 100)}%`;
+    const horde = settings.horde;
+    const hordeRows: SettingRow[] = [];
+    if (!hordeEnabled(horde)) {
+        hordeRows.push({ label: 'Status', value: 'Off' });
+    } else {
+        const activeRounds: number[] = [];
+        for (let r = 1; r <= HORDE_FINAL_ROUND; r++) {
+            if (isHordeRoundActive(horde, r)) activeRounds.push(r);
+        }
+        hordeRows.push(
+            {
+                label: 'Active rounds',
+                value: Array.isArray(horde.factor) ? 'Custom' : horde.factor,
+                note: `waves on round ${activeRounds.join(', ')}`,
+            },
+            { label: 'Round 1 wave value', value: `${horde.baseBudget} supply` },
+            { label: 'Growth per active round', value: `+${horde.budgetPerRound} supply` },
+            {
+                label: 'Final round multiplier',
+                value: `${horde.finaleBudgetMultiplier}×`,
+                note: `round ${HORDE_FINAL_ROUND} always fires, boosted, no matter the level`,
+            },
+            {
+                label: 'Leader bias',
+                value: pct(horde.leaderShare),
+                note: 'share of the wave aimed at whoever is currently ahead on HP',
+            },
+        );
+    }
+
+    return [
+        {
+            title: 'Timers & HP',
+            rows: [
+                { label: 'Deployment phase', value: fmtTimer(settings.buildTimeSeconds) },
+                { label: 'Battle phase', value: fmtTimer(settings.battleTimeSeconds) },
+                { label: 'Specialist pick', value: fmtTimer(settings.specialistTimeSeconds) },
+                { label: 'Round card pick', value: fmtTimer(settings.cardTimeSeconds) },
+                { label: 'Starting HP', value: `${settings.startingHp}` },
+            ],
+        },
+        {
+            title: 'Economy',
+            rows: [
+                { label: 'Round 1 income', value: `${settings.economy.startingSupply} supply` },
+                {
+                    label: 'Income growth',
+                    value: `+${settings.economy.supplyGrowthPerRound}/round`,
+                    note: 'round N grants startingSupply + (N-1) × growth',
+                },
+                {
+                    label: 'Tech cost escalation',
+                    value: `+${settings.economy.techCostEscalation}`,
+                    note: 'added to a tech’s price per tech already owned of that unit type',
+                },
+            ],
+        },
+        {
+            title: 'Round cards',
+            rows: [
+                {
+                    label: 'Schedule',
+                    value:
+                        settings.roundCards === false ? 'Off' : settings.roundCards === true ? 'On' : 'Custom',
+                    note: Array.isArray(settings.roundCards)
+                        ? `rounds ${settings.roundCards.join(', ')}`
+                        : 'from round 2 onward when on',
+                },
+            ],
+        },
+        { title: 'Horde mode', rows: hordeRows },
+        {
+            title: 'Towers',
+            rows: [
+                {
+                    label: 'Per lost tower',
+                    value: `×${settings.towers.debuffPerLostTower.speedMult} speed, ×${settings.towers.debuffPerLostTower.attackMult} attack, ×${settings.towers.debuffPerLostTower.damageTakenMult} damage taken`,
+                    note: 'applies to that side’s units only, stacking multiplicatively, while the debuff runs',
+                },
+                {
+                    label: 'Debuff duration',
+                    value: `${settings.towers.debuffDuration.baseSeconds}s at level 1`,
+                    note: `−${settings.towers.debuffDuration.stepSeconds}s per level above 1; a new tower loss adds its duration on top`,
+                },
+                {
+                    label: 'Upgrade cost',
+                    value: `${settings.towers.upgrade.baseCost} supply, +${settings.towers.upgrade.costStep}/level`,
+                    note: `up to level ${settings.towers.upgrade.maxLevel}`,
+                },
+            ],
+        },
+        {
+            title: 'Deploy',
+            rows: [
+                { label: 'Buys per round', value: `${settings.deploy.unitsPerRound}` },
+                {
+                    label: 'Extra buy slot',
+                    value: `${settings.deploy.extraSlotCost} supply`,
+                    note: 'Command Tower — this round only',
+                },
+                {
+                    label: 'Ranged range boost',
+                    value: `${settings.deploy.rangedRangeBoostCost} supply → +${settings.deploy.rangeBoost} range`,
+                    note: 'Command Tower — all ranged units, this round only',
+                },
+                {
+                    label: 'Army speed boost',
+                    value: `${settings.deploy.armySpeedBoostCost} supply → +${settings.deploy.speedBoost} speed`,
+                    note: 'Command Tower — whole army, this round only',
+                },
+                {
+                    label: 'Credit',
+                    value: `+${settings.deploy.creditGain} now, −${settings.deploy.creditDebt} next round`,
+                    note: 'Command Tower — once per round',
+                },
+                {
+                    label: 'Extras budget',
+                    value: `${settings.deploy.extrasBudgetPerRound} supply/round`,
+                    note: 'shields, rockets',
+                },
+                {
+                    label: 'Flank grace',
+                    value: `${settings.deploy.flankSpawnSeconds}s`,
+                    note: 'first flank deploys once flanks open',
+                },
+            ],
+        },
+        {
+            title: 'Leveling',
+            rows: [
+                { label: 'Stat bonus per level', value: `+${pct(settings.leveling.statBonusPerLevel)} hp/damage` },
+                { label: 'Max level', value: `${settings.leveling.maxLevel}` },
+                {
+                    label: 'Level cost',
+                    value: `${pct(settings.leveling.levelCostFactor)} of pack cost`,
+                    note: 'leveling is a purchase, never automatic',
+                },
+                {
+                    label: 'Recruit at level 2',
+                    value: `${settings.leveling.recruitLevel2Cost} supply`,
+                    note: 'once-per-round switch — new recruits arrive pre-leveled',
+                },
+            ],
+        },
+        {
+            title: 'Sell',
+            rows: [
+                {
+                    label: 'Ability cost',
+                    value: `${settings.sell.abilityCost} supply, one-time`,
+                    note: 'Research Center — once bought, permanent',
+                },
+                { label: 'Sells per round', value: `${settings.sell.maxPerRound}` },
+                { label: 'Refund', value: pct(settings.sell.refundFactor), note: 'of the unit’s base cost' },
+            ],
+        },
+        {
+            title: 'Rally Route',
+            rows: [
+                {
+                    label: 'Ability cost',
+                    value: `${settings.rallyRoute.abilityCost} supply, one-time`,
+                    note: 'Research Center — grants one rally-route tactic charge',
+                },
+            ],
+        },
+        {
+            title: 'Boosts',
+            rows: settings.boosts.costs.map((cost, i) => ({
+                label: `Tier ${i + 1}`,
+                value: `${cost} supply → +${pct(settings.boosts.attackTiers[i]!)} damage, +${pct(settings.boosts.hpTiers[i]!)} hp`,
+                note: 'Research Center — totals, not stacked on top of the previous tier',
+            })),
+        },
+    ];
 }

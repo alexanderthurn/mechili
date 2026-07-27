@@ -30,6 +30,28 @@ export function assignTeamColors(side: 'a' | 'b'): void {
     teamColors.enemy = SIDE_COLORS[side === 'a' ? 1 : 0]!;
 }
 
+/** the neutral horde (PvPvE mode) — pink, never perspective-swapped */
+export const HORDE_COLOR: SideColor = {
+    hex: 0xe860b0,
+    css: '#e860b0',
+    tint: 'rgba(232, 96, 176,',
+};
+
+/** side color for any battle team, horde included */
+export function colorForBattleTeam(team: 'player' | 'enemy' | 'horde'): SideColor {
+    return team === 'horde' ? HORDE_COLOR : teamColors[team];
+}
+
+/**
+ * Per-unit color: horde pink; a side's SECOND commander reads green (own
+ * side) / orange (enemy side) so duo armies stay tellable apart.
+ */
+export function colorForUnit(team: 'player' | 'enemy' | 'horde', secondarySeat: boolean): SideColor {
+    if (team === 'horde') return HORDE_COLOR;
+    if (!secondarySeat) return teamColors[team];
+    return team === 'player' ? SIDE_COLORS[2]! : SIDE_COLORS[3]!;
+}
+
 /**
  * Pack veterancy tint on the 3D mesh (level 1 = untinted).
  * 2 blue, 3+ yellow.
