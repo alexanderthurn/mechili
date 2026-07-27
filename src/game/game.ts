@@ -62,6 +62,7 @@ import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATI
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
+import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
@@ -146,7 +147,7 @@ import { DebugOverlay, DebugDumpButton, CpuSampler } from '../ui/debug';
 import { DebugLog, type DebugEvent } from './debugLog';
 import { classicSeats, primarySeatOf, seatIdsOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { HpBars } from '../ui/hpBars';
-import { Hud, type Phase, type SelectionInfo } from '../ui/hud';
+import { Hud, isCompactChrome, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -788,13 +789,17 @@ export class Game {
         // (see setPlayers below), never the real baseline
         this.playerHp = 0;
         this.enemyHp = 0;
-        this.renderer = new WebGLRenderer({
-            canvas: threeCanvas,
-            antialias: prefs().antialias,
-            // mobile Safari kills tabs that push the GPU too hard — prefer the
-            // efficient tier there; desktops ignore or barely notice this hint
-            powerPreference: touchFirstDevice() ? 'low-power' : 'default',
-        });
+        // Prefer the boot-warmed GL context so flame/projectile programs survive;
+        // fall back to a fresh renderer after return-to-menu (new canvas).
+        this.renderer =
+            takePrewarmedRenderer() ??
+            new WebGLRenderer({
+                canvas: threeCanvas,
+                antialias: prefs().antialias,
+                // mobile Safari kills tabs that push the GPU too hard — prefer the
+                // efficient tier there; desktops ignore or barely notice this hint
+                powerPreference: touchFirstDevice() ? 'low-power' : 'default',
+            });
         this.renderer.outputColorSpace = SRGBColorSpace;
         this.renderer.toneMapping = ACESFilmicToneMapping;
         // Slightly above 1 so the denser grass normals/albedo still read under ACES
@@ -1360,18 +1365,74 @@ export class Game {
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', this.onWindowResize);
+        // Compile remaining cold programs (ground + point-light variants, weather,
+        // flame tongues) before the first tick — hides the hitch at match start
+        // rather than mid-battle. Boot already warmed the shared context when possible.
+        this.warmGpuPrograms();
         pixiApp.ticker.add(this.boundTick);
     }
 
-    /** stop the loop, release GPU/DOM resources — main restores the menu */
+    /**
+     * Force first-draw of VFX that stay count=0 / hidden until combat or weather,
+     * then sync-compile so mid-match first use does not stall the frame.
+     * Safe to call again after graphics pref changes (shadows / scenery / fire).
+     */
+    private warmGpuPrograms(): void {
+        this.fireFx.primeForCompile();
+        this.projectileRenderer.primeForCompile();
+        this.particles.burst(0, 2, 0, { count: 4, color: 0xff6a18, speed: 1, life: 0.2, up: 2 });
+        this.particles.burst(0, 2, 0, {
+            count: 4,
+            color: 0x2c2824,
+            speed: 1,
+            life: 0.2,
+            up: 1,
+            blood: true,
+        });
+        this.particles.update(1 / 60);
+        if (shadowUsesBlobs()) {
+            this.blobShadows.sync([{ x: 0, z: 0, radius: 1 }]);
+        }
+        this.weather?.primeForCompile();
+
+        this.renderer.compile(this.scene, this.rig.camera);
+        this.renderer.render(this.scene, this.rig.camera);
+
+        // restore live combat VFX — clear would blank an in-progress battle frame
+        this.fireFx.clear();
+        this.fireFx.setQuality(prefs().fireVfx);
+        if (this.sim && this.phase === 'battle') {
+            this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
+            this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+        } else {
+            this.projectileRenderer.clear();
+        }
+        // snap weather back to the real atmosphere (prime left rain/stars visible)
+        if (this.weather) {
+            this.scenery.update(0, this.rig.camera.position);
+        }
+        this.updateBlobShadows();
+        // replace the primed frame so the player never sees a flash of rain/flames
+        this.renderer.render(this.scene, this.rig.camera);
+    }
+
     /**
      * Live-applies prefs from the settings menu: scenery rebuild, DPR cap,
-     * and unit shadow casting.
+     * and unit shadow casting. Re-warms GPU programs when graphics tiers change
+     * so new shadow/fog/fire variants are compiled before the next combat frame.
      */
     private applyPrefs(): void {
         if (this.disposed) return;
+        const p = prefs();
+        const gpuDirty =
+            p.fireVfx !== this.appliedFireVfx ||
+            p.shadows !== this.appliedShadows ||
+            p.scenery !== this.appliedScenery ||
+            p.groundEffects !== this.appliedGroundEffects ||
+            effectiveDpr() !== this.renderer.getPixelRatio();
         this.applyRenderPrefs();
         this.applySceneryQuality();
+        if (gpuDirty) this.warmGpuPrograms();
     }
 
     private applyRenderPrefs(): void {
@@ -4549,31 +4610,46 @@ export class Game {
         );
     }
 
-    /** HUD buy button: resolve a spawn spot, then run it through the action system */
-    private buyUnit(type: UnitType): void {
-        if (!this.playerCanAct) return;
-        if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return;
-        if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return;
+    /** HUD buy button: resolve a spawn spot, then run it through the action system.
+     *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
+    private buyUnit(type: UnitType): boolean {
+        if (!this.playerCanAct) return false;
+        if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return false;
+        if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return false;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
             const left =
                 this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!;
-            if (this.economy.costOf(type) > left) return; // extras budget exhausted
+            if (this.economy.costOf(type) > left) return false; // extras budget exhausted
             this.placement.beginPlacing(type);
-            return;
+            return true;
         }
-        // Unified: drop the pack near where the camera is looking and resolve
-        // it immediately into the buy action as a concrete anchor.
-        const view = this.rig.target;
-        const anchor = this.placement.findBuySpotNear(type, view.x, view.z);
-        if (!anchor) return;
-        this.dispatchPlayer({
+        // Drop the pack under a visible screen point (not the orbit target —
+        // that sits behind the compact shop sheet on phone/small desktop).
+        const aim = this.buyAimWorld();
+        const anchor = this.placement.findBuySpotNear(type, aim.x, aim.z);
+        if (!anchor) return false;
+        return this.dispatchPlayer({
             kind: 'buy',
             team: 'player',
             typeId: type.id,
             anchor,
             rotated: false,
         });
+    }
+
+    /**
+     * Ground point to seed shop auto-placement. Desktop: view center.
+     * Compact chrome: center of the free band above the bottom sheet (~52vh).
+     */
+    private buyAimWorld(): { x: number; z: number } {
+        const w = this.wrapper.clientWidth;
+        const h = this.wrapper.clientHeight;
+        const screenY = isCompactChrome() ? h * 0.28 : h * 0.5;
+        const hit = this.rig.screenToGround(w * 0.5, screenY, w, h);
+        if (hit) return { x: hit.x, z: hit.z };
+        const t = this.rig.target;
+        return { x: t.x, z: t.z };
     }
 
     /**

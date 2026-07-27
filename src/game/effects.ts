@@ -343,4 +343,24 @@ export class ProjectileRenderer {
     clear(): void {
         for (const mesh of Object.values(this.pools)) mesh.count = 0;
     }
+
+    /** One instance per style so bolt/arrow/stone materials compile before combat. */
+    primeForCompile(): void {
+        this.matrix.identity();
+        for (const mesh of Object.values(this.pools)) {
+            mesh.setMatrixAt(0, this.matrix);
+            mesh.count = 1;
+            mesh.instanceMatrix.needsUpdate = true;
+        }
+    }
+
+    dispose(): void {
+        for (const mesh of Object.values(this.pools)) {
+            mesh.removeFromParent();
+            mesh.geometry.dispose();
+            const mat = mesh.material;
+            if (Array.isArray(mat)) for (const m of mat) m.dispose();
+            else mat.dispose();
+        }
+    }
 }

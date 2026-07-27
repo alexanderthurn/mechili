@@ -11,13 +11,15 @@ import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
 
-/** phone-size screens — MUST match the phone media query in theme.ts */
+/** Compact / phone chrome — MUST match the size media query in theme.ts */
 const PHONE_MQ =
     typeof matchMedia === 'function'
-        ? matchMedia(
-              '(pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px)',
-          )
+        ? matchMedia('(max-width: 599px), (max-height: 540px)')
         : null;
+
+export function isCompactChrome(): boolean {
+    return PHONE_MQ?.matches ?? false;
+}
 
 /** escapes a string for safe use inside a double-quoted HTML attribute */
 function escapeAttr(s: string): string {
@@ -246,6 +248,11 @@ export class Hud {
     private readonly touchLevelAllBtn: HTMLButtonElement;
     private readonly touchUpgradeBtn: HTMLButtonElement;
     private lastTouchActKey = '';
+    /**
+     * Selection key we already auto-opened (or the user dismissed) for the
+     * unit sheet — prevents reopening every frame / after a manual close.
+     */
+    private unitSheetAutoKey: string | null = null;
     /** the tile whose info frame is open — touch taps that tile again to act */
     private actionInfoFor: HTMLElement | null = null;
     private itemGhost: HTMLDivElement | null = null;
@@ -279,7 +286,7 @@ export class Hud {
         app: Application,
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
-        onBuy: (type: UnitType) => void,
+        onBuy: (type: UnitType) => boolean,
     ) {
         this.app = app;
         this.pixiCanvas = app.canvas;
@@ -313,9 +320,11 @@ export class Hud {
                 `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
                 ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
             button.addEventListener('click', () => {
-                onBuy(UNIT_TYPES[index]!);
-                // phone sheet covers the field — close it so the ghost is placeable
-                this.setPhoneTab(null);
+                const bought = UNIT_TYPES[index]!;
+                // extras need the field for the place-ghost; regular packs only
+                // dismiss the sheet when this buy fills the last deploy slot
+                const lastSlot = !bought.extra && this.deploysLeft <= 1;
+                if (onBuy(bought) && (bought.extra || lastSlot)) this.setPhoneTab(null);
             });
             this.buttons.push({ el: button, type });
             return button;
@@ -786,45 +795,62 @@ export class Hud {
         upgrade?: { cost: number; affordable: boolean } | null;
     }): void {
         const { rotate, move, carrying } = opts;
-        // tablet (coarse but not phone-size): the details panel is visible and
-        // already offers level/upgrade tiles — the bar only covers what touch
-        // cannot do otherwise (move/rotate), as a compact pill
+        // compact layout (narrow/short window): the details sheet is behind a tab,
+        // so Level/Upgrade live on the bar. Wider windows keep those on the panel;
+        // tablets (coarse, not compact) only get move/rotate as a pill.
         const phone = PHONE_MQ?.matches ?? false;
         const levelUp = phone ? opts.levelUp : null;
         const levelAll = phone ? opts.levelAll : null;
         const upgrade = phone ? opts.upgrade : null;
+        const hasFieldActions = rotate || !!move || !!levelUp || !!levelAll || !!upgrade;
         const key = `${phone}|${JSON.stringify(opts)}`;
-        if (key === this.lastTouchActKey) return;
-        this.lastTouchActKey = key;
-        // 'acting' lets tablets (no tab UI) show the bar just for these buttons
-        this.phoneBar.classList.toggle(
-            'acting',
-            rotate || !!move || !!levelUp || !!levelAll || !!upgrade,
-        );
-        this.phoneBar.classList.toggle('carrying', !!carrying);
-        this.touchRotateBtn.style.display = rotate ? 'flex' : 'none';
-        this.touchMoveBtn.style.display = move ? 'flex' : 'none';
-        this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
-        if (levelUp) {
-            this.touchLevelBtn.innerHTML =
-                `<span class="pb-ico">🔼</span>` +
-                `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
-            this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
+        if (key !== this.lastTouchActKey) {
+            this.lastTouchActKey = key;
+            // 'acting' lets tablets (no tab UI) show the bar just for these buttons
+            this.phoneBar.classList.toggle('acting', hasFieldActions);
+            this.phoneBar.classList.toggle('carrying', !!carrying);
+            this.touchRotateBtn.style.display = rotate ? 'flex' : 'none';
+            this.touchMoveBtn.style.display = move ? 'flex' : 'none';
+            this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
+            if (levelUp) {
+                this.touchLevelBtn.innerHTML =
+                    `<span class="pb-ico">🔼</span>` +
+                    `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
+                this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
+            }
+            this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
+            if (levelAll) {
+                this.touchLevelAllBtn.innerHTML =
+                    `<span class="pb-ico">⏫</span>` +
+                    `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
+                this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
+            }
+            this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
+            if (upgrade) {
+                this.touchUpgradeBtn.innerHTML =
+                    `<span class="pb-ico">🏰</span>` +
+                    `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
+                this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
+            }
         }
-        this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
-        if (levelAll) {
-            this.touchLevelAllBtn.innerHTML =
-                `<span class="pb-ico">⏫</span>` +
-                `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
-            this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
+        this.maybeAutoOpenUnitSheet(hasFieldActions);
+    }
+
+    /**
+     * Compact chrome: if a selection only exposes the Unit tab (no Move /
+     * Level / Upgrade), open the details sheet immediately — same idea as
+     * auto-opening buildings.
+     */
+    private maybeAutoOpenUnitSheet(hasFieldActions: boolean): void {
+        if (!isCompactChrome() || !this.phoneBar.classList.contains('has-unit')) {
+            this.unitSheetAutoKey = null;
+            return;
         }
-        this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
-        if (upgrade) {
-            this.touchUpgradeBtn.innerHTML =
-                `<span class="pb-ico">🏰</span>` +
-                `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
-            this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
-        }
+        if (hasFieldActions) return;
+        const key = this.lastPanelKey;
+        if (!key || this.unitSheetAutoKey === key) return;
+        this.unitSheetAutoKey = key;
+        this.setPhoneTab('unit');
     }
 
     /** opens the Unit details sheet (auto-shown for buildings); phone-only visual */
@@ -834,6 +860,15 @@ export class Hud {
 
     /** opens one phone bottom sheet (or none); a no-op visually on desktop */
     private setPhoneTab(tab: 'shop' | 'unit' | 'tactics' | 'chat' | null): void {
+        // user closed the unit sheet while still selected — don't auto-reopen
+        if (
+            tab === null &&
+            this.phoneTab === 'unit' &&
+            this.phoneBar.classList.contains('has-unit') &&
+            this.lastPanelKey
+        ) {
+            this.unitSheetAutoKey = this.lastPanelKey;
+        }
         // the chat's expanded state is shared with desktop hover — only touch
         // the 'open' flag on actual chat-tab transitions (phone-only states)
         if (tab === 'chat') this.chatBar.classList.add('open');
@@ -1387,6 +1422,7 @@ export class Hud {
         if (!info) {
             this.panel.style.display = 'none';
             this.lastPanelKey = '';
+            this.unitSheetAutoKey = null;
             if (this.phoneTab === 'unit') this.setPhoneTab(null);
             return;
         }

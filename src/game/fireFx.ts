@@ -31,16 +31,19 @@ export class FireFx {
         this.flames = new FlameRenderer(scene);
         this.flames.setQuality(this.quality);
         // castShadow stays off: a shadow-casting point light re-renders the
-        // scene 6× (cube map) — not worth it for a top-down view
+        // scene 6× (cube map) — not worth it for a top-down view.
+        // Keep visible always (intensity 0 when idle): toggling visibility mid-
+        // battle forces every MeshStandardMaterial to recompile for the new
+        // point-light count — a multi-hundred-ms hitch on first blaze.
         this.fireLight = new PointLight(0xff7a28, 0, 46, 1.6);
-        this.fireLight.visible = false;
+        this.fireLight.visible = true;
         scene.add(this.fireLight);
     }
 
     setQuality(q: FireVfxQuality): void {
         this.quality = q;
         this.flames.setQuality(q);
-        if (!usesTongues(q)) this.fireLight.visible = false;
+        if (!usesTongues(q)) this.fireLight.intensity = 0;
     }
 
     /** drop continuous fire VFX (call when the battle ends — flames are battle-only) */
@@ -48,7 +51,14 @@ export class FireFx {
         this.flames.clear();
         this.emitAcc = 0;
         this.smokeAcc = 0;
-        this.fireLight.visible = false;
+        this.fireLight.intensity = 0;
+    }
+
+    /** Force flame tongues + lit point light into the compile set (boot / match start). */
+    primeForCompile(): void {
+        this.flames.primeForCompile();
+        this.fireLight.intensity = 80;
+        this.fireLight.position.set(0, 3, 0);
     }
 
     /** Places the shared light on the blaze centroid (snapped to a real fire
@@ -64,7 +74,7 @@ export class FireFx {
             cz += z;
         });
         if (total === 0) {
-            this.fireLight.visible = false;
+            this.fireLight.intensity = 0;
             return;
         }
         cx /= total;
@@ -85,7 +95,6 @@ export class FireFx {
         // two incommensurate sine waves ≈ organic flicker without randomness
         const flicker = 0.82 + 0.12 * Math.sin(t * 11.3) + 0.06 * Math.sin(t * 27.7);
         const size = Math.min(1, total / 24); // small fires glow less
-        this.fireLight.visible = true;
         this.fireLight.position.set(bestX, groundSupportAt(bestX, bestZ) + 2.4, bestZ);
         this.fireLight.intensity = (this.quality === 'high' ? 260 : 170) * size * flicker;
         this.fireLight.distance = 30 + 26 * size;
@@ -169,7 +178,7 @@ export class FireFx {
     update(dt: number, field: HazardField | null, now: number): void {
         if (usesTongues(this.quality)) this.flames.update(dt, field, now);
         if (!field || this.quality === 'off') {
-            this.fireLight.visible = false;
+            this.fireLight.intensity = 0;
             return;
         }
         this.updateFireLight(dt, field, now);

@@ -51,6 +51,7 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
 import { bootGameAssets } from './game/bootAssets';
+import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
@@ -216,6 +217,7 @@ let threeCanvas = createThreeCanvas();
 wrapper.appendChild(threeCanvas);
 
 function replaceThreeCanvas(): void {
+    discardPrewarmedRenderer();
     threeCanvas.remove();
     threeCanvas = createThreeCanvas();
     wrapper.insertBefore(threeCanvas, app.canvas);
@@ -2195,6 +2197,9 @@ menu.addEventListener('click', (e) => {
 // full-screen boot splash (logo + bar + Feuerware) until assets are ready —
 // only then does the main menu chrome appear (unless we resume a match)
 await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
+// Compile cold VFX programs on the 3D canvas while the loader is still up.
+// The warmed WebGLRenderer is handed to the first Game (programs are per-context).
+await prewarmGpu(threeCanvas, (label) => setBootProgress(1, label));
 bootReady = true;
 loadingEl.remove();
 feuerwareEl.remove();

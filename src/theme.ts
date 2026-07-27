@@ -1333,14 +1333,15 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 /* the twins hide by default (button.* outranks the shared component rules
-   below regardless of order): money returns on phone, undo/level-all on any
-   coarse pointer — tablets get them top-right too */
+   below regardless of order): money returns in compact chrome; undo/level-all
+   move to the top strip on touch devices OR any compact window (shop toolbar
+   is sheeted away) */
 .mechili-phone-status .mechili-supply,
 .mechili-phone-status button.undo,
 .mechili-phone-status button.level-all-global {
     display: none;
 }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 599px), (max-height: 540px) {
     .mechili-phone-status button.undo,
     .mechili-phone-status button.level-all-global {
         display: flex;
@@ -2122,7 +2123,7 @@ export function hudStyles(): string {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 26px;
+    gap: clamp(10px, 2vw, 26px);
     background: rgba(12, 20, 8, 0.55);
     font-family: system-ui, sans-serif;
     user-select: none;
@@ -2134,11 +2135,12 @@ export function hudStyles(): string {
      * topbar, below .mechili-pause's 55 (pause should still win if both
      * were ever open at once). */
     z-index: 50;
+    overflow-y: auto;
 }
 .mechili-cards .cards-title {
-    font-size: 26px;
+    font-size: clamp(17px, 2.4vw, 26px);
     font-weight: 900;
-    letter-spacing: 4px;
+    letter-spacing: clamp(2px, 0.35vw, 4px);
     color: ${u.text};
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
@@ -2149,7 +2151,14 @@ export function hudStyles(): string {
     text-align: center;
     margin-top: -8px;
 }
-.mechili-cards .cards-row { display: flex; gap: 18px; }
+.mechili-cards .cards-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 100vw;
+    gap: clamp(10px, 1.4vw, 18px);
+    padding: 4px 10px 12px;
+}
 .mechili-cards.unlock-dialog .unlock-picker {
     display: flex;
     flex-direction: column;
@@ -2244,13 +2253,13 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 .mechili-cards .card {
-    width: 215px;
-    min-height: 240px;
-    padding: 18px 14px;
+    width: clamp(150px, 22vw, 215px);
+    min-height: 0;
+    padding: clamp(12px, 1.4vw, 18px) clamp(10px, 1.1vw, 14px);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: clamp(8px, 1vw, 12px);
     background: ${u.panelBgDark};
     border: 2px solid ${u.border};
     border-radius: 14px;
@@ -2812,10 +2821,11 @@ export function hudStyles(): string {
 }
 
 /*
- * Phone-size screens: the fixed desktop panels become one bottom sheet at a
- * time, driven by a bottom tab bar. The bar and the .phone-open class are
- * always maintained by the Hud, but only take visual effect inside the phone
- * media query below — desktop/tablet render exactly as before.
+ * Compact windows (narrow or short): side panels become bottom sheets behind a
+ * tab bar. Same chrome on phone and small desktop — hover peeks stay on
+ * inputMode() in JS; GPU/texture budgets stay on touchFirstDevice().
+ * The bar and .phone-open class are always maintained by the Hud; they only
+ * take visual effect inside this size query (and the tablet pill above).
  */
 .mechili-phonebar {
     display: none;
@@ -2889,24 +2899,6 @@ export function hudStyles(): string {
         border-radius: 14px;
     }
     .mechili-phonebar button { flex: 0 0 auto; padding: 5px 14px; }
-
-    /* card drafts (specialist pick, round cards, unlock): smaller cards that
-       wrap — the fixed 4-in-a-row only fits desktop windows */
-    .mechili-cards { gap: 10px; overflow-y: auto; }
-    .mechili-cards .cards-title { font-size: 17px; letter-spacing: 2px; }
-    .mechili-cards .cards-row {
-        flex-wrap: wrap;
-        justify-content: center;
-        max-width: 100vw;
-        gap: 10px;
-        padding: 4px 10px 12px;
-    }
-    .mechili-cards .card {
-        width: clamp(150px, 22vw, 215px);
-        min-height: 0;
-        padding: 12px 10px;
-        gap: 8px;
-    }
 }
 
 /* iOS long-press: no text-selection loupe / copy callout on HUD chrome —
@@ -2960,9 +2952,9 @@ ${gamepadCursorStyles(u)}
     pointer-events: none;
 }
 
-@media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 540px) {
+@media (max-width: 599px), (max-height: 540px) {
     .mechili-phonebar { display: flex; }
-    /* phone: back to the full-width bottom strip (tablet uses a pill) */
+    /* compact: full-width bottom strip (tablet pill above is overridden here) */
     .mechili-phonebar {
         left: 0;
         right: 0;
