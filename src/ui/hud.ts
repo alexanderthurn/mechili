@@ -791,13 +791,12 @@ export class Hud {
         carrying?: boolean;
         levelUp?: { cost: number; affordable: boolean } | null;
         levelAll?: { count: number; cost: number; affordable: boolean } | null;
-        /** base-building upgrade (Research Center etc.) */
+        /** base-building upgrade (compact bar; sheet hides the duplicate tile) */
         upgrade?: { cost: number; affordable: boolean } | null;
     }): void {
         const { rotate, move, carrying } = opts;
-        // compact layout (narrow/short window): the details sheet is behind a tab,
-        // so Level/Upgrade live on the bar. Wider windows keep those on the panel;
-        // tablets (coarse, not compact) only get move/rotate as a pill.
+        // compact: Level / Upgrade on the bar; sheet skips those same tiles.
+        // Wider windows keep them on the panel; tablets only get move/rotate.
         const phone = PHONE_MQ?.matches ?? false;
         const levelUp = phone ? opts.levelUp : null;
         const levelAll = phone ? opts.levelAll : null;
@@ -828,7 +827,7 @@ export class Hud {
             this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
             if (upgrade) {
                 this.touchUpgradeBtn.innerHTML =
-                    `<span class="pb-ico">🏰</span>` +
+                    `<span class="pb-ico">🔼</span>` +
                     `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
                 this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
             }
@@ -838,8 +837,7 @@ export class Hud {
 
     /**
      * Compact chrome: if a selection only exposes the Unit tab (no Move /
-     * Level / Upgrade), open the details sheet immediately — same idea as
-     * auto-opening buildings.
+     * Level / Upgrade), open the details sheet immediately.
      */
     private maybeAutoOpenUnitSheet(hasFieldActions: boolean): void {
         if (!isCompactChrome() || !this.phoneBar.classList.contains('has-unit')) {
@@ -1434,12 +1432,14 @@ export class Hud {
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
 
         // leveling sits at the top-right of the frame (next to the name);
-        // everything else is a square tile in the bottom action row
+        // everything else is a square tile in the bottom action row.
+        // Compact: Level / Upgrade live on the phone bar — skip those tiles here.
         const levelTiles: ActionTile[] = [];
         const tiles: ActionTile[] = [];
+        const levelOnBar = isCompactChrome();
         // a unit's Level Up shows only when a level is actually available
         // (XP banked); the level itself is always shown big in the header
-        if (info.levelUp?.ready) {
+        if (!levelOnBar && info.levelUp?.ready) {
             levelTiles.push({
                 data: 'data-levelup="1"',
                 icon: '🔼',
@@ -1460,7 +1460,7 @@ export class Hud {
             }
         }
         // a tower's upgrade is its leveling — same spot, same icon as a unit's
-        if (info.towerUpgrade) {
+        if (!levelOnBar && info.towerUpgrade) {
             const tu = info.towerUpgrade;
             levelTiles.push({
                 data: 'data-towerupgrade="1"',

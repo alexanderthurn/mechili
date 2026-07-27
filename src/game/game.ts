@@ -5911,6 +5911,7 @@ export class Game {
             rotate: repositionable && this.placement.pointerCarries,
             levelUp: lvl?.ready ? { cost: lvl.cost, affordable: lvl.affordable } : null,
             levelAll: lvl?.ready && lvl.all ? lvl.all : null,
+            // Compact bar owns Level / Upgrade; the Unit sheet hides those tiles there
             upgrade:
                 build && buildInfo?.towerUpgrade && !buildInfo.towerUpgrade.maxed
                     ? {
