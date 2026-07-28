@@ -13,5 +13,6 @@ backend/players/open/**/*.json
 backend/players/results/*.json
 backend/players/sessions/*.json
 
-# Personal / source-only material (photos, Tripo dumps) — not shipped
+# Personal / source-only material (photos, Tripo dumps, icon pipeline,
+# concept brainstorms) — not shipped. Game only needs processed assets/.
 misc/
