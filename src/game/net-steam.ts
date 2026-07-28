@@ -258,6 +258,12 @@ export class SteamGuestSession implements GuestSession {
         throw new Error('Steam star reconnect is not implemented');
     }
 
+    /** redial() always throws for Steam, so this never has anything to
+     *  supersede — here only to satisfy GuestSession. */
+    discard(): void {
+        this.onClose = null;
+    }
+
     close(): void {
         this.onClose = null;
         this.unsubscribe();

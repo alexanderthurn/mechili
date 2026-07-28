@@ -2842,6 +2842,11 @@ export class Game {
                 }
                 if (reply.type === 'starResumeState') {
                     this.applyStarResumeState(reply);
+                    // the old session's own peer-error listener would
+                    // otherwise never be removed (see StarGuestSession's
+                    // doc comment) — discard(), not close(): the shared
+                    // Peer object stays alive for `fresh`
+                    session.discard();
                     star.session = fresh;
                     this.wireStarGuestSession(fresh);
                     fresh.send({ type: 'ready' });
@@ -2894,14 +2899,29 @@ export class Game {
      *  give-up state onSeatDropped uses once the window elapses. */
     private beginStarSeatSuspend(seat: SeatId): void {
         if (this.matchOver || !this.star || this.star.role !== 'host') return;
+        const wasSuspended = this.suspended;
         this.pendingStarSeats.add(seat);
-        if (this.suspended) return; // already paused for a different pending seat
-        this.suspended = true;
-        this.hud.hidePauseMenu();
-        this.placement.deselect();
-        this.armedItem = null;
-        const name = this.seats[seat]?.name ?? 'a player';
-        this.hud.showNotice(`${name} lost connection — waiting for them to reconnect…`, 'Give up', () =>
+        if (!wasSuspended) {
+            this.suspended = true;
+            this.hud.hidePauseMenu();
+            this.placement.deselect();
+            this.armedItem = null;
+        }
+        // recompute every time, not just on the first drop — a second seat
+        // dropping while already suspended for a different one must not
+        // leave the notice naming only the FIRST seat forever
+        this.refreshStarSuspendNotice();
+    }
+
+    /** names every currently-pending seat, not just whichever dropped first —
+     *  called on every pendingStarSeats change while still suspended */
+    private refreshStarSuspendNotice(): void {
+        if (this.pendingStarSeats.size === 0) return;
+        const names = [...this.pendingStarSeats]
+            .map((seat) => this.seats[seat]?.name ?? 'a player')
+            .join(', ');
+        const verb = this.pendingStarSeats.size > 1 ? 'have' : 'has';
+        this.hud.showNotice(`${names} ${verb} lost connection — waiting to reconnect…`, 'Give up', () =>
             this.quitToMenu(),
         );
     }
@@ -2930,6 +2950,10 @@ export class Game {
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
             this.suspended = false;
             this.hud.hideNotice();
+        } else {
+            // still waiting on at least one more seat — drop this one's
+            // name out of the notice instead of leaving it listed forever
+            this.refreshStarSuspendNotice();
         }
     }
 
@@ -5057,6 +5081,13 @@ export class Game {
             // ally" window after you'd already locked in
             !this.seatReady[this.humanSeat] &&
             !this.watching &&
+            // undoLast() also bypasses dispatchPlayer's own `!this.suspended`
+            // gate — without this, undoing during a star reconnect's
+            // "Reconnecting…" pause shrinks the local log by one entry that
+            // never reaches the host (the connection is down), which
+            // applyStarResumeState's index-based resume then re-dispatches
+            // on reconnect: an action the host never undid gets double-applied.
+            !this.suspended &&
             this.dispatcher.canUndo(this.round, this.humanSeat)
         );
     }
