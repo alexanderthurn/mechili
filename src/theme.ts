@@ -1836,7 +1836,8 @@ export function hudStyles(): string {
     width: 46px; height: 46px;
     box-sizing: border-box;
     display: flex; align-items: center; justify-content: center;
-    padding: 0; margin: 0;
+    /* leave room at the bottom for the cost strip so the icon centers above it */
+    padding: 0 0 12px; margin: 0;
     appearance: none; -webkit-appearance: none;
     background: ${u.techBuyBg};
     border: 1.5px solid ${u.border};
@@ -1858,14 +1859,7 @@ export function hudStyles(): string {
     background-repeat: no-repeat;
 }
 .mechili-sidebar .inv-item .m-icon { width: 30px; height: 30px; }
-.mechili-panel .action-tile .at-icon.m-icon {
-    position: absolute;
-    inset: 0;
-    width: auto;
-    height: auto;
-    border-radius: 6.5px;
-    font-size: 0;
-}
+.mechili-panel .action-tile .at-icon.m-icon { width: 28px; height: 28px; font-size: 0; }
 .mechili-panel .action-info .ai-icon.m-icon { width: 28px; height: 28px; font-size: 0; }
 .mechili-panel .item-sq.m-icon { width: 44px; height: 44px; font-size: 0; }
 .mechili-phonebar button .pb-ico.m-icon { width: 22px; height: 22px; font-size: 0; }
@@ -1877,7 +1871,6 @@ export function hudStyles(): string {
 .mechili-phone-status .btn-ico.m-icon { width: 22px; height: 22px; margin: 0; }
 .mechili-panel .action-tile .at-cost {
     position: absolute; left: 0; bottom: 0; right: 0;
-    z-index: 1;
     padding: 1px 0 2px;
     font-size: 9px; font-weight: bold; text-align: center;
     font-variant-numeric: tabular-nums;
@@ -1889,7 +1882,6 @@ export function hudStyles(): string {
 .mechili-panel .action-tile .at-cost.refund { background: rgba(40, 140, 60, 0.92); }
 .mechili-panel .action-tile .at-badge {
     position: absolute; top: -5px; right: -5px;
-    z-index: 1;
     width: 16px; height: 16px;
     display: flex; align-items: center; justify-content: center;
     font-size: 10px; font-weight: bold;
@@ -3030,6 +3022,7 @@ export function hudStyles(): string {
     .mechili-panel .action-tile {
         width: 54px;
         height: 54px;
+        padding-bottom: 14px;
     }
     .mechili-panel .action-tile .at-cost { font-size: 10px; }
     .mechili-sidebar .inv-item {

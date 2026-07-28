@@ -531,8 +531,8 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 0.7,
         speed: 9,
         techs: [
-            { id: 'legs', name: 'Fleet Feet', cost: 150, mods: { speed: 1.35 } },
-            { id: 'carapace', name: 'Stone Hide', cost: 200, mods: { hp: 1.5 } },
+            { id: 'legs', name: 'Fleet Feet', cost: 150, mods: { speed: 1.35 }, icon: 'tech-fleet-feet' },
+            { id: 'carapace', name: 'Stone Hide', cost: 200, mods: { hp: 1.5 }, icon: 'tech-stone-hide' },
         ],
         build: buildDwarf,
     },
