@@ -858,12 +858,19 @@ function connectRawTo(peer: Peer, remoteId: string, signal?: AbortSignal): Promi
             reject(new DOMException('Aborted', 'AbortError'));
             return;
         }
-        const timer = setTimeout(
-            () => reject(new Error('Room not found or host offline')),
-            CONNECT_TIMEOUT_MS,
-        );
+        // a timed-out/aborted/errored attempt still holds a live
+        // RTCPeerConnection underneath — must be explicitly closed or it
+        // leaks for the rest of the tab's life. A retry loop (redial())
+        // calling this repeatedly without this leaked one dangling
+        // RTCPeerConnection per failed attempt, eventually hitting the
+        // browser's hard cap on concurrent/cumulative peer connections.
+        const timer = setTimeout(() => {
+            conn.close();
+            reject(new Error('Room not found or host offline'));
+        }, CONNECT_TIMEOUT_MS);
         const onAbort = () => {
             clearTimeout(timer);
+            conn.close();
             reject(new DOMException('Aborted', 'AbortError'));
         };
         signal?.addEventListener('abort', onAbort, { once: true });
@@ -876,11 +883,13 @@ function connectRawTo(peer: Peer, remoteId: string, signal?: AbortSignal): Promi
         conn.on('error', (e) => {
             clearTimeout(timer);
             signal?.removeEventListener('abort', onAbort);
+            conn.close();
             reject(e);
         });
         peer.on('error', (e) => {
             clearTimeout(timer);
             signal?.removeEventListener('abort', onAbort);
+            conn.close();
             reject(e);
         });
     });
@@ -1450,12 +1459,20 @@ function connectTo(
             reject(new DOMException('Aborted', 'AbortError'));
             return;
         }
-        const timer = setTimeout(
-            () => reject(new Error('Room not found or host offline')),
-            CONNECT_TIMEOUT_MS,
-        );
+        // a timed-out/aborted/errored attempt still holds a live
+        // RTCPeerConnection underneath — must be explicitly closed or it
+        // leaks for the rest of the tab's life. NetSession.redial() calls
+        // this repeatedly on a drop; without this, each failed attempt
+        // leaves one more RTCPeerConnection dangling, eventually hitting
+        // the browser's hard cap on concurrent/cumulative peer connections
+        // (seen live: "Cannot create so many PeerConnections").
+        const timer = setTimeout(() => {
+            conn.close();
+            reject(new Error('Room not found or host offline'));
+        }, CONNECT_TIMEOUT_MS);
         const onAbort = () => {
             clearTimeout(timer);
+            conn.close();
             reject(new DOMException('Aborted', 'AbortError'));
         };
         signal?.addEventListener('abort', onAbort, { once: true });
@@ -1468,11 +1485,13 @@ function connectTo(
         conn.on('error', (e) => {
             clearTimeout(timer);
             signal?.removeEventListener('abort', onAbort);
+            conn.close();
             reject(e);
         });
         peer.on('error', (e) => {
             clearTimeout(timer);
             signal?.removeEventListener('abort', onAbort);
+            conn.close();
             reject(e);
         });
     });
