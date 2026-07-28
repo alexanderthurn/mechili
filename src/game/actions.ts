@@ -176,6 +176,15 @@ export interface RoundCardAction {
     team: Team;
     cardId: string | null;
 }
+/** a whole side conceded (its last human seat quit mid-match, star mode
+ *  only) — zeroes that side's HP so the ordinary HP<=0 check after this
+ *  dispatch runs finishMatch() exactly like a battle-caused loss would,
+ *  identically on every client via the same relay/replay path as any
+ *  other action, rather than a separate one-off "forfeit" message shape. */
+export interface ForfeitSideAction {
+    kind: 'forfeitSide';
+    team: Team;
+}
 export interface EndDeploymentAction {
     kind: 'endDeployment';
     team: Team;
@@ -259,6 +268,7 @@ type ActionVariant =
     | ChooseCardAction
     | ApplyItemAction
     | RoundCardAction
+    | ForfeitSideAction
     | EndDeploymentAction
     | UnlockUnitAction
     | PlaceRallyRouteAction
@@ -397,6 +407,9 @@ export interface ActionContext {
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
     onEndDeployment: (team: Team) => void;
+    /** a whole side just forfeited (see ForfeitSideAction) — the Game
+     *  checks for match-over the same way it does after a battle result */
+    onForfeit: (team: Team) => void;
     /** dev-only (`?debug`) cross-client debug bus — see debugLog.ts */
     debugLog: (category: string, data?: unknown) => void;
 }
@@ -450,7 +463,8 @@ export class ActionDispatcher {
         return (
             action.kind !== 'roundCard' &&
             action.kind !== 'chooseCard' &&
-            action.kind !== 'endDeployment'
+            action.kind !== 'endDeployment' &&
+            action.kind !== 'forfeitSide'
         );
     }
 
@@ -879,6 +893,16 @@ export class ActionDispatcher {
                 this.ctx.roundCardTaken[seat] = true;
                 return true;
             }
+            case 'forfeitSide': {
+                this.ctx.hp.set(action.team, 0);
+                // hp alone has no natural "check for match over" hook the
+                // way a battle result does (endBattlePhase checks HP right
+                // after applying it) — this is what triggers the same
+                // check on every client, live AND on a later replay/resume
+                // catch-up, uniformly
+                this.ctx.onForfeit(action.team);
+                return true;
+            }
             case 'endDeployment': {
                 if (this.ctx.seatReady[seat]) return false; // this seat already locked in
                 this.ctx.seatReady[seat] = true;
@@ -1220,6 +1244,7 @@ export class ActionDispatcher {
             case 'chooseCard':
             case 'roundCard':
             case 'endDeployment':
+            case 'forfeitSide':
                 break; // excluded from undo (see isUndoable)
             case 'unlockUnit': {
                 const list = this.ctx.unlockedUnits[seat]!;

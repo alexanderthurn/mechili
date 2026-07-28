@@ -403,6 +403,11 @@ export class Game {
     /** star guest only: aborts an in-flight redial loop if we give up first
      *  (quitToMenu) — mirrors classic 1v1's onReconnectTimeout callback */
     private starRedialAbort: AbortController | null = null;
+    /** star host only: seats that explicitly quit (see handleSeatQuit) — the
+     *  connection dropping moments later (the quitting client's own
+     *  quitToMenu tears it down) must NOT also run the ordinary reconnect-
+     *  grace flow for a seat that is deliberately, permanently gone */
+    private readonly quitSeats = new Set<SeatId>();
     /** host-only: dedicated broadcast connection point for spectators, opened
      *  once a multiplayer match starts (classic 1v1 host, or a star host —
      *  see startSpectatorHub) */
@@ -1091,29 +1096,14 @@ export class Game {
                 // of the very action that completed the last lock-in.
                 if (!this.star) this.maybeStartBattleAfterDeploy();
             },
-        });
-        const aiCtxFor = (rng: () => number) => ({
-            dispatch: (action: Action) => {
-                const ok = this.dispatcher.dispatch(action);
-                // star host: an AI seat's actions bypass dispatchPlayer
-                // entirely, so relay them here instead — same fog-filtered
-                // path as any human seat's traffic
-                if (ok && this.star?.role === 'host' && !this.hydrating) {
-                    const seat = action.seat ?? this.humanSeat;
-                    if (this.round >= 1 || action.kind === 'chooseCard') {
-                        this.relayStarBuildMessage({ type: 'action', round: this.round, action }, seat);
-                    }
-                }
-                return ok;
+            // fires on the dispatching client AND on every other client
+            // that later applies the same logged forfeitSide action
+            // (live relay, or a resume/replay catch-up) — same "check HP,
+            // end the match" logic endBattlePhase already runs after a
+            // battle result, just triggered by a different cause
+            onForfeit: () => {
+                if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
             },
-            placement: this.placement,
-            economy: this.economy,
-            techTree: this.techTree,
-            unlockedUnits: this.unlockedUnits,
-            unlockUsedThisRound: this.unlockUsedThisRound,
-            items: this.itemInventory,
-            tactics: this.tacticInventory,
-            rng,
         });
         if (this.watching) {
             // every seat's actions come from the replay log — no AI, no
@@ -1132,20 +1122,20 @@ export class Game {
                     const def = this.seats[seat]!;
                     if (def.controller !== 'ai') continue;
                     const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
-                    this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team, seat });
+                    this.extraAis.push({ ai: new AiOpponent(def.team, seat, this.aiCtxFor(rng)), rng, team: def.team, seat });
                 }
             }
         } else {
             this.opponent = this.net
                 ? new NetworkOpponent()
-                : new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), aiCtxFor(this.rngAi));
+                : new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), this.aiCtxFor(this.rngAi));
             // local duo modes: every further AI seat gets its own brain and rng stream
             for (let seat = 0; seat < this.seats.length; seat++) {
                 const def = this.seats[seat]!;
                 if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
                 if (this.net) continue; // networked matches drive remote seats over the wire
                 const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
-                this.extraAis.push({ ai: new AiOpponent(def.team, seat, aiCtxFor(rng)), rng, team: def.team, seat });
+                this.extraAis.push({ ai: new AiOpponent(def.team, seat, this.aiCtxFor(rng)), rng, team: def.team, seat });
             }
         }
         this.placement.localSeat = this.humanSeat;
@@ -1212,7 +1202,7 @@ export class Game {
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
-        this.hud.onQuitToMenu = () => this.quitToMenu();
+        this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
         this.hud.setPlayers(this.sideLabel('player'), this.sideLabel('enemy'), settings.startingHp);
@@ -2235,6 +2225,48 @@ export class Game {
     }
 
     /**
+     * Shared AiOpponent context builder — used both at construction (every
+     * seat that started AI-controlled) and by `takeOverSeatWithAi` (a seat
+     * that quit mid-match). Only reads `this.*` fields, so it's safe to
+     * call at any point in the match, not just during the constructor.
+     */
+    private aiCtxFor(rng: () => number): {
+        dispatch: (action: Action) => boolean;
+        placement: PlacementController;
+        economy: Economy;
+        techTree: TechTree;
+        unlockedUnits: string[][];
+        unlockUsedThisRound: boolean[];
+        items: string[][];
+        tactics: string[][];
+        rng: () => number;
+    } {
+        return {
+            dispatch: (action: Action) => {
+                const ok = this.dispatcher.dispatch(action);
+                // star host: an AI seat's actions bypass dispatchPlayer
+                // entirely, so relay them here instead — same fog-filtered
+                // path as any human seat's traffic
+                if (ok && this.star?.role === 'host' && !this.hydrating) {
+                    const seat = action.seat ?? this.humanSeat;
+                    if (this.round >= 1 || action.kind === 'chooseCard') {
+                        this.relayStarBuildMessage({ type: 'action', round: this.round, action }, seat);
+                    }
+                }
+                return ok;
+            },
+            placement: this.placement,
+            economy: this.economy,
+            techTree: this.techTree,
+            unlockedUnits: this.unlockedUnits,
+            unlockUsedThisRound: this.unlockUsedThisRound,
+            items: this.itemInventory,
+            tactics: this.tacticInventory,
+            rng,
+        };
+    }
+
+    /**
      * Star mode (2v2+): no local sender-side buffering — the HOST does all
      * fog buffering on the way OUT to each recipient (see `StarHub.relayBuild`),
      * so every client just sends immediately. A guest sends straight to the
@@ -2784,11 +2816,18 @@ export class Game {
             this.wireStarGuestSession(star.session);
         } else {
             star.hub.onMessage = (seat, msg) => this.onStarMessage(msg, seat);
-            star.hub.onSeatSuspended = (seat) => this.beginStarSeatSuspend(seat);
+            star.hub.onSeatSuspended = (seat) => {
+                // a seat that just explicitly quit (handleSeatQuit already
+                // ran) has its own connection close moments later as its
+                // client tears down — that's expected, not a drop to wait
+                // out
+                if (this.quitSeats.has(seat)) return;
+                this.beginStarSeatSuspend(seat);
+            };
             star.hub.onSeatReconnected = (seat) => this.starSeatReconnected(seat);
             star.hub.onSeatDropped = (seat) => {
                 this.pendingStarSeats.delete(seat);
-                if (this.matchOver) return;
+                if (this.quitSeats.has(seat) || this.matchOver) return;
                 const name = this.seats[seat]?.name ?? 'a player';
                 this.suspend(`Lost connection to ${name}.`);
             };
@@ -2957,6 +2996,82 @@ export class Game {
         }
     }
 
+    /**
+     * Star host only: a connected seat explicitly quit (see onStarMessage's
+     * 'quit' case, fired only for a guest — the host's own quit takes a
+     * separate path in voluntaryQuit). Hands the seat to AI if its side
+     * still has another human playing; otherwise that whole side forfeits,
+     * since a side with zero humans left has nobody to keep playing for.
+     */
+    private handleSeatQuit(seat: SeatId): void {
+        if (!this.star || this.star.role !== 'host' || this.matchOver) return;
+        this.quitSeats.add(seat);
+        this.pendingStarSeats.delete(seat); // in case this seat was mid-reconnect-grace
+        const def = this.seats[seat];
+        if (!def) return;
+        const remainingHumans = seatIdsOf(this.seats, def.team).filter(
+            (s) => s !== seat && this.seats[s]?.controller === 'human',
+        );
+        if (remainingHumans.length > 0) {
+            this.takeOverSeatWithAi(seat);
+        } else {
+            this.starForfeit(def.team);
+        }
+        // a quit seat was possibly the one thing this.suspended was waiting
+        // on (e.g. it had just dropped and entered its grace window before
+        // sending 'quit' on a final reconnect attempt) — re-check same as
+        // starSeatReady does
+        if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
+            this.suspended = false;
+            this.hud.hideNotice();
+        } else if (this.suspended && !this.matchOver) {
+            this.refreshStarSuspendNotice();
+        }
+    }
+
+    /**
+     * Star host only: converts a quit seat to AI control for the rest of
+     * the match — reuses the same AiOpponent already used for seats that
+     * started AI-controlled (extraAis), just constructed mid-match instead
+     * of at construction time (see aiCtxFor's doc comment).
+     */
+    private takeOverSeatWithAi(seat: SeatId): void {
+        const def = this.seats[seat];
+        if (!def || def.controller === 'ai') return;
+        this.seats[seat] = { ...def, controller: 'ai' };
+        const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
+        const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
+        this.extraAis.push({ ai, rng, team: def.team, seat });
+        this.broadcastRoster();
+        // this round's build may already be in progress with nobody left
+        // to finish it for this seat — let the AI lock it in right away
+        // instead of leaving the round stuck waiting on an endDeployment
+        // that will never come
+        if (this.phase === 'build' && !this.seatReady[seat]) {
+            ai.onBuildPhase(this.round);
+        }
+    }
+
+    /**
+     * Star host only: `team`'s side has no humans left — declare its
+     * forfeit. Dispatched+logged locally (through the normal action log,
+     * so a later resume/catch-up correctly replays it — see
+     * ActionContext.onForfeit), but delivered live via a direct, unfiltered
+     * broadcast rather than the ordinary fog/round-gated action relay: a
+     * match-ending signal must never sit fog-buffered behind the
+     * forfeiting side's own lock-in state (relayBuild's ally/enemy vision
+     * gate), or queued behind a recipient's currently-displayed round/phase
+     * (drainStarRemoteQueue's gate) — both would delay "the match is over"
+     * for however long those happen to hold, which is never acceptable for
+     * this specific message.
+     */
+    private starForfeit(team: Team): void {
+        if (!this.star || this.star.role !== 'host' || this.matchOver) return;
+        this.dispatcher.dispatch({ kind: 'forfeitSide', team });
+        this.star.hub.broadcast({ type: 'starForfeit', team });
+        this.spectatorHub?.broadcast({ type: 'starForfeit', team });
+    }
+
     /** Wires a spectator's read-only connection to the host. Applies
      *  incoming build actions via its own queue (`spectateQueue`/
      *  `drainSpectateQueue`) — shaped just like `drainStarRemoteQueue` but
@@ -3093,6 +3208,22 @@ export class Game {
                 msg.vision.mode === 'live'
                     ? new Set(msg.vision.seats.map((s) => (s === 'a' ? 0 : 1)))
                     : new Set();
+        } else if (msg.type === 'quit') {
+            // classic 1v1 forfeit-quit, mirrored (see onNetMessage's own
+            // 'quit' case) — or a star host's own quit, ending everything
+            // (no host migration). Same "match over, nothing left to
+            // watch" outcome as a genuine disconnect.
+            if (this.matchOver) return;
+            this.matchOver = true;
+            this.hud.showDisconnect();
+        } else if (msg.type === 'starForfeit') {
+            // same hp-zeroing + match-over check the forfeiting host and
+            // every guest already ran locally — see starForfeit's doc
+            // comment for why this is a direct broadcast, not a relayed
+            // action
+            if (msg.team === 'player') this.playerHp = 0;
+            else this.enemyHp = 0;
+            if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
         }
         // 'check': nothing for a spectator to act on — hash verification is
         // a player-to-player concern only.
@@ -3108,6 +3239,33 @@ export class Game {
         this.placement.deselect();
         this.armedItem = null;
         this.hud.showNotice(message, 'Give up — back to menu', () => this.quitToMenu());
+    }
+
+    /**
+     * The player explicitly clicked "Quit to menu" mid-match (pause menu) —
+     * distinct from quitToMenu() itself, which is ALSO the generic post-
+     * failure "give up" cleanup (dead connection, nothing left to tell).
+     * Here the connection is still alive, so tell whoever's on the other
+     * end this was deliberate before tearing it down: classic 1v1's peer
+     * resolves an immediate forfeit win instead of running the reconnect-
+     * grace flow for someone who is never coming back; a star guest tells
+     * the host (which decides AI-takeover vs. forfeit — see
+     * handleSeatQuit); a star host tells every guest and spectator the
+     * whole match is ending (no host migration — nothing can continue
+     * without it).
+     */
+    voluntaryQuit(): void {
+        if (!this.matchOver && !this.disposed) {
+            if (this.net) {
+                this.net.send({ type: 'quit' });
+            } else if (this.star?.role === 'guest') {
+                this.star.session.send({ type: 'quit' });
+            } else if (this.star?.role === 'host') {
+                this.star.hub.broadcast({ type: 'quit' });
+                this.spectatorHub?.broadcast({ type: 'quit' });
+            }
+        }
+        this.quitToMenu();
     }
 
     /** leave the match — main tears down the session and restores the menu */
@@ -3856,6 +4014,15 @@ export class Game {
             this.drainRemoteQueue();
             this.deployCaughtUpFromPeer = true;
             this.maybeStartBattleAfterDeploy();
+        } else if (msg.type === 'quit') {
+            // the peer explicitly quit (see voluntaryQuit) — not a dropped
+            // connection, so there's no reconnect grace window to run: they
+            // are not coming back, resolve the forfeit immediately. Mirror
+            // it so any spectator (a separate connection via spectatorHub,
+            // unaffected by the peer's own net closing) finds out too,
+            // instead of being left watching a match that's already over.
+            this.mirrorToSpectators({ type: 'quit' });
+            this.forfeitWin();
         }
     }
 
@@ -3943,6 +4110,28 @@ export class Game {
             // host only: a reconnected seat finished applying its
             // starResumeState catch-up — see starSeatReady's doc comment
             if (isHost && fromSeat !== undefined) this.starSeatReady(fromSeat);
+        } else if (msg.type === 'quit') {
+            // host: a guest explicitly quit (see voluntaryQuit) — decide
+            // AI-takeover vs. forfeit (handleSeatQuit). Guest: this can only
+            // be the host itself (a guest never receives another guest's
+            // traffic directly — see this function's fromSeat doc comment),
+            // meaning the whole match is ending; there is no host migration
+            // to fall back to.
+            if (isHost && fromSeat !== undefined) {
+                this.handleSeatQuit(fromSeat);
+            } else if (!isHost) {
+                this.matchOver = true;
+                this.hud.showNotice('The host ended the match.', 'Back to menu', () => this.quitToMenu());
+            }
+        } else if (msg.type === 'starForfeit') {
+            // every non-sending client (guests, and spectators via
+            // onSpectateMessage's own copy of this) applies the same
+            // hp-zeroing + match-over check the forfeiting host already
+            // ran locally — see starForfeit's doc comment for why this is
+            // a direct broadcast rather than a relayed action
+            if (msg.team === 'player') this.playerHp = 0;
+            else this.enemyHp = 0;
+            if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
         }
     }
 

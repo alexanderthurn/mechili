@@ -6,6 +6,7 @@ import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings } from './settings';
+import type { Team } from './units';
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -191,6 +192,16 @@ export type NetMessage =
      *  survivor that resumed instantly would otherwise burn that time for
      *  nothing; both sides hold until they've traded this */
     | { type: 'ready' }
+    /**
+     * A player explicitly chose "Quit to menu" mid-match (as opposed to a
+     * dropped connection) — sent right before closing, so the recipient(s)
+     * can resolve immediately (forfeit win / AI takeover) instead of running
+     * the reconnect-grace flow for a connection that's never coming back.
+     * Classic 1v1: peer→peer, either direction. Star: guest→host (that
+     * seat quit) or host→every guest (the host itself quit, whole match
+     * ends — no host migration).
+     */
+    | { type: 'quit' }
     /** spectator's opening handshake, sent immediately on connecting to the
      *  host's dedicated broadcast Peer (never the player link) */
     | { type: 'spectate'; name: string; version: number }
@@ -299,7 +310,16 @@ export type NetMessage =
       }
     /** host declines a starRejoin (seat not actually pending, version
      *  mismatch, or the seat was already reclaimed by a race winner) */
-    | { type: 'starRejoinRejected'; reason: string };
+    | { type: 'starRejoinRejected'; reason: string }
+    /**
+     * Star host → every guest and spectator: `team`'s side has no humans
+     * left (its last seat quit — see Game.starForfeit) and forfeits.
+     * Deliberately NOT relayed through the ordinary fog/round-gated action
+     * relay — a match-ending signal must never sit buffered behind the
+     * forfeiting side's own lock-in state or a recipient's currently-
+     * displayed round/phase, both of which the normal 'action' relay does.
+     */
+    | { type: 'starForfeit'; team: Team };
 
 /**
  * What a spectator may see during the build phase.
