@@ -565,6 +565,11 @@ export class Game {
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
     /** restamp once when the async sand mask finishes loading */
     private sandBootstrapped = false;
+    /** wall-clock timestamp (performance.now()) of the last tick — used to
+     *  compute the sim's own TRUE, unclamped elapsed time (see tick()'s
+     *  trueGameDt); null until the first tick has a prior sample to diff
+     *  against */
+    private lastSimRealTimeMs: number | null = null;
     private readonly boundTick = (ticker: { deltaMS: number }) => this.tick(ticker.deltaMS / 1000);
     private readonly onEscapeKey = (e: KeyboardEvent) => {
         const t = e.target as HTMLElement | null;
@@ -6481,6 +6486,26 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        // The sim's OWN elapsed time must be the TRUE, unclamped wall-clock
+        // gap since the last tick, not dtSeconds — PixiJS's ticker clamps
+        // its own deltaMS to at most 100ms by default (minFPS=10),
+        // silently DISCARDING anything beyond that rather than deferring
+        // it. That's harmless for the purely cosmetic consumers of
+        // dtSeconds/gameDt below (camera, particles, ambient motion — a
+        // one-time visual jump when a tab refocuses is fine), but the
+        // deterministic battle sim can't tolerate it: a backgrounded/
+        // throttled tab (a passive spectator tab left unfocused is the
+        // common case, but any client's tab losing focus counts) would
+        // otherwise permanently process FEWER total fixed steps than a
+        // client that never dropped frames, producing a genuinely
+        // different, wrong battle result instead of just a delayed one.
+        // BattleSim.update() itself now retains and catches up on however
+        // large this gets (capped per call, carrying over the rest) — see
+        // its own doc comment.
+        const nowMs = performance.now();
+        const trueDtSeconds =
+            this.lastSimRealTimeMs === null ? dtSeconds : (nowMs - this.lastSimRealTimeMs) / 1000;
+        this.lastSimRealTimeMs = nowMs;
         if (this.introActive) this.tickMatchIntro(dtSeconds);
         if (this.outroActive) this.tickMatchOutro(dtSeconds);
         this.flushDebugLog(dtSeconds);
@@ -6509,6 +6534,12 @@ export class Game {
             this.phase === 'battle' || this.watching
                 ? dtSeconds * this.speedSteps[this.speedIndex]!
                 : dtSeconds;
+        // same speed-multiplier scaling as gameDt, just built on the TRUE
+        // dt — this is what actually reaches sim.update() below
+        const trueGameDt =
+            this.phase === 'battle' || this.watching
+                ? trueDtSeconds * this.speedSteps[this.speedIndex]!
+                : trueDtSeconds;
         this.time += gameDt;
 
         let simSteps = 0;
@@ -6534,7 +6565,7 @@ export class Game {
                     this.sim.profileEnabled = true;
                     cpu.begin();
                 }
-                this.sim.update(gameDt);
+                this.sim.update(trueGameDt);
                 if (profile) {
                     cpu.end('sim');
                     simSteps = this.sim.lastProfileSteps;
