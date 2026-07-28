@@ -754,7 +754,10 @@ export class Hud {
             this.lastTouchActKey = key;
             // 'acting' lets tablets (no tab UI) show the bar just for these buttons
             this.phoneBar.classList.toggle('acting', hasFieldActions);
+            const wasCarrying = this.phoneBar.classList.contains('carrying');
             this.phoneBar.classList.toggle('carrying', !!carrying);
+            // details make way while something rides the finger
+            if (carrying && !wasCarrying && this.phoneTab === 'unit') this.setPhoneTab(null);
             this.touchRotateBtn.style.display = rotate ? 'flex' : 'none';
             this.touchMoveBtn.style.display = move ? 'flex' : 'none';
             this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
@@ -785,17 +788,30 @@ export class Hud {
     /**
      * Compact chrome: if a selection only exposes the Unit tab (no Move /
      * Level / Upgrade), open the details sheet immediately.
+     * Skip while carrying — formations and pickups are aim-only.
      */
     private maybeAutoOpenUnitSheet(hasFieldActions: boolean): void {
         if (!isCompactChrome() || !this.phoneBar.classList.contains('has-unit')) {
             this.unitSheetAutoKey = null;
             return;
         }
-        if (hasFieldActions) return;
+        if (hasFieldActions || this.phoneBar.classList.contains('carrying')) return;
         const key = this.lastPanelKey;
         if (!key || this.unitSheetAutoKey === key) return;
         this.unitSheetAutoKey = key;
         this.setPhoneTab('unit');
+    }
+
+    /**
+     * Rect-selected formation (2+ packs): shop stays closed, no unit sheet —
+     * packs may differ, so there are no shared details to show.
+     */
+    setFormationSelection(): void {
+        this.phoneBar.classList.add('has-unit');
+        this.panel.style.display = 'none';
+        this.lastPanelKey = '';
+        this.unitSheetAutoKey = null;
+        if (this.phoneTab === 'unit') this.setPhoneTab(null);
     }
 
     /** opens the Unit details sheet (auto-shown for buildings); phone-only visual */

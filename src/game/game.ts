@@ -6506,9 +6506,14 @@ export class Game {
         }
         let buildInfo: SelectionInfo | null = null;
         if (this.phase !== 'battle' || !this.sim) {
-            const unit = this.placement.selectedUnit;
-            buildInfo = unit ? this.unitInfo(unit) : null;
-            this.hud.setSelection(buildInfo);
+            // formations are move-only — no shared details across mixed packs
+            if (this.placement.hasSelectedGroup) {
+                this.hud.setFormationSelection();
+            } else {
+                const unit = this.placement.selectedUnit;
+                buildInfo = unit ? this.unitInfo(unit) : null;
+                this.hud.setSelection(buildInfo);
+            }
         }
         const build = this.phase !== 'battle';
         const lvl = build ? buildInfo?.levelUp : undefined;
