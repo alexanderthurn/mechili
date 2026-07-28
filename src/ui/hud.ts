@@ -176,6 +176,7 @@ export class Hud {
     private lastSpectatorNames: string[] = [];
     private pauseMenu: HTMLDivElement | null = null;
     private cardOverlay: HTMLDivElement | null = null;
+    private cardIntroFading = false;
     private introChromeHidden = false;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
@@ -1874,6 +1875,28 @@ export class Hud {
         this.cardOverlay = overlay;
         this.syncOverlayOpen();
         this.mount(overlay);
+        if (this.introChromeHidden) {
+            // mount() hides everything during the fly-in — card picks fade in
+            // on their own schedule instead of popping after the camera lands
+            overlay.classList.remove('mechili-intro-hide');
+            overlay.style.opacity = '0';
+            overlay.style.pointerEvents = 'none';
+            this.cardIntroFading = true;
+        }
+    }
+
+    /** driven each intro tick while a card overlay is fading in */
+    setCardOverlayIntroOpacity(opacity: number): void {
+        if (!this.cardOverlay || !this.cardIntroFading) return;
+        this.cardOverlay.style.opacity = String(opacity);
+    }
+
+    /** intro finished — card overlay is fully visible and clickable */
+    finishCardOverlayIntro(): void {
+        if (!this.cardOverlay) return;
+        this.cardIntroFading = false;
+        this.cardOverlay.style.opacity = '';
+        this.cardOverlay.style.pointerEvents = '';
     }
 
     private showPauseMenu(): void {
@@ -2355,8 +2378,10 @@ export class Hud {
             el.classList.toggle('mechili-intro-hide', !visible);
         }
         if (this.cardOverlay) {
-            this.cardOverlay.style.transition = 'opacity 0.35s ease';
-            this.cardOverlay.classList.toggle('mechili-intro-hide', !visible);
+            if (!this.cardIntroFading) {
+                this.cardOverlay.style.transition = 'opacity 0.35s ease';
+                this.cardOverlay.classList.toggle('mechili-intro-hide', !visible);
+            }
         }
         if (this.itemGhost) this.itemGhost.classList.toggle('mechili-intro-hide', !visible);
     }

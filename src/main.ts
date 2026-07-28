@@ -391,6 +391,7 @@ function showIntroCover(): void {
     logoImg.alt = 'MELODAN';
     logoImg.width = 600;
     logoImg.height = 327;
+    layoutIntroLogo(logoImg);
     cover.append(bg, logoImg);
     wrapper.appendChild(cover);
     introCoverEl = cover;
@@ -457,6 +458,17 @@ function layoutTitle() {
     logo.scale.set(scale);
     logo.position.set(cx, cy);
     subtitle.position.set(cx, cy + logo.height / 2 + 2);
+}
+
+/** place the HTML intro-cover logo exactly where the Pixi menu logo sits */
+function layoutIntroLogo(logoImg: HTMLImageElement): void {
+    const cx = app.screen.width / 2;
+    const cy = app.screen.height / 2 - 160;
+    const width = Math.min(app.screen.width * 0.62, 600);
+    logoImg.style.left = `${cx}px`;
+    logoImg.style.top = `${cy}px`;
+    logoImg.style.width = `${width}px`;
+    logoImg.style.opacity = '1';
 }
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
@@ -1298,8 +1310,6 @@ function startGame(
 
     const beginHandoff = (game: Game): void => {
         if (gen !== introGen || !started || !introCoverEl) return;
-        // logo is only for the first beat — drop it before the 3D handoff
-        introCoverEl.querySelector('.mechili-intro-logo')?.remove();
         game.onMatchIntroProgress = (t) => {
             if (gen !== introGen || !introCoverEl) return;
             introCoverEl.style.opacity = String(1 - t);

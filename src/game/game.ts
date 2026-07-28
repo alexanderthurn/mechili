@@ -172,10 +172,11 @@ const SPECIALIST_REVEAL_MS = 2000;
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.6;
-/** after the menu cover clears, let the HUD fade before card overlays */
-const MATCH_INTRO_HUD_DELAY_SEC = 0.35;
+/** card overlays begin fading in during the tail of the fly-in (t = 0..1) */
+const MATCH_INTRO_CARDS_START = 0.55;
+const MATCH_INTRO_CARDS_END = 0.88;
 /** match→menu fly-out — mirror of the intro camera */
-const MATCH_OUTRO_SEC = 1.6;
+const MATCH_OUTRO_SEC = 0.8;
 const MATCH_INTRO_ZOOM = 200;
 const MATCH_INTRO_PITCH = (48 * Math.PI) / 180;
 const PLAY_START_ZOOM = 110;
@@ -554,6 +555,7 @@ export class Game {
     private deferredStarterOffer: StartCard[] | null = null;
     /** round-card offer held until the intro finishes (resume before pick) */
     private deferredRoundOffer = false;
+    private introCardsRevealed = false;
     private persistTimer = 0;
     /** last stamped battle positions for wear trails (visual only) */
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
@@ -1515,7 +1517,30 @@ export class Game {
             pitch: a.pitch + (b.pitch - a.pitch) * e,
         });
         this.onMatchIntroProgress?.(t);
+        this.maybeRevealIntroCards(t);
         if (t >= 1) this.finishMatchIntro();
+    }
+
+    /** fade specialist / round-card pickers in during the fly-in tail */
+    private maybeRevealIntroCards(t: number): void {
+        if (t < MATCH_INTRO_CARDS_START) return;
+        const linear = Math.min(1, (t - MATCH_INTRO_CARDS_START) / (MATCH_INTRO_CARDS_END - MATCH_INTRO_CARDS_START));
+        const fade = 1 - (1 - linear) ** 2;
+        if (!this.introCardsRevealed) {
+            const offer = this.deferredStarterOffer;
+            if (offer) {
+                this.introCardsRevealed = true;
+                this.deferredStarterOffer = null;
+                this.showStarterPick(offer, { duringIntro: true });
+            } else if (this.deferredRoundOffer && this.pendingOffer) {
+                this.introCardsRevealed = true;
+                this.deferredRoundOffer = false;
+                const pending = this.pendingOffer;
+                this.pendingOffer = null;
+                this.showRoundOffer(pending, { duringIntro: true });
+            }
+        }
+        this.hud.setCardOverlayIntroOpacity(fade);
     }
 
     private finishMatchIntro(): void {
@@ -1539,11 +1564,12 @@ export class Game {
         this.onMatchIntroDone = null;
         done?.();
         this.hud.setMatchChromeVisible(true);
-        window.setTimeout(() => {
-            if (this.disposed) return;
+        if (!this.introCardsRevealed) {
             if (offer) this.showStarterPick(offer);
             else if (pendingRound) this.showRoundOffer(pendingRound);
-        }, MATCH_INTRO_HUD_DELAY_SEC * 1000);
+        } else {
+            this.hud.finishCardOverlayIntro();
+        }
     }
 
     /** reverse of the menu→match fly-in: pull back, then main restores the menu */
@@ -1882,6 +1908,7 @@ export class Game {
         this.outroDone = null;
         this.deferredStarterOffer = null;
         this.deferredRoundOffer = false;
+        this.introCardsRevealed = false;
         this.onStateCheckpoint = null;
         this.onReturnToMenu = null;
         this.onConnectionLost = null;
@@ -2587,8 +2614,8 @@ export class Game {
     }
 
     /** the specialist overlay (also re-shown after a resume that predates the pick) */
-    private showStarterPick(offer: StartCard[]): void {
-        if (this.introActive) {
+    private showStarterPick(offer: StartCard[], opts?: { duringIntro?: boolean }): void {
+        if (this.introActive && !opts?.duringIntro) {
             this.deferredStarterOffer = [...offer];
             return;
         }
@@ -4341,8 +4368,8 @@ export class Game {
         }
     }
 
-    private showRoundOffer(offer: RoundCard[]): void {
-        if (this.introActive) {
+    private showRoundOffer(offer: RoundCard[], opts?: { duringIntro?: boolean }): void {
+        if (this.introActive && !opts?.duringIntro) {
             this.pendingOffer = offer;
             this.deferredRoundOffer = true;
             this.awaitingCards = true;

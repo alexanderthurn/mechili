@@ -871,16 +871,19 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-intro-cover .mechili-intro-logo {
     position: absolute;
-    left: 50%;
-    top: 38%;
-    width: min(62vw, 600px);
+    left: 0;
+    top: 0;
     height: auto;
     transform: translate(-50%, -50%);
-    mix-blend-mode: screen;
     filter: drop-shadow(0 0 24px rgba(255, 220, 120, 0.35));
     pointer-events: none;
     user-select: none;
-    animation: mechili-intro-logo-fade 0.5s ease-out forwards;
+    opacity: 1;
+    z-index: 1;
+}
+.mechili-intro-cover.active .mechili-intro-logo {
+    /* dissolve as soon as the menu zoom starts — not tied to the 3D handoff */
+    animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
 @keyframes mechili-outro-rise {
     from { transform: scale3d(3.5, 3.5, 1); }
@@ -890,7 +893,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     transform: scale3d(3.5, 3.5, 1);
 }
 .mechili-intro-cover.outro.active .mechili-intro-menu-bg {
-    animation: mechili-outro-rise 1.6s ease-in forwards;
+    animation: mechili-outro-rise 0.8s ease-in forwards;
 }
 .mechili-intro-cover.outro .mechili-intro-logo {
     animation: none;
