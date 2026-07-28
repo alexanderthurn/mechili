@@ -37,6 +37,8 @@ const PAN_THRESHOLD = 12; // px of midpoint travel (parallel two-finger drag)
  *  - three fingers dragged up/down: tilt
  */
 export class CameraControls {
+    /** set to false to ignore all camera input (match intro, overlays) */
+    enabled = true;
     /** set to false to disable edge scrolling (e.g. in windowed dev) */
     edgeScroll = true;
     /** fired on a middle CLICK (press without drag) — orbit only starts once the mouse moves */
@@ -78,6 +80,7 @@ export class CameraControls {
         };
 
         listen(window, 'keydown', (e: KeyboardEvent) => {
+            if (!this.enabled) return;
             this.pressed.add(e.code);
             if (e.code === 'Home') this.rig.resetView();
         });
@@ -91,6 +94,7 @@ export class CameraControls {
             surface,
             'wheel',
             (e: WheelEvent) => {
+                if (!this.enabled) return;
                 e.preventDefault();
                 const local = this.toLocal(e);
                 this.rig.zoomAt(Math.exp(e.deltaY * 0.0012), local.x, local.y);
@@ -103,6 +107,7 @@ export class CameraControls {
 
         listen(surface, 'contextmenu', (e: MouseEvent) => e.preventDefault());
         listen(surface, 'pointerdown', (e: PointerEvent) => {
+            if (!this.enabled) return;
             if (e.pointerType === 'touch') {
                 this.onTouchDown(e);
                 return;
@@ -119,6 +124,7 @@ export class CameraControls {
             }
         });
         listen(surface, 'pointermove', (e: PointerEvent) => {
+            if (!this.enabled) return;
             if (e.pointerType === 'touch') {
                 this.onTouchMove(e);
                 return;
@@ -317,6 +323,10 @@ export class CameraControls {
     }
 
     update(dtSeconds: number): void {
+        if (!this.enabled) {
+            this.pressed.clear();
+            return;
+        }
         // rotation
         let spin = 0;
         if (this.pressed.has('KeyQ')) spin += 1;

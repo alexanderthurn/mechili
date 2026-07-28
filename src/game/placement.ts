@@ -669,6 +669,11 @@ export class PlacementController {
         );
     }
 
+    /** rect-selected formation (2+ packs) — move-only, no shared unit details */
+    get hasSelectedGroup(): boolean {
+        return this.selectedGroup.length > 1;
+    }
+
     /** picks up the selected pack so it rides the pointer (the touch Move button) */
     pickUpSelected(): void {
         if (!this.enabled || !this.selectedRepositionable) return;

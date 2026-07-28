@@ -283,6 +283,8 @@ function replaceThreeCanvas(): void {
     threeCanvas.remove();
     threeCanvas = createThreeCanvas();
     wrapper.insertBefore(threeCanvas, app.canvas);
+    // next match would otherwise pay a cold renderer + shader-compile hitch
+    void prewarmGpu(threeCanvas);
 }
 
 document.body.appendChild(wrapper);
@@ -366,6 +368,82 @@ function setGameLayerVisible(visible: boolean): void {
     app.canvas.style.pointerEvents = visible ? 'auto' : 'none';
 }
 
+/** menu→match cover — CSS animation on the compositor (survives sync Game boot) */
+let introCoverEl: HTMLDivElement | null = null;
+/** last menu-dive origin (0–1), shared with the 3D fly-in so both aim the same way */
+let pendingMenuZoom: { originX: number; originY: number } | null = null;
+let introGen = 0;
+
+function clearIntroCover(): void {
+    introGen++;
+    introCoverEl?.remove();
+    introCoverEl = null;
+}
+
+function applyRandomMenuZoomOrigin(bg: HTMLElement): { originX: number; originY: number } {
+    // Mostly top + near-horizontal-center: matches the 3D intro (wide overlook
+    // diving into the board). Tiny X/Y jitter so starts aren't identical.
+    const originX = (44 + Math.random() * 12) / 100; // 0.44–0.56
+    const originY = (6 + Math.random() * 14) / 100; // 0.06–0.20 (top of the plate)
+    bg.style.setProperty('--zoom-ox', `${(originX * 100).toFixed(1)}%`);
+    bg.style.setProperty('--zoom-oy', `${(originY * 100).toFixed(1)}%`);
+    pendingMenuZoom = { originX, originY };
+    return pendingMenuZoom;
+}
+
+function showIntroCover(): void {
+    introCoverEl?.remove();
+    const cover = document.createElement('div');
+    cover.className = 'mechili-intro-cover';
+    const bg = document.createElement('div');
+    bg.className = 'mechili-intro-menu-bg';
+    bg.style.background = wrapper.style.background;
+    applyRandomMenuZoomOrigin(bg);
+    const logoImg = document.createElement('img');
+    logoImg.className = 'mechili-intro-logo';
+    logoImg.src = logoUrl;
+    logoImg.alt = 'MELODAN';
+    logoImg.width = 600;
+    logoImg.height = 327;
+    layoutIntroLogo(logoImg);
+    cover.append(bg, logoImg);
+    wrapper.appendChild(cover);
+    introCoverEl = cover;
+    void bg.offsetWidth;
+    cover.classList.add('active');
+}
+
+/** menu-zoom cover for reload resume / reconnect — keeps animating through async work */
+function primeIntroCover(): void {
+    title.visible = false;
+    logo.alpha = 0;
+    if (!introCoverEl?.classList.contains('active')) showIntroCover();
+    app.render();
+}
+
+function showOutroCover(): void {
+    introCoverEl?.remove();
+    const cover = document.createElement('div');
+    cover.className = 'mechili-intro-cover outro';
+    const bg = document.createElement('div');
+    bg.className = 'mechili-intro-menu-bg';
+    bg.style.background = wrapper.style.background;
+    applyRandomMenuZoomOrigin(bg);
+    bg.style.transform = 'translate3d(0, 0, 0) scale3d(3.5, 3.5, 1)';
+    const logoImg = document.createElement('img');
+    logoImg.className = 'mechili-intro-logo';
+    logoImg.src = logoUrl;
+    logoImg.alt = 'MELODAN';
+    logoImg.width = 600;
+    logoImg.height = 327;
+    cover.append(bg, logoImg);
+    cover.style.opacity = '0';
+    wrapper.appendChild(cover);
+    introCoverEl = cover;
+    void bg.offsetWidth;
+    cover.classList.add('active');
+}
+
 const title = new Container();
 const logoUrl = new URL('../assets/ui/logo.webp', import.meta.url).href;
 const logoTex = await Assets.load(logoUrl);
@@ -388,21 +466,67 @@ subtitle.anchor.set(0.5);
 title.addChild(logo);
 app.stage.addChild(title);
 
+const MENU_TOP_CHROME = 52;
+
+function estimateMenuTop(): number {
+    const h = app.screen.height;
+    if (menu.style.display === 'none' || menu.offsetHeight === 0) {
+        const estHalf = Math.min(190, h * 0.26);
+        return h * 0.5 - estHalf;
+    }
+    return menu.getBoundingClientRect().top;
+}
+
 function layoutTitle() {
-    const cx = app.screen.width / 2;
-    const cy = app.screen.height / 2 - 160;
-    const scale = Math.min(app.screen.width * 0.62, 600) / logo.texture.width;
+    const w = app.screen.width;
+    const h = app.screen.height;
+    const cx = w / 2;
+    const menuTop = estimateMenuTop();
+    const spaceAbove = Math.max(56, menuTop - MENU_TOP_CHROME);
+
+    const byWidth = Math.min(w * 0.62, 600);
+    const byHeight = spaceAbove * 0.84;
+    const aspect = logo.texture.width / logo.texture.height;
+    const logoDisplayW = Math.min(byWidth, byHeight * aspect);
+    const scale = logoDisplayW / logo.texture.width;
+    const logoHalfH = (logo.texture.height * scale) / 2;
+
+    const gap = Math.min(18, Math.max(8, h * 0.014));
+    let cy = menuTop - gap - logoHalfH;
+    cy = Math.max(MENU_TOP_CHROME + logoHalfH, cy);
+
     logo.scale.set(scale);
     logo.position.set(cx, cy);
-    subtitle.position.set(cx, cy + logo.height / 2 + 2);
+    subtitle.position.set(cx, cy + logoHalfH + 2);
 }
-layoutTitle();
-app.renderer.on('resize', layoutTitle);
 
+/** place the HTML intro-cover logo exactly where the Pixi menu logo sits */
+function layoutIntroLogo(logoImg: HTMLImageElement): void {
+    const w = app.screen.width;
+    const h = app.screen.height;
+    const cx = w / 2;
+    const menuTop = estimateMenuTop();
+    const spaceAbove = Math.max(56, menuTop - MENU_TOP_CHROME);
+
+    const byWidth = Math.min(w * 0.62, 600);
+    const byHeight = spaceAbove * 0.84;
+    const aspect = (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0)
+        ? logoImg.naturalWidth / logoImg.naturalHeight
+        : logo.texture.width / logo.texture.height;
+    const logoDisplayW = Math.min(byWidth, byHeight * aspect);
+    const logoHalfH = logoDisplayW / aspect / 2;
+
+    const gap = Math.min(18, Math.max(8, h * 0.014));
+    let cy = menuTop - gap - logoHalfH;
+    cy = Math.max(MENU_TOP_CHROME + logoHalfH, cy);
+
+    logoImg.style.left = `${cx}px`;
+    logoImg.style.top = `${cy}px`;
+    logoImg.style.width = `${logoDisplayW}px`;
+    logoImg.style.opacity = '1';
+}
 const menu = document.createElement('div');
 menu.className = 'mechili-menu';
-menu.style.position = 'relative';
-menu.style.zIndex = '30';
 menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-main">
@@ -500,6 +624,13 @@ menu.innerHTML = `
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
+layoutTitle();
+app.renderer.on('resize', layoutTitle);
+new ResizeObserver(() => layoutTitle()).observe(menu);
+
+function scheduleLayoutTitle(): void {
+    requestAnimationFrame(() => layoutTitle());
+}
 
 const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
@@ -578,6 +709,7 @@ function setMenuChromeVisible(visible: boolean): void {
     applyGlobalChatVisibility();
     if (visible) {
         ensureMenuGamepadCursor();
+        scheduleLayoutTitle();
         // the room/game list lives on the main menu view now (not a
         // separate toggled panel) — keep it fresh any time menu chrome is
         // showing at all, including while a sub-panel is open, so it's
@@ -736,6 +868,7 @@ function closeCustomGameScreen(): void {
     customEl.style.display = 'none';
     menu.classList.remove('m-wide');
     title.visible = true;
+    scheduleLayoutTitle();
 }
 
 /** host a game with the Custom Game screen's current settings — 1v1 reuses
@@ -777,10 +910,10 @@ function hideResumeOverlay(): void {
     resumeOverlay = null;
 }
 
-function showResumeOverlay(message: string, sub: string, onCancel: () => void): void {
+function showResumeOverlay(message: string, sub: string, onCancel: () => void, overIntro = false): void {
     hideResumeOverlay();
     const overlay = document.createElement('div');
-    overlay.className = 'mechili-resume';
+    overlay.className = overIntro ? 'mechili-resume mechili-resume-over-intro' : 'mechili-resume';
     overlay.innerHTML =
         `<div class="resume-box">` +
         `<div class="resume-msg">${message}</div>` +
@@ -1018,6 +1151,7 @@ async function refreshRoomList(): Promise<void> {
         roomListEl.className = 'm-room-list empty';
         roomListEl.innerHTML = 'Could not load rooms';
     }
+    scheduleLayoutTitle();
 }
 
 function startRoomPoll(): void {
@@ -1042,7 +1176,7 @@ function clearMatchResumeData(): void {
 }
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
-function returnToMenu(): void {
+function finishReturnToMenu(): void {
     stopSinglePlayerPersist?.();
     stopSinglePlayerPersist = null;
     clearMatchResumeData();
@@ -1055,8 +1189,23 @@ function returnToMenu(): void {
     started = false;
     setGameLayerVisible(false);
     title.visible = true;
+    // Fade the Pixi menu logo back in after the outro cover is removed.
+    // This avoids an abrupt "bam" when the HTML outro cover disappears.
+    title.alpha = 0;
+    logo.alpha = 1;
     layoutTitle();
+    clearIntroCover();
+    app.renderer.on('resize', layoutTitle);
     app.render();
+    const fadeMs = 220;
+    const fadeStart = performance.now();
+    const step = (now: number): void => {
+        const t = Math.min(1, (now - fadeStart) / fadeMs);
+        title.alpha = t;
+        app.render();
+        if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
     // Reset to the top-level panel regardless of which sub-panel was
     // showing when the match started (Matchmaking/Single Player/Rooms all
     // hide mainButtonsEl and show their own panel, but nothing was ever
@@ -1086,6 +1235,14 @@ function returnToMenu(): void {
     setMenuBusy(false);
     setStatus('');
     setMenuChromeVisible(true);
+}
+
+function wireGameMenuReturn(game: Game): void {
+    game.onMatchOutroProgress = (t) => {
+        if (!introCoverEl) showOutroCover();
+        if (introCoverEl) introCoverEl.style.opacity = String(t);
+    };
+    game.onReturnToMenu = finishReturnToMenu;
 }
 
 function startGame(
@@ -1129,9 +1286,13 @@ function startGame(
     hideResumeOverlay();
     resumeAbort?.abort();
     resumeAbort = null;
-    setGameLayerVisible(true);
-    title.visible = false;
-    app.renderer.off('resize', layoutTitle);
+    // Cinematic handoff for any live match entry (fresh, resume, lobby join).
+    // Skip for replay/spectate — those jump straight into playback/viewing.
+    const useIntro = !replay && !spectate;
+
+    // Strip menu chrome immediately. For the intro path we MUST yield a paint
+    // with logo-only before `new Game()` — otherwise the main thread freezes
+    // on the last menu frame and the cinematic never covers the hitch.
     menu.remove();
     usernameEl.remove();
     versionEl.remove();
@@ -1139,6 +1300,7 @@ function startGame(
     suggestCornerEl.remove();
     exitDesktopEl.remove();
     gchatEl.remove();
+
     if (net) {
         clearSinglePlayer();
         // resume/redial is PeerJS-specific (peer ids) — a Steam session has
@@ -1162,11 +1324,80 @@ function startGame(
         // persist or resume one via the single-player slot
         if (!resume?.local && !star) clearSinglePlayer();
     }
-    const game = new Game(app, threeCanvas, wrapper, settings, net, side, names, resume, star, replay, spectate);
-    activeGame = game;
-    game.onReturnToMenu = returnToMenu;
-    if (net instanceof NetSession) wireReconnect(game, net, side, names);
-    else if (!net && !star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+
+    const bootGame = (): Game => {
+        const game = new Game(
+            app,
+            threeCanvas,
+            wrapper,
+            settings,
+            net,
+            side,
+            names,
+            resume,
+            star,
+            replay,
+            spectate,
+            useIntro ? (pendingMenuZoom ?? true) : false,
+        );
+        activeGame = game;
+        wireGameMenuReturn(game);
+        if (net instanceof NetSession) wireReconnect(game, net, side, names);
+        else if (!net && !star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+        return game;
+    };
+
+    if (!useIntro) {
+        setGameLayerVisible(true);
+        title.visible = false;
+        app.renderer.off('resize', layoutTitle);
+        bootGame();
+        return;
+    }
+
+    // Compositor-driven menu zoom (CSS) while Game boots, then crossfade into 3D.
+    const coverActive = introCoverEl?.classList.contains('active') ?? false;
+    if (!coverActive) clearIntroCover();
+    const gen = coverActive ? introGen : ++introGen;
+    setGameLayerVisible(false);
+    title.visible = false;
+    logo.alpha = 0;
+    app.renderer.off('resize', layoutTitle);
+    if (!coverActive) {
+        showIntroCover();
+        app.render();
+    }
+
+    const beginHandoff = (game: Game): void => {
+        if (gen !== introGen || !started || !introCoverEl) return;
+        game.onMatchIntroProgress = (t) => {
+            if (gen !== introGen || !introCoverEl) return;
+            introCoverEl.style.opacity = String(1 - t);
+        };
+        game.onMatchIntroDone = () => {
+            if (gen !== introGen) return;
+            title.visible = false;
+            logo.alpha = 1;
+            layoutTitle();
+            app.renderer.on('resize', layoutTitle);
+            clearIntroCover();
+        };
+    };
+
+    const bootWithHandoff = (): void => {
+        if (gen !== introGen || !started) return;
+        setGameLayerVisible(true);
+        const game = bootGame();
+        beginHandoff(game);
+    };
+
+    if (coverActive) {
+        bootWithHandoff();
+    } else {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => bootWithHandoff());
+        });
+    }
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */
@@ -1269,6 +1500,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
     resumeAbort = ac;
     setMenuBusy(true);
     setMenuChromeVisible(false);
+    primeIntroCover();
     showResumeOverlay(
         'Reconnecting…',
         'Waiting for your opponent and restoring the match.',
@@ -1276,9 +1508,11 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
             ac.abort();
             clearResumeMarker();
             hideResumeOverlay();
+            clearIntroCover();
             setMenuChromeVisible(true);
             setMenuBusy(false);
         },
+        true,
     );
     let session: NetSession | null = null;
     try {
@@ -1296,6 +1530,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
         const settings = msg.settings;
         settings.seed = msg.seed;
         hideResumeOverlay();
+        setMenuBusy(false);
         startGame(settings, session, marker.side, marker.names, {
             actions: msg.actions,
             battleElapsed: msg.battleElapsed,
@@ -1304,6 +1539,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
     } catch (e) {
         session?.close();
         hideResumeOverlay();
+        clearIntroCover();
         setMenuChromeVisible(true);
         if (e instanceof DOMException && e.name === 'AbortError') {
             setMenuBusy(false);
@@ -1318,6 +1554,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
 }
 
 function resumeSinglePlayer(save: SinglePlayerSave): void {
+    primeIntroCover();
     const settings = save.settings;
     settings.seed = save.seed;
     startGame(settings, null, 'a', { local: save.localName, opponent: 'AI' }, {

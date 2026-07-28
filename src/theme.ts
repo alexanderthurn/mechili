@@ -222,7 +222,7 @@ export function menuStyles(): string {
     position: absolute;
     left: 50%;
     top: 50%;
-    transform: translate(-50%, -8%);
+    transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -230,6 +230,9 @@ export function menuStyles(): string {
     width: clamp(264px, 34vw, 324px);
     box-sizing: border-box;
     padding: 22px 20px 24px;
+    max-height: min(88vh, calc(100dvh - 200px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     background: linear-gradient(180deg, rgba(30, 44, 26, 0.62), rgba(18, 28, 15, 0.74));
     border: 1px solid rgba(255, 216, 64, 0.18);
     border-radius: 18px;
@@ -238,6 +241,7 @@ export function menuStyles(): string {
     backdrop-filter: blur(12px) saturate(1.1);
     font-family: system-ui, sans-serif;
     user-select: none;
+    z-index: 30;
 }
 /* Custom Game screen: wider, near-fullscreen, scrollable — the settings
    form (mode + 4 timers + horde + roundcards) doesn't fit the normal
@@ -247,8 +251,26 @@ export function menuStyles(): string {
     top: 50%;
     transform: translate(-50%, -50%);
     width: min(720px, 94vw);
-    max-height: 92vh;
+    max-height: min(92vh, calc(100dvh - 120px));
     overflow-y: auto;
+}
+/* short viewports: keep the button stack readable above bottom chrome */
+@media (max-height: 720px) {
+    .mechili-menu:not(.m-wide) {
+        gap: 8px;
+        padding: 14px 16px 16px;
+        max-height: min(86vh, calc(100dvh - 168px));
+    }
+    .mechili-menu:not(.m-wide) .m-btn {
+        padding: 11px 14px;
+        font-size: 15px;
+    }
+    .mechili-menu:not(.m-wide) .m-primary { font-size: 16px; }
+    .mechili-menu:not(.m-wide) .m-main { gap: 8px; }
+    .mechili-menu:not(.m-wide) .m-room-list {
+        max-height: min(120px, 22vh);
+        min-height: 48px;
+    }
 }
 /* brass accent line across the top of the console */
 .mechili-menu::before {
@@ -843,6 +865,70 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     pointer-events: none;
     user-select: none;
 }
+/* menu→match: compositor-thread bg zoom (keeps moving during sync Game boot) */
+@keyframes mechili-intro-dive {
+    from { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
+    to { transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1); }
+}
+@keyframes mechili-intro-logo-fade {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+.mechili-intro-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+}
+.mechili-intro-cover .mechili-intro-menu-bg {
+    position: absolute;
+    inset: 0;
+    /* --zoom-ox / --zoom-oy set per-start in JS */
+    transform-origin: var(--zoom-ox, 50%) var(--zoom-oy, 28%);
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    pointer-events: none;
+    will-change: transform;
+}
+.mechili-intro-cover.active .mechili-intro-menu-bg {
+    animation: mechili-intro-dive 8s linear forwards;
+}
+.mechili-intro-cover .mechili-intro-logo {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: auto;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 0 24px rgba(255, 220, 120, 0.35));
+    pointer-events: none;
+    user-select: none;
+    opacity: 1;
+    z-index: 1;
+}
+.mechili-intro-cover.active .mechili-intro-logo {
+    /* dissolve as soon as the menu zoom starts — not tied to the 3D handoff */
+    animation: mechili-intro-logo-fade 0.55s ease-out forwards;
+}
+@keyframes mechili-outro-rise {
+    from { transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1); }
+    to { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
+}
+.mechili-intro-cover.outro .mechili-intro-menu-bg {
+    transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1);
+}
+.mechili-intro-cover.outro.active .mechili-intro-menu-bg {
+    animation: mechili-outro-rise 0.8s ease-in forwards;
+}
+.mechili-intro-cover.outro .mechili-intro-logo {
+    animation: none;
+    opacity: 0;
+}
+.mechili-intro-cover.outro.active .mechili-intro-logo {
+    /* The menu logo is the Pixi sprite; keep the HTML clone hidden to avoid
+     * a "double logo" during the fly-out transition. */
+    animation: none;
+    opacity: 0;
+}
 .mechili-loading .load-bar {
     width: 100%;
 }
@@ -1188,6 +1274,16 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     font-family: system-ui, sans-serif;
     user-select: none;
 }
+/* reload reconnect: menu zoom keeps moving underneath — only the dialog blocks */
+.mechili-resume-over-intro {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    pointer-events: none;
+}
+.mechili-resume-over-intro .resume-box {
+    pointer-events: auto;
+}
 .mechili-resume .resume-box {
     display: flex;
     flex-direction: column;
@@ -1253,6 +1349,11 @@ export function hudStyles(): string {
     return `
 .mechili-cinema-hide {
     visibility: hidden !important;
+    pointer-events: none !important;
+}
+/* match-intro hold: fade chrome in once the camera fly-in finishes */
+.mechili-intro-hide {
+    opacity: 0 !important;
     pointer-events: none !important;
 }
 .mechili-cinema-hint {
@@ -2317,21 +2418,70 @@ export function hudStyles(): string {
 .mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
 .mechili-cards .card:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); transform: translateY(-5px); }
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
+.mechili-cards .card.locked-card:disabled { opacity: 1; }
 /* a card shown for information only (waiting / reveal) — no hover, no lift */
 .mechili-cards .card.static { cursor: default; }
 .mechili-cards .card.static:hover { border-color: ${u.border}; transform: none; }
 .mechili-cards .card-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
-/* the both-specialists reveal: cards further apart, then fly to the corners */
-.mechili-cards.reveal .cards-row { gap: min(24vw, 340px); }
-.mechili-cards.reveal { transition: background 0.5s ease-in; }
-.mechili-cards.reveal .card-col { transition: transform 0.55s cubic-bezier(0.5, 0, 0.75, 0.4), opacity 0.55s ease-in; }
-.mechili-cards.reveal .cards-title { transition: opacity 0.3s; }
-.mechili-cards.reveal.exiting { background: transparent; pointer-events: none; }
-.mechili-cards.reveal.exiting .cards-title { opacity: 0; }
-.mechili-cards.reveal.exiting .card-col { opacity: 0; }
-.mechili-cards.reveal.exiting .card-col.player { transform: translate(-42vw, -44vh) scale(0.18); }
-.mechili-cards.reveal.exiting .card-col.enemy { transform: translate(42vw, -44vh) scale(0.18); }
+/* specialist pick: wobble in place, then fly to commander frame */
+.mechili-cards.locked .card.faded {
+    visibility: hidden;
+    pointer-events: none;
+}
+.mechili-cards.locked .card.locked-card {
+    opacity: 1;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+.mechili-cards .card.wobble {
+    animation: mechili-card-wobble 0.24s ease-in-out 2;
+}
+@keyframes mechili-card-wobble {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-2.5deg); }
+    75% { transform: rotate(2.5deg); }
+}
+.mechili-cards.flying {
+    background: transparent !important;
+    transition: background 0.35s ease-out;
+}
+@keyframes mechili-card-reveal-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.94); }
+    to { opacity: 1; transform: none; }
+}
+/* pick confirmed: other cards/title fade, chosen card lifts in place */
+.mechili-cards.picking .cards-title,
+.mechili-cards.picking .cards-note,
+.mechili-cards.picking .cards-skip,
+.mechili-cards.picking .card:not(.chosen) {
+    opacity: 0 !important;
+    transition: opacity 0.2s ease-out;
+    pointer-events: none;
+}
+.mechili-cards.picking .card.chosen {
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    transition: box-shadow 0.25s ease-out;
+}
+.mechili-cards.picking.dismissing,
+.mechili-cards.dismissing {
+    background: transparent !important;
+    transition: background 0.28s ease-out, opacity 0.28s ease-out;
+}
+.mechili-cards.dismissing {
+    opacity: 0;
+    pointer-events: none;
+}
+.mechili-fightbar .fighter.landed-pulse {
+    animation: mechili-commander-land 0.5s ease-out;
+}
+@keyframes mechili-commander-land {
+    0% { box-shadow: 0 0 0 0 rgba(255, 220, 120, 0); }
+    35% { box-shadow: 0 0 0 3px rgba(255, 220, 120, 0.45); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 220, 120, 0); }
+}
 .mechili-cards .c-owner {
     font-size: 14px;
     font-weight: bold;
@@ -2661,13 +2811,35 @@ export function hudStyles(): string {
     user-select: none;
     pointer-events: none;
 }
-.mechili-fightbar .fighter {
+.mechili-fightbar .fighter-stack {
     position: absolute;
     top: 0;
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: min(38vw, 340px);
+    min-width: 200px;
+    pointer-events: none;
+}
+.mechili-fightbar .fighter-stack.player { left: 0; align-items: stretch; }
+.mechili-fightbar .fighter-stack.enemy { right: 0; align-items: stretch; }
+.mechili-fightbar .fighter-stack.multi .fighter {
+    min-width: 0;
+    padding: 6px 10px;
+    gap: 8px;
+}
+.mechili-fightbar .fighter-stack.multi .portrait { width: 34px; height: 34px; font-size: 17px; }
+.mechili-fightbar .fighter-stack.multi .fname { font-size: 13px; }
+.mechili-fightbar .fighter {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    display: flex;
     align-items: center;
     gap: 10px;
-    width: min(38vw, 340px);
+    width: 100%;
+    box-sizing: border-box;
     min-width: 200px;
     padding: 8px 12px;
     background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
@@ -2676,13 +2848,11 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 .mechili-fightbar .fighter.player {
-    left: 0;
     border-left: none;
     border-top: none;
     border-radius: 0 0 10px 0;
 }
 .mechili-fightbar .fighter.enemy {
-    right: 0;
     border-right: none;
     border-top: none;
     flex-direction: row-reverse;
@@ -2718,6 +2888,8 @@ export function hudStyles(): string {
 .mechili-fightbar .fspec {
     display: none;
 }
+.mechili-fightbar .fighter.no-hp .fighter-info { gap: 2px; }
+.mechili-fightbar .fighter.no-hp .fname { font-size: 13px; }
 .mechili-fightbar .fighter.player .fspec { text-align: left; }
 .mechili-fightbar .fighter.enemy .fspec { text-align: right; }
 /* a chosen specialist makes the frame clickable (opens its card) */
@@ -3098,8 +3270,11 @@ ${gamepadCursorStyles(u)}
     }
 
     /* compact commander bar + center controls */
-    .mechili-fightbar .fighter {
+    .mechili-fightbar .fighter-stack {
         width: min(31vw, 210px);
+        min-width: 0;
+    }
+    .mechili-fightbar .fighter {
         min-width: 0;
         gap: 6px;
         padding: 4px 8px;

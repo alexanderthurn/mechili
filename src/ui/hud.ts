@@ -11,6 +11,15 @@ import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
 
+type CommanderChip = {
+    seat: number;
+    team: 'player' | 'enemy';
+    el: HTMLDivElement;
+    nameEl: HTMLSpanElement;
+    specEl: HTMLSpanElement;
+    card: StartCard | null;
+};
+
 /** Compact / phone chrome — MUST match the size media query in theme.ts */
 const PHONE_MQ =
     typeof matchMedia === 'function'
@@ -176,6 +185,8 @@ export class Hud {
     private lastSpectatorNames: string[] = [];
     private pauseMenu: HTMLDivElement | null = null;
     private cardOverlay: HTMLDivElement | null = null;
+    private cardIntroFading = false;
+    private introChromeHidden = false;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
 
@@ -194,8 +205,10 @@ export class Hud {
     private lastShopOrderKey = '';
     private lastLevelAllKey = '';
     private readonly fightBar: HTMLDivElement;
-    private playerFighterEl!: HTMLDivElement;
-    private enemyFighterEl!: HTMLDivElement;
+    private readonly playerStackEl: HTMLDivElement;
+    private readonly enemyStackEl: HTMLDivElement;
+    private commanderChips: CommanderChip[] = [];
+    private humanSeat = 0;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
@@ -203,27 +216,20 @@ export class Hud {
     private readonly timerEl: HTMLSpanElement;
     private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
-    private readonly playerNameEl: HTMLSpanElement;
-    private readonly enemyNameEl: HTMLSpanElement;
-    private playerSpecEl!: HTMLSpanElement;
-    private enemySpecEl!: HTMLSpanElement;
-    /** the chosen specialist card per side — drives the clickable frame detail */
-    private playerCard: StartCard | null = null;
-    private enemyCard: StartCard | null = null;
     /** between-round picks known for each side (enemy empty until intel reveals) */
     private playerRoundPicks: { round: number; title: string; body: string }[] = [];
     private enemyRoundPicks: { round: number; title: string; body: string }[] = [];
     private specDetailOverlay: HTMLDivElement | null = null;
     /** which commander's detail is open (so live pick updates can refresh it) */
-    private specDetailTeam: 'player' | 'enemy' | null = null;
+    private specDetailSeat: number | null = null;
     private specDetailViaHover = false;
     /** this match's settings, described for the click-to-open panel — set once via setSettingsGroups */
     private settingsGroups: SettingGroup[] = [];
     private settingsDetailOverlay: HTMLDivElement | null = null;
-    private readonly playerHpFill: HTMLDivElement;
-    private readonly enemyHpFill: HTMLDivElement;
-    private readonly playerHpVal: HTMLSpanElement;
-    private readonly enemyHpVal: HTMLSpanElement;
+    private playerHpFill!: HTMLDivElement;
+    private enemyHpFill!: HTMLDivElement;
+    private playerHpVal!: HTMLSpanElement;
+    private enemyHpVal!: HTMLSpanElement;
     private playerMaxHp = 1000;
     private enemyMaxHp = 1000;
     private readonly speedEl: HTMLButtonElement;
@@ -526,72 +532,13 @@ export class Hud {
         this.mount(this.inventoryEl);
         this.mount(this.enemyInventoryEl);
 
-        // fighting-game style top bar: fighters on the edges, controls in the center
+        // fighting-game style top bar: one commander chip per seat, stacked per side
         this.fightBar = document.createElement('div');
         this.fightBar.className = 'mechili-fightbar';
-
-        const playerFighter = document.createElement('div');
-        this.playerFighterEl = playerFighter;
-        playerFighter.className = 'fighter player';
-        const playerPortrait = document.createElement('div');
-        playerPortrait.className = 'portrait';
-        playerPortrait.textContent = '◆';
-        this.playerNameEl = document.createElement('span');
-        this.playerNameEl.className = 'fname';
-        this.playerSpecEl = document.createElement('span');
-        this.playerSpecEl.className = 'fspec';
-        this.playerHpFill = document.createElement('div');
-        this.playerHpFill.className = 'hp-fill';
-        this.playerHpVal = document.createElement('span');
-        this.playerHpVal.className = 'hp-val';
-        const playerHpTrack = document.createElement('div');
-        playerHpTrack.className = 'hp-track';
-        playerHpTrack.append(this.playerHpFill, this.playerHpVal);
-        const playerInfo = document.createElement('div');
-        playerInfo.className = 'fighter-info';
-        playerInfo.append(playerHpTrack, this.playerNameEl, this.playerSpecEl);
-        playerFighter.append(playerPortrait, playerInfo);
-
-        const enemyFighter = document.createElement('div');
-        this.enemyFighterEl = enemyFighter;
-        enemyFighter.className = 'fighter enemy';
-        this.enemyHpVal = document.createElement('span');
-        this.enemyHpVal.className = 'hp-val';
-        const enemyInfo = document.createElement('div');
-        enemyInfo.className = 'fighter-info';
-        this.enemyNameEl = document.createElement('span');
-        this.enemyNameEl.className = 'fname';
-        this.enemySpecEl = document.createElement('span');
-        this.enemySpecEl.className = 'fspec';
-        this.enemyHpFill = document.createElement('div');
-        this.enemyHpFill.className = 'hp-fill';
-        const enemyHpTrack = document.createElement('div');
-        enemyHpTrack.className = 'hp-track';
-        enemyHpTrack.append(this.enemyHpFill, this.enemyHpVal);
-        enemyInfo.append(enemyHpTrack, this.enemyNameEl, this.enemySpecEl);
-        const enemyPortrait = document.createElement('div');
-        enemyPortrait.className = 'portrait';
-        enemyPortrait.textContent = '◆';
-        enemyFighter.append(enemyPortrait, enemyInfo);
-
-        // clicking or hovering a commander frame opens its specialist card (once known)
-        // hover only for real mice: on touch the emulated mouseenter mounts the
-        // overlay mid-tap and the tap's click then instantly dismisses it
-        playerFighter.addEventListener('click', () => this.showSpecialistDetail('player'));
-        enemyFighter.addEventListener('click', () => this.showSpecialistDetail('enemy'));
-        playerFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('player', true);
-        });
-        enemyFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('enemy', true);
-        });
-        // leave only closes hover peeks — a click-pinned detail stays put
-        const closePeek = () => {
-            if (inputMode() === 'touch') return;
-            if (this.specDetailOverlay?.classList.contains('peek')) this.hideSpecialistDetail();
-        };
-        playerFighter.addEventListener('mouseleave', closePeek);
-        enemyFighter.addEventListener('mouseleave', closePeek);
+        this.playerStackEl = document.createElement('div');
+        this.playerStackEl.className = 'fighter-stack player';
+        this.enemyStackEl = document.createElement('div');
+        this.enemyStackEl.className = 'fighter-stack enemy';
 
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
@@ -629,7 +576,7 @@ export class Hud {
         controlsRow.append(endButton, this.speedEl);
         this.topBar.append(topMeta, this.timerEl, controlsRow);
 
-        this.fightBar.append(playerFighter, this.topBar, enemyFighter);
+        this.fightBar.append(this.playerStackEl, this.topBar, this.enemyStackEl);
 
         // one contextual bottom bar: sheet tabs (Shop/Tactics — phone only)
         // while nothing is selected, unit actions once something is
@@ -807,7 +754,10 @@ export class Hud {
             this.lastTouchActKey = key;
             // 'acting' lets tablets (no tab UI) show the bar just for these buttons
             this.phoneBar.classList.toggle('acting', hasFieldActions);
+            const wasCarrying = this.phoneBar.classList.contains('carrying');
             this.phoneBar.classList.toggle('carrying', !!carrying);
+            // details make way while something rides the finger
+            if (carrying && !wasCarrying && this.phoneTab === 'unit') this.setPhoneTab(null);
             this.touchRotateBtn.style.display = rotate ? 'flex' : 'none';
             this.touchMoveBtn.style.display = move ? 'flex' : 'none';
             this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
@@ -838,17 +788,30 @@ export class Hud {
     /**
      * Compact chrome: if a selection only exposes the Unit tab (no Move /
      * Level / Upgrade), open the details sheet immediately.
+     * Skip while carrying — formations and pickups are aim-only.
      */
     private maybeAutoOpenUnitSheet(hasFieldActions: boolean): void {
         if (!isCompactChrome() || !this.phoneBar.classList.contains('has-unit')) {
             this.unitSheetAutoKey = null;
             return;
         }
-        if (hasFieldActions) return;
+        if (hasFieldActions || this.phoneBar.classList.contains('carrying')) return;
         const key = this.lastPanelKey;
         if (!key || this.unitSheetAutoKey === key) return;
         this.unitSheetAutoKey = key;
         this.setPhoneTab('unit');
+    }
+
+    /**
+     * Rect-selected formation (2+ packs): shop stays closed, no unit sheet —
+     * packs may differ, so there are no shared details to show.
+     */
+    setFormationSelection(): void {
+        this.phoneBar.classList.add('has-unit');
+        this.panel.style.display = 'none';
+        this.lastPanelKey = '';
+        this.unitSheetAutoKey = null;
+        if (this.phoneTab === 'unit') this.setPhoneTab(null);
     }
 
     /** opens the Unit details sheet (auto-shown for buildings); phone-only visual */
@@ -977,8 +940,12 @@ export class Hud {
         const icon = item.kind === 'emote' ? (emoteById(item.id)?.icon ?? '❓') : null;
         const text = item.kind === 'text' ? item.text : (emoteById(item.id)?.label ?? '');
 
-        // bubble under the sender's fighter card (one at a time per side)
-        const fighter = from === 'local' ? this.playerFighterEl : this.enemyFighterEl;
+        // bubble under the sender's commander chip (one at a time per side)
+        const chip =
+            this.commanderChips.find((c) => c.nameEl.textContent === name) ??
+            this.commanderChips.find((c) => c.team === (from === 'local' ? 'player' : 'enemy'));
+        if (!chip) return;
+        const fighter = chip.el;
         fighter.querySelector('.chat-bubble')?.remove();
         const bubble = document.createElement('div');
         bubble.className = `chat-bubble ${item.kind}`;
@@ -1000,12 +967,103 @@ export class Hud {
         setTimeout(() => line.remove(), 7000);
     }
 
-    /** Commander names shown in the top fight bar. */
-    setPlayers(local: string, opponent: string, maxHp: number): void {
-        this.playerNameEl.textContent = local;
-        this.enemyNameEl.textContent = opponent;
+    /** one commander chip per seat — built once at match start */
+    setCommanders(
+        entries: { seat: number; team: 'player' | 'enemy'; name: string; primary: boolean }[],
+        humanSeat: number,
+        maxHp: number,
+    ): void {
+        this.humanSeat = humanSeat;
         this.playerMaxHp = maxHp;
         this.enemyMaxHp = maxHp;
+        this.commanderChips = [];
+        this.playerStackEl.replaceChildren();
+        this.enemyStackEl.replaceChildren();
+
+        for (const entry of entries) {
+            const chip = this.createCommanderChip(entry);
+            this.commanderChips.push(chip);
+            (entry.team === 'player' ? this.playerStackEl : this.enemyStackEl).append(chip.el);
+            if (entry.primary) {
+                const hpFill = chip.el.querySelector<HTMLDivElement>('.hp-fill')!;
+                const hpVal = chip.el.querySelector<HTMLSpanElement>('.hp-val')!;
+                if (entry.team === 'player') {
+                    this.playerHpFill = hpFill;
+                    this.playerHpVal = hpVal;
+                } else {
+                    this.enemyHpFill = hpFill;
+                    this.enemyHpVal = hpVal;
+                }
+            }
+        }
+
+        const playerCount = entries.filter((e) => e.team === 'player').length;
+        const enemyCount = entries.filter((e) => e.team === 'enemy').length;
+        this.playerStackEl.classList.toggle('multi', playerCount > 1);
+        this.enemyStackEl.classList.toggle('multi', enemyCount > 1);
+    }
+
+    private createCommanderChip(entry: {
+        seat: number;
+        team: 'player' | 'enemy';
+        name: string;
+        primary: boolean;
+    }): CommanderChip {
+        const { seat, team, name, primary } = entry;
+        const el = document.createElement('div');
+        el.className = `fighter ${team}${primary ? '' : ' no-hp'}`;
+        el.dataset.seat = String(seat);
+
+        const portrait = document.createElement('div');
+        portrait.className = 'portrait';
+        portrait.textContent = '◆';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'fname';
+        nameEl.textContent = name;
+        const specEl = document.createElement('span');
+        specEl.className = 'fspec';
+
+        const info = document.createElement('div');
+        info.className = 'fighter-info';
+
+        if (primary) {
+            const hpFill = document.createElement('div');
+            hpFill.className = 'hp-fill';
+            const hpVal = document.createElement('span');
+            hpVal.className = 'hp-val';
+            const hpTrack = document.createElement('div');
+            hpTrack.className = 'hp-track';
+            hpTrack.append(hpFill, hpVal);
+            info.append(hpTrack, nameEl, specEl);
+        } else {
+            info.append(nameEl, specEl);
+        }
+
+        el.append(portrait, info);
+
+        el.addEventListener('click', () => this.showSpecialistDetail(seat));
+        el.addEventListener('mouseenter', () => {
+            if (inputMode() !== 'touch') this.showSpecialistDetail(seat, true);
+        });
+        el.addEventListener('mouseleave', () => {
+            if (inputMode() === 'touch') return;
+            if (this.specDetailSeat === seat && this.specDetailViaHover) this.hideSpecialistDetail();
+        });
+
+        return { seat, team, el, nameEl, specEl, card: null };
+    }
+
+    /** @deprecated use setCommanders — kept for any external callers */
+    setPlayers(local: string, opponent: string, maxHp: number): void {
+        this.setCommanders(
+            [
+                { seat: 0, team: 'player', name: local, primary: true },
+                { seat: 1, team: 'enemy', name: opponent, primary: true },
+            ],
+            0,
+            maxHp,
+        );
     }
 
     /** the undo buttons only show while there is something to undo */
@@ -1827,22 +1885,174 @@ export class Hud {
 
     /** dismisses the specialist or round-card picker if it is still open */
     hideCardOverlay(): void {
-        this.cardOverlay?.remove();
+        if (!this.cardOverlay) return;
+        this.removeCardOverlayElement(this.cardOverlay);
         this.cardOverlay = null;
-        // a card overlay (specialist pick, round card, reveal) blocks
-        // deployment: no ending the round while one is up
+        this.cardIntroFading = false;
         this.syncOverlayOpen();
     }
 
-    /** dismisses the specialist reveal only: the two cards fly out to the
-     *  commander frames (top corners), then the overlay is removed */
-    dismissReveal(): void {
+    private removeCardOverlayElement(el: HTMLElement): void {
+        const rootIdx = this.mountedRoots.indexOf(el);
+        if (rootIdx >= 0) this.mountedRoots.splice(rootIdx, 1);
+        const spriteIdx = this.sprites.findIndex((s) => s.el === el);
+        if (spriteIdx >= 0) {
+            this.sprites[spriteIdx]!.sprite.destroy();
+            this.sprites.splice(spriteIdx, 1);
+        }
+        el.remove();
+    }
+
+    /** specialist pick — collapse to own card, wobble, fly to commander frame */
+    confirmSpecialistPick(chosen: HTMLElement, onDone: () => void): void {
         const overlay = this.cardOverlay;
-        if (!overlay?.classList.contains('reveal')) return;
+        if (!overlay) {
+            onDone();
+            return;
+        }
+        overlay.style.pointerEvents = 'none';
+        overlay.classList.add('picking');
+        chosen.classList.add('chosen');
+
+        window.setTimeout(() => {
+            overlay.classList.remove('picking');
+            overlay.classList.add('locked');
+            overlay.querySelector('.cards-title')?.remove();
+            overlay.querySelector('.cards-note')?.remove();
+            const row = overlay.querySelector<HTMLElement>('.cards-row');
+            if (!row) {
+                onDone();
+                return;
+            }
+            let cardEl: HTMLElement = chosen;
+            for (const el of [...row.querySelectorAll<HTMLElement>('.card')]) {
+                if (el !== chosen) el.classList.add('faded');
+            }
+            if (chosen instanceof HTMLButtonElement) {
+                chosen.disabled = true;
+                chosen.classList.remove('chosen');
+                chosen.classList.add('static', 'locked-card');
+                cardEl = chosen;
+            } else {
+                chosen.classList.remove('chosen');
+                chosen.classList.add('static', 'locked-card');
+            }
+
+            window.setTimeout(() => {
+                cardEl.classList.add('wobble');
+                window.setTimeout(() => {
+                    cardEl.classList.remove('wobble');
+                    this.flyCardToCommander(cardEl, overlay, () => {
+                        this.cardOverlay = null;
+                        this.cardIntroFading = false;
+                        this.syncOverlayOpen();
+                        this.removeCardOverlayElement(overlay);
+                        onDone();
+                    });
+                }, 480);
+            }, 60);
+        }, 280);
+    }
+
+    private flyCardToCommander(
+        card: HTMLElement,
+        overlay: HTMLElement,
+        onDone: () => void,
+    ): void {
+        overlay.classList.add('flying');
+        const from = card.getBoundingClientRect();
+        const chip = this.commanderChips.find((c) => c.seat === this.humanSeat);
+        if (!chip) {
+            onDone();
+            return;
+        }
+        const to = chip.el.getBoundingClientRect();
+        const tx = to.left + to.width * 0.5 - (from.left + from.width * 0.5);
+        const ty = to.top + to.height * 0.5 - (from.top + from.height * 0.5);
+        const scale = Math.min(0.18, (to.width * 0.92) / from.width);
+        card.style.transition =
+            'transform 0.55s cubic-bezier(0.5, 0, 0.75, 0.4), opacity 0.5s ease-in';
+        requestAnimationFrame(() => {
+            card.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+            card.style.opacity = '0';
+        });
+        window.setTimeout(() => this.pulseCommanderFrame(this.humanSeat), 420);
+        window.setTimeout(onDone, 580);
+    }
+
+    /** pick confirmed — dim others, lift chosen in place, then fade before callback */
+    private dismissPickOverlay(
+        chosen: HTMLElement | null,
+        style: 'lift' | 'fade',
+        onDone: () => void,
+    ): void {
+        const overlay = this.cardOverlay;
+        if (!overlay) {
+            onDone();
+            return;
+        }
+        overlay.style.pointerEvents = 'none';
         this.cardOverlay = null;
-        this.syncOverlayOpen(); // deployment controls return
-        overlay.classList.add('exiting');
-        setTimeout(() => overlay.remove(), 600); // matches the exit transition
+        this.cardIntroFading = false;
+        this.syncOverlayOpen();
+
+        if (style === 'lift' && chosen) {
+            overlay.classList.add('picking');
+            chosen.classList.add('chosen');
+            window.setTimeout(() => {
+                overlay.classList.add('dismissing');
+                window.setTimeout(() => {
+                    this.removeCardOverlayElement(overlay);
+                    onDone();
+                }, 280);
+            }, 380);
+            return;
+        }
+
+        overlay.classList.add('dismissing');
+        window.setTimeout(() => {
+            this.removeCardOverlayElement(overlay);
+            onDone();
+        }, 280);
+    }
+
+    /** fade out a picker overlay */
+    fadeOutCardOverlay(onDone?: () => void): void {
+        this.dismissPickOverlay(null, 'fade', () => onDone?.());
+    }
+
+    private pulseCommanderFrame(seat: number): void {
+        const chip = this.commanderChips.find((c) => c.seat === seat);
+        if (!chip) return;
+        const el = chip.el;
+        el.classList.remove('landed-pulse');
+        void el.offsetWidth;
+        el.classList.add('landed-pulse');
+        el.addEventListener(
+            'animationend',
+            () => el.classList.remove('landed-pulse'),
+            { once: true },
+        );
+    }
+
+    /** dismiss game-over, pause, notices, and card pickers before the menu outro */
+    hideMatchOverlays(): void {
+        this.hidePauseMenu();
+        this.hideCardOverlay();
+        this.hideNotice();
+        this.hideBattleReport();
+        for (let i = this.mountedRoots.length - 1; i >= 0; i--) {
+            const el = this.mountedRoots[i]!;
+            if (!el.classList.contains('mechili-gameover')) continue;
+            el.remove();
+            this.mountedRoots.splice(i, 1);
+            const spriteIdx = this.sprites.findIndex((s) => s.el === el);
+            if (spriteIdx >= 0) {
+                this.sprites[spriteIdx]!.sprite.destroy();
+                this.sprites.splice(spriteIdx, 1);
+            }
+        }
+        this.syncOverlayOpen();
     }
 
     private showCardOverlay(overlay: HTMLDivElement): void {
@@ -1853,6 +2063,28 @@ export class Hud {
         this.cardOverlay = overlay;
         this.syncOverlayOpen();
         this.mount(overlay);
+        if (this.introChromeHidden) {
+            // mount() hides everything during the fly-in — card picks fade in
+            // on their own schedule instead of popping after the camera lands
+            overlay.classList.remove('mechili-intro-hide');
+            overlay.style.opacity = '0';
+            overlay.style.pointerEvents = 'none';
+            this.cardIntroFading = true;
+        }
+    }
+
+    /** driven each intro tick while a card overlay is fading in */
+    setCardOverlayIntroOpacity(opacity: number): void {
+        if (!this.cardOverlay || !this.cardIntroFading) return;
+        this.cardOverlay.style.opacity = String(opacity);
+    }
+
+    /** intro finished — card overlay is fully visible and clickable */
+    finishCardOverlayIntro(): void {
+        if (!this.cardOverlay) return;
+        this.cardIntroFading = false;
+        this.cardOverlay.style.opacity = '';
+        this.cardOverlay.style.pointerEvents = '';
     }
 
     private showPauseMenu(): void {
@@ -1959,53 +2191,32 @@ export class Hud {
         overlay.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card) return;
-            this.hideCardOverlay();
-            onPick(button.dataset.card);
+            const cardId = button.dataset.card;
+            this.confirmSpecialistPick(button, () => onPick(cardId));
         });
         this.showCardOverlay(overlay);
     }
 
-    /** own specialist locked in, the peer still choosing: show the pick, wait */
-    showWaitingCard(card: StartCard): void {
-        const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards';
-        overlay.innerHTML =
-            `<div class="cards-title">Waiting for opponent…</div>` +
-            `<div class="cards-row"><div class="card static">${this.startCardFace(card)}</div></div>`;
-        this.showCardOverlay(overlay);
+    /** per-seat specialist labels — null card hides that commander's pick */
+    setSeatSpecialists(entries: { seat: number; card: StartCard | null }[]): void {
+        for (const { seat, card } of entries) {
+            const chip = this.commanderChips.find((c) => c.seat === seat);
+            if (!chip) continue;
+            chip.card = card;
+            chip.specEl.textContent = card?.title ?? '';
+            chip.el.classList.toggle('has-spec', card !== null);
+        }
+        if (this.specDetailSeat !== null) {
+            this.showSpecialistDetail(this.specDetailSeat, this.specDetailViaHover);
+        }
     }
 
-    /** both specialists picked: show them side by side for a moment, then the
-     *  game auto-dismisses via {@link dismissReveal} and deployment takes over */
-    showSpecialistReveal(
-        own: StartCard,
-        opponent: StartCard,
-        names: { local: string; opponent: string },
-    ): void {
-        const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards reveal';
-        overlay.innerHTML =
-            `<div class="cards-title">Specialists</div>` +
-            `<div class="cards-row">` +
-            `<div class="card-col player"><div class="c-owner player"></div><div class="card static">${this.startCardFace(own)}</div></div>` +
-            `<div class="card-col enemy"><div class="c-owner enemy"></div><div class="card static">${this.startCardFace(opponent)}</div></div>` +
-            `</div>`;
-        // player names are user input — textContent only, never innerHTML
-        const owners = overlay.querySelectorAll<HTMLDivElement>('.c-owner');
-        owners[0]!.textContent = names.local;
-        owners[1]!.textContent = names.opponent;
-        this.showCardOverlay(overlay);
-    }
-
-    /** the chosen specialist cards (opponent's stays null until both picked) —
-     *  sets the fighter-card labels and makes the frames clickable for detail */
+    /** @deprecated use setSeatSpecialists */
     setSpecialities(own: StartCard | null, opponent: StartCard | null): void {
-        this.playerCard = own;
-        this.enemyCard = opponent;
-        this.playerSpecEl.textContent = own?.title ?? '';
-        this.enemySpecEl.textContent = opponent?.title ?? '';
-        this.playerFighterEl.classList.toggle('has-spec', own !== null);
-        this.enemyFighterEl.classList.toggle('has-spec', opponent !== null);
+        this.setSeatSpecialists([
+            { seat: 0, card: own },
+            { seat: 1, card: opponent },
+        ]);
     }
 
     /**
@@ -2021,19 +2232,21 @@ export class Hud {
         if (same) return;
         this.playerRoundPicks = own;
         this.enemyRoundPicks = enemy;
-        if (this.specDetailTeam) {
-            this.showSpecialistDetail(this.specDetailTeam, this.specDetailViaHover);
+        if (this.specDetailSeat !== null) {
+            this.showSpecialistDetail(this.specDetailSeat, this.specDetailViaHover);
         }
     }
 
-    /** a dismissible popup of one side's specialist card (frame click or hover) */
-    private showSpecialistDetail(team: 'player' | 'enemy', viaHover = false): void {
-        const card = team === 'player' ? this.playerCard : this.enemyCard;
-        const picks = team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
+    /** a dismissible popup of one commander's specialist card (frame click or hover) */
+    private showSpecialistDetail(seat: number, viaHover = false): void {
+        const chip = this.commanderChips.find((c) => c.seat === seat);
+        if (!chip) return;
+        const card = chip.card;
+        const picks = chip.team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
         if (!card && picks.length === 0) return;
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.specDetailOverlay.remove();
-        const name = (team === 'player' ? this.playerNameEl : this.enemyNameEl).textContent ?? '';
+        const name = chip.nameEl.textContent ?? '';
         const overlay = document.createElement('div');
         // hover peeks are pointer-transparent: a full-screen overlay under the
         // cursor would instantly fire mouseleave on the fighter card and the
@@ -2061,18 +2274,18 @@ export class Hud {
                       .join('') +
                   `</div>`;
         overlay.innerHTML =
-            `<div class="cards-row"><div class="card-col ${team}">` +
-            `<div class="c-owner ${team}"></div>` +
+            `<div class="cards-row"><div class="card-col ${chip.team}">` +
+            `<div class="c-owner ${chip.team}"></div>` +
             specHtml +
             picksHtml +
             `</div></div>`;
         overlay.querySelector('.c-owner')!.textContent = name;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
         this.specDetailOverlay = overlay;
-        this.specDetailTeam = team;
+        this.specDetailSeat = seat;
         this.specDetailViaHover = viaHover;
         // the enemy's unplaced items are intel that belongs to this screen
-        this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
+        this.enemyInventoryEl.classList.toggle('reveal', chip.team === 'enemy');
         this.mount(overlay);
     }
 
@@ -2082,7 +2295,7 @@ export class Hud {
             this.specDetailOverlay.remove();
             this.specDetailOverlay = null;
         }
-        this.specDetailTeam = null;
+        this.specDetailSeat = null;
         this.specDetailViaHover = false;
         this.enemyInventoryEl.classList.remove('reveal');
     }
@@ -2164,14 +2377,13 @@ export class Hud {
         overlay.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('.cards-skip')) {
-                this.hideCardOverlay();
-                onPick(null);
+                this.dismissPickOverlay(null, 'fade', () => onPick(null));
                 return;
             }
             const button = target.closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card || button.disabled) return;
-            this.hideCardOverlay();
-            onPick(button.dataset.card);
+            const cardId = button.dataset.card;
+            this.dismissPickOverlay(button, 'lift', () => onPick(cardId));
         });
         this.showCardOverlay(overlay);
     }
@@ -2307,6 +2519,7 @@ export class Hud {
         }
         this.mountedRoots.push(el);
         if (this.uiHidden) el.classList.add('mechili-cinema-hide');
+        if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
         if (this.mode === 'html-in-canvas') {
             // must be a direct child of the Pixi canvas; mirrored to the GPU each repaint
             this.pixiCanvas.appendChild(el);
@@ -2320,6 +2533,25 @@ export class Hud {
 
     get isUiHidden(): boolean {
         return this.uiHidden;
+    }
+
+    /**
+     * Soft-hide match chrome for the menu→match cinematic (opacity fade).
+     * Unlike {@link setUiHidden}, this does not show the cinema keyboard hint.
+     */
+    setMatchChromeVisible(visible: boolean): void {
+        this.introChromeHidden = !visible;
+        for (const el of this.mountedRoots) {
+            el.style.transition = 'opacity 0.35s ease';
+            el.classList.toggle('mechili-intro-hide', !visible);
+        }
+        if (this.cardOverlay) {
+            if (!this.cardIntroFading) {
+                this.cardOverlay.style.transition = 'opacity 0.35s ease';
+                this.cardOverlay.classList.toggle('mechili-intro-hide', !visible);
+            }
+        }
+        if (this.itemGhost) this.itemGhost.classList.toggle('mechili-intro-hide', !visible);
     }
 
     /**
