@@ -22,6 +22,8 @@ const FAKE_POINTER_ID = 0x7fff;
  * Start opens the menu.
  */
 export class GamepadCursor {
+    /** set to false to ignore stick/button input (match intro) */
+    enabled = true;
     onCancel: (() => void) | null = null;
     onRotate: (() => void) | null = null;
     onMenu: (() => void) | null = null;
@@ -53,6 +55,11 @@ export class GamepadCursor {
     }
 
     update(dtSeconds: number): void {
+        if (!this.enabled) {
+            if (this.pointerDown) this.releasePointer();
+            if (this.visible) this.hide();
+            return;
+        }
         const pads = navigator.getGamepads?.() ?? [];
         let pad: Gamepad | null = null;
         for (const p of pads) {

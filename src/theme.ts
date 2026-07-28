@@ -797,6 +797,65 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     pointer-events: none;
     user-select: none;
 }
+/* menu→match: compositor-thread bg zoom (keeps moving during sync Game boot) */
+@keyframes mechili-intro-dive {
+    from { transform: scale3d(1, 1, 1); }
+    to { transform: scale3d(3.5, 3.5, 1); }
+}
+@keyframes mechili-intro-logo-fade {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+.mechili-intro-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+}
+.mechili-intro-cover .mechili-intro-menu-bg {
+    position: absolute;
+    inset: 0;
+    transform-origin: 50% 10%;
+    pointer-events: none;
+    will-change: transform, opacity;
+    contain: strict;
+}
+.mechili-intro-cover.active .mechili-intro-menu-bg {
+    animation: mechili-intro-dive 8s linear forwards;
+}
+.mechili-intro-cover .mechili-intro-logo {
+    position: absolute;
+    left: 50%;
+    top: 38%;
+    width: min(62vw, 600px);
+    height: auto;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 0 24px rgba(255, 220, 120, 0.35));
+    pointer-events: none;
+    user-select: none;
+    animation: mechili-intro-logo-fade 0.5s ease-out forwards;
+}
+@keyframes mechili-outro-rise {
+    from { transform: scale3d(3.5, 3.5, 1); }
+    to { transform: scale3d(1, 1, 1); }
+}
+.mechili-intro-cover.outro .mechili-intro-menu-bg {
+    transform: scale3d(3.5, 3.5, 1);
+}
+.mechili-intro-cover.outro.active .mechili-intro-menu-bg {
+    animation: mechili-outro-rise 1.6s ease-in forwards;
+}
+.mechili-intro-cover.outro .mechili-intro-logo {
+    animation: none;
+    opacity: 0;
+}
+.mechili-intro-cover.outro.active .mechili-intro-logo {
+    /* The menu logo is the Pixi sprite; keep the HTML clone hidden to avoid
+     * a "double logo" during the fly-out transition. */
+    animation: none;
+    opacity: 0;
+}
 .mechili-loading .load-bar {
     width: 100%;
 }
@@ -1142,6 +1201,16 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     font-family: system-ui, sans-serif;
     user-select: none;
 }
+/* reload reconnect: menu zoom keeps moving underneath — only the dialog blocks */
+.mechili-resume-over-intro {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    pointer-events: none;
+}
+.mechili-resume-over-intro .resume-box {
+    pointer-events: auto;
+}
 .mechili-resume .resume-box {
     display: flex;
     flex-direction: column;
@@ -1207,6 +1276,11 @@ export function hudStyles(): string {
     return `
 .mechili-cinema-hide {
     visibility: hidden !important;
+    pointer-events: none !important;
+}
+/* match-intro hold: fade chrome in once the camera fly-in finishes */
+.mechili-intro-hide {
+    opacity: 0 !important;
     pointer-events: none !important;
 }
 .mechili-cinema-hint {

@@ -176,6 +176,7 @@ export class Hud {
     private lastSpectatorNames: string[] = [];
     private pauseMenu: HTMLDivElement | null = null;
     private cardOverlay: HTMLDivElement | null = null;
+    private introChromeHidden = false;
     private lastPanelKey = '';
     private report: HTMLDivElement | null = null;
 
@@ -1834,6 +1835,26 @@ export class Hud {
         this.syncOverlayOpen();
     }
 
+    /** dismiss game-over, pause, notices, and card pickers before the menu outro */
+    hideMatchOverlays(): void {
+        this.hidePauseMenu();
+        this.hideCardOverlay();
+        this.hideNotice();
+        this.hideBattleReport();
+        for (let i = this.mountedRoots.length - 1; i >= 0; i--) {
+            const el = this.mountedRoots[i]!;
+            if (!el.classList.contains('mechili-gameover')) continue;
+            el.remove();
+            this.mountedRoots.splice(i, 1);
+            const spriteIdx = this.sprites.findIndex((s) => s.el === el);
+            if (spriteIdx >= 0) {
+                this.sprites[spriteIdx]!.sprite.destroy();
+                this.sprites.splice(spriteIdx, 1);
+            }
+        }
+        this.syncOverlayOpen();
+    }
+
     /** dismisses the specialist reveal only: the two cards fly out to the
      *  commander frames (top corners), then the overlay is removed */
     dismissReveal(): void {
@@ -2307,6 +2328,7 @@ export class Hud {
         }
         this.mountedRoots.push(el);
         if (this.uiHidden) el.classList.add('mechili-cinema-hide');
+        if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
         if (this.mode === 'html-in-canvas') {
             // must be a direct child of the Pixi canvas; mirrored to the GPU each repaint
             this.pixiCanvas.appendChild(el);
@@ -2320,6 +2342,23 @@ export class Hud {
 
     get isUiHidden(): boolean {
         return this.uiHidden;
+    }
+
+    /**
+     * Soft-hide match chrome for the menu→match cinematic (opacity fade).
+     * Unlike {@link setUiHidden}, this does not show the cinema keyboard hint.
+     */
+    setMatchChromeVisible(visible: boolean): void {
+        this.introChromeHidden = !visible;
+        for (const el of this.mountedRoots) {
+            el.style.transition = 'opacity 0.35s ease';
+            el.classList.toggle('mechili-intro-hide', !visible);
+        }
+        if (this.cardOverlay) {
+            this.cardOverlay.style.transition = 'opacity 0.35s ease';
+            this.cardOverlay.classList.toggle('mechili-intro-hide', !visible);
+        }
+        if (this.itemGhost) this.itemGhost.classList.toggle('mechili-intro-hide', !visible);
     }
 
     /**

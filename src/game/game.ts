@@ -166,6 +166,16 @@ import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 /** how long the both-specialists reveal stays up before deployment takes over */
 const SPECIALIST_REVEAL_MS = 2000;
 
+/** menu→match camera fly-in (fresh starts only) */
+const MATCH_INTRO_SEC = 1.6;
+/** after the menu cover clears, let the HUD fade before card overlays */
+const MATCH_INTRO_HUD_DELAY_SEC = 0.35;
+/** match→menu fly-out — mirror of the intro camera */
+const MATCH_OUTRO_SEC = 1.6;
+const MATCH_INTRO_ZOOM = 200;
+const MATCH_INTRO_PITCH = (48 * Math.PI) / 180;
+const PLAY_START_ZOOM = 110;
+
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the
  *  treeline (medium quality's forest belt already ramps up by 25 past the
@@ -513,6 +523,25 @@ export class Game {
     onReturnToMenu: (() => void) | null = null;
     /** throttled hook for persisting single-player state to session storage */
     onStateCheckpoint: (() => void) | null = null;
+    /** 0..1 while the 3D camera fly-in runs (main fades the brightness flash) */
+    onMatchIntroProgress: ((t: number) => void) | null = null;
+    /** fired once when the fly-in finishes (main clears the flash overlay) */
+    onMatchIntroDone: (() => void) | null = null;
+    /** 0..1 while the match→menu fly-out runs (main fades the menu cover in) */
+    onMatchOutroProgress: ((t: number) => void) | null = null;
+    private introActive = false;
+    private introElapsed = 0;
+    private introFrom: ReturnType<CameraRig['getPose']> | null = null;
+    private introTo: ReturnType<CameraRig['getPose']> | null = null;
+    private outroActive = false;
+    private outroElapsed = 0;
+    private outroFrom: ReturnType<CameraRig['getPose']> | null = null;
+    private outroTo: ReturnType<CameraRig['getPose']> | null = null;
+    private outroDone: (() => void) | null = null;
+    /** specialist offer held until the intro finishes */
+    private deferredStarterOffer: StartCard[] | null = null;
+    /** round-card offer held until the intro finishes (resume before pick) */
+    private deferredRoundOffer = false;
     private persistTimer = 0;
     /** last stamped battle positions for wear trails (visual only) */
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
@@ -580,6 +609,7 @@ export class Game {
         }
 
         if (e.code !== 'Escape') return;
+        if (this.introActive || this.outroActive) return;
         if (this.hud.isUiHidden) {
             this.toggleUiHidden();
             return;
@@ -652,7 +682,7 @@ export class Game {
 
     /** Escape / the topbar ☰ button: open or close the pause menu */
     private togglePauseMenu(): void {
-        if (this.matchOver || this.suspended) return;
+        if (this.matchOver || this.suspended || this.outroActive) return;
         this.hud.togglePauseMenu();
         if (this.hud.isPauseMenuOpen()) {
             this.placement.deselect();
@@ -742,6 +772,9 @@ export class Game {
             watcherName: string;
             initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
         } | null = null,
+        /** fresh match only: hold specialist cards + HUD while the camera
+         *  flies in from a wide overlook (menu logo covers the ctor hitch) */
+        matchIntro = false,
     ) {
         this.watching = replay !== null || spectate !== null;
         this.watcherName = spectate?.watcherName ?? null;
@@ -921,8 +954,19 @@ export class Game {
         this.rig.setBaseHeading(nearSide ? 0 : Math.PI);
         const ownZoneZ =
             (this.map.halfH - (this.map.size.zoneRows * CELL) / 2) * (nearSide ? 1 : -1);
-        this.rig.startAt(0, ownZoneZ, 110);
+        this.rig.startAt(0, ownZoneZ, PLAY_START_ZOOM);
+        if (matchIntro) {
+            const play = this.rig.getPose();
+            this.introTo = play;
+            this.introFrom = {
+                ...play,
+                zoom: Math.min(this.rig.maxZoom, MATCH_INTRO_ZOOM),
+                pitch: MATCH_INTRO_PITCH,
+            };
+            this.rig.setPose(this.introFrom);
+        }
         this.controls = new CameraControls(this.rig, surface);
+        if (matchIntro) this.controls.enabled = false;
         // edge scrolling is hover-based and has no touch equivalent
         const syncEdgeScroll = () => {
             this.controls.edgeScroll = inputMode() !== 'touch';
@@ -942,6 +986,7 @@ export class Game {
         this.controls.suppressTouchPan = () => this.placement.pointerCarries;
         // gamepad: virtual cursor over the same click pipeline (Halo Wars style)
         this.gamepad = new GamepadCursor(surface, this.rig);
+        if (matchIntro) this.gamepad.enabled = false;
         this.gamepad.onActivity = () => noteGamepadActivity();
         this.gamepad.onRotate = () => this.placement.rotateSelected();
         this.gamepad.onMenu = () => this.togglePauseMenu();
@@ -1187,6 +1232,11 @@ export class Game {
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
         );
+        if (matchIntro) {
+            this.hud.setMatchChromeVisible(false);
+            this.hpBars.view.visible = false;
+            this.introActive = true;
+        }
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
         // this match's real settings (including any ?hordeFactor= override) —
         // fixed for the match's lifetime, so a one-time snapshot is enough
@@ -1404,6 +1454,9 @@ export class Game {
             if (this.phase === 'build') {
                 this.phaseRemaining = spectate.initial.phaseRemaining;
             }
+        } else if (matchIntro) {
+            // hold the specialist overlay until the camera fly-in finishes
+            this.deferredStarterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
         }
@@ -1428,6 +1481,112 @@ export class Game {
         // rather than mid-battle. Boot already warmed the shared context when possible.
         this.warmGpuPrograms();
         pixiApp.ticker.add(this.boundTick);
+    }
+
+    /**
+     * Drive the menu→match camera fly-in. Accelerates into play framing while
+     * main fades the menu backdrop; logo is already hidden before this runs.
+     */
+    private tickMatchIntro(dtSeconds: number): void {
+        if (!this.introActive || !this.introFrom || !this.introTo) return;
+        this.introElapsed += dtSeconds;
+        const t = Math.min(1, this.introElapsed / MATCH_INTRO_SEC);
+        // ease-in: slow start matching menu drift, then accelerate into the board
+        const e = t * t;
+        const a = this.introFrom;
+        const b = this.introTo;
+        this.rig.setPose({
+            x: a.x + (b.x - a.x) * e,
+            z: a.z + (b.z - a.z) * e,
+            zoom: a.zoom + (b.zoom - a.zoom) * e,
+            heading: a.heading + (b.heading - a.heading) * e,
+            pitch: a.pitch + (b.pitch - a.pitch) * e,
+        });
+        this.onMatchIntroProgress?.(t);
+        if (t >= 1) this.finishMatchIntro();
+    }
+
+    private finishMatchIntro(): void {
+        if (!this.introActive) return;
+        this.introActive = false;
+        if (this.introTo) this.rig.setPose(this.introTo);
+        this.introFrom = null;
+        this.introTo = null;
+        this.controls.enabled = true;
+        this.gamepad.enabled = true;
+        this.hpBars.view.visible = true;
+        const offer = this.deferredStarterOffer;
+        const roundOffer = this.deferredRoundOffer;
+        this.deferredStarterOffer = null;
+        this.deferredRoundOffer = false;
+        const pendingRound = roundOffer ? this.pendingOffer : null;
+        if (roundOffer) this.pendingOffer = null;
+        this.onMatchIntroProgress?.(1);
+        const done = this.onMatchIntroDone;
+        this.onMatchIntroProgress = null;
+        this.onMatchIntroDone = null;
+        done?.();
+        this.hud.setMatchChromeVisible(true);
+        window.setTimeout(() => {
+            if (this.disposed) return;
+            if (offer) this.showStarterPick(offer);
+            else if (pendingRound) this.showRoundOffer(pendingRound);
+        }, MATCH_INTRO_HUD_DELAY_SEC * 1000);
+    }
+
+    /** reverse of the menu→match fly-in: pull back, then main restores the menu */
+    playMenuOutro(onDone: () => void): void {
+        if (this.disposed || this.outroActive || this.introActive || this.hydrating) {
+            onDone();
+            return;
+        }
+        this.outroActive = true;
+        this.outroDone = onDone;
+        this.outroElapsed = 0;
+        this.controls.enabled = false;
+        this.gamepad.enabled = false;
+        this.hpBars.view.visible = false;
+        this.hud.hideMatchOverlays();
+        this.hud.setMatchChromeVisible(false);
+        this.outroFrom = this.rig.getPose();
+        this.outroTo = {
+            ...this.outroFrom,
+            zoom: Math.min(this.rig.maxZoom, MATCH_INTRO_ZOOM),
+            pitch: MATCH_INTRO_PITCH,
+        };
+        this.onMatchOutroProgress?.(0);
+    }
+
+    private tickMatchOutro(dtSeconds: number): void {
+        if (!this.outroActive || !this.outroFrom || !this.outroTo) return;
+        this.outroElapsed += dtSeconds;
+        const t = Math.min(1, this.outroElapsed / MATCH_OUTRO_SEC);
+        // ease-in: accelerate away from the board as the menu cover takes over
+        const e = t * t;
+        const a = this.outroFrom;
+        const b = this.outroTo;
+        this.rig.setPose({
+            x: a.x + (b.x - a.x) * e,
+            z: a.z + (b.z - a.z) * e,
+            zoom: a.zoom + (b.zoom - a.zoom) * e,
+            heading: a.heading + (b.heading - a.heading) * e,
+            pitch: a.pitch + (b.pitch - a.pitch) * e,
+        });
+        this.onMatchOutroProgress?.(t);
+        if (t >= 1) this.finishMatchOutro();
+    }
+
+    private finishMatchOutro(): void {
+        if (!this.outroActive) return;
+        this.outroActive = false;
+        if (this.outroTo) this.rig.setPose(this.outroTo);
+        this.outroFrom = null;
+        this.outroTo = null;
+        this.onMatchOutroProgress?.(1);
+        const done = this.outroDone;
+        this.outroDone = null;
+        this.onMatchOutroProgress = null;
+        done?.();
     }
 
     /**
@@ -1703,6 +1862,14 @@ export class Game {
     destroy(): void {
         if (this.disposed) return;
         this.disposed = true;
+        this.introActive = false;
+        this.outroActive = false;
+        this.onMatchIntroProgress = null;
+        this.onMatchIntroDone = null;
+        this.onMatchOutroProgress = null;
+        this.outroDone = null;
+        this.deferredStarterOffer = null;
+        this.deferredRoundOffer = false;
         this.onStateCheckpoint = null;
         this.onReturnToMenu = null;
         this.onConnectionLost = null;
@@ -2403,6 +2570,10 @@ export class Game {
 
     /** the specialist overlay (also re-shown after a resume that predates the pick) */
     private showStarterPick(offer: StartCard[]): void {
+        if (this.introActive) {
+            this.deferredStarterOffer = [...offer];
+            return;
+        }
         this.playerStarterOffer = [...offer];
         // the pick has its own short clock — expiry auto-picks at random
         this.phaseRemaining = secondsForRound(this.settings.specialistTimeSeconds, this.round);
@@ -2916,11 +3087,15 @@ export class Game {
         this.hud.showNotice(message, 'Give up — back to menu', () => this.quitToMenu());
     }
 
-    /** leave the match — main tears down the session and restores the menu */
+    /** leave the match — fly out to the menu, then main tears down the session */
     quitToMenu(): void {
         this.onStateCheckpoint = null;
         this.net?.close();
         this.net = null;
+        if (!this.disposed && !this.outroActive) {
+            this.playMenuOutro(() => this.onReturnToMenu?.());
+            return;
+        }
         this.onReturnToMenu?.();
     }
 
@@ -3199,9 +3374,15 @@ export class Game {
         ) {
             this.awaitingCards = true;
             this.phaseRemaining = this.cardSeconds();
-            this.showRoundOffer(this.pendingOffer);
+            if (this.introActive) {
+                this.deferredRoundOffer = true;
+            } else {
+                this.showRoundOffer(this.pendingOffer);
+                this.pendingOffer = null;
+            }
+        } else {
+            this.pendingOffer = null;
         }
-        this.pendingOffer = null;
         // peer already locked in the rebuilt state — stream live to them
         this.outboundBuildBuffer.length = 0;
         this.deployFlushedToPeer = this.deployReady.enemy;
@@ -3938,6 +4119,12 @@ export class Game {
     }
 
     private showRoundOffer(offer: RoundCard[]): void {
+        if (this.introActive) {
+            this.pendingOffer = offer;
+            this.deferredRoundOffer = true;
+            this.awaitingCards = true;
+            return;
+        }
         this.hud.showRoundCards(
             offer.map((c) => this.roundCardView(c)),
             SKIP_CARD_REWARD,
@@ -5718,6 +5905,8 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        if (this.introActive) this.tickMatchIntro(dtSeconds);
+        if (this.outroActive) this.tickMatchOutro(dtSeconds);
         this.flushDebugLog(dtSeconds);
         // reconnect grace ticks in real time, independent of phase/suspend —
         // an unreturned opponent forfeits once it hits zero
@@ -5749,7 +5938,7 @@ export class Game {
         let simSteps = 0;
         let simCpu: Record<string, number> | undefined;
 
-        if (!this.matchOver && !this.suspended) {
+        if (!this.matchOver && !this.suspended && !this.introActive && !this.outroActive) {
             // freeze MY clock once I've personally picked, until EVERYONE
             // has (teammate or enemy) — the per-seat analogue of "I've
             // picked, waiting on the opponent" now that there's no single
@@ -5822,9 +6011,11 @@ export class Game {
         if (profile) cpu.begin();
         this.particles.update(gameDt);
 
-        this.controls.update(dtSeconds);
-        this.gamepad.update(dtSeconds);
-        this.rig.update(dtSeconds);
+        if (!this.introActive && !this.outroActive) {
+            this.controls.update(dtSeconds);
+            this.gamepad.update(dtSeconds);
+            this.rig.update(dtSeconds);
+        }
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
         this.map.setSnowCover(this.scenery.groundSnowCover);

@@ -89,6 +89,23 @@ export class CameraRig {
         this.applyState(this.state);
     }
 
+    /** live pose snapshot (intro / cutscenes) */
+    getPose(): RigState {
+        return { ...this.state };
+    }
+
+    /** snap live + desired pose instantly (intro start / cutscene cuts) */
+    setPose(pose: RigState): void {
+        this.desired.x = pose.x;
+        this.desired.z = pose.z;
+        this.desired.zoom = MathUtils.clamp(pose.zoom, this.minZoom, this.maxZoom);
+        this.desired.heading = pose.heading;
+        this.desired.pitch = MathUtils.clamp(pose.pitch, this.minPitch, this.maxPitch);
+        this.clampDesired();
+        Object.assign(this.state, this.desired);
+        this.applyState(this.state);
+    }
+
     /** allows zooming out just far enough to frame a map of the given size */
     fitMap(width: number, height: number, worldFar = 0): void {
         this.maxZoom = Math.max(120, width * 0.95, height * 1.1);
