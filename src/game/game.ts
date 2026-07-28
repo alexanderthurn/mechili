@@ -6539,9 +6539,22 @@ export class Game {
         // large this gets (capped per call, carrying over the rest) — see
         // its own doc comment.
         const nowMs = performance.now();
+        // Same condition the sim-update guard below uses. When it's false,
+        // sim.update() won't run this frame — and if it was ALSO false on
+        // recent prior frames (a star reconnect's "suspended" pause can last
+        // up to STAR_RECONNECT_GRACE_MS, and a backgrounded/sleeping tab can
+        // let real time pile up across that whole window), a resuming
+        // client's catch-up (fastForwardBattle/replayLogFrom via
+        // applyStarResumeState) already brings sim.elapsed to the correct
+        // point on its own. Letting a stale lastSimRealTimeMs leak that same
+        // gap into trueDtSeconds on the first tick after resuming would feed
+        // it AGAIN, double-advancing the sim past where it should be — reset
+        // to null whenever we're not sim-active so the next active tick
+        // starts fresh, exactly like the very first tick ever does.
+        const simTimingActive = !this.matchOver && !this.suspended && !this.introActive && !this.outroActive;
         const trueDtSeconds =
             this.lastSimRealTimeMs === null ? dtSeconds : (nowMs - this.lastSimRealTimeMs) / 1000;
-        this.lastSimRealTimeMs = nowMs;
+        this.lastSimRealTimeMs = simTimingActive ? nowMs : null;
         if (this.introActive) this.tickMatchIntro(dtSeconds);
         if (this.outroActive) this.tickMatchOutro(dtSeconds);
         this.flushDebugLog(dtSeconds);
@@ -6581,7 +6594,7 @@ export class Game {
         let simSteps = 0;
         let simCpu: Record<string, number> | undefined;
 
-        if (!this.matchOver && !this.suspended && !this.introActive && !this.outroActive) {
+        if (simTimingActive) {
             // freeze MY clock once I've personally picked, until EVERYONE
             // has (teammate or enemy) — the per-seat analogue of "I've
             // picked, waiting on the opponent" now that there's no single
