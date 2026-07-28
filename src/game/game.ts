@@ -3866,6 +3866,17 @@ export class Game {
         // excludedActionsForSpectatorResume/seedBuildBuffer); host-only,
         // a no-op everywhere else via optional chaining
         this.spectatorHub?.flushBuildBuffers();
+        // star host only: relayBuild's fog gate for a cross-side chooseCard
+        // is starSideLocked (seatReady/endDeployment), which is what round 1
+        // build actions correctly wait for — but round 0 has no lock-in
+        // concept yet, so that gate never opens on its own here, and a
+        // non-primary ally seat (this round's own real bug: the host's
+        // teammate, on the SAME side as the host but relayed the ENEMY
+        // side's picks cross-side) is stuck buffered behind a condition
+        // that can only become true AFTER round 0 already finished for
+        // everyone. Force the flush the same moment every seat's pick has
+        // actually landed, exactly like the spectator flush just above.
+        if (this.star?.role === 'host') this.star.hub.flushAllBuffers();
         this.startBuildPhase();
         // reveal both picks for a beat, then it auto-dismisses into deployment
         // (watching: no reveal at all — every other overlay is suppressed too)
