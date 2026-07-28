@@ -3317,6 +3317,13 @@ export class Game {
         } else {
             this.starForfeit(def.team);
         }
+        // backendRosterSnapshot only lists controller==='human' seats — this
+        // seat just left that set (AI takeover) or the whole match ended
+        // (forfeit), either of which the room-list "Resume" button depends
+        // on knowing promptly: without this, a departed player can still see
+        // a stale Resume entry for up to the next periodic heartbeat, which
+        // then fails once they actually try to reclaim an AI-driven seat.
+        this.spectateRegistration?.refreshNow();
         // this seat was possibly the one thing this.suspended was waiting
         // on — re-check same as starSeatReady does
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
