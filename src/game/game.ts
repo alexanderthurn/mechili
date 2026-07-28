@@ -1708,6 +1708,35 @@ export class Game {
         this.onStateCheckpoint = null;
         this.onReturnToMenu = null;
         this.onConnectionLost = null;
+        // network/backend teardown FIRST, before any rendering/HUD disposal
+        // below — those touch three.js/pixi resources and a stray exception
+        // partway through would abort the rest of this function, silently
+        // skipping whatever hadn't run yet. Telling the backend "this room
+        // is gone" (stopSpectateRegistration → lobbyLeave) is the one thing
+        // here with an externally-visible consequence if it's skipped (a
+        // room stays listed until its 15s TTL lapses, or indefinitely if the
+        // heartbeat interval itself never gets cleared) — it goes first so
+        // it always runs regardless of what happens to the rest of this
+        // function.
+        this.net?.close();
+        this.net = null;
+        // star (2v2+) connections were never closed here — a real,
+        // separate leak from classic 1v1's this.net above, easy to miss
+        // since star is its own optional field
+        if (this.star?.role === 'host') this.star.hub.close();
+        else if (this.star?.role === 'guest') this.star.session.close();
+        // stop an in-flight redial from quietly retrying for the rest of its
+        // grace window after we've already left — everything it would do on
+        // success/failure is separately disposed-guarded either way, this
+        // just avoids the pointless background work
+        this.starRedialAbort?.abort();
+        this.starRedialAbort = null;
+        this.spectatorHub?.close();
+        this.spectatorHub = null;
+        this.stopSpectateRegistration?.();
+        this.stopSpectateRegistration = null;
+        this.spectateSession?.close();
+        this.spectateSession = null;
         this.pixiApp.ticker.remove(this.boundTick);
         window.removeEventListener('keydown', this.onEscapeKey);
         window.removeEventListener('resize', this.onWindowResize);
@@ -1740,25 +1769,6 @@ export class Game {
         }
         disposeScene(this.scene);
         this.renderer.dispose();
-        this.net?.close();
-        this.net = null;
-        // star (2v2+) connections were never closed here — a real,
-        // separate leak from classic 1v1's this.net above, easy to miss
-        // since star is its own optional field
-        if (this.star?.role === 'host') this.star.hub.close();
-        else if (this.star?.role === 'guest') this.star.session.close();
-        // stop an in-flight redial from quietly retrying for the rest of its
-        // grace window after we've already left — everything it would do on
-        // success/failure is separately disposed-guarded either way, this
-        // just avoids the pointless background work
-        this.starRedialAbort?.abort();
-        this.starRedialAbort = null;
-        this.spectatorHub?.close();
-        this.spectatorHub = null;
-        this.stopSpectateRegistration?.();
-        this.stopSpectateRegistration = null;
-        this.spectateSession?.close();
-        this.spectateSession = null;
     }
 
     /**
@@ -3265,6 +3275,15 @@ export class Game {
                 this.spectatorHub?.broadcast({ type: 'quit' });
             }
         }
+        // tell the backend this room is gone right now, explicitly — don't
+        // rely solely on destroy() eventually reaching the same call later
+        // (it does, but only after a long chain of three.js/HUD disposal
+        // that has nothing to do with the network; any exception in there
+        // would silently skip this and leave the room listed until its
+        // heartbeat's 15s TTL lapses, or indefinitely if the interval
+        // itself never gets cleared). Safe to call twice — its own
+        // internal guard makes destroy()'s later call a no-op.
+        this.stopSpectateRegistration?.();
         this.quitToMenu();
     }
 
