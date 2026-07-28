@@ -56,7 +56,7 @@ import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabili
 import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
-import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings } from './game/settings';
+import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings, type HordeFactor } from './game/settings';
 import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
 import { THEME, menuStyles } from './theme';
 
@@ -102,6 +102,68 @@ function widenMapForDuo(settings: GameSettings): void {
 function applyDuoMode(settings: GameSettings): void {
     settings.seats = duoSeats('You');
     widenMapForDuo(settings);
+}
+
+// ---- Custom Game screen: config, persistence, and the actual hosting -----
+
+type CustomHordeFactor = 'off' | 'low' | 'medium' | 'high' | 'ultra';
+
+/** `2v2` waits for all 4 real seats before auto-starting; `2v2ai` starts
+ *  the moment one guest joins, AI-filling the rest (see beginStarHost's
+ *  waitForJoined param) — same underlying mechanism, just a different
+ *  threshold, so this isn't a separate wire-level mode. */
+type CustomGameMode = '1v1' | '2v2' | '2v2ai';
+
+interface CustomGameConfig {
+    mode: CustomGameMode;
+    buildSeconds: number;
+    battleSeconds: number;
+    specialistSeconds: number;
+    cardSeconds: number;
+    horde: CustomHordeFactor;
+    roundCards: boolean;
+}
+
+const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
+    mode: '1v1',
+    buildSeconds: DEFAULT_SETTINGS.buildTimeSeconds as number,
+    battleSeconds: DEFAULT_SETTINGS.battleTimeSeconds as number,
+    specialistSeconds: DEFAULT_SETTINGS.specialistTimeSeconds as number,
+    cardSeconds: DEFAULT_SETTINGS.cardTimeSeconds as number,
+    horde: 'off',
+    roundCards: false,
+};
+
+const CUSTOM_GAME_KEY = 'mechili-custom-game';
+
+/** localStorage only (never the URL — this is testing-tool state, not a
+ *  shareable link) — matches getPlayerName's own storage pattern. */
+function loadCustomGameConfig(): CustomGameConfig {
+    try {
+        const raw = localStorage.getItem(CUSTOM_GAME_KEY);
+        if (!raw) return { ...DEFAULT_CUSTOM_GAME };
+        return { ...DEFAULT_CUSTOM_GAME, ...(JSON.parse(raw) as Partial<CustomGameConfig>) };
+    } catch {
+        return { ...DEFAULT_CUSTOM_GAME };
+    }
+}
+
+function saveCustomGameConfig(cfg: CustomGameConfig): void {
+    try {
+        localStorage.setItem(CUSTOM_GAME_KEY, JSON.stringify(cfg));
+    } catch {
+        /* private browsing */
+    }
+}
+
+function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): void {
+    settings.buildTimeSeconds = cfg.buildSeconds;
+    settings.battleTimeSeconds = cfg.battleSeconds;
+    settings.specialistTimeSeconds = cfg.specialistSeconds;
+    settings.cardTimeSeconds = cfg.cardSeconds;
+    settings.roundCards = cfg.roundCards;
+    settings.horde = structuredClone(DEFAULT_HORDE);
+    settings.horde.factor = cfg.horde as HordeFactor;
 }
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20&nocards
@@ -408,7 +470,8 @@ menu.innerHTML = `
     <div class="m-main">
         <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
         <button class="m-btn" data-mode="matchmaking"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
-        <button class="m-btn" data-mode="lobby"><span class="m-ico">◈</span><span class="m-label">Rooms</span></button>
+        <button class="m-btn" data-mode="custom"><span class="m-ico">◈</span><span class="m-label">Custom Game</span></button>
+        <div class="m-room-list empty">No open games</div>
     </div>
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
@@ -456,13 +519,43 @@ menu.innerHTML = `
         </div>
         <button class="m-btn m-small" data-mode="mms-back">Back</button>
     </div>
-    <div class="m-lobby" style="display:none">
-        <div class="m-room-row">
-            <button class="m-btn m-small" data-mode="host">Host Room</button>
-            <button class="m-btn m-small" data-mode="host2v2">Host 2v2 Online</button>
-            <button class="m-btn m-small" data-mode="refresh">Refresh</button>
+    <div class="m-custom" style="display:none">
+        <div class="m-spmode-title">Custom Game</div>
+        <div class="m-toggle-row">
+            <label class="m-toggle-card">
+                <input type="radio" name="cgmode" value="1v1">
+                <span class="m-ico">🧍</span><span class="m-label">1v1</span>
+            </label>
+            <label class="m-toggle-card">
+                <input type="radio" name="cgmode" value="2v2">
+                <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
+            </label>
+            <label class="m-toggle-card">
+                <input type="radio" name="cgmode" value="2v2ai">
+                <span class="m-ico">🤖</span><span class="m-label">2vAI</span>
+            </label>
         </div>
-        <div class="m-room-list empty">No open rooms</div>
+        <div class="m-field-grid">
+            <label class="m-field">Deployment (s)<input type="number" class="cg-build" min="5" max="600" step="5"></label>
+            <label class="m-field">Battle (s)<input type="number" class="cg-battle" min="5" max="600" step="5"></label>
+            <label class="m-field">Specialist (s)<input type="number" class="cg-specialist" min="3" max="120" step="1"></label>
+            <label class="m-field">Round card (s)<input type="number" class="cg-card" min="3" max="120" step="1"></label>
+        </div>
+        <label class="m-field">Horde
+            <select class="cg-horde">
+                <option value="off">Off</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="ultra">Ultra</option>
+            </select>
+        </label>
+        <label class="m-spmode-horde"><input type="checkbox" class="cg-roundcards"><span class="m-label">Between-round cards</span></label>
+        <div class="m-room-row">
+            <button class="m-btn m-small" data-mode="cg-reset">Reset Defaults</button>
+            <button class="m-btn m-primary m-small" data-mode="cg-host">Host Game</button>
+        </div>
+        <button class="m-btn m-small" data-mode="cg-back">Back</button>
     </div>
     <div class="m-status" style="display:none"></div>
     <button class="m-btn m-small" data-mode="startstar" style="display:none">Start 2v2 Match</button>
@@ -545,7 +638,16 @@ function setMenuChromeVisible(visible: boolean): void {
     suggestCornerEl.style.display = display;
     exitDesktopEl.style.display = visible && isElectron() ? '' : 'none';
     applyGlobalChatVisibility();
-    if (visible) ensureMenuGamepadCursor();
+    if (visible) {
+        ensureMenuGamepadCursor();
+        // the room/game list lives on the main menu view now (not a
+        // separate toggled panel) — keep it fresh any time menu chrome is
+        // showing at all, including while a sub-panel is open, so it's
+        // never stale by the time the player gets back to the top level
+        startRoomPoll();
+    } else {
+        stopRoomPoll();
+    }
 }
 
 function ensureMenuGamepadCursor(): void {
@@ -646,7 +748,6 @@ applyGlobalChatVisibility();
 onPrefsChange(applyGlobalChatVisibility);
 startGlobalChatPoll();
 
-const lobbyEl = menu.querySelector<HTMLDivElement>('.m-lobby')!;
 const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
@@ -658,6 +759,63 @@ const mmYouNameEl = menu.querySelector<HTMLSpanElement>('.mm-you-name')!;
 const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
 const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
 const mmSimpleEl = menu.querySelector<HTMLDivElement>('.m-mm-simple')!;
+const customEl = menu.querySelector<HTMLDivElement>('.m-custom')!;
+const cgBuildEl = menu.querySelector<HTMLInputElement>('.cg-build')!;
+const cgBattleEl = menu.querySelector<HTMLInputElement>('.cg-battle')!;
+const cgSpecialistEl = menu.querySelector<HTMLInputElement>('.cg-specialist')!;
+const cgCardEl = menu.querySelector<HTMLInputElement>('.cg-card')!;
+const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
+const cgRoundCardsEl = menu.querySelector<HTMLInputElement>('.cg-roundcards')!;
+
+function populateCustomGameForm(cfg: CustomGameConfig): void {
+    const radio = customEl.querySelector<HTMLInputElement>(`input[name="cgmode"][value="${cfg.mode}"]`);
+    if (radio) radio.checked = true;
+    cgBuildEl.value = String(cfg.buildSeconds);
+    cgBattleEl.value = String(cfg.battleSeconds);
+    cgSpecialistEl.value = String(cfg.specialistSeconds);
+    cgCardEl.value = String(cfg.cardSeconds);
+    cgHordeEl.value = cfg.horde;
+    cgRoundCardsEl.checked = cfg.roundCards;
+}
+
+function readCustomGameForm(): CustomGameConfig {
+    const modeInput = customEl.querySelector<HTMLInputElement>('input[name="cgmode"]:checked');
+    return {
+        mode: (modeInput?.value as CustomGameMode | undefined) ?? '1v1',
+        buildSeconds: Number(cgBuildEl.value) || DEFAULT_CUSTOM_GAME.buildSeconds,
+        battleSeconds: Number(cgBattleEl.value) || DEFAULT_CUSTOM_GAME.battleSeconds,
+        specialistSeconds: Number(cgSpecialistEl.value) || DEFAULT_CUSTOM_GAME.specialistSeconds,
+        cardSeconds: Number(cgCardEl.value) || DEFAULT_CUSTOM_GAME.cardSeconds,
+        horde: (cgHordeEl.value as CustomHordeFactor) || 'off',
+        roundCards: cgRoundCardsEl.checked,
+    };
+}
+
+/** undoes 'custom' case's wide-layout/no-logo treatment — shared by both
+ *  Back (return to the normal-width main menu) and actually hosting
+ *  (the shared waiting-for-connection status screen is normal-width too) */
+function closeCustomGameScreen(): void {
+    customEl.style.display = 'none';
+    menu.classList.remove('m-wide');
+    title.visible = true;
+}
+
+/** host a game with the Custom Game screen's current settings — 1v1 reuses
+ *  the plain lobby host flow (settings applied via runPending's applyMode
+ *  hook, same shape as the horde-only quickMatch case), 2v2/2v2ai reuse
+ *  beginStarHost with the mode-appropriate join threshold (see its own
+ *  doc comment: 2v2ai isn't a different wire mode, just waitFor=2). */
+function hostCustomGame(): void {
+    const cfg = readCustomGameForm();
+    saveCustomGameConfig(cfg);
+    closeCustomGameScreen();
+    mainButtonsEl.style.display = 'none';
+    if (cfg.mode === '1v1') {
+        runPending(hostLobby(setStatus), (settings) => applyCustomGameConfig(settings, cfg));
+        return;
+    }
+    void beginStarHost(false, cfg.mode === '2v2' ? 4 : 2, cfg);
+}
 
 let started = false;
 let pending: Pending | null = null;
@@ -893,14 +1051,13 @@ function setMenuBusy(busy: boolean): void {
 }
 
 async function refreshRoomList(): Promise<void> {
-    if (lobbyEl.style.display === 'none') return;
     try {
         const rooms = await fetchLobbyRooms();
         const mine = getPlayerName();
         const others = rooms.filter((r) => r.name.toLowerCase() !== mine.toLowerCase());
         if (others.length === 0) {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.innerHTML = 'No open rooms';
+            roomListEl.innerHTML = 'No open games';
             return;
         }
         roomListEl.className = 'm-room-list';
@@ -988,9 +1145,8 @@ function finishReturnToMenu(): void {
     spModeEl.style.display = 'none';
     mmModeEl.style.display = 'none';
     mmSimpleEl.style.display = 'none';
-    lobbyEl.style.display = 'none';
+    closeCustomGameScreen();
     mainButtonsEl.style.display = '';
-    stopRoomPoll();
     pending?.cancel();
     pending = null;
     cancelStarHost();
@@ -1054,7 +1210,6 @@ function startGame(
     if (started) return;
     started = true;
     destroyMenuGamepadCursor();
-    stopRoomPoll();
     stopGlobalChatPoll();
     hideResumeOverlay();
     resumeAbort?.abort();
@@ -1705,6 +1860,9 @@ function cancelStarHost(): void {
 
 /** set by beginStarHost's caller right before hosting; read by startStarMatch */
 let starHordeFlag = false;
+/** set only by the Custom Game host flow — when present, startStarMatch
+ *  applies ALL of it (timers, roundCards, horde), overriding starHordeFlag */
+let starCustomConfig: CustomGameConfig | null = null;
 
 /**
  * `waitForJoined`: total participants (host included) to wait for before
@@ -1714,8 +1872,13 @@ let starHordeFlag = false;
  * a real multi-tab test can actually gather everyone before the match
  * begins, instead of racing the very first join.
  */
-async function beginStarHost(horde = false, waitForJoined = 2): Promise<void> {
+async function beginStarHost(
+    horde = false,
+    waitForJoined = 2,
+    customConfig: CustomGameConfig | null = null,
+): Promise<void> {
     starHordeFlag = horde;
+    starCustomConfig = customConfig;
     setMenuBusy(true);
     setStatus('Opening 2v2 room…');
     const hostName = getPlayerName();
@@ -1736,6 +1899,10 @@ async function beginStarHost(horde = false, waitForJoined = 2): Promise<void> {
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // let every currently-connected guest see the same live roster
+        // preview instead of just a static "waiting for the host" — see
+        // runStarPending's 'starRoster' handling
+        hub.broadcast({ type: 'starRoster', roster });
         // auto-start once `waitForJoined` have joined — no manual "click
         // Start" step; the Start button (still shown) is only for "give up
         // waiting, go vs AI now" while the room hasn't reached that yet
@@ -1783,7 +1950,8 @@ function startStarMatch(): void {
     });
     const settings = settingsFromUrl();
     delete settings.seats; // canonical roster travels separately, localized per recipient
-    if (starHordeFlag) applyHordeMode(settings);
+    if (starCustomConfig) applyCustomGameConfig(settings, starCustomConfig);
+    else if (starHordeFlag) applyHordeMode(settings);
     widenMapForDuo(settings);
     settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     for (const seat of connected) {
@@ -1805,6 +1973,7 @@ function startStarMatch(): void {
         mySeat: 0,
     });
     starHosting = null; // ownership passes to the running Game now
+    starCustomConfig = null;
 }
 
 /** join a 2v2 room by the host's room name — waits for the host to Start */
@@ -1827,7 +1996,7 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
     };
     setMenuBusy(true);
     p.session
-        .then(async (session) => {
+        .then((session) => {
             if (cancelled) return;
             setStatus('Connected — waiting for the host to start…');
             session.onClose = () => {
@@ -1837,28 +2006,39 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                 setMenuBusy(false);
                 setStatus('Host closed the room.');
             };
-            const msg = await session.once();
-            pending = null;
-            setMenuBusy(false);
-            if (cancelled) return;
-            if (msg.type === 'starRejected') {
-                setStatus(msg.reason);
-                session.close();
-                return;
-            }
-            if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
-                setStatus('Version mismatch — both players need the same game version.');
-                session.close();
-                return;
-            }
-            const settings = msg.settings;
-            settings.seed = msg.seed;
-            settings.seats = localizeRoster(msg.roster, msg.yourSide);
-            const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
-            startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
-                role: 'guest',
-                session,
-                mySeat: msg.yourSeat,
+            // attach() (not once()): the host may send several 'starRoster'
+            // previews as others join before the eventual starSetup/
+            // starRejected arrives — see beginStarHost's refresh().
+            session.attach((msg) => {
+                if (cancelled) return;
+                if (msg.type === 'starRoster') {
+                    const names = msg.roster
+                        .map((s, i) => (i === 0 ? `${s.name} (host)` : s.name))
+                        .join(', ');
+                    setStatus(`Connected — waiting for the host to start… (${names})`);
+                    return;
+                }
+                pending = null;
+                setMenuBusy(false);
+                if (msg.type === 'starRejected') {
+                    setStatus(msg.reason);
+                    session.close();
+                    return;
+                }
+                if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+                    setStatus('Version mismatch — both players need the same game version.');
+                    session.close();
+                    return;
+                }
+                const settings = msg.settings;
+                settings.seed = msg.seed;
+                settings.seats = localizeRoster(msg.roster, msg.yourSide);
+                const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+                startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+                    role: 'guest',
+                    session,
+                    mySeat: msg.yourSeat,
+                });
             });
         })
         .catch((e: unknown) => {
@@ -1889,6 +2069,10 @@ function wireSteamStarHub(hub: SteamStarHub): void {
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // let every currently-connected guest see the same live roster
+        // preview instead of just a static "waiting for the host" — see
+        // runSteamStarPending's 'starRoster' handling
+        hub.broadcast({ type: 'starRoster', roster });
         if (joined > 1) {
             setStatus(`Steam lobby — ${joined}/4 joined: ${names}. Starting…`);
             startSteamStarMatch();
@@ -1980,7 +2164,7 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
         },
     };
     setMenuBusy(true);
-    p.then(async (session) => {
+    p.then((session) => {
         if (cancelled) return;
         setStatus('Connected — waiting for the host to start…');
         session.onClose = () => {
@@ -1990,28 +2174,37 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
             setMenuBusy(false);
             setStatus('Host closed the room.');
         };
-        const msg = await session.once();
-        pending = null;
-        setMenuBusy(false);
-        if (cancelled) return;
-        if (msg.type === 'starRejected') {
-            setStatus(msg.reason);
-            session.close();
-            return;
-        }
-        if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
-            setStatus('Version mismatch — both players need the same game version.');
-            session.close();
-            return;
-        }
-        const settings = msg.settings;
-        settings.seed = msg.seed;
-        settings.seats = localizeRoster(msg.roster, msg.yourSide);
-        const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
-        startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
-            role: 'guest',
-            session,
-            mySeat: msg.yourSeat,
+        // attach() (not once()): the host may send several 'starRoster'
+        // previews as others join before the eventual starSetup/
+        // starRejected arrives — see wireSteamStarHub's refresh().
+        session.attach((msg) => {
+            if (cancelled) return;
+            if (msg.type === 'starRoster') {
+                const names = msg.roster.map((s, i) => (i === 0 ? `${s.name} (host)` : s.name)).join(', ');
+                setStatus(`Connected — waiting for the host to start… (${names})`);
+                return;
+            }
+            pending = null;
+            setMenuBusy(false);
+            if (msg.type === 'starRejected') {
+                setStatus(msg.reason);
+                session.close();
+                return;
+            }
+            if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+                setStatus('Version mismatch — both players need the same game version.');
+                session.close();
+                return;
+            }
+            const settings = msg.settings;
+            settings.seed = msg.seed;
+            settings.seats = localizeRoster(msg.roster, msg.yourSide);
+            const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
+            startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
+                role: 'guest',
+                session,
+                mySeat: msg.yourSeat,
+            });
         });
     }).catch((e: unknown) => {
         pending = null;
@@ -2143,9 +2336,22 @@ function tryMatchmaking(): void {
     setStatus('Looking for a match…');
     void fetchLobbyRooms().then((rooms) => {
         const mine = getPlayerName().toLowerCase();
-        const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
-        if (open) beginStarJoin(open.name);
-        else tryQuickMatch(true, true);
+        // any OPEN room (not a spectate-only entry for an already-running
+        // match) — 1v1 or 2v2 alike, so a plain "Matchmaking" click on one
+        // tab always finds what another tab's "Matchmaking" click just
+        // hosted, the same way both used to only work for 2v2
+        const open = rooms.find((r) => r.kind === 'lobby' && r.name.toLowerCase() !== mine);
+        if (open?.mode === '2v2') {
+            beginStarJoin(open.name);
+        } else if (open) {
+            runPending(joinLobby(open.name, setStatus));
+        } else {
+            // nothing open — host a discoverable room (not the old
+            // anonymous quickMatch queue, which never showed up in the
+            // room list at all) so the very next "Matchmaking" click,
+            // from any tab, finds this one instead of also hosting blind
+            runPending(hostLobby(setStatus), applyHordeMode);
+        }
     });
 }
 
@@ -2287,9 +2493,8 @@ menu.addEventListener('click', (e) => {
             break;
         case 'matchmaking': {
             spModeEl.style.display = 'none';
-            lobbyEl.style.display = 'none';
+            customEl.style.display = 'none';
             mmSimpleEl.style.display = 'none';
-            stopRoomPoll();
             mainButtonsEl.style.display = 'none';
             const test2v2 = test2v2Param();
             if (test2v2 !== null) {
@@ -2408,29 +2613,29 @@ menu.addEventListener('click', (e) => {
             }
             break;
         }
-        case 'lobby': {
+        case 'custom': {
             spModeEl.style.display = 'none';
             mmModeEl.style.display = 'none';
             mmSimpleEl.style.display = 'none';
-            const open = lobbyEl.style.display === 'none';
-            lobbyEl.style.display = open ? '' : 'none';
-            if (open) startRoomPoll();
-            else stopRoomPoll();
+            mainButtonsEl.style.display = 'none';
+            populateCustomGameForm(loadCustomGameConfig());
+            customEl.style.display = '';
+            menu.classList.add('m-wide');
+            title.visible = false;
             break;
         }
-        case 'host':
-            runPending(hostLobby(setStatus));
+        case 'cg-back':
+            closeCustomGameScreen();
+            mainButtonsEl.style.display = '';
             break;
-        case 'host2v2':
-            lobbyEl.style.display = 'none';
-            stopRoomPoll();
-            void beginStarHost();
+        case 'cg-reset':
+            populateCustomGameForm(DEFAULT_CUSTOM_GAME);
+            break;
+        case 'cg-host':
+            hostCustomGame();
             break;
         case 'startstar':
             startStarMatch();
-            break;
-        case 'refresh':
-            void refreshRoomList();
             break;
     }
 });
@@ -2484,8 +2689,6 @@ if (bulkVerify) {
     // the classic one (a star host never answers a classic 'hello').
     const roomParam = new URLSearchParams(location.search).get('room');
     if (roomParam) {
-        lobbyEl.style.display = '';
-        startRoomPoll();
         void fetchLobbyRooms().then((rooms) => {
             const match = rooms.find((r) => r.name.toLowerCase() === roomParam.toLowerCase());
             if (match?.mode === '2v2') beginStarJoin(roomParam);

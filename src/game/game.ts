@@ -30,15 +30,19 @@ import {
     clearResumeMarker,
     clearSinglePlayer,
     GAME_VERSION,
+    isRevealable,
     NetworkOpponent,
     registerSpectateEndpoint,
     SpectatorHub,
+    STAR_RECONNECT_GRACE_MS,
+    type GuestSession,
     type NetMessage,
     type RosterEntry,
     type Session,
     type SpectatorSession,
     type SpectatorVision,
     type StarRole,
+    type VisionPolicy,
 } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode, type MatchResult } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
@@ -401,6 +405,14 @@ export class Game {
     private readonly starBattleReadySeats = new Set<SeatId>();
     /** star host only: this round's battle-start hash per seat (diagnostic desync check) */
     private readonly starChecks = new Map<SeatId, number>();
+    /** star host only: seats currently dropped (mid-grace-window) or reconnected-
+     *  but-not-yet-confirmed-ready — the host stays `suspended` while this is
+     *  non-empty, same as classic 1v1 stays suspended until the one peer is
+     *  both back AND ready (see beginStarSeatSuspend/starSeatReady) */
+    private readonly pendingStarSeats = new Set<SeatId>();
+    /** star guest only: aborts an in-flight redial loop if we give up first
+     *  (quitToMenu) — mirrors classic 1v1's onReconnectTimeout callback */
+    private starRedialAbort: AbortController | null = null;
     /** host-only: dedicated broadcast connection point for spectators, opened
      *  once a multiplayer match starts (classic 1v1 host, or a star host —
      *  see startSpectatorHub) */
@@ -1912,6 +1924,12 @@ export class Game {
         // since star is its own optional field
         if (this.star?.role === 'host') this.star.hub.close();
         else if (this.star?.role === 'guest') this.star.session.close();
+        // stop an in-flight redial from quietly retrying for the rest of its
+        // grace window after we've already left — everything it would do on
+        // success/failure is separately disposed-guarded either way, this
+        // just avoids the pointless background work
+        this.starRedialAbort?.abort();
+        this.starRedialAbort = null;
         this.spectatorHub?.close();
         this.spectatorHub = null;
         this.stopSpectateRegistration?.();
@@ -2818,10 +2836,25 @@ export class Game {
                     return;
                 }
                 const vision: SpectatorVision = { mode: 'battle' };
+                const resume = this.exportResumeForSpectator(vision);
+                this.debugLog.log('vision.admitSnapshot', {
+                    name,
+                    round: this.round,
+                    phase: this.phase,
+                    exportedCount: resume.actions.length,
+                    exported: resume.actions.map((e) => ({
+                        round: e.round,
+                        kind: e.action.kind,
+                        team: e.action.team,
+                        seat: e.action.seat,
+                        typeId: (e.action as { typeId?: string }).typeId,
+                        unitId: (e.action as { unitId?: number }).unitId,
+                    })),
+                });
                 conn.send({
                     type: 'spectateAccepted',
                     version: GAME_VERSION,
-                    ...this.exportResumeForSpectator(vision),
+                    ...resume,
                     roster: this.buildRoster(),
                     vision,
                 });
@@ -2919,18 +2952,155 @@ export class Game {
      */
     private wireStar(star: StarRole): void {
         if (star.role === 'guest') {
-            star.session.attach((msg) => this.onStarMessage(msg));
-            star.session.onClose = () => {
-                if (this.matchOver || this.suspended) return;
-                this.suspend('Lost connection to the host.');
-            };
+            this.wireStarGuestSession(star.session);
         } else {
             star.hub.onMessage = (seat, msg) => this.onStarMessage(msg, seat);
+            star.hub.onSeatSuspended = (seat) => this.beginStarSeatSuspend(seat);
+            star.hub.onSeatReconnected = (seat) => this.starSeatReconnected(seat);
             star.hub.onSeatDropped = (seat) => {
-                if (this.matchOver || this.suspended) return;
+                this.pendingStarSeats.delete(seat);
+                if (this.matchOver) return;
                 const name = this.seats[seat]?.name ?? 'a player';
                 this.suspend(`Lost connection to ${name}.`);
             };
+        }
+    }
+
+    /** (re)wires a star guest's connection to the host — called at match
+     *  start and again after every successful redial, so a second (or
+     *  third...) drop is caught exactly the same way as the first */
+    private wireStarGuestSession(session: GuestSession): void {
+        session.attach((msg) => this.onStarMessage(msg));
+        session.onClose = () => this.beginStarGuestReconnect(session);
+    }
+
+    /**
+     * Star guest only: the connection to the host just dropped. Pauses
+     * locally (same shape as classic 1v1's beginReconnectGrace) and redials
+     * the SAME host peer id with our own still-alive Peer object for up to
+     * STAR_RECONNECT_GRACE_MS (matching StarHub's own grace window on the
+     * host — see dropSeat) instead of classic 1v1's page-reload-based
+     * resume. Falls back to today's existing terminal suspend() on any
+     * failure/timeout/rejection — the fail-safe design used everywhere else
+     * in this feature, since there is zero live-testing coverage for it yet.
+     */
+    private beginStarGuestReconnect(session: GuestSession): void {
+        if (this.matchOver || !this.star || this.star.role !== 'guest' || this.star.session !== session) {
+            return;
+        }
+        const star = this.star;
+        this.suspended = true;
+        this.hud.hidePauseMenu();
+        this.placement.deselect();
+        this.armedItem = null;
+        this.hud.showNotice('Lost connection to the host — reconnecting…', 'Give up', () =>
+            this.quitToMenu(),
+        );
+        const controller = new AbortController();
+        this.starRedialAbort = controller;
+        const timeout = setTimeout(() => controller.abort(), STAR_RECONNECT_GRACE_MS);
+        void session
+            .redial(star.mySeat, controller.signal)
+            .then(async (fresh) => {
+                if (this.matchOver || this.disposed) {
+                    fresh.close();
+                    return;
+                }
+                const reply = await fresh.once();
+                if (this.matchOver || this.disposed) {
+                    fresh.close();
+                    return;
+                }
+                if (reply.type === 'starResumeState') {
+                    this.applyStarResumeState(reply);
+                    star.session = fresh;
+                    this.wireStarGuestSession(fresh);
+                    fresh.send({ type: 'ready' });
+                    this.suspended = false;
+                    this.hud.hideNotice();
+                } else {
+                    fresh.close();
+                    if (!this.matchOver) this.suspend('The host rejected our reconnect.');
+                }
+            })
+            .catch(() => {
+                if (!this.matchOver) this.suspend('Lost connection to the host.');
+            })
+            .finally(() => {
+                clearTimeout(timeout);
+                if (this.starRedialAbort === controller) this.starRedialAbort = null;
+            });
+    }
+
+    /**
+     * Star guest only: applies a starResumeState catch-up onto this
+     * ALREADY-LIVE Game object — never reconstructed, unlike classic 1v1's
+     * page-reload resume. dispatch() is NOT safe to re-run from index 0
+     * here (no idempotency guard — a re-applied buy would double-spend,
+     * a re-applied unlock would double-charge), so this resumes from
+     * `dispatcher.serializable().length`: exactly how many of msg.actions
+     * this object already reflects, since dispatchPlayer refuses all local
+     * input while `suspended` (see beginStarGuestReconnect) — nothing could
+     * have been added locally in the meantime.
+     */
+    private applyStarResumeState(msg: Extract<NetMessage, { type: 'starResumeState' }>): void {
+        const log = msg.actions.map((e) => {
+            const team = this.seats[e.action.seat!]?.team;
+            return team ? { ...e, action: { ...e.action, team } } : e;
+        });
+        const fromIndex = this.dispatcher.serializable().length;
+        this.hydrating = true;
+        this.replayLogFrom(log, fromIndex, msg.battleElapsed);
+        this.hydrating = false;
+        if (this.phase === 'build' && msg.phaseRemaining !== undefined) {
+            this.phaseRemaining = msg.phaseRemaining;
+        }
+    }
+
+    /** star host only: a seat's connection just dropped — pause the whole
+     *  match (same shape as classic 1v1's beginReconnectGrace) but
+     *  recoverable: StarHub itself keeps the seat reserved for
+     *  STAR_RECONNECT_GRACE_MS, during which a redial reclaims it (see
+     *  starSeatReconnected) instead of immediately falling to the terminal
+     *  give-up state onSeatDropped uses once the window elapses. */
+    private beginStarSeatSuspend(seat: SeatId): void {
+        if (this.matchOver || !this.star || this.star.role !== 'host') return;
+        this.pendingStarSeats.add(seat);
+        if (this.suspended) return; // already paused for a different pending seat
+        this.suspended = true;
+        this.hud.hidePauseMenu();
+        this.placement.deselect();
+        this.armedItem = null;
+        const name = this.seats[seat]?.name ?? 'a player';
+        this.hud.showNotice(`${name} lost connection — waiting for them to reconnect…`, 'Give up', () =>
+            this.quitToMenu(),
+        );
+    }
+
+    /** star host only: the transport reclaimed the seat — send it
+     *  everything it missed, but don't unsuspend yet: wait for its own
+     *  'ready' (see onStarMessage's 'ready' case / starSeatReady) so a big
+     *  catch-up has time to finish applying on their end before the match
+     *  ticks again for everyone, same reasoning as classic 1v1's
+     *  awaitPeerReady. */
+    private starSeatReconnected(seat: SeatId): void {
+        if (!this.star || this.star.role !== 'host') return;
+        this.star.hub.send(seat, {
+            type: 'starResumeState',
+            version: GAME_VERSION,
+            actions: this.actionsForSeatResume(seat),
+            battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
+            phaseRemaining: this.phaseRemaining,
+        });
+    }
+
+    /** star host only: a reconnected seat confirmed it finished catching up
+     *  — un-suspend once every pending seat has done the same */
+    private starSeatReady(seat: SeatId): void {
+        this.pendingStarSeats.delete(seat);
+        if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
+            this.suspended = false;
+            this.hud.hideNotice();
         }
     }
 
@@ -3251,6 +3421,28 @@ export class Game {
     }
 
     /**
+     * Star host only: the resume payload for a reconnecting seat — reuses
+     * the SAME `isRevealable` predicate `StarHub.relayBuild` already uses
+     * (a seat-vision policy), rather than `actionsForPeerResume`'s classic-
+     * 1v1-specific `team !== 'player'` check, which only ever makes sense
+     * for exactly 2 parties. Same "only this round is still in question"
+     * shape as `actionsForPeerResume`: round 0 and any already-completed
+     * round are always included unconditionally.
+     */
+    private actionsForSeatResume(seat: SeatId): LoggedAction[] {
+        if (!this.star || this.star.role !== 'host') return [];
+        const hub = this.star.hub;
+        const all = this.dispatcher.serializable();
+        if (this.phase !== 'build') return all;
+        const policy: VisionPolicy = { kind: 'seat', side: hub.sideOf(seat) };
+        return all.filter((e) => {
+            if (e.round !== this.round) return true;
+            const fromSide = hub.sideOf(e.action.seat!);
+            return isRevealable(policy, fromSide, (side) => this.starSideLocked(side));
+        });
+    }
+
+    /**
      * Spectator mid-join: battle vision omits the unfinished build round's
      * actions until both seats locked; live vision includes granted seats.
      */
@@ -3303,6 +3495,37 @@ export class Game {
     }
 
     /**
+     * The core catch-up loop shared by `hydrate()` (fresh reconstruction,
+     * `fromIndex` 0) and a star seat's in-session reconnect catch-up
+     * (`applyStarResumeState`, `fromIndex` = however much of this log this
+     * object already reflects). Round/phase advance purely as a side effect
+     * of `dispatch()`/`fastForwardBattle()` — same mechanics the live 60fps
+     * tick uses — so this works identically whether starting from a blank
+     * object or a partially-progressed live one.
+     */
+    private replayLogFrom(log: LoggedAction[], fromIndex: number, liveBattleElapsed: number | null): void {
+        let i = fromIndex;
+        while (i < log.length && !this.matchOver) {
+            const entry = log[i]!;
+            if (entry.round === 0) {
+                this.dispatcher.dispatch(entry.action);
+                i++;
+                this.maybeStartMatch();
+                continue;
+            }
+            if (this.awaitingCards || entry.round !== this.round || this.phase !== 'build') break;
+            this.dispatcher.dispatch(entry.action);
+            i++;
+            if ((this.phase as Phase) === 'battle') {
+                // historical battles run to their exact end; the battle the
+                // peer is WATCHING right now only catches up to their clock
+                const isLiveBattle = i >= log.length && liveBattleElapsed !== null;
+                this.fastForwardBattle(isLiveBattle ? liveBattleElapsed : undefined);
+            }
+        }
+    }
+
+    /**
      * Rebuilds the whole match from a recorded log: actions re-apply in
      * order, battles fast-forward headlessly to their exact deterministic
      * end. Used for reconnects, desync recovery — and replays later.
@@ -3328,32 +3551,28 @@ export class Game {
                   return team ? { ...e, action: { ...e.action, team } } : e;
               })
             : sourceLog;
+        this.debugLog.log('hp.hydrateStart', {
+            watching: this.watching,
+            swapTeams,
+            liveBattleElapsed,
+            logLength: log.length,
+            log: log.map((e) => ({
+                round: e.round,
+                kind: e.action.kind,
+                team: e.action.team,
+                seat: e.action.seat,
+                typeId: (e.action as { typeId?: string }).typeId,
+                unitId: (e.action as { unitId?: number }).unitId,
+            })),
+        });
         const starterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
         this.draw(START_CARDS, 4, this.rngCards.enemy);
 
-        let i = 0;
-        while (i < log.length && !this.matchOver) {
-            const entry = log[i]!;
-            if (entry.round === 0) {
-                this.dispatcher.dispatch(entry.action);
-                i++;
-                this.maybeStartMatch();
-                continue;
-            }
-            if (this.awaitingCards || entry.round !== this.round || this.phase !== 'build') break;
-            this.dispatcher.dispatch(entry.action);
-            i++;
-            if ((this.phase as Phase) === 'battle') {
-                // historical battles run to their exact end; the battle the
-                // peer is WATCHING right now only catches up to their clock
-                const isLiveBattle = i >= log.length && liveBattleElapsed !== null;
-                this.fastForwardBattle(isLiveBattle ? liveBattleElapsed : undefined);
-            }
-        }
+        this.replayLogFrom(log, 0, liveBattleElapsed);
         this.hydrating = false;
         this.debugLog.log('hp.hydrateDone', {
             watching: this.watching,
-            processed: i,
+            processed: this.dispatcher.serializable().length,
             logLength: log.length,
             round: this.round,
             phase: this.phase,
@@ -3877,6 +4096,10 @@ export class Game {
             if (!isHost || fromSeat === undefined || !this.spectatorHub) return;
             const side = star.hub.sideOf(fromSeat);
             this.spectatorHub.setSeatLive(msg.spectatorName, side, msg.grant);
+        } else if (msg.type === 'ready') {
+            // host only: a reconnected seat finished applying its
+            // starResumeState catch-up — see starSeatReady's doc comment
+            if (isHost && fromSeat !== undefined) this.starSeatReady(fromSeat);
         }
     }
 

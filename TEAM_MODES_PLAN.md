@@ -597,6 +597,72 @@ capacity, not blind.
 
 ---
 
+## 3d. Fuller star (2v2+) reconnect (2026-07-28): redial + grace window
+
+§3b's "minimal reconnect" (any drop pauses with a give-up button, no
+redial) is now recoverable within a 30s grace window
+(`STAR_RECONNECT_GRACE_MS`), built with zero live-testing capacity
+overnight — every new mechanism was designed to fall back cleanly to
+that exact pre-existing "suspend, give up" behavior on any
+failure/timeout/rejection, so a bug in the new code degrades to (at
+worst) today's already-shipped behavior, never a worse/stuck state.
+**Needs a real multi-client playtest before it's trusted** — this is
+the same "revisit with real test capacity, not blind" caveat as Phase C
+above, just for a narrower, additive slice instead of the full
+`eventsSince` unification.
+
+**What's built:**
+- `StarHub.dropSeat` (net.ts) no longer frees a seat immediately — it's
+  kept reserved (`conn: null`, still counted by `nextOpenSeat`) for the
+  grace window, during which a `starRejoin` handshake
+  (`StarHub.reclaimSeat`) can reclaim it. `onSeatDropped` now means
+  "grace window elapsed, no reconnect" (today's original terminal
+  behavior); `onSeatSuspended`/`onSeatReconnected` are the two new
+  states in between.
+- `StarGuestSession.redial()`: redials the SAME host peer id with the
+  guest's own still-alive Peer object, retrying until an
+  `AbortSignal` fires (the grace window). In-session only — never a
+  page reload, and never host migration; both remain out of scope, same
+  as §3b's original note.
+- `Game.actionsForSeatResume(seat)` (host-only): the resume payload for
+  a reconnecting seat, reusing the SAME `isRevealable` predicate
+  `StarHub.relayBuild`/`SpectatorHub` already use (a seat-vision
+  policy), instead of `actionsForPeerResume`'s classic-1v1-specific
+  `team !== 'player'` check, which only generalizes to exactly 2
+  parties.
+- `Game.replayLogFrom()`: `hydrate()`'s core catch-up loop, extracted so
+  it can run from an arbitrary `fromIndex` instead of always 0. This is
+  what makes resuming onto an ALREADY-LIVE Game object safe:
+  `dispatch()` has no idempotency guard (a re-applied buy would
+  double-spend), so a reconnecting guest resumes from
+  `dispatcher.serializable().length` — exactly how much of the host's
+  resume log it already reflects, guaranteed accurate because
+  `dispatchPlayer` refuses all local input while `suspended`, so nothing
+  local could have been added during the gap.
+- Fairness handshake: the host sends `starResumeState` as soon as the
+  transport reclaims a seat, but doesn't unsuspend until that seat sends
+  `'ready'` back (reusing the existing generic `NetMessage` type) —
+  mirrors classic 1v1's `awaitPeerReady`, giving a big catch-up
+  (dispatch + `fastForwardBattle`) time to finish applying before the
+  match resumes ticking for everyone.
+
+**Deliberately scoped out, same reasoning as §3b:**
+- The host pauses only *itself* while a seat is pending — it does not
+  broadcast a pause to other connected guests. They keep playing
+  obliviously, exactly like before this change. This works because round
+  advancement on the host is driven by message arrival (event-driven,
+  not tick-gated), so other seats' actions still get received/relayed/
+  applied by the host even while the host's own tick (and thus its own
+  rendering) is frozen — the host's own view may render behind for the
+  duration of the pause, self-correcting once unsuspended. Untested
+  edge case: a battle phase starting host-side while suspended (this
+  round's data is fine; the host's own presentation just catches up).
+- Host migration and full browser-reload/session persistence for star
+  matches remain unbuilt (`SteamStarHub` still fires `onSeatDropped`
+  immediately — no redial story for the Steam transport at all yet).
+
+---
+
 ## 4. Mode: Horde (PvPvE — build first)
 
 Replaces the earlier "2vE co-op" concept. Two humans, **mutually
