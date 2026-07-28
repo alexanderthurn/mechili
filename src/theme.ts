@@ -222,7 +222,7 @@ export function menuStyles(): string {
     position: absolute;
     left: 50%;
     top: 50%;
-    transform: translate(-50%, -8%);
+    transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -230,6 +230,9 @@ export function menuStyles(): string {
     width: clamp(264px, 34vw, 324px);
     box-sizing: border-box;
     padding: 22px 20px 24px;
+    max-height: min(88vh, calc(100dvh - 200px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     background: linear-gradient(180deg, rgba(30, 44, 26, 0.62), rgba(18, 28, 15, 0.74));
     border: 1px solid rgba(255, 216, 64, 0.18);
     border-radius: 18px;
@@ -238,6 +241,7 @@ export function menuStyles(): string {
     backdrop-filter: blur(12px) saturate(1.1);
     font-family: system-ui, sans-serif;
     user-select: none;
+    z-index: 30;
 }
 /* Custom Game screen: wider, near-fullscreen, scrollable — the settings
    form (mode + 4 timers + horde + roundcards) doesn't fit the normal
@@ -247,8 +251,26 @@ export function menuStyles(): string {
     top: 50%;
     transform: translate(-50%, -50%);
     width: min(720px, 94vw);
-    max-height: 92vh;
+    max-height: min(92vh, calc(100dvh - 120px));
     overflow-y: auto;
+}
+/* short viewports: keep the button stack readable above bottom chrome */
+@media (max-height: 720px) {
+    .mechili-menu:not(.m-wide) {
+        gap: 8px;
+        padding: 14px 16px 16px;
+        max-height: min(86vh, calc(100dvh - 168px));
+    }
+    .mechili-menu:not(.m-wide) .m-btn {
+        padding: 11px 14px;
+        font-size: 15px;
+    }
+    .mechili-menu:not(.m-wide) .m-primary { font-size: 16px; }
+    .mechili-menu:not(.m-wide) .m-main { gap: 8px; }
+    .mechili-menu:not(.m-wide) .m-room-list {
+        max-height: min(120px, 22vh);
+        min-height: 48px;
+    }
 }
 /* brass accent line across the top of the console */
 .mechili-menu::before {

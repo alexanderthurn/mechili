@@ -451,32 +451,67 @@ subtitle.anchor.set(0.5);
 title.addChild(logo);
 app.stage.addChild(title);
 
+const MENU_TOP_CHROME = 52;
+
+function estimateMenuTop(): number {
+    const h = app.screen.height;
+    if (menu.style.display === 'none' || menu.offsetHeight === 0) {
+        const estHalf = Math.min(190, h * 0.26);
+        return h * 0.5 - estHalf;
+    }
+    return menu.getBoundingClientRect().top;
+}
+
 function layoutTitle() {
-    const cx = app.screen.width / 2;
-    const cy = app.screen.height / 2 - 160;
-    const scale = Math.min(app.screen.width * 0.62, 600) / logo.texture.width;
+    const w = app.screen.width;
+    const h = app.screen.height;
+    const cx = w / 2;
+    const menuTop = estimateMenuTop();
+    const spaceAbove = Math.max(56, menuTop - MENU_TOP_CHROME);
+
+    const byWidth = Math.min(w * 0.62, 600);
+    const byHeight = spaceAbove * 0.84;
+    const aspect = logo.texture.width / logo.texture.height;
+    const logoDisplayW = Math.min(byWidth, byHeight * aspect);
+    const scale = logoDisplayW / logo.texture.width;
+    const logoHalfH = (logo.texture.height * scale) / 2;
+
+    const gap = Math.min(18, Math.max(8, h * 0.014));
+    let cy = menuTop - gap - logoHalfH;
+    cy = Math.max(MENU_TOP_CHROME + logoHalfH, cy);
+
     logo.scale.set(scale);
     logo.position.set(cx, cy);
-    subtitle.position.set(cx, cy + logo.height / 2 + 2);
+    subtitle.position.set(cx, cy + logoHalfH + 2);
 }
 
 /** place the HTML intro-cover logo exactly where the Pixi menu logo sits */
 function layoutIntroLogo(logoImg: HTMLImageElement): void {
-    const cx = app.screen.width / 2;
-    const cy = app.screen.height / 2 - 160;
-    const width = Math.min(app.screen.width * 0.62, 600);
+    const w = app.screen.width;
+    const h = app.screen.height;
+    const cx = w / 2;
+    const menuTop = estimateMenuTop();
+    const spaceAbove = Math.max(56, menuTop - MENU_TOP_CHROME);
+
+    const byWidth = Math.min(w * 0.62, 600);
+    const byHeight = spaceAbove * 0.84;
+    const aspect = (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0)
+        ? logoImg.naturalWidth / logoImg.naturalHeight
+        : logo.texture.width / logo.texture.height;
+    const logoDisplayW = Math.min(byWidth, byHeight * aspect);
+    const logoHalfH = logoDisplayW / aspect / 2;
+
+    const gap = Math.min(18, Math.max(8, h * 0.014));
+    let cy = menuTop - gap - logoHalfH;
+    cy = Math.max(MENU_TOP_CHROME + logoHalfH, cy);
+
     logoImg.style.left = `${cx}px`;
     logoImg.style.top = `${cy}px`;
-    logoImg.style.width = `${width}px`;
+    logoImg.style.width = `${logoDisplayW}px`;
     logoImg.style.opacity = '1';
 }
-layoutTitle();
-app.renderer.on('resize', layoutTitle);
-
 const menu = document.createElement('div');
 menu.className = 'mechili-menu';
-menu.style.position = 'relative';
-menu.style.zIndex = '30';
 menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-main">
@@ -574,6 +609,13 @@ menu.innerHTML = `
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
+layoutTitle();
+app.renderer.on('resize', layoutTitle);
+new ResizeObserver(() => layoutTitle()).observe(menu);
+
+function scheduleLayoutTitle(): void {
+    requestAnimationFrame(() => layoutTitle());
+}
 
 const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
@@ -652,6 +694,7 @@ function setMenuChromeVisible(visible: boolean): void {
     applyGlobalChatVisibility();
     if (visible) {
         ensureMenuGamepadCursor();
+        scheduleLayoutTitle();
         // the room/game list lives on the main menu view now (not a
         // separate toggled panel) — keep it fresh any time menu chrome is
         // showing at all, including while a sub-panel is open, so it's
@@ -810,6 +853,7 @@ function closeCustomGameScreen(): void {
     customEl.style.display = 'none';
     menu.classList.remove('m-wide');
     title.visible = true;
+    scheduleLayoutTitle();
 }
 
 /** host a game with the Custom Game screen's current settings — 1v1 reuses
@@ -1092,6 +1136,7 @@ async function refreshRoomList(): Promise<void> {
         roomListEl.className = 'm-room-list empty';
         roomListEl.innerHTML = 'Could not load rooms';
     }
+    scheduleLayoutTitle();
 }
 
 function startRoomPoll(): void {
