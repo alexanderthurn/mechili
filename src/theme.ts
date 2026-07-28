@@ -1836,8 +1836,9 @@ export function hudStyles(): string {
     width: 46px; height: 46px;
     box-sizing: border-box;
     display: flex; align-items: center; justify-content: center;
-    /* leave room at the bottom for the cost strip so the icon centers above it */
-    padding: 0 0 12px; margin: 0;
+    /* leave room at the bottom for the cost strip so the icon centers above it;
+       when there's no strip (owned / no price), center in the full tile */
+    padding: 0; margin: 0;
     appearance: none; -webkit-appearance: none;
     background: ${u.techBuyBg};
     border: 1.5px solid ${u.border};
@@ -1846,6 +1847,7 @@ export function hudStyles(): string {
     cursor: pointer;
     overflow: visible;
 }
+.mechili-panel .action-tile:has(.at-cost) { padding-bottom: 12px; }
 .mechili-panel .action-tile .at-icon { font-size: 27px; line-height: 1; }
 .m-icon {
     display: inline-block;
@@ -3022,8 +3024,8 @@ export function hudStyles(): string {
     .mechili-panel .action-tile {
         width: 54px;
         height: 54px;
-        padding-bottom: 14px;
     }
+    .mechili-panel .action-tile:has(.at-cost) { padding-bottom: 14px; }
     .mechili-panel .action-tile .at-cost { font-size: 10px; }
     .mechili-sidebar .inv-item {
         width: 54px;

@@ -1223,6 +1223,13 @@ export class Game {
                 : this.canLevel(unit);
         // freeze upgrade-arrow intel at phase start (survives enemy leveling mid-deploy)
         this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
+        // world tech icons — always visible on seen packs (same as details pane)
+        this.placement.ownedTechIcons = (unit) => {
+            if (unit.type.structure || unit.type.techs.length === 0) return [];
+            return unit.type.techs
+                .filter((t) => this.techTree.has(unit.seat, unit.type.id, t.id))
+                .map((t) => techIcon(t));
+        };
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit) => {
             if (this.armedItem) {
@@ -6713,14 +6720,11 @@ export class Game {
         });
     }
 
-    /** pack/unit techs for the action row — per SEAT now (own packs only), like
-     *  applyItem/sellUnit: selecting an ally's pack shows THEIR research, read-only */
+    /** pack/unit techs for the action row — per SEAT. Always inspectable on
+     *  any visible pack (own, ally, or enemy); only own seat can buy. */
     private techSelection(u: Unit): SelectionInfo['techs'] {
         if (u.type.structure || u.type.techs.length === 0) return undefined;
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const canInspect =
-            u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
-        if (!canBuy && !canInspect) return undefined;
 
         const seat = u.seat;
         const ownedCount = this.techTree.ownedFor(seat, u.type.id).size;

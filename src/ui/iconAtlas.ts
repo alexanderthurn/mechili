@@ -29,6 +29,8 @@ const sheetH = atlas.meta.size.h;
 
 /** Prefer data URL so HTMLSource / canvas mirroring can rasterize icons. */
 let atlasPaintUrl = atlasUrl;
+/** Decoded atlas image — used by world sprites that stamp frames onto canvas. */
+let atlasImage: HTMLImageElement | null = null;
 let preloadPromise: Promise<void> | null = null;
 
 function frameKey(id: string): string {
@@ -44,7 +46,7 @@ export function hasIcon(id: string): boolean {
  * so in-canvas HTMLSource paints see the sheet.
  */
 export function preloadIconAtlas(): Promise<void> {
-    if (atlasPaintUrl.startsWith('data:')) return Promise.resolve();
+    if (atlasImage && atlasPaintUrl.startsWith('data:')) return Promise.resolve();
     if (preloadPromise) return preloadPromise;
     preloadPromise = (async () => {
         const res = await fetch(atlasUrl);
@@ -56,15 +58,35 @@ export function preloadIconAtlas(): Promise<void> {
             fr.onerror = () => reject(fr.error ?? new Error('icon atlas FileReader failed'));
             fr.readAsDataURL(blob);
         });
-        // decode so first HTMLSource paint isn't blank
-        await new Promise<void>((resolve, reject) => {
+        // decode so first HTMLSource paint isn't blank, and keep the Image for
+        // world-sprite stamping (tech badges over packs, etc.)
+        atlasImage = await new Promise<HTMLImageElement>((resolve, reject) => {
             const img = new Image();
-            img.onload = () => resolve();
+            img.onload = () => resolve(img);
             img.onerror = () => reject(new Error('icon atlas decode failed'));
             img.src = atlasPaintUrl;
         });
     })();
     return preloadPromise;
+}
+
+/**
+ * Stamp one atlas frame onto a canvas context (transparent — no plate/border).
+ * Returns false if the atlas isn't ready or the id is missing.
+ */
+export function drawIcon(
+    ctx: CanvasRenderingContext2D,
+    id: string,
+    dx: number,
+    dy: number,
+    size: number,
+    fallbackId = 'ui-unknown',
+): boolean {
+    if (!atlasImage) return false;
+    const frame = iconFrame(id) ?? iconFrame(fallbackId);
+    if (!frame) return false;
+    ctx.drawImage(atlasImage, frame.x, frame.y, frame.w, frame.h, dx, dy, size, size);
+    return true;
 }
 
 /** CSS background snippet for an HTML icon element (fills the element's box). */

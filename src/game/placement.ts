@@ -26,6 +26,7 @@ import {
 } from './targetPreviewVisuals';
 import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
+import { drawIcon } from '../ui/iconAtlas';
 
 /** horde unit ids start here — far above anything the parity counters reach */
 const HORDE_ID_BASE = 1_000_000;
@@ -147,6 +148,11 @@ export class PlacementController {
     levelReady: ((unit: Unit) => boolean) | null = null;
     /** set by the game: whether a pack should keep a stale upgrade arrow in the intel snapshot */
     upgradeReadyAtCapture: ((unit: Unit) => boolean) | null = null;
+    /**
+     * set by the game: atlas icon ids for techs this pack's seat owns on this
+     * type — empty when none; shown on every visible pack (including enemies)
+     */
+    ownedTechIcons: ((unit: Unit) => string[]) | null = null;
     /** fires on every click that lands on a unit (used for item application) */
     onSelect: ((unit: Unit) => void) | null = null;
     /** when set, left clicks are offered here first; return true to swallow */
@@ -205,6 +211,11 @@ export class PlacementController {
     /** floating item symbols over equipped packs (build phase only) */
     private readonly itemBadges: Sprite[] = [];
     private readonly itemBadgeMaterials = new Map<string, SpriteMaterial>();
+    /** tiny borderless tech icons in a row over packs (build phase only) */
+    private readonly techBadges: Sprite[] = [];
+    private readonly techBadgeMaterials = new Map<string, SpriteMaterial>();
+    /** scratch: camera-right for laying status sprites side-by-side on screen */
+    private readonly statusBadgeRight = new Vector3();
     private readonly rectEl: HTMLDivElement;
     private rectActive = false;
     private pointer: { x: number; y: number } | null = null;
@@ -246,7 +257,11 @@ export class PlacementController {
         this.rangeMesh = createRangeRing(scene);
         this.targetPreview = new TargetPreviewVisuals(scene);
 
-        this.levelArrowMaterial = new MeshBasicMaterial({ color: SELECT_COLOR });
+        this.levelArrowMaterial = new MeshBasicMaterial({
+            color: SELECT_COLOR,
+            depthTest: false,
+            depthWrite: false,
+        });
 
         this.plateGeometry = new PlaneGeometry(1, 1);
         this.plateGeometry.rotateX(-Math.PI / 2);
@@ -980,7 +995,7 @@ export class PlacementController {
             unit.update(timeSeconds);
         }
         this.updateMovablePlates(timeSeconds);
-        this.updateItemBadges();
+        this.updateStatusBadges();
         // intel fog snaps views to committed/snapshot poses — must run BEFORE
         // markers so a carried pack's cursor ride is not overwritten
         this.applyIntelFog();
@@ -1029,60 +1044,101 @@ export class PlacementController {
         mesh.visible = true;
     }
 
-    /** small floating icon over every pack that carries an item */
-    private updateItemBadges(): void {
-        let used = 0;
+    /**
+     * One camera-aligned status strip over each visible pack:
+     * `[item?] · tech · tech …` (item leftmost, plated; techs borderless).
+     * The upgrade arrow sits above this strip when both are present.
+     */
+    private updateStatusBadges(): void {
+        let itemUsed = 0;
+        let techUsed = 0;
         if (this.enabled) {
-            for (const unit of this.units) {
-                const icon = this.intelItemIcon(unit);
-                if (!icon) continue;
-                const world = this.intelWorldOf(unit);
-                let sprite = this.itemBadges[used];
-                if (!sprite) {
-                    sprite = new Sprite();
-                    sprite.scale.set(2.6, 2.6, 1);
-                    this.scene.add(sprite);
-                    this.itemBadges.push(sprite);
-                }
-                sprite.material = this.itemBadgeMaterial(icon);
-                // memberBaseY tracks deploy hug vs combat climb (not type.flying)
-                sprite.position.set(
-                    world.x,
-                    world.y + unit.memberBaseY() + unit.type.meshScale * 2.6 + 2.2,
-                    world.z,
-                );
-                sprite.visible = true;
-                used++;
-            }
-            if (this.intelFog) {
-                for (const [id, snap] of this.intelSnapshot) {
-                    if (!this.isFoggedSnapshot(snap) || snap.items.length === 0) continue;
-                    if (this.units.some((u) => u.id === id)) continue;
-                    const ghost = this.intelGhosts.get(id);
-                    if (!ghost) continue;
-                    const icon = itemWorldGlyph(snap.items[0]!);
-                    let sprite = this.itemBadges[used];
+            this.statusBadgeRight.setFromMatrixColumn(this.rig.camera.matrixWorld, 0);
+            this.statusBadgeRight.y = 0;
+            if (this.statusBadgeRight.lengthSq() < 1e-8) this.statusBadgeRight.set(1, 0, 0);
+            else this.statusBadgeRight.normalize();
+            const right = this.statusBadgeRight;
+            const spacing = 2.0;
+
+            const placeStrip = (unit: Unit, world: Vector3, itemGlyph: string | null) => {
+                const techs = this.ownedTechIcons?.(unit) ?? [];
+                const n = (itemGlyph ? 1 : 0) + techs.length;
+                if (n === 0) return;
+                const y = this.statusStripY(unit, world);
+                const mid = (n - 1) / 2;
+                let slot = 0;
+                if (itemGlyph) {
+                    let sprite = this.itemBadges[itemUsed];
                     if (!sprite) {
                         sprite = new Sprite();
                         sprite.scale.set(2.6, 2.6, 1);
+                        sprite.renderOrder = 30;
                         this.scene.add(sprite);
                         this.itemBadges.push(sprite);
                     }
-                    sprite.material = this.itemBadgeMaterial(icon);
+                    sprite.material = this.itemBadgeMaterial(itemGlyph);
+                    const t = slot - mid;
                     sprite.position.set(
-                        snap.world.x,
-                        snap.world.y +
-                            ghost.memberBaseY() +
-                            ghost.type.meshScale * 2.6 +
-                            2.2,
-                        snap.world.z,
+                        world.x + right.x * t * spacing,
+                        y,
+                        world.z + right.z * t * spacing,
                     );
                     sprite.visible = true;
-                    used++;
+                    itemUsed++;
+                    slot++;
+                }
+                for (const iconId of techs) {
+                    let sprite = this.techBadges[techUsed];
+                    if (!sprite) {
+                        sprite = new Sprite();
+                        sprite.scale.set(1.7, 1.7, 1);
+                        sprite.renderOrder = 30;
+                        this.scene.add(sprite);
+                        this.techBadges.push(sprite);
+                    }
+                    sprite.material = this.techBadgeMaterial(iconId);
+                    const t = slot - mid;
+                    sprite.position.set(
+                        world.x + right.x * t * spacing,
+                        y,
+                        world.z + right.z * t * spacing,
+                    );
+                    sprite.visible = true;
+                    techUsed++;
+                    slot++;
+                }
+            };
+
+            for (const unit of this.units) {
+                if (!this.enemyIntelVisible(unit)) continue;
+                placeStrip(unit, this.intelWorldOf(unit), this.intelItemIcon(unit));
+            }
+            if (this.intelFog) {
+                for (const [id, snap] of this.intelSnapshot) {
+                    if (!this.isFoggedSnapshot(snap)) continue;
+                    if (this.units.some((u) => u.id === id)) continue;
+                    const ghost = this.intelGhosts.get(id);
+                    if (!ghost) continue;
+                    const item =
+                        snap.items.length > 0 ? itemWorldGlyph(snap.items[0]!) : null;
+                    placeStrip(ghost, snap.world, item);
                 }
             }
         }
-        for (let i = used; i < this.itemBadges.length; i++) this.itemBadges[i]!.visible = false;
+        for (let i = itemUsed; i < this.itemBadges.length; i++) this.itemBadges[i]!.visible = false;
+        for (let i = techUsed; i < this.techBadges.length; i++) this.techBadges[i]!.visible = false;
+    }
+
+    /** world Y of the status strip (item + tech icons) above a pack */
+    private statusStripY(unit: Unit, world: Vector3): number {
+        return world.y + unit.memberBaseY() + unit.type.meshScale * 2.6 + 2.2;
+    }
+
+    /** how many icons sit in the status strip (drives upgrade-arrow lift) */
+    private statusStripCount(unit: Unit): number {
+        const item = this.intelItemIcon(unit) ? 1 : 0;
+        const techs = this.ownedTechIcons?.(unit)?.length ?? 0;
+        return item + techs;
     }
 
     private itemBadgeMaterial(icon: string): SpriteMaterial {
@@ -1106,8 +1162,38 @@ export class PlacementController {
             ctx.fillText(icon, 32, 34);
             const texture = new CanvasTexture(canvas);
             texture.colorSpace = SRGBColorSpace;
-            material = new SpriteMaterial({ map: texture, depthWrite: false, transparent: true });
+            material = new SpriteMaterial({
+                map: texture,
+                depthWrite: false,
+                depthTest: false, // UI-style: never occluded by scenery billboards
+                transparent: true,
+            });
             this.itemBadgeMaterials.set(icon, material);
+        }
+        return material;
+    }
+
+    /** atlas icon on a clear canvas — no plate, no border */
+    private techBadgeMaterial(iconId: string): SpriteMaterial {
+        let material = this.techBadgeMaterials.get(iconId);
+        if (!material) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d')!;
+            const ok = drawIcon(ctx, iconId, 0, 0, 64);
+            const texture = new CanvasTexture(canvas);
+            texture.colorSpace = SRGBColorSpace;
+            material = new SpriteMaterial({
+                map: texture,
+                depthWrite: false,
+                depthTest: false, // UI-style: never occluded by scenery billboards
+                transparent: true,
+                color: 0xffe878, // trial yellow tint — same gold as item glyphs
+            });
+            // only cache once the atlas stamped successfully (boot loads it
+            // first; skip-cache avoids locking in a blank sprite if called early)
+            if (ok) this.techBadgeMaterials.set(iconId, material);
         }
         return material;
     }
@@ -1116,32 +1202,35 @@ export class PlacementController {
      * A small solid gold up-arrow bobbing over packs ready to level —
      * own packs use live readiness; enemies use phase-start intel while fogged
      * (including sold ghosts), then live readiness after reveal.
+     * Sits above the status strip when the pack has item/tech icons.
      */
     private updateLevelArrows(timeSeconds: number): void {
         let used = 0;
         if (this.enabled) {
-            const place = (unit: Unit, seed: number) => {
+            const place = (unit: Unit, seed: number, world: Vector3) => {
                 let arrow = this.levelArrows[used];
                 if (!arrow) {
                     arrow = new Group();
                     arrow.scale.setScalar(3);
+                    arrow.renderOrder = 31;
                     // square shaft + pyramid head — a solid "upgrade" arrow
                     const shaft = new Mesh(new BoxGeometry(0.34, 0.6, 0.34), this.levelArrowMaterial);
                     shaft.position.y = 0;
+                    shaft.renderOrder = 31;
                     const head = new Mesh(new ConeGeometry(0.46, 0.7, 4), this.levelArrowMaterial);
                     head.rotation.y = Math.PI / 4; // pyramid faces align with the shaft
                     head.position.y = 0.65;
+                    head.renderOrder = 31;
                     arrow.add(shaft, head);
                     this.scene.add(arrow);
                     this.levelArrows.push(arrow);
                 }
                 const bob = Math.sin(timeSeconds * 3 + seed) * 0.2;
-                const top =
-                    unit.view.position.y +
-                    unit.memberBaseY() +
-                    unit.type.meshScale * 2.4 +
-                    0.9;
-                arrow.position.set(unit.view.position.x, top + bob, unit.view.position.z);
+                const hasStrip = this.statusStripCount(unit) > 0;
+                const top = hasStrip
+                    ? this.statusStripY(unit, world) + 2.8
+                    : world.y + unit.memberBaseY() + unit.type.meshScale * 2.4 + 0.9;
+                arrow.position.set(world.x, top + bob, world.z);
                 arrow.visible = true;
                 used++;
             };
@@ -1150,11 +1239,11 @@ export class PlacementController {
                 if (this.isFogged(unit)) {
                     const snap = this.intelSnapshot.get(unit.id);
                     if (!snap?.upgradeReady) continue;
-                    place(unit, unit.id);
+                    place(unit, unit.id, this.intelWorldOf(unit));
                     continue;
                 }
                 if (!this.levelReady?.(unit)) continue;
-                place(unit, unit.id);
+                place(unit, unit.id, this.intelWorldOf(unit));
             }
 
             // sold snapshotted packs keep their stale upgrade arrow on the ghost
@@ -1164,7 +1253,7 @@ export class PlacementController {
                     if (this.units.some((u) => u.id === id)) continue;
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
-                    place(ghost, id);
+                    place(ghost, id, snap.world);
                 }
             }
         }
