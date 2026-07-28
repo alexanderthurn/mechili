@@ -556,8 +556,8 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.4,
         speed: 3.5,
         techs: [
-            { id: 'barrel', name: 'Longbow', cost: 200, mods: { range: 1.3 } },
-            { id: 'ap', name: 'Piercing Arrows', cost: 250, mods: { damage: 1.4 } },
+            { id: 'barrel', name: 'Longbow', cost: 200, mods: { range: 1.3 }, icon: 'tech-longbow' },
+            { id: 'ap', name: 'Piercing Arrows', cost: 250, mods: { damage: 1.4 }, icon: 'tech-piercing-arrows' },
             {
                 id: 'fireArrows',
                 name: 'Fire Arrows',
@@ -596,8 +596,8 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.1,
         speed: 8,
         techs: [
-            { id: 'engines', name: 'Gale Wings', cost: 150, mods: { speed: 1.3 } },
-            { id: 'stingers', name: 'Crow Talons', cost: 200, mods: { damage: 1.4 } },
+            { id: 'engines', name: 'Gale Wings', cost: 150, mods: { speed: 1.3 }, icon: 'tech-gale-wings' },
+            { id: 'stingers', name: 'Crow Talons', cost: 200, mods: { damage: 1.4 }, icon: 'tech-crow-talons' },
         ],
         build: buildCrowRider,
     },
@@ -627,8 +627,8 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 3.8,
         speed: 2.2,
         techs: [
-            { id: 'armor', name: 'Iron Plating', cost: 300, mods: { hp: 1.5 } },
-            { id: 'autoloader', name: 'Quick Winch', cost: 300, mods: { attackInterval: 0.7 } },
+            { id: 'armor', name: 'Iron Plating', cost: 300, mods: { hp: 1.5 }, icon: 'tech-iron-plating' },
+            { id: 'autoloader', name: 'Quick Winch', cost: 300, mods: { attackInterval: 0.7 }, icon: 'tech-quick-winch' },
             {
                 id: 'golden',
                 name: 'Golden Aura',
