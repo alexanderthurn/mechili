@@ -1189,12 +1189,12 @@ export class PlacementController {
                 depthWrite: false,
                 depthTest: false, // UI-style: never occluded by scenery billboards
                 transparent: true,
-                color: 0xffe878, // trial yellow tint — same gold as item glyphs
             });
             // only cache once the atlas stamped successfully (boot loads it
             // first; skip-cache avoids locking in a blank sprite if called early)
             if (ok) this.techBadgeMaterials.set(iconId, material);
         }
+        material.color.set(THEME.ui.techOwned);
         return material;
     }
 
