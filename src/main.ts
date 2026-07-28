@@ -378,6 +378,15 @@ function clearIntroCover(): void {
     introCoverEl = null;
 }
 
+function applyRandomMenuZoomOrigin(bg: HTMLElement): void {
+    // Narrow band: random enough to feel different, close enough to center that
+    // scale doesn't shove huge amounts of the image (which looked like stutter).
+    const x = 32 + Math.random() * 36; // 32–68%
+    const y = 18 + Math.random() * 28; // 18–46%
+    bg.style.setProperty('--zoom-ox', `${x.toFixed(1)}%`);
+    bg.style.setProperty('--zoom-oy', `${y.toFixed(1)}%`);
+}
+
 function showIntroCover(): void {
     introCoverEl?.remove();
     const cover = document.createElement('div');
@@ -385,6 +394,7 @@ function showIntroCover(): void {
     const bg = document.createElement('div');
     bg.className = 'mechili-intro-menu-bg';
     bg.style.background = wrapper.style.background;
+    applyRandomMenuZoomOrigin(bg);
     const logoImg = document.createElement('img');
     logoImg.className = 'mechili-intro-logo';
     logoImg.src = logoUrl;
@@ -414,7 +424,8 @@ function showOutroCover(): void {
     const bg = document.createElement('div');
     bg.className = 'mechili-intro-menu-bg';
     bg.style.background = wrapper.style.background;
-    bg.style.transform = 'scale3d(3.5, 3.5, 1)';
+    applyRandomMenuZoomOrigin(bg);
+    bg.style.transform = 'translate3d(0, 0, 0) scale3d(3.5, 3.5, 1)';
     const logoImg = document.createElement('img');
     logoImg.className = 'mechili-intro-logo';
     logoImg.src = logoUrl;

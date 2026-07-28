@@ -867,8 +867,8 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 /* menu→match: compositor-thread bg zoom (keeps moving during sync Game boot) */
 @keyframes mechili-intro-dive {
-    from { transform: scale3d(1, 1, 1); }
-    to { transform: scale3d(3.5, 3.5, 1); }
+    from { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
+    to { transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1); }
 }
 @keyframes mechili-intro-logo-fade {
     from { opacity: 1; }
@@ -883,10 +883,12 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-intro-cover .mechili-intro-menu-bg {
     position: absolute;
     inset: 0;
-    transform-origin: 50% 10%;
+    /* --zoom-ox / --zoom-oy set per-start in JS */
+    transform-origin: var(--zoom-ox, 50%) var(--zoom-oy, 28%);
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
     pointer-events: none;
-    will-change: transform, opacity;
-    contain: strict;
+    will-change: transform;
 }
 .mechili-intro-cover.active .mechili-intro-menu-bg {
     animation: mechili-intro-dive 8s linear forwards;
@@ -908,11 +910,11 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
 @keyframes mechili-outro-rise {
-    from { transform: scale3d(3.5, 3.5, 1); }
-    to { transform: scale3d(1, 1, 1); }
+    from { transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1); }
+    to { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
 }
 .mechili-intro-cover.outro .mechili-intro-menu-bg {
-    transform: scale3d(3.5, 3.5, 1);
+    transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1);
 }
 .mechili-intro-cover.outro.active .mechili-intro-menu-bg {
     animation: mechili-outro-rise 0.8s ease-in forwards;
