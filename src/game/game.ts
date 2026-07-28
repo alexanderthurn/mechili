@@ -3345,7 +3345,17 @@ export class Game {
         // to finish it for this seat — let the AI lock it in right away
         // instead of leaving the round stuck waiting on an endDeployment
         // that will never come
-        if (this.phase === 'build' && !this.seatReady[seat]) {
+        if (this.round === 0 && !this.starterPicked[seat]) {
+            // round 0's specialist pick is its own gate (starterPicked),
+            // separate from the normal build-phase lock-in below — a seat
+            // that quit before ever picking a card would otherwise leave
+            // maybeStartMatch's `starterPicked.every(Boolean)` check false
+            // forever, freezing every player at the specialist screen (same
+            // follow-up triggerExtraStarters' own caller runs after a human
+            // pick — see afterStarterPick).
+            ai.chooseStarter(this.draw(START_CARDS, 4, rng));
+            this.afterStarterPick();
+        } else if (this.phase === 'build' && !this.seatReady[seat]) {
             ai.onBuildPhase(this.round);
         } else if (this.phase === 'battle' && !this.starBattleReadySeats.has(seat)) {
             // same reasoning, one phase later: markStarBattleReady's
