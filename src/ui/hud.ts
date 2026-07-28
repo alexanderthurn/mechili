@@ -11,6 +11,15 @@ import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
 
+type CommanderChip = {
+    seat: number;
+    team: 'player' | 'enemy';
+    el: HTMLDivElement;
+    nameEl: HTMLSpanElement;
+    specEl: HTMLSpanElement;
+    card: StartCard | null;
+};
+
 /** Compact / phone chrome — MUST match the size media query in theme.ts */
 const PHONE_MQ =
     typeof matchMedia === 'function'
@@ -196,8 +205,10 @@ export class Hud {
     private lastShopOrderKey = '';
     private lastLevelAllKey = '';
     private readonly fightBar: HTMLDivElement;
-    private playerFighterEl!: HTMLDivElement;
-    private enemyFighterEl!: HTMLDivElement;
+    private readonly playerStackEl: HTMLDivElement;
+    private readonly enemyStackEl: HTMLDivElement;
+    private commanderChips: CommanderChip[] = [];
+    private humanSeat = 0;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
@@ -205,27 +216,20 @@ export class Hud {
     private readonly timerEl: HTMLSpanElement;
     private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
-    private readonly playerNameEl: HTMLSpanElement;
-    private readonly enemyNameEl: HTMLSpanElement;
-    private playerSpecEl!: HTMLSpanElement;
-    private enemySpecEl!: HTMLSpanElement;
-    /** the chosen specialist card per side — drives the clickable frame detail */
-    private playerCard: StartCard | null = null;
-    private enemyCard: StartCard | null = null;
     /** between-round picks known for each side (enemy empty until intel reveals) */
     private playerRoundPicks: { round: number; title: string; body: string }[] = [];
     private enemyRoundPicks: { round: number; title: string; body: string }[] = [];
     private specDetailOverlay: HTMLDivElement | null = null;
     /** which commander's detail is open (so live pick updates can refresh it) */
-    private specDetailTeam: 'player' | 'enemy' | null = null;
+    private specDetailSeat: number | null = null;
     private specDetailViaHover = false;
     /** this match's settings, described for the click-to-open panel — set once via setSettingsGroups */
     private settingsGroups: SettingGroup[] = [];
     private settingsDetailOverlay: HTMLDivElement | null = null;
-    private readonly playerHpFill: HTMLDivElement;
-    private readonly enemyHpFill: HTMLDivElement;
-    private readonly playerHpVal: HTMLSpanElement;
-    private readonly enemyHpVal: HTMLSpanElement;
+    private playerHpFill!: HTMLDivElement;
+    private enemyHpFill!: HTMLDivElement;
+    private playerHpVal!: HTMLSpanElement;
+    private enemyHpVal!: HTMLSpanElement;
     private playerMaxHp = 1000;
     private enemyMaxHp = 1000;
     private readonly speedEl: HTMLButtonElement;
@@ -528,72 +532,13 @@ export class Hud {
         this.mount(this.inventoryEl);
         this.mount(this.enemyInventoryEl);
 
-        // fighting-game style top bar: fighters on the edges, controls in the center
+        // fighting-game style top bar: one commander chip per seat, stacked per side
         this.fightBar = document.createElement('div');
         this.fightBar.className = 'mechili-fightbar';
-
-        const playerFighter = document.createElement('div');
-        this.playerFighterEl = playerFighter;
-        playerFighter.className = 'fighter player';
-        const playerPortrait = document.createElement('div');
-        playerPortrait.className = 'portrait';
-        playerPortrait.textContent = '◆';
-        this.playerNameEl = document.createElement('span');
-        this.playerNameEl.className = 'fname';
-        this.playerSpecEl = document.createElement('span');
-        this.playerSpecEl.className = 'fspec';
-        this.playerHpFill = document.createElement('div');
-        this.playerHpFill.className = 'hp-fill';
-        this.playerHpVal = document.createElement('span');
-        this.playerHpVal.className = 'hp-val';
-        const playerHpTrack = document.createElement('div');
-        playerHpTrack.className = 'hp-track';
-        playerHpTrack.append(this.playerHpFill, this.playerHpVal);
-        const playerInfo = document.createElement('div');
-        playerInfo.className = 'fighter-info';
-        playerInfo.append(playerHpTrack, this.playerNameEl, this.playerSpecEl);
-        playerFighter.append(playerPortrait, playerInfo);
-
-        const enemyFighter = document.createElement('div');
-        this.enemyFighterEl = enemyFighter;
-        enemyFighter.className = 'fighter enemy';
-        this.enemyHpVal = document.createElement('span');
-        this.enemyHpVal.className = 'hp-val';
-        const enemyInfo = document.createElement('div');
-        enemyInfo.className = 'fighter-info';
-        this.enemyNameEl = document.createElement('span');
-        this.enemyNameEl.className = 'fname';
-        this.enemySpecEl = document.createElement('span');
-        this.enemySpecEl.className = 'fspec';
-        this.enemyHpFill = document.createElement('div');
-        this.enemyHpFill.className = 'hp-fill';
-        const enemyHpTrack = document.createElement('div');
-        enemyHpTrack.className = 'hp-track';
-        enemyHpTrack.append(this.enemyHpFill, this.enemyHpVal);
-        enemyInfo.append(enemyHpTrack, this.enemyNameEl, this.enemySpecEl);
-        const enemyPortrait = document.createElement('div');
-        enemyPortrait.className = 'portrait';
-        enemyPortrait.textContent = '◆';
-        enemyFighter.append(enemyPortrait, enemyInfo);
-
-        // clicking or hovering a commander frame opens its specialist card (once known)
-        // hover only for real mice: on touch the emulated mouseenter mounts the
-        // overlay mid-tap and the tap's click then instantly dismisses it
-        playerFighter.addEventListener('click', () => this.showSpecialistDetail('player'));
-        enemyFighter.addEventListener('click', () => this.showSpecialistDetail('enemy'));
-        playerFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('player', true);
-        });
-        enemyFighter.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail('enemy', true);
-        });
-        // leave only closes hover peeks — a click-pinned detail stays put
-        const closePeek = () => {
-            if (inputMode() === 'touch') return;
-            if (this.specDetailOverlay?.classList.contains('peek')) this.hideSpecialistDetail();
-        };
-        playerFighter.addEventListener('mouseleave', closePeek);
-        enemyFighter.addEventListener('mouseleave', closePeek);
+        this.playerStackEl = document.createElement('div');
+        this.playerStackEl.className = 'fighter-stack player';
+        this.enemyStackEl = document.createElement('div');
+        this.enemyStackEl.className = 'fighter-stack enemy';
 
         this.topBar = document.createElement('div');
         this.topBar.className = 'mechili-topbar';
@@ -631,7 +576,7 @@ export class Hud {
         controlsRow.append(endButton, this.speedEl);
         this.topBar.append(topMeta, this.timerEl, controlsRow);
 
-        this.fightBar.append(playerFighter, this.topBar, enemyFighter);
+        this.fightBar.append(this.playerStackEl, this.topBar, this.enemyStackEl);
 
         // one contextual bottom bar: sheet tabs (Shop/Tactics — phone only)
         // while nothing is selected, unit actions once something is
@@ -979,8 +924,12 @@ export class Hud {
         const icon = item.kind === 'emote' ? (emoteById(item.id)?.icon ?? '❓') : null;
         const text = item.kind === 'text' ? item.text : (emoteById(item.id)?.label ?? '');
 
-        // bubble under the sender's fighter card (one at a time per side)
-        const fighter = from === 'local' ? this.playerFighterEl : this.enemyFighterEl;
+        // bubble under the sender's commander chip (one at a time per side)
+        const chip =
+            this.commanderChips.find((c) => c.nameEl.textContent === name) ??
+            this.commanderChips.find((c) => c.team === (from === 'local' ? 'player' : 'enemy'));
+        if (!chip) return;
+        const fighter = chip.el;
         fighter.querySelector('.chat-bubble')?.remove();
         const bubble = document.createElement('div');
         bubble.className = `chat-bubble ${item.kind}`;
@@ -1002,12 +951,103 @@ export class Hud {
         setTimeout(() => line.remove(), 7000);
     }
 
-    /** Commander names shown in the top fight bar. */
-    setPlayers(local: string, opponent: string, maxHp: number): void {
-        this.playerNameEl.textContent = local;
-        this.enemyNameEl.textContent = opponent;
+    /** one commander chip per seat — built once at match start */
+    setCommanders(
+        entries: { seat: number; team: 'player' | 'enemy'; name: string; primary: boolean }[],
+        humanSeat: number,
+        maxHp: number,
+    ): void {
+        this.humanSeat = humanSeat;
         this.playerMaxHp = maxHp;
         this.enemyMaxHp = maxHp;
+        this.commanderChips = [];
+        this.playerStackEl.replaceChildren();
+        this.enemyStackEl.replaceChildren();
+
+        for (const entry of entries) {
+            const chip = this.createCommanderChip(entry);
+            this.commanderChips.push(chip);
+            (entry.team === 'player' ? this.playerStackEl : this.enemyStackEl).append(chip.el);
+            if (entry.primary) {
+                const hpFill = chip.el.querySelector<HTMLDivElement>('.hp-fill')!;
+                const hpVal = chip.el.querySelector<HTMLSpanElement>('.hp-val')!;
+                if (entry.team === 'player') {
+                    this.playerHpFill = hpFill;
+                    this.playerHpVal = hpVal;
+                } else {
+                    this.enemyHpFill = hpFill;
+                    this.enemyHpVal = hpVal;
+                }
+            }
+        }
+
+        const playerCount = entries.filter((e) => e.team === 'player').length;
+        const enemyCount = entries.filter((e) => e.team === 'enemy').length;
+        this.playerStackEl.classList.toggle('multi', playerCount > 1);
+        this.enemyStackEl.classList.toggle('multi', enemyCount > 1);
+    }
+
+    private createCommanderChip(entry: {
+        seat: number;
+        team: 'player' | 'enemy';
+        name: string;
+        primary: boolean;
+    }): CommanderChip {
+        const { seat, team, name, primary } = entry;
+        const el = document.createElement('div');
+        el.className = `fighter ${team}${primary ? '' : ' no-hp'}`;
+        el.dataset.seat = String(seat);
+
+        const portrait = document.createElement('div');
+        portrait.className = 'portrait';
+        portrait.textContent = '◆';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'fname';
+        nameEl.textContent = name;
+        const specEl = document.createElement('span');
+        specEl.className = 'fspec';
+
+        const info = document.createElement('div');
+        info.className = 'fighter-info';
+
+        if (primary) {
+            const hpFill = document.createElement('div');
+            hpFill.className = 'hp-fill';
+            const hpVal = document.createElement('span');
+            hpVal.className = 'hp-val';
+            const hpTrack = document.createElement('div');
+            hpTrack.className = 'hp-track';
+            hpTrack.append(hpFill, hpVal);
+            info.append(hpTrack, nameEl, specEl);
+        } else {
+            info.append(nameEl, specEl);
+        }
+
+        el.append(portrait, info);
+
+        el.addEventListener('click', () => this.showSpecialistDetail(seat));
+        el.addEventListener('mouseenter', () => {
+            if (inputMode() !== 'touch') this.showSpecialistDetail(seat, true);
+        });
+        el.addEventListener('mouseleave', () => {
+            if (inputMode() === 'touch') return;
+            if (this.specDetailSeat === seat && this.specDetailViaHover) this.hideSpecialistDetail();
+        });
+
+        return { seat, team, el, nameEl, specEl, card: null };
+    }
+
+    /** @deprecated use setCommanders — kept for any external callers */
+    setPlayers(local: string, opponent: string, maxHp: number): void {
+        this.setCommanders(
+            [
+                { seat: 0, team: 'player', name: local, primary: true },
+                { seat: 1, team: 'enemy', name: opponent, primary: true },
+            ],
+            0,
+            maxHp,
+        );
     }
 
     /** the undo buttons only show while there is something to undo */
@@ -1905,7 +1945,12 @@ export class Hud {
     ): void {
         overlay.classList.add('flying');
         const from = card.getBoundingClientRect();
-        const to = this.playerFighterEl.getBoundingClientRect();
+        const chip = this.commanderChips.find((c) => c.seat === this.humanSeat);
+        if (!chip) {
+            onDone();
+            return;
+        }
+        const to = chip.el.getBoundingClientRect();
         const tx = to.left + to.width * 0.5 - (from.left + from.width * 0.5);
         const ty = to.top + to.height * 0.5 - (from.top + from.height * 0.5);
         const scale = Math.min(0.18, (to.width * 0.92) / from.width);
@@ -1915,7 +1960,7 @@ export class Hud {
             card.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
             card.style.opacity = '0';
         });
-        window.setTimeout(() => this.pulseCommanderFrame('player'), 420);
+        window.setTimeout(() => this.pulseCommanderFrame(this.humanSeat), 420);
         window.setTimeout(onDone, 580);
     }
 
@@ -1960,8 +2005,10 @@ export class Hud {
         this.dismissPickOverlay(null, 'fade', () => onDone?.());
     }
 
-    private pulseCommanderFrame(team: 'player' | 'enemy'): void {
-        const el = team === 'player' ? this.playerFighterEl : this.enemyFighterEl;
+    private pulseCommanderFrame(seat: number): void {
+        const chip = this.commanderChips.find((c) => c.seat === seat);
+        if (!chip) return;
+        const el = chip.el;
         el.classList.remove('landed-pulse');
         void el.offsetWidth;
         el.classList.add('landed-pulse');
@@ -2134,15 +2181,26 @@ export class Hud {
         this.showCardOverlay(overlay);
     }
 
-    /** the chosen specialist cards (opponent's stays null until both picked) —
-     *  sets the fighter-card labels and makes the frames clickable for detail */
+    /** per-seat specialist labels — null card hides that commander's pick */
+    setSeatSpecialists(entries: { seat: number; card: StartCard | null }[]): void {
+        for (const { seat, card } of entries) {
+            const chip = this.commanderChips.find((c) => c.seat === seat);
+            if (!chip) continue;
+            chip.card = card;
+            chip.specEl.textContent = card?.title ?? '';
+            chip.el.classList.toggle('has-spec', card !== null);
+        }
+        if (this.specDetailSeat !== null) {
+            this.showSpecialistDetail(this.specDetailSeat, this.specDetailViaHover);
+        }
+    }
+
+    /** @deprecated use setSeatSpecialists */
     setSpecialities(own: StartCard | null, opponent: StartCard | null): void {
-        this.playerCard = own;
-        this.enemyCard = opponent;
-        this.playerSpecEl.textContent = own?.title ?? '';
-        this.enemySpecEl.textContent = opponent?.title ?? '';
-        this.playerFighterEl.classList.toggle('has-spec', own !== null);
-        this.enemyFighterEl.classList.toggle('has-spec', opponent !== null);
+        this.setSeatSpecialists([
+            { seat: 0, card: own },
+            { seat: 1, card: opponent },
+        ]);
     }
 
     /**
@@ -2158,19 +2216,21 @@ export class Hud {
         if (same) return;
         this.playerRoundPicks = own;
         this.enemyRoundPicks = enemy;
-        if (this.specDetailTeam) {
-            this.showSpecialistDetail(this.specDetailTeam, this.specDetailViaHover);
+        if (this.specDetailSeat !== null) {
+            this.showSpecialistDetail(this.specDetailSeat, this.specDetailViaHover);
         }
     }
 
-    /** a dismissible popup of one side's specialist card (frame click or hover) */
-    private showSpecialistDetail(team: 'player' | 'enemy', viaHover = false): void {
-        const card = team === 'player' ? this.playerCard : this.enemyCard;
-        const picks = team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
+    /** a dismissible popup of one commander's specialist card (frame click or hover) */
+    private showSpecialistDetail(seat: number, viaHover = false): void {
+        const chip = this.commanderChips.find((c) => c.seat === seat);
+        if (!chip) return;
+        const card = chip.card;
+        const picks = chip.team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
         if (!card && picks.length === 0) return;
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.specDetailOverlay.remove();
-        const name = (team === 'player' ? this.playerNameEl : this.enemyNameEl).textContent ?? '';
+        const name = chip.nameEl.textContent ?? '';
         const overlay = document.createElement('div');
         // hover peeks are pointer-transparent: a full-screen overlay under the
         // cursor would instantly fire mouseleave on the fighter card and the
@@ -2198,18 +2258,18 @@ export class Hud {
                       .join('') +
                   `</div>`;
         overlay.innerHTML =
-            `<div class="cards-row"><div class="card-col ${team}">` +
-            `<div class="c-owner ${team}"></div>` +
+            `<div class="cards-row"><div class="card-col ${chip.team}">` +
+            `<div class="c-owner ${chip.team}"></div>` +
             specHtml +
             picksHtml +
             `</div></div>`;
         overlay.querySelector('.c-owner')!.textContent = name;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
         this.specDetailOverlay = overlay;
-        this.specDetailTeam = team;
+        this.specDetailSeat = seat;
         this.specDetailViaHover = viaHover;
         // the enemy's unplaced items are intel that belongs to this screen
-        this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
+        this.enemyInventoryEl.classList.toggle('reveal', chip.team === 'enemy');
         this.mount(overlay);
     }
 
@@ -2219,7 +2279,7 @@ export class Hud {
             this.specDetailOverlay.remove();
             this.specDetailOverlay = null;
         }
-        this.specDetailTeam = null;
+        this.specDetailSeat = null;
         this.specDetailViaHover = false;
         this.enemyInventoryEl.classList.remove('reveal');
     }

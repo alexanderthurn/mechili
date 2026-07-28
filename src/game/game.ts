@@ -1264,7 +1264,16 @@ export class Game {
         this.hud.onQuitToMenu = () => this.quitToMenu();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
-        this.hud.setPlayers(this.sideLabel('player'), this.sideLabel('enemy'), settings.startingHp);
+        this.hud.setCommanders(
+            this.seats.map((def, seat) => ({
+                seat,
+                team: def.team,
+                name: this.ownerName(def.team, seat),
+                primary: seat === primarySeatOf(this.seats, def.team),
+            })),
+            this.humanSeat,
+            settings.startingHp,
+        );
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
                 this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
@@ -2588,12 +2597,19 @@ export class Game {
         return this.starterCardOfSeat(primarySeatOf(this.seats, team));
     }
 
-    /** speciality names under the commander names — the opponent's pick stays
-     *  hidden until BOTH have chosen (no counter-picking) */
+    /** speciality names under each commander chip — enemy picks stay hidden
+     *  until you have picked and every enemy seat has picked */
     private syncSpecialities(): void {
-        const own = this.starterCardOf('player');
-        const opp = this.starterCardOf('enemy');
-        this.hud.setSpecialities(own, own && opp ? opp : null);
+        const humanPicked = this.starterPicked[this.humanSeat];
+        const allEnemiesPicked = seatIdsOf(this.seats, 'enemy').every((s) => this.starterPicked[s]);
+        this.hud.setSeatSpecialists(
+            this.seats.map((_, seat) => {
+                const team = this.seats[seat]!.team;
+                if (!this.starterPicked[seat]) return { seat, card: null };
+                if (team === 'enemy' && !(humanPicked && allEnemiesPicked)) return { seat, card: null };
+                return { seat, card: this.starterCardOfSeat(seat) };
+            }),
+        );
     }
 
     /** local specialist is locked in — start match once every seat has picked */

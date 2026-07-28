@@ -2809,13 +2809,35 @@ export function hudStyles(): string {
     user-select: none;
     pointer-events: none;
 }
-.mechili-fightbar .fighter {
+.mechili-fightbar .fighter-stack {
     position: absolute;
     top: 0;
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: min(38vw, 340px);
+    min-width: 200px;
+    pointer-events: none;
+}
+.mechili-fightbar .fighter-stack.player { left: 0; align-items: stretch; }
+.mechili-fightbar .fighter-stack.enemy { right: 0; align-items: stretch; }
+.mechili-fightbar .fighter-stack.multi .fighter {
+    min-width: 0;
+    padding: 6px 10px;
+    gap: 8px;
+}
+.mechili-fightbar .fighter-stack.multi .portrait { width: 34px; height: 34px; font-size: 17px; }
+.mechili-fightbar .fighter-stack.multi .fname { font-size: 13px; }
+.mechili-fightbar .fighter {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    display: flex;
     align-items: center;
     gap: 10px;
-    width: min(38vw, 340px);
+    width: 100%;
+    box-sizing: border-box;
     min-width: 200px;
     padding: 8px 12px;
     background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
@@ -2824,13 +2846,11 @@ export function hudStyles(): string {
     pointer-events: none;
 }
 .mechili-fightbar .fighter.player {
-    left: 0;
     border-left: none;
     border-top: none;
     border-radius: 0 0 10px 0;
 }
 .mechili-fightbar .fighter.enemy {
-    right: 0;
     border-right: none;
     border-top: none;
     flex-direction: row-reverse;
@@ -2866,6 +2886,8 @@ export function hudStyles(): string {
 .mechili-fightbar .fspec {
     display: none;
 }
+.mechili-fightbar .fighter.no-hp .fighter-info { gap: 2px; }
+.mechili-fightbar .fighter.no-hp .fname { font-size: 13px; }
 .mechili-fightbar .fighter.player .fspec { text-align: left; }
 .mechili-fightbar .fighter.enemy .fspec { text-align: right; }
 /* a chosen specialist makes the frame clickable (opens its card) */
@@ -3246,8 +3268,11 @@ ${gamepadCursorStyles(u)}
     }
 
     /* compact commander bar + center controls */
-    .mechili-fightbar .fighter {
+    .mechili-fightbar .fighter-stack {
         width: min(31vw, 210px);
+        min-width: 0;
+    }
+    .mechili-fightbar .fighter {
         min-width: 0;
         gap: 6px;
         padding: 4px 8px;
