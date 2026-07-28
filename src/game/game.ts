@@ -3347,6 +3347,15 @@ export class Game {
         // that will never come
         if (this.phase === 'build' && !this.seatReady[seat]) {
             ai.onBuildPhase(this.round);
+        } else if (this.phase === 'battle' && !this.starBattleReadySeats.has(seat)) {
+            // same reasoning, one phase later: markStarBattleReady's
+            // allReady check treats AI seats as vacuously ready, but that
+            // check only actually RUNS when a battleEnd message arrives —
+            // if this seat was the one everyone else was waiting on and it
+            // just went AI, nothing else is left to trigger the recheck.
+            // Force it now instead of leaving the round frozen for the
+            // remaining humans.
+            this.markStarBattleReady(seat);
         }
     }
 
