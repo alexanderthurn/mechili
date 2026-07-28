@@ -257,11 +257,7 @@ export class PlacementController {
         this.rangeMesh = createRangeRing(scene);
         this.targetPreview = new TargetPreviewVisuals(scene);
 
-        this.levelArrowMaterial = new MeshBasicMaterial({
-            color: SELECT_COLOR,
-            depthTest: false,
-            depthWrite: false,
-        });
+        this.levelArrowMaterial = new MeshBasicMaterial({ color: SELECT_COLOR });
 
         this.plateGeometry = new PlaneGeometry(1, 1);
         this.plateGeometry.rotateX(-Math.PI / 2);
@@ -1072,11 +1068,11 @@ export class PlacementController {
                     if (!sprite) {
                         sprite = new Sprite();
                         sprite.scale.set(2.6, 2.6, 1);
-                        sprite.renderOrder = 30;
                         this.scene.add(sprite);
                         this.itemBadges.push(sprite);
                     }
                     sprite.material = this.itemBadgeMaterial(itemGlyph);
+                    sprite.renderOrder = 0;
                     const t = slot - mid;
                     sprite.position.set(
                         world.x + right.x * t * spacing,
@@ -1092,11 +1088,11 @@ export class PlacementController {
                     if (!sprite) {
                         sprite = new Sprite();
                         sprite.scale.set(1.7, 1.7, 1);
-                        sprite.renderOrder = 30;
                         this.scene.add(sprite);
                         this.techBadges.push(sprite);
                     }
                     sprite.material = this.techBadgeMaterial(iconId);
+                    sprite.renderOrder = 0;
                     const t = slot - mid;
                     sprite.position.set(
                         world.x + right.x * t * spacing,
@@ -1165,36 +1161,44 @@ export class PlacementController {
             material = new SpriteMaterial({
                 map: texture,
                 depthWrite: false,
-                depthTest: false, // UI-style: never occluded by scenery billboards
                 transparent: true,
             });
             this.itemBadgeMaterials.set(icon, material);
         }
+        // revive depth testing if an older always-on-top material is still cached
+        material.depthTest = true;
+        material.depthWrite = false;
         return material;
     }
 
-    /** atlas icon on a clear canvas — no plate, no border */
+    /** atlas icon with a dark halo — brass tint, depth-tested like the world */
     private techBadgeMaterial(iconId: string): SpriteMaterial {
-        let material = this.techBadgeMaterials.get(iconId);
+        // style tag busts the cache when the paint/tint recipe changes
+        const key = `${iconId}|brass`;
+        let material = this.techBadgeMaterials.get(key);
         if (!material) {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
             canvas.height = 64;
             const ctx = canvas.getContext('2d')!;
-            const ok = drawIcon(ctx, iconId, 0, 0, 64);
+            // soft dark halo so the glyph pops on meadow and snow
+            ctx.shadowColor = 'rgba(10, 16, 12, 0.9)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 1;
+            const ok = drawIcon(ctx, iconId, 2, 2, 60);
             const texture = new CanvasTexture(canvas);
             texture.colorSpace = SRGBColorSpace;
             material = new SpriteMaterial({
                 map: texture,
                 depthWrite: false,
-                depthTest: false, // UI-style: never occluded by scenery billboards
                 transparent: true,
+                color: THEME.ui.brassLight,
             });
-            // only cache once the atlas stamped successfully (boot loads it
-            // first; skip-cache avoids locking in a blank sprite if called early)
-            if (ok) this.techBadgeMaterials.set(iconId, material);
+            if (ok) this.techBadgeMaterials.set(key, material);
         }
-        material.color.set(THEME.ui.techOwned);
+        material.depthTest = true;
+        material.depthWrite = false;
         return material;
     }
 
@@ -1207,20 +1211,20 @@ export class PlacementController {
     private updateLevelArrows(timeSeconds: number): void {
         let used = 0;
         if (this.enabled) {
+            // revive depth testing if an older always-on-top material is still live
+            this.levelArrowMaterial.depthTest = true;
+            this.levelArrowMaterial.depthWrite = true;
             const place = (unit: Unit, seed: number, world: Vector3) => {
                 let arrow = this.levelArrows[used];
                 if (!arrow) {
                     arrow = new Group();
                     arrow.scale.setScalar(3);
-                    arrow.renderOrder = 31;
                     // square shaft + pyramid head — a solid "upgrade" arrow
                     const shaft = new Mesh(new BoxGeometry(0.34, 0.6, 0.34), this.levelArrowMaterial);
                     shaft.position.y = 0;
-                    shaft.renderOrder = 31;
                     const head = new Mesh(new ConeGeometry(0.46, 0.7, 4), this.levelArrowMaterial);
                     head.rotation.y = Math.PI / 4; // pyramid faces align with the shaft
                     head.position.y = 0.65;
-                    head.renderOrder = 31;
                     arrow.add(shaft, head);
                     this.scene.add(arrow);
                     this.levelArrows.push(arrow);
@@ -1231,6 +1235,8 @@ export class PlacementController {
                     ? this.statusStripY(unit, world) + 2.8
                     : world.y + unit.memberBaseY() + unit.type.meshScale * 2.4 + 0.9;
                 arrow.position.set(world.x, top + bob, world.z);
+                arrow.renderOrder = 0;
+                for (const child of arrow.children) child.renderOrder = 0;
                 arrow.visible = true;
                 used++;
             };
