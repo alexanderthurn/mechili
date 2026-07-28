@@ -4242,18 +4242,26 @@ export class Game {
                 if (team) {
                     const resolved = { ...head.action, team, seat: head.seat };
                     this.dispatcher.dispatch(resolved);
+                    this.relayStarBuildMessage(
+                        { type: 'action', round: head.round, action: resolved },
+                        head.seat,
+                    );
                     // classic 1v1's dedicated 'starter' message triggers this
                     // same follow-up; star mode's chooseCard rides the normal
-                    // action path instead, so it must trigger it here
+                    // action path instead, so it must trigger it here. AFTER
+                    // relay, not before: maybeStartMatch's round-0 completion
+                    // force-flushes every OTHER buffered pick (see its own
+                    // doc comment) — if THIS pick is the one that completes
+                    // the set, its own relay/buffer decision needs to already
+                    // be made before that flush runs, or this exact pick gets
+                    // buffered a moment after the flush already emptied
+                    // everything and is never sent (repro: the last seat to
+                    // pick leaves the others stuck "waiting for opponent").
                     if (head.action.kind === 'chooseCard') {
                         this.refreshShopHud();
                         this.syncSpecialities();
                         this.maybeStartMatch();
                     }
-                    this.relayStarBuildMessage(
-                        { type: 'action', round: head.round, action: resolved },
-                        head.seat,
-                    );
                 }
             }
             this.syncRallyVisuals();
