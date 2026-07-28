@@ -167,9 +167,6 @@ import { renderAllUnitIcons } from '../ui/unitIcons';
 import { updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
-/** how long the both-specialists reveal stays up before deployment takes over */
-const SPECIALIST_REVEAL_MS = 2000;
-
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.6;
 /** card overlays begin fading in during the tail of the fly-in (t = 0..1) */
@@ -2599,18 +2596,11 @@ export class Game {
         this.hud.setSpecialities(own, own && opp ? opp : null);
     }
 
-    /** local specialist is locked in — if the peer is still picking, show ours centered */
+    /** local specialist is locked in — start match once every seat has picked */
     private afterStarterPick(): void {
         this.refreshShopHud();
-        this.maybeStartMatch();
         this.syncSpecialities();
-        if (this.awaitingCards && this.round === 0) {
-            // MY OWN pick specifically — not necessarily the same as
-            // starterCardOf('player'), which shows the primary seat's card
-            // and may not be mine if I'm not the primary
-            const own = this.starterCardOfSeat(this.humanSeat);
-            if (own) this.hud.showWaitingCard(own);
-        }
+        this.maybeStartMatch();
     }
 
     /** the specialist overlay (also re-shown after a resume that predates the pick) */
@@ -3885,26 +3875,9 @@ export class Game {
         // actions ever applied for them).
         if (!this.starterPicked.every(Boolean)) return;
         this.awaitingCards = false;
-        this.hud.hideCardOverlay(); // the waiting card, if one is up
         this.syncSpecialities();
-        // round 0's own "everything is revealed now" moment — flushes any
-        // spectator's backfilled-but-still-buffered starter picks (see
-        // excludedActionsForSpectatorResume/seedBuildBuffer); host-only,
-        // a no-op everywhere else via optional chaining
         this.spectatorHub?.flushBuildBuffers();
         this.startBuildPhase();
-        // reveal both picks for a beat, then it auto-dismisses into deployment
-        // (watching: no reveal at all — every other overlay is suppressed too)
-        if (!this.hydrating && !this.watching) {
-            const own = this.starterCardOf('player');
-            const opp = this.starterCardOf('enemy');
-            if (own && opp) {
-                this.hud.showSpecialistReveal(own, opp, this.playerNames);
-                window.setTimeout(() => {
-                    if (!this.disposed) this.hud.dismissReveal();
-                }, SPECIALIST_REVEAL_MS);
-            }
-        }
     }
 
     private onNetMessage(msg: NetMessage): void {

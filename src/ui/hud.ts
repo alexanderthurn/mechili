@@ -1829,11 +1829,147 @@ export class Hud {
 
     /** dismisses the specialist or round-card picker if it is still open */
     hideCardOverlay(): void {
-        this.cardOverlay?.remove();
+        if (!this.cardOverlay) return;
+        this.removeCardOverlayElement(this.cardOverlay);
         this.cardOverlay = null;
-        // a card overlay (specialist pick, round card, reveal) blocks
-        // deployment: no ending the round while one is up
+        this.cardIntroFading = false;
         this.syncOverlayOpen();
+    }
+
+    private removeCardOverlayElement(el: HTMLElement): void {
+        const rootIdx = this.mountedRoots.indexOf(el);
+        if (rootIdx >= 0) this.mountedRoots.splice(rootIdx, 1);
+        const spriteIdx = this.sprites.findIndex((s) => s.el === el);
+        if (spriteIdx >= 0) {
+            this.sprites[spriteIdx]!.sprite.destroy();
+            this.sprites.splice(spriteIdx, 1);
+        }
+        el.remove();
+    }
+
+    /** specialist pick — collapse to own card, wobble, fly to commander frame */
+    confirmSpecialistPick(chosen: HTMLElement, onDone: () => void): void {
+        const overlay = this.cardOverlay;
+        if (!overlay) {
+            onDone();
+            return;
+        }
+        overlay.style.pointerEvents = 'none';
+        overlay.classList.add('picking');
+        chosen.classList.add('chosen');
+
+        window.setTimeout(() => {
+            overlay.classList.remove('picking');
+            overlay.classList.add('locked');
+            overlay.querySelector('.cards-title')?.remove();
+            overlay.querySelector('.cards-note')?.remove();
+            const row = overlay.querySelector<HTMLElement>('.cards-row');
+            if (!row) {
+                onDone();
+                return;
+            }
+            let cardEl: HTMLElement = chosen;
+            for (const el of [...row.querySelectorAll<HTMLElement>('.card')]) {
+                if (el !== chosen) el.classList.add('faded');
+            }
+            if (chosen instanceof HTMLButtonElement) {
+                chosen.disabled = true;
+                chosen.classList.remove('chosen');
+                chosen.classList.add('static', 'locked-card');
+                cardEl = chosen;
+            } else {
+                chosen.classList.remove('chosen');
+                chosen.classList.add('static', 'locked-card');
+            }
+
+            window.setTimeout(() => {
+                cardEl.classList.add('wobble');
+                window.setTimeout(() => {
+                    cardEl.classList.remove('wobble');
+                    this.flyCardToCommander(cardEl, overlay, () => {
+                        this.cardOverlay = null;
+                        this.cardIntroFading = false;
+                        this.syncOverlayOpen();
+                        this.removeCardOverlayElement(overlay);
+                        onDone();
+                    });
+                }, 480);
+            }, 60);
+        }, 280);
+    }
+
+    private flyCardToCommander(
+        card: HTMLElement,
+        overlay: HTMLElement,
+        onDone: () => void,
+    ): void {
+        overlay.classList.add('flying');
+        const from = card.getBoundingClientRect();
+        const to = this.playerFighterEl.getBoundingClientRect();
+        const tx = to.left + to.width * 0.5 - (from.left + from.width * 0.5);
+        const ty = to.top + to.height * 0.5 - (from.top + from.height * 0.5);
+        const scale = Math.min(0.18, (to.width * 0.92) / from.width);
+        card.style.transition =
+            'transform 0.55s cubic-bezier(0.5, 0, 0.75, 0.4), opacity 0.5s ease-in';
+        requestAnimationFrame(() => {
+            card.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+            card.style.opacity = '0';
+        });
+        window.setTimeout(() => this.pulseCommanderFrame('player'), 420);
+        window.setTimeout(onDone, 580);
+    }
+
+    /** pick confirmed — dim others, lift chosen in place, then fade before callback */
+    private dismissPickOverlay(
+        chosen: HTMLElement | null,
+        style: 'lift' | 'fade',
+        onDone: () => void,
+    ): void {
+        const overlay = this.cardOverlay;
+        if (!overlay) {
+            onDone();
+            return;
+        }
+        overlay.style.pointerEvents = 'none';
+        this.cardOverlay = null;
+        this.cardIntroFading = false;
+        this.syncOverlayOpen();
+
+        if (style === 'lift' && chosen) {
+            overlay.classList.add('picking');
+            chosen.classList.add('chosen');
+            window.setTimeout(() => {
+                overlay.classList.add('dismissing');
+                window.setTimeout(() => {
+                    this.removeCardOverlayElement(overlay);
+                    onDone();
+                }, 280);
+            }, 380);
+            return;
+        }
+
+        overlay.classList.add('dismissing');
+        window.setTimeout(() => {
+            this.removeCardOverlayElement(overlay);
+            onDone();
+        }, 280);
+    }
+
+    /** fade out a picker overlay */
+    fadeOutCardOverlay(onDone?: () => void): void {
+        this.dismissPickOverlay(null, 'fade', () => onDone?.());
+    }
+
+    private pulseCommanderFrame(team: 'player' | 'enemy'): void {
+        const el = team === 'player' ? this.playerFighterEl : this.enemyFighterEl;
+        el.classList.remove('landed-pulse');
+        void el.offsetWidth;
+        el.classList.add('landed-pulse');
+        el.addEventListener(
+            'animationend',
+            () => el.classList.remove('landed-pulse'),
+            { once: true },
+        );
     }
 
     /** dismiss game-over, pause, notices, and card pickers before the menu outro */
@@ -1854,17 +1990,6 @@ export class Hud {
             }
         }
         this.syncOverlayOpen();
-    }
-
-    /** dismisses the specialist reveal only: the two cards fly out to the
-     *  commander frames (top corners), then the overlay is removed */
-    dismissReveal(): void {
-        const overlay = this.cardOverlay;
-        if (!overlay?.classList.contains('reveal')) return;
-        this.cardOverlay = null;
-        this.syncOverlayOpen(); // deployment controls return
-        overlay.classList.add('exiting');
-        setTimeout(() => overlay.remove(), 600); // matches the exit transition
     }
 
     private showCardOverlay(overlay: HTMLDivElement): void {
@@ -2003,41 +2128,9 @@ export class Hud {
         overlay.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card) return;
-            this.hideCardOverlay();
-            onPick(button.dataset.card);
+            const cardId = button.dataset.card;
+            this.confirmSpecialistPick(button, () => onPick(cardId));
         });
-        this.showCardOverlay(overlay);
-    }
-
-    /** own specialist locked in, the peer still choosing: show the pick, wait */
-    showWaitingCard(card: StartCard): void {
-        const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards';
-        overlay.innerHTML =
-            `<div class="cards-title">Waiting for opponent…</div>` +
-            `<div class="cards-row"><div class="card static">${this.startCardFace(card)}</div></div>`;
-        this.showCardOverlay(overlay);
-    }
-
-    /** both specialists picked: show them side by side for a moment, then the
-     *  game auto-dismisses via {@link dismissReveal} and deployment takes over */
-    showSpecialistReveal(
-        own: StartCard,
-        opponent: StartCard,
-        names: { local: string; opponent: string },
-    ): void {
-        const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards reveal';
-        overlay.innerHTML =
-            `<div class="cards-title">Specialists</div>` +
-            `<div class="cards-row">` +
-            `<div class="card-col player"><div class="c-owner player"></div><div class="card static">${this.startCardFace(own)}</div></div>` +
-            `<div class="card-col enemy"><div class="c-owner enemy"></div><div class="card static">${this.startCardFace(opponent)}</div></div>` +
-            `</div>`;
-        // player names are user input — textContent only, never innerHTML
-        const owners = overlay.querySelectorAll<HTMLDivElement>('.c-owner');
-        owners[0]!.textContent = names.local;
-        owners[1]!.textContent = names.opponent;
         this.showCardOverlay(overlay);
     }
 
@@ -2208,14 +2301,13 @@ export class Hud {
         overlay.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('.cards-skip')) {
-                this.hideCardOverlay();
-                onPick(null);
+                this.dismissPickOverlay(null, 'fade', () => onPick(null));
                 return;
             }
             const button = target.closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card || button.disabled) return;
-            this.hideCardOverlay();
-            onPick(button.dataset.card);
+            const cardId = button.dataset.card;
+            this.dismissPickOverlay(button, 'lift', () => onPick(cardId));
         });
         this.showCardOverlay(overlay);
     }

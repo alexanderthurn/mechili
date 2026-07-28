@@ -2394,21 +2394,70 @@ export function hudStyles(): string {
 .mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
 .mechili-cards .card:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); transform: translateY(-5px); }
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
+.mechili-cards .card.locked-card:disabled { opacity: 1; }
 /* a card shown for information only (waiting / reveal) — no hover, no lift */
 .mechili-cards .card.static { cursor: default; }
 .mechili-cards .card.static:hover { border-color: ${u.border}; transform: none; }
 .mechili-cards .card-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
-/* the both-specialists reveal: cards further apart, then fly to the corners */
-.mechili-cards.reveal .cards-row { gap: min(24vw, 340px); }
-.mechili-cards.reveal { transition: background 0.5s ease-in; }
-.mechili-cards.reveal .card-col { transition: transform 0.55s cubic-bezier(0.5, 0, 0.75, 0.4), opacity 0.55s ease-in; }
-.mechili-cards.reveal .cards-title { transition: opacity 0.3s; }
-.mechili-cards.reveal.exiting { background: transparent; pointer-events: none; }
-.mechili-cards.reveal.exiting .cards-title { opacity: 0; }
-.mechili-cards.reveal.exiting .card-col { opacity: 0; }
-.mechili-cards.reveal.exiting .card-col.player { transform: translate(-42vw, -44vh) scale(0.18); }
-.mechili-cards.reveal.exiting .card-col.enemy { transform: translate(42vw, -44vh) scale(0.18); }
+/* specialist pick: wobble in place, then fly to commander frame */
+.mechili-cards.locked .card.faded {
+    visibility: hidden;
+    pointer-events: none;
+}
+.mechili-cards.locked .card.locked-card {
+    opacity: 1;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+.mechili-cards .card.wobble {
+    animation: mechili-card-wobble 0.24s ease-in-out 2;
+}
+@keyframes mechili-card-wobble {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-2.5deg); }
+    75% { transform: rotate(2.5deg); }
+}
+.mechili-cards.flying {
+    background: transparent !important;
+    transition: background 0.35s ease-out;
+}
+@keyframes mechili-card-reveal-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.94); }
+    to { opacity: 1; transform: none; }
+}
+/* pick confirmed: other cards/title fade, chosen card lifts in place */
+.mechili-cards.picking .cards-title,
+.mechili-cards.picking .cards-note,
+.mechili-cards.picking .cards-skip,
+.mechili-cards.picking .card:not(.chosen) {
+    opacity: 0 !important;
+    transition: opacity 0.2s ease-out;
+    pointer-events: none;
+}
+.mechili-cards.picking .card.chosen {
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    transition: box-shadow 0.25s ease-out;
+}
+.mechili-cards.picking.dismissing,
+.mechili-cards.dismissing {
+    background: transparent !important;
+    transition: background 0.28s ease-out, opacity 0.28s ease-out;
+}
+.mechili-cards.dismissing {
+    opacity: 0;
+    pointer-events: none;
+}
+.mechili-fightbar .fighter.landed-pulse {
+    animation: mechili-commander-land 0.5s ease-out;
+}
+@keyframes mechili-commander-land {
+    0% { box-shadow: 0 0 0 0 rgba(255, 220, 120, 0); }
+    35% { box-shadow: 0 0 0 3px rgba(255, 220, 120, 0.45); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 220, 120, 0); }
+}
 .mechili-cards .c-owner {
     font-size: 14px;
     font-weight: bold;
