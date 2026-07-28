@@ -37,8 +37,10 @@ import {
     STAR_RECONNECT_GRACE_MS,
     type GuestSession,
     type NetMessage,
+    type RoomRosterEntry,
     type RosterEntry,
     type Session,
+    type SpectateRegistration,
     type SpectatorSession,
     type SpectatorVision,
     type StarRole,
@@ -427,7 +429,7 @@ export class Game {
     /** host-only: click/dblclick-to-copy button for debugLog's aggregated dump */
     private debugDumpButton: DebugDumpButton | null = null;
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
-    private stopSpectateRegistration: (() => void) | null = null;
+    private spectateRegistration: SpectateRegistration | null = null;
     /** set only for a spectating client — its one connection to the host's
      *  SpectatorHub (mutually exclusive with net/star) */
     private spectateSession: SpectatorSession | null = null;
@@ -1923,7 +1925,7 @@ export class Game {
         // below — those touch three.js/pixi resources and a stray exception
         // partway through would abort the rest of this function, silently
         // skipping whatever hadn't run yet. Telling the backend "this room
-        // is gone" (stopSpectateRegistration → lobbyLeave) is the one thing
+        // is gone" (spectateRegistration.stop → lobbyLeave) is the one thing
         // here with an externally-visible consequence if it's skipped (a
         // room stays listed until its 15s TTL lapses, or indefinitely if the
         // heartbeat interval itself never gets cleared) — it goes first so
@@ -1944,8 +1946,8 @@ export class Game {
         this.starRedialAbort = null;
         this.spectatorHub?.close();
         this.spectatorHub = null;
-        this.stopSpectateRegistration?.();
-        this.stopSpectateRegistration = null;
+        this.spectateRegistration?.stop();
+        this.spectateRegistration = null;
         this.spectateSession?.close();
         this.spectateSession = null;
         this.pixiApp.ticker.remove(this.boundTick);
@@ -2796,6 +2798,34 @@ export class Game {
         ];
     }
 
+    /**
+     * {name, side, connected} for every human seat — fed to the backend's
+     * room list (see registerSpectateEndpoint's snapshot callback) so a menu
+     * can recognize the caller's own name among a running match's
+     * DISCONNECTED seats and offer "resume" instead of "spectate", without
+     * having to connect first. Star-mode-specific (StarHub.connectedSeats
+     * is the only thing that actually tracks per-seat connectivity) — a
+     * classic 1v1 host just reports every seat connected, since its own
+     * reconnect story is the existing localStorage resume marker, not this.
+     */
+    private backendRosterSnapshot(): RoomRosterEntry[] {
+        const hub = this.star?.role === 'host' ? this.star.hub : null;
+        const connected = hub ? new Set(hub.connectedSeats()) : null;
+        return this.seats
+            .map((def, seat) => ({ def, seat }))
+            .filter(({ def }) => def.controller === 'human')
+            .map(({ def, seat }) => ({
+                name: def.name,
+                // canonical 'a'/'b' — hub.sideOf is the authoritative source
+                // once one exists; classic 1v1 has exactly two seats, host
+                // always seat 0/'a'
+                side: hub ? hub.sideOf(seat) : seat === 0 ? 'a' : 'b',
+                // seat 0 (the host) is never in StarHub's own bySeat map —
+                // it's this client, always connected by definition
+                connected: seat === 0 || !connected || connected.has(seat),
+            }));
+    }
+
     private broadcastRoster(): void {
         this.broadcast({ type: 'roster', entries: this.buildRoster() });
         this.pushSpectatorBadge();
@@ -2896,10 +2926,11 @@ export class Game {
             // discoverable under the same room name a "Host Room" match
             // already uses — spectators look it up the same way a joining
             // player would find the room
-            this.stopSpectateRegistration = registerSpectateEndpoint(
+            this.spectateRegistration = registerSpectateEndpoint(
                 hub.peerId,
                 this.playerNames.local,
                 this.star ? '2v2' : '1v1',
+                () => ({ roster: this.backendRosterSnapshot(), round: this.round }),
             );
             hub.onRosterChange = () => {
                 this.broadcastRoster();
@@ -3175,6 +3206,10 @@ export class Game {
         // dropping while already suspended for a different one must not
         // leave the notice naming only the FIRST seat forever
         this.refreshStarSuspendNotice();
+        // let the room list reflect this seat as disconnected right away,
+        // not up to HEARTBEAT_MS late — someone deciding "resume vs.
+        // spectate" from the menu is trusting this to be current
+        this.spectateRegistration?.refreshNow();
     }
 
     /** names every currently-pending seat, not just whichever dropped first —
@@ -3201,10 +3236,18 @@ export class Game {
         this.star.hub.send(seat, {
             type: 'starResumeState',
             version: GAME_VERSION,
+            // seat/seed/settings/roster: only load-bearing for a COLD
+            // reconnect (see the message's own doc comment) — cheap to
+            // always include, an in-session redial just ignores the repeats
+            seat,
+            seed: this.seed,
+            settings: this.settings,
+            roster: this.star.hub.currentRoster(),
             actions: this.actionsForSeatResume(seat),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
         });
+        this.spectateRegistration?.refreshNow();
     }
 
     /** star host only: a reconnected seat confirmed it finished catching up
@@ -3498,7 +3541,7 @@ export class Game {
         // heartbeat's 15s TTL lapses, or indefinitely if the interval
         // itself never gets cleared). Safe to call twice — its own
         // internal guard makes destroy()'s later call a no-op.
-        this.stopSpectateRegistration?.();
+        this.spectateRegistration?.stop();
         this.quitToMenu();
     }
 
