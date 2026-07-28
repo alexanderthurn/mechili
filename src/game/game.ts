@@ -4212,17 +4212,27 @@ export class Game {
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
             const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            this.mirrorBuildToSpectators(msg, side);
             // trust the CONNECTION's identity for who this is, never the
             // message's own claimed seat — same reasoning as onStarMessage's
             // host path using `fromSeat` instead of `msg.action.seat`
             this.remoteQueue.push({ round: msg.round, action: msg.action, seat: this.peerSeat() });
             this.drainRemoteQueue();
+            // AFTER drain, not before: mirrorBuildToSpectators reads
+            // this.deployReady to decide fog (bothLocked) — reading it
+            // before the peer's own action is actually dispatched (which
+            // is what sets deployReady in the first place) means an
+            // action that itself completes "both locked" gets mirrored as
+            // still-fogged, one call too early. Relies on the spectator's
+            // own deployCaughtUp-driven flush to eventually correct this
+            // either way, but there's no reason to invite that when
+            // reordering costs nothing (drainRemoteQueue doesn't mutate
+            // `msg`, and `side` is independent of dispatch).
+            this.mirrorBuildToSpectators(msg, side);
         } else if (msg.type === 'undo') {
             const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            this.mirrorBuildToSpectators(msg, side);
             this.remoteQueue.push({ round: msg.round, undo: true, seat: this.peerSeat() });
             this.drainRemoteQueue();
+            this.mirrorBuildToSpectators(msg, side);
         } else if (msg.type === 'check') {
             this.peerChecks.set(msg.round, msg.hash);
             this.verifyCheck(msg.round);
