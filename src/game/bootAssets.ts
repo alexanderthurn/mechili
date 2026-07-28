@@ -7,6 +7,7 @@ import {
     sceneryHqVegetation,
 } from './sceneryVegetation';
 import { prefs } from './prefs';
+import { preloadIconAtlas } from '../ui/iconAtlas';
 
 export type BootProgress = {
     /** 0..1 overall */
@@ -53,6 +54,8 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
             texturesFrac = total > 0 ? done / total : 1;
             report(`Textures ${done}/${total}`);
         }),
+        // HUD icons → data URL so Pixi HTMLSource can paint them (external CSS urls often blank)
+        preloadIconAtlas(),
     ];
 
     const sceneryQ = prefs().scenery;

@@ -5,19 +5,20 @@
  */
 export interface EmoteDef {
     id: string;
+    /** atlas id (`emote-*`) */
     icon: string;
     label: string;
 }
 
 export const EMOTES: EmoteDef[] = [
-    { id: 'hello', icon: '👋', label: 'Hello' },
-    { id: 'gg', icon: '🤝', label: 'Good game' },
-    { id: 'lol', icon: '😂', label: 'Haha' },
-    { id: 'wow', icon: '😮', label: 'Wow' },
-    { id: 'cry', icon: '😭', label: 'Noo' },
-    { id: 'angry', icon: '😡', label: 'Grr' },
-    { id: 'think', icon: '🤔', label: 'Hmm' },
-    { id: 'rocket', icon: '🚀', label: 'Incoming' },
+    { id: 'hello', icon: 'emote-hello', label: 'Hello' },
+    { id: 'gg', icon: 'emote-gg', label: 'Good game' },
+    { id: 'lol', icon: 'emote-lol', label: 'Haha' },
+    { id: 'wow', icon: 'emote-wow', label: 'Wow' },
+    { id: 'cry', icon: 'emote-cry', label: 'Noo' },
+    { id: 'angry', icon: 'emote-angry', label: 'Grr' },
+    { id: 'think', icon: 'emote-think', label: 'Hmm' },
+    { id: 'rocket', icon: 'emote-incoming', label: 'Incoming' },
 ];
 
 export function emoteById(id: string): EmoteDef | null {

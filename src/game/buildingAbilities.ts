@@ -28,7 +28,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     if (type.structure && !type.extra) {
         const { baseCost, costStep, maxLevel } = s.towers.upgrade;
         out.push({
-            icon: '🔼',
+            icon: 'ability-upgrade',
             name: 'Upgrade level',
             cost: baseCost,
             description: `Raise this building one level: it gains its base HP. Price starts at ⬢ ${baseCost} and rises by ⬢ ${costStep} each level (max level ${maxLevel}).`,
@@ -40,25 +40,25 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
         const hpPct = Math.round(s.boosts.hpTiers[0]! * 100);
         out.push(
             {
-                icon: '💰',
+                icon: 'ability-selling',
                 name: 'Unlock Selling',
                 cost: s.sell.abilityCost,
                 description: `Permanently unlock selling packs (up to ${s.sell.maxPerRound} per deployment phase). Refund is ${Math.round(s.sell.refundFactor * 100)}% of base cost.`,
             },
             {
-                icon: '⚔️',
+                icon: 'ability-atk-boost',
                 name: 'Army attack boost',
                 cost: s.boosts.costs[0],
                 description: `Permanent army-wide damage boost. First tier +${attackPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
             },
             {
-                icon: '🛡️',
+                icon: 'ability-hp-boost',
                 name: 'Army HP boost',
                 cost: s.boosts.costs[0],
                 description: `Permanent army-wide HP boost. First tier +${hpPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
             },
             {
-                icon: '⚑',
+                icon: 'ability-rally',
                 name: 'Buy Rally Route',
                 cost: s.rallyRoute.abilityCost,
                 description:
@@ -70,32 +70,32 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     if (type.id === RESEARCH_CENTER.id) {
         out.push(
             {
-                icon: '2️⃣',
+                icon: 'ability-recruit-l2',
                 name: 'Recruit at Level 2',
                 cost: s.leveling.recruitLevel2Cost,
                 description:
                     'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
             },
             {
-                icon: '➕',
+                icon: 'ability-plus-deploy',
                 name: '+1 Deployment',
                 cost: s.deploy.extraSlotCost,
                 description: 'One extra unit purchase this round only.',
             },
             {
-                icon: '🎯',
+                icon: 'ability-range',
                 name: 'Range Boost',
                 cost: s.deploy.rangedRangeBoostCost,
                 description: `+${s.deploy.rangeBoost} range for all ranged units, this round only.`,
             },
             {
-                icon: '💨',
+                icon: 'ability-speed',
                 name: 'Speed Boost',
                 cost: s.deploy.armySpeedBoostCost,
                 description: `+${s.deploy.speedBoost} speed for all units, this round only.`,
             },
             {
-                icon: '💳',
+                icon: 'ability-credit',
                 name: 'Credit',
                 description: `+${s.deploy.creditGain} supply now. Next deployment: −${s.deploy.creditDebt}. Once per round.`,
             },
@@ -109,7 +109,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     // Board extras: surface their built-in role from UnitType fields
     if (type.shield) {
         out.push({
-            icon: '🛡',
+            icon: 'ability-ward',
             name: 'Ward dome',
             description: `Absorbs enemy projectiles that cross into a dome (radius ${type.shield.radius}, height ${type.shield.height}). Pool is this unit’s HP.`,
         });
@@ -117,7 +117,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     if (type.rocket) {
         const r = type.rocket;
         out.push({
-            icon: '🚀',
+            icon: 'ability-firebolt',
             name: 'Homing Fire Bolt',
             description: `Arms in place, then homes onto the first enemy in range ${r.range} for ${r.damage} damage (splash ${r.splash}).`,
         });

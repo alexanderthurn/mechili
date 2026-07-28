@@ -17,7 +17,7 @@ import {
 import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
-import { ITEMS } from './items';
+import { itemWorldGlyph } from './items';
 import { CELL, cellKey, groundHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import {
@@ -1060,7 +1060,7 @@ export class PlacementController {
                     if (this.units.some((u) => u.id === id)) continue;
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
-                    const icon = ITEMS[snap.items[0]!]?.icon ?? '?';
+                    const icon = itemWorldGlyph(snap.items[0]!);
                     let sprite = this.itemBadges[used];
                     if (!sprite) {
                         sprite = new Sprite();
@@ -1274,15 +1274,15 @@ export class PlacementController {
 
     private intelItemIcon(unit: Unit): string | null {
         if (!this.isFogged(unit)) {
-            return unit.items[0] ? (ITEMS[unit.items[0]]?.icon ?? '?') : null;
+            return unit.items[0] ? itemWorldGlyph(unit.items[0]) : null;
         }
         if (!this.enemyIntelVisible(unit)) return null;
         if (this.intelFog) {
             const snap = this.intelSnapshot.get(unit.id);
             if (!snap || snap.items.length === 0) return null;
-            return ITEMS[snap.items[0]!]?.icon ?? '?';
+            return itemWorldGlyph(snap.items[0]!);
         }
-        return unit.items[0] ? (ITEMS[unit.items[0]]?.icon ?? '?') : null;
+        return unit.items[0] ? itemWorldGlyph(unit.items[0]) : null;
     }
 
     private memberPositionsAt(world: Vector3, unit: Unit): Vector3[] {
