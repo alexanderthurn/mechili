@@ -1492,6 +1492,16 @@ export class Game {
         }
         if ((this.net && this.side === 'a') || this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
+        if (resume && this.star?.role === 'guest' && !resume.local) {
+            // cold reconnect via the main menu (see runStarPending's
+            // 'starResumeState' handling) — the host holds this seat
+            // suspended until it hears OUR 'ready', same fairness
+            // handshake an in-session redial already sends via
+            // beginStarGuestReconnect. Nothing to await here first (unlike
+            // classic 1v1's awaitPeerReady): hydrate() above already ran
+            // to completion synchronously.
+            this.star.session.send({ type: 'ready' });
+        }
         if (spectate) this.wireSpectateSession(spectate.session);
 
         // Escape toggles the in-game menu (the match keeps running underneath)
@@ -3082,10 +3092,13 @@ export class Game {
             };
             star.hub.onSeatReconnected = (seat) => this.starSeatReconnected(seat);
             star.hub.onSeatDropped = (seat) => {
-                this.pendingStarSeats.delete(seat);
-                if (this.quitSeats.has(seat) || this.matchOver) return;
-                const name = this.seats[seat]?.name ?? 'a player';
-                this.suspend(`Lost connection to ${name}.`);
+                // the grace window elapsed with nobody reclaiming this seat
+                // — resolve it exactly like a voluntary quit (AI takeover,
+                // or a forfeit if it was the last human on its side) rather
+                // than leaving the other 3 players permanently frozen
+                // because one of them never came back
+                if (this.quitSeats.has(seat)) return;
+                this.resolveSeatGone(seat);
             };
         }
     }
@@ -3274,6 +3287,20 @@ export class Game {
     private handleSeatQuit(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host' || this.matchOver) return;
         this.quitSeats.add(seat);
+        this.resolveSeatGone(seat);
+    }
+
+    /**
+     * Star host only: `seat` is never coming back — either because it
+     * explicitly quit (handleSeatQuit) or its reconnect grace window
+     * elapsed with nobody reclaiming it (onSeatDropped, once
+     * STAR_RECONNECT_GRACE_MS has passed). Same resolution either way: AI
+     * takes over if a teammate is still human, otherwise that whole side
+     * forfeits — never just leave the match frozen for the other 3
+     * players because one of them never came back.
+     */
+    private resolveSeatGone(seat: SeatId): void {
+        if (!this.star || this.star.role !== 'host' || this.matchOver) return;
         this.pendingStarSeats.delete(seat); // in case this seat was mid-reconnect-grace
         const def = this.seats[seat];
         if (!def) return;
@@ -3285,10 +3312,8 @@ export class Game {
         } else {
             this.starForfeit(def.team);
         }
-        // a quit seat was possibly the one thing this.suspended was waiting
-        // on (e.g. it had just dropped and entered its grace window before
-        // sending 'quit' on a final reconnect attempt) — re-check same as
-        // starSeatReady does
+        // this seat was possibly the one thing this.suspended was waiting
+        // on — re-check same as starSeatReady does
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
             this.suspended = false;
             this.hud.hideNotice();
