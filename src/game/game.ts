@@ -2665,10 +2665,25 @@ export class Game {
                     return;
                 }
                 const vision: SpectatorVision = { mode: 'battle' };
+                const resume = this.exportResumeForSpectator(vision);
+                this.debugLog.log('vision.admitSnapshot', {
+                    name,
+                    round: this.round,
+                    phase: this.phase,
+                    exportedCount: resume.actions.length,
+                    exported: resume.actions.map((e) => ({
+                        round: e.round,
+                        kind: e.action.kind,
+                        team: e.action.team,
+                        seat: e.action.seat,
+                        typeId: (e.action as { typeId?: string }).typeId,
+                        unitId: (e.action as { unitId?: number }).unitId,
+                    })),
+                });
                 conn.send({
                     type: 'spectateAccepted',
                     version: GAME_VERSION,
-                    ...this.exportResumeForSpectator(vision),
+                    ...resume,
                     roster: this.buildRoster(),
                     vision,
                 });
@@ -3361,6 +3376,20 @@ export class Game {
                   return team ? { ...e, action: { ...e.action, team } } : e;
               })
             : sourceLog;
+        this.debugLog.log('hp.hydrateStart', {
+            watching: this.watching,
+            swapTeams,
+            liveBattleElapsed,
+            logLength: log.length,
+            log: log.map((e) => ({
+                round: e.round,
+                kind: e.action.kind,
+                team: e.action.team,
+                seat: e.action.seat,
+                typeId: (e.action as { typeId?: string }).typeId,
+                unitId: (e.action as { unitId?: number }).unitId,
+            })),
+        });
         const starterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
         this.draw(START_CARDS, 4, this.rngCards.enemy);
 
