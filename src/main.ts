@@ -322,7 +322,7 @@ const loadingEl = document.createElement('div');
 loadingEl.className = 'mechili-loading';
 loadingEl.innerHTML =
     `<div class="load-bar"><div class="hp-track">` +
-    `<div class="hp-fill" style="width:0%"></div>` +
+    `<div class="hp-fill" style="transform:scaleX(0)"></div>` +
     `<span class="hp-val">0%</span>` +
     `</div></div>` +
     `<div class="load-status">Loading…</div>`;
@@ -335,8 +335,9 @@ const loadStatus = loadingEl.querySelector<HTMLDivElement>('.load-status')!;
 initInputCapabilities();
 
 function setBootProgress(fraction: number, label: string): void {
-    const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
-    loadFill.style.width = `${pct}%`;
+    const t = Math.max(0, Math.min(1, fraction));
+    const pct = Math.round(t * 100);
+    loadFill.style.transform = `scaleX(${t})`;
     loadVal.textContent = `${pct}%`;
     loadStatus.textContent = label;
 }

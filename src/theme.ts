@@ -985,24 +985,20 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-loading .hp-track {
     height: 36px;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.18)),
-        ${u.barTrack};
+    background: ${u.barTrack};
     border: 2px solid ${u.border};
-    border-radius: 4px;
+    border-radius: 8px;
     overflow: hidden;
     box-shadow:
         inset 0 2px 6px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 4px 18px rgba(0, 0, 0, 0.35),
-        0 0 26px rgba(255, 216, 64, 0.10),
-        0 0 54px rgba(255, 216, 64, 0.06);
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     position: relative;
-    -webkit-backdrop-filter: blur(8px) saturate(1.2);
-    backdrop-filter: blur(8px) saturate(1.2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 .mechili-loading .hp-track::before {
     content: '';
+    display: none;
     position: absolute;
     inset: 0;
     background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 24%, rgba(255, 255, 255, 0) 52%);
@@ -1012,6 +1008,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-loading .hp-track::after {
     content: '';
+    display: none;
     position: absolute;
     inset: 0;
     background:
@@ -1030,15 +1027,16 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     width: 100%;
     transform: scaleX(0);
     transform-origin: left center;
-    background: linear-gradient(90deg, ${pc}, ${u.hpBar});
-    opacity: 0.82;
+    background: #4a7a38;
+    opacity: 1;
     transition: transform 0.2s ease-out;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     pointer-events: none;
     z-index: 1;
 }
 .mechili-loading .hp-fill::before {
     content: '';
+    display: none;
     position: absolute;
     inset: 0;
     background:
@@ -1054,6 +1052,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-loading .hp-fill::after {
     content: '';
+    display: none;
     position: absolute;
     top: 0;
     bottom: 0;
@@ -3117,23 +3116,20 @@ export function hudStyles(bars?: BarAssets): string {
 .mechili-fightbar .fighter.has-spec:hover { border-color: ${u.hover}; }
 .mechili-fightbar .hp-track {
     height: 22px;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.18)),
-        ${u.barTrack};
+    background: ${u.barTrack};
     border: 1px solid ${u.border};
-    border-radius: 3px;
+    border-radius: 8px;
     overflow: hidden;
     box-shadow:
         inset 0 1px 3px rgba(0, 0, 0, 0.52),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 0 22px rgba(255, 216, 64, 0.10),
-        0 0 40px rgba(0, 0, 0, 0.18);
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     position: relative;
-    -webkit-backdrop-filter: blur(8px) saturate(1.2);
-    backdrop-filter: blur(8px) saturate(1.2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 .mechili-fightbar .hp-track::before {
     content: '';
+    display: none;
     position: absolute;
     inset: 0;
     background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 22%, rgba(255, 255, 255, 0) 56%);
@@ -3143,6 +3139,7 @@ export function hudStyles(bars?: BarAssets): string {
 }
 .mechili-fightbar .hp-track::after {
     content: '';
+    display: none;
     position: absolute;
     inset: 0;
     background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px);
@@ -3161,22 +3158,23 @@ export function hudStyles(bars?: BarAssets): string {
     width: 100%;
     transform: scaleX(0);
     transition: transform 0.25s ease-out;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     pointer-events: none;
     z-index: 1;
 }
 .mechili-fightbar .fighter.player .hp-fill {
-    background: linear-gradient(90deg, ${pc}, ${u.hpBar});
-    opacity: 0.82;
+    background: ${pc};
+    opacity: 1;
     transform-origin: left center;
 }
 .mechili-fightbar .fighter.enemy .hp-fill {
-    background: linear-gradient(90deg, ${ec}, #e85848);
-    opacity: 0.82;
+    background: ${ec};
+    opacity: 1;
     transform-origin: right center;
 }
 .mechili-fightbar .hp-fill::before {
     content: '';
+    display: none;
     position: absolute;
     inset: 0;
     background:
@@ -3192,6 +3190,7 @@ export function hudStyles(bars?: BarAssets): string {
 }
 .mechili-fightbar .hp-fill::after {
     content: '';
+    display: none;
     position: absolute;
     top: 0;
     bottom: 0;
