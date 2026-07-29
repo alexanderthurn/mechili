@@ -18,7 +18,7 @@ import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
 import { itemIcon } from './items';
-import { CELL, cellKey, groundHeightAt, type BattleMap, type Cell } from './map';
+import { CELL, cellKey, groundHeightAt, worldHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import {
     TargetPreviewVisuals,
@@ -1148,9 +1148,16 @@ export class PlacementController {
         for (let i = techUsed; i < this.techBadges.length; i++) this.techBadges[i]!.visible = false;
     }
 
-    /** world Y of the status strip (item + tech icons) above a pack */
+    /**
+     * World Y of the status strip (item + tech icons) just above a pack.
+     * Uses the same terrain + flight base as member meshes (`worldHeightAt` +
+     * `memberBaseY`), then a short lift past the scaled model top — large
+     * flyers (crow meshScale ~4) used to float icons far above the deploy hug.
+     */
     private statusStripY(unit: Unit, world: Vector3): number {
-        return world.y + unit.memberBaseY() + unit.type.meshScale * 2.6 + 2.2;
+        const ground = worldHeightAt(world.x, world.z);
+        // meshScale ≈ world model height; sprite center sits a little above that
+        return ground + unit.memberBaseY() + unit.type.meshScale * 1.15 + 1.5;
     }
 
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
@@ -1261,8 +1268,11 @@ export class PlacementController {
                 const bob = Math.sin(timeSeconds * 3 + seed) * 0.2;
                 const hasStrip = this.statusStripCount(unit) > 0;
                 const top = hasStrip
-                    ? this.statusStripY(unit, world) + 2.8
-                    : world.y + unit.memberBaseY() + unit.type.meshScale * 2.4 + 0.9;
+                    ? this.statusStripY(unit, world) + 2.4
+                    : worldHeightAt(world.x, world.z) +
+                      unit.memberBaseY() +
+                      unit.type.meshScale * 1.1 +
+                      0.8;
                 arrow.position.set(world.x, top + bob, world.z);
                 arrow.renderOrder = 0;
                 for (const child of arrow.children) child.renderOrder = 0;
