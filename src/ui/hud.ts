@@ -350,10 +350,10 @@ export class Hud {
         this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} Undo`;
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
-        shopToolbar.append(this.undoEl);
 
         const toolbarRight = document.createElement('div');
         toolbarRight.className = 'shop-toolbar-right';
+        toolbarRight.append(this.undoEl);
         this.levelAllGlobalBtn = document.createElement('button');
         this.levelAllGlobalBtn.className = 'level-all-global';
         this.levelAllGlobalBtn.style.display = 'none';

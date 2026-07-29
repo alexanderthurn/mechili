@@ -1552,16 +1552,14 @@ export function hudStyles(bars?: BarAssets): string {
 .mechili-supply.clickable:active { transform: translateY(1px); }
 .shop-toolbar {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: flex-end;
-    gap: 10px;
     width: 100%;
     padding: 0 0 0 8px;
     pointer-events: auto;
 }
 .shop-toolbar .undo,
 .mechili-phone-status .undo {
-    margin-right: auto;
     display: flex;
     align-items: center;
     box-sizing: border-box;
@@ -1622,10 +1620,10 @@ export function hudStyles(bars?: BarAssets): string {
         display: none !important;
     }
 }
-.mechili-phone-status .undo { pointer-events: auto; margin-right: 0; }
+.mechili-phone-status .undo { pointer-events: auto; }
 /* compact versions of the shop-toolbar frames — the originals crowd End Deployment */
 .mechili-phone-status .mechili-supply {
-    min-height: 40px;
+    min-height: 54px;
     padding: 4px 10px;
 }
 .mechili-phone-status .supply { font-size: 20px; }
@@ -1637,7 +1635,7 @@ export function hudStyles(bars?: BarAssets): string {
 }
 .mechili-phone-status .level-all-global {
     align-self: flex-end;
-    min-height: 40px;
+    min-height: 54px;
     max-width: 110px;
 }
 .mechili-phone-status.overlay-open { display: none !important; }
@@ -1673,7 +1671,7 @@ export function hudStyles(bars?: BarAssets): string {
 .shop-toolbar-right {
     display: flex;
     flex-direction: row;
-    align-items: flex-end;
+    align-items: stretch;
     gap: 8px;
     flex-shrink: 0;
 }
@@ -1688,7 +1686,7 @@ export function hudStyles(bars?: BarAssets): string {
     width: auto;
     min-width: 72px;
     max-width: 140px;
-    min-height: 44px;
+    min-height: 54px;
     padding: 4px 8px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
@@ -1699,7 +1697,6 @@ export function hudStyles(bars?: BarAssets): string {
     cursor: pointer;
     pointer-events: auto;
     flex-shrink: 0;
-    align-self: flex-start;
 }
 .shop-toolbar .level-all-global .lag-copy,
 .mechili-phone-status .level-all-global .lag-copy {
