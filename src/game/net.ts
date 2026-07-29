@@ -6,6 +6,7 @@ import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings } from './settings';
+import type { Team } from './units';
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -191,6 +192,16 @@ export type NetMessage =
      *  survivor that resumed instantly would otherwise burn that time for
      *  nothing; both sides hold until they've traded this */
     | { type: 'ready' }
+    /**
+     * A player explicitly chose "Quit to menu" mid-match (as opposed to a
+     * dropped connection) — sent right before closing, so the recipient(s)
+     * can resolve immediately (forfeit win / AI takeover) instead of running
+     * the reconnect-grace flow for a connection that's never coming back.
+     * Classic 1v1: peer→peer, either direction. Star: guest→host (that
+     * seat quit) or host→every guest (the host itself quit, whole match
+     * ends — no host migration).
+     */
+    | { type: 'quit' }
     /** spectator's opening handshake, sent immediately on connecting to the
      *  host's dedicated broadcast Peer (never the player link) */
     | { type: 'spectate'; name: string; version: number }
@@ -299,7 +310,16 @@ export type NetMessage =
       }
     /** host declines a starRejoin (seat not actually pending, version
      *  mismatch, or the seat was already reclaimed by a race winner) */
-    | { type: 'starRejoinRejected'; reason: string };
+    | { type: 'starRejoinRejected'; reason: string }
+    /**
+     * Star host → every guest and spectator: `team`'s side has no humans
+     * left (its last seat quit — see Game.starForfeit) and forfeits.
+     * Deliberately NOT relayed through the ordinary fog/round-gated action
+     * relay — a match-ending signal must never sit buffered behind the
+     * forfeiting side's own lock-in state or a recipient's currently-
+     * displayed round/phase, both of which the normal 'action' relay does.
+     */
+    | { type: 'starForfeit'; team: Team };
 
 /**
  * What a spectator may see during the build phase.
@@ -761,6 +781,10 @@ export interface GuestSession {
     send(msg: NetMessage): void;
     once(): Promise<NetMessage>;
     close(): void;
+    /** this session was superseded by a fresh one from a successful
+     *  redial() — stop listening/reporting without tearing down anything
+     *  the NEW session still needs (e.g. a shared Peer object) */
+    discard(): void;
     redial(mySeat: SeatId, signal: AbortSignal, delayMs?: number): Promise<GuestSession>;
 }
 
@@ -773,6 +797,13 @@ export class StarGuestSession implements GuestSession {
     onClose: (() => void) | null = null;
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
+    private closed = false;
+    // `peer` is shared and reused across every redial (see redial() below) —
+    // a per-session peer.on('error', ...) that's never removed stacks one
+    // more listener onto that same long-lived Peer every reconnect cycle.
+    // Bound once so both fireClose() and discard()/close() can remove this
+    // EXACT listener instance.
+    private readonly onPeerError = () => this.fireClose();
 
     constructor(
         private readonly peer: Peer,
@@ -783,15 +814,16 @@ export class StarGuestSession implements GuestSession {
             if (this.handler) this.handler(msg);
             else this.backlog.push(msg);
         });
-        let closed = false;
-        const fireClose = () => {
-            if (closed) return;
-            closed = true;
-            this.onClose?.();
-        };
-        conn.on('close', fireClose);
-        conn.on('error', fireClose);
-        peer.on('error', fireClose);
+        conn.on('close', () => this.fireClose());
+        conn.on('error', () => this.fireClose());
+        peer.on('error', this.onPeerError);
+    }
+
+    private fireClose(): void {
+        if (this.closed) return;
+        this.closed = true;
+        this.peer.off('error', this.onPeerError);
+        this.onClose?.();
     }
 
     attach(handler: (msg: NetMessage) => void): void {
@@ -816,8 +848,22 @@ export class StarGuestSession implements GuestSession {
         });
     }
 
+    /**
+     * Superseded by a fresh reconnected session (a successful redial()) —
+     * stop listening on the shared, still-alive Peer object without
+     * destroying it (unlike close(), which is for actually leaving the
+     * match and needs the peer gone too).
+     */
+    discard(): void {
+        this.onClose = null;
+        this.closed = true;
+        this.peer.off('error', this.onPeerError);
+    }
+
     close(): void {
         this.onClose = null;
+        this.closed = true;
+        this.peer.off('error', this.onPeerError);
         this.conn.close();
         this.peer.destroy();
     }
@@ -864,31 +910,51 @@ function connectRawTo(peer: Peer, remoteId: string, signal?: AbortSignal): Promi
         // calling this repeatedly without this leaked one dangling
         // RTCPeerConnection per failed attempt, eventually hitting the
         // browser's hard cap on concurrent/cumulative peer connections.
+        // `peer` itself is shared and long-lived across every retry, so its
+        // own 'error' listener must be torn down on every settle path too —
+        // otherwise each retry stacks another one for the rest of the tab's
+        // life (a leaked listener, not a connection, but the same species
+        // of bug).
+        let settled = false;
+        const cleanup = () => {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
+            peer.off('error', onPeerError);
+        };
         const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            cleanup();
             conn.close();
             reject(new Error('Room not found or host offline'));
         }, CONNECT_TIMEOUT_MS);
         const onAbort = () => {
-            clearTimeout(timer);
+            if (settled) return;
+            settled = true;
+            cleanup();
             conn.close();
             reject(new DOMException('Aborted', 'AbortError'));
         };
+        const onPeerError = (e: Error) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            conn.close();
+            reject(e);
+        };
         signal?.addEventListener('abort', onAbort, { once: true });
+        peer.on('error', onPeerError);
         const conn = peer.connect(remoteId, { reliable: true });
         conn.on('open', () => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', onAbort);
+            if (settled) return;
+            settled = true;
+            cleanup();
             resolve(conn);
         });
         conn.on('error', (e) => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', onAbort);
-            conn.close();
-            reject(e);
-        });
-        peer.on('error', (e) => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', onAbort);
+            if (settled) return;
+            settled = true;
+            cleanup();
             conn.close();
             reject(e);
         });
@@ -1465,32 +1531,52 @@ function connectTo(
         // this repeatedly on a drop; without this, each failed attempt
         // leaves one more RTCPeerConnection dangling, eventually hitting
         // the browser's hard cap on concurrent/cumulative peer connections
-        // (seen live: "Cannot create so many PeerConnections").
+        // (seen live: "Cannot create so many PeerConnections"). `peer`
+        // itself is shared and long-lived across every retry, so its own
+        // 'error' listener must be torn down on every settle path too —
+        // otherwise each retry stacks another one for the rest of the
+        // tab's life (a leaked listener, not a connection, but the same
+        // species of bug).
+        let settled = false;
+        const cleanup = () => {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', onAbort);
+            peer.off('error', onPeerError);
+        };
         const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            cleanup();
             conn.close();
             reject(new Error('Room not found or host offline'));
         }, CONNECT_TIMEOUT_MS);
         const onAbort = () => {
-            clearTimeout(timer);
+            if (settled) return;
+            settled = true;
+            cleanup();
             conn.close();
             reject(new DOMException('Aborted', 'AbortError'));
         };
+        const onPeerError = (e: Error) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            conn.close();
+            reject(e);
+        };
         signal?.addEventListener('abort', onAbort, { once: true });
+        peer.on('error', onPeerError);
         const conn = peer.connect(remoteId, { reliable: true });
         conn.on('open', () => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', onAbort);
+            if (settled) return;
+            settled = true;
+            cleanup();
             resolve(new NetSession('guest', peer, conn, localName, remoteName));
         });
         conn.on('error', (e) => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', onAbort);
-            conn.close();
-            reject(e);
-        });
-        peer.on('error', (e) => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', onAbort);
+            if (settled) return;
+            settled = true;
+            cleanup();
             conn.close();
             reject(e);
         });
