@@ -1883,6 +1883,8 @@ export function hudStyles(): string {
 .mechili-chat .c-emote { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .mechili-chat .c-emote .m-icon { width: 26px; height: 26px; }
 .chat-bubble .m-icon, .cf-body .m-icon { width: 22px; height: 22px; vertical-align: -4px; }
+.mechili-fightbar .chat-bubble.emote .m-icon { width: 56px; height: 56px; vertical-align: 0; }
+.mechili-fightbar .cf-body .m-icon { width: 28px; height: 28px; vertical-align: -6px; }
 .inv-drag.m-icon { width: 40px; height: 40px; font-size: 0; background-color: ${u.techBuyBg}; }
 .btn-ico.m-icon { width: 16px; height: 16px; margin-right: 4px; vertical-align: -3px; }
 .mechili-phone-status .btn-ico.m-icon { width: 22px; height: 22px; margin: 0; }
