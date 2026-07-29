@@ -58,7 +58,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
                 description: `Permanent army-wide HP boost. First tier +${hpPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
             },
             {
-                icon: 'ability-rally',
+                icon: 'tactic-rally',
                 name: 'Buy Rally Route',
                 cost: s.rallyRoute.abilityCost,
                 description:

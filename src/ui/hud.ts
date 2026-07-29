@@ -1625,7 +1625,7 @@ export class Hud {
         if (info.rallyRouteAbility) {
             tiles.push({
                 data: 'data-rallyroute="1"',
-                icon: 'ability-rally',
+                icon: 'tactic-rally',
                 title: 'Buy Rally Route',
                 desc: 'Add one rally-route charge to your tactics. Once per match.',
                 cost: info.rallyRouteAbility.cost,
