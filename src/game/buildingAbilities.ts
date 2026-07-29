@@ -103,7 +103,13 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     }
 
     if (type.id === STRONGHOLD.id) {
-        // Stronghold is HP/upgrade only — covered by the shared upgrade entry above.
+        out.push({
+            icon: 'ability-gift-supply',
+            name: 'Send supply to ally',
+            cost: 100,
+            description:
+                'Gift 100 supply to your ally — arrives at the start of next round. Duo modes only.',
+        });
     }
 
     // Board extras: surface their built-in role from UnitType fields

@@ -131,6 +131,7 @@ export interface SelectionInfo {
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
     /** gift supply to your ally (Stronghold only, team modes) */
+    /** ally supply gift (Stronghold, duo+); shown whenever the building is selected */
     sendSupply?: { amount: number; affordable: boolean };
 }
 

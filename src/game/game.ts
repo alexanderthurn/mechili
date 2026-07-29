@@ -478,6 +478,12 @@ export class Game {
      * this view; live techTree applies once that pack's fog lifts.
      */
     private techIntelSnapshot: Map<string, Set<string>>[] | null = null;
+    /**
+     * Building action state at deployment-phase start (all seats) — temporary
+     * round boosts + permanent tracks. Fogged buildings use this; live after
+     * that building's fog lifts (same window as pack techs/items).
+     */
+    private buildingIntelSnapshot: BuildingIntelSnapshot | null = null;
     /** the inventory item currently armed for placement onto a pack */
     private armedItem: string | null = null;
     /** which inventory slot is armed — duplicates share an id, the highlight must not */
@@ -1134,6 +1140,7 @@ export class Game {
                     this.placement.revealAll();
                     this.enemyIntelSnapshot = null;
                     this.techIntelSnapshot = null;
+                    this.buildingIntelSnapshot = null;
                 } else if (team !== 'player' && !this.star) {
                     // classic 1v1 only: the peer just locked in — release
                     // OUR buffered build stream to them now (see
@@ -2089,6 +2096,7 @@ export class Game {
         // sidebar intel: show the freshly granted bag without lifting pack fog
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
+        this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
 
         const knownEnemy = new Set(
             this.placement.allUnits().filter((u) => u.team === 'enemy').map((u) => u.id),
@@ -2265,6 +2273,7 @@ export class Game {
         this.placement.setIntelFog(true);
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
+        this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
@@ -5312,6 +5321,7 @@ export class Game {
         this.gridOverlay.visible = false;
         this.enemyIntelSnapshot = null;
         this.techIntelSnapshot = null;
+        this.buildingIntelSnapshot = null;
         this.placement.revealAll();
         // oil/acid pour later as drips — baseline only for now (wards carve carry-over)
         const hazardPours = prepareHazardPours(
@@ -6765,11 +6775,8 @@ export class Game {
     }
 
     /**
-     * Command Tower ability tiles for the selection panel. Each seat has its
-     * OWN tower now — `u.seat` is whose stats/progress this panel shows, not
-     * necessarily `this.humanSeat` (selecting an ally's tower shows THEIR
-     * progress, read-only). Own building: buyable while acting, read-only in
-     * battle. Enemy: read-only once intel is live — same fog as spells/inventory.
+     * Research Center tiles — always listed when that building is selected
+     * (deploy + battle). Active flags use deploy intel while fogged.
      */
     private researchCenterSelection(u: Unit): Pick<
         SelectionInfo,
@@ -6777,62 +6784,58 @@ export class Game {
     > {
         if (u.type !== RESEARCH_CENTER) return {};
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const canInspect =
-            u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
-        if (!canBuy && !canInspect) return {};
-
         const seat = u.seat;
         const bal = this.economy.balance(seat);
+        const intel = this.intelBuildingSeat(u);
         return {
             recruit: {
                 cost: this.settings.leveling.recruitLevel2Cost,
-                active: this.recruitLevel[seat]! > 1,
+                active: intel.recruitLevel > 1,
                 affordable: canBuy && bal >= this.settings.leveling.recruitLevel2Cost,
             },
             deploySlot: {
                 cost: this.settings.deploy.extraSlotCost,
-                active: this.deployState.extra[seat]! > 0,
+                active: intel.deployExtra > 0,
                 affordable: canBuy && bal >= this.settings.deploy.extraSlotCost,
             },
             rangeBoost: {
                 cost: this.settings.deploy.rangedRangeBoostCost,
                 bonus: this.settings.deploy.rangeBoost,
-                active: this.roundBoosts.range[seat]!,
+                active: intel.rangeBoost,
                 affordable: canBuy && bal >= this.settings.deploy.rangedRangeBoostCost,
             },
             speedBoost: {
                 cost: this.settings.deploy.armySpeedBoostCost,
                 bonus: this.settings.deploy.speedBoost,
-                active: this.roundBoosts.speed[seat]!,
+                active: intel.speedBoost,
                 affordable: canBuy && bal >= this.settings.deploy.armySpeedBoostCost,
             },
             credit: {
                 gain: this.settings.deploy.creditGain,
                 debt: this.settings.deploy.creditDebt,
-                active: this.creditUsed[seat]!,
+                active: intel.creditUsed,
                 affordable: canBuy,
             },
         };
     }
 
-    /** Command Tower permanent tracks — each seat's own tower; buyable for
-     *  self in deploy, read-only (fogged for enemy) otherwise. */
+    /**
+     * Command Tower permanent tracks — always listed when selected; owned /
+     * tier state uses deploy intel while fogged.
+     */
     private commandTowerSelection(
         u: Unit,
     ): Pick<SelectionInfo, 'boosts' | 'sellAbility' | 'rallyRouteAbility'> {
         if (u.type !== COMMAND_TOWER) return {};
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const canInspect =
-            u.team === 'player' || (u.team === 'enemy' && this.enemyActionIntelVisible());
-        if (!canBuy && !canInspect) return {};
-
         const seat = u.seat;
         const bal = this.economy.balance(seat);
+        const intel = this.intelBuildingSeat(u);
         return {
             boosts: (['attack', 'hp'] as const).map((id) => {
                 const tiers =
                     id === 'attack' ? this.settings.boosts.attackTiers : this.settings.boosts.hpTiers;
-                const tier = this.boostState[id][seat]!;
+                const tier = id === 'attack' ? intel.boostAttack : intel.boostHp;
                 const maxed = tier >= tiers.length;
                 const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
                 const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
@@ -6846,27 +6849,108 @@ export class Game {
             }),
             sellAbility: {
                 cost: this.settings.sell.abilityCost,
-                owned: this.sellState.owned[seat]!,
+                owned: intel.sellOwned,
                 affordable: canBuy && bal >= this.settings.sell.abilityCost,
             },
             rallyRouteAbility: {
                 cost: this.settings.rallyRoute.abilityCost,
-                owned: this.rallyRouteOwned[seat]!,
+                owned: intel.rallyOwned,
                 affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
             },
         };
     }
 
-    /** the shared Stronghold: the one thing both seats on a side work on
-     *  together — its selection panel is where the ally-supply gift lives,
-     *  since it isn't owned by one seat the way the towers now are */
+    /** phase-start building action state, or live once this building isn't fogged */
+    private intelBuildingSeat(u: Unit): BuildingIntelSeat {
+        const seat = u.seat;
+        if (this.placement.isIntelFogged(u) && this.buildingIntelSnapshot) {
+            const s = this.buildingIntelSnapshot;
+            return {
+                recruitLevel: s.recruitLevel[seat] ?? 1,
+                deployExtra: s.deployExtra[seat] ?? 0,
+                rangeBoost: s.rangeBoost[seat] ?? false,
+                speedBoost: s.speedBoost[seat] ?? false,
+                creditUsed: s.creditUsed[seat] ?? false,
+                boostAttack: s.boostAttack[seat] ?? 0,
+                boostHp: s.boostHp[seat] ?? 0,
+                sellOwned: s.sellOwned[seat] ?? false,
+                rallyOwned: s.rallyOwned[seat] ?? false,
+            };
+        }
+        return {
+            recruitLevel: this.recruitLevel[seat]!,
+            deployExtra: this.deployState.extra[seat]!,
+            rangeBoost: this.roundBoosts.range[seat]!,
+            speedBoost: this.roundBoosts.speed[seat]!,
+            creditUsed: this.creditUsed[seat]!,
+            boostAttack: this.boostState.attack[seat]!,
+            boostHp: this.boostState.hp[seat]!,
+            sellOwned: this.sellState.owned[seat]!,
+            rallyOwned: this.rallyRouteOwned[seat]!,
+        };
+    }
+
+    private captureBuildingIntelSnapshot(): BuildingIntelSnapshot {
+        return {
+            recruitLevel: this.recruitLevel.slice(),
+            deployExtra: this.deployState.extra.slice(),
+            rangeBoost: this.roundBoosts.range.slice(),
+            speedBoost: this.roundBoosts.speed.slice(),
+            creditUsed: this.creditUsed.slice(),
+            boostAttack: this.boostState.attack.slice(),
+            boostHp: this.boostState.hp.slice(),
+            sellOwned: this.sellState.owned.slice(),
+            rallyOwned: this.rallyRouteOwned.slice(),
+        };
+    }
+
+    /**
+     * Stronghold tiles — always listed when that building is selected (deploy +
+     * battle, own or enemy). Buyable only for your side while you can act.
+     * Duo-only actions omit themselves in 1v1; add future abilities here.
+     */
     private strongholdSelection(u: Unit): Pick<SelectionInfo, 'sendSupply'> {
         if (u.type !== STRONGHOLD) return {};
-        if (seatIdsOf(this.seats, 'player').length < 2) return {}; // no ally, nothing to send
-        if (u.team !== 'player' || !this.playerCanAct) return {};
-        const amount = 100;
-        return { sendSupply: { amount, affordable: this.economy.balance(this.humanSeat) >= amount } };
+        const out: Pick<SelectionInfo, 'sendSupply'> = {};
+        const teamSeats = seatIdsOf(this.seats, u.team === 'horde' ? 'player' : u.team);
+        const canBuy = u.team === 'player' && this.playerCanAct;
+
+        // Ally supply gift — only when this side has two seats
+        if (teamSeats.length >= 2) {
+            const amount = 100;
+            out.sendSupply = {
+                amount,
+                affordable: canBuy && this.economy.balance(this.humanSeat) >= amount,
+            };
+        }
+
+        return out;
     }
+}
+
+/** deploy-intel capture of Research Center / Command Tower seat state */
+interface BuildingIntelSnapshot {
+    recruitLevel: number[];
+    deployExtra: number[];
+    rangeBoost: boolean[];
+    speedBoost: boolean[];
+    creditUsed: boolean[];
+    boostAttack: number[];
+    boostHp: number[];
+    sellOwned: boolean[];
+    rallyOwned: boolean[];
+}
+
+interface BuildingIntelSeat {
+    recruitLevel: number;
+    deployExtra: number;
+    rangeBoost: boolean;
+    speedBoost: boolean;
+    creditUsed: boolean;
+    boostAttack: number;
+    boostHp: number;
+    sellOwned: boolean;
+    rallyOwned: boolean;
 }
 
 /** yaw so local +Z points from (ax,az) toward (bx,bz); 0 if the points coincide */

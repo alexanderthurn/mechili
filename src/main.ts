@@ -380,6 +380,15 @@ function clearIntroCover(): void {
     introCoverEl = null;
 }
 
+/** Pixi Melodan wordmark back on the menu (after intro cover / resume cancel) */
+function restoreMenuTitle(): void {
+    title.visible = true;
+    title.alpha = 1;
+    logo.alpha = 1;
+    layoutTitle();
+    app.render();
+}
+
 function applyRandomMenuZoomOrigin(bg: HTMLElement): { originX: number; originY: number } {
     // Mostly top + near-horizontal-center: matches the 3D intro (wide overlook
     // diving into the board). Tiny X/Y jitter so starts aren't identical.
@@ -1206,9 +1215,9 @@ function finishReturnToMenu(): void {
     replaceThreeCanvas();
     started = false;
     setGameLayerVisible(false);
-    title.visible = true;
     // Fade the Pixi menu logo back in after the outro cover is removed.
     // This avoids an abrupt "bam" when the HTML outro cover disappears.
+    title.visible = true;
     title.alpha = 0;
     logo.alpha = 1;
     layoutTitle();
@@ -1527,6 +1536,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
             clearResumeMarker();
             hideResumeOverlay();
             clearIntroCover();
+            restoreMenuTitle();
             setMenuChromeVisible(true);
             setMenuBusy(false);
         },
@@ -1558,6 +1568,7 @@ async function attemptResume(marker: ResumeMarker): Promise<void> {
         session?.close();
         hideResumeOverlay();
         clearIntroCover();
+        restoreMenuTitle();
         setMenuChromeVisible(true);
         if (e instanceof DOMException && e.name === 'AbortError') {
             setMenuBusy(false);
