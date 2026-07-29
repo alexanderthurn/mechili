@@ -2635,6 +2635,17 @@ export class Game {
                 `[mechili] star desync at round ${this.round}: seat(s) ${mismatched.join(', ')} ` +
                     `disagree with the host's battle-start state hash`,
             );
+            // console-only was invisible outside an open devtools tab — this
+            // makes it part of the same aggregated per-client debug timeline
+            // (DebugDumpButton) already used to diagnose every other netcode
+            // issue this session, without changing any actual match behavior
+            // (still detection-only, no auto-recovery — see this method's
+            // own doc comment).
+            this.debugLog.log('star.desyncDetected', {
+                round: this.round,
+                mismatched,
+                hashes: Object.fromEntries(this.starChecks),
+            });
         }
     }
 
@@ -3358,6 +3369,16 @@ export class Game {
         const remainingHumans = seatIdsOf(this.seats, def.team).filter(
             (s) => s !== seat && this.seats[s]?.controller === 'human',
         );
+        // NOTE for future refactors: takeOverSeatWithAi can synchronously
+        // cascade into a full round transition (markStarBattleReady →
+        // startBuildPhase) before this.suspended is cleared a few lines
+        // below — currently safe only because nothing reads `suspended`
+        // mid-chain (dispatchPlayer, the sole consumer, fires from user
+        // input events, which can't interleave with already-running
+        // synchronous code) and rendering doesn't happen until the next
+        // animation frame, by which point `suspended` is already correctly
+        // false. Don't assume that still holds if either function gains a
+        // new `suspended` check.
         if (remainingHumans.length > 0) {
             this.takeOverSeatWithAi(seat);
         } else {
@@ -3390,6 +3411,25 @@ export class Game {
         const def = this.seats[seat];
         if (!def || def.controller === 'ai') return;
         this.seats[seat] = { ...def, controller: 'ai' };
+        // StarHub's OWN roster (not just this Game's local `this.seats`) has
+        // to reflect the takeover too — nextOpenSeat() reads StarHub.roster,
+        // not Game.seats, to decide whether a seat is available to hand to
+        // a brand-new joiner. Without this, the lobby's join-acceptor
+        // (wired once, before the match started, and never torn down —
+        // see StarHub.listen()) would keep believing this seat is still
+        // an unfilled human slot forever, and once this seat's own dropped
+        // connection eventually ages out of bySeat (its reconnect grace
+        // window elapsing), nextOpenSeat() would hand the seat to literally
+        // any stranger who happens to send starJoin — who'd then receive
+        // the full starResumeState (this match's entire seed/settings/
+        // action log) as if they were the original player.
+        if (this.star?.role === 'host') {
+            this.star.hub.setRosterEntry(seat, {
+                side: this.star.hub.sideOf(seat),
+                controller: 'ai',
+                name: def.name,
+            });
+        }
         const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
         const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
         this.extraAis.push({ ai, rng, team: def.team, seat });
@@ -3904,9 +3944,39 @@ export class Game {
                 continue;
             }
             if (this.awaitingCards || entry.round !== this.round || this.phase !== 'build') break;
+            const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
             i++;
             if ((this.phase as Phase) === 'battle') {
+                // Classic 1v1 buffers a seat's OWN build actions locally and
+                // only sends them once the RECIPIENT locks in — but
+                // endDeployment (the gate signal) always goes out
+                // immediately. So a peer's late-buffered buy/move can
+                // legitimately sit in the log AFTER that same round's own
+                // endDeployment pair. Live, this is harmless:
+                // maybeStartBattleAfterDeploy holds the phase at 'build'
+                // until deployFlushedToPeer/deployCaughtUpFromPeer both
+                // confirm the peer's buffer is fully flushed, so those
+                // actions still arrive and apply before battle actually
+                // starts. Hydrate has no such wire signal to wait for (the
+                // whole log already exists, frozen) — without this drain,
+                // the entry that just flipped the phase would strand every
+                // trailing SAME-round entry forever: they're still tagged
+                // with the round that just ended, so the loop's own
+                // `entry.round !== this.round` guard would refuse them (and
+                // everything after) on the very next iteration. Confirmed
+                // live: a spectator's hydrate applied only 6 of 12 available
+                // log entries this way, running round 2's battle without
+                // the enemy's 2 late-bought units and never advancing past
+                // it. apply() itself doesn't gate on phase (only dispatchPlayer/
+                // drainRemoteQueue's live SEND-time decisions do), so
+                // dispatching these now, with phase already 'battle', is
+                // exactly as safe as the live host dispatching them earlier
+                // while still gated at 'build'.
+                while (i < log.length && log[i]!.round === dispatchedRound) {
+                    this.dispatcher.dispatch(log[i]!.action);
+                    i++;
+                }
                 // historical battles run to their exact end; the battle the
                 // peer is WATCHING right now only catches up to their clock
                 const isLiveBattle = i >= log.length && liveBattleElapsed !== null;
@@ -4017,8 +4087,30 @@ export class Game {
         while (this.replayCursor < this.replayLog.length) {
             const entry = this.replayLog[this.replayCursor]!;
             if (entry.round !== this.round || entry.t > elapsed) break;
+            const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
             this.replayCursor++;
+            if ((this.phase as Phase) === 'battle') {
+                // Same root cause as replayLogFrom/fastForwardReplayThroughRound:
+                // a peer's late-buffered build action (classic 1v1 only) can
+                // legitimately sit in the log after that round's own
+                // endDeployment pair, timestamped LATER than `elapsed` has
+                // reached yet. This function is only ever called while
+                // phase==='build' (see tick()'s own caller), so once a
+                // dispatch flips it to 'battle' mid-loop, nothing will call
+                // this again for this round — any trailing same-round entry
+                // still waiting on its own `t` would otherwise never get a
+                // second chance and is permanently stranded. Drain them now,
+                // ignoring their timestamp: the round is ending regardless.
+                while (
+                    this.replayCursor < this.replayLog.length &&
+                    this.replayLog[this.replayCursor]!.round === dispatchedRound
+                ) {
+                    this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                    this.replayCursor++;
+                }
+                break;
+            }
         }
     }
 
@@ -4040,9 +4132,22 @@ export class Game {
             if (this.round === target && this.phase === 'build') return;
             const entry = this.replayLog[this.replayCursor]!;
             if (entry.round !== this.round || this.phase !== 'build') break; // shouldn't happen — safety guard
+            const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
             this.replayCursor++;
             if ((this.phase as Phase) === 'battle') {
+                // see replayLogFrom's identical drain — a peer's late-
+                // buffered build action (classic 1v1 only) can legitimately
+                // sit in the log after that round's own endDeployment pair;
+                // without draining it here first, it (and everything after)
+                // gets permanently stranded by this loop's own round guard.
+                while (
+                    this.replayCursor < this.replayLog.length &&
+                    this.replayLog[this.replayCursor]!.round === dispatchedRound
+                ) {
+                    this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                    this.replayCursor++;
+                }
                 this.fastForwardBattle();
             }
         }

@@ -2102,6 +2102,15 @@ function startStarMatch(): void {
         }
         return s;
     });
+    // Sync the AI-fill back into StarHub's OWN roster (not just the local
+    // `finalRoster` sent out over the wire) — StarHub.nextOpenSeat() reads
+    // its own `this.roster`, which otherwise still says `controller:
+    // 'human'` for a seat that was never actually joined. Left unsynced, a
+    // never-filled seat would look "open" to the lobby's join-acceptor (it
+    // stays wired for the whole match — see StarHub.listen()) forever,
+    // letting a brand-new stranger claim it mid-match and receive the full
+    // starResumeState as if they'd been playing since round 0.
+    finalRoster.forEach((entry, seat) => hub.setRosterEntry(seat, entry));
     const settings = settingsFromUrl();
     delete settings.seats; // canonical roster travels separately, localized per recipient
     if (starCustomConfig) applyCustomGameConfig(settings, starCustomConfig);
@@ -2311,6 +2320,9 @@ function startSteamStarMatch(): void {
         }
         return s;
     });
+    // see startStarMatch's identical fix — StarHub/SteamStarHub.nextOpenSeat()
+    // reads this hub's own roster, which must reflect the AI-fill too.
+    finalRoster.forEach((entry, seat) => hub.setRosterEntry(seat, entry));
     const settings = settingsFromUrl();
     delete settings.seats;
     if (starHordeFlag) applyHordeMode(settings);

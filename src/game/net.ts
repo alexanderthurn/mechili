@@ -372,7 +372,21 @@ export type NetMessage =
     | { type: 'pong' };
 
 const LIVENESS_PING_MS = 4_000;
-const LIVENESS_TIMEOUT_MS = 15_000;
+// Generous on purpose: Chrome's (and other browsers' similar) "intensive
+// timer throttling" clamps EVERY timer, regardless of its own configured
+// delay, to at most once per minute once a tab has been continuously
+// backgrounded for 5+ minutes — and a spectator (or a player who alt-tabs
+// mid-match) leaving a tab backgrounded that long is a realistic, expected
+// scenario for this game, not a corner case (see tick()'s trueGameDt fix
+// for the exact same class of "long background" concern). A tighter
+// timeout here would risk treating a perfectly healthy, merely-throttled
+// peer as dead. Detection delay and the existing reconnect-grace countdown
+// (30s classic / 90s star) are sequential, not overlapping, so a larger
+// value here only pushes out the worst-case time-to-notice — it doesn't
+// break either grace window, and is still a categorical improvement over
+// the original bug (WebRTC's own close/error timing for a non-orderly
+// drop is inconsistent and can be much slower, or never fire at all).
+const LIVENESS_TIMEOUT_MS = 75_000;
 
 /**
  * Shared app-level connection-liveness watchdog — ping every
@@ -563,8 +577,24 @@ export class NetSession implements Session {
 
     close(): void {
         this.onClose = null;
+        this.liveness.stop();
         this.conn.close();
         this.peer.destroy();
+    }
+
+    /**
+     * Closes just THIS session's own connection, WITHOUT touching the
+     * shared `peer` — unlike `close()`. Needed wherever two `NetSession`s
+     * can be racing on the same underlying Peer object (`resumeSession`'s
+     * listen-vs-dial race, both built on one `Peer`) and only the LOSER
+     * needs tearing down: `close()`'s `peer.destroy()` would take the
+     * winner's own connection down with it, since they share that Peer —
+     * exactly the `StarGuestSession.discard()` hazard, same fix here.
+     */
+    discardConnection(): void {
+        this.onClose = null;
+        this.liveness.stop();
+        this.conn.close();
     }
 
     /** host learns the guest's display name during handshake */
@@ -636,6 +666,11 @@ export interface HostHub {
     connectedSeats(): SeatId[];
     sideOf(seat: SeatId): 'a' | 'b';
     currentRoster(): CanonicalSeatDef[];
+    /** corrects this hub's own roster entry for a seat — needed whenever a
+     *  seat's controller changes after the initial join (AI takeover,
+     *  AI-fill at match start): nextOpenSeat() reads this hub's roster, not
+     *  Game's local seat state, to decide what's available to a new joiner. */
+    setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void;
     close(): void;
 }
 
@@ -1244,7 +1279,12 @@ export interface SessionPending<T> {
 export class SpectatorHub {
     private readonly viewers = new Map<
         DataConnection,
-        { name: string; vision: SpectatorVision; buildBuffer: NetMessage[] }
+        {
+            name: string;
+            vision: SpectatorVision;
+            buildBuffer: NetMessage[];
+            liveness: { markSeen: () => void; stop: () => void };
+        }
     >();
 
     /** fired whenever a spectator connects or disconnects */
@@ -1314,7 +1354,16 @@ export class SpectatorHub {
 
     /** call once `onJoin` has accepted a spectator (sent `spectateAccepted`) */
     admit(name: string, conn: DataConnection, vision: SpectatorVision = { mode: 'battle' }): void {
-        this.viewers.set(conn, { name, vision, buildBuffer: [] });
+        // same app-level liveness watchdog as player connections (see
+        // watchLiveness's doc comment) — a spectator's hard browser-close
+        // deserves the same fast, consistent detection as a player's,
+        // rather than depending on however promptly WebRTC's own
+        // 'close'/'error' happens to fire for a non-orderly drop.
+        const liveness = watchLiveness(
+            () => conn.send({ type: 'ping' }),
+            () => this.drop(conn),
+        );
+        this.viewers.set(conn, { name, vision, buildBuffer: [], liveness });
         this.onRosterChange?.();
     }
 
@@ -1403,6 +1452,12 @@ export class SpectatorHub {
     }
 
     private onData(conn: DataConnection, msg: NetMessage): void {
+        this.viewers.get(conn)?.liveness.markSeen();
+        if (msg.type === 'ping') {
+            conn.send({ type: 'pong' });
+            return;
+        }
+        if (msg.type === 'pong') return;
         // spectators may only ever chat, or (dev-only) stream debug events
         if (msg.type === 'debugLog') {
             this.onSpectatorDebugLog?.(msg.events);
@@ -1415,7 +1470,10 @@ export class SpectatorHub {
     }
 
     private drop(conn: DataConnection): void {
-        if (!this.viewers.delete(conn)) return;
+        const viewer = this.viewers.get(conn);
+        if (!viewer) return;
+        viewer.liveness.stop();
+        this.viewers.delete(conn);
         this.onRosterChange?.();
     }
 
@@ -1658,10 +1716,34 @@ export async function raceReconnectStrategies(
     signal?.addEventListener('abort', onOuterAbort, { once: true });
     const listening = listen(listenAbort.signal);
     const dialing = dial(dialAbort.signal);
-    listening.catch(() => undefined);
-    dialing.catch(() => undefined);
+    // If BOTH strategies happen to connect (both peers dial each other at
+    // nearly the same moment — plausible, since both sides typically run
+    // this same race symmetrically), the loser's `*Abort.abort()` below
+    // only stops FUTURE work on it; a connection that already finished
+    // opening moments earlier is otherwise left dangling — open, unused,
+    // and (now that every NetSession runs its own ping/pong watchdog)
+    // quietly pinging into a connection nobody's listening to, forever.
+    // `winner` is only assigned after the race settles, so registering
+    // these BEFORE calling Promise.race means the eventual winner's own
+    // resolution is observed here with `winner` still null and correctly
+    // skips closing itself.
+    //
+    // discardConnection(), NOT close(): both strategies here are built on
+    // the SAME underlying Peer object (see this function's own callers —
+    // resumeSession races two strategies on one `p`; wireReconnect races
+    // NetSession.awaitReconnect/redial, both `this.peer`), so close()'s
+    // peer.destroy() would tear down the WINNER's connection too, since
+    // they share that Peer. Caught by a fork review before this ever
+    // shipped — same hazard StarGuestSession.discard() already exists for.
+    let winner: NetSession | null = null;
+    const closeIfLoser = (s: NetSession) => {
+        if (winner !== null && winner !== s) s.discardConnection();
+    };
+    listening.then(closeIfLoser).catch(() => undefined);
+    dialing.then(closeIfLoser).catch(() => undefined);
     try {
         const session = await Promise.race([listening, dialing]);
+        winner = session;
         listenAbort.abort();
         dialAbort.abort();
         return session;
@@ -2001,25 +2083,34 @@ export class SpectatorSession {
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
     onClose: (() => void) | null = null;
+    private readonly liveness: { markSeen: () => void; stop: () => void };
 
     constructor(
         private readonly peer: Peer,
         private readonly conn: DataConnection,
     ) {
-        conn.on('data', (data) => {
-            const msg = data as NetMessage;
-            if (this.handler) this.handler(msg);
-            else this.backlog.push(msg);
-        });
         let closed = false;
         const fireClose = () => {
             if (closed) return;
             closed = true;
+            this.liveness.stop();
             this.onClose?.();
         };
+        conn.on('data', (data) => {
+            const msg = data as NetMessage;
+            this.liveness.markSeen();
+            if (msg.type === 'ping') {
+                conn.send({ type: 'pong' });
+                return;
+            }
+            if (msg.type === 'pong') return;
+            if (this.handler) this.handler(msg);
+            else this.backlog.push(msg);
+        });
         conn.on('close', fireClose);
         conn.on('error', fireClose);
         peer.on('error', fireClose);
+        this.liveness = watchLiveness(() => conn.send({ type: 'ping' }), fireClose);
     }
 
     attach(handler: (msg: NetMessage) => void): void {
@@ -2033,6 +2124,7 @@ export class SpectatorSession {
 
     close(): void {
         this.onClose = null;
+        this.liveness.stop();
         this.conn.close();
         this.peer.destroy();
     }
