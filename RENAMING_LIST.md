@@ -24,7 +24,7 @@ Edit the text in the **"Your Chosen Name"** column below. When you're happy with
 | `air` | Air Specialist | Sky Sorcerer | |
 | `cost` | Cost Control Specialist | Greedy Prince | |
 | `elite` | Elite Specialist | Elite Prince | |
-| `archer` | Archer Specialist | Master Marksman | |
+| `archer` | Archer Specialist | Archer Specialist | |
 | `addi` | Addi Specialist | Relic Keeper | |
 | `flanky` | Flanky Specialist | Shadow Outrider | |
 
