@@ -171,7 +171,7 @@ import { updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 /** menu→match camera fly-in (fresh starts only) */
-const MATCH_INTRO_SEC = 1.6;
+const MATCH_INTRO_SEC = 1.0;
 /** card overlays begin fading in during the tail of the fly-in (t = 0..1) */
 const MATCH_INTRO_CARDS_START = 0.55;
 const MATCH_INTRO_CARDS_END = 0.88;
