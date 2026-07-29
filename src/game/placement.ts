@@ -117,6 +117,13 @@ export class PlacementController {
      * snapshot until the local player locks in or the battle starts.
      */
     hiddenPlacements = false;
+    /**
+     * Whether local repositioning is currently allowed.
+     * Used to hide movable plates / “you can move me” hints after the player
+     * clicks End Deployment (even though the board stays interactive for
+     * inspection).
+     */
+    repositioningEnabled = true;
     /** when true, enemy packs render at {@link intelSnapshot} poses instead of live */
     private intelFog = false;
     /**
@@ -568,7 +575,9 @@ export class PlacementController {
      * human must never drag its packs (wrong lane, wrong purse).
      */
     isMovable(unit: Unit): boolean {
-        return unit.seat === this.localSeat && this.canReposition(unit);
+        // Only gate local dragging + hint plates; do *not* block move actions
+        // arriving from the opponent side.
+        return this.repositioningEnabled && unit.seat === this.localSeat && this.canReposition(unit);
     }
 
     unitById(id: number): Unit | null {

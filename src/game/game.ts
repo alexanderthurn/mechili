@@ -6718,6 +6718,9 @@ export class Game {
         this.scenery.update(dtSeconds, this.rig.camera.position);
         this.map.setSnowCover(this.scenery.groundSnowCover);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
+        // Hide “you can move me” hints + disable visual repositioning once
+        // End Deployment has locked this seat in.
+        this.placement.repositioningEnabled = this.playerCanAct;
         this.placement.update(this.time, gameDt);
         if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();
         if (profile) cpu.end('world/ui');
