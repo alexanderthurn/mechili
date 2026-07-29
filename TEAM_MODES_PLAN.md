@@ -663,6 +663,111 @@ above, just for a narrower, additive slice instead of the full
 
 ---
 
+## 3e. Netcode hardening (2026-07-29): sim-timing root cause, AI-takeover edge cases, connection liveness
+
+§3d's "needs a real multi-client playtest" came back live-tested and
+working (identity-based reconnect confirmed). That same live test also
+surfaced a real bug (round-4 spectator/reconnect battle-result
+mismatch), which led to an in-depth audit turning up several more —
+all fixed and shipped without live-testing capacity, same fallback
+discipline as §3d: each fix either has no user-visible failure mode if
+wrong, or degrades to previously-shipped behavior.
+
+**Root cause of the spectator/reconnect battle-result desync**:
+`BattleSim.update()` clamped its own input (`Math.min(dtSeconds,
+0.25)`) and PixiJS's ticker independently clamps `deltaMS` to 100ms by
+default — both silently DISCARD real elapsed time beyond their cap
+instead of deferring it. A backgrounded/throttled tab (a passive
+spectator, or a reconnecting player) permanently processes fewer
+simulation steps than a client that never dropped frames, producing a
+genuinely different, wrong battle result — not just a delayed one.
+Fixed in two parts: `BattleSim.update()` now retains the full dt and
+caps steps-per-call instead of discarding overflow
+(`MAX_STEPS_PER_UPDATE`); `Game.tick()` computes an independent,
+unclamped `trueGameDt` fed only to `sim.update()`, leaving every
+cosmetic consumer (camera, particles) on the normal clamped value.
+
+**A second-order bug in that same fix, self-caught during follow-up
+audit**: the new `lastSimRealTimeMs` tracking updated unconditionally
+every tick, including while `suspended`/`matchOver`/intro-outro —
+meaning a backgrounded tab during a reconnect suspend (up to 90s) would
+have its whole gap fed into `sim.update()` a SECOND time once resumed,
+double-advancing past where the resume's own catch-up
+(`fastForwardBattle`) already placed it. Fixed by resetting the tracker
+to null whenever the sim-update guard is false, so the next active
+tick starts fresh.
+
+**Voluntary quit / AI-takeover edge cases** (found via re-reading
+`takeOverSeatWithAi`/`resolveSeatGone`, shipped the same night as the
+quit feature itself):
+- A seat that quit/timed-out mid-BATTLE (before sending its own
+  `battleEnd`) never got the round-advance gate (`markStarBattleReady`)
+  re-checked after converting to AI — froze the round for the
+  remaining humans forever. Fixed: force the recheck right after
+  conversion.
+- A seat that quit/timed-out during round 0 BEFORE ever picking its
+  specialist card left `starterPicked.every(Boolean)` false forever —
+  froze everyone at the specialist screen. Fixed: `takeOverSeatWithAi`
+  now calls `chooseStarter` + the same follow-up (`afterStarterPick`)
+  an AI seat gets at match start.
+- The backend room-list heartbeat wasn't force-refreshed after an
+  AI-takeover/forfeit, so a departed player could see a stale "Resume"
+  button for up to one heartbeat cycle, then fail to reclaim an
+  already-AI-driven seat.
+
+**Cheat-safety plan, Phase 1** (durable telemetry, not detection
+logic — see §7 for the telemetry pipeline itself): `forfeitWin()`
+(classic 1v1 quit/timeout) and a star host's own voluntary quit both
+previously ended the match without ever calling
+`reportMatchTelemetry` — meaning a forfeit-won match (exactly the kind
+most likely to involve someone dodging a loss) had NO independent
+replay/action-log record anywhere. Both paths now submit a
+best-effort record before tearing down, giving the pre-existing
+`stats.php` matchKey-grouped, per-side-deduped verify tooling
+(`replays.html`'s Bulk Verify) something to actually check.
+
+**Connection-liveness watchdog** (`watchLiveness`, net.ts): WebRTC's
+own `close`/`error` events fire promptly for an orderly teardown (a
+reload actively closes the RTCPeerConnection while unloading the page)
+but are NOT a reliable signal for a hard browser close/crash —
+reported live as "closing the browser just leaves the other side
+stuck showing the normal 'waiting for opponent' build indicator, not
+the reconnect screen." Fixed with an app-level ping/pong: ping every
+4s, treat 75s of total silence (ping, pong, or any real message all
+count as "alive") exactly like a `close` event. Wired into every
+connection type — `NetSession`, `StarGuestSession`, `StarHub`'s
+per-seat host connections, and `SpectatorHub`/`SpectatorSession`. The
+75s timeout (not the originally-shipped 15s) is deliberate: Chrome's
+intensive timer throttling clamps EVERY timer to at most once/minute
+once a tab has been continuously backgrounded 5+ minutes — a
+realistic scenario for this game (same class of concern as the
+sim-timing fix above), and a tighter timeout risked treating a merely-
+throttled, perfectly healthy peer as dead. Detection delay and the
+existing reconnect-grace countdown (30s classic / 90s star) are
+sequential, not overlapping, so the larger value doesn't break either
+window. Also closed: a narrow pre-existing leak where classic 1v1's
+reconnect race (`raceReconnectStrategies`, listen-vs-dial) could leave
+a fully-open but discarded connection dangling if both strategies
+happened to succeed.
+
+**Deliberately scoped out, not attempted this pass:**
+- Phase 2/3 of the cheat-safety plan (automating the currently-manual
+  verify tool; commit-reveal encryption for build actions so a host
+  can't read fogged content before reveal) — designed in conversation,
+  not started in code. Phase 3 specifically needs real multi-client
+  live-test capacity before it should be trusted, same as §3c/3d's own
+  caveats.
+- `SteamStarHub`/`SteamGuestSession` still have no reconnect or
+  liveness story at all — Steam transport remains entirely out of
+  scope.
+- Star mode's `verifyStarChecks` desync detection is still
+  diagnostic-only (console warning, no auto-recovery) — considered,
+  deliberately deferred as too large for an unsupervised pass; classic
+  1v1 already has a working reload-and-resume pattern this could
+  reuse, worth a dedicated design session.
+
+---
+
 ## 4. Mode: Horde (PvPvE — build first)
 
 Replaces the earlier "2vE co-op" concept. Two humans, **mutually
