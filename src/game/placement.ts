@@ -438,6 +438,11 @@ export class PlacementController {
     }
 
     /** true while enemy packs render from the phase-start snapshot */
+    /** when true, this pack renders under deploy intel fog (stale pose/items/techs) */
+    isIntelFogged(unit: Unit): boolean {
+        return this.isFogged(unit);
+    }
+
     get intelFogOn(): boolean {
         return this.intelFog;
     }

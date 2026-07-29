@@ -108,7 +108,7 @@ export interface SelectionInfo {
         affordable: boolean;
         all?: { count: number; cost: number; affordable: boolean };
     };
-    /** buyable / inspectable techs (always shown when the pack is selectable) */
+    /** buyable / inspectable techs (phase-start intel while fogged; always listed) */
     techs?: { id: string; name: string; desc: string; icon: string; cost: number; owned: boolean; affordable: boolean }[];
     /** base buildings render their level as N / maxLevel and hide XP */
     structure?: boolean;

@@ -473,6 +473,11 @@ export class Game {
         tactics: string[];
         sellAbilityOwned: boolean;
     } | null = null;
+    /**
+     * Owned techs at deployment-phase start (all seats). Fogged packs show
+     * this view; live techTree applies once that pack's fog lifts.
+     */
+    private techIntelSnapshot: Map<string, Set<string>>[] | null = null;
     /** the inventory item currently armed for placement onto a pack */
     private armedItem: string | null = null;
     /** which inventory slot is armed — duplicates share an id, the highlight must not */
@@ -1128,6 +1133,7 @@ export class Game {
                     this.placement.hiddenPlacements = false;
                     this.placement.revealAll();
                     this.enemyIntelSnapshot = null;
+                    this.techIntelSnapshot = null;
                 } else if (team !== 'player' && !this.star) {
                     // classic 1v1 only: the peer just locked in — release
                     // OUR buffered build stream to them now (see
@@ -1223,12 +1229,11 @@ export class Game {
                 : this.canLevel(unit);
         // freeze upgrade-arrow intel at phase start (survives enemy leveling mid-deploy)
         this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
-        // world tech icons — always visible on seen packs (same as details pane)
+        // world tech icons — phase-start intel while fogged, live after reveal
         this.placement.ownedTechIcons = (unit) => {
             if (unit.type.structure || unit.type.techs.length === 0) return [];
-            return unit.type.techs
-                .filter((t) => this.techTree.has(unit.seat, unit.type.id, t.id))
-                .map((t) => techIcon(t));
+            const owned = this.intelTechOwned(unit);
+            return unit.type.techs.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
         };
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit) => {
@@ -2083,6 +2088,7 @@ export class Game {
         this.cheatGrantAllItems();
         // sidebar intel: show the freshly granted bag without lifting pack fog
         this.captureEnemyIntelSnapshot();
+        this.techIntelSnapshot = this.techTree.snapshotOwned();
 
         const knownEnemy = new Set(
             this.placement.allUnits().filter((u) => u.team === 'enemy').map((u) => u.id),
@@ -2258,6 +2264,7 @@ export class Game {
         this.placement.captureIntelSnapshot();
         this.placement.setIntelFog(true);
         this.captureEnemyIntelSnapshot();
+        this.techIntelSnapshot = this.techTree.snapshotOwned();
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
@@ -5304,6 +5311,7 @@ export class Game {
         this.cancelTacticPlacement();
         this.gridOverlay.visible = false;
         this.enemyIntelSnapshot = null;
+        this.techIntelSnapshot = null;
         this.placement.revealAll();
         // oil/acid pour later as drips — baseline only for now (wards carve carry-over)
         const hazardPours = prepareHazardPours(
@@ -6720,17 +6728,17 @@ export class Game {
         });
     }
 
-    /** pack/unit techs for the action row — per SEAT. Always inspectable on
-     *  any visible pack (own, ally, or enemy); only own seat can buy. */
+    /** pack/unit techs for the action row — always listed when the type has
+     *  techs; owned flags use deploy intel (phase-start while fogged). */
     private techSelection(u: Unit): SelectionInfo['techs'] {
         if (u.type.structure || u.type.techs.length === 0) return undefined;
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
 
-        const seat = u.seat;
-        const ownedCount = this.techTree.ownedFor(seat, u.type.id).size;
-        const bal = this.economy.balance(seat);
+        const owned = this.intelTechOwned(u);
+        const ownedCount = owned.size;
+        const bal = this.economy.balance(u.seat);
         return u.type.techs.map((t) => {
-            const owned = this.techTree.has(seat, u.type.id, t.id);
+            const isOwned = owned.has(t.id);
             const cost = this.economy.techCostOf(t, ownedCount);
             return {
                 id: t.id,
@@ -6738,10 +6746,22 @@ export class Game {
                 desc: techDescription(t),
                 icon: techIcon(t),
                 cost,
-                owned,
-                affordable: canBuy && !owned && bal >= cost,
+                owned: isOwned,
+                affordable: canBuy && !isOwned && bal >= cost,
             };
         });
+    }
+
+    /**
+     * Tech ownership as the local player may see it for this pack: live for
+     * unfogged packs, phase-start snapshot while deploy intel fog applies —
+     * same window as pack pose / equipped items.
+     */
+    private intelTechOwned(u: Unit): ReadonlySet<string> {
+        if (this.placement.isIntelFogged(u) && this.techIntelSnapshot) {
+            return TechTree.ownedIn(this.techIntelSnapshot, u.seat, u.type.id);
+        }
+        return this.techTree.ownedFor(u.seat, u.type.id);
     }
 
     /**
