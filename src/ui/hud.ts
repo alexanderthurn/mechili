@@ -387,7 +387,7 @@ export class Hud {
         this.deploysEl.title = 'Units bought this round / your limit';
         // Render shop "gear" via the icon atlas (no unicode fallback).
         this.deploysEl.innerHTML =
-            `${iconHtml('ui-settings', 'btn-ico')}<span class="unit-cap-label"></span>`;
+            `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
         shopHeader.append(this.deploysEl);
 
         const shopGrid = document.createElement('div');
