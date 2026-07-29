@@ -4491,6 +4491,17 @@ export class Game {
                 this.handleSeatQuit(fromSeat);
             } else if (!isHost) {
                 this.matchOver = true;
+                // the host unilaterally ending the match skips finishMatch()
+                // entirely (nobody hit 0 HP) — without this, a host that
+                // quits right as it's about to lose leaves ZERO independent
+                // telemetry/replay record anywhere, from anyone. Best-effort
+                // result from current HP (the match was cut short, not
+                // concluded, so this is a snapshot for verification purposes,
+                // not a sporting/rating claim — 2v2 telemetry doesn't feed
+                // rating anyway, see reportOpenRating's star early-return).
+                this.reportMatchTelemetry(
+                    this.playerHp <= 0 ? 'defeat' : this.enemyHp <= 0 ? 'victory' : 'draw',
+                );
                 this.hud.showNotice('The host ended the match.', 'Back to menu', () => this.quitToMenu());
             }
         } else if (msg.type === 'starForfeit') {
@@ -6349,7 +6360,13 @@ export class Game {
         this.suspended = false;
         clearResumeMarker();
         clearSinglePlayer();
-        // report before tearing down net — mode/side derive from it still being set
+        // report before tearing down net — mode/side derive from it still being set.
+        // reportMatchTelemetry (not just the rating) matters here specifically: a
+        // forfeit-won 1v1 match previously uploaded NOTHING but the bare rating
+        // call, so there was no independent replay/action-log record anywhere to
+        // cross-check against for exactly the matches most likely to involve a
+        // quitting/timed-out opponent trying to dodge a loss.
+        this.reportMatchTelemetry('victory');
         this.reportOpenRating('victory', true);
         this.net?.close();
         this.net = null;
