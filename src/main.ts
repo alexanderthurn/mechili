@@ -56,6 +56,7 @@ import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabili
 import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
+import { iconHtml } from './ui/iconAtlas';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings, type HordeFactor } from './game/settings';
 import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
 import { THEME, menuStyles } from './theme';
@@ -112,7 +113,7 @@ type CustomHordeFactor = 'off' | 'low' | 'medium' | 'high' | 'ultra';
  *  the moment one guest joins, AI-filling the rest (see beginStarHost's
  *  waitForJoined param) — same underlying mechanism, just a different
  *  threshold, so this isn't a separate wire-level mode. */
-type CustomGameMode = '1v1' | '2v2' | '2v2ai';
+type CustomGameMode = '1v1' | '1v1ai' | '2v2' | '2v2ai';
 
 interface CustomGameConfig {
     mode: CustomGameMode;
@@ -555,17 +556,17 @@ menu.className = 'mechili-menu';
 menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-main">
-        <button class="m-btn m-primary" data-mode="single"><span class="m-ico">▶</span><span class="m-label">Single Player</span></button>
-        <button class="m-btn" data-mode="matchmaking"><span class="m-ico">⚔</span><span class="m-label">Matchmaking</span></button>
-        <button class="m-btn" data-mode="custom"><span class="m-ico">◈</span><span class="m-label">Custom Game</span></button>
+        <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">Single Player</span></button>
+        <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">Matchmaking</span></button>
+        <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label">Custom Game</span></button>
         <div class="m-room-list empty">No open games</div>
     </div>
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
         <div class="m-toggle-row">
-            <button class="m-btn m-toggle-card" data-mode="sp-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">Horde</span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-back">Back</button>
     </div>
@@ -576,16 +577,16 @@ menu.innerHTML = `
         <div class="m-toggle-row" style="display:none">
             <label class="m-toggle-card">
                 <input type="radio" name="mmteam" value="1v1" checked>
-                <span class="m-ico">🧍</span><span class="m-label">1v1</span>
+                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span>
             </label>
             <label class="m-toggle-card">
                 <input type="radio" name="mmteam" value="2v2">
-                <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
+                ${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span>
             </label>
         </div>
         <label class="m-toggle-pill" style="display:none">
             <input type="checkbox" class="mm-horde" checked>
-            <span class="m-ico">🐗</span><span class="m-label">Horde Mode</span>
+            ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">Horde Mode</span>
         </label>
         <div class="m-seats">
             <div class="m-seat m-seat-you"><span class="mm-you-name"></span></div>
@@ -600,9 +601,9 @@ menu.innerHTML = `
     <div class="m-mm-simple" style="display:none">
         <div class="m-spmode-title">Matchmaking</div>
         <div class="m-toggle-row">
-            <button class="m-btn m-toggle-card" data-mode="mms-1v1"><span class="m-ico">🧍</span><span class="m-label">1v1</span></button>
-            <button class="m-btn m-toggle-card" data-mode="mms-2v2"><span class="m-ico">🧍🧍</span><span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="mms-horde"><span class="m-ico">🐗</span><span class="m-label">Horde</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">Horde</span></button>
         </div>
         <button class="m-btn m-small" data-mode="mms-back">Back</button>
     </div>
@@ -611,15 +612,19 @@ menu.innerHTML = `
         <div class="m-toggle-row">
             <label class="m-toggle-card">
                 <input type="radio" name="cgmode" value="1v1">
-                <span class="m-ico">🧍</span><span class="m-label">1v1</span>
+                ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">1v1</span>
+            </label>
+            <label class="m-toggle-card">
+                <input type="radio" name="cgmode" value="1v1ai">
+                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1vAI</span>
             </label>
             <label class="m-toggle-card">
                 <input type="radio" name="cgmode" value="2v2">
-                <span class="m-ico">🧍🧍</span><span class="m-label">2v2</span>
+                ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">2v2</span>
             </label>
             <label class="m-toggle-card">
                 <input type="radio" name="cgmode" value="2v2ai">
-                <span class="m-ico">🤖</span><span class="m-label">2vAI</span>
+                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">2vAI</span>
             </label>
         </div>
         <div class="m-field-grid">
@@ -670,7 +675,7 @@ wrapper.appendChild(usernameEl);
 const settingsCornerEl = document.createElement('button');
 settingsCornerEl.className = 'mechili-settings-btn';
 settingsCornerEl.type = 'button';
-settingsCornerEl.textContent = '⚙';
+settingsCornerEl.innerHTML = iconHtml('ui-settings', 'm-ico');
 settingsCornerEl.title = 'Settings';
 settingsCornerEl.style.display = 'none';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
@@ -683,7 +688,7 @@ wrapper.appendChild(settingsCornerEl);
 const exitDesktopEl = document.createElement('button');
 exitDesktopEl.className = 'mechili-exit-btn';
 exitDesktopEl.type = 'button';
-exitDesktopEl.textContent = 'Exit to Desktop';
+exitDesktopEl.innerHTML = `${iconHtml('ui-room', 'btn-ico')}Exit to Desktop`;
 exitDesktopEl.title = 'Quit the game';
 exitDesktopEl.style.display = 'none';
 exitDesktopEl.addEventListener('click', () => void win.close());
@@ -864,6 +869,14 @@ const cgCardEl = menu.querySelector<HTMLInputElement>('.cg-card')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLInputElement>('.cg-roundcards')!;
 
+function updateCgHostButtonLabel(): void {
+    const modeInput = customEl.querySelector<HTMLInputElement>('input[name="cgmode"]:checked');
+    const hostBtn = customEl.querySelector<HTMLButtonElement>('button[data-mode="cg-host"]');
+    if (hostBtn) {
+        hostBtn.textContent = modeInput?.value === '1v1ai' ? 'Start Game' : 'Host Game';
+    }
+}
+
 function populateCustomGameForm(cfg: CustomGameConfig): void {
     const radio = customEl.querySelector<HTMLInputElement>(`input[name="cgmode"][value="${cfg.mode}"]`);
     if (radio) radio.checked = true;
@@ -873,6 +886,11 @@ function populateCustomGameForm(cfg: CustomGameConfig): void {
     cgCardEl.value = String(cfg.cardSeconds);
     cgHordeEl.value = cfg.horde;
     cgRoundCardsEl.checked = cfg.roundCards;
+    updateCgHostButtonLabel();
+}
+
+for (const input of customEl.querySelectorAll<HTMLInputElement>('input[name="cgmode"]')) {
+    input.addEventListener('change', updateCgHostButtonLabel);
 }
 
 function readCustomGameForm(): CustomGameConfig {
@@ -908,6 +926,12 @@ function hostCustomGame(): void {
     saveCustomGameConfig(cfg);
     closeCustomGameScreen();
     mainButtonsEl.style.display = 'none';
+    if (cfg.mode === '1v1ai') {
+        const settings = settingsFromUrl();
+        applyCustomGameConfig(settings, cfg);
+        startGame(settings);
+        return;
+    }
     if (cfg.mode === '1v1') {
         runPending(hostLobby(setStatus), (settings) => applyCustomGameConfig(settings, cfg));
         return;

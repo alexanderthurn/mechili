@@ -106,10 +106,37 @@ export function iconCss(id: string, fallbackId = 'ui-unknown'): string {
     ].join(';');
 }
 
+/** CSS mask snippet that tints the icon with `currentColor` (white sprite alpha). */
+export function iconMaskCss(id: string, fallbackId = 'ui-unknown'): string {
+    const key = hasIcon(id) ? frameKey(id) : frameKey(fallbackId);
+    const f = atlas.frames[key];
+    if (!f) return '';
+    const { x, y, w, h } = f.frame;
+    const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
+    const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
+    return [
+        `-webkit-mask-image:url(${atlasPaintUrl})`,
+        `-webkit-mask-repeat:no-repeat`,
+        `-webkit-mask-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
+        `-webkit-mask-position:${posX}% ${posY}%`,
+        `mask-image:url(${atlasPaintUrl})`,
+        `mask-repeat:no-repeat`,
+        `mask-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
+        `mask-position:${posX}% ${posY}%`,
+        // Use button text color as tint.
+        `background-color:currentColor`,
+        // icon spans often force `color:transparent`; override so currentColor works.
+        `color:inherit`,
+        `background-repeat:no-repeat`,
+    ].join(';');
+}
+
 /** Empty span that shows an atlas icon (pair with `.m-icon` size rules in theme). */
 export function iconHtml(id: string, className = 'i', fallbackId = 'ui-unknown'): string {
     const classes = className.includes('m-icon') ? className : `${className} m-icon`;
-    return `<span class="${classes}" style="${iconCss(id, fallbackId)}" role="img" aria-hidden="true"></span>`;
+    const useMask = className.includes('mask-ico');
+    const style = useMask ? iconMaskCss(id, fallbackId) : iconCss(id, fallbackId);
+    return `<span class="${classes}" style="${style}" role="img" aria-hidden="true"></span>`;
 }
 
 /** Apply atlas background to an existing element (keeps its classes/size). */

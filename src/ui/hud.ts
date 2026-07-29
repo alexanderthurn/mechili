@@ -346,7 +346,7 @@ export class Hud {
         shopToolbar.className = 'shop-toolbar';
         this.undoEl = document.createElement('button');
         this.undoEl.className = 'undo';
-        this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico')} Undo`;
+        this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} Undo`;
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
         shopToolbar.append(this.undoEl);
@@ -385,6 +385,9 @@ export class Hud {
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
         this.deploysEl.title = 'Units bought this round / your limit';
+        // Render shop "gear" via the icon atlas (no unicode fallback).
+        this.deploysEl.innerHTML =
+            `${iconHtml('ui-settings', 'btn-ico')}<span class="unit-cap-label"></span>`;
         shopHeader.append(this.deploysEl);
 
         const shopGrid = document.createElement('div');
@@ -635,7 +638,7 @@ export class Hud {
         this.phoneStatusEl.className = 'mechili-phone-status';
         this.phoneUndoEl = document.createElement('button');
         this.phoneUndoEl.className = 'undo';
-        this.phoneUndoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico')} Undo`;
+        this.phoneUndoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} Undo`;
         this.phoneUndoEl.addEventListener('click', () => this.onUndo?.());
         const phoneSupplyFrame = document.createElement('div');
         phoneSupplyFrame.className = 'mechili-supply clickable';
@@ -1295,7 +1298,8 @@ export class Hud {
         this.deploysLeft = limit - used;
         this.extrasBudgetLeft = extrasBudgetLeft;
         const label = `${used}/${limit}`;
-        if (this.deploysEl.textContent !== label) this.deploysEl.textContent = label;
+        const labelEl = this.deploysEl.querySelector<HTMLSpanElement>('.unit-cap-label');
+        if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
         this.deploysEl.title =
             `Units bought this round / your limit · ◇ ${extrasBudgetLeft} left for shields & rockets`;
     }

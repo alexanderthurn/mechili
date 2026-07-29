@@ -307,10 +307,20 @@ export function menuStyles(): string {
 .mechili-menu .m-btn .m-ico {
     flex-shrink: 0;
     width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    font-size: 18px;
+    font-size: 0;
     color: ${u.brass};
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+.mechili-menu .m-btn .m-ico.m-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 0;
+    line-height: 0;
 }
 .mechili-menu .m-btn .m-label { flex: 1; }
 .mechili-menu .m-btn:hover {
@@ -551,7 +561,21 @@ export function menuStyles(): string {
     height: 1px;
     pointer-events: none;
 }
-.mechili-menu .m-toggle-card .m-ico { font-size: 20px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+.mechili-menu .m-toggle-card .m-ico {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+.mechili-menu .m-toggle-card .m-ico.m-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 0;
+    line-height: 0;
+}
 .mechili-menu .m-toggle-card:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-2px); }
 .mechili-menu .m-toggle-card:has(input:checked) {
     background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
@@ -771,17 +795,35 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     background: none;
     border: none;
     color: ${u.text};
-    font-size: 70px;
-    line-height: 1;
+    padding: 0;
+    width: 44px;
+    height: 44px;
+    font-size: 0;
+    line-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     z-index: 30;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     transition: transform 0.25s, color 0.2s;
 }
+.mechili-settings-btn .m-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 0;
+}
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-settings-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: rotate(45deg); }
 @media (pointer: coarse) {
-    .mechili-settings-btn { font-size: 40px; }
+    .mechili-settings-btn {
+        width: 32px;
+        height: 32px;
+    }
+    .mechili-settings-btn .m-icon {
+        width: 32px;
+        height: 32px;
+    }
 }
 
 /* suggest chip, top-left of the main menu (same feel as username) */
@@ -1655,7 +1697,7 @@ export function hudStyles(): string {
     font-variant-numeric: tabular-nums;
     color: ${u.phase};
 }
-.mechili-shop .shop-header .unit-cap::before { content: '⚙ '; opacity: 0.75; }
+.mechili-shop .shop-header .unit-cap::before { content: ''; opacity: 0; }
 .mechili-shop .shop-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

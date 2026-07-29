@@ -63,12 +63,12 @@ export const ITEMS: Record<string, ItemDef> = {
 
 /** Short glyphs for canvas / world badges (atlas sprites are HUD-only). */
 const WORLD_GLYPH: Record<string, string> = {
-    addi: '✚',
-    power: '⚔',
-    vigor: '♥',
-    colossus: '⬢',
-    wrath: '☠',
-    golden: '✦',
+    addi: '?',
+    power: '?',
+    vigor: '?',
+    colossus: '?',
+    wrath: '?',
+    golden: '?',
 };
 
 export function itemIcon(itemId: string): string | null {
