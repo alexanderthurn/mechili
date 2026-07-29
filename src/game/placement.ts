@@ -1059,7 +1059,7 @@ export class PlacementController {
             if (this.statusBadgeRight.lengthSq() < 1e-8) this.statusBadgeRight.set(1, 0, 0);
             else this.statusBadgeRight.normalize();
             const right = this.statusBadgeRight;
-            const spacing = 2.0;
+            const spacing = 2.3;
 
             const placeStrip = (unit: Unit, world: Vector3, itemIconId: string | null) => {
                 const techs = this.ownedTechIcons?.(unit) ?? [];
@@ -1072,10 +1072,10 @@ export class PlacementController {
                     let sprite = this.itemBadges[itemUsed];
                     if (!sprite) {
                         sprite = new Sprite();
-                        sprite.scale.set(2.6, 2.6, 1);
                         this.scene.add(sprite);
                         this.itemBadges.push(sprite);
                     }
+                    sprite.scale.set(2.2, 2.2, 1);
                     sprite.material = this.itemBadgeMaterial(itemIconId);
                     sprite.renderOrder = 0;
                     const t = slot - mid;
@@ -1092,10 +1092,10 @@ export class PlacementController {
                     let sprite = this.techBadges[techUsed];
                     if (!sprite) {
                         sprite = new Sprite();
-                        sprite.scale.set(1.7, 1.7, 1);
                         this.scene.add(sprite);
                         this.techBadges.push(sprite);
                     }
+                    sprite.scale.set(2.2, 2.2, 1);
                     sprite.material = this.techBadgeMaterial(iconId);
                     sprite.renderOrder = 0;
                     const t = slot - mid;
@@ -1176,22 +1176,28 @@ export class PlacementController {
         return material;
     }
 
-    /** atlas icon with a dark halo — brass tint, depth-tested like the world */
+    /** atlas icon with a circular plate frame matching items — brass tint, depth-tested */
     private techBadgeMaterial(iconId: string): SpriteMaterial {
         // style tag busts the cache when the paint/tint recipe changes
-        const key = `${iconId}|brass`;
+        const key = `${iconId}|brass|framed`;
         let material = this.techBadgeMaterials.get(key);
         if (!material) {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
             canvas.height = 64;
             const ctx = canvas.getContext('2d')!;
-            // soft dark halo so the glyph pops on meadow and snow
-            ctx.shadowColor = 'rgba(10, 16, 12, 0.9)';
-            ctx.shadowBlur = 6;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 1;
-            const ok = drawIcon(ctx, iconId, 2, 2, 60);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(32, 32, 30, 0, Math.PI * 2);
+            ctx.clip();
+            const ok = drawIcon(ctx, iconId, 0, 0, 64);
+            ctx.restore();
+            if (!ok) {
+                ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
+                ctx.beginPath();
+                ctx.arc(32, 32, 28, 0, Math.PI * 2);
+                ctx.fill();
+            }
             const texture = new CanvasTexture(canvas);
             texture.colorSpace = SRGBColorSpace;
             material = new SpriteMaterial({
