@@ -501,18 +501,40 @@ export class NetworkOpponent implements Opponent {
 }
 
 /**
- * What `Game` needs from a 1v1 connection during actual play — a narrow
- * slice of `NetSession`'s full surface. Reconnect/redial/naming stay
- * main.ts's concern, operating on the concrete `NetSession` class directly
- * before handing a freshly-reconnected one to `Game.resumeWith`. Any
- * transport that satisfies this (`NetSession`/PeerJS today, a Steam P2P
- * equivalent later) can be passed to `Game` unchanged.
+ * What `Game`/`main.ts` need from a 1v1 connection during actual play and
+ * its own recovery — the FULL shared surface, so `main.ts`'s reconnect
+ * wiring (`wireReconnect`) never has to know or care which transport this
+ * is (`NetSession`/PeerJS, `SteamSession`/Steam, or a future one) — it only
+ * ever calls methods declared here. Naming/handshake setup still stays each
+ * transport's own concern (`resumeSession`/`hostSteamRoom` etc. construct a
+ * fresh `Session` however they need to).
  */
 export interface Session {
     onClose: (() => void) | null;
     attach(handler: (msg: NetMessage) => void): void;
+    /** waits for the next single message (used for the post-recovery handshake) */
+    once(): Promise<NetMessage>;
     send(msg: NetMessage): void;
     close(): void;
+    /**
+     * Called once `onClose` has fired: attempt to recover this SAME
+     * logical connection, resolving with a replacement `Session` if/when
+     * it succeeds (bounded by `signal` — the caller owns the timeout).
+     * Omit entirely (leave undefined) if this transport has nothing left
+     * to try once `onClose` fires — the caller then treats the grace
+     * window as already elapsed, uniformly, with no transport check of
+     * its own. PeerJS's DataConnection can genuinely die and needs an
+     * explicit redial (see `NetSession.attemptRecovery`); Steam's own P2P
+     * layer self-heals a brief drop transparently BEFORE its watchdog-
+     * driven `onClose` ever fires (see net-steam.ts's own doc comment), so
+     * by the time `onClose` fires there, there's nothing left worth
+     * retrying — `SteamSession` simply doesn't implement this method.
+     */
+    attemptRecovery?(signal: AbortSignal): Promise<Session>;
+    /** identity fields behind the (PeerJS-only) cold-reload resume marker —
+     *  undefined for transports (Steam) with no such feature. */
+    ownId?: string;
+    remoteId?: string;
 }
 
 /** one open peer-to-peer connection, host or guest */
@@ -648,6 +670,18 @@ export class NetSession implements Session {
                 await delay(delayMs, signal);
             }
         }
+    }
+
+    /**
+     * `Session.attemptRecovery` for PeerJS: races "wait for the peer to
+     * redial us" against "we redial them" — same shape as `resumeSession`'s
+     * cold-reload race, since either side might be the one whose
+     * connection actually dropped. This is what lets `main.ts`'s
+     * `wireReconnect` call one method on any `Session` without needing to
+     * know it's specifically a `NetSession`/PeerJS one.
+     */
+    attemptRecovery(signal: AbortSignal): Promise<NetSession> {
+        return raceReconnectStrategies((s) => this.awaitReconnect(s), (s) => this.redial(s), signal);
     }
 }
 

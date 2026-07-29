@@ -24,7 +24,6 @@ import {
     NetSession,
     postGlobalChat,
     quickMatch,
-    raceReconnectStrategies,
     resumeSession,
     saveResumeMarker,
     saveSinglePlayer,
@@ -1385,10 +1384,12 @@ function startGame(
 
     if (net) {
         clearSinglePlayer();
-        // resume/redial is PeerJS-specific (peer ids) — a Steam session has
-        // no equivalent yet (v1 scope, see net-steam.ts), so it just skips
-        // the marker rather than saving one it could never actually resume
-        if (net instanceof NetSession) {
+        // resume/redial is PeerJS-specific (peer ids) — Steam sessions
+        // don't expose ownId/remoteId at all (no cold-reload-resume
+        // feature yet, see net-steam.ts), so this naturally skips saving a
+        // marker it could never actually resume, without needing to know
+        // which transport this is.
+        if (net.ownId && net.remoteId) {
             saveResumeMarker({
                 side,
                 names,
@@ -1424,8 +1425,8 @@ function startGame(
         );
         activeGame = game;
         wireGameMenuReturn(game);
-        if (net instanceof NetSession) wireReconnect(game, net, side, names);
-        else if (!net && !star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+        if (net) wireReconnect(game, net, side, names);
+        else if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
         return game;
     };
 
@@ -1518,33 +1519,37 @@ const RECONNECT_GRACE_SECONDS = 30;
  * for the peer to come back, answer their resume request with the full
  * match state, then continue. If the peer hasn't returned within the grace
  * window, we win by forfeit.
+ *
+ * Transport-agnostic on purpose — `session` is the `Session` interface, not
+ * `NetSession` specifically, and every step here (`attemptRecovery`,
+ * `once`, `send`, `ownId`/`remoteId`) is a `Session`-level capability. This
+ * function never checks which transport it's talking to; a transport with
+ * nothing to retry (see `attemptRecovery`'s own doc comment — Steam's P2P
+ * self-heals a brief drop before its watchdog-driven `onClose` ever fires,
+ * so there's nothing left worth attempting by the time we're here) just
+ * omits the method, handled once, uniformly, right below.
  */
 function wireReconnect(
     game: Game,
-    initial: NetSession,
+    initial: Session,
     side: 'a' | 'b',
     names: { local: string; opponent: string },
 ): void {
     let session = initial;
     game.onConnectionLost = () => {
+        if (!session.attemptRecovery) {
+            // Nothing to wait for — treat the grace window as already
+            // elapsed and let the existing, already-correct grace-timeout
+            // path (tick()'s own internal handling) take it from here.
+            game.beginReconnectGrace(0);
+            return;
+        }
         const ac = new AbortController();
         game.onReconnectTimeout = () => ac.abort();
         game.beginReconnectGrace(RECONNECT_GRACE_SECONDS);
         void (async () => {
             try {
-                // race both strategies instead of guessing who should dial
-                // vs listen: our own Peer object is still alive either way
-                // (we never reloaded), so waiting on it costs nothing, and
-                // redialing the peer's last-known id costs nothing either —
-                // whichever one actually connects first wins. This also
-                // means it doesn't matter whether the OTHER side is doing a
-                // live reconnect or a full reload (attemptResume races the
-                // same two strategies on its end).
-                const next = await raceReconnectStrategies(
-                    (s) => session.awaitReconnect(s),
-                    (s) => session.redial(s),
-                    ac.signal,
-                );
+                const next = await session.attemptRecovery!(ac.signal);
                 if (activeGame !== game) return;
                 const first = await next.once();
                 if (activeGame !== game) return;
@@ -1553,17 +1558,17 @@ function wireReconnect(
                 }
                 session = next;
                 game.resumeWith(next);
-                // the peer's id may have just changed (it reloaded and got a
-                // fresh PeerJS id) — refresh our own marker so that IF we
-                // reload next, we redial its CURRENT id, not the one from
-                // match start (that staleness is what broke host's reload
-                // after guest's earlier one: guest's id had already moved on)
-                saveResumeMarker({
-                    side,
-                    names,
-                    remotePeerId: next.remoteId,
-                    ownPeerId: next.ownId,
-                });
+                // PeerJS-only: the peer's id may have just changed (it
+                // reloaded and got a fresh PeerJS id) — refresh our own
+                // marker so that IF we reload next, we redial its CURRENT
+                // id, not the one from match start (that staleness is what
+                // broke host's reload after guest's earlier one: guest's id
+                // had already moved on). ownId/remoteId are undefined for
+                // transports (Steam) with no cold-reload-resume feature at
+                // all, so this is a capability check, not a transport one.
+                if (next.ownId && next.remoteId) {
+                    saveResumeMarker({ side, names, remotePeerId: next.remoteId, ownPeerId: next.ownId });
+                }
             } catch (e) {
                 if (activeGame !== game) return;
                 // grace window already elapsed — forfeitWin() has the result,
