@@ -26,7 +26,7 @@ Edit the text in the **"Your Chosen Name"** column below. When you're happy with
 | `elite` | Elite Specialist | Elite Prince | |
 | `archer` | Archer Specialist | Archer Specialist | |
 | `addi` | Addi Specialist | Relic Keeper | |
-| `flanky` | Flanky Specialist | Shadow Outrider | |
+| `flanky` | Flanky Specialist | Flanky Shadow | |
 
 ---
 

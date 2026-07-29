@@ -317,7 +317,7 @@ export const START_CARDS: StartCard[] = [
     },
     {
         id: 'flanky',
-        title: 'Shadow Outrider',
+        title: 'Flanky Shadow',
         portrait: 'spec-flanky',
         units: ['dwarf', 'dwarf', 'archer', 'archer'],
         unitsLabel: '2× Dwarves · 2× Archers',
