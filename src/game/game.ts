@@ -3346,6 +3346,16 @@ export class Game {
         const remainingHumans = seatIdsOf(this.seats, def.team).filter(
             (s) => s !== seat && this.seats[s]?.controller === 'human',
         );
+        // NOTE for future refactors: takeOverSeatWithAi can synchronously
+        // cascade into a full round transition (markStarBattleReady →
+        // startBuildPhase) before this.suspended is cleared a few lines
+        // below — currently safe only because nothing reads `suspended`
+        // mid-chain (dispatchPlayer, the sole consumer, fires from user
+        // input events, which can't interleave with already-running
+        // synchronous code) and rendering doesn't happen until the next
+        // animation frame, by which point `suspended` is already correctly
+        // false. Don't assume that still holds if either function gains a
+        // new `suspended` check.
         if (remainingHumans.length > 0) {
             this.takeOverSeatWithAi(seat);
         } else {
