@@ -1695,10 +1695,26 @@ export async function raceReconnectStrategies(
     signal?.addEventListener('abort', onOuterAbort, { once: true });
     const listening = listen(listenAbort.signal);
     const dialing = dial(dialAbort.signal);
-    listening.catch(() => undefined);
-    dialing.catch(() => undefined);
+    // If BOTH strategies happen to connect (both peers dial each other at
+    // nearly the same moment — plausible, since both sides typically run
+    // this same race symmetrically), the loser's `*Abort.abort()` below
+    // only stops FUTURE work on it; a connection that already finished
+    // opening moments earlier is otherwise left dangling — open, unused,
+    // and (now that every NetSession runs its own ping/pong watchdog)
+    // quietly pinging into a connection nobody's listening to, forever.
+    // `winner` is only assigned after the race settles, so registering
+    // these BEFORE calling Promise.race means the eventual winner's own
+    // resolution is observed here with `winner` still null and correctly
+    // skips closing itself.
+    let winner: NetSession | null = null;
+    const closeIfLoser = (s: NetSession) => {
+        if (winner !== null && winner !== s) s.close();
+    };
+    listening.then(closeIfLoser).catch(() => undefined);
+    dialing.then(closeIfLoser).catch(() => undefined);
     try {
         const session = await Promise.race([listening, dialing]);
+        winner = session;
         listenAbort.abort();
         dialAbort.abort();
         return session;
