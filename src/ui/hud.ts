@@ -7,7 +7,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
-import { iconHtml, applyIcon, iconCss } from './iconAtlas';
+import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -767,21 +767,21 @@ export class Hud {
             this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
             if (levelUp) {
                 this.touchLevelBtn.innerHTML =
-                    `${iconHtml('ability-level', 'pb-ico')}` +
+                    `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
                     `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
                 this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
             }
             this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
             if (levelAll) {
                 this.touchLevelAllBtn.innerHTML =
-                    `${iconHtml('ability-level-type', 'pb-ico')}` +
+                    `${iconHtml('ability-level-type', 'pb-ico mask-ico')}` +
                     `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
                 this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
             }
             this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
             if (upgrade) {
                 this.touchUpgradeBtn.innerHTML =
-                    `${iconHtml('ability-level', 'pb-ico')}` +
+                    `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
                     `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
                 this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
             }
@@ -1383,7 +1383,7 @@ export class Hud {
         const label =
             info.count >= 2 ? `Level all (${info.count})` : 'Level up';
         const html =
-            `${iconHtml('ability-level-all', 'lag-ico')}` +
+            `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
             `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
         // the shop-toolbar button and its phone twin (top-right strip) mirror each other
         for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
@@ -1765,12 +1765,15 @@ export class Hud {
                             : t.cost !== undefined
                               ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
                               : '';
+                    const levelIcon = t.icon.startsWith('ability-level');
+                    const icoClass = levelIcon ? 'at-icon m-icon mask-ico' : 'at-icon m-icon';
+                    const icoStyle = levelIcon ? iconMaskCss(t.icon) : iconCss(t.icon);
                     return (
                         `<button class="action-tile ${t.state}" ${t.data}` +
                         ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
                         ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
                         ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +
-                        `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>${badge}</button>`
+                        `<span class="${icoClass}" style="${icoStyle}"></span>${badge}</button>`
                     );
                 })
                 .join('') +
@@ -1796,8 +1799,10 @@ export class Hud {
             inputMode() === 'touch' && state === 'buy'
                 ? `<button type="button" class="ai-buy">Buy${cost ? ` · ⬢ ${cost}` : ''}</button>`
                 : '';
+        const levelIcon = !!d.ticon?.startsWith('ability-level');
         frame.innerHTML =
-            `<div class="ai-head">${d.ticon ? iconHtml(d.ticon, 'ai-icon') : ''}` +
+            `<div class="ai-head"${levelIcon ? ` style="color:${THEME.ui.brassLight}"` : ''}>` +
+            `${d.ticon ? iconHtml(d.ticon, levelIcon ? 'ai-icon mask-ico' : 'ai-icon') : ''}` +
             `<span class="ai-title">${d.ttitle ?? ''}</span></div>` +
             `<div class="ai-desc">${d.tdesc ?? ''}</div>` +
             note +

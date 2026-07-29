@@ -1697,6 +1697,7 @@ export function hudStyles(bars?: BarAssets): string {
     cursor: pointer;
     pointer-events: auto;
     flex-shrink: 0;
+    color: ${u.brassLight};
 }
 .shop-toolbar .level-all-global .lag-copy,
 .mechili-phone-status .level-all-global .lag-copy {
@@ -1967,6 +1968,7 @@ export function hudStyles(bars?: BarAssets): string {
     margin-bottom: 0; flex-shrink: 0; opacity: 0.9;
 }
 .mechili-panel .level-actions { display: flex; gap: 5px; flex-shrink: 0; }
+.mechili-panel .level-actions .action-tile { color: ${u.brassLight}; }
 .mechili-panel .action-tile {
     position: relative;
     width: 46px; height: 46px;
@@ -3389,7 +3391,8 @@ export function hudStyles(bars?: BarAssets): string {
     color: ${u.text};
 }
 .mechili-phonebar .ta-level,
-.mechili-phonebar .ta-levelall {
+.mechili-phonebar .ta-levelall,
+.mechili-phonebar .ta-upgrade {
     color: ${u.brassLight};
     font-variant-numeric: tabular-nums;
 }
