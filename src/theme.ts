@@ -2127,6 +2127,7 @@ export function hudStyles(): string {
 .mechili-sidebar .inv-item:not(.tactic).armed { box-shadow: 0 0 10px ${u.brass}; }
 .mechili-sidebar .inv-item:not(.tactic).placed {
     box-shadow: 0 0 8px rgba(80, 200, 100, 0.45);
+    cursor: default;
 }
 .mechili-sidebar .inv-item.placed .i { opacity: 0.85; }
 .mechili-sidebar .inv-item .inv-cd {

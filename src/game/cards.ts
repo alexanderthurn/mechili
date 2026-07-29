@@ -275,7 +275,7 @@ export const START_CARDS: StartCard[] = [
     },
     {
         id: 'cost',
-        title: 'Merchant Prince',
+        title: 'Greedy Prince',
         portrait: 'spec-cost',
         units: ['archer', 'archer', 'crowRider', 'dwarf'],
         unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
@@ -285,7 +285,7 @@ export const START_CARDS: StartCard[] = [
     },
     {
         id: 'elite',
-        title: 'High Warlord',
+        title: 'Elite Prince',
         portrait: 'spec-elite',
         units: ['ballista', 'dwarf'],
         unitsLabel: '1× Ballista · 1× Dwarves',

@@ -22,8 +22,8 @@ Edit the text in the **"Your Chosen Name"** column below. When you're happy with
 | Internal ID | Current Title | Suggested Fantasy Title | Your Chosen Name |
 | :--- | :--- | :--- | :--- |
 | `air` | Air Specialist | Sky Sorcerer | |
-| `cost` | Cost Control Specialist | Merchant Prince | |
-| `elite` | Elite Specialist | High Warlord | |
+| `cost` | Cost Control Specialist | Greedy Prince | |
+| `elite` | Elite Specialist | Elite Prince | |
 | `archer` | Archer Specialist | Master Marksman | |
 | `addi` | Addi Specialist | Relic Keeper | |
 | `flanky` | Flanky Specialist | Shadow Outrider | |
