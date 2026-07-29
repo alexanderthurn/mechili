@@ -2959,6 +2959,15 @@ export function hudStyles(): string {
     flex-direction: row-reverse;
     border-radius: 0 0 0 10px;
 }
+.mechili-fightbar .portrait-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.mechili-fightbar .fighter.enemy .portrait-group {
+    flex-direction: row-reverse;
+}
 .mechili-fightbar .portrait {
     width: 44px;
     height: 44px;
@@ -2966,15 +2975,47 @@ export function hudStyles(): string {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, rgba(46, 62, 36, 0.95), rgba(24, 36, 20, 0.95));
-    border: 2px solid ${u.border};
-    border-radius: 8px;
+    background: none;
+    border: none;
+    border-radius: 0;
     font-size: 22px;
     font-weight: bold;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 4px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    cursor: pointer;
 }
-.mechili-fightbar .fighter.player .portrait { color: ${pc}; border-color: ${pc}; }
-.mechili-fightbar .fighter.enemy .portrait { color: ${ec}; border-color: ${ec}; }
+.mechili-fightbar .portrait-sub-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    justify-content: center;
+}
+.mechili-fightbar .portrait.sub {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 0;
+    font-size: 10px;
+    font-weight: bold;
+    overflow: hidden;
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.mechili-fightbar .portrait.sub:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+.mechili-fightbar .portrait .m-icon {
+    width: 100%;
+    height: 100%;
+}
+.mechili-fightbar .fighter.player .portrait { color: ${pc}; }
+.mechili-fightbar .fighter.enemy .portrait { color: ${ec}; }
 .mechili-fightbar .fighter-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .mechili-fightbar .fname {
     font-size: 15px;

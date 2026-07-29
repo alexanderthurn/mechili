@@ -15,9 +15,9 @@ export type Phase = 'build' | 'battle';
 type CommanderChip = {
     seat: number;
     team: 'player' | 'enemy';
-    el: HTMLDivElement;
-    nameEl: HTMLSpanElement;
-    specEl: HTMLSpanElement;
+    cardEl: HTMLDivElement;
+    portraitEl: HTMLDivElement;
+    name: string;
     card: StartCard | null;
 };
 
@@ -210,6 +210,8 @@ export class Hud {
     private readonly playerStackEl: HTMLDivElement;
     private readonly enemyStackEl: HTMLDivElement;
     private commanderChips: CommanderChip[] = [];
+    private playerSpecEl: HTMLSpanElement | null = null;
+    private enemySpecEl: HTMLSpanElement | null = null;
     private humanSeat = 0;
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
@@ -948,10 +950,10 @@ export class Hud {
 
         // bubble under the sender's commander chip (one at a time per side)
         const chip =
-            this.commanderChips.find((c) => c.nameEl.textContent === name) ??
+            this.commanderChips.find((c) => c.name === name) ??
             this.commanderChips.find((c) => c.team === (from === 'local' ? 'player' : 'enemy'));
         if (!chip) return;
-        const fighter = chip.el;
+        const fighter = chip.cardEl;
         fighter.querySelector('.chat-bubble')?.remove();
         const bubble = document.createElement('div');
         bubble.className = `chat-bubble ${item.kind}`;
@@ -979,7 +981,7 @@ export class Hud {
         setTimeout(() => line.remove(), 7000);
     }
 
-    /** one commander chip per seat — built once at match start */
+    /** one combined team card per side — built once at match start */
     setCommanders(
         entries: { seat: number; team: 'player' | 'enemy'; name: string; primary: boolean }[],
         humanSeat: number,
@@ -992,68 +994,43 @@ export class Hud {
         this.playerStackEl.replaceChildren();
         this.enemyStackEl.replaceChildren();
 
-        for (const entry of entries) {
-            const chip = this.createCommanderChip(entry);
-            this.commanderChips.push(chip);
-            (entry.team === 'player' ? this.playerStackEl : this.enemyStackEl).append(chip.el);
-            if (entry.primary) {
-                const hpFill = chip.el.querySelector<HTMLDivElement>('.hp-fill')!;
-                const hpVal = chip.el.querySelector<HTMLSpanElement>('.hp-val')!;
-                if (entry.team === 'player') {
-                    this.playerHpFill = hpFill;
-                    this.playerHpVal = hpVal;
-                } else {
-                    this.enemyHpFill = hpFill;
-                    this.enemyHpVal = hpVal;
-                }
-            }
+        const playerEntries = entries.filter((e) => e.team === 'player');
+        const enemyEntries = entries.filter((e) => e.team === 'enemy');
+
+        // Determine local player's index in team
+        const playerFeaturedIndex = Math.max(
+            0,
+            playerEntries.findIndex((e) => e.seat === humanSeat),
+        );
+        const featuredPlayerEntry = playerEntries[playerFeaturedIndex] ?? playerEntries[0];
+        const secondaryPlayerEntries = playerEntries.filter((_, idx) => idx !== playerFeaturedIndex);
+
+        // Determine enemy on same side of board (matching index relative to team line)
+        const enemyFeaturedIndex = Math.min(playerFeaturedIndex, Math.max(0, enemyEntries.length - 1));
+        const featuredEnemyEntry = enemyEntries[enemyFeaturedIndex] ?? enemyEntries[0];
+        const secondaryEnemyEntries = enemyEntries.filter((_, idx) => idx !== enemyFeaturedIndex);
+
+        if (playerEntries.length > 0 && featuredPlayerEntry) {
+            const res = this.buildTeamCard('player', featuredPlayerEntry, secondaryPlayerEntries, playerEntries);
+            this.playerStackEl.append(res.cardEl);
+            this.playerHpFill = res.hpFill;
+            this.playerHpVal = res.hpVal;
+            this.playerSpecEl = res.specEl;
         }
 
-        const playerCount = entries.filter((e) => e.team === 'player').length;
-        const enemyCount = entries.filter((e) => e.team === 'enemy').length;
-        this.playerStackEl.classList.toggle('multi', playerCount > 1);
-        this.enemyStackEl.classList.toggle('multi', enemyCount > 1);
+        if (enemyEntries.length > 0 && featuredEnemyEntry) {
+            const res = this.buildTeamCard('enemy', featuredEnemyEntry, secondaryEnemyEntries, enemyEntries);
+            this.enemyStackEl.append(res.cardEl);
+            this.enemyHpFill = res.hpFill;
+            this.enemyHpVal = res.hpVal;
+            this.enemySpecEl = res.specEl;
+        }
+
+        this.playerStackEl.classList.toggle('multi', playerEntries.length > 1);
+        this.enemyStackEl.classList.toggle('multi', enemyEntries.length > 1);
     }
 
-    private createCommanderChip(entry: {
-        seat: number;
-        team: 'player' | 'enemy';
-        name: string;
-        primary: boolean;
-    }): CommanderChip {
-        const { seat, team, name, primary } = entry;
-        const el = document.createElement('div');
-        el.className = `fighter ${team}${primary ? '' : ' no-hp'}`;
-        el.dataset.seat = String(seat);
-
-        const portrait = document.createElement('div');
-        portrait.className = 'portrait';
-        portrait.textContent = '◆';
-
-        const nameEl = document.createElement('span');
-        nameEl.className = 'fname';
-        nameEl.textContent = name;
-        const specEl = document.createElement('span');
-        specEl.className = 'fspec';
-
-        const info = document.createElement('div');
-        info.className = 'fighter-info';
-
-        if (primary) {
-            const hpFill = document.createElement('div');
-            hpFill.className = 'hp-fill';
-            const hpVal = document.createElement('span');
-            hpVal.className = 'hp-val';
-            const hpTrack = document.createElement('div');
-            hpTrack.className = 'hp-track';
-            hpTrack.append(hpFill, hpVal);
-            info.append(hpTrack, nameEl, specEl);
-        } else {
-            info.append(nameEl, specEl);
-        }
-
-        el.append(portrait, info);
-
+    private attachPortraitEvents(el: HTMLElement, seat: number): void {
         el.addEventListener('click', () => this.showSpecialistDetail(seat));
         el.addEventListener('mouseenter', () => {
             if (inputMode() !== 'touch') this.showSpecialistDetail(seat, true);
@@ -1062,8 +1039,86 @@ export class Hud {
             if (inputMode() === 'touch') return;
             if (this.specDetailSeat === seat && this.specDetailViaHover) this.hideSpecialistDetail();
         });
+    }
 
-        return { seat, team, el, nameEl, specEl, card: null };
+    private buildTeamCard(
+        team: 'player' | 'enemy',
+        featuredEntry: { seat: number; name: string },
+        secondaryEntries: { seat: number; name: string }[],
+        allEntries: { seat: number; name: string }[],
+    ): { cardEl: HTMLDivElement; hpFill: HTMLDivElement; hpVal: HTMLSpanElement; specEl: HTMLSpanElement } {
+        const cardEl = document.createElement('div');
+        cardEl.className = `fighter ${team}`;
+
+        const combinedName = allEntries.map((e) => e.name).join(' & ');
+
+        const portraitGroup = document.createElement('div');
+        portraitGroup.className = 'portrait-group';
+
+        // 1. Featured main portrait (44px)
+        const mainPortrait = document.createElement('div');
+        mainPortrait.className = 'portrait main';
+        mainPortrait.textContent = '◆';
+        mainPortrait.dataset.seat = String(featuredEntry.seat);
+        this.attachPortraitEvents(mainPortrait, featuredEntry.seat);
+
+        this.commanderChips.push({
+            seat: featuredEntry.seat,
+            team,
+            cardEl,
+            portraitEl: mainPortrait,
+            name: featuredEntry.name,
+            card: null,
+        });
+
+        portraitGroup.appendChild(mainPortrait);
+
+        // 2. Secondary stacked portraits (20px) if teammates exist
+        if (secondaryEntries.length > 0) {
+            const subStack = document.createElement('div');
+            subStack.className = 'portrait-sub-stack';
+            for (const sec of secondaryEntries) {
+                const subPortrait = document.createElement('div');
+                subPortrait.className = 'portrait sub';
+                subPortrait.textContent = '◆';
+                subPortrait.dataset.seat = String(sec.seat);
+                this.attachPortraitEvents(subPortrait, sec.seat);
+
+                this.commanderChips.push({
+                    seat: sec.seat,
+                    team,
+                    cardEl,
+                    portraitEl: subPortrait,
+                    name: sec.name,
+                    card: null,
+                });
+
+                subStack.appendChild(subPortrait);
+            }
+            portraitGroup.appendChild(subStack);
+        }
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'fname';
+        nameEl.textContent = combinedName;
+
+        const specEl = document.createElement('span');
+        specEl.className = 'fspec';
+
+        const hpFill = document.createElement('div');
+        hpFill.className = 'hp-fill';
+        const hpVal = document.createElement('span');
+        hpVal.className = 'hp-val';
+        const hpTrack = document.createElement('div');
+        hpTrack.className = 'hp-track';
+        hpTrack.append(hpFill, hpVal);
+
+        const info = document.createElement('div');
+        info.className = 'fighter-info';
+        info.append(hpTrack, nameEl, specEl);
+
+        cardEl.append(portraitGroup, info);
+        return { cardEl, hpFill, hpVal, specEl };
     }
 
     /** @deprecated use setCommanders — kept for any external callers */
@@ -1983,7 +2038,7 @@ export class Hud {
             onDone();
             return;
         }
-        const to = chip.el.getBoundingClientRect();
+        const to = chip.cardEl.getBoundingClientRect();
         const tx = to.left + to.width * 0.5 - (from.left + from.width * 0.5);
         const ty = to.top + to.height * 0.5 - (from.top + from.height * 0.5);
         const scale = Math.min(0.18, (to.width * 0.92) / from.width);
@@ -2041,7 +2096,7 @@ export class Hud {
     private pulseCommanderFrame(seat: number): void {
         const chip = this.commanderChips.find((c) => c.seat === seat);
         if (!chip) return;
-        const el = chip.el;
+        const el = chip.cardEl;
         el.classList.remove('landed-pulse');
         void el.offsetWidth;
         el.classList.add('landed-pulse');
@@ -2221,11 +2276,29 @@ export class Hud {
             const chip = this.commanderChips.find((c) => c.seat === seat);
             if (!chip) continue;
             chip.card = card;
-            chip.specEl.textContent = card?.title ?? '';
-            chip.el.classList.toggle('has-spec', card !== null);
+            chip.cardEl.classList.toggle('has-spec', card !== null);
+            if (card?.portrait) {
+                chip.portraitEl.innerHTML = iconHtml(card.portrait, 'fighter-portrait-ico');
+            } else {
+                chip.portraitEl.textContent = '◆';
+            }
         }
+        this.updateTeamSpecTitles();
         if (this.specDetailSeat !== null) {
             this.showSpecialistDetail(this.specDetailSeat, this.specDetailViaHover);
+        }
+    }
+
+    private updateTeamSpecTitles(): void {
+        if (this.playerSpecEl) {
+            const playerSeats = this.commanderChips.filter((c) => c.team === 'player');
+            const titles = playerSeats.map((c) => c.card?.title).filter((t): t is string => Boolean(t));
+            this.playerSpecEl.textContent = titles.join(' & ');
+        }
+        if (this.enemySpecEl) {
+            const enemySeats = this.commanderChips.filter((c) => c.team === 'enemy');
+            const titles = enemySeats.map((c) => c.card?.title).filter((t): t is string => Boolean(t));
+            this.enemySpecEl.textContent = titles.join(' & ');
         }
     }
 
@@ -2264,7 +2337,7 @@ export class Hud {
         if (!card && picks.length === 0) return;
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.specDetailOverlay.remove();
-        const name = chip.nameEl.textContent ?? '';
+        const name = chip.name;
         const overlay = document.createElement('div');
         // hover peeks are pointer-transparent: a full-screen overlay under the
         // cursor would instantly fire mouseleave on the fighter card and the

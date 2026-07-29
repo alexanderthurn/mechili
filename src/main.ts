@@ -1037,7 +1037,12 @@ function showNameEditor(): void {
         errorEl.textContent = msg;
     };
 
-    const close = () => overlay.remove();
+    let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
+    const close = () => {
+        if (onKeyDown) window.removeEventListener('keydown', onKeyDown);
+        onKeyDown = null;
+        overlay.remove();
+    };
 
     const setBusy = (busy: boolean) => {
         actions.querySelectorAll('button').forEach((b) => {
@@ -1122,10 +1127,15 @@ function showNameEditor(): void {
         if (act === 'save') void save();
     });
 
-    overlay.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') close();
+    onKeyDown = (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            close();
+        }
         if (e.key === 'Enter') void save();
-    });
+    };
+    window.addEventListener('keydown', onKeyDown);
 
     // locked-out: focus password
     if (isProfileLockedOut()) pwInput.focus();
@@ -2525,6 +2535,92 @@ function startSpectateGame(hostName: string): void {
     })();
 }
 
+function cancelMenuPending(): void {
+    pending?.cancel();
+    pending = null;
+    cancelStarHost();
+    cancelSteamStarHost();
+    setMenuBusy(false);
+    setStatus('');
+    // a quick-match probe/wait hides every panel including mainButtonsEl
+    // (see tryQuickMatch/try2v2Match) — restore a sane menu state rather
+    // than leaving the player at a blank screen with nothing clickable
+    mmModeEl.style.display = 'none';
+    mmSimpleEl.style.display = 'none';
+    mainButtonsEl.style.display = '';
+}
+
+function isMenuBlockingOverlayOpen(): boolean {
+    // When a dedicated overlay is open (settings/name editor/resume),
+    // let that overlay own Escape instead of closing underneath it.
+    return (
+        !!wrapper.querySelector('.mechili-settings, .mechili-name-edit, .mechili-resume, .mechili-fatal') ||
+        resumeOverlay !== null
+    );
+}
+
+function closeMenuSubPanelOnEscape(): boolean {
+    if (isMenuBlockingOverlayOpen()) return false;
+
+    // If we're actively waiting/connecting (the "Cancel" button is visible),
+    // Escape should cancel and restore the top-level menu.
+    if (pending || cancelEl.style.display !== 'none') {
+        cancelMenuPending();
+        return true;
+    }
+
+    // Global chat is also a "sub-panel" inside the main menu.
+    if (gchatEl.classList.contains('open')) {
+        gchatEl.classList.remove('open');
+        return true;
+    }
+
+    // Panels (submenus) inside the main menu: back them out in priority order.
+    if (customEl.style.display !== 'none') {
+        closeCustomGameScreen();
+        mainButtonsEl.style.display = '';
+        return true;
+    }
+
+    if (mmModeEl.style.display !== 'none') {
+        pending = null;
+        cancelStarHost();
+        cancelSteamStarHost();
+        setMenuBusy(false);
+        setStatus('');
+        mmModeEl.style.display = 'none';
+        mainButtonsEl.style.display = '';
+        return true;
+    }
+
+    if (mmSimpleEl.style.display !== 'none') {
+        pending = null;
+        cancelStarHost();
+        setMenuBusy(false);
+        setStatus('');
+        mmSimpleEl.style.display = 'none';
+        mainButtonsEl.style.display = '';
+        return true;
+    }
+
+    if (spModeEl.style.display !== 'none') {
+        spModeEl.style.display = 'none';
+        mainButtonsEl.style.display = '';
+        return true;
+    }
+
+    return false;
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!menuChromeVisible || started) return;
+    if (closeMenuSubPanelOnEscape()) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+});
+
 menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
@@ -2542,18 +2638,7 @@ menu.addEventListener('click', (e) => {
     if (!button || started) return;
 
     if (button.classList.contains('m-cancel')) {
-        pending?.cancel();
-        pending = null;
-        cancelStarHost();
-        cancelSteamStarHost();
-        setMenuBusy(false);
-        setStatus('');
-        // a quick-match probe/wait hides every panel including mainButtonsEl
-        // (see tryQuickMatch/try2v2Match) — restore a sane menu state rather
-        // than leaving the player at a blank screen with nothing clickable
-        mmModeEl.style.display = 'none';
-        mmSimpleEl.style.display = 'none';
-        mainButtonsEl.style.display = '';
+        cancelMenuPending();
         return;
     }
 
