@@ -994,35 +994,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     border: 2px solid ${u.border};
     border-radius: 8px;
     overflow: hidden;
-    box-shadow:
-        inset 0 2px 6px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     position: relative;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-}
-.mechili-loading .hp-track::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 24%, rgba(255, 255, 255, 0) 52%);
-    opacity: 0.9;
-    pointer-events: none;
-    z-index: 0;
-}
-.mechili-loading .hp-track::after {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background:
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px),
-        radial-gradient(closest-side, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
-    opacity: 0.35;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-    z-index: 0;
 }
 .mechili-loading .hp-fill {
     position: absolute;
@@ -1033,44 +1005,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     transform: scaleX(0);
     transform-origin: left center;
     background: #4a7a38;
-    opacity: 1;
     transition: transform 0.2s ease-out;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     pointer-events: none;
     z-index: 1;
-}
-.mechili-loading .hp-fill::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 58%),
-        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 62%),
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
-        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
-    background-size: 28px 28px;
-    opacity: 0.6;
-    mix-blend-mode: overlay;
-    animation: mechili-fluid-shift 0.7s linear infinite;
-    pointer-events: none;
-}
-.mechili-loading .hp-fill::after {
-    content: '';
-    display: none;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: 6px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
-    box-shadow: 0 0 18px rgba(255, 255, 255, 0.2);
-    opacity: 0.95;
-    pointer-events: none;
-}
-@keyframes mechili-fluid-shift {
-    from { background-position: 0 0; }
-    to { background-position: 28px 0; }
 }
 .mechili-loading .hp-val {
     position: absolute;
@@ -3125,33 +3062,7 @@ export function hudStyles(bars?: BarAssets): string {
     border: 1px solid ${u.border};
     border-radius: 8px;
     overflow: hidden;
-    box-shadow:
-        inset 0 1px 3px rgba(0, 0, 0, 0.52),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     position: relative;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-}
-.mechili-fightbar .hp-track::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 22%, rgba(255, 255, 255, 0) 56%);
-    opacity: 0.75;
-    pointer-events: none;
-    z-index: 0;
-}
-.mechili-fightbar .hp-track::after {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px);
-    opacity: 0.28;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-    z-index: 0;
 }
 .mechili-fightbar .fighter.player .hp-track { direction: ltr; }
 .mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
@@ -3163,52 +3074,16 @@ export function hudStyles(bars?: BarAssets): string {
     width: 100%;
     transform: scaleX(0);
     transition: transform 0.25s ease-out;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     pointer-events: none;
     z-index: 1;
 }
 .mechili-fightbar .fighter.player .hp-fill {
     background: ${pc};
-    opacity: 1;
     transform-origin: left center;
 }
 .mechili-fightbar .fighter.enemy .hp-fill {
     background: ${ec};
-    opacity: 1;
     transform-origin: right center;
-}
-.mechili-fightbar .hp-fill::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 58%),
-        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0) 62%),
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.10) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
-        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.26) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
-    background-size: 26px 26px;
-    opacity: 0.62;
-    mix-blend-mode: overlay;
-    animation: mechili-fluid-shift 0.55s linear infinite;
-    pointer-events: none;
-}
-.mechili-fightbar .hp-fill::after {
-    content: '';
-    display: none;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: 6px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0));
-    box-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
-    opacity: 0.95;
-    pointer-events: none;
-}
-.mechili-fightbar .fighter.enemy .hp-fill::after {
-    left: 0;
-    right: auto;
 }
 .mechili-fightbar .hp-val {
     position: absolute;
