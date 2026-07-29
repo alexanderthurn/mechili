@@ -3921,9 +3921,39 @@ export class Game {
                 continue;
             }
             if (this.awaitingCards || entry.round !== this.round || this.phase !== 'build') break;
+            const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
             i++;
             if ((this.phase as Phase) === 'battle') {
+                // Classic 1v1 buffers a seat's OWN build actions locally and
+                // only sends them once the RECIPIENT locks in — but
+                // endDeployment (the gate signal) always goes out
+                // immediately. So a peer's late-buffered buy/move can
+                // legitimately sit in the log AFTER that same round's own
+                // endDeployment pair. Live, this is harmless:
+                // maybeStartBattleAfterDeploy holds the phase at 'build'
+                // until deployFlushedToPeer/deployCaughtUpFromPeer both
+                // confirm the peer's buffer is fully flushed, so those
+                // actions still arrive and apply before battle actually
+                // starts. Hydrate has no such wire signal to wait for (the
+                // whole log already exists, frozen) — without this drain,
+                // the entry that just flipped the phase would strand every
+                // trailing SAME-round entry forever: they're still tagged
+                // with the round that just ended, so the loop's own
+                // `entry.round !== this.round` guard would refuse them (and
+                // everything after) on the very next iteration. Confirmed
+                // live: a spectator's hydrate applied only 6 of 12 available
+                // log entries this way, running round 2's battle without
+                // the enemy's 2 late-bought units and never advancing past
+                // it. apply() itself doesn't gate on phase (only dispatchPlayer/
+                // drainRemoteQueue's live SEND-time decisions do), so
+                // dispatching these now, with phase already 'battle', is
+                // exactly as safe as the live host dispatching them earlier
+                // while still gated at 'build'.
+                while (i < log.length && log[i]!.round === dispatchedRound) {
+                    this.dispatcher.dispatch(log[i]!.action);
+                    i++;
+                }
                 // historical battles run to their exact end; the battle the
                 // peer is WATCHING right now only catches up to their clock
                 const isLiveBattle = i >= log.length && liveBattleElapsed !== null;
@@ -4057,9 +4087,22 @@ export class Game {
             if (this.round === target && this.phase === 'build') return;
             const entry = this.replayLog[this.replayCursor]!;
             if (entry.round !== this.round || this.phase !== 'build') break; // shouldn't happen — safety guard
+            const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
             this.replayCursor++;
             if ((this.phase as Phase) === 'battle') {
+                // see replayLogFrom's identical drain — a peer's late-
+                // buffered build action (classic 1v1 only) can legitimately
+                // sit in the log after that round's own endDeployment pair;
+                // without draining it here first, it (and everything after)
+                // gets permanently stranded by this loop's own round guard.
+                while (
+                    this.replayCursor < this.replayLog.length &&
+                    this.replayLog[this.replayCursor]!.round === dispatchedRound
+                ) {
+                    this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                    this.replayCursor++;
+                }
                 this.fastForwardBattle();
             }
         }
