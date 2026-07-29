@@ -1556,13 +1556,14 @@ export function hudStyles(): string {
 .shop-toolbar .level-all-global,
 .mechili-phone-status .level-all-global {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    gap: 6px;
     box-sizing: border-box;
     width: auto;
-    min-width: 64px;
-    max-width: 88px;
+    min-width: 72px;
+    max-width: 140px;
     min-height: 44px;
     padding: 4px 8px;
     background: ${u.panelBgSolid};
@@ -1576,15 +1577,29 @@ export function hudStyles(): string {
     flex-shrink: 0;
     align-self: flex-start;
 }
+.shop-toolbar .level-all-global .lag-copy,
+.mechili-phone-status .level-all-global .lag-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
 .shop-toolbar .level-all-global .title,
 .mechili-phone-status .level-all-global .title {
     font-size: 9px;
     font-weight: bold;
     letter-spacing: 0.4px;
     line-height: 1.15;
-    text-align: center;
+    text-align: left;
     white-space: normal;
     color: ${u.phase};
+}
+.shop-toolbar .level-all-global .lag-ico.m-icon,
+.mechili-phone-status .level-all-global .lag-ico.m-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 0;
+    flex-shrink: 0;
 }
 .shop-toolbar .level-all-global .cost,
 .mechili-phone-status .level-all-global .cost {

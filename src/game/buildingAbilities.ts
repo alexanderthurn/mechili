@@ -28,7 +28,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     if (type.structure && !type.extra) {
         const { baseCost, costStep, maxLevel } = s.towers.upgrade;
         out.push({
-            icon: 'ability-upgrade',
+            icon: 'ability-level',
             name: 'Upgrade level',
             cost: baseCost,
             description: `Raise this building one level: it gains its base HP. Price starts at ⬢ ${baseCost} and rises by ⬢ ${costStep} each level (max level ${maxLevel}).`,
@@ -70,7 +70,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     if (type.id === RESEARCH_CENTER.id) {
         out.push(
             {
-                icon: 'ability-recruit-l2',
+                icon: 'ability-plus-l2',
                 name: 'Recruit at Level 2',
                 cost: s.leveling.recruitLevel2Cost,
                 description:

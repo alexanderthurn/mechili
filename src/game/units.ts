@@ -101,16 +101,9 @@ export interface TechDef {
     icon?: string;
 }
 
-/** atlas id for a tech — its own, or one derived from its dominant mod. */
+/** atlas id for a tech — its own, or `tech-default` if missing (intentional red flag). */
 export function techIcon(tech: TechDef): string {
-    if (tech.icon) return tech.icon;
-    const m = tech.mods;
-    if (m.damage !== undefined && m.damage !== 1) return 'mod-damage';
-    if (m.hp !== undefined && m.hp !== 1) return 'mod-hp';
-    if (m.range !== undefined && m.range !== 1) return 'mod-range';
-    if (m.speed !== undefined && m.speed !== 1) return 'mod-speed';
-    if (m.attackInterval !== undefined && m.attackInterval !== 1) return 'mod-firerate';
-    return 'mod-default';
+    return tech.icon ?? 'tech-default';
 }
 
 /** human-readable summary of what a tech does — its own text, or built from its mods */

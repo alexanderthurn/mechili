@@ -765,21 +765,21 @@ export class Hud {
             this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
             if (levelUp) {
                 this.touchLevelBtn.innerHTML =
-                    `${iconHtml('ability-upgrade', 'pb-ico')}` +
+                    `${iconHtml('ability-level', 'pb-ico')}` +
                     `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
                 this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
             }
             this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
             if (levelAll) {
                 this.touchLevelAllBtn.innerHTML =
-                    `${iconHtml('ability-level-all', 'pb-ico')}` +
+                    `${iconHtml('ability-level-type', 'pb-ico')}` +
                     `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
                 this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
             }
             this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
             if (upgrade) {
                 this.touchUpgradeBtn.innerHTML =
-                    `${iconHtml('ability-upgrade', 'pb-ico')}` +
+                    `${iconHtml('ability-level', 'pb-ico')}` +
                     `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
                 this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
             }
@@ -1326,8 +1326,10 @@ export class Hud {
             return;
         }
         const label =
-            info.count >= 2 ? `★ Level all (${info.count})` : '★ Level up';
-        const html = `<span class="title">${label}</span><span class="cost">${info.cost}</span>`;
+            info.count >= 2 ? `Level all (${info.count})` : 'Level up';
+        const html =
+            `${iconHtml('ability-level-all', 'lag-ico')}` +
+            `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
         // the shop-toolbar button and its phone twin (top-right strip) mirror each other
         for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
             btn.style.display = '';
@@ -1510,7 +1512,7 @@ export class Hud {
         if (!levelOnBar && info.levelUp?.ready) {
             levelTiles.push({
                 data: 'data-levelup="1"',
-                icon: 'ability-upgrade',
+                icon: 'ability-level',
                 title: 'Level Up',
                 desc: 'Raise this pack one level — it gains its base HP and damage again. Costs banked XP plus supply.',
                 cost: info.levelUp.cost,
@@ -1519,7 +1521,7 @@ export class Hud {
             if (info.levelUp.all) {
                 levelTiles.push({
                     data: 'data-levelall="1"',
-                    icon: 'ability-level-all',
+                    icon: 'ability-level-type',
                     title: `Level All (${info.levelUp.all.count})`,
                     desc: 'Level every ready pack of this type at once.',
                     cost: info.levelUp.all.cost,
@@ -1532,7 +1534,7 @@ export class Hud {
             const tu = info.towerUpgrade;
             levelTiles.push({
                 data: 'data-towerupgrade="1"',
-                icon: 'ability-upgrade',
+                icon: 'ability-level',
                 title: tu.maxed ? `Max level (${info.level})` : `Upgrade — level ${info.level + 1}`,
                 desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
                 cost: tu.maxed ? undefined : tu.cost,
@@ -1555,7 +1557,7 @@ export class Hud {
         if (info.recruit) {
             tiles.push({
                 data: 'data-recruit="1"',
-                icon: 'ability-recruit-l2',
+                icon: 'ability-plus-l2',
                 title: 'Recruit at Level 2',
                 desc: 'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
                 cost: info.recruit.cost,
