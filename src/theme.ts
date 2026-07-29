@@ -3223,7 +3223,6 @@ export function hudStyles(bars?: BarAssets): string {
     z-index: 2;
 }
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
-.mechili-topbar .phase { font-size: 12px; color: ${u.phase}; letter-spacing: 1px; text-transform: uppercase; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
 .mechili-topbar .timer.urgent {
     animation: mechili-timer-pulse 0.7s ease-in-out infinite;
@@ -3582,8 +3581,6 @@ ${gamepadCursorStyles(u)}
     .mechili-fightbar .hp-val { font-size: 10px; }
     .mechili-topbar { top: calc(2px + env(safe-area-inset-top)); gap: 2px; }
     .mechili-topbar .round { font-size: 11px; }
-    /* no room for the phase words next to Round + timer */
-    .mechili-topbar .phase { display: none; }
     .mechili-topbar .timer { font-size: 16px; }
     /* uniform 38px control row, clear of the commander HP bars; nowrap so a
        tight row never lets End Deployment wrap and grow vertically */

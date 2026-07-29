@@ -216,7 +216,6 @@ export class Hud {
     private readonly topBar: HTMLDivElement;
     private readonly panel: HTMLDivElement;
     private readonly roundEl: HTMLSpanElement;
-    private readonly phaseEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
     private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
@@ -553,15 +552,13 @@ export class Hud {
         topMeta.className = 'top-meta';
         this.roundEl = document.createElement('span');
         this.roundEl.className = 'round';
-        this.phaseEl = document.createElement('span');
-        this.phaseEl.className = 'phase';
         this.spectatorBadgeEl = document.createElement('button');
         this.spectatorBadgeEl.type = 'button';
         this.spectatorBadgeEl.className = 'spectator-badge';
         this.spectatorBadgeEl.style.display = 'none';
         this.spectatorBadgeEl.title = 'Spectators watching this match';
         this.spectatorBadgeEl.addEventListener('click', () => this.toggleSpectatorList());
-        topMeta.append(this.roundEl, this.phaseEl, this.spectatorBadgeEl);
+        topMeta.append(this.roundEl, this.spectatorBadgeEl);
         this.timerEl = document.createElement('span');
         this.timerEl.className = 'timer';
         const endButton = document.createElement('button');
@@ -1830,15 +1827,11 @@ export class Hud {
         waitingForPeer = false,
         allyLockedIn = false,
     ): void {
-        // round 0 is the specialist pick, not a numbered round
-        this.roundEl.textContent = round === 0 ? 'Specialists' : `Round ${round}`;
-        this.phaseEl.textContent = waitingForPeer
-            ? 'Waiting for opponent…'
+        this.roundEl.textContent = waitingForPeer
+            ? 'Waiting for opponent'
             : round === 0
-              ? 'Pick a card'
-              : phase === 'build'
-                ? 'Deployment'
-                : 'Battle';
+              ? 'Specialists'
+              : `Round ${round}`;
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle');
