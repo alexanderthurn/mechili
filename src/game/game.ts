@@ -4064,8 +4064,30 @@ export class Game {
         while (this.replayCursor < this.replayLog.length) {
             const entry = this.replayLog[this.replayCursor]!;
             if (entry.round !== this.round || entry.t > elapsed) break;
+            const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
             this.replayCursor++;
+            if ((this.phase as Phase) === 'battle') {
+                // Same root cause as replayLogFrom/fastForwardReplayThroughRound:
+                // a peer's late-buffered build action (classic 1v1 only) can
+                // legitimately sit in the log after that round's own
+                // endDeployment pair, timestamped LATER than `elapsed` has
+                // reached yet. This function is only ever called while
+                // phase==='build' (see tick()'s own caller), so once a
+                // dispatch flips it to 'battle' mid-loop, nothing will call
+                // this again for this round — any trailing same-round entry
+                // still waiting on its own `t` would otherwise never get a
+                // second chance and is permanently stranded. Drain them now,
+                // ignoring their timestamp: the round is ending regardless.
+                while (
+                    this.replayCursor < this.replayLog.length &&
+                    this.replayLog[this.replayCursor]!.round === dispatchedRound
+                ) {
+                    this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                    this.replayCursor++;
+                }
+                break;
+            }
         }
     }
 
