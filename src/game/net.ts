@@ -353,7 +353,67 @@ export type NetMessage =
      * forfeiting side's own lock-in state or a recipient's currently-
      * displayed round/phase, both of which the normal 'action' relay does.
      */
-    | { type: 'starForfeit'; team: Team };
+    | { type: 'starForfeit'; team: Team }
+    /**
+     * App-level liveness check — see {@link watchLiveness}. WebRTC's own
+     * 'close'/'error' events fire promptly for an ORDERLY teardown (a
+     * reload actively closes the RTCPeerConnection as part of unloading the
+     * page) but are NOT a reliable or prompt signal for a hard browser
+     * close/crash/cable-pull: nothing tells the other side anything
+     * happened, so it can sit indefinitely in whatever state it was
+     * already in until the underlying ICE connection eventually times out
+     * on its own (inconsistent across browsers, sometimes very slow).
+     * `ping`/`pong` is deliberately swallowed at the transport layer
+     * (NetSession/StarGuestSession/StarHub, never reaches Game) — it only
+     * exists to keep `lastSeenAt` fresh so a real gap can be detected fast
+     * and consistently regardless of HOW the peer vanished.
+     */
+    | { type: 'ping' }
+    | { type: 'pong' };
+
+const LIVENESS_PING_MS = 4_000;
+const LIVENESS_TIMEOUT_MS = 15_000;
+
+/**
+ * Shared app-level connection-liveness watchdog — ping every
+ * `LIVENESS_PING_MS`, and if NO traffic (ping, pong, or any real game
+ * message — anything counts as "still alive") has arrived for
+ * `LIVENESS_TIMEOUT_MS`, fire `onDead` exactly once. Callers still keep
+ * their own 'close'/'error' listeners too (an orderly drop should still be
+ * as instant as it already is) — this only covers the gap those miss.
+ */
+function watchLiveness(send: () => void, onDead: () => void): { markSeen: () => void; stop: () => void } {
+    let lastSeenAt = Date.now();
+    let dead = false;
+    const pingTimer = setInterval(() => {
+        try {
+            send();
+        } catch {
+            // a send failure on an already-broken connection is exactly
+            // what this watchdog exists to catch — let the timeout below
+            // fire rather than throwing out of a timer callback
+        }
+    }, LIVENESS_PING_MS);
+    const checkTimer = setInterval(() => {
+        if (dead) return;
+        if (Date.now() - lastSeenAt > LIVENESS_TIMEOUT_MS) {
+            dead = true;
+            clearInterval(pingTimer);
+            clearInterval(checkTimer);
+            onDead();
+        }
+    }, LIVENESS_PING_MS);
+    return {
+        markSeen: () => {
+            lastSeenAt = Date.now();
+        },
+        stop: () => {
+            dead = true;
+            clearInterval(pingTimer);
+            clearInterval(checkTimer);
+        },
+    };
+}
 
 /**
  * What a spectator may see during the build phase.
@@ -435,6 +495,7 @@ export class NetSession implements Session {
     onClose: (() => void) | null = null;
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
+    private readonly liveness: { markSeen: () => void; stop: () => void };
 
     readonly localName: string;
     remoteName: string;
@@ -448,11 +509,6 @@ export class NetSession implements Session {
     ) {
         this.localName = localName;
         this.remoteName = remoteName;
-        conn.on('data', (data) => {
-            const msg = data as NetMessage;
-            if (this.handler) this.handler(msg);
-            else this.backlog.push(msg);
-        });
         // 'close'/'error' on the connection AND 'error' on the peer can all
         // fire for the same underlying drop — without this guard each one
         // re-invokes the caller's onClose (e.g. restarting the reconnect
@@ -461,11 +517,24 @@ export class NetSession implements Session {
         const fireClose = () => {
             if (closed) return;
             closed = true;
+            this.liveness.stop();
             this.onClose?.();
         };
+        conn.on('data', (data) => {
+            const msg = data as NetMessage;
+            this.liveness.markSeen();
+            if (msg.type === 'ping') {
+                conn.send({ type: 'pong' });
+                return;
+            }
+            if (msg.type === 'pong') return;
+            if (this.handler) this.handler(msg);
+            else this.backlog.push(msg);
+        });
         conn.on('close', fireClose);
         conn.on('error', fireClose);
         peer.on('error', fireClose);
+        this.liveness = watchLiveness(() => conn.send({ type: 'ping' }), fireClose);
     }
 
     /** installs the message handler and drains anything that arrived early */
@@ -590,7 +659,14 @@ export class StarHub implements HostHub {
     // awaiting a starRejoin within its grace window (see dropSeat). Kept in
     // the map (not deleted) so nextOpenSeat still treats it as occupied,
     // not up for grabs by a brand new joiner.
-    private readonly bySeat = new Map<SeatId, { conn: DataConnection | null; buffer: NetMessage[] }>();
+    private readonly bySeat = new Map<
+        SeatId,
+        {
+            conn: DataConnection | null;
+            buffer: NetMessage[];
+            liveness: { markSeen: () => void; stop: () => void } | null;
+        }
+    >();
     private readonly reconnectTimers = new Map<SeatId, ReturnType<typeof setTimeout>>();
     private roster: CanonicalSeatDef[];
 
@@ -689,10 +765,8 @@ export class StarHub implements HostHub {
                     }
                     const seat = onJoin(msg.name, msg.version, conn);
                     if (seat === null) return; // onJoin already sent starRejected + closed
-                    this.bySeat.set(seat, { conn, buffer: [] });
-                    conn.on('data', (d) => this.onMessage?.(seat, d as NetMessage));
-                    conn.on('close', () => this.dropSeat(seat));
-                    conn.on('error', () => this.dropSeat(seat));
+                    this.bySeat.set(seat, { conn, buffer: [], liveness: null });
+                    this.wireSeatConn(seat, conn);
                     this.onRosterChange?.();
                 };
                 conn.on('data', onData);
@@ -716,12 +790,39 @@ export class StarHub implements HostHub {
             this.reconnectTimers.delete(seat);
         }
         viewer.conn = conn;
-        conn.on('data', (d) => this.onMessage?.(seat, d as NetMessage));
-        conn.on('close', () => this.dropSeat(seat));
-        conn.on('error', () => this.dropSeat(seat));
+        this.wireSeatConn(seat, conn);
         this.onSeatReconnected?.(seat);
         this.onRosterChange?.();
         return true;
+    }
+
+    /** shared per-seat connection wiring — used for both a fresh join and a
+     *  successful reclaim. Intercepts ping/pong (see watchLiveness) before
+     *  anything reaches `onMessage`, and starts this seat's own liveness
+     *  watchdog so a hard client-side close/crash is detected as fast and
+     *  reliably as an orderly one, instead of depending on however promptly
+     *  the browser/OS happens to tear down the underlying connection. */
+    private wireSeatConn(seat: SeatId, conn: DataConnection): void {
+        const viewer = this.bySeat.get(seat);
+        viewer?.liveness?.stop(); // replacing a reclaimed connection's own prior watchdog
+        conn.on('data', (d) => {
+            const msg = d as NetMessage;
+            this.bySeat.get(seat)?.liveness?.markSeen();
+            if (msg.type === 'ping') {
+                conn.send({ type: 'pong' });
+                return;
+            }
+            if (msg.type === 'pong') return;
+            this.onMessage?.(seat, msg);
+        });
+        conn.on('close', () => this.dropSeat(seat));
+        conn.on('error', () => this.dropSeat(seat));
+        if (viewer) {
+            viewer.liveness = watchLiveness(
+                () => conn.send({ type: 'ping' }),
+                () => this.dropSeat(seat),
+            );
+        }
     }
 
     /** call once a joining connection is accepted, before/with `starSetup` */
@@ -753,6 +854,8 @@ export class StarHub implements HostHub {
         const viewer = this.bySeat.get(seat);
         if (!viewer || viewer.conn === null) return;
         viewer.conn = null;
+        viewer.liveness?.stop();
+        viewer.liveness = null;
         // the live-relay buffer is moot now — a successful reclaim gets a
         // fresh, authoritative starResumeState instead (see Game's
         // onSeatReconnected), so stale buffered entries would only risk
@@ -870,6 +973,7 @@ export class StarGuestSession implements GuestSession {
     // Bound once so both fireClose() and discard()/close() can remove this
     // EXACT listener instance.
     private readonly onPeerError = () => this.fireClose();
+    private readonly liveness: { markSeen: () => void; stop: () => void };
 
     constructor(
         private readonly peer: Peer,
@@ -877,17 +981,25 @@ export class StarGuestSession implements GuestSession {
     ) {
         conn.on('data', (data) => {
             const msg = data as NetMessage;
+            this.liveness.markSeen();
+            if (msg.type === 'ping') {
+                conn.send({ type: 'pong' });
+                return;
+            }
+            if (msg.type === 'pong') return;
             if (this.handler) this.handler(msg);
             else this.backlog.push(msg);
         });
         conn.on('close', () => this.fireClose());
         conn.on('error', () => this.fireClose());
         peer.on('error', this.onPeerError);
+        this.liveness = watchLiveness(() => conn.send({ type: 'ping' }), () => this.fireClose());
     }
 
     private fireClose(): void {
         if (this.closed) return;
         this.closed = true;
+        this.liveness.stop();
         this.peer.off('error', this.onPeerError);
         this.onClose?.();
     }
@@ -923,12 +1035,14 @@ export class StarGuestSession implements GuestSession {
     discard(): void {
         this.onClose = null;
         this.closed = true;
+        this.liveness.stop();
         this.peer.off('error', this.onPeerError);
     }
 
     close(): void {
         this.onClose = null;
         this.closed = true;
+        this.liveness.stop();
         this.peer.off('error', this.onPeerError);
         this.conn.close();
         this.peer.destroy();
