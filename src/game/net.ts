@@ -372,7 +372,21 @@ export type NetMessage =
     | { type: 'pong' };
 
 const LIVENESS_PING_MS = 4_000;
-const LIVENESS_TIMEOUT_MS = 15_000;
+// Generous on purpose: Chrome's (and other browsers' similar) "intensive
+// timer throttling" clamps EVERY timer, regardless of its own configured
+// delay, to at most once per minute once a tab has been continuously
+// backgrounded for 5+ minutes — and a spectator (or a player who alt-tabs
+// mid-match) leaving a tab backgrounded that long is a realistic, expected
+// scenario for this game, not a corner case (see tick()'s trueGameDt fix
+// for the exact same class of "long background" concern). A tighter
+// timeout here would risk treating a perfectly healthy, merely-throttled
+// peer as dead. Detection delay and the existing reconnect-grace countdown
+// (30s classic / 90s star) are sequential, not overlapping, so a larger
+// value here only pushes out the worst-case time-to-notice — it doesn't
+// break either grace window, and is still a categorical improvement over
+// the original bug (WebRTC's own close/error timing for a non-orderly
+// drop is inconsistent and can be much slower, or never fire at all).
+const LIVENESS_TIMEOUT_MS = 75_000;
 
 /**
  * Shared app-level connection-liveness watchdog — ping every
