@@ -1049,6 +1049,7 @@ export class Hud {
     ): { cardEl: HTMLDivElement; hpFill: HTMLDivElement; hpVal: HTMLSpanElement; specEl: HTMLSpanElement } {
         const cardEl = document.createElement('div');
         cardEl.className = `fighter ${team}`;
+        this.attachPortraitEvents(cardEl, featuredEntry.seat);
 
         const combinedName = allEntries.map((e) => e.name).join(' & ');
 
@@ -1060,7 +1061,6 @@ export class Hud {
         mainPortrait.className = 'portrait main';
         mainPortrait.textContent = '◆';
         mainPortrait.dataset.seat = String(featuredEntry.seat);
-        this.attachPortraitEvents(mainPortrait, featuredEntry.seat);
 
         this.commanderChips.push({
             seat: featuredEntry.seat,
@@ -1073,7 +1073,7 @@ export class Hud {
 
         portraitGroup.appendChild(mainPortrait);
 
-        // 2. Secondary stacked portraits (20px) if teammates exist
+        // 2. Secondary overlapping stacked portraits (28px) if teammates exist
         if (secondaryEntries.length > 0) {
             const subStack = document.createElement('div');
             subStack.className = 'portrait-sub-stack';
@@ -1082,7 +1082,6 @@ export class Hud {
                 subPortrait.className = 'portrait sub';
                 subPortrait.textContent = '◆';
                 subPortrait.dataset.seat = String(sec.seat);
-                this.attachPortraitEvents(subPortrait, sec.seat);
 
                 this.commanderChips.push({
                     seat: sec.seat,
@@ -1891,10 +1890,10 @@ export class Hud {
     setHp(player: number, enemy: number): void {
         if (player > this.playerMaxHp) this.playerMaxHp = player;
         if (enemy > this.enemyMaxHp) this.enemyMaxHp = enemy;
-        const pPct = Math.max(0, (player / this.playerMaxHp) * 100);
-        const ePct = Math.max(0, (enemy / this.enemyMaxHp) * 100);
-        this.playerHpFill.style.width = `${pPct}%`;
-        this.enemyHpFill.style.width = `${ePct}%`;
+        const p = Math.max(0, Math.min(1, player / this.playerMaxHp));
+        const e = Math.max(0, Math.min(1, enemy / this.enemyMaxHp));
+        this.playerHpFill.style.transform = `scaleX(${p})`;
+        this.enemyHpFill.style.transform = `scaleX(${e})`;
         this.playerHpVal.textContent = String(Math.max(0, Math.round(player)));
         this.enemyHpVal.textContent = String(Math.max(0, Math.round(enemy)));
     }
@@ -2328,55 +2327,64 @@ export class Hud {
         }
     }
 
-    /** a dismissible popup of one commander's specialist card (frame click or hover) */
+    /** a dismissible popup showing all team members' specialist cards on one screen (frame click or hover) */
     private showSpecialistDetail(seat: number, viaHover = false): void {
-        const chip = this.commanderChips.find((c) => c.seat === seat);
-        if (!chip) return;
-        const card = chip.card;
-        const picks = chip.team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
-        if (!card && picks.length === 0) return;
+        const targetChip = this.commanderChips.find((c) => c.seat === seat);
+        if (!targetChip) return;
+        const team = targetChip.team;
+        const teamChips = this.commanderChips.filter((c) => c.team === team);
+
+        const picks = team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
+        const hasContent = teamChips.some((c) => c.card !== null) || picks.length > 0;
+        if (!hasContent) return;
+
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.specDetailOverlay.remove();
-        const name = chip.name;
+
         const overlay = document.createElement('div');
-        // hover peeks are pointer-transparent: a full-screen overlay under the
-        // cursor would instantly fire mouseleave on the fighter card and the
-        // detail would flicker open/closed forever
         overlay.className = `mechili-cards detail${viaHover ? ' peek' : ''}`;
-        const specHtml = card
-            ? `<div class="card static">${this.startCardFace(card)}</div>`
-            : '';
-        const picksHtml =
-            picks.length === 0
-                ? ''
-                : `<div class="round-picks">` +
-                  `<div class="round-picks-title">Round cards</div>` +
-                  picks
-                      .map(
-                          (p) =>
-                              `<div class="round-pick">` +
-                              `<span class="rp-round">R${p.round}</span>` +
-                              `<span class="rp-title">${escapeHtml(p.title)}</span>` +
-                              (p.body
-                                  ? `<span class="rp-body">${escapeHtml(p.body)}</span>`
-                                  : '') +
-                              `</div>`,
-                      )
-                      .join('') +
-                  `</div>`;
-        overlay.innerHTML =
-            `<div class="cards-row"><div class="card-col ${chip.team}">` +
-            `<div class="c-owner ${chip.team}"></div>` +
-            specHtml +
-            picksHtml +
-            `</div></div>`;
-        overlay.querySelector('.c-owner')!.textContent = name;
+
+        const colsHtml = teamChips
+            .map((chip) => {
+                const card = chip.card;
+                const specHtml = card
+                    ? `<div class="card static">${this.startCardFace(card)}</div>`
+                    : '';
+                const picksHtml =
+                    picks.length === 0
+                        ? ''
+                        : `<div class="round-picks">` +
+                          `<div class="round-picks-title">Round cards</div>` +
+                          picks
+                              .map(
+                                  (p) =>
+                                      `<div class="round-pick">` +
+                                      `<span class="rp-round">R${p.round}</span>` +
+                                      `<span class="rp-title">${escapeHtml(p.title)}</span>` +
+                                      (p.body
+                                          ? `<span class="rp-body">${escapeHtml(p.body)}</span>`
+                                          : '') +
+                                      `</div>`,
+                              )
+                              .join('') +
+                          `</div>`;
+                return (
+                    `<div class="card-col ${chip.team}">` +
+                    `<div class="c-owner ${chip.team}">${escapeHtml(chip.name)}</div>` +
+                    specHtml +
+                    picksHtml +
+                    `</div>`
+                );
+            })
+            .join('');
+
+        overlay.innerHTML = `<div class="cards-row">${colsHtml}</div>`;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
         this.specDetailOverlay = overlay;
         this.specDetailSeat = seat;
         this.specDetailViaHover = viaHover;
         // the enemy's unplaced items are intel that belongs to this screen
-        this.enemyInventoryEl.classList.toggle('reveal', chip.team === 'enemy');
+        this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
         this.mount(overlay);
     }
 

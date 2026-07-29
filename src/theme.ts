@@ -214,7 +214,16 @@ function gamepadCursorStyles(u: (typeof THEME)['ui']): string {
 }
 
 /** CSS for the pre-game main menu (exists before the HUD does). */
-export function menuStyles(): string {
+export interface BarAssets {
+    /** glass tube overlay sprite URL (9-slice, sits on top) */
+    barGlass: string;
+    /** red/blood liquid fill sprite URL (9-slice, HP fill) */
+    barFillRed: string;
+    /** blue liquid fill sprite URL (9-slice, loading/player fill) */
+    barFillBlue: string;
+}
+
+export function menuStyles(bars?: BarAssets): string {
     const u = THEME.ui;
     const pc = teamColors.player.css;
     return `
@@ -976,19 +985,88 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-loading .hp-track {
     height: 36px;
-    background: ${u.barTrack};
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.18)),
+        ${u.barTrack};
     border: 2px solid ${u.border};
     border-radius: 4px;
     overflow: hidden;
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5), 0 4px 18px rgba(0, 0, 0, 0.35);
+    box-shadow:
+        inset 0 2px 6px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 4px 18px rgba(0, 0, 0, 0.35),
+        0 0 26px rgba(255, 216, 64, 0.10),
+        0 0 54px rgba(255, 216, 64, 0.06);
     position: relative;
+    -webkit-backdrop-filter: blur(8px) saturate(1.2);
+    backdrop-filter: blur(8px) saturate(1.2);
+}
+.mechili-loading .hp-track::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 24%, rgba(255, 255, 255, 0) 52%);
+    opacity: 0.9;
+    pointer-events: none;
+    z-index: 0;
+}
+.mechili-loading .hp-track::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px),
+        radial-gradient(closest-side, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+    opacity: 0.35;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 0;
 }
 .mechili-loading .hp-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
     height: 100%;
-    width: 0%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
     background: linear-gradient(90deg, ${pc}, ${u.hpBar});
-    transition: width 0.2s ease-out;
+    opacity: 0.82;
+    transition: transform 0.2s ease-out;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    pointer-events: none;
+    z-index: 1;
+}
+.mechili-loading .hp-fill::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 58%),
+        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 62%),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
+        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
+    background-size: 28px 28px;
+    opacity: 0.6;
+    mix-blend-mode: overlay;
+    animation: mechili-fluid-shift 0.7s linear infinite;
+    pointer-events: none;
+}
+.mechili-loading .hp-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 6px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+    box-shadow: 0 0 18px rgba(255, 255, 255, 0.2);
+    opacity: 0.95;
+    pointer-events: none;
+}
+@keyframes mechili-fluid-shift {
+    from { background-position: 0 0; }
+    to { background-position: 28px 0; }
 }
 .mechili-loading .hp-val {
     position: absolute;
@@ -1384,7 +1462,7 @@ ${gamepadCursorStyles(u)}
 
 /** CSS block for the HTML HUD — generated from {@link THEME} + the match's
  *  canonical team colors (assign those BEFORE the HUD is built). */
-export function hudStyles(): string {
+export function hudStyles(bars?: BarAssets): string {
     const u = THEME.ui;
     const pc = teamColors.player.css;
     const ec = teamColors.enemy.css;
@@ -2929,7 +3007,6 @@ export function hudStyles(): string {
     padding: 6px 10px;
     gap: 8px;
 }
-.mechili-fightbar .fighter-stack.multi .portrait { width: 34px; height: 34px; font-size: 17px; }
 .mechili-fightbar .fighter-stack.multi .fname { font-size: 13px; }
 .mechili-fightbar .fighter {
     position: relative;
@@ -2946,7 +3023,8 @@ export function hudStyles(): string {
     background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
     border: 2px solid ${u.border};
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
 }
 .mechili-fightbar .fighter.player {
     border-left: none;
@@ -2960,15 +3038,17 @@ export function hudStyles(): string {
     border-radius: 0 0 0 10px;
 }
 .mechili-fightbar .portrait-group {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
     flex-shrink: 0;
 }
 .mechili-fightbar .fighter.enemy .portrait-group {
     flex-direction: row-reverse;
 }
 .mechili-fightbar .portrait {
+    position: relative;
+    z-index: 2;
     width: 44px;
     height: 44px;
     flex-shrink: 0;
@@ -2981,17 +3061,21 @@ export function hudStyles(): string {
     font-size: 22px;
     font-weight: bold;
     overflow: hidden;
-    cursor: pointer;
 }
 .mechili-fightbar .portrait-sub-stack {
+    position: relative;
+    z-index: 1;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    justify-content: center;
+    align-items: center;
+    margin-left: -14px;
+}
+.mechili-fightbar .fighter.enemy .portrait-sub-stack {
+    margin-left: 0;
+    margin-right: -14px;
 }
 .mechili-fightbar .portrait.sub {
-    width: 20px;
-    height: 20px;
+    width: 44px;
+    height: 44px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -2999,16 +3083,10 @@ export function hudStyles(): string {
     background: none;
     border: none;
     border-radius: 0;
-    font-size: 10px;
+    font-size: 22px;
     font-weight: bold;
     overflow: hidden;
-    cursor: pointer;
-    opacity: 0.85;
-    transition: opacity 0.12s ease, transform 0.12s ease;
-}
-.mechili-fightbar .portrait.sub:hover {
-    opacity: 1;
-    transform: scale(1.15);
+    opacity: 0.9;
 }
 .mechili-fightbar .portrait .m-icon {
     width: 100%;
@@ -3039,18 +3117,95 @@ export function hudStyles(): string {
 .mechili-fightbar .fighter.has-spec:hover { border-color: ${u.hover}; }
 .mechili-fightbar .hp-track {
     height: 22px;
-    background: ${u.barTrack};
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.18)),
+        ${u.barTrack};
     border: 1px solid ${u.border};
     border-radius: 3px;
     overflow: hidden;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+    box-shadow:
+        inset 0 1px 3px rgba(0, 0, 0, 0.52),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 0 22px rgba(255, 216, 64, 0.10),
+        0 0 40px rgba(0, 0, 0, 0.18);
     position: relative;
+    -webkit-backdrop-filter: blur(8px) saturate(1.2);
+    backdrop-filter: blur(8px) saturate(1.2);
+}
+.mechili-fightbar .hp-track::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 22%, rgba(255, 255, 255, 0) 56%);
+    opacity: 0.75;
+    pointer-events: none;
+    z-index: 0;
+}
+.mechili-fightbar .hp-track::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px);
+    opacity: 0.28;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 0;
 }
 .mechili-fightbar .fighter.player .hp-track { direction: ltr; }
 .mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
-.mechili-fightbar .hp-fill { height: 100%; width: 100%; transition: width 0.25s ease-out; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28); }
-.mechili-fightbar .fighter.player .hp-fill { background: linear-gradient(90deg, ${pc}, ${u.hpBar}); }
-.mechili-fightbar .fighter.enemy .hp-fill { background: linear-gradient(90deg, ${ec}, #e85848); }
+.mechili-fightbar .hp-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transition: transform 0.25s ease-out;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    pointer-events: none;
+    z-index: 1;
+}
+.mechili-fightbar .fighter.player .hp-fill {
+    background: linear-gradient(90deg, ${pc}, ${u.hpBar});
+    opacity: 0.82;
+    transform-origin: left center;
+}
+.mechili-fightbar .fighter.enemy .hp-fill {
+    background: linear-gradient(90deg, ${ec}, #e85848);
+    opacity: 0.82;
+    transform-origin: right center;
+}
+.mechili-fightbar .hp-fill::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 58%),
+        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0) 62%),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.10) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
+        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.26) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
+    background-size: 26px 26px;
+    opacity: 0.62;
+    mix-blend-mode: overlay;
+    animation: mechili-fluid-shift 0.55s linear infinite;
+    pointer-events: none;
+}
+.mechili-fightbar .hp-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 6px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0));
+    box-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
+    opacity: 0.95;
+    pointer-events: none;
+}
+.mechili-fightbar .fighter.enemy .hp-fill::after {
+    left: 0;
+    right: auto;
+}
 .mechili-fightbar .hp-val {
     position: absolute;
     left: 0;
@@ -3421,7 +3576,7 @@ ${gamepadCursorStyles(u)}
         gap: 6px;
         padding: 4px 8px;
     }
-    .mechili-fightbar .portrait { width: 30px; height: 30px; font-size: 15px; }
+    .mechili-fightbar .portrait-group { display: none; }
     .mechili-fightbar .fname { font-size: 11px; letter-spacing: 0.4px; }
     .mechili-fightbar .fighter-info { gap: 3px; }
     .mechili-fightbar .hp-track { height: 14px; }
