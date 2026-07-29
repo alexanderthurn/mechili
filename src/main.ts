@@ -1199,13 +1199,33 @@ async function refreshRoomList(): Promise<void> {
             ...others.map((r) => {
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.className = r.kind === 'spectate' ? 'm-room m-room-spectate' : 'm-room';
+                // a running match where MY OWN seat is currently
+                // disconnected offers "resume" instead of "spectate" — same
+                // beginStarJoin() flow as any other join, since the host
+                // recognizes our name and reclaims us instead of handing out
+                // a fresh seat (see StarHub.findDroppedSeatByName)
+                const myDroppedSeat = r.roster?.find(
+                    (s) => s.name.toLowerCase() === mine.toLowerCase() && !s.connected,
+                );
+                const resumable = r.kind === 'spectate' && !!myDroppedSeat;
+                const roomKind = resumable ? 'resume' : r.kind;
+                button.className =
+                    roomKind === 'resume'
+                        ? 'm-room m-room-resume'
+                        : roomKind === 'spectate'
+                          ? 'm-room m-room-spectate'
+                          : 'm-room';
                 button.dataset.room = r.name;
                 button.dataset.roomMode = r.mode;
-                button.dataset.roomKind = r.kind;
+                button.dataset.roomKind = roomKind;
                 const modeTag = r.mode === '2v2' ? ' (2v2)' : '';
+                const roundTag = r.round ? ` — round ${r.round}` : '';
                 button.textContent =
-                    r.kind === 'spectate' ? `Watch ${r.name}${modeTag}` : `${r.name}${modeTag}`;
+                    roomKind === 'resume'
+                        ? `Resume your match — ${r.name}${modeTag}${roundTag}`
+                        : roomKind === 'spectate'
+                          ? `Watch ${r.name}${modeTag}${roundTag}`
+                          : `${r.name}${modeTag}`;
                 return button;
             }),
         );
@@ -2154,9 +2174,42 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                 }
                 pending = null;
                 setMenuBusy(false);
-                if (msg.type === 'starRejected') {
+                if (msg.type === 'starRejected' || msg.type === 'starRejoinRejected') {
                     setStatus(msg.reason);
                     session.close();
+                    return;
+                }
+                if (msg.type === 'starResumeState') {
+                    // the host matched OUR name against a currently-
+                    // dropped seat (see StarHub.findDroppedSeatByName) —
+                    // this is a cold reconnect: our own Game object is
+                    // gone (we're joining fresh from the main menu), so
+                    // everything needed to reconstruct one travels in this
+                    // one message, unlike an in-session redial's
+                    // already-alive Game object catching itself up
+                    if (msg.version !== GAME_VERSION) {
+                        setStatus('Version mismatch — both players need the same game version.');
+                        session.close();
+                        return;
+                    }
+                    const yourSide = msg.roster[msg.seat]?.side ?? 'a';
+                    const settings = msg.settings;
+                    settings.seed = msg.seed;
+                    settings.seats = localizeRoster(msg.roster, yourSide);
+                    const myName = msg.roster[msg.seat]?.name ?? getPlayerName();
+                    startGame(
+                        settings,
+                        null,
+                        yourSide,
+                        { local: myName, opponent: '2v2' },
+                        {
+                            actions: msg.actions,
+                            battleElapsed: msg.battleElapsed,
+                            phaseRemaining: msg.phaseRemaining,
+                            local: false,
+                        },
+                        { role: 'guest', session, mySeat: msg.seat },
+                    );
                     return;
                 }
                 if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
@@ -2629,7 +2682,8 @@ menu.addEventListener('click', (e) => {
             setStatus('Still loading — one moment…');
             return;
         }
-        if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
+        if (roomBtn.dataset.roomKind === 'resume') beginStarJoin(roomBtn.dataset.room);
+        else if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
         else if (roomBtn.dataset.roomMode === '2v2') beginStarJoin(roomBtn.dataset.room);
         else runPending(joinLobby(roomBtn.dataset.room, setStatus));
         return;

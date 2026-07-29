@@ -37,8 +37,10 @@ import {
     STAR_RECONNECT_GRACE_MS,
     type GuestSession,
     type NetMessage,
+    type RoomRosterEntry,
     type RosterEntry,
     type Session,
+    type SpectateRegistration,
     type SpectatorSession,
     type SpectatorVision,
     type StarRole,
@@ -427,7 +429,7 @@ export class Game {
     /** host-only: click/dblclick-to-copy button for debugLog's aggregated dump */
     private debugDumpButton: DebugDumpButton | null = null;
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
-    private stopSpectateRegistration: (() => void) | null = null;
+    private spectateRegistration: SpectateRegistration | null = null;
     /** set only for a spectating client — its one connection to the host's
      *  SpectatorHub (mutually exclusive with net/star) */
     private spectateSession: SpectatorSession | null = null;
@@ -574,6 +576,11 @@ export class Game {
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
     /** restamp once when the async sand mask finishes loading */
     private sandBootstrapped = false;
+    /** wall-clock timestamp (performance.now()) of the last tick — used to
+     *  compute the sim's own TRUE, unclamped elapsed time (see tick()'s
+     *  trueGameDt); null until the first tick has a prior sample to diff
+     *  against */
+    private lastSimRealTimeMs: number | null = null;
     private readonly boundTick = (ticker: { deltaMS: number }) => this.tick(ticker.deltaMS / 1000);
     private readonly onEscapeKey = (e: KeyboardEvent) => {
         const t = e.target as HTMLElement | null;
@@ -1509,6 +1516,16 @@ export class Game {
         }
         if ((this.net && this.side === 'a') || this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
+        if (resume && this.star?.role === 'guest' && !resume.local) {
+            // cold reconnect via the main menu (see runStarPending's
+            // 'starResumeState' handling) — the host holds this seat
+            // suspended until it hears OUR 'ready', same fairness
+            // handshake an in-session redial already sends via
+            // beginStarGuestReconnect. Nothing to await here first (unlike
+            // classic 1v1's awaitPeerReady): hydrate() above already ran
+            // to completion synchronously.
+            this.star.session.send({ type: 'ready' });
+        }
         if (spectate) this.wireSpectateSession(spectate.session);
 
         // Escape toggles the in-game menu (the match keeps running underneath)
@@ -1942,7 +1959,7 @@ export class Game {
         // below — those touch three.js/pixi resources and a stray exception
         // partway through would abort the rest of this function, silently
         // skipping whatever hadn't run yet. Telling the backend "this room
-        // is gone" (stopSpectateRegistration → lobbyLeave) is the one thing
+        // is gone" (spectateRegistration.stop → lobbyLeave) is the one thing
         // here with an externally-visible consequence if it's skipped (a
         // room stays listed until its 15s TTL lapses, or indefinitely if the
         // heartbeat interval itself never gets cleared) — it goes first so
@@ -1963,8 +1980,8 @@ export class Game {
         this.starRedialAbort = null;
         this.spectatorHub?.close();
         this.spectatorHub = null;
-        this.stopSpectateRegistration?.();
-        this.stopSpectateRegistration = null;
+        this.spectateRegistration?.stop();
+        this.spectateRegistration = null;
         this.spectateSession?.close();
         this.spectateSession = null;
         this.pixiApp.ticker.remove(this.boundTick);
@@ -2819,6 +2836,34 @@ export class Game {
         ];
     }
 
+    /**
+     * {name, side, connected} for every human seat — fed to the backend's
+     * room list (see registerSpectateEndpoint's snapshot callback) so a menu
+     * can recognize the caller's own name among a running match's
+     * DISCONNECTED seats and offer "resume" instead of "spectate", without
+     * having to connect first. Star-mode-specific (StarHub.connectedSeats
+     * is the only thing that actually tracks per-seat connectivity) — a
+     * classic 1v1 host just reports every seat connected, since its own
+     * reconnect story is the existing localStorage resume marker, not this.
+     */
+    private backendRosterSnapshot(): RoomRosterEntry[] {
+        const hub = this.star?.role === 'host' ? this.star.hub : null;
+        const connected = hub ? new Set(hub.connectedSeats()) : null;
+        return this.seats
+            .map((def, seat) => ({ def, seat }))
+            .filter(({ def }) => def.controller === 'human')
+            .map(({ def, seat }) => ({
+                name: def.name,
+                // canonical 'a'/'b' — hub.sideOf is the authoritative source
+                // once one exists; classic 1v1 has exactly two seats, host
+                // always seat 0/'a'
+                side: hub ? hub.sideOf(seat) : seat === 0 ? 'a' : 'b',
+                // seat 0 (the host) is never in StarHub's own bySeat map —
+                // it's this client, always connected by definition
+                connected: seat === 0 || !connected || connected.has(seat),
+            }));
+    }
+
     private broadcastRoster(): void {
         this.broadcast({ type: 'roster', entries: this.buildRoster() });
         this.pushSpectatorBadge();
@@ -2919,10 +2964,11 @@ export class Game {
             // discoverable under the same room name a "Host Room" match
             // already uses — spectators look it up the same way a joining
             // player would find the room
-            this.stopSpectateRegistration = registerSpectateEndpoint(
+            this.spectateRegistration = registerSpectateEndpoint(
                 hub.peerId,
                 this.playerNames.local,
                 this.star ? '2v2' : '1v1',
+                () => ({ roster: this.backendRosterSnapshot(), round: this.round }),
             );
             hub.onRosterChange = () => {
                 this.broadcastRoster();
@@ -3074,10 +3120,13 @@ export class Game {
             };
             star.hub.onSeatReconnected = (seat) => this.starSeatReconnected(seat);
             star.hub.onSeatDropped = (seat) => {
-                this.pendingStarSeats.delete(seat);
-                if (this.quitSeats.has(seat) || this.matchOver) return;
-                const name = this.seats[seat]?.name ?? 'a player';
-                this.suspend(`Lost connection to ${name}.`);
+                // the grace window elapsed with nobody reclaiming this seat
+                // — resolve it exactly like a voluntary quit (AI takeover,
+                // or a forfeit if it was the last human on its side) rather
+                // than leaving the other 3 players permanently frozen
+                // because one of them never came back
+                if (this.quitSeats.has(seat)) return;
+                this.resolveSeatGone(seat);
             };
         }
     }
@@ -3198,6 +3247,10 @@ export class Game {
         // dropping while already suspended for a different one must not
         // leave the notice naming only the FIRST seat forever
         this.refreshStarSuspendNotice();
+        // let the room list reflect this seat as disconnected right away,
+        // not up to HEARTBEAT_MS late — someone deciding "resume vs.
+        // spectate" from the menu is trusting this to be current
+        this.spectateRegistration?.refreshNow();
     }
 
     /** names every currently-pending seat, not just whichever dropped first —
@@ -3224,10 +3277,18 @@ export class Game {
         this.star.hub.send(seat, {
             type: 'starResumeState',
             version: GAME_VERSION,
+            // seat/seed/settings/roster: only load-bearing for a COLD
+            // reconnect (see the message's own doc comment) — cheap to
+            // always include, an in-session redial just ignores the repeats
+            seat,
+            seed: this.seed,
+            settings: this.settings,
+            roster: this.star.hub.currentRoster(),
             actions: this.actionsForSeatResume(seat),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
         });
+        this.spectateRegistration?.refreshNow();
     }
 
     /** star host only: a reconnected seat confirmed it finished catching up
@@ -3254,6 +3315,20 @@ export class Game {
     private handleSeatQuit(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host' || this.matchOver) return;
         this.quitSeats.add(seat);
+        this.resolveSeatGone(seat);
+    }
+
+    /**
+     * Star host only: `seat` is never coming back — either because it
+     * explicitly quit (handleSeatQuit) or its reconnect grace window
+     * elapsed with nobody reclaiming it (onSeatDropped, once
+     * STAR_RECONNECT_GRACE_MS has passed). Same resolution either way: AI
+     * takes over if a teammate is still human, otherwise that whole side
+     * forfeits — never just leave the match frozen for the other 3
+     * players because one of them never came back.
+     */
+    private resolveSeatGone(seat: SeatId): void {
+        if (!this.star || this.star.role !== 'host' || this.matchOver) return;
         this.pendingStarSeats.delete(seat); // in case this seat was mid-reconnect-grace
         const def = this.seats[seat];
         if (!def) return;
@@ -3265,10 +3340,15 @@ export class Game {
         } else {
             this.starForfeit(def.team);
         }
-        // a quit seat was possibly the one thing this.suspended was waiting
-        // on (e.g. it had just dropped and entered its grace window before
-        // sending 'quit' on a final reconnect attempt) — re-check same as
-        // starSeatReady does
+        // backendRosterSnapshot only lists controller==='human' seats — this
+        // seat just left that set (AI takeover) or the whole match ended
+        // (forfeit), either of which the room-list "Resume" button depends
+        // on knowing promptly: without this, a departed player can still see
+        // a stale Resume entry for up to the next periodic heartbeat, which
+        // then fails once they actually try to reclaim an AI-driven seat.
+        this.spectateRegistration?.refreshNow();
+        // this seat was possibly the one thing this.suspended was waiting
+        // on — re-check same as starSeatReady does
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
             this.suspended = false;
             this.hud.hideNotice();
@@ -3295,8 +3375,27 @@ export class Game {
         // to finish it for this seat — let the AI lock it in right away
         // instead of leaving the round stuck waiting on an endDeployment
         // that will never come
-        if (this.phase === 'build' && !this.seatReady[seat]) {
+        if (this.round === 0 && !this.starterPicked[seat]) {
+            // round 0's specialist pick is its own gate (starterPicked),
+            // separate from the normal build-phase lock-in below — a seat
+            // that quit before ever picking a card would otherwise leave
+            // maybeStartMatch's `starterPicked.every(Boolean)` check false
+            // forever, freezing every player at the specialist screen (same
+            // follow-up triggerExtraStarters' own caller runs after a human
+            // pick — see afterStarterPick).
+            ai.chooseStarter(this.draw(START_CARDS, 4, rng));
+            this.afterStarterPick();
+        } else if (this.phase === 'build' && !this.seatReady[seat]) {
             ai.onBuildPhase(this.round);
+        } else if (this.phase === 'battle' && !this.starBattleReadySeats.has(seat)) {
+            // same reasoning, one phase later: markStarBattleReady's
+            // allReady check treats AI seats as vacuously ready, but that
+            // check only actually RUNS when a battleEnd message arrives —
+            // if this seat was the one everyone else was waiting on and it
+            // just went AI, nothing else is left to trigger the recheck.
+            // Force it now instead of leaving the round frozen for the
+            // remaining humans.
+            this.markStarBattleReady(seat);
         }
     }
 
@@ -3521,7 +3620,7 @@ export class Game {
         // heartbeat's 15s TTL lapses, or indefinitely if the interval
         // itself never gets cleared). Safe to call twice — its own
         // internal guard makes destroy()'s later call a no-op.
-        this.stopSpectateRegistration?.();
+        this.spectateRegistration?.stop();
         this.quitToMenu();
     }
 
@@ -4162,17 +4261,27 @@ export class Game {
             this.maybeStartMatch();
         } else if (msg.type === 'action') {
             const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            this.mirrorBuildToSpectators(msg, side);
             // trust the CONNECTION's identity for who this is, never the
             // message's own claimed seat — same reasoning as onStarMessage's
             // host path using `fromSeat` instead of `msg.action.seat`
             this.remoteQueue.push({ round: msg.round, action: msg.action, seat: this.peerSeat() });
             this.drainRemoteQueue();
+            // AFTER drain, not before: mirrorBuildToSpectators reads
+            // this.deployReady to decide fog (bothLocked) — reading it
+            // before the peer's own action is actually dispatched (which
+            // is what sets deployReady in the first place) means an
+            // action that itself completes "both locked" gets mirrored as
+            // still-fogged, one call too early. Relies on the spectator's
+            // own deployCaughtUp-driven flush to eventually correct this
+            // either way, but there's no reason to invite that when
+            // reordering costs nothing (drainRemoteQueue doesn't mutate
+            // `msg`, and `side` is independent of dispatch).
+            this.mirrorBuildToSpectators(msg, side);
         } else if (msg.type === 'undo') {
             const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            this.mirrorBuildToSpectators(msg, side);
             this.remoteQueue.push({ round: msg.round, undo: true, seat: this.peerSeat() });
             this.drainRemoteQueue();
+            this.mirrorBuildToSpectators(msg, side);
         } else if (msg.type === 'check') {
             this.peerChecks.set(msg.round, msg.hash);
             this.verifyCheck(msg.round);
@@ -4382,6 +4491,17 @@ export class Game {
                 this.handleSeatQuit(fromSeat);
             } else if (!isHost) {
                 this.matchOver = true;
+                // the host unilaterally ending the match skips finishMatch()
+                // entirely (nobody hit 0 HP) — without this, a host that
+                // quits right as it's about to lose leaves ZERO independent
+                // telemetry/replay record anywhere, from anyone. Best-effort
+                // result from current HP (the match was cut short, not
+                // concluded, so this is a snapshot for verification purposes,
+                // not a sporting/rating claim — 2v2 telemetry doesn't feed
+                // rating anyway, see reportOpenRating's star early-return).
+                this.reportMatchTelemetry(
+                    this.playerHp <= 0 ? 'defeat' : this.enemyHp <= 0 ? 'victory' : 'draw',
+                );
                 this.hud.showNotice('The host ended the match.', 'Back to menu', () => this.quitToMenu());
             }
         } else if (msg.type === 'starForfeit') {
@@ -6240,7 +6360,13 @@ export class Game {
         this.suspended = false;
         clearResumeMarker();
         clearSinglePlayer();
-        // report before tearing down net — mode/side derive from it still being set
+        // report before tearing down net — mode/side derive from it still being set.
+        // reportMatchTelemetry (not just the rating) matters here specifically: a
+        // forfeit-won 1v1 match previously uploaded NOTHING but the bare rating
+        // call, so there was no independent replay/action-log record anywhere to
+        // cross-check against for exactly the matches most likely to involve a
+        // quitting/timed-out opponent trying to dodge a loss.
+        this.reportMatchTelemetry('victory');
         this.reportOpenRating('victory', true);
         this.net?.close();
         this.net = null;
@@ -6438,6 +6564,39 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        // The sim's OWN elapsed time must be the TRUE, unclamped wall-clock
+        // gap since the last tick, not dtSeconds — PixiJS's ticker clamps
+        // its own deltaMS to at most 100ms by default (minFPS=10),
+        // silently DISCARDING anything beyond that rather than deferring
+        // it. That's harmless for the purely cosmetic consumers of
+        // dtSeconds/gameDt below (camera, particles, ambient motion — a
+        // one-time visual jump when a tab refocuses is fine), but the
+        // deterministic battle sim can't tolerate it: a backgrounded/
+        // throttled tab (a passive spectator tab left unfocused is the
+        // common case, but any client's tab losing focus counts) would
+        // otherwise permanently process FEWER total fixed steps than a
+        // client that never dropped frames, producing a genuinely
+        // different, wrong battle result instead of just a delayed one.
+        // BattleSim.update() itself now retains and catches up on however
+        // large this gets (capped per call, carrying over the rest) — see
+        // its own doc comment.
+        const nowMs = performance.now();
+        // Same condition the sim-update guard below uses. When it's false,
+        // sim.update() won't run this frame — and if it was ALSO false on
+        // recent prior frames (a star reconnect's "suspended" pause can last
+        // up to STAR_RECONNECT_GRACE_MS, and a backgrounded/sleeping tab can
+        // let real time pile up across that whole window), a resuming
+        // client's catch-up (fastForwardBattle/replayLogFrom via
+        // applyStarResumeState) already brings sim.elapsed to the correct
+        // point on its own. Letting a stale lastSimRealTimeMs leak that same
+        // gap into trueDtSeconds on the first tick after resuming would feed
+        // it AGAIN, double-advancing the sim past where it should be — reset
+        // to null whenever we're not sim-active so the next active tick
+        // starts fresh, exactly like the very first tick ever does.
+        const simTimingActive = !this.matchOver && !this.suspended && !this.introActive && !this.outroActive;
+        const trueDtSeconds =
+            this.lastSimRealTimeMs === null ? dtSeconds : (nowMs - this.lastSimRealTimeMs) / 1000;
+        this.lastSimRealTimeMs = simTimingActive ? nowMs : null;
         if (this.introActive) this.tickMatchIntro(dtSeconds);
         if (this.outroActive) this.tickMatchOutro(dtSeconds);
         this.flushDebugLog(dtSeconds);
@@ -6466,12 +6625,18 @@ export class Game {
             this.phase === 'battle' || this.watching
                 ? dtSeconds * this.speedSteps[this.speedIndex]!
                 : dtSeconds;
+        // same speed-multiplier scaling as gameDt, just built on the TRUE
+        // dt — this is what actually reaches sim.update() below
+        const trueGameDt =
+            this.phase === 'battle' || this.watching
+                ? trueDtSeconds * this.speedSteps[this.speedIndex]!
+                : trueDtSeconds;
         this.time += gameDt;
 
         let simSteps = 0;
         let simCpu: Record<string, number> | undefined;
 
-        if (!this.matchOver && !this.suspended && !this.introActive && !this.outroActive) {
+        if (simTimingActive) {
             // freeze MY clock once I've personally picked, until EVERYONE
             // has (teammate or enemy) — the per-seat analogue of "I've
             // picked, waiting on the opponent" now that there's no single
@@ -6491,7 +6656,7 @@ export class Game {
                     this.sim.profileEnabled = true;
                     cpu.begin();
                 }
-                this.sim.update(gameDt);
+                this.sim.update(trueGameDt);
                 if (profile) {
                     cpu.end('sim');
                     simSteps = this.sim.lastProfileSteps;

@@ -1174,15 +1174,38 @@ export class BattleSim {
         return map;
     }
 
+    /**
+     * Steps processed in a single update() call are capped so a huge
+     * backlog (a tab returning from being backgrounded/throttled for a
+     * while) can't block the main thread trying to catch up all at once —
+     * whatever's left over stays in the accumulator for the NEXT call.
+     * ~13s of sim time per real frame is generous headroom over anything
+     * a normal frame budget would ever need to actually catch up within.
+     */
+    private static readonly MAX_STEPS_PER_UPDATE = 400;
+
     update(dtSeconds: number): void {
         const profiling = this.profileEnabled;
         if (profiling) {
             this.lastProfile = {};
             this.lastProfileSteps = 0;
         }
-        this.accumulator += Math.min(dtSeconds, 0.25);
+        // The FULL dt is retained — never discarded. A previous version
+        // clamped the INPUT here (Math.min(dtSeconds, 0.25)), which
+        // silently and PERMANENTLY dropped any time beyond that per call.
+        // That's not just "catching up slowly": a client that hits this
+        // (a backgrounded/throttled tab — a passive spectator tab left
+        // unfocused is the common case, but any client's tab losing focus
+        // or the OS deprioritizing it counts) ends up processing FEWER
+        // total fixed steps over the battle's lifetime than one that
+        // never dropped frames, since the lost time is never made up —
+        // producing a genuinely different, wrong final result instead of
+        // just a delayed-but-identical one. See PixiJS ticker's own
+        // default minFPS=10 clamp (also disabled, in game.ts) for the
+        // other half of this — both layers were discarding time.
+        this.accumulator += dtSeconds;
         let steps = 0;
-        while (this.accumulator >= BattleSim.STEP) {
+        while (this.accumulator >= BattleSim.STEP && steps < BattleSim.MAX_STEPS_PER_UPDATE) {
             this.accumulator -= BattleSim.STEP;
             steps++;
             // stop EXACTLY at the deciding step — overshooting by a frame's

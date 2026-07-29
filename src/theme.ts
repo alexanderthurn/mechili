@@ -498,6 +498,11 @@ export function menuStyles(bars?: BarAssets): string {
 .mechili-menu .m-room-spectate { border-style: dashed; }
 .mechili-menu .m-room-spectate::before { content: '👁 '; }
 .mechili-menu .m-room-spectate:hover { border-color: ${u.hover}; }
+/* a running match with OUR OWN seat currently disconnected — resume it
+   instead of spectating */
+.mechili-menu .m-room-resume { border-color: ${u.brassLight}; border-style: solid; }
+.mechili-menu .m-room-resume::before { content: '↩ '; }
+.mechili-menu .m-room-resume:hover { border-color: ${u.hover}; }
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
 .mechili-menu .m-main {

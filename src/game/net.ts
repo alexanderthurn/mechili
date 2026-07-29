@@ -33,7 +33,7 @@ const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
 /** how long a star seat's connection may stay dropped before the host gives
  *  up and frees it — matches classic 1v1's RECONNECT_GRACE_SECONDS (main.ts) */
-export const STAR_RECONNECT_GRACE_MS = 30_000;
+export const STAR_RECONNECT_GRACE_MS = 90_000;
 
 /**
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
@@ -72,6 +72,17 @@ export function matchUrl(): string {
     return new URL('./backend/matchmaking.php', location.href).href;
 }
 
+/** one seat, as shown in the menu's room list — enough for a client to
+ *  recognize its own name and offer "resume" instead of "spectate" without
+ *  connecting first. Deliberately NOT `CanonicalSeatDef`: that's the wire's
+ *  own roster shape, seen only after connecting; this is the smaller,
+ *  public-facing subset the backend actually needs to store/return. */
+export interface RoomRosterEntry {
+    name: string;
+    side: 'a' | 'b';
+    connected: boolean;
+}
+
 export interface LobbyRoom {
     name: string;
     peer: string;
@@ -79,6 +90,15 @@ export interface LobbyRoom {
     /** `lobby` = waiting for a player, join normally; `spectate` = a match
      *  already running — connect to `peer` as a spectator instead */
     kind: 'lobby' | 'spectate';
+    /** only ever present on `kind: 'spectate'` rows — see spectate-register.
+     *  A client can match its OWN name against this to offer "resume" for a
+     *  seat currently shown `connected: false`, instead of "spectate". */
+    roster?: RoomRosterEntry[];
+    /** current round number — display-only for now */
+    round?: number;
+    /** opaque passthrough for whatever a future menu wants to show (map,
+     *  etc.) — the backend stores and returns it verbatim, never reads it */
+    data?: unknown;
 }
 
 /** the menu's global chat endpoint — chat.php next to matchmaking.php */
@@ -297,13 +317,27 @@ export type NetMessage =
      * the host cross-checks it against its own pending-reconnect state.
      */
     | { type: 'starRejoin'; seat: SeatId; version: number }
-    /** host's answer to a valid starRejoin: the full state to hydrate from,
-     *  vision-filtered by isRevealable for the RECLAIMING seat's own side
-     *  (same predicate StarHub.relayBuild already uses) — shaped like
-     *  classic 1v1's 'state' message. */
+    /**
+     * Host's answer to a valid reclaim (starRejoin, OR a starJoin whose name
+     * matched a currently-dropped seat — see StarHub.findDroppedSeatByName):
+     * the full state to hydrate from, vision-filtered by isRevealable for
+     * the RECLAIMING seat's own side (same predicate StarHub.relayBuild
+     * already uses) — shaped like classic 1v1's 'state' message.
+     *
+     * `seat`/`seed`/`settings`/`roster` are only load-bearing for a COLD
+     * reconnect (the reclaiming client's own Game object is gone — thrown
+     * back to the main menu, not an in-session redial) — that client has
+     * nothing else to construct a fresh Game instance from. An in-session
+     * redial's Game object already has all of these from its own
+     * construction and simply ignores the repeats.
+     */
     | {
           type: 'starResumeState';
           version: number;
+          seat: SeatId;
+          seed: number;
+          settings: GameSettings;
+          roster: CanonicalSeatDef[];
           actions: LoggedAction[];
           battleElapsed: number | null;
           phaseRemaining: number;
@@ -532,6 +566,7 @@ export interface HostHub {
     flushAllBuffers(): void;
     connectedSeats(): SeatId[];
     sideOf(seat: SeatId): 'a' | 'b';
+    currentRoster(): CanonicalSeatDef[];
     close(): void;
 }
 
@@ -633,6 +668,25 @@ export class StarHub implements HostHub {
                         return;
                     }
                     conn.off('data', onData);
+                    // A returning player whose OWN Game object is gone
+                    // (thrown back to the main menu, not an in-session
+                    // redial — that uses 'starRejoin' with a remembered
+                    // seat number instead) looks exactly like a fresh join
+                    // on the wire. Match by name against any currently-
+                    // dropped seat before treating it as one, reusing the
+                    // same reclaim path (and grace window) as an explicit
+                    // starRejoin.
+                    const droppedSeat = this.findDroppedSeatByName(msg.name);
+                    if (droppedSeat !== null) {
+                        if (msg.version !== GAME_VERSION || !this.reclaimSeat(droppedSeat, conn)) {
+                            conn.send({
+                                type: 'starRejoinRejected',
+                                reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
+                            });
+                            conn.close();
+                        }
+                        return;
+                    }
                     const seat = onJoin(msg.name, msg.version, conn);
                     if (seat === null) return; // onJoin already sent starRejected + closed
                     this.bySeat.set(seat, { conn, buffer: [] });
@@ -673,6 +727,18 @@ export class StarHub implements HostHub {
     /** call once a joining connection is accepted, before/with `starSetup` */
     setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void {
         this.roster = this.roster.map((s, i) => (i === seat ? entry : s));
+    }
+
+    /** a currently-dropped (conn: null, still within its grace window) seat
+     *  whose roster name matches — lets a returning player reclaim purely
+     *  by identity, with no memory of their own seat number (see the
+     *  'starJoin' branch of listen() for why that matters). */
+    private findDroppedSeatByName(name: string): SeatId | null {
+        for (const [seat, viewer] of this.bySeat) {
+            if (viewer.conn !== null) continue;
+            if (this.roster[seat]?.name === name) return seat;
+        }
+        return null;
     }
 
     /**
@@ -1626,24 +1692,50 @@ async function lobbyRegister(peerId: string, name: string, mode: '1v1' | '2v2' =
  * already establish, just tagged separately so it never shows up in the
  * normal "join as a player" room list.
  */
+export interface SpectateRegistration {
+    /** push the current snapshot to the backend right now, instead of
+     *  waiting for the next periodic heartbeat (up to HEARTBEAT_MS late
+     *  otherwise) — call this whenever the roster actually changes (a
+     *  drop, a reconnect, an AI takeover), so the room list reflects it
+     *  promptly enough for another player to trust "resume" vs "spectate". */
+    refreshNow: () => void;
+    stop: () => void;
+}
+
 export function registerSpectateEndpoint(
     peerId: string,
     roomName: string,
     mode: '1v1' | '2v2' = '1v1',
-): () => void {
+    /** queried fresh on every beat (periodic or forced) — never cached, so
+     *  round/roster always reflect the CURRENT match state, not whatever
+     *  it was at registration time */
+    snapshot: () => { roster?: RoomRosterEntry[]; round?: number; data?: unknown } = () => ({}),
+): SpectateRegistration {
     let stopped = false;
     const beat = () => {
-        void fetch(
-            `${matchUrl()}?action=spectate-register&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(roomName)}&mode=${mode}`,
-        ).catch(() => undefined);
+        if (stopped) return;
+        const snap = snapshot();
+        const params = new URLSearchParams({
+            action: 'spectate-register',
+            peer: peerId,
+            name: roomName,
+            mode,
+        });
+        if (snap.roster) params.set('roster', JSON.stringify(snap.roster));
+        if (snap.round !== undefined) params.set('round', String(snap.round));
+        if (snap.data !== undefined) params.set('data', JSON.stringify(snap.data));
+        void fetch(`${matchUrl()}?${params.toString()}`).catch(() => undefined);
     };
     beat();
     const heartbeat = setInterval(beat, HEARTBEAT_MS);
-    return () => {
-        if (stopped) return;
-        stopped = true;
-        clearInterval(heartbeat);
-        void lobbyLeave(peerId);
+    return {
+        refreshNow: beat,
+        stop: () => {
+            if (stopped) return;
+            stopped = true;
+            clearInterval(heartbeat);
+            void lobbyLeave(peerId);
+        },
     };
 }
 

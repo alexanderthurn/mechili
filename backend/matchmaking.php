@@ -15,16 +15,26 @@
  *       {"ok":true} or {"error":"..."}
  *   ?action=list
  *       Open public rooms AND currently-running (spectatable) matches:
- *       {"rooms":[{"name":"...","peer":"...","mode":"...","kind":"lobby"|"spectate"}]}
+ *       {"rooms":[{"name":"...","peer":"...","mode":"...","kind":"lobby"|"spectate",
+ *                  "roster":[{"name":"...","side":"a"|"b","connected":true}],
+ *                  "round":1,"data":{...}}]}
  *       `kind=lobby` rows are joinable (waiting for a player); `kind=spectate`
  *       rows are a running match — connect to `peer` as a spectator instead.
+ *       `roster`/`round`/`data` are only ever present on `kind=spectate` rows
+ *       (see spectate-register) — a menu can match its own player name
+ *       against `roster` to offer "resume your match" instead of "spectate".
  *   ?action=leave&peer=<peerjs-id>
  *       Remove the caller's queue, lobby, or spectate entry.
  *   ?action=spectate-register&peer=<peerjs-id>&name=<room-name>&mode=<1v1|2v2>
+ *                             &roster=<json>&round=<n>&data=<json>
  *       Register/heartbeat a live match's spectator broadcast endpoint —
  *       same shape as ?action=host, but tagged kind=spectate and kept alive
  *       for the WHOLE match (not just pre-match), so a match stays
  *       discoverable-for-watching after it starts. Shown by ?action=list.
+ *       `roster` is a JSON array of {name, side, connected} — refreshed every
+ *       heartbeat, so it reflects drops/reconnects/AI-takeovers live.
+ *       `round`/`data` are opaque passthrough (round: current round number;
+ *       data: whatever extra display info a future menu wants — map, etc.)
  *   ?action=spectate-lookup&name=<room-name>
  *       Find a live match's spectate endpoint by room name.
  *       {"peer":"<peerjs-id>"|null}
@@ -46,6 +56,17 @@ $name = trim($_GET['name'] ?? '');
 $mode = trim($_GET['mode'] ?? '1v1');
 if (!in_array($mode, ['1v1', '2v2'], true)) $mode = '1v1';
 
+/** decodes a caller-supplied JSON param defensively — bad/oversized input
+ *  becomes null rather than corrupting the shared store file. */
+function decodeJsonParam(?string $raw, int $maxLen) {
+    if ($raw === null || $raw === '' || strlen($raw) > $maxLen) return null;
+    $v = json_decode($raw, true);
+    return $v === null && $raw !== 'null' ? null : $v;
+}
+$rosterParam = decodeJsonParam($_GET['roster'] ?? null, 2000);
+$dataParam = decodeJsonParam($_GET['data'] ?? null, 2000);
+$roundParam = isset($_GET['round']) ? max(0, min(9999, (int) $_GET['round'])) : null;
+
 if ($action === 'list') {
     $fp = fopen(STORE, 'c+');
     if (!$fp || !flock($fp, LOCK_SH)) {
@@ -63,12 +84,18 @@ if ($action === 'list') {
         $kind = $r['kind'] ?? '';
         if ($kind !== 'lobby' && $kind !== 'spectate') continue;
         if ($now - ($r['ts'] ?? 0) > TTL) continue;
-        $open[] = [
+        $row = [
             'name' => $r['name'] ?? '',
             'peer' => $r['peer'] ?? '',
             'mode' => $r['mode'] ?? '1v1',
             'kind' => $kind,
         ];
+        if ($kind === 'spectate') {
+            if (isset($r['roster'])) $row['roster'] = $r['roster'];
+            if (isset($r['round'])) $row['round'] = $r['round'];
+            if (isset($r['data'])) $row['data'] = $r['data'];
+        }
+        $open[] = $row;
     }
     echo json_encode(['rooms' => $open]);
     exit;
@@ -162,7 +189,11 @@ if ($action === 'leave') {
     }
     // one spectate entry per peer id; name is the room it's spectating for
     $rooms = array_values(array_filter($rooms, fn($r) => ($r['peer'] ?? '') !== $peer));
-    $rooms[] = ['peer' => $peer, 'name' => $name, 'kind' => 'spectate', 'mode' => $mode, 'ts' => $now];
+    $entry = ['peer' => $peer, 'name' => $name, 'kind' => 'spectate', 'mode' => $mode, 'ts' => $now];
+    if ($rosterParam !== null) $entry['roster'] = $rosterParam;
+    if ($roundParam !== null) $entry['round'] = $roundParam;
+    if ($dataParam !== null) $entry['data'] = $dataParam;
+    $rooms[] = $entry;
     echo json_encode(['ok' => true]);
     ftruncate($fp, 0);
     rewind($fp);
