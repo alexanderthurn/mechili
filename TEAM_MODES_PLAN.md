@@ -750,6 +750,25 @@ reconnect race (`raceReconnectStrategies`, listen-vs-dial) could leave
 a fully-open but discarded connection dangling if both strategies
 happened to succeed.
 
+**Self-audit via independent fork review**: rather than relying solely
+on this same conversation re-reviewing its own work, spawned two
+separate forks with no stake in the prior reasoning to adversarially
+re-check the diffs. One found nothing in the sim-timing/AI-takeover
+fixes (confirms §3e's own two most consequential changes hold up). The
+other caught a real regression in the dangling-connection fix above,
+already shipped by the time it was caught: `closeIfLoser` called
+`NetSession.close()` on the losing reconnect-race strategy, but
+`close()`'s `peer.destroy()` tears down the entire underlying Peer —
+and both strategies in every real caller share ONE Peer object, so
+this would have destroyed the WINNING connection too, right at the
+moment a reconnect was supposed to succeed. Fixed with a new
+`NetSession.discardConnection()` (closes just this session's own
+connection, mirrors `StarGuestSession.discard()`, which already exists
+for the identical shared-Peer hazard). Worth remembering as a pattern:
+an autonomous session self-auditing its own reasoning is weaker than
+handing the diff to a fresh reviewer with no investment in the
+original fix being right.
+
 **Deliberately scoped out, not attempted this pass:**
 - Phase 2/3 of the cheat-safety plan (automating the currently-manual
   verify tool; commit-reveal encryption for build actions so a host
