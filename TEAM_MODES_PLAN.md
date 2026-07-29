@@ -769,6 +769,35 @@ an autonomous session self-auditing its own reasoning is weaker than
 handing the diff to a fresh reviewer with no investment in the
 original fix being right.
 
+**A more serious catch from the same practice — a real seat-hijack
+vulnerability, pre-existing (not introduced tonight), made more
+reliably exploitable by the liveness watchdog:** a third fork,
+specifically asked "does more-reliable disconnect detection make any
+latent bug easier to trigger," found that `StarHub.listen()`'s
+connection acceptor — wired once during the pre-match lobby — is never
+torn down or replaced when the match starts, and nothing ever told
+`StarHub`'s OWN roster that a seat became AI-controlled (neither
+`takeOverSeatWithAi`'s mid-match takeover, nor `startStarMatch`'s
+AI-fill of never-joined seats). Its stale `onJoin` closure hands out
+any seat where the roster still says `controller: 'human'` and the
+seat has no live connection. Concretely: a seat that quit and got
+AI-taken-over eventually ages out of `bySeat` once its reconnect grace
+window elapses — from that point on, ANY new peer (not the original
+player, not even a name match) could `starJoin`, get handed that seat
+by `nextOpenSeat()`, and receive the full `starResumeState` — the
+match's entire seed/settings/action log — as legitimate seat traffic.
+The same held for a seat AI-filled from the very start (host clicked
+Start before anyone joined it) — never in `bySeat` at all, so it
+looked permanently open. Fixed by having both `takeOverSeatWithAi` and
+`startStarMatch`/`startSteamStarMatch` call `hub.setRosterEntry` to
+keep the hub's own roster in sync with reality, closing the hole
+regardless of how long the stale listener stays wired. Confirms the
+same lesson as the reconnect-race regression above, one level up: it's
+not just about catching regressions in tonight's OWN new code — a
+fresh reviewer asking a genuinely different question ("what does
+*more reliable* X change about existing Y") found something the
+original author of Y never would have gone looking for.
+
 **Deliberately scoped out, not attempted this pass:**
 - Phase 2/3 of the cheat-safety plan (automating the currently-manual
   verify tool; commit-reveal encryption for build actions so a host
