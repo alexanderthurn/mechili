@@ -3388,6 +3388,25 @@ export class Game {
         const def = this.seats[seat];
         if (!def || def.controller === 'ai') return;
         this.seats[seat] = { ...def, controller: 'ai' };
+        // StarHub's OWN roster (not just this Game's local `this.seats`) has
+        // to reflect the takeover too — nextOpenSeat() reads StarHub.roster,
+        // not Game.seats, to decide whether a seat is available to hand to
+        // a brand-new joiner. Without this, the lobby's join-acceptor
+        // (wired once, before the match started, and never torn down —
+        // see StarHub.listen()) would keep believing this seat is still
+        // an unfilled human slot forever, and once this seat's own dropped
+        // connection eventually ages out of bySeat (its reconnect grace
+        // window elapsing), nextOpenSeat() would hand the seat to literally
+        // any stranger who happens to send starJoin — who'd then receive
+        // the full starResumeState (this match's entire seed/settings/
+        // action log) as if they were the original player.
+        if (this.star?.role === 'host') {
+            this.star.hub.setRosterEntry(seat, {
+                side: this.star.hub.sideOf(seat),
+                controller: 'ai',
+                name: def.name,
+            });
+        }
         const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
         const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
         this.extraAis.push({ ai, rng, team: def.team, seat });

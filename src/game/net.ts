@@ -666,6 +666,11 @@ export interface HostHub {
     connectedSeats(): SeatId[];
     sideOf(seat: SeatId): 'a' | 'b';
     currentRoster(): CanonicalSeatDef[];
+    /** corrects this hub's own roster entry for a seat — needed whenever a
+     *  seat's controller changes after the initial join (AI takeover,
+     *  AI-fill at match start): nextOpenSeat() reads this hub's roster, not
+     *  Game's local seat state, to decide what's available to a new joiner. */
+    setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void;
     close(): void;
 }
 
