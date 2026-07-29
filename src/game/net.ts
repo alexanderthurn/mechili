@@ -1244,7 +1244,12 @@ export interface SessionPending<T> {
 export class SpectatorHub {
     private readonly viewers = new Map<
         DataConnection,
-        { name: string; vision: SpectatorVision; buildBuffer: NetMessage[] }
+        {
+            name: string;
+            vision: SpectatorVision;
+            buildBuffer: NetMessage[];
+            liveness: { markSeen: () => void; stop: () => void };
+        }
     >();
 
     /** fired whenever a spectator connects or disconnects */
@@ -1314,7 +1319,16 @@ export class SpectatorHub {
 
     /** call once `onJoin` has accepted a spectator (sent `spectateAccepted`) */
     admit(name: string, conn: DataConnection, vision: SpectatorVision = { mode: 'battle' }): void {
-        this.viewers.set(conn, { name, vision, buildBuffer: [] });
+        // same app-level liveness watchdog as player connections (see
+        // watchLiveness's doc comment) — a spectator's hard browser-close
+        // deserves the same fast, consistent detection as a player's,
+        // rather than depending on however promptly WebRTC's own
+        // 'close'/'error' happens to fire for a non-orderly drop.
+        const liveness = watchLiveness(
+            () => conn.send({ type: 'ping' }),
+            () => this.drop(conn),
+        );
+        this.viewers.set(conn, { name, vision, buildBuffer: [], liveness });
         this.onRosterChange?.();
     }
 
@@ -1403,6 +1417,12 @@ export class SpectatorHub {
     }
 
     private onData(conn: DataConnection, msg: NetMessage): void {
+        this.viewers.get(conn)?.liveness.markSeen();
+        if (msg.type === 'ping') {
+            conn.send({ type: 'pong' });
+            return;
+        }
+        if (msg.type === 'pong') return;
         // spectators may only ever chat, or (dev-only) stream debug events
         if (msg.type === 'debugLog') {
             this.onSpectatorDebugLog?.(msg.events);
@@ -1415,7 +1435,10 @@ export class SpectatorHub {
     }
 
     private drop(conn: DataConnection): void {
-        if (!this.viewers.delete(conn)) return;
+        const viewer = this.viewers.get(conn);
+        if (!viewer) return;
+        viewer.liveness.stop();
+        this.viewers.delete(conn);
         this.onRosterChange?.();
     }
 
@@ -2001,25 +2024,34 @@ export class SpectatorSession {
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
     onClose: (() => void) | null = null;
+    private readonly liveness: { markSeen: () => void; stop: () => void };
 
     constructor(
         private readonly peer: Peer,
         private readonly conn: DataConnection,
     ) {
-        conn.on('data', (data) => {
-            const msg = data as NetMessage;
-            if (this.handler) this.handler(msg);
-            else this.backlog.push(msg);
-        });
         let closed = false;
         const fireClose = () => {
             if (closed) return;
             closed = true;
+            this.liveness.stop();
             this.onClose?.();
         };
+        conn.on('data', (data) => {
+            const msg = data as NetMessage;
+            this.liveness.markSeen();
+            if (msg.type === 'ping') {
+                conn.send({ type: 'pong' });
+                return;
+            }
+            if (msg.type === 'pong') return;
+            if (this.handler) this.handler(msg);
+            else this.backlog.push(msg);
+        });
         conn.on('close', fireClose);
         conn.on('error', fireClose);
         peer.on('error', fireClose);
+        this.liveness = watchLiveness(() => conn.send({ type: 'ping' }), fireClose);
     }
 
     attach(handler: (msg: NetMessage) => void): void {
@@ -2033,6 +2065,7 @@ export class SpectatorSession {
 
     close(): void {
         this.onClose = null;
+        this.liveness.stop();
         this.conn.close();
         this.peer.destroy();
     }
