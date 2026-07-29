@@ -8,6 +8,7 @@ import {
     HemisphereLight,
     MeshBasicMaterial,
     MeshLambertMaterial,
+    MeshNormalMaterial,
     PCFSoftShadowMap,
     PMREMGenerator,
     Scene,
@@ -269,10 +270,11 @@ export class Game {
     private appliedShadows: ShadowQuality = prefs().shadows;
     private readonly blobShadows: BlobShadows;
     private shadowMapFrame = 0;
-    /** debug: scene.overrideMaterial — off | clay (no textures) | wireframe */
-    private materialDebug: 'off' | 'clay' | 'wire' = 'off';
+    /** debug: scene.overrideMaterial — off | clay | wireframe | normals */
+    private materialDebug: 'off' | 'clay' | 'wire' | 'normals' = 'off';
     private readonly clayOverride = new MeshLambertMaterial({ color: 0xc8c2b4 });
     private readonly wireOverride = new MeshBasicMaterial({ color: 0x1a1a1a, wireframe: true });
+    private readonly normalsOverride = new MeshNormalMaterial();
     private readonly rallyVisuals: RallyVisuals;
     private readonly spellVisuals: SpellVisuals;
     /** hammer charge rings for the current battle (visual countdown) */
@@ -632,12 +634,12 @@ export class Game {
             this.cheatSpawnHordePacks();
             return;
         }
-        if (e.code === 'KeyT') {
-            // T = clay (no textures); Shift+T = wireframe
-            this.toggleMaterialDebug(e.shiftKey ? 'wire' : 'clay');
+        if (e.code === 'KeyT' && e.shiftKey) {
+            // Shift+T cycles material debug: clay → wireframe → normals → off
+            this.cycleMaterialDebug();
             return;
         }
-        if (e.code === 'KeyC') {
+        if (e.code === 'KeyC' && e.shiftKey) {
             this.toggleUiHidden();
             return;
         }
@@ -662,21 +664,23 @@ export class Game {
         if (hide) this.refreshCinemaHint();
     }
 
-    /** Cinema footer: `C — 1/11 Spring morning` (same scene text as the debug overlay). */
+    /** Cinema footer: `Shift+C — 1/11 Spring morning` (same scene text as the debug overlay). */
     private refreshCinemaHint(): void {
         if (!this.hud.isUiHidden) return;
-        this.hud.setCinemaHint(`C — ${this.weather?.sceneStatus() ?? '—'}`);
+        this.hud.setCinemaHint(`Shift+C — ${this.weather?.sceneStatus() ?? '—'}`);
     }
 
-    /** T / Shift+T debug: flat clay or wireframe for every mesh (no textures). */
-    private toggleMaterialDebug(mode: 'clay' | 'wire'): void {
-        if (this.materialDebug === mode) {
-            this.materialDebug = 'off';
-            this.scene.overrideMaterial = null;
-            return;
-        }
-        this.materialDebug = mode;
-        this.scene.overrideMaterial = mode === 'clay' ? this.clayOverride : this.wireOverride;
+    /** Shift+T debug: cycle clay → wireframe → normals → off for every mesh. */
+    private cycleMaterialDebug(): void {
+        const order = ['clay', 'wire', 'normals', 'off'] as const;
+        const i = order.indexOf(this.materialDebug);
+        const next = order[(i + 1) % order.length]!;
+        this.materialDebug = next;
+        this.scene.overrideMaterial =
+            next === 'clay' ? this.clayOverride
+            : next === 'wire' ? this.wireOverride
+            : next === 'normals' ? this.normalsOverride
+            : null;
     }
 
     /**
@@ -2010,6 +2014,7 @@ export class Game {
         this.scene.overrideMaterial = null;
         this.clayOverride.dispose();
         this.wireOverride.dispose();
+        this.normalsOverride.dispose();
         // drop any HTML HUD nodes still attached to the pixi canvas (html-in-canvas mode)
         for (const node of [...this.pixiApp.canvas.children]) {
             if (node instanceof HTMLElement) node.remove();

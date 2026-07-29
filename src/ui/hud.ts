@@ -2670,7 +2670,7 @@ export class Hud {
         }
     }
 
-    /** Update the cinema footer (e.g. `C — 1/11 Spring morning`). */
+    /** Update the cinema footer (e.g. `Shift+C — 1/11 Spring morning`). */
     setCinemaHint(text: string): void {
         if (!this.cinemaHint) return;
         this.cinemaHint.textContent = text;
