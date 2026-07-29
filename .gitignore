@@ -13,5 +13,9 @@ backend/players/open/**/*.json
 backend/players/results/*.json
 backend/players/sessions/*.json
 
-# Personal / source-only material (photos, Tripo dumps) — not shipped
-misc/
+# Personal / working dumps (photos, Tripo, Gemini sheets, concepts).
+# Icon masters in misc/icons/src are tracked — TexturePacker packs from them.
+misc/**
+!misc/icons/
+!misc/icons/src/
+!misc/icons/src/**

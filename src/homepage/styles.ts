@@ -800,7 +800,6 @@ body {
     #mh-tactics-grid > .mh-tactic.mh-active {
         width: 100%;
     }
-    #mh-tactics-grid > .mh-tactic.mh-active .mh-tactic-art,
     #mh-tactics-grid > .mh-tactic.mh-active .mh-tactic-icon {
         width: 100%;
         max-width: 100%;
@@ -926,6 +925,11 @@ body {
     font-size: 1.15rem;
     line-height: 1.2;
 }
+.mh-tech-ico.m-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 0;
+}
 .mh-tech-text {
     font-size: 13px;
     line-height: 1.4;
@@ -985,35 +989,15 @@ body {
     overflow: hidden;
     user-select: text;
 }
-.mh-tactic-art {
-    width: 50%;
-    max-width: 50%;
-    aspect-ratio: 16 / 10;
-    object-fit: cover;
-    display: block;
-    margin: 12px auto 0;
-    border-radius: 8px;
-    background: #1a2818;
-}
 .mh-tactic-icon {
-    display: grid;
-    place-items: center;
-    width: 50%;
-    margin: 12px auto 0;
-    aspect-ratio: 1;
-    font-size: 40px;
-    border-radius: 8px;
-    background:
-        radial-gradient(ellipse at 50% 60%, rgba(90, 140, 70, 0.35), transparent 65%),
-        ${u.panelBgSolid};
+    display: flex;
+    justify-content: center;
+    margin: 14px auto 0;
 }
 .mh-tactic-body {
     padding: 14px 14px 16px;
 }
 .mh-tactic-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     margin-bottom: 4px;
 }
 .mh-tactic-head h3 {
@@ -1021,9 +1005,10 @@ body {
     font-size: 1.05rem;
     color: ${u.brassLight};
 }
-.mh-tactic-emoji {
-    font-size: 1.25rem;
-    line-height: 1;
+.mh-tactic-tile.m-icon {
+    width: 72px;
+    height: 72px;
+    font-size: 0;
 }
 .mh-tactic-meta {
     margin: 0 0 8px;

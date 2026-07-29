@@ -163,7 +163,7 @@ export const TACTICS: Record<
     [RALLY_ROUTE_ID]: {
         id: RALLY_ROUTE_ID,
         name: 'Rally Route',
-        icon: '⚑',
+        icon: 'tactic-rally',
         kind: 'placement',
         targeting: 'two-point',
         cooldownRounds: 0,
@@ -174,7 +174,7 @@ export const TACTICS: Record<
     [OIL_SPILL_ID]: {
         id: OIL_SPILL_ID,
         name: 'Oil Spill',
-        icon: '🛢',
+        icon: 'tactic-oil',
         kind: 'placement',
         targeting: 'two-point',
         cooldownRounds: 1,
@@ -187,7 +187,7 @@ export const TACTICS: Record<
     [SELL_UNIT_ID]: {
         id: SELL_UNIT_ID,
         name: 'Sell Pack',
-        icon: '💰',
+        icon: 'tactic-sell',
         kind: 'oneShot',
         targeting: 'own-unit',
         cooldownRounds: 0,
@@ -197,7 +197,7 @@ export const TACTICS: Record<
     [SPAWN_DWARVES_ID]: {
         id: SPAWN_DWARVES_ID,
         name: 'Summon Dwarves',
-        icon: '⚒',
+        icon: 'tactic-summon-dwarves',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 1,
@@ -211,7 +211,7 @@ export const TACTICS: Record<
     [BIG_METEOR_ID]: {
         id: BIG_METEOR_ID,
         name: 'Great Meteor',
-        icon: '☄',
+        icon: 'tactic-meteor',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 3,
@@ -223,7 +223,7 @@ export const TACTICS: Record<
     [SPAWN_CROWS_ID]: {
         id: SPAWN_CROWS_ID,
         name: 'Summon Crow Riders',
-        icon: '🐦',
+        icon: 'tactic-summon-crows',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 1,
@@ -237,7 +237,7 @@ export const TACTICS: Record<
     [HAMMER_ID]: {
         id: HAMMER_ID,
         name: 'Hammer of the Gods',
-        icon: '🔨',
+        icon: 'tactic-hammer',
         kind: 'placement',
         targeting: 'point-yaw',
         cooldownRounds: 2,
@@ -250,7 +250,7 @@ export const TACTICS: Record<
     [STORM_ID]: {
         id: STORM_ID,
         name: 'Storm Call',
-        icon: '🌩',
+        icon: 'tactic-storm',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
@@ -265,7 +265,7 @@ export const TACTICS: Record<
     [METEOR_SHOWER_ID]: {
         id: METEOR_SHOWER_ID,
         name: 'Meteor Shower',
-        icon: '🌠',
+        icon: 'tactic-shower',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
@@ -288,7 +288,7 @@ export const TACTICS: Record<
     [ACID_ID]: {
         id: ACID_ID,
         name: 'Acid Spill',
-        icon: '🧪',
+        icon: 'tactic-acid',
         kind: 'placement',
         targeting: 'two-point',
         cooldownRounds: ACID_SPILL_DURATION_ROUNDS,
@@ -301,7 +301,7 @@ export const TACTICS: Record<
     [FIRE_SPILL_ID]: {
         id: FIRE_SPILL_ID,
         name: 'Fire Spill',
-        icon: '🔥',
+        icon: 'tactic-fire',
         kind: 'placement',
         targeting: 'two-point',
         cooldownRounds: 1,
@@ -313,7 +313,7 @@ export const TACTICS: Record<
     [DRAGON_ID]: {
         id: DRAGON_ID,
         name: 'Dragon Attack',
-        icon: '🐉',
+        icon: 'tactic-dragon',
         kind: 'placement',
         targeting: 'two-point',
         cooldownRounds: 3,
@@ -329,7 +329,7 @@ export const TACTICS: Record<
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,
         name: 'Poison Cloud',
-        icon: '☠',
+        icon: 'tactic-poison',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
@@ -568,4 +568,25 @@ export function clampTacticPoint(
         x: Math.max(-halfW + radius, Math.min(halfW - radius, x)),
         z: Math.max(-halfH + radius, Math.min(halfH - radius, z)),
     };
+}
+
+/** Short glyphs for canvas / ground markers (atlas sprites are HUD-only). */
+const TACTIC_WORLD_GLYPH: Record<string, string> = {
+    [RALLY_ROUTE_ID]: '⚑',
+    [OIL_SPILL_ID]: '🛢',
+    [SELL_UNIT_ID]: '💰',
+    [SPAWN_DWARVES_ID]: '⚒',
+    [BIG_METEOR_ID]: '☄',
+    [SPAWN_CROWS_ID]: '🐦',
+    [HAMMER_ID]: '🔨',
+    [STORM_ID]: '🌩',
+    [METEOR_SHOWER_ID]: '🌠',
+    [ACID_ID]: '🧪',
+    [FIRE_SPILL_ID]: '🔥',
+    [DRAGON_ID]: '🐉',
+    [POISON_CLOUD_ID]: '☠',
+};
+
+export function tacticWorldGlyph(tacticId: string): string {
+    return TACTIC_WORLD_GLYPH[tacticId] ?? '✦';
 }

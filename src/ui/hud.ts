@@ -7,6 +7,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
+import { iconHtml, applyIcon, iconCss } from './iconAtlas';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -107,7 +108,7 @@ export interface SelectionInfo {
         affordable: boolean;
         all?: { count: number; cost: number; affordable: boolean };
     };
-    /** buyable / inspectable techs (own packs always; enemy after intel fog lifts) */
+    /** buyable / inspectable techs (phase-start intel while fogged; always listed) */
     techs?: { id: string; name: string; desc: string; icon: string; cost: number; owned: boolean; affordable: boolean }[];
     /** base buildings render their level as N / maxLevel and hide XP */
     structure?: boolean;
@@ -130,6 +131,7 @@ export interface SelectionInfo {
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
     /** gift supply to your ally (Stronghold only, team modes) */
+    /** ally supply gift (Stronghold, duo+); shown whenever the building is selected */
     sendSupply?: { amount: number; affordable: boolean };
 }
 
@@ -344,7 +346,7 @@ export class Hud {
         shopToolbar.className = 'shop-toolbar';
         this.undoEl = document.createElement('button');
         this.undoEl.className = 'undo';
-        this.undoEl.textContent = '↩ Undo';
+        this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico')} Undo`;
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
         shopToolbar.append(this.undoEl);
@@ -583,15 +585,15 @@ export class Hud {
         this.phoneBar = document.createElement('div');
         this.phoneBar.className = 'mechili-phonebar';
         const phoneTabs: ['shop' | 'unit' | 'tactics' | 'chat', string, string][] = [
-            ['shop', '⬢', 'Shop'],
-            ['unit', '⚔', 'Unit'],
-            ['tactics', '✨', 'Tactics'],
-            ['chat', '💬', 'Chat'],
+            ['shop', 'ui-shop', 'Shop'],
+            ['unit', 'ui-unit', 'Unit'],
+            ['tactics', 'ui-tactics', 'Tactics'],
+            ['chat', 'ui-chat', 'Chat'],
         ];
         for (const [tab, icon, label] of phoneTabs) {
             const button = document.createElement('button');
             button.className = `pb-tab pb-${tab}`;
-            button.innerHTML = `<span class="pb-ico">${icon}</span><span class="pb-label">${label}</span>`;
+            button.innerHTML = `${iconHtml(icon, 'pb-ico')}<span class="pb-label">${label}</span>`;
             button.addEventListener('click', () =>
                 this.setPhoneTab(this.phoneTab === tab ? null : tab),
             );
@@ -610,11 +612,11 @@ export class Hud {
         this.touchUpgradeBtn.addEventListener('click', () => this.onUpgradeTower?.());
         this.touchMoveBtn = document.createElement('button');
         this.touchMoveBtn.className = 'ta-btn ta-move';
-        this.touchMoveBtn.innerHTML = `<span class="pb-ico">✥</span><span class="pb-label">Move</span>`;
+        this.touchMoveBtn.innerHTML = `${iconHtml('ui-move', 'pb-ico')}<span class="pb-label">Move</span>`;
         this.touchMoveBtn.addEventListener('click', () => this.onTouchPickUp?.());
         this.touchRotateBtn = document.createElement('button');
         this.touchRotateBtn.className = 'ta-btn ta-rotate';
-        this.touchRotateBtn.innerHTML = `<span class="pb-ico">⟳</span><span class="pb-label">Rotate</span>`;
+        this.touchRotateBtn.innerHTML = `${iconHtml('ui-rotate', 'pb-ico')}<span class="pb-label">Rotate</span>`;
         this.touchRotateBtn.addEventListener('click', () => this.onTouchRotate?.());
         for (const btn of [
             this.touchLevelBtn,
@@ -633,7 +635,7 @@ export class Hud {
         this.phoneStatusEl.className = 'mechili-phone-status';
         this.phoneUndoEl = document.createElement('button');
         this.phoneUndoEl.className = 'undo';
-        this.phoneUndoEl.textContent = '↩ Undo';
+        this.phoneUndoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico')} Undo`;
         this.phoneUndoEl.addEventListener('click', () => this.onUndo?.());
         const phoneSupplyFrame = document.createElement('div');
         phoneSupplyFrame.className = 'mechili-supply clickable';
@@ -651,7 +653,7 @@ export class Hud {
         // far away from End Deployment (the topbar twin hides on phone)
         this.phoneMenuEl = document.createElement('button');
         this.phoneMenuEl.className = 'mechili-phone-menu';
-        this.phoneMenuEl.textContent = '☰';
+        this.phoneMenuEl.innerHTML = iconHtml('ui-menu', 'btn-ico');
         this.phoneMenuEl.title = 'Menu (Esc)';
         this.phoneMenuEl.addEventListener('click', () => this.onMenuToggle?.());
         this.phoneStatusEl.append(
@@ -763,21 +765,21 @@ export class Hud {
             this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
             if (levelUp) {
                 this.touchLevelBtn.innerHTML =
-                    `<span class="pb-ico">🔼</span>` +
+                    `${iconHtml('ability-level', 'pb-ico')}` +
                     `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
                 this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
             }
             this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
             if (levelAll) {
                 this.touchLevelAllBtn.innerHTML =
-                    `<span class="pb-ico">⏫</span>` +
+                    `${iconHtml('ability-level-type', 'pb-ico')}` +
                     `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
                 this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
             }
             this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
             if (upgrade) {
                 this.touchUpgradeBtn.innerHTML =
-                    `<span class="pb-ico">🔼</span>` +
+                    `${iconHtml('ability-level', 'pb-ico')}` +
                     `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
                 this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
             }
@@ -859,7 +861,8 @@ export class Hud {
         this.chatBar = bar;
         bar.className = 'mechili-chat';
         const emoteButtons = EMOTES.map(
-            (e) => `<button type="button" class="c-emote" data-emote="${e.id}" title="${e.label}">${e.icon}</button>`,
+            (e) =>
+                `<button type="button" class="c-emote" data-emote="${e.id}" title="${e.label}">${iconHtml(e.icon, 'c-emote-ico')}</button>`,
         ).join('');
         bar.innerHTML =
             `<div class="c-strip">Chat</div>` +
@@ -937,7 +940,7 @@ export class Hud {
     /** shows a chat item: bubble at the sender's fighter card + floating line */
     addChat(name: string, item: ChatItem, from: 'local' | 'remote'): void {
         if (!prefs().combatChat) return; // combat chat fully hidden
-        const icon = item.kind === 'emote' ? (emoteById(item.id)?.icon ?? '❓') : null;
+        const iconId = item.kind === 'emote' ? (emoteById(item.id)?.icon ?? null) : null;
         const text = item.kind === 'text' ? item.text : (emoteById(item.id)?.label ?? '');
 
         // bubble under the sender's commander chip (one at a time per side)
@@ -949,18 +952,24 @@ export class Hud {
         fighter.querySelector('.chat-bubble')?.remove();
         const bubble = document.createElement('div');
         bubble.className = `chat-bubble ${item.kind}`;
-        bubble.textContent = icon ?? text;
+        if (iconId) bubble.innerHTML = iconHtml(iconId, 'chat-emote-ico');
+        else bubble.textContent = text;
         fighter.appendChild(bubble);
         setTimeout(() => bubble.remove(), 4500);
 
-        // floating line above the chat bar (XSS-safe: textContent only)
+        // floating line above the chat bar (XSS-safe: textContent only for text)
         const line = document.createElement('div');
         line.className = `cf-msg ${from}`;
         const who = document.createElement('span');
         who.className = 'cf-name';
         who.textContent = name;
         const what = document.createElement('span');
-        what.textContent = icon ? ` ${icon} ${text}` : ` ${text}`;
+        what.className = 'cf-body';
+        if (iconId) {
+            what.innerHTML = ` ${iconHtml(iconId, 'chat-emote-ico')} ${escapeHtml(text)}`;
+        } else {
+            what.textContent = ` ${text}`;
+        }
         line.append(who, what);
         this.chatFloat.appendChild(line);
         while (this.chatFloat.children.length > 4) this.chatFloat.firstChild?.remove();
@@ -1105,7 +1114,7 @@ export class Hud {
                   .map(
                       (i, index) =>
                           `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
-                          `<span class="i">${i.icon}</span></button>`,
+                          `${iconHtml(i.icon)}</button>`,
                   )
                   .join('')
             : '';
@@ -1140,7 +1149,7 @@ export class Hud {
                               : '';
                       return (
                           `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr} title="${escapeAttr(hint)}">` +
-                          `<span class="i">${t.icon}</span>${cd}</button>`
+                          `${iconHtml(t.icon)}${cd}</button>`
                       );
                   })
                   .join('')
@@ -1161,7 +1170,8 @@ export class Hud {
                 this.itemGhost.remove();
                 this.itemGhost = null;
             } else {
-                this.itemGhost.textContent = picked.icon;
+                this.itemGhost.className = 'inv-drag m-icon';
+                applyIcon(this.itemGhost, picked.icon);
             }
         }
     }
@@ -1184,7 +1194,7 @@ export class Hud {
                   .map(
                       (i) =>
                           `<span class="inv-item readonly" title="${i.name}">` +
-                          `<span class="i">${i.icon}</span></span>`,
+                          `${iconHtml(i.icon)}</span>`,
                   )
                   .join('')
             : '';
@@ -1194,14 +1204,14 @@ export class Hud {
                   .map(
                       (t) =>
                           `<span class="inv-item readonly tactic" title="${t.name}">` +
-                          `<span class="i">${t.icon}</span></span>`,
+                          `${iconHtml(t.icon)}</span>`,
                   )
                   .join('')
             : '';
         const abilityHtml = options.sellAbility
             ? this.invSectionTitle('Enemy abilities', 1, total) +
               `<span class="inv-item readonly" title="Sell packs (unlocked)">` +
-              `<span class="i">↩</span></span>`
+              `${iconHtml('ability-selling')}</span>`
             : '';
         this.enemyInventoryEl.innerHTML = itemHtml + tacticHtml + abilityHtml;
         this.enemyInventoryEl.classList.toggle('folded', this.enemyInventoryCollapsed);
@@ -1316,8 +1326,10 @@ export class Hud {
             return;
         }
         const label =
-            info.count >= 2 ? `★ Level all (${info.count})` : '★ Level up';
-        const html = `<span class="title">${label}</span><span class="cost">${info.cost}</span>`;
+            info.count >= 2 ? `Level all (${info.count})` : 'Level up';
+        const html =
+            `${iconHtml('ability-level-all', 'lag-ico')}` +
+            `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
         // the shop-toolbar button and its phone twin (top-right strip) mirror each other
         for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
             btn.style.display = '';
@@ -1500,7 +1512,7 @@ export class Hud {
         if (!levelOnBar && info.levelUp?.ready) {
             levelTiles.push({
                 data: 'data-levelup="1"',
-                icon: '🔼',
+                icon: 'ability-level',
                 title: 'Level Up',
                 desc: 'Raise this pack one level — it gains its base HP and damage again. Costs banked XP plus supply.',
                 cost: info.levelUp.cost,
@@ -1509,7 +1521,7 @@ export class Hud {
             if (info.levelUp.all) {
                 levelTiles.push({
                     data: 'data-levelall="1"',
-                    icon: '⏫',
+                    icon: 'ability-level-type',
                     title: `Level All (${info.levelUp.all.count})`,
                     desc: 'Level every ready pack of this type at once.',
                     cost: info.levelUp.all.cost,
@@ -1522,7 +1534,7 @@ export class Hud {
             const tu = info.towerUpgrade;
             levelTiles.push({
                 data: 'data-towerupgrade="1"',
-                icon: '🔼',
+                icon: 'ability-level',
                 title: tu.maxed ? `Max level (${info.level})` : `Upgrade — level ${info.level + 1}`,
                 desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
                 cost: tu.maxed ? undefined : tu.cost,
@@ -1532,7 +1544,7 @@ export class Hud {
         for (const b of info.boosts ?? []) {
             tiles.push({
                 data: `data-boost="${b.id}"`,
-                icon: b.id === 'attack' ? '⚔️' : '🛡️',
+                icon: b.id === 'attack' ? 'ability-atk-boost' : 'ability-hp-boost',
                 title: b.label,
                 desc:
                     b.id === 'attack'
@@ -1545,7 +1557,7 @@ export class Hud {
         if (info.recruit) {
             tiles.push({
                 data: 'data-recruit="1"',
-                icon: '2️⃣',
+                icon: 'ability-plus-l2',
                 title: 'Recruit at Level 2',
                 desc: 'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
                 cost: info.recruit.cost,
@@ -1555,7 +1567,7 @@ export class Hud {
         if (info.deploySlot) {
             tiles.push({
                 data: 'data-deployslot="1"',
-                icon: '➕',
+                icon: 'ability-plus-deploy',
                 title: '+1 Deployment',
                 desc: 'One extra unit purchase this round only.',
                 cost: info.deploySlot.cost,
@@ -1565,7 +1577,7 @@ export class Hud {
         if (info.rangeBoost) {
             tiles.push({
                 data: 'data-rangeboost="1"',
-                icon: '🎯',
+                icon: 'ability-range',
                 title: 'Range Boost',
                 desc: `+${info.rangeBoost.bonus} range for all ranged units, this round only.`,
                 cost: info.rangeBoost.cost,
@@ -1575,7 +1587,7 @@ export class Hud {
         if (info.speedBoost) {
             tiles.push({
                 data: 'data-speedboost="1"',
-                icon: '💨',
+                icon: 'ability-speed',
                 title: 'Speed Boost',
                 desc: `+${info.speedBoost.bonus} speed for all units, this round only.`,
                 cost: info.speedBoost.cost,
@@ -1585,7 +1597,7 @@ export class Hud {
         if (info.credit) {
             tiles.push({
                 data: 'data-credit="1"',
-                icon: '💳',
+                icon: 'ability-credit',
                 title: 'Credit',
                 desc: `+${info.credit.gain} supply now. Next deployment: −${info.credit.debt}. Once per round.`,
                 state: info.credit.active ? 'owned' : info.credit.affordable ? 'buy' : 'locked',
@@ -1594,7 +1606,7 @@ export class Hud {
         if (info.sellAbility) {
             tiles.push({
                 data: 'data-sellability="1"',
-                icon: '💰',
+                icon: 'ability-selling',
                 title: 'Unlock Selling',
                 desc: 'Permanently unlock selling packs (up to one per deployment phase).',
                 cost: info.sellAbility.cost,
@@ -1604,7 +1616,7 @@ export class Hud {
         if (info.sendSupply) {
             tiles.push({
                 data: 'data-sendsupply="1"',
-                icon: '🎁',
+                icon: 'ability-gift-supply',
                 title: `Send ${info.sendSupply.amount} to Ally`,
                 desc: `Gift ${info.sendSupply.amount} supply to your ally — arrives at the start of next round.`,
                 state: info.sendSupply.affordable ? 'buy' : 'locked',
@@ -1613,7 +1625,7 @@ export class Hud {
         if (info.rallyRouteAbility) {
             tiles.push({
                 data: 'data-rallyroute="1"',
-                icon: '⚑',
+                icon: 'tactic-rally',
                 title: 'Buy Rally Route',
                 desc: 'Add one rally-route charge to your tactics. Once per match.',
                 cost: info.rallyRouteAbility.cost,
@@ -1641,7 +1653,7 @@ export class Hud {
             ? `<div class="item-row">${info.items
                   .map(
                       (i) =>
-                          `<span class="item-sq" data-ttitle="${escapeAttr(i.name)}" data-tdesc="${escapeAttr(i.desc ?? i.name)}" data-ticon="${escapeAttr(i.icon)}">${i.icon}</span>`,
+                          `<span class="item-sq m-icon" style="${iconCss(i.icon)}" data-ttitle="${escapeAttr(i.name)}" data-tdesc="${escapeAttr(i.desc ?? i.name)}" data-ticon="${escapeAttr(i.icon)}"></span>`,
                   )
                   .join('')}</div>`
             : '';
@@ -1702,7 +1714,7 @@ export class Hud {
                         ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
                         ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
                         ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +
-                        `<span class="at-icon">${t.icon}</span>${badge}</button>`
+                        `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>${badge}</button>`
                     );
                 })
                 .join('') +
@@ -1729,7 +1741,7 @@ export class Hud {
                 ? `<button type="button" class="ai-buy">Buy${cost ? ` · ⬢ ${cost}` : ''}</button>`
                 : '';
         frame.innerHTML =
-            `<div class="ai-head"><span class="ai-icon">${d.ticon ?? ''}</span>` +
+            `<div class="ai-head">${d.ticon ? iconHtml(d.ticon, 'ai-icon') : ''}` +
             `<span class="ai-title">${d.ttitle ?? ''}</span></div>` +
             `<div class="ai-desc">${d.tdesc ?? ''}</div>` +
             note +

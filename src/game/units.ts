@@ -97,21 +97,13 @@ export interface TechDef {
     fire?: import('./fire').FireProfile;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
-    /** glyph for the action tile; auto-derived from `mods` when omitted */
+    /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
     icon?: string;
 }
 
-/** glyph representing a tech — its own, or one derived from its dominant mod.
- *  Emoji throughout so every action tile fills its box at a consistent size. */
+/** atlas id for a tech — its own, or `tech-default` if missing (intentional red flag). */
 export function techIcon(tech: TechDef): string {
-    if (tech.icon) return tech.icon;
-    const m = tech.mods;
-    if (m.damage !== undefined && m.damage !== 1) return '⚔️';
-    if (m.hp !== undefined && m.hp !== 1) return '🛡️';
-    if (m.range !== undefined && m.range !== 1) return '🎯';
-    if (m.speed !== undefined && m.speed !== 1) return '💨';
-    if (m.attackInterval !== undefined && m.attackInterval !== 1) return '🔄';
-    return '✨';
+    return tech.icon ?? 'tech-default';
 }
 
 /** human-readable summary of what a tech does — its own text, or built from its mods */
@@ -532,8 +524,8 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 0.7,
         speed: 9,
         techs: [
-            { id: 'legs', name: 'Fleet Feet', cost: 150, mods: { speed: 1.35 } },
-            { id: 'carapace', name: 'Stone Hide', cost: 200, mods: { hp: 1.5 } },
+            { id: 'legs', name: 'Fleet Feet', cost: 150, mods: { speed: 1.35 }, icon: 'tech-fleet-feet' },
+            { id: 'carapace', name: 'Stone Hide', cost: 200, mods: { hp: 1.5 }, icon: 'tech-stone-hide' },
         ],
         build: buildDwarf,
     },
@@ -557,14 +549,14 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.4,
         speed: 3.5,
         techs: [
-            { id: 'barrel', name: 'Longbow', cost: 200, mods: { range: 1.3 } },
-            { id: 'ap', name: 'Piercing Arrows', cost: 250, mods: { damage: 1.4 } },
+            { id: 'barrel', name: 'Longbow', cost: 200, mods: { range: 1.3 }, icon: 'tech-longbow' },
+            { id: 'ap', name: 'Piercing Arrows', cost: 250, mods: { damage: 1.4 }, icon: 'tech-piercing-arrows' },
             {
                 id: 'fireArrows',
                 name: 'Fire Arrows',
                 cost: 250,
                 mods: {},
-                icon: '🔥',
+                icon: 'tech-fire-arrows',
                 description:
                     'Arrows leave a brief ground fire and burn — enough to ignite oil puddles.',
                 fire: {
@@ -597,8 +589,8 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.1,
         speed: 8,
         techs: [
-            { id: 'engines', name: 'Gale Wings', cost: 150, mods: { speed: 1.3 } },
-            { id: 'stingers', name: 'Crow Talons', cost: 200, mods: { damage: 1.4 } },
+            { id: 'engines', name: 'Gale Wings', cost: 150, mods: { speed: 1.3 }, icon: 'tech-gale-wings' },
+            { id: 'stingers', name: 'Crow Talons', cost: 200, mods: { damage: 1.4 }, icon: 'tech-crow-talons' },
         ],
         build: buildCrowRider,
     },
@@ -628,14 +620,14 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 3.8,
         speed: 2.2,
         techs: [
-            { id: 'armor', name: 'Iron Plating', cost: 300, mods: { hp: 1.5 } },
-            { id: 'autoloader', name: 'Quick Winch', cost: 300, mods: { attackInterval: 0.7 } },
+            { id: 'armor', name: 'Iron Plating', cost: 300, mods: { hp: 1.5 }, icon: 'tech-iron-plating' },
+            { id: 'autoloader', name: 'Quick Winch', cost: 300, mods: { attackInterval: 0.7 }, icon: 'tech-quick-winch' },
             {
                 id: 'golden',
                 name: 'Golden Aura',
                 cost: 50,
                 mods: {},
-                icon: '✨',
+                icon: 'tech-golden-aura',
                 description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
             },
             {
@@ -643,7 +635,7 @@ export const UNIT_TYPES: UnitType[] = [
                 name: 'Pitch Bolts',
                 cost: 350,
                 mods: {},
-                icon: '🛢',
+                icon: 'tech-pitch-bolts',
                 description: 'Bolts splash oil on impact (does not ignite — pair with fire arrows or a Fire Bolt).',
                 fire: {
                     oil: { radius: 10 },

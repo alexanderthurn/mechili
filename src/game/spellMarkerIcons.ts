@@ -12,6 +12,7 @@ import {
     SPAWN_DWARVES_ID,
     STORM_ID,
     TACTICS,
+    tacticWorldGlyph,
 } from './tactics';
 
 /** radial glow tint behind each spell's ground icon */
@@ -40,8 +41,8 @@ export class SpellIconTextures {
         this.hammerTex = makeHammerFlatTexture();
         for (const id of MARKER_TACTIC_IDS) {
             if (id === HAMMER_ID) continue;
-            const icon = TACTICS[id]?.icon;
-            if (icon) this.emoji.set(id, makeEmojiSpellTexture(icon, MARKER_GLOW[id]!));
+            const icon = tacticWorldGlyph(id);
+            if (TACTICS[id]) this.emoji.set(id, makeEmojiSpellTexture(icon, MARKER_GLOW[id]!));
         }
     }
 
