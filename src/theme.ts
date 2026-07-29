@@ -2943,8 +2943,7 @@ export function hudStyles(bars?: BarAssets): string {
 }
 .mechili-fightbar .fighter-stack.player { left: 0; align-items: stretch; }
 .mechili-fightbar .fighter-stack.enemy { right: 0; align-items: stretch; }
-.mechili-fightbar .fighter-stack.multi .fighter {
-    min-width: 0;
+.mechili-fightbar .fighter-stack.multi .fighter-content {
     padding: 6px 10px;
     gap: 8px;
 }
@@ -2954,16 +2953,12 @@ export function hudStyles(bars?: BarAssets): string {
     top: auto;
     left: auto;
     right: auto;
-    display: flex;
-    align-items: center;
-    gap: 10px;
     width: 100%;
     box-sizing: border-box;
     min-width: 200px;
-    padding: 8px 12px;
-    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
+    overflow: hidden;
     border: 2px solid ${u.border};
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     pointer-events: auto;
     cursor: pointer;
 }
@@ -2975,8 +2970,20 @@ export function hudStyles(bars?: BarAssets): string {
 .mechili-fightbar .fighter.enemy {
     border-right: none;
     border-top: none;
-    flex-direction: row-reverse;
     border-radius: 0 0 0 10px;
+}
+.mechili-fightbar .fighter-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    box-sizing: border-box;
+}
+.mechili-fightbar .fighter.enemy .fighter-content {
+    flex-direction: row-reverse;
 }
 .mechili-fightbar .portrait-group {
     position: relative;
@@ -3033,9 +3040,19 @@ export function hudStyles(bars?: BarAssets): string {
     width: 100%;
     height: 100%;
 }
-.mechili-fightbar .fighter.player .portrait { color: ${pc}; }
-.mechili-fightbar .fighter.enemy .portrait { color: ${ec}; }
-.mechili-fightbar .fighter-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mechili-fightbar .fighter.player .portrait { color: #ffffff; }
+.mechili-fightbar .fighter.enemy .portrait { color: #ffffff; }
+.mechili-fightbar .fighter-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.mechili-fightbar .fighter.enemy .fighter-info {
+    flex-direction: row-reverse;
+}
 .mechili-fightbar .fname {
     font-size: 15px;
     font-weight: bold;
@@ -3043,9 +3060,11 @@ export function hudStyles(bars?: BarAssets): string {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
-.mechili-fightbar .fighter.player .fname { color: ${pc}; text-align: left; }
-.mechili-fightbar .fighter.enemy .fname { color: ${ec}; text-align: right; }
+.mechili-fightbar .fighter.player .fname { text-align: left; }
+.mechili-fightbar .fighter.enemy .fname { text-align: right; }
 .mechili-fightbar .fspec {
     display: none;
 }
@@ -3057,12 +3076,11 @@ export function hudStyles(bars?: BarAssets): string {
 .mechili-fightbar .fighter.has-spec { pointer-events: auto; cursor: pointer; }
 .mechili-fightbar .fighter.has-spec:hover { border-color: ${u.hover}; }
 .mechili-fightbar .hp-track {
-    height: 22px;
+    position: absolute;
+    inset: 0;
     background: ${u.barTrack};
-    border: 1px solid ${u.border};
-    border-radius: 8px;
     overflow: hidden;
-    position: relative;
+    pointer-events: none;
 }
 .mechili-fightbar .fighter.player .hp-track { direction: ltr; }
 .mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
@@ -3086,21 +3104,13 @@ export function hudStyles(bars?: BarAssets): string {
     transform-origin: right center;
 }
 .mechili-fightbar .hp-val {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-shrink: 0;
     font-size: 13px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
     color: #ffffff;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
     pointer-events: none;
-    z-index: 2;
 }
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
@@ -3449,15 +3459,14 @@ ${gamepadCursorStyles(u)}
         width: min(31vw, 210px);
         min-width: 0;
     }
-    .mechili-fightbar .fighter {
-        min-width: 0;
+    .mechili-fightbar .fighter { min-width: 0; }
+    .mechili-fightbar .fighter-content {
         gap: 6px;
         padding: 4px 8px;
     }
     .mechili-fightbar .portrait-group { display: none; }
     .mechili-fightbar .fname { font-size: 11px; letter-spacing: 0.4px; }
-    .mechili-fightbar .fighter-info { gap: 3px; }
-    .mechili-fightbar .hp-track { height: 14px; }
+    .mechili-fightbar .fighter-info { gap: 4px; }
     .mechili-fightbar .hp-val { font-size: 10px; }
     .mechili-topbar { top: calc(2px + env(safe-area-inset-top)); gap: 2px; }
     .mechili-topbar .round { font-size: 11px; }
