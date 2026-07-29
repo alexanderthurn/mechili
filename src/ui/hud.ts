@@ -1558,16 +1558,6 @@ export class Hud {
                 state: b.maxed ? 'owned' : b.affordable ? 'buy' : 'locked',
             });
         }
-        if (info.recruit) {
-            tiles.push({
-                data: 'data-recruit="1"',
-                icon: 'ability-plus-l2',
-                title: 'Recruit at Level 2',
-                desc: 'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
-                cost: info.recruit.cost,
-                state: info.recruit.active ? 'owned' : info.recruit.affordable ? 'buy' : 'locked',
-            });
-        }
         if (info.deploySlot) {
             tiles.push({
                 data: 'data-deployslot="1"',
@@ -1576,6 +1566,16 @@ export class Hud {
                 desc: 'One extra unit purchase this round only.',
                 cost: info.deploySlot.cost,
                 state: info.deploySlot.active ? 'owned' : info.deploySlot.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.recruit) {
+            tiles.push({
+                data: 'data-recruit="1"',
+                icon: 'ability-plus-l2',
+                title: 'Recruit at Level 2',
+                desc: 'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
+                cost: info.recruit.cost,
+                state: info.recruit.active ? 'owned' : info.recruit.affordable ? 'buy' : 'locked',
             });
         }
         if (info.rangeBoost) {
@@ -1604,6 +1604,7 @@ export class Hud {
                 icon: 'ability-credit',
                 title: 'Credit',
                 desc: `+${info.credit.gain} supply now. Next deployment: −${info.credit.debt}. Once per round.`,
+                cost: info.credit.active ? undefined : -info.credit.gain,
                 state: info.credit.active ? 'owned' : info.credit.affordable ? 'buy' : 'locked',
             });
         }
@@ -1737,7 +1738,7 @@ export class Hud {
             state === 'owned'
                 ? `<span class="ai-cost owned">✓ Owned</span>`
                 : cost
-                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? `Refund +${-Number(cost)}` : `⬢ ${cost}`}</span>`
+                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? `+${-Number(cost)} Supply` : `⬢ ${cost}`}</span>`
                   : '';
         const note = d.tnote ? `<div class="ai-note">${d.tnote}</div>` : '';
         const touchBuy =

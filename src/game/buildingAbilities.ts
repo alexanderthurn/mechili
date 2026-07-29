@@ -70,17 +70,17 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
     if (type.id === RESEARCH_CENTER.id) {
         out.push(
             {
+                icon: 'ability-plus-deploy',
+                name: '+1 Deployment',
+                cost: s.deploy.extraSlotCost,
+                description: 'One extra unit purchase this round only.',
+            },
+            {
                 icon: 'ability-plus-l2',
                 name: 'Veteran Training',
                 cost: s.leveling.recruitLevel2Cost,
                 description:
                     'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
-            },
-            {
-                icon: 'ability-plus-deploy',
-                name: '+1 Deployment',
-                cost: s.deploy.extraSlotCost,
-                description: 'One extra unit purchase this round only.',
             },
             {
                 icon: 'ability-range',
