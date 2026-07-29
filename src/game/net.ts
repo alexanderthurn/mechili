@@ -1606,6 +1606,47 @@ export function clearResumeMarker(): void {
     }
 }
 
+// --- star resume marker: enough to rejoin a star room after a reload ---
+// Simpler than classic 1v1's ResumeMarker: joinStarRoom always dials the
+// host's room code fresh (no peer ids to remember), and the host's own
+// name-matched implicit reclaim (StarHub.findDroppedSeatByName) does the
+// rest — so all that needs to survive a reload is which room to rejoin.
+// Host-only concept in reverse: only a GUEST ever saves one — if the
+// HOST's own tab reloads, its StarHub (and the whole match) is gone with
+// it, nothing to resume into.
+
+const STAR_RESUME_KEY = 'mechili-star-resume';
+
+export interface StarResumeMarker {
+    hostName: string;
+    names: { local: string; opponent: string };
+}
+
+export function saveStarResumeMarker(marker: StarResumeMarker): void {
+    try {
+        sessionStorage.setItem(STAR_RESUME_KEY, JSON.stringify(marker));
+    } catch {
+        /* private browsing */
+    }
+}
+
+export function loadStarResumeMarker(): StarResumeMarker | null {
+    try {
+        const raw = sessionStorage.getItem(STAR_RESUME_KEY);
+        return raw ? (JSON.parse(raw) as StarResumeMarker) : null;
+    } catch {
+        return null;
+    }
+}
+
+export function clearStarResumeMarker(): void {
+    try {
+        sessionStorage.removeItem(STAR_RESUME_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
 // --- single-player resume: full match state in session storage ---
 
 const SINGLE_KEY = 'mechili-single';

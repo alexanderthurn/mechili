@@ -8,6 +8,7 @@ import { CameraRig } from './engine/cameraRig';
 import {
     clearResumeMarker,
     clearSinglePlayer,
+    clearStarResumeMarker,
     fetchGlobalChat,
     fetchLobbyRooms,
     GAME_VERSION,
@@ -20,6 +21,7 @@ import {
     joinStarRoom,
     loadResumeMarker,
     loadSinglePlayer,
+    loadStarResumeMarker,
     lookupSpectateEndpoint,
     NetSession,
     postGlobalChat,
@@ -27,6 +29,7 @@ import {
     resumeSession,
     saveResumeMarker,
     saveSinglePlayer,
+    saveStarResumeMarker,
     type NetMessage,
     type Pending,
     type ResumeMarker,
@@ -1247,6 +1250,7 @@ function stopRoomPoll(): void {
 
 function clearMatchResumeData(): void {
     clearResumeMarker();
+    clearStarResumeMarker();
     clearSinglePlayer();
     try {
         sessionStorage.removeItem('mechili-desync-guard');
@@ -1396,14 +1400,21 @@ function startGame(
                 ownPeerId: net.ownId,
             });
         }
+    } else if (star?.role === 'guest' && !resume?.local) {
+        // Only a GUEST ever saves one — if the HOST's own tab reloads, its
+        // StarHub (and the whole match) is gone with it, nothing to resume
+        // into. joinStarRoom always dials the room code fresh, so all that
+        // needs to survive a reload is the host's name (seat 0 is always
+        // the host, canonically, regardless of which side we are).
+        const hostName = settings.seats?.[0]?.name;
+        if (hostName) saveStarResumeMarker({ hostName, names });
     } else if (!replay && !spectate) {
         // watching a replay/spectating a live match touches neither marker —
         // it isn't a new match of ours, and clearing either here would wipe
         // out the player's real, unrelated saved game just because they
         // clicked Watch
         clearResumeMarker();
-        // star matches have no save/resume story yet (v1 scope) — never
-        // persist or resume one via the single-player slot
+        clearStarResumeMarker();
         if (!resume?.local && !star) clearSinglePlayer();
     }
 
@@ -2978,6 +2989,7 @@ const watchSide = watchParams.get('side');
 const verifyId = watchParams.get('verify');
 const bulkVerify = watchParams.get('bulkverify');
 const mpMarker = loadResumeMarker();
+const starMpMarker = loadStarResumeMarker();
 const spSave = loadSinglePlayer();
 if (bulkVerify) {
     // seeded by replays.html's Bulk Verify button just before navigating
@@ -2996,6 +3008,17 @@ if (bulkVerify) {
     void startReplayWatch(watchId, watchSide);
 } else if (mpMarker) {
     void attemptResume(mpMarker);
+} else if (starMpMarker) {
+    // Same idea as attemptResume above, but far simpler: joinStarRoom
+    // always dials the room code fresh and the host's own name-matched
+    // implicit reclaim (StarHub.findDroppedSeatByName) does the rest, so
+    // this is just an automatic version of clicking a "resume" row in the
+    // room list (beginStarJoin/runStarPending already handle busy state,
+    // status text, and every failure case the same way a manual click
+    // would — no separate dedicated overlay needed here).
+    setMenuChromeVisible(true);
+    setStatus(`Reconnecting to "${starMpMarker.hostName}"…`);
+    beginStarJoin(starMpMarker.hostName);
 } else if (spSave) {
     if (spSave.version !== GAME_VERSION) {
         clearSinglePlayer();

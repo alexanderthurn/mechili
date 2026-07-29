@@ -29,6 +29,7 @@ import { AiOpponent, type Opponent } from './ai';
 import {
     clearResumeMarker,
     clearSinglePlayer,
+    clearStarResumeMarker,
     GAME_VERSION,
     isRevealable,
     NetworkOpponent,
@@ -6153,6 +6154,7 @@ export class Game {
         // player's real, unrelated saved game/resume marker
         if (!this.watching) {
             clearResumeMarker();
+            clearStarResumeMarker();
             clearSinglePlayer();
         }
         this.hud.hidePauseMenu();
@@ -6228,6 +6230,7 @@ export class Game {
         this.matchOver = true;
         this.suspended = false;
         clearResumeMarker();
+        clearStarResumeMarker();
         clearSinglePlayer();
         // report before tearing down net — mode/side derive from it still being set.
         // reportMatchTelemetry (not just the rating) matters here specifically: a
