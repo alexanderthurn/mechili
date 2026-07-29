@@ -2071,20 +2071,38 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             for (const seat of seatIdsOf(this.seats, team)) {
                 const lane = seatLane(this.seats, seat);
-                // remap the classic full-zone xFrac into this seat's own
-                // half of the zone — 'full' (1 seat per side) is unchanged
-                const laneXFrac = (xFrac: number): number =>
-                    lane === 'full' ? xFrac : lane === 'left' ? xFrac * 0.5 : 0.5 + xFrac * 0.5;
+                // remap classic full-zone xFrac into seat's lane; in 2v2 (duo), outer
+                // towers use outerTowerXFrac (0.17 / 0.83) to pull horizontally closer
+                // to the center stronghold while sitting back at outerTowerRowFrac (0.36)
+                const resX =
+                    lane === 'full'
+                        ? BASE_ANCHORS.research.xFrac
+                        : lane === 'left'
+                          ? BASE_ANCHORS.outerTowerXFrac
+                          : 1 - BASE_ANCHORS.outerTowerXFrac;
+
+                const cmdX =
+                    lane === 'full'
+                        ? BASE_ANCHORS.command.xFrac
+                        : lane === 'left'
+                          ? BASE_ANCHORS.command.xFrac * 0.5
+                          : 0.5 + BASE_ANCHORS.research.xFrac * 0.5;
+
+                const isOuter = (xFrac: number) => lane !== 'full' && (xFrac < 0.25 || xFrac > 0.75);
+
+                const resRow = isOuter(resX) ? BASE_ANCHORS.outerTowerRowFrac : BASE_ANCHORS.research.rowFrac;
+                const cmdRow = isOuter(cmdX) ? BASE_ANCHORS.outerTowerRowFrac : BASE_ANCHORS.command.rowFrac;
+
                 spawnBuilding(
-                    laneXFrac(BASE_ANCHORS.research.xFrac),
-                    BASE_ANCHORS.research.rowFrac,
+                    resX,
+                    resRow,
                     RESEARCH_CENTER,
                     team,
                     seat,
                 );
                 spawnBuilding(
-                    laneXFrac(BASE_ANCHORS.command.xFrac),
-                    BASE_ANCHORS.command.rowFrac,
+                    cmdX,
+                    cmdRow,
                     COMMAND_TOWER,
                     team,
                     seat,
