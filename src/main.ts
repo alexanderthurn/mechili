@@ -372,8 +372,6 @@ function setGameLayerVisible(visible: boolean): void {
 
 /** menu→match cover — CSS animation on the compositor (survives sync Game boot) */
 let introCoverEl: HTMLDivElement | null = null;
-/** last menu-dive origin (0–1), shared with the 3D fly-in so both aim the same way */
-let pendingMenuZoom: { originX: number; originY: number } | null = null;
 let introGen = 0;
 
 function clearIntroCover(): void {
@@ -391,15 +389,12 @@ function restoreMenuTitle(): void {
     app.render();
 }
 
-function applyRandomMenuZoomOrigin(bg: HTMLElement): { originX: number; originY: number } {
-    // Mostly top + near-horizontal-center: matches the 3D intro (wide overlook
-    // diving into the board). Tiny X/Y jitter so starts aren't identical.
-    const originX = (44 + Math.random() * 12) / 100; // 0.44–0.56
-    const originY = (6 + Math.random() * 14) / 100; // 0.06–0.20 (top of the plate)
+function applyRandomMenuZoomOrigin(bg: HTMLElement): void {
+    // Full plate — any XY on the menu bg (slight inset so edges don't pin).
+    const originX = 0.08 + Math.random() * 0.84; // 0.08–0.92
+    const originY = 0.08 + Math.random() * 0.84; // 0.08–0.92
     bg.style.setProperty('--zoom-ox', `${(originX * 100).toFixed(1)}%`);
     bg.style.setProperty('--zoom-oy', `${(originY * 100).toFixed(1)}%`);
-    pendingMenuZoom = { originX, originY };
-    return pendingMenuZoom;
 }
 
 function showIntroCover(): void {
@@ -1420,7 +1415,7 @@ function startGame(
             star,
             replay,
             spectate,
-            useIntro ? (pendingMenuZoom ?? true) : false,
+            useIntro,
         );
         activeGame = game;
         wireGameMenuReturn(game);

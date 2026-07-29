@@ -811,10 +811,8 @@ export class Game {
             initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
         } | null = null,
         /** fresh match only: hold specialist cards + HUD while the camera
-         *  flies in from a wide overlook (menu logo covers the ctor hitch).
-         *  Pass `{ originX, originY }` (0–1) from the menu CSS dive so the
-         *  3D approach angle matches that zoom point. */
-        matchIntro: boolean | { originX: number; originY: number } = false,
+         *  flies in from a wide overlook (menu logo covers the ctor hitch). */
+        matchIntro = false,
     ) {
         this.watching = replay !== null || spectate !== null;
         this.watcherName = spectate?.watcherName ?? null;
@@ -997,18 +995,9 @@ export class Game {
         this.rig.startAt(0, ownZoneZ, PLAY_START_ZOOM);
         if (matchIntro) {
             const play = this.rig.getPose();
-            const bias =
-                typeof matchIntro === 'object'
-                    ? matchIntro
-                    : { originX: 0.5, originY: 0.12 };
-            // menu dive left/right of center → start the fly-in slightly offset
-            // that way, then ease into the normal play framing (hand-in-hand)
-            const nx = (bias.originX - 0.5) * 2; // ~-0.12..0.12 with current menu band
             this.introTo = play;
             this.introFrom = {
                 ...play,
-                x: play.x + nx * this.map.halfW * 0.28,
-                heading: play.heading + nx * 0.14,
                 zoom: Math.min(this.rig.maxZoom, MATCH_INTRO_ZOOM),
                 pitch: MATCH_INTRO_PITCH,
             };
