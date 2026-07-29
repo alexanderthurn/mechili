@@ -994,7 +994,35 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     border: 2px solid ${u.border};
     border-radius: 8px;
     overflow: hidden;
+    box-shadow:
+        inset 0 2px 6px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     position: relative;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.mechili-loading .hp-track::before {
+    content: '';
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 24%, rgba(255, 255, 255, 0) 52%);
+    opacity: 0.9;
+    pointer-events: none;
+    z-index: 0;
+}
+.mechili-loading .hp-track::after {
+    content: '';
+    display: none;
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px),
+        radial-gradient(closest-side, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+    opacity: 0.35;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 0;
 }
 .mechili-loading .hp-fill {
     position: absolute;
@@ -1005,9 +1033,44 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     transform: scaleX(0);
     transform-origin: left center;
     background: #4a7a38;
+    opacity: 1;
     transition: transform 0.2s ease-out;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     pointer-events: none;
     z-index: 1;
+}
+.mechili-loading .hp-fill::before {
+    content: '';
+    display: none;
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 58%),
+        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 62%),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
+        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
+    background-size: 28px 28px;
+    opacity: 0.6;
+    mix-blend-mode: overlay;
+    animation: mechili-fluid-shift 0.7s linear infinite;
+    pointer-events: none;
+}
+.mechili-loading .hp-fill::after {
+    content: '';
+    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 6px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+    box-shadow: 0 0 18px rgba(255, 255, 255, 0.2);
+    opacity: 0.95;
+    pointer-events: none;
+}
+@keyframes mechili-fluid-shift {
+    from { background-position: 0 0; }
+    to { background-position: 28px 0; }
 }
 .mechili-loading .hp-val {
     position: absolute;
@@ -2943,7 +3006,8 @@ export function hudStyles(bars?: BarAssets): string {
 }
 .mechili-fightbar .fighter-stack.player { left: 0; align-items: stretch; }
 .mechili-fightbar .fighter-stack.enemy { right: 0; align-items: stretch; }
-.mechili-fightbar .fighter-stack.multi .fighter-content {
+.mechili-fightbar .fighter-stack.multi .fighter {
+    min-width: 0;
     padding: 6px 10px;
     gap: 8px;
 }
@@ -2953,12 +3017,16 @@ export function hudStyles(bars?: BarAssets): string {
     top: auto;
     left: auto;
     right: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
     box-sizing: border-box;
     min-width: 200px;
-    overflow: hidden;
+    padding: 8px 12px;
+    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
     border: 2px solid ${u.border};
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     pointer-events: auto;
     cursor: pointer;
 }
@@ -2970,20 +3038,8 @@ export function hudStyles(bars?: BarAssets): string {
 .mechili-fightbar .fighter.enemy {
     border-right: none;
     border-top: none;
-    border-radius: 0 0 0 10px;
-}
-.mechili-fightbar .fighter-content {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 8px 12px;
-    box-sizing: border-box;
-}
-.mechili-fightbar .fighter.enemy .fighter-content {
     flex-direction: row-reverse;
+    border-radius: 0 0 0 10px;
 }
 .mechili-fightbar .portrait-group {
     position: relative;
@@ -3040,19 +3096,9 @@ export function hudStyles(bars?: BarAssets): string {
     width: 100%;
     height: 100%;
 }
-.mechili-fightbar .fighter.player .portrait { color: #ffffff; }
-.mechili-fightbar .fighter.enemy .portrait { color: #ffffff; }
-.mechili-fightbar .fighter-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-.mechili-fightbar .fighter.enemy .fighter-info {
-    flex-direction: row-reverse;
-}
+.mechili-fightbar .fighter.player .portrait { color: ${pc}; }
+.mechili-fightbar .fighter.enemy .portrait { color: ${ec}; }
+.mechili-fightbar .fighter-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .mechili-fightbar .fname {
     font-size: 15px;
     font-weight: bold;
@@ -3060,11 +3106,9 @@ export function hudStyles(bars?: BarAssets): string {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: #ffffff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
-.mechili-fightbar .fighter.player .fname { text-align: left; }
-.mechili-fightbar .fighter.enemy .fname { text-align: right; }
+.mechili-fightbar .fighter.player .fname { color: ${pc}; text-align: left; }
+.mechili-fightbar .fighter.enemy .fname { color: ${ec}; text-align: right; }
 .mechili-fightbar .fspec {
     display: none;
 }
@@ -3076,11 +3120,38 @@ export function hudStyles(bars?: BarAssets): string {
 .mechili-fightbar .fighter.has-spec { pointer-events: auto; cursor: pointer; }
 .mechili-fightbar .fighter.has-spec:hover { border-color: ${u.hover}; }
 .mechili-fightbar .hp-track {
+    height: 22px;
+    background: ${u.barTrack};
+    border: 1px solid ${u.border};
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow:
+        inset 0 1px 3px rgba(0, 0, 0, 0.52),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    position: relative;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.mechili-fightbar .hp-track::before {
+    content: '';
+    display: none;
     position: absolute;
     inset: 0;
-    background: ${u.barTrack};
-    overflow: hidden;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 22%, rgba(255, 255, 255, 0) 56%);
+    opacity: 0.75;
     pointer-events: none;
+    z-index: 0;
+}
+.mechili-fightbar .hp-track::after {
+    content: '';
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px);
+    opacity: 0.28;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 0;
 }
 .mechili-fightbar .fighter.player .hp-track { direction: ltr; }
 .mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
@@ -3092,25 +3163,69 @@ export function hudStyles(bars?: BarAssets): string {
     width: 100%;
     transform: scaleX(0);
     transition: transform 0.25s ease-out;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     pointer-events: none;
     z-index: 1;
 }
 .mechili-fightbar .fighter.player .hp-fill {
     background: ${pc};
+    opacity: 1;
     transform-origin: left center;
 }
 .mechili-fightbar .fighter.enemy .hp-fill {
     background: ${ec};
+    opacity: 1;
     transform-origin: right center;
 }
+.mechili-fightbar .hp-fill::before {
+    content: '';
+    display: none;
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 58%),
+        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0) 62%),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.10) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
+        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.26) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
+    background-size: 26px 26px;
+    opacity: 0.62;
+    mix-blend-mode: overlay;
+    animation: mechili-fluid-shift 0.55s linear infinite;
+    pointer-events: none;
+}
+.mechili-fightbar .hp-fill::after {
+    content: '';
+    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 6px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0));
+    box-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
+    opacity: 0.95;
+    pointer-events: none;
+}
+.mechili-fightbar .fighter.enemy .hp-fill::after {
+    left: 0;
+    right: auto;
+}
 .mechili-fightbar .hp-val {
-    flex-shrink: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 13px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
     color: #ffffff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
     pointer-events: none;
+    z-index: 2;
 }
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
@@ -3459,14 +3574,15 @@ ${gamepadCursorStyles(u)}
         width: min(31vw, 210px);
         min-width: 0;
     }
-    .mechili-fightbar .fighter { min-width: 0; }
-    .mechili-fightbar .fighter-content {
+    .mechili-fightbar .fighter {
+        min-width: 0;
         gap: 6px;
         padding: 4px 8px;
     }
     .mechili-fightbar .portrait-group { display: none; }
     .mechili-fightbar .fname { font-size: 11px; letter-spacing: 0.4px; }
-    .mechili-fightbar .fighter-info { gap: 4px; }
+    .mechili-fightbar .fighter-info { gap: 3px; }
+    .mechili-fightbar .hp-track { height: 14px; }
     .mechili-fightbar .hp-val { font-size: 10px; }
     .mechili-topbar { top: calc(2px + env(safe-area-inset-top)); gap: 2px; }
     .mechili-topbar .round { font-size: 11px; }

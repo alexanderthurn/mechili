@@ -1103,22 +1103,17 @@ export class Hud {
 
         const hpFill = document.createElement('div');
         hpFill.className = 'hp-fill';
-        const hpTrack = document.createElement('div');
-        hpTrack.className = 'hp-track';
-        hpTrack.append(hpFill);
-
         const hpVal = document.createElement('span');
         hpVal.className = 'hp-val';
+        const hpTrack = document.createElement('div');
+        hpTrack.className = 'hp-track';
+        hpTrack.append(hpFill, hpVal);
 
         const info = document.createElement('div');
         info.className = 'fighter-info';
-        info.append(nameEl, hpVal, specEl);
+        info.append(hpTrack, nameEl, specEl);
 
-        const content = document.createElement('div');
-        content.className = 'fighter-content';
-        content.append(portraitGroup, info);
-
-        cardEl.append(hpTrack, content);
+        cardEl.append(portraitGroup, info);
         return { cardEl, hpFill, hpVal, specEl };
     }
 
