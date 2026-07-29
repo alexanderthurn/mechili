@@ -807,8 +807,8 @@ export class Hud {
     }
 
     /**
-     * Rect-selected formation (2+ packs): shop stays closed, no unit sheet —
-     * packs may differ, so there are no shared details to show.
+     * Rect-selected formation (1+ packs via rubber-band): shop stays closed,
+     * no unit sheet — packs may differ, so there are no shared details to show.
      */
     setFormationSelection(): void {
         this.phoneBar.classList.add('has-unit');

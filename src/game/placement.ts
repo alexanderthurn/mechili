@@ -106,8 +106,9 @@ export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: number)
  * and moves the ones bought THIS round by clicking a destination. A left
  * DRAG on the ground rubber-bands a rectangle that selects every movable
  * pack inside it — the group then rides the cursor as a rigid formation and
- * a click drops all of it (all packs must fit, or nothing moves). Right
- * click (handled by the camera controls) deselects via {@link deselect}.
+ * a click drops all of it (all packs must fit, or nothing moves), even when
+ * the box only caught one pack. Right click (handled by the camera controls)
+ * deselects via {@link deselect}.
  */
 export class PlacementController {
     /** false during the battle phase: no hover, no placing, no moving */
@@ -206,8 +207,10 @@ export class PlacementController {
      * stays selected in details mode until picked up again.
      */
     private carryingSelected = false;
-    /** rect-selected movable packs (2+); a single selection uses selectedUnit */
+    /** rect-selected movable packs; a lone pack here still uses formation drop */
     private selectedGroup: Unit[] = [];
+    /** true after a rubber-band select (not a plain click-select) */
+    private rectFormation = false;
     /** movable packs currently inside the rubber-band, live while dragging */
     private rectPreview: Unit[] = [];
     /** per-member marker plates (own material each — validity color differs per pack) */
@@ -505,7 +508,13 @@ export class PlacementController {
         this.restoreSelectedView();
         this.selectedUnit = null;
         this.selectedGroup = [];
+        this.rectFormation = false;
         this.carryingSelected = false;
+    }
+
+    /** Rubber-band formation move (cursor follow + click ground to drop). */
+    private get formationActive(): boolean {
+        return this.rectFormation && this.selectedGroup.length > 0;
     }
 
     /**
@@ -540,7 +549,7 @@ export class PlacementController {
 
     private isHighlighted(unit: Unit): boolean {
         if (this.selectedGroup.includes(unit)) return true;
-        return unit === this.selectedUnit && this.selectedGroup.length <= 1;
+        return unit === this.selectedUnit && !this.formationActive;
     }
 
     /** carried packs go back to their committed / visible intel spots */
@@ -688,15 +697,15 @@ export class PlacementController {
     /** true when {@link rotateSelected} would act: one own still-movable pack selected */
     get selectedRepositionable(): boolean {
         return (
-            this.selectedGroup.length <= 1 &&
+            !this.formationActive &&
             this.selectedUnit !== null &&
             this.isMovable(this.selectedUnit)
         );
     }
 
-    /** rect-selected formation (2+ packs) — move-only, no shared unit details */
+    /** rect-selected formation — move-only, no shared unit details */
     get hasSelectedGroup(): boolean {
-        return this.selectedGroup.length > 1;
+        return this.formationActive;
     }
 
     /** picks up the selected pack so it rides the pointer (the touch Move button) */
@@ -706,7 +715,7 @@ export class PlacementController {
     }
 
     rotateSelected(): void {
-        if (this.selectedGroup.length > 1) return; // formations don't rotate
+        if (this.formationActive) return; // formations don't rotate
         const unit = this.selectedUnit;
         if (!unit || unit.team === 'horde' || !this.enabled || !this.isMovable(unit)) return;
         if (!this.carryingSelected) this.carryingSelected = true;
@@ -1537,14 +1546,14 @@ export class PlacementController {
         }
         // while carrying, a click on an extra's tiles means "drop here", not "select it"
         const carrying =
-            this.selectedGroup.length > 1 ||
+            this.formationActive ||
             (this.selectedUnit !== null &&
                 this.carryingSelected &&
                 this.isMovable(this.selectedUnit));
         const clicked = this.pickUnitAt(x, y, { skipExtras: carrying });
         // selecting: any own pack, or an enemy pack visible in intel
         if (clicked && !clicked.destroyed && (clicked.team === 'player' || this.enemyIntelVisible(clicked))) {
-            if (clicked === this.selectedUnit && this.selectedGroup.length <= 1) {
+            if (clicked === this.selectedUnit && !this.formationActive) {
                 if (this.isMovable(clicked)) {
                     if (!this.carryingSelected) {
                         this.carryingSelected = true; // second click picks it up
@@ -1564,13 +1573,14 @@ export class PlacementController {
                 this.restoreSelectedView();
                 this.selectedUnit = clicked;
                 this.selectedGroup = [];
+                this.rectFormation = false;
                 this.carryingSelected = false; // first click only selects
             }
             this.onSelect?.(clicked);
             return;
         }
         // empty ground: drop the carried formation there — all packs or none
-        if (this.selectedGroup.length > 1) {
+        if (this.formationActive) {
             const center = this.groupCenterCell();
             const done = this.dispatch?.({
                 kind: 'moveGroup',
@@ -1623,7 +1633,8 @@ export class PlacementController {
             return;
         }
         this.selectedUnit = units[0]!;
-        this.selectedGroup = units.length > 1 ? units : [];
+        this.selectedGroup = units;
+        this.rectFormation = true;
         this.carryingSelected = false; // rect select never picks up directly
     }
 
@@ -1818,7 +1829,7 @@ export class PlacementController {
             return;
         }
         // a formation is carried as one rigid shape, each pack showing its own validity
-        if (this.selectedGroup.length > 1 && this.enabled) {
+        if (this.formationActive && this.enabled) {
             const cell = this.pointer ? this.cellAt(this.pointer.x, this.pointer.y) : null;
             const center = this.groupCenterCell();
             const delta = cell ? { dc: cell.col - center.col, dr: cell.row - center.row } : null;
