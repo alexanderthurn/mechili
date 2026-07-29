@@ -395,8 +395,19 @@ const LIVENESS_TIMEOUT_MS = 75_000;
  * `LIVENESS_TIMEOUT_MS`, fire `onDead` exactly once. Callers still keep
  * their own 'close'/'error' listeners too (an orderly drop should still be
  * as instant as it already is) — this only covers the gap those miss.
+ *
+ * Exported for net-steam.ts too: this is pure application-layer message
+ * traffic, no WebRTC-specific dependency at all, so it's the SAME
+ * mechanism for both transports rather than a parallel reimplementation.
+ * For Steam specifically it's the PRIMARY disconnect signal, not a
+ * fallback — Steam has no per-connection close/error event to fall back
+ * from (a drop there only shows up as the lobby losing a member, a
+ * coarser and slower signal — see SteamChannel's own doc comment).
  */
-function watchLiveness(send: () => void, onDead: () => void): { markSeen: () => void; stop: () => void } {
+export function watchLiveness(
+    send: () => void,
+    onDead: () => void,
+): { markSeen: () => void; stop: () => void } {
     let lastSeenAt = Date.now();
     let dead = false;
     const pingTimer = setInterval(() => {
