@@ -2197,7 +2197,15 @@ export function hudStyles(): string {
     pointer-events: none;
     z-index: 20;
 }
-.mechili-fightbar .chat-bubble.emote { font-size: 56px; padding: 2px 14px; }
+.mechili-fightbar .chat-bubble.emote {
+    font-size: 56px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+}
 @keyframes chat-pop { from { transform: translateX(-50%) scale(0.4); opacity: 0; } }
 @keyframes chat-fade { to { opacity: 0; } }
 
@@ -2535,6 +2543,8 @@ export function hudStyles(): string {
 .mechili-cards .c-owner.player { color: ${pc}; }
 .mechili-cards .c-owner.enemy { color: ${ec}; }
 .mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.brassLight}; }
+.mechili-cards .c-portrait { display: flex; align-items: center; justify-content: center; }
+.mechili-cards .c-portrait .m-icon { width: 72px; height: 72px; }
 .mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
 .mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
 .mechili-cards .c-desc { font-size: 12.5px; color: ${u.phase}; line-height: 1.55; }

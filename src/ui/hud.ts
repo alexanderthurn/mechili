@@ -2174,6 +2174,7 @@ export class Hud {
     /** the face of a specialist card (static data only — safe for innerHTML) */
     private startCardFace(c: StartCard): string {
         return (
+            `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
             `<div class="c-title">${c.title}</div>` +
             `<div class="c-units">${c.unitsLabel}</div>` +
             `<div class="c-hp">♥ ${c.startingHp} HP</div>` +

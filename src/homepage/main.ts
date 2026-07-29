@@ -108,6 +108,7 @@ function esc(s: string): string {
 
 function startCardFace(c: StartCard): string {
     return (
+        `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
         `<div class="c-title">${esc(c.title)}</div>` +
         `<div class="c-units">${esc(c.unitsLabel)}</div>` +
         `<div class="c-hp">♥ ${c.startingHp} HP</div>` +

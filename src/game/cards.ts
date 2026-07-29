@@ -235,6 +235,8 @@ export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
 export interface StartCard {
     id: string;
     title: string;
+    /** atlas portrait for the specialist card face (`spec-*`) */
+    portrait: string;
     /** starting army as unit type ids — every card totals 500 supply */
     units: string[];
     /** the army, human-readable, for the card face */
@@ -264,6 +266,7 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'air',
         title: 'Air Specialist',
+        portrait: 'spec-air',
         units: ['crowRider', 'crowRider', 'dwarf'],
         unitsLabel: '2× Crow Riders · 1× Dwarves',
         startingHp: 1800,
@@ -273,6 +276,7 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'cost',
         title: 'Cost Control Specialist',
+        portrait: 'spec-cost',
         units: ['archer', 'archer', 'crowRider', 'dwarf'],
         unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
         startingHp: 2400,
@@ -282,6 +286,7 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'elite',
         title: 'Elite Specialist',
+        portrait: 'spec-elite',
         units: ['ballista', 'dwarf'],
         unitsLabel: '1× Ballista · 1× Dwarves',
         startingHp: 1700,
@@ -292,6 +297,7 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'archer',
         title: 'Archer Specialist',
+        portrait: 'spec-archer',
         units: ['archer', 'archer', 'archer', 'dwarf', 'dwarf'],
         unitsLabel: '3× Archers · 2× Dwarves',
         startingHp: 2000,
@@ -301,6 +307,7 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'addi',
         title: 'Addi Specialist',
+        portrait: 'spec-addi',
         units: ['crowRider', 'dwarf', 'dwarf', 'dwarf'],
         unitsLabel: '1× Crow Riders · 3× Dwarves',
         startingHp: 2000,
@@ -311,6 +318,7 @@ export const START_CARDS: StartCard[] = [
     {
         id: 'flanky',
         title: 'Flanky Specialist',
+        portrait: 'spec-flanky',
         units: ['dwarf', 'dwarf', 'archer', 'archer'],
         unitsLabel: '2× Dwarves · 2× Archers',
         startingHp: 2000,
