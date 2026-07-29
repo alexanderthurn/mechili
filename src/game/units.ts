@@ -97,7 +97,7 @@ export interface TechDef {
     fire?: import('./fire').FireProfile;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
-    /** glyph for the action tile; auto-derived from `mods` when omitted */
+    /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
     icon?: string;
 }
 
