@@ -17,7 +17,7 @@ import {
 import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
-import { itemWorldGlyph } from './items';
+import { itemIcon } from './items';
 import { CELL, cellKey, groundHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import {
@@ -1061,14 +1061,14 @@ export class PlacementController {
             const right = this.statusBadgeRight;
             const spacing = 2.0;
 
-            const placeStrip = (unit: Unit, world: Vector3, itemGlyph: string | null) => {
+            const placeStrip = (unit: Unit, world: Vector3, itemIconId: string | null) => {
                 const techs = this.ownedTechIcons?.(unit) ?? [];
-                const n = (itemGlyph ? 1 : 0) + techs.length;
+                const n = (itemIconId ? 1 : 0) + techs.length;
                 if (n === 0) return;
                 const y = this.statusStripY(unit, world);
                 const mid = (n - 1) / 2;
                 let slot = 0;
-                if (itemGlyph) {
+                if (itemIconId) {
                     let sprite = this.itemBadges[itemUsed];
                     if (!sprite) {
                         sprite = new Sprite();
@@ -1076,7 +1076,7 @@ export class PlacementController {
                         this.scene.add(sprite);
                         this.itemBadges.push(sprite);
                     }
-                    sprite.material = this.itemBadgeMaterial(itemGlyph);
+                    sprite.material = this.itemBadgeMaterial(itemIconId);
                     sprite.renderOrder = 0;
                     const t = slot - mid;
                     sprite.position.set(
@@ -1121,7 +1121,7 @@ export class PlacementController {
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
                     const item =
-                        snap.items.length > 0 ? itemWorldGlyph(snap.items[0]!) : null;
+                        snap.items.length > 0 ? itemIcon(snap.items[0]!) : null;
                     placeStrip(ghost, snap.world, item);
                 }
             }
@@ -1142,25 +1142,25 @@ export class PlacementController {
         return item + techs;
     }
 
-    private itemBadgeMaterial(icon: string): SpriteMaterial {
-        let material = this.itemBadgeMaterials.get(icon);
+    private itemBadgeMaterial(iconId: string): SpriteMaterial {
+        let material = this.itemBadgeMaterials.get(iconId);
         if (!material) {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
             canvas.height = 64;
             const ctx = canvas.getContext('2d')!;
-            ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
+            ctx.save();
             ctx.beginPath();
-            ctx.roundRect(4, 4, 56, 56, 12);
-            ctx.fill();
-            ctx.strokeStyle = '#b89020';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-            ctx.fillStyle = '#ffe878';
-            ctx.font = '36px system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(icon, 32, 34);
+            ctx.arc(32, 32, 30, 0, Math.PI * 2);
+            ctx.clip();
+            const ok = drawIcon(ctx, iconId, 0, 0, 64);
+            ctx.restore();
+            if (!ok) {
+                ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
+                ctx.beginPath();
+                ctx.arc(32, 32, 28, 0, Math.PI * 2);
+                ctx.fill();
+            }
             const texture = new CanvasTexture(canvas);
             texture.colorSpace = SRGBColorSpace;
             material = new SpriteMaterial({
@@ -1168,7 +1168,7 @@ export class PlacementController {
                 depthWrite: false,
                 transparent: true,
             });
-            this.itemBadgeMaterials.set(icon, material);
+            this.itemBadgeMaterials.set(iconId, material);
         }
         // revive depth testing if an older always-on-top material is still cached
         material.depthTest = true;
@@ -1374,15 +1374,15 @@ export class PlacementController {
 
     private intelItemIcon(unit: Unit): string | null {
         if (!this.isFogged(unit)) {
-            return unit.items[0] ? itemWorldGlyph(unit.items[0]) : null;
+            return unit.items[0] ? itemIcon(unit.items[0]) : null;
         }
         if (!this.enemyIntelVisible(unit)) return null;
         if (this.intelFog) {
             const snap = this.intelSnapshot.get(unit.id);
             if (!snap || snap.items.length === 0) return null;
-            return itemWorldGlyph(snap.items[0]!);
+            return itemIcon(snap.items[0]!);
         }
-        return unit.items[0] ? itemWorldGlyph(unit.items[0]) : null;
+        return unit.items[0] ? itemIcon(unit.items[0]) : null;
     }
 
     private memberPositionsAt(world: Vector3, unit: Unit): Vector3[] {

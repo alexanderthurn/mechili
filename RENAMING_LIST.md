@@ -8,12 +8,12 @@ Edit the text in the **"Your Chosen Name"** column below. When you're happy with
 
 | Internal ID | Current Name | Suggested Fantasy Name | Your Chosen Name |
 | :--- | :--- | :--- | :--- |
-| `addi` | Addi | Talisman of Valor | |
-| `power` | Power Module | Rune of Carnage | |
-| `vigor` | Vigor Core | Elixir of Giant's Blood | |
+| `addi` | Addi | Valor | |
+| `power` | Power Module | Carnage | |
+| `vigor` | Vigor Core | Giant Blood | |
 | `colossus` | Colossus Plating | Mithril Cuirass | |
-| `wrath` | Wrath Engine | Warlord's Berserk Relic | |
-| `golden` | Golden Plating | Sunstone Ward | |
+| `wrath` | Wrath Engine | Berserk  | |
+| `golden` | Golden Plating | Sunstone  | |
 
 ---
 
@@ -34,31 +34,12 @@ Edit the text in the **"Your Chosen Name"** column below. When you're happy with
 
 | Feature | Current Name | Suggested Fantasy Name | Your Chosen Name |
 | :--- | :--- | :--- | :--- |
-| Vanguard Unlock | Unlock Selling | Merchant Guild | |
-| Vanguard ATK | Army attack boost | War Blessing (Damage) | |
-| Vanguard HP | Army HP boost | Shielding Blessing (HP) | |
-| Vanguard Rally | Buy Rally Route | Marching Orders | |
+| Vanguard Unlock | Unlock Selling | Selling | |
+| Vanguard ATK | Army attack boost | Attack Boost | |
+| Vanguard HP | Army HP boost | HP Boost | |
+| Vanguard Rally | Buy Rally Route | Rally Route | |
 | Garrison L2 | Recruit at Level 2 | Veteran Training | |
-| Garrison Deploy | +1 Deployment | Royal Levy | |
-| Garrison Range | Range Boost | Eagle Eye | |
-| Garrison Speed | Speed Boost | Haste Incantation | |
-| Garrison Credit | Credit | Crown Loan | |
-
----
-
-## 4. Tactics & Round Cards (`src/game/cards.ts`)
-
-| Internal ID | Current Title | Suggested Fantasy Title | Your Chosen Name |
-| :--- | :--- | :--- | :--- |
-| `flanky` | Flanky | Swift Flank | |
-| `sellPack` | Buyback Deal | Gold Ransom | |
-| `spawnDwarves` | Summon Dwarves | Call of the Mountain | |
-| `spawnCrows` | Summon Crow Riders | Flock of Crows | |
-| `bigMeteor` | Great Meteor | Cataclysm | |
-| `hammerOfGods` | Hammer of the Gods | Divine Hammer | |
-| `storm` | Storm Call | Call the Tempest | |
-| `meteorShower` | Meteor Shower | Starfall Rain | |
-| `poisonCloud` | Poison Cloud | Plague Miasma | |
-| `acidSpill` | Acid Spill | Corrosive Flask | |
-| `fireSpill` | Fire Spill | Trail of Fire | |
-| `dragonAttack` | Dragon Attack | Dragon's Fury | |
+| Garrison Deploy | +1 Deployment | +1 Deployment | |
+| Garrison Range | Range Boost | Range Boost | |
+| Garrison Speed | Speed Boost | Speed Boost | |
+| Garrison Credit | Credit | Loan | |

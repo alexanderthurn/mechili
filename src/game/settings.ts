@@ -574,7 +574,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: 'Garrison — whole army, this round only',
                 },
                 {
-                    label: 'Credit',
+                    label: 'Loan',
                     value: `+${settings.deploy.creditGain} now, −${settings.deploy.creditDebt} next round`,
                     note: 'Garrison — once per round',
                 },

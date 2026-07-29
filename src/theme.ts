@@ -1876,9 +1876,11 @@ export function hudStyles(): string {
     background-repeat: no-repeat;
 }
 .mechili-sidebar .inv-item .m-icon { width: 30px; height: 30px; }
+.mechili-sidebar .inv-item:not(.tactic) { border-radius: 50%; overflow: hidden; padding: 0; }
+.mechili-sidebar .inv-item:not(.tactic) .m-icon { width: 100%; height: 100%; }
 .mechili-panel .action-tile .at-icon.m-icon { width: 28px; height: 28px; font-size: 0; }
 .mechili-panel .action-info .ai-icon.m-icon { width: 28px; height: 28px; font-size: 0; }
-.mechili-panel .item-sq.m-icon { width: 44px; height: 44px; font-size: 0; }
+.mechili-panel .item-sq.m-icon { width: 44px; height: 44px; font-size: 0; border-radius: 50%; overflow: hidden; }
 .mechili-phonebar button .pb-ico.m-icon { width: 22px; height: 22px; font-size: 0; }
 .mechili-chat .c-emote { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .mechili-chat .c-emote .m-icon { width: 26px; height: 26px; }
@@ -2117,11 +2119,14 @@ export function hudStyles(): string {
 .mechili-sidebar .inv-item { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-sidebar .inv-item:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 .mechili-sidebar .inv-item:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
-.mechili-sidebar .inv-item.armed { border-color: ${u.brass}; box-shadow: 0 0 10px ${u.brass}; }
-.mechili-sidebar .inv-item.placed {
-    border-color: ${u.techOwned};
+.mechili-sidebar .inv-item:not(.tactic) {
+    background: transparent;
+    border: none;
+}
+.mechili-sidebar .inv-item:not(.tactic):hover { filter: brightness(1.1); }
+.mechili-sidebar .inv-item:not(.tactic).armed { box-shadow: 0 0 10px ${u.brass}; }
+.mechili-sidebar .inv-item:not(.tactic).placed {
     box-shadow: 0 0 8px rgba(80, 200, 100, 0.45);
-    cursor: default;
 }
 .mechili-sidebar .inv-item.placed .i { opacity: 0.85; }
 .mechili-sidebar .inv-item .inv-cd {
@@ -2150,9 +2155,10 @@ export function hudStyles(): string {
     align-items: center;
     justify-content: center;
     font-size: 22px;
-    background: ${u.techBuyBg};
-    border: 1.5px solid ${u.brass};
-    border-radius: 9px;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    overflow: hidden;
     color: ${u.text};
     pointer-events: none;
     z-index: 50;
@@ -2167,13 +2173,14 @@ export function hudStyles(): string {
     align-items: center;
     justify-content: center;
     font-size: 26px;
-    background: ${u.techBuyBg};
-    border: 1px solid ${u.brassDark};
-    border-radius: 7px;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    overflow: hidden;
     cursor: help;
 }
-.mechili-panel .item-sq { transition: border-color 0.12s ease, transform 0.12s ease; }
-.mechili-panel .item-sq:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-panel .item-sq { transition: transform 0.12s ease, filter 0.12s ease; }
+.mechili-panel .item-sq:hover { transform: translateY(-1px); filter: brightness(1.12); }
 
 /* --- in-match chat ------------------------------------------------------ */
 .mechili-fightbar .fighter { position: relative; }

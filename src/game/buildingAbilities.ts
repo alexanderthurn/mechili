@@ -41,25 +41,25 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
         out.push(
             {
                 icon: 'ability-selling',
-                name: 'Unlock Selling',
+                name: 'Selling',
                 cost: s.sell.abilityCost,
                 description: `Permanently unlock selling packs (up to ${s.sell.maxPerRound} per deployment phase). Refund is ${Math.round(s.sell.refundFactor * 100)}% of base cost.`,
             },
             {
                 icon: 'ability-atk-boost',
-                name: 'Army attack boost',
+                name: 'Attack Boost',
                 cost: s.boosts.costs[0],
                 description: `Permanent army-wide damage boost. First tier +${attackPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
             },
             {
                 icon: 'ability-hp-boost',
-                name: 'Army HP boost',
+                name: 'HP Boost',
                 cost: s.boosts.costs[0],
                 description: `Permanent army-wide HP boost. First tier +${hpPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
             },
             {
                 icon: 'tactic-rally',
-                name: 'Buy Rally Route',
+                name: 'Rally Route',
                 cost: s.rallyRoute.abilityCost,
                 description:
                     'Add one rally-route charge to your tactics strip. Once per match.',
@@ -71,7 +71,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
         out.push(
             {
                 icon: 'ability-plus-l2',
-                name: 'Recruit at Level 2',
+                name: 'Veteran Training',
                 cost: s.leveling.recruitLevel2Cost,
                 description:
                     'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
@@ -96,7 +96,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
             },
             {
                 icon: 'ability-credit',
-                name: 'Credit',
+                name: 'Loan',
                 description: `+${s.deploy.creditGain} supply now. Next deployment: −${s.deploy.creditDebt}. Once per round.`,
             },
         );

@@ -6,7 +6,7 @@
 export interface ItemDef {
     id: string;
     name: string;
-    /** atlas id for HUD (`item-*`); world badges use {@link itemWorldGlyph} */
+    /** atlas id for HUD and world badges (`item-*`) */
     icon: string;
     /** stat multipliers for every mech of the equipped pack */
     mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
@@ -18,42 +18,42 @@ export interface ItemDef {
 export const ITEMS: Record<string, ItemDef> = {
     addi: {
         id: 'addi',
-        name: 'Addi',
+        name: 'Valor',
         icon: 'item-addi',
         mods: { damage: 1.15, hp: 1.15 },
         description: '+15% attack and HP for this pack.',
     },
     power: {
         id: 'power',
-        name: 'Power Module',
+        name: 'Carnage',
         icon: 'item-power',
         mods: { damage: 1.75 },
         description: '+75% attack damage for this pack.',
     },
     vigor: {
         id: 'vigor',
-        name: 'Vigor Core',
+        name: 'Giant Blood',
         icon: 'item-vigor',
         mods: { hp: 2 },
         description: '+100% HP for this pack.',
     },
     colossus: {
         id: 'colossus',
-        name: 'Colossus Plating',
+        name: 'Mithril Cuirass',
         icon: 'item-colossus',
         mods: { hp: 3.5 },
         description: '+250% HP for this pack.',
     },
     wrath: {
         id: 'wrath',
-        name: 'Wrath Engine',
+        name: 'Berserk',
         icon: 'item-wrath',
         mods: { damage: 4 },
         description: '+300% attack damage for this pack.',
     },
     golden: {
         id: 'golden',
-        name: 'Golden Plating',
+        name: 'Sunstone',
         icon: 'item-golden',
         mods: {},
         debuffImmune: true,
@@ -71,6 +71,11 @@ const WORLD_GLYPH: Record<string, string> = {
     golden: '✦',
 };
 
+export function itemIcon(itemId: string): string | null {
+    return ITEMS[itemId]?.icon ?? null;
+}
+
+/** @deprecated Unicode fallback — world badges use {@link itemIcon} + atlas. */
 export function itemWorldGlyph(itemId: string): string {
     return WORLD_GLYPH[itemId] ?? '?';
 }
