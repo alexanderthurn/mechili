@@ -15,6 +15,7 @@ import {
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
 import { hudStyles, menuStyles } from '../theme';
+import { iconHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from './modelViewer';
 import { homepageStyles } from './styles';
@@ -23,34 +24,6 @@ const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
 const menuBgUrl = new URL('../../assets/ui/menu-bg.webp', import.meta.url).href;
 const feuerwareLogoUrl = new URL('../../assets/marketing/feuerware.webp', import.meta.url).href;
 const steamLogoUrl = new URL('../../assets/marketing/steam-logo.png', import.meta.url).href;
-
-/** Optional art for battle spells that have Tripo stills */
-const TACTIC_ART: Partial<Record<string, string>> = {
-    hammerOfGods: new URL(
-        '../../assets/models/spells/hammer-of-gods/d2968c11-be8b-42db-8568-3e91102e2355-rendered_image.webp',
-        import.meta.url,
-    ).href,
-    dragonAttack: new URL(
-        '../../assets/models/spells/dragon/5feca8a4-bd39-4375-9ec2-849c497f3633-rendered_image.webp',
-        import.meta.url,
-    ).href,
-    bigMeteor: new URL(
-        '../../assets/models/spells/meteor-great/6e4dfbbf-4d47-40b5-81db-27726f0f2e15-rendered_image.webp',
-        import.meta.url,
-    ).href,
-    meteorShower: new URL(
-        '../../assets/models/spells/meteor-shard/50ac2b4b-1284-4082-806a-107eaa33281d-rendered_image.webp',
-        import.meta.url,
-    ).href,
-    storm: new URL(
-        '../../assets/models/spells/storm-cloud/142a3c63-8343-4a85-a851-4246e2029a67-rendered_image.webp',
-        import.meta.url,
-    ).href,
-    poisonCloud: new URL(
-        '../../assets/models/spells/poison-cloud/203dbb84-af0a-466d-8e14-074ce5c1fff8-rendered_image.webp',
-        import.meta.url,
-    ).href,
-};
 
 const STEAM_URL = 'https://steam.melodan.com';
 const DISCORD_URL = 'https://discord.melodan.com';
@@ -179,7 +152,7 @@ function statsHtml(t: UnitType): string {
           ${t.techs
               .map(
                   (tech) =>
-                      `<li><span class="mh-tech-ico" aria-hidden="true">${techIcon(tech)}</span><span class="mh-tech-text"><strong>${esc(tech.name)}</strong> <span class="mh-tech-cost">⬢ ${tech.cost}</span><br /><span class="mh-tech-desc">${esc(techDescription(tech))}</span></span></li>`,
+                      `<li>${iconHtml(techIcon(tech), 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(tech.name)}</strong> <span class="mh-tech-cost">⬢ ${tech.cost}</span><br /><span class="mh-tech-desc">${esc(techDescription(tech))}</span></span></li>`,
               )
               .join('')}
         </ul>
@@ -194,7 +167,7 @@ function statsHtml(t: UnitType): string {
           ${abilities
               .map(
                   (a) =>
-                      `<li><span class="mh-tech-ico" aria-hidden="true">${a.icon}</span><span class="mh-tech-text"><strong>${esc(a.name)}</strong>${a.cost !== undefined ? ` <span class="mh-tech-cost">⬢ ${a.cost}</span>` : ''}<br /><span class="mh-tech-desc">${esc(a.description)}</span></span></li>`,
+                      `<li>${iconHtml(a.icon, 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(a.name)}</strong>${a.cost !== undefined ? ` <span class="mh-tech-cost">⬢ ${a.cost}</span>` : ''}<br /><span class="mh-tech-desc">${esc(a.description)}</span></span></li>`,
               )
               .join('')}
         </ul>
@@ -223,21 +196,16 @@ function shotCard(shot: { src: string; label: string }, index: number): string {
 }
 
 function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
-    const art = TACTIC_ART[t.id];
     const kindLabel = t.kind === 'placement' ? 'Placement' : 'One-shot';
     const stats = formatTacticStats(t);
-    const media = art
-        ? `<img class="mh-tactic-art" src="${esc(art)}" alt="" loading="lazy" />`
-        : `<div class="mh-tactic-icon" aria-hidden="true">${t.icon}</div>`;
     const statsHtml = stats.length
         ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
         : '';
     return `
 <article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
-  ${media}
+  <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(t.icon, 'mh-tactic-tile')}</div>
   <div class="mh-tactic-body">
     <div class="mh-tactic-head">
-      <span class="mh-tactic-emoji" aria-hidden="true">${t.icon}</span>
       <h3>${esc(t.name)}</h3>
     </div>
     <p class="mh-tactic-meta">${kindLabel} · ${esc(t.targeting)}</p>

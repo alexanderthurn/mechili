@@ -72,4 +72,27 @@ export class TechTree {
     remove(seat: SeatId, typeId: string, techId: string): void {
         this.ownedFor(seat, typeId).delete(techId);
     }
+
+    /**
+     * Deep copy of current ownership — used as deploy-phase intel fog so the
+     * opponent still sees last-round research until lock-in / battle.
+     */
+    snapshotOwned(): Map<string, Set<string>>[] {
+        return this.owned.map((byType) => {
+            const copy = new Map<string, Set<string>>();
+            for (const [typeId, set] of byType) copy.set(typeId, new Set(set));
+            return copy;
+        });
+    }
+
+    /** read ownership from a {@link snapshotOwned} capture (empty if missing) */
+    static ownedIn(
+        snap: readonly Map<string, Set<string>>[] | null | undefined,
+        seat: SeatId,
+        typeId: string,
+    ): ReadonlySet<string> {
+        return snap?.[seat]?.get(typeId) ?? TechTree.EMPTY;
+    }
+
+    private static readonly EMPTY: ReadonlySet<string> = new Set();
 }
