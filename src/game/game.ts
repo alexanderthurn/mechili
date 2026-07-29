@@ -2612,6 +2612,17 @@ export class Game {
                 `[mechili] star desync at round ${this.round}: seat(s) ${mismatched.join(', ')} ` +
                     `disagree with the host's battle-start state hash`,
             );
+            // console-only was invisible outside an open devtools tab — this
+            // makes it part of the same aggregated per-client debug timeline
+            // (DebugDumpButton) already used to diagnose every other netcode
+            // issue this session, without changing any actual match behavior
+            // (still detection-only, no auto-recovery — see this method's
+            // own doc comment).
+            this.debugLog.log('star.desyncDetected', {
+                round: this.round,
+                mismatched,
+                hashes: Object.fromEntries(this.starChecks),
+            });
         }
     }
 
