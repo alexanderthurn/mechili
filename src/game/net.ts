@@ -27,7 +27,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 16; // v16: reinstated classic 1v1's spectatorFeed/spectatorWantsLive + seq dedup — needed after all (live testing found the guest's early actions never reached a live-vision spectator without it)
+export const GAME_VERSION = 18; // v18: classic 1v1 now connects via the star (hostStarRoom/joinStarRoom) path instead of NetSession's hello/setup handshake — 1v1 is just a 2-seat star room now, unifying reconnect/relay/resume onto one mechanism (Phase 1 of the full netcode unification)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -139,9 +139,11 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
 }
 
 /**
- * Everything that crosses the wire. Build-phase `action`/`undo` are withheld
- * until the *receiving* peer has locked in (sender-side buffer). Spectators
- * get a per-connection vision policy (default: battle-only).
+ * Everything that crosses the wire. Build-phase `action`/`undo` now send
+ * immediately in every mode (trust-world tradeoff, deferred encryption
+ * reintroduces fog here later — see TEAM_MODES_PLAN.md). Spectators get a
+ * per-connection vision policy (default: battle-only), unaffected by that
+ * change.
  */
 export type NetMessage =
     | { type: 'hello'; name: string }
@@ -159,21 +161,12 @@ export type NetMessage =
      * see Game.seatRank's doc comment), so a spectator resolving team from
      * `action.seat` alone collapses both players onto the same seat. The
      * two real players never read this field; they already know who they are.
-     * `seq` (classic 1v1 only) is the sender's own monotonic build-action
-     * counter — set once, at the moment sendPlayerBuildMessage first decides
-     * to send-or-buffer this action, so it's identical on every copy of the
-     * same logical action (the immediate `spectatorFeed` copy AND the later
-     * real flush once the peer locks in carry the SAME seq). Lets the host
-     * dedupe a spectator-feed-then-real-flush double-delivery of one action
-     * (see mirrorBuildToSpectators) — undefined for messages that never flow
-     * through that path (seeded backfill, star mode).
      */
-    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b'; seq?: number }
+    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b' }
     /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
      *  needs it since more than one remote seat can send an undo. `side` is
-     *  the same spectator-only wire tag as on `action` above. `seq` is the
-     *  same dedup counter described on `action` above. */
-    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq?: number }
+     *  the same spectator-only wire tag as on `action` above. */
+    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b' }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
@@ -247,30 +240,6 @@ export type NetMessage =
     /** guest asks host to grant/revoke live deploy vision for a spectator
      *  (guest may only grant its own seat `'b'`) */
     | { type: 'spectateGrant'; spectatorName: string; seat: 'a' | 'b'; grant: boolean }
-    /** host → guest only: whether at least one spectator currently has live
-     *  vision granted on the GUEST's seat ('b'). The host's own actions
-     *  already reach spectators live regardless of wire fog (mirrored at
-     *  decision time, independent of `outboundBuildBuffer`) — but the
-     *  guest's build actions are withheld from the HOST ITSELF (not just
-     *  the opponent) until mutual lock-in, so the host has no early
-     *  knowledge to relay. This tells the guest to open the `spectatorFeed`
-     *  side channel below instead of waiting for the normal flush. */
-    | { type: 'spectatorWantsLive'; want: boolean }
-    /** guest → host only: a copy of a build action/undo the guest is STILL
-     *  WITHHOLDING from the opponent (wire fog) but a live-granted spectator
-     *  should see now. The host relays it straight to spectators — it must
-     *  NEVER touch the normal action-application path, or the opponent
-     *  would see it early too. */
-    | { type: 'spectatorFeed'; payload: Extract<NetMessage, { type: 'action' | 'undo' }> }
-    /**
-     * Sent after flushing the outbound build buffer to the peer. Battle must
-     * not start until both sides have locked in AND each has received the
-     * other's `deployCaughtUp` (otherwise the second locker races ahead of
-     * the first's sell/buys still in flight). `side` is unused between the
-     * two real players (each already knows it can only mean "the other
-     * one") — set only when mirrored to spectators, who need to tell the
-     * two confirmations apart since they're watching both sides at once. */
-    | { type: 'deployCaughtUp'; round: number; side?: 'a' | 'b' }
     // ---- star topology (2v2+, N seats): host-relayed, own message family so
     // the classic 2-seat path above stays completely untouched ------------
     /** guest's opening handshake on connecting to a star (2v2+) room */
@@ -1244,6 +1213,7 @@ export type StarRole =
 export async function hostStarRoom(
     initialRoster: CanonicalSeatDef[],
     onStatus: (status: string) => void,
+    mode: '1v1' | '2v2' = '2v2',
 ): Promise<{ hub: StarHub; roomId: string; cleanup: () => void }> {
     const name = getPlayerName();
     const roomId = peerRoomId(name);
@@ -1254,10 +1224,12 @@ export async function hostStarRoom(
     } catch {
         throw new Error(`Name "${name}" is already hosting — pick another username`);
     }
-    // reuses the SAME room-code registration as 1v1 custom rooms, tagged
-    // mode=2v2 so the room list can route joiners to the star join flow
-    await lobbyRegister(hub.peerId, name, '2v2');
-    const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, '2v2'), HEARTBEAT_MS);
+    // reuses the SAME room-code registration as 1v1 custom rooms — `mode`
+    // is purely a display label for the room list now (every room is
+    // star-hosted; joining always goes through the star join flow
+    // regardless of `mode`, see joinStarRoom's callers in main.ts).
+    await lobbyRegister(hub.peerId, name, mode);
+    const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, mode), HEARTBEAT_MS);
     return {
         hub,
         roomId,

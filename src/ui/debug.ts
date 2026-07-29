@@ -316,7 +316,7 @@ export class DebugDumpButton {
         this.el = document.createElement('div');
         this.el.className = 'mechili-debug-dump';
         this.el.textContent = 'event dump';
-        this.el.title = 'Click: copy short event dump. Double-click: copy full (verbose) dump.';
+        this.el.title = 'Click: copy full (verbose) event dump. Double-click: copy short dump.';
         this.el.style.cssText = [
             'position:absolute',
             'left:12px',
@@ -334,11 +334,11 @@ export class DebugDumpButton {
         ].join(';');
         this.el.addEventListener('click', (e) => {
             e.stopPropagation();
-            void this.copy(false);
+            void this.copy(true);
         });
         this.el.addEventListener('dblclick', (e) => {
             e.stopPropagation();
-            void this.copy(true);
+            void this.copy(false);
         });
         this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
         parent.appendChild(this.el);

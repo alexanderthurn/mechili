@@ -57,7 +57,7 @@ import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { iconHtml } from './ui/iconAtlas';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings, type HordeFactor } from './game/settings';
-import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
+import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { THEME, menuStyles } from './theme';
 
 // the only mode right now (Single Player / Matchmaking both force this) —
@@ -916,11 +916,10 @@ function closeCustomGameScreen(): void {
     scheduleLayoutTitle();
 }
 
-/** host a game with the Custom Game screen's current settings — 1v1 reuses
- *  the plain lobby host flow (settings applied via runPending's applyMode
- *  hook, same shape as the horde-only quickMatch case), 2v2/2v2ai reuse
- *  beginStarHost with the mode-appropriate join threshold (see its own
- *  doc comment: 2v2ai isn't a different wire mode, just waitFor=2). */
+/** host a game with the Custom Game screen's current settings — every
+ *  online mode reuses beginStarHost now (1v1 is just a 2-seat star room),
+ *  with the mode-appropriate roster + join threshold (see beginStarHost's
+ *  own doc comment: 2v2ai isn't a different wire mode, just waitFor=2). */
 function hostCustomGame(): void {
     const cfg = readCustomGameForm();
     saveCustomGameConfig(cfg);
@@ -933,7 +932,7 @@ function hostCustomGame(): void {
         return;
     }
     if (cfg.mode === '1v1') {
-        runPending(hostLobby(setStatus), (settings) => applyCustomGameConfig(settings, cfg));
+        void beginStarHost(false, 2, cfg, initial1v1Roster, '1v1');
         return;
     }
     void beginStarHost(false, cfg.mode === '2v2' ? 4 : 2, cfg);
@@ -1994,7 +1993,7 @@ function runSteamPending(
     });
 }
 
-// ---- 2v2 online (star topology) ----------------------------------------
+// ---- online play (star topology — every mode, 1v1 included) -----------
 
 /** host is always seat 0, side 'a'; the other 3 slots start open for joiners */
 function initialStarRoster(hostName: string): CanonicalSeatDef[] {
@@ -2005,8 +2004,31 @@ function initialStarRoster(hostName: string): CanonicalSeatDef[] {
         { side: 'b', controller: 'human', name: 'Waiting…' },
     ];
 }
-/** fallback names for seats still empty when the host clicks Start */
-const STAR_AI_NAMES: Record<number, string> = { 1: 'Ally', 2: 'Foe West', 3: 'Foe East' };
+/** 1v1 is just a 2-seat star room — one seat per side, no AI-fill slots
+ *  besides the guest's own (see beginStarHost's roster param). */
+function initial1v1Roster(hostName: string): CanonicalSeatDef[] {
+    return [
+        { side: 'a', controller: 'human', name: hostName },
+        { side: 'b', controller: 'human', name: 'Waiting…' },
+    ];
+}
+/** fallback name for a still-empty seat when the host clicks Start —
+ *  derived from side (host's own side = 'Ally', the other = 'Foe'), so
+ *  this works for any roster size, not just the hardcoded 4-seat layout */
+function starAiName(seat: SeatId, roster: CanonicalSeatDef[]): string {
+    const mySide = roster[0]!.side;
+    if (roster[seat]!.side === mySide) return 'Ally';
+    const foeSeats = roster.map((_, i) => i).filter((i) => roster[i]!.side !== mySide);
+    if (foeSeats.length <= 1) return 'Foe';
+    return foeSeats.indexOf(seat) === 0 ? 'Foe West' : 'Foe East';
+}
+/** the HUD's "opponent" name field only ever makes sense for a genuine
+ *  2-seat (1v1-via-star) roster — a real 2v2+ has no single opponent to
+ *  name, so it keeps the generic '2v2' label the HUD already expects. */
+function opponentDisplayName(roster: CanonicalSeatDef[], mySeat: SeatId): string {
+    if (roster.length !== 2) return '2v2';
+    return roster[mySeat === 0 ? 1 : 0]?.name ?? '2v2';
+}
 
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
 let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
@@ -2035,15 +2057,17 @@ async function beginStarHost(
     horde = false,
     waitForJoined = 2,
     customConfig: CustomGameConfig | null = null,
+    buildRoster: (hostName: string) => CanonicalSeatDef[] = initialStarRoster,
+    mode: '1v1' | '2v2' = '2v2',
 ): Promise<void> {
     starHordeFlag = horde;
     starCustomConfig = customConfig;
     setMenuBusy(true);
-    setStatus('Opening 2v2 room…');
+    setStatus(mode === '1v1' ? 'Opening room…' : 'Opening 2v2 room…');
     const hostName = getPlayerName();
     let hosted: Awaited<ReturnType<typeof hostStarRoom>>;
     try {
-        hosted = await hostStarRoom(initialStarRoster(hostName), setStatus);
+        hosted = await hostStarRoom(buildRoster(hostName), setStatus, mode);
     } catch (e) {
         setMenuBusy(false);
         setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
@@ -2066,7 +2090,7 @@ async function beginStarHost(
         // Start" step; the Start button (still shown) is only for "give up
         // waiting, go vs AI now" while the room hasn't reached that yet
         if (joined >= waitForJoined) {
-            setStatus(`Room "${hostName}" — ${joined}/4 joined: ${names}. Starting…`);
+            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Starting…`);
             startStarMatch();
             return;
         }
@@ -2101,9 +2125,10 @@ function startStarMatch(): void {
     if (!starHosting) return;
     const { hub } = starHosting;
     const connected = new Set(hub.connectedSeats());
-    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+    const currentRoster = hub.currentRoster();
+    const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+            return { side: s.side, controller: 'ai', name: starAiName(i, currentRoster) };
         }
         return s;
     });
@@ -2135,11 +2160,14 @@ function startStarMatch(): void {
     }
     startStarBtn.style.display = 'none';
     const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
-    startGame(hostSettings, null, 'a', { local: getPlayerName(), opponent: '2v2' }, null, {
-        role: 'host',
-        hub,
-        mySeat: 0,
-    });
+    startGame(
+        hostSettings,
+        null,
+        'a',
+        { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) },
+        null,
+        { role: 'host', hub, mySeat: 0 },
+    );
     starHosting = null; // ownership passes to the running Game now
     starCustomConfig = null;
 }
@@ -2215,7 +2243,7 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                         settings,
                         null,
                         yourSide,
-                        { local: myName, opponent: '2v2' },
+                        { local: myName, opponent: opponentDisplayName(msg.roster, msg.seat) },
                         {
                             actions: msg.actions,
                             battleElapsed: msg.battleElapsed,
@@ -2235,11 +2263,18 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                 settings.seed = msg.seed;
                 settings.seats = localizeRoster(msg.roster, msg.yourSide);
                 const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
-                startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
-                    role: 'guest',
-                    session,
-                    mySeat: msg.yourSeat,
-                });
+                startGame(
+                    settings,
+                    null,
+                    msg.yourSide,
+                    { local: myName, opponent: opponentDisplayName(msg.roster, msg.yourSeat) },
+                    null,
+                    {
+                        role: 'guest',
+                        session,
+                        mySeat: msg.yourSeat,
+                    },
+                );
             });
         })
         .catch((e: unknown) => {
@@ -2319,9 +2354,10 @@ function startSteamStarMatch(): void {
     if (!steamStarHosting) return;
     const { hub } = steamStarHosting;
     const connected = new Set(hub.connectedSeats());
-    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+    const currentRoster = hub.currentRoster();
+    const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+            return { side: s.side, controller: 'ai', name: starAiName(i, currentRoster) };
         }
         return s;
     });
@@ -2543,18 +2579,21 @@ function tryMatchmaking(): void {
         // any OPEN room (not a spectate-only entry for an already-running
         // match) — 1v1 or 2v2 alike, so a plain "Matchmaking" click on one
         // tab always finds what another tab's "Matchmaking" click just
-        // hosted, the same way both used to only work for 2v2
+        // hosted. Every room is star-hosted now (1v1 is just a 2-seat star
+        // room), so joining is always beginStarJoin regardless of `mode` —
+        // that field is a display label only, not a protocol distinction.
         const open = rooms.find((r) => r.kind === 'lobby' && r.name.toLowerCase() !== mine);
-        if (open?.mode === '2v2') {
+        if (open) {
             beginStarJoin(open.name);
-        } else if (open) {
-            runPending(joinLobby(open.name, setStatus));
         } else {
             // nothing open — host a discoverable room (not the old
             // anonymous quickMatch queue, which never showed up in the
             // room list at all) so the very next "Matchmaking" click,
-            // from any tab, finds this one instead of also hosting blind
-            runPending(hostLobby(setStatus), applyHordeMode);
+            // from any tab, finds this one instead of also hosting blind.
+            // horde=true: this menu button is "1v1 Horde only" for now
+            // (see its own call site's comment) — same as the old
+            // `applyHordeMode` hook this replaces.
+            void beginStarHost(true, 2, null, initial1v1Roster, '1v1');
         }
     });
 }
@@ -2699,10 +2738,11 @@ menu.addEventListener('click', (e) => {
             setStatus('Still loading — one moment…');
             return;
         }
-        if (roomBtn.dataset.roomKind === 'resume') beginStarJoin(roomBtn.dataset.room);
-        else if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
-        else if (roomBtn.dataset.roomMode === '2v2') beginStarJoin(roomBtn.dataset.room);
-        else runPending(joinLobby(roomBtn.dataset.room, setStatus));
+        if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
+        // every room is star-hosted now (1v1 is just a 2-seat star room),
+        // including 'resume' rows — always beginStarJoin regardless of
+        // roomMode, which is a display label only.
+        else beginStarJoin(roomBtn.dataset.room);
         return;
     }
 
@@ -2853,7 +2893,7 @@ menu.addEventListener('click', (e) => {
             mmLinkEl.textContent = `Send this to your friend: ${link}`;
             mmLinkEl.style.display = '';
             if (team === '2v2') void beginStarHost(horde);
-            else runPending(hostLobby(setStatus), horde ? applyHordeMode : undefined);
+            else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1');
             break;
         }
         case 'mm-play': {
@@ -2963,17 +3003,12 @@ if (bulkVerify) {
     } else resumeSinglePlayer(spSave);
 } else {
     setMenuChromeVisible(true);
-    // ?room=mangoo — join that host's room directly. Unlike the room-list
-    // buttons, a deep link carries no mode — look it up first so a 2v2
-    // room routes to the star join flow instead of hanging forever on
-    // the classic one (a star host never answers a classic 'hello').
+    // ?room=mangoo — join that host's room directly. Every room is
+    // star-hosted now (1v1 is just a 2-seat star room), so this is
+    // always beginStarJoin regardless of mode.
     const roomParam = new URLSearchParams(location.search).get('room');
     if (roomParam) {
-        void fetchLobbyRooms().then((rooms) => {
-            const match = rooms.find((r) => r.name.toLowerCase() === roomParam.toLowerCase());
-            if (match?.mode === '2v2') beginStarJoin(roomParam);
-            else runPending(joinLobby(roomParam, setStatus));
-        });
+        beginStarJoin(roomParam);
     }
     // ?spectate=mangoo — deep link straight into watching that host's match.
     // Doesn't depend on the Rooms list showing it (spectate-register/-lookup
