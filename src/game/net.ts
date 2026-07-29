@@ -577,8 +577,24 @@ export class NetSession implements Session {
 
     close(): void {
         this.onClose = null;
+        this.liveness.stop();
         this.conn.close();
         this.peer.destroy();
+    }
+
+    /**
+     * Closes just THIS session's own connection, WITHOUT touching the
+     * shared `peer` — unlike `close()`. Needed wherever two `NetSession`s
+     * can be racing on the same underlying Peer object (`resumeSession`'s
+     * listen-vs-dial race, both built on one `Peer`) and only the LOSER
+     * needs tearing down: `close()`'s `peer.destroy()` would take the
+     * winner's own connection down with it, since they share that Peer —
+     * exactly the `StarGuestSession.discard()` hazard, same fix here.
+     */
+    discardConnection(): void {
+        this.onClose = null;
+        this.liveness.stop();
+        this.conn.close();
     }
 
     /** host learns the guest's display name during handshake */
@@ -1706,9 +1722,17 @@ export async function raceReconnectStrategies(
     // these BEFORE calling Promise.race means the eventual winner's own
     // resolution is observed here with `winner` still null and correctly
     // skips closing itself.
+    //
+    // discardConnection(), NOT close(): both strategies here are built on
+    // the SAME underlying Peer object (see this function's own callers —
+    // resumeSession races two strategies on one `p`; wireReconnect races
+    // NetSession.awaitReconnect/redial, both `this.peer`), so close()'s
+    // peer.destroy() would tear down the WINNER's connection too, since
+    // they share that Peer. Caught by a fork review before this ever
+    // shipped — same hazard StarGuestSession.discard() already exists for.
     let winner: NetSession | null = null;
     const closeIfLoser = (s: NetSession) => {
-        if (winner !== null && winner !== s) s.close();
+        if (winner !== null && winner !== s) s.discardConnection();
     };
     listening.then(closeIfLoser).catch(() => undefined);
     dialing.then(closeIfLoser).catch(() => undefined);
