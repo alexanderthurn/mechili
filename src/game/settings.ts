@@ -561,22 +561,22 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Extra buy slot',
                     value: `${settings.deploy.extraSlotCost} supply`,
-                    note: 'Command Tower — this round only',
+                    note: 'Garrison — this round only',
                 },
                 {
                     label: 'Ranged range boost',
                     value: `${settings.deploy.rangedRangeBoostCost} supply → +${settings.deploy.rangeBoost} range`,
-                    note: 'Command Tower — all ranged units, this round only',
+                    note: 'Garrison — all ranged units, this round only',
                 },
                 {
                     label: 'Army speed boost',
                     value: `${settings.deploy.armySpeedBoostCost} supply → +${settings.deploy.speedBoost} speed`,
-                    note: 'Command Tower — whole army, this round only',
+                    note: 'Garrison — whole army, this round only',
                 },
                 {
                     label: 'Credit',
                     value: `+${settings.deploy.creditGain} now, −${settings.deploy.creditDebt} next round`,
-                    note: 'Command Tower — once per round',
+                    note: 'Garrison — once per round',
                 },
                 {
                     label: 'Extras budget',
@@ -613,7 +613,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Ability cost',
                     value: `${settings.sell.abilityCost} supply, one-time`,
-                    note: 'Research Center — once bought, permanent',
+                    note: 'Vanguard — once bought, permanent',
                 },
                 { label: 'Sells per round', value: `${settings.sell.maxPerRound}` },
                 { label: 'Refund', value: pct(settings.sell.refundFactor), note: 'of the unit’s base cost' },
@@ -625,7 +625,11 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Ability cost',
                     value: `${settings.rallyRoute.abilityCost} supply, one-time`,
-                    note: 'Research Center — grants one rally-route tactic charge',
+                    note: 'Vanguard — grants one rally-route tactic charge',
+                },
+                {
+                    label: 'Boosts',
+                    value: 'Army-wide stat tiers',
                 },
             ],
         },
@@ -634,7 +638,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
             rows: settings.boosts.costs.map((cost, i) => ({
                 label: `Tier ${i + 1}`,
                 value: `${cost} supply → +${pct(settings.boosts.attackTiers[i]!)} damage, +${pct(settings.boosts.hpTiers[i]!)} hp`,
-                note: 'Research Center — totals, not stacked on top of the previous tier',
+                note: 'Vanguard — totals, not stacked on top of the previous tier',
             })),
         },
     ];
