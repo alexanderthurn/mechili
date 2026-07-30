@@ -1,16 +1,25 @@
 # Steam graphical assets (English)
 
-**Shipping set:** night / moon-right / back-left dragon with aerial fire / dwarfs vs knights on raised ground  
+**Shipping set:** `h4-night-units-aerial-fire`  
 Folders: `store_center/`, `library_center/`
 
-Style lock (h4):
-- Night sky, full moon on the **right**
-- Dragon in the **back left**, spitting an aerial fire arc into the empty center (does not hit units/ground)
-- Left grey stone keep + red banner; right azure wizard tower + blue windows
-- Raised dark grassy ground with Melodan-style chunky dwarfs vs knights
-- Wordmark from `assets/ui/logo-trimmed.png` (text only, on dark ground)
+**Prompts, logo prep, export commands, lessons:** see **[STYLE.md](./STYLE.md)** (same idea as `misc/icons/STYLE.md`).
 
-Locked reference: `store_center/header_ideas/LOCKED_h4_higher_ground_units_*`
+Quick regen after editing masters:
+
+```bash
+bash scripts/prep-steam-logo.sh      # if logo-trimmed.png changed
+bash scripts/export-steam-center.sh  # rebuild all Steam sizes
+```
+
+## Style lock (short)
+
+- Night, full moon **right**, dragon **back-left** with aerial center fire (not hitting units/ground)
+- Left keep + red banner; right azure wizard tower
+- Chunky dwarfs vs knights on raised dark ground
+- Wordmark: `assets/ui/logo-trimmed.png` on dark ground
+
+Locked refs: `store_center/header_ideas/LOCKED_h4_higher_ground_units_*`
 
 ## Upload checklist
 
@@ -39,10 +48,6 @@ Prefer Library Logo **bottom-left** over the hero in Steamworks.
 - `hero_center.png`
 - `page_bg_center.png`
 - `logo_trimmed.png` / `logo.png`
-
-### Pipeline
-1. Gemini for scene masters (no text in prompts)
-2. ImageMagick composites logo (luma-keyed alpha from `logo-trimmed.png`)
 
 ### Notes
 - Capsules: MELODAN wordmark only
