@@ -31,6 +31,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather, TRANSITION_TAU, type Season } from './weather';
 import { THEME } from '../theme';
+import type { EffectToggles } from './effectToggles';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
     CELL,
@@ -159,7 +160,6 @@ export class Scenery {
     private readonly fogCards: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private forestFogMaterial: MeshBasicMaterial | null = null;
     private time = 0;
-    private readonly cloudShadow: Mesh;
     private readonly cloudBoundsX: number;
     private readonly map: BattleMap;
     private weather: Weather | null = null;
@@ -276,13 +276,10 @@ export class Scenery {
             this.createForest(map, rng);
             this.createMeadowDetails(map, rng);
         }
-        this.cloudShadow = this.createCloudShadow(map);
-        this.group.add(this.cloudShadow);
         this.createClouds(map, rng);
         if (this.detailed) this.createForestFog(map, rng);
         if (this.quality === 'off') {
             // scenery 'off' = no weather FX at all: hide every cloud layer
-            this.cloudShadow.visible = false;
             for (const c of this.clouds) c.mesh.visible = false;
         }
     }
@@ -358,6 +355,7 @@ export class Scenery {
         hemi: HemisphereLight,
         renderer: WebGLRenderer,
         seed: number,
+        effectToggles?: EffectToggles,
     ): Weather {
         this.weather = new Weather(
             {
@@ -368,7 +366,6 @@ export class Scenery {
                 repaintSky: this.repaintSky,
                 glow: this.sunGlow,
                 cloudMaterial: this.cloudMaterial,
-                cloudShadowMaterial: this.cloudShadow.material as MeshBasicMaterial,
                 cloudTexture: this.cloudTexture,
                 forestFogMaterial: this.forestFogMaterial,
                 forestFogScale: Math.min(1.2, sceneryHeightFog(this.quality)),
@@ -376,6 +373,7 @@ export class Scenery {
                 worldGroup: this.group,
                 map: this.map,
                 onSeasonChange: (season) => this.setSeason(season),
+                effectToggles,
             },
             seed,
         );
@@ -422,9 +420,6 @@ export class Scenery {
             this.waterMaterial.roughness = 0.18 + freeze * 0.55;
             this.waterMaterial.opacity = 0.86 + freeze * 0.12;
         }
-        const mat = this.cloudShadow.material as MeshBasicMaterial;
-        mat.map!.offset.x += dtSeconds * 0.0035;
-        mat.map!.offset.y += dtSeconds * 0.0012;
         for (const c of this.clouds) {
             c.mesh.position.x += c.speed * dtSeconds;
             if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
@@ -1757,49 +1752,6 @@ export class Scenery {
                 m.needsUpdate = true;
             }
         }
-    }
-
-    /** soft dark blobs on a repeating texture, slowly panning over the field */
-    private createCloudShadow(map: BattleMap): Mesh {
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d')!;
-        const rng = mulberry32(7);
-        for (let i = 0; i < 10; i++) {
-            const cx = rng() * 512;
-            const cy = rng() * 512;
-            // each cloud shadow is a cluster of overlapping soft blobs
-            for (let b = 0; b < 6; b++) {
-                const x = cx + (rng() - 0.5) * 130;
-                const y = cy + (rng() - 0.5) * 70;
-                const r = 28 + rng() * 45;
-                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-                grad.addColorStop(0, 'rgba(0, 0, 0, 0.55)');
-                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(x, y, r, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-        const texture = new CanvasTexture(canvas);
-        texture.wrapS = RepeatWrapping;
-        texture.wrapT = RepeatWrapping;
-
-        const geometry = new PlaneGeometry(map.width * 2.5, map.height * 2.5);
-        geometry.rotateX(-Math.PI / 2);
-        const mesh = new Mesh(
-            geometry,
-            new MeshBasicMaterial({
-                map: texture,
-                transparent: true,
-                opacity: THEME.scenery.cloudShadowOpacity,
-                depthWrite: false,
-            }),
-        );
-        mesh.position.y = THEME.terrain.reliefDepth + 0.1; // clears the ground-relief mounds
-        return mesh;
     }
 
     /** flat white puffs drifting near the horizon — never over the field itself */

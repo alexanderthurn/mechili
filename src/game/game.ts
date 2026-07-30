@@ -20,6 +20,7 @@ import {
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
+import { EffectToggles } from './effectToggles';
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
@@ -268,6 +269,10 @@ export class Game {
     private appliedScenery: SceneryQuality = prefs().scenery;
     private appliedGroundEffects: GroundEffectsQuality = prefs().groundEffects;
     private appliedShadows: ShadowQuality = prefs().shadows;
+    /** dev hotkeys Shift+1…9 — per-layer weather / fog toggles */
+    private readonly effectToggles = new EffectToggles();
+    /** scenery-tier height-mist scale (see applyHeightMistStrength) */
+    private heightMistBase = sceneryHeightFog();
     private readonly blobShadows: BlobShadows;
     private shadowMapFrame = 0;
     /** debug: scene.overrideMaterial — off | clay | wireframe | normals */
@@ -639,6 +644,22 @@ export class Game {
             this.cycleMaterialDebug();
             return;
         }
+        if (e.shiftKey && e.code.startsWith('Digit')) {
+            const digit = parseInt(e.code.slice(5), 10);
+            if (digit === 0) {
+                this.effectToggles.resetAll();
+                this.applyHeightMistStrength();
+                console.info('[fx] all effects on (Shift+0)');
+                return;
+            }
+            const def = this.effectToggles.defForKey(digit);
+            if (def) {
+                const on = this.effectToggles.toggle(def.id);
+                if (def.id === 'heightMist') this.applyHeightMistStrength();
+                console.info(`[fx] Shift+${digit} ${def.label}: ${on ? 'on' : 'off'}`);
+                return;
+            }
+        }
         if (e.code === 'KeyC' && e.shiftKey) {
             this.toggleUiHidden();
             return;
@@ -681,6 +702,20 @@ export class Game {
             : next === 'wire' ? this.wireOverride
             : next === 'normals' ? this.normalsOverride
             : null;
+    }
+
+    /** Re-bake height-mist shader strength and recompile fogged materials (Shift+3). */
+    private applyHeightMistStrength(): void {
+        const strength = this.effectToggles.isEnabled('heightMist') ? this.heightMistBase : 0;
+        setHeightFogStrength(strength);
+        this.scene.traverse((o) => {
+            const m = (o as import('three').Mesh).material as
+                | import('three').Material
+                | import('three').Material[]
+                | undefined;
+            if (!m) return;
+            for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
+        });
     }
 
     /**
@@ -927,7 +962,8 @@ export class Game {
         this.scene.fog = sceneryWeatherFx() ? new Fog(THEME.sky, THEME.fogNear, THEME.fogFar) : null;
         // ground-mist strength for the current scenery tier (baked into the
         // fog shader chunk before the first material compiles)
-        setHeightFogStrength(sceneryHeightFog());
+        this.heightMistBase = sceneryHeightFog();
+        this.applyHeightMistStrength();
 
         // PBR environment: metallic (Tripo) models render near-black with nothing
         // to reflect, so give the scene a neutral image-based light. Kept subtle so
@@ -1036,7 +1072,14 @@ export class Game {
         };
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
-            ? this.scenery.createWeather(this.scene, sun, hemi, this.renderer, seedFrom(this.seed, 'weather'))
+            ? this.scenery.createWeather(
+                  this.scene,
+                  sun,
+                  hemi,
+                  this.renderer,
+                  seedFrom(this.seed, 'weather'),
+                  this.effectToggles,
+              )
             : null;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // specialist streams are keyed by canonical side (different draws)
@@ -1901,6 +1944,7 @@ export class Game {
                 this.hemi,
                 this.renderer,
                 seedFrom(this.seed, 'weather'),
+                this.effectToggles,
             );
             if (weatherSnapshot) this.weather.setAtmosphere(weatherSnapshot);
         } else {
@@ -1924,12 +1968,8 @@ export class Game {
         // ground-mist strength is baked into the fog shader chunk — re-bake
         // for the new tier and recompile every fogged material still alive
         // (the rebuilt ground/scenery materials compile fresh anyway)
-        setHeightFogStrength(sceneryHeightFog(scenery));
-        this.scene.traverse((o) => {
-            const m = (o as Mesh).material as import('three').Material | import('three').Material[] | undefined;
-            if (!m) return;
-            for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
-        });
+        this.heightMistBase = sceneryHeightFog(scenery);
+        this.applyHeightMistStrength();
         this.enforceCinemaWorld();
     }
 
@@ -6951,6 +6991,7 @@ export class Game {
             simCpu: simCpu,
             simSteps: simSteps || undefined,
             weatherLines: this.weather?.debugLines(),
+            effectLines: this.effectToggles.debugLines(),
         }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.net && !this.star && !this.matchOver && !this.hydrating) {
