@@ -27,7 +27,6 @@ import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import {
-    clearResumeMarker,
     clearSinglePlayer,
     clearStarResumeMarker,
     GAME_VERSION,
@@ -6392,7 +6391,6 @@ export class Game {
         // constructor/main.ts) — clearing them here would wipe out the
         // player's real, unrelated saved game/resume marker
         if (!this.watching) {
-            clearResumeMarker();
             clearStarResumeMarker();
             clearSinglePlayer();
         }
@@ -6468,7 +6466,6 @@ export class Game {
         if (this.matchOver) return;
         this.matchOver = true;
         this.suspended = false;
-        clearResumeMarker();
         clearStarResumeMarker();
         clearSinglePlayer();
         // report before tearing down net — mode/side derive from it still being set.
