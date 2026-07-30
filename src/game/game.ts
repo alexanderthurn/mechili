@@ -500,6 +500,22 @@ export class Game {
     /** 0..1 while the match→menu fly-out runs (main fades the menu cover in) */
     onMatchOutroProgress: ((t: number) => void) | null = null;
     private introActive = false;
+    /**
+     * A reconnecting peer's fairness handshake ('ready'/awaitPeerReady) —
+     * deferred until the fly-in cinematic actually finishes, not fired
+     * synchronously during construction. Sending it immediately (as this
+     * game.ts once did) tells the SURVIVING side "go ahead, resume" the
+     * moment hydrate() finishes, but this reconnecting side still has a
+     * real, multi-second matchIntro fly-in left to play through (gated by
+     * `introActive`/`simTimingActive`, so it can't tick yet) — the
+     * survivor, having no intro of its own to wait through, would resume
+     * ticking immediately, racing ahead for exactly that fly-in's
+     * duration. At normal speed a second or two goes unnoticed; at battle
+     * fast-forward (4x) it becomes a very real, reproducible gap between
+     * what the two sides show (confirmed live: reconnecting during a 4x
+     * battle left the two sides' clocks about 20 in-game seconds apart).
+     */
+    private pendingReadyOnIntroFinish: (() => void) | null = null;
     private introElapsed = 0;
     private introFrom: ReturnType<CameraRig['getPose']> | null = null;
     private introTo: ReturnType<CameraRig['getPose']> | null = null;
@@ -1446,8 +1462,13 @@ export class Game {
         if (this.net) this.wireSession(this.net);
         if (resume && this.net && !resume.local) {
             // rebuilt from a peer reconnect (not a solo save) — hold ticking
-            // until the peer confirms it's ready too; see awaitPeerReady()
-            this.awaitPeerReady();
+            // until the peer confirms it's ready too; see awaitPeerReady().
+            // Deferred to finishMatchIntro() when there's a fly-in to play
+            // through first (see pendingReadyOnIntroFinish's doc comment) —
+            // sending it now would tell the peer to resume before this side
+            // can actually tick again itself.
+            if (matchIntro) this.pendingReadyOnIntroFinish = () => this.awaitPeerReady();
+            else this.awaitPeerReady();
         }
         if ((this.net && this.side === 'a') || this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
@@ -1456,10 +1477,14 @@ export class Game {
             // 'starResumeState' handling) — the host holds this seat
             // suspended until it hears OUR 'ready', same fairness
             // handshake an in-session redial already sends via
-            // beginStarGuestReconnect. Nothing to await here first (unlike
-            // classic 1v1's awaitPeerReady): hydrate() above already ran
-            // to completion synchronously.
-            this.star.session.send({ type: 'ready' });
+            // beginStarGuestReconnect. hydrate() above already ran to
+            // completion synchronously, but see pendingReadyOnIntroFinish's
+            // doc comment for why the SEND itself still needs to wait for
+            // the fly-in, not just the data hydrate.
+            const guestSession = this.star.session;
+            const sendReady = () => guestSession.send({ type: 'ready' });
+            if (matchIntro) this.pendingReadyOnIntroFinish = sendReady;
+            else sendReady();
         }
         if (spectate) this.wireSpectateSession(spectate.session);
 
@@ -1524,6 +1549,12 @@ export class Game {
     private finishMatchIntro(): void {
         if (!this.introActive) return;
         this.introActive = false;
+        // see pendingReadyOnIntroFinish's doc comment — a reconnecting
+        // peer's fairness handshake was deferred until the fly-in this
+        // just finished, not fired back at construction time
+        const sendReady = this.pendingReadyOnIntroFinish;
+        this.pendingReadyOnIntroFinish = null;
+        sendReady?.();
         if (this.introTo) this.rig.setPose(this.introTo);
         this.introFrom = null;
         this.introTo = null;
