@@ -384,21 +384,31 @@ body {
     box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
 }
 @media (max-width: 720px) {
+    #screenshots.mh-section {
+        margin: 24px 0 36px;
+        padding-top: 56px;
+    }
+    #screenshots .mh-sub {
+        margin-bottom: 12px;
+        padding: 0 4px;
+    }
     .mh-shots {
         grid-template-columns: repeat(2, 1fr);
-        gap: 14px;
-        margin: 6px 10px 0;
+        gap: 8px;
+        margin: 0;
+    }
+    .mh-shots-more-wrap {
+        margin-top: 14px;
     }
 }
 
 @media (max-width: 520px) {
     .mh-shots {
-        gap: 10px;
-        margin: 4px 6px 0;
+        gap: 6px;
     }
 }
 .mh-shot {
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 16 / 9;
     border-radius: 12px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
@@ -413,6 +423,12 @@ body {
     cursor: pointer;
     font: inherit;
     transition: border-color 0.15s ease, transform 0.15s ease;
+}
+@media (max-width: 720px) {
+    .mh-shot {
+        border-radius: 8px;
+        border-width: 1.5px;
+    }
 }
 .mh-shot:hover {
     border-color: ${u.brass};
@@ -556,8 +572,12 @@ body {
     line-height: 1.4;
     text-align: center;
 }
-.mh-lightbox-4k {
+.mh-lightbox-links {
+    display: flex;
+    gap: 8px;
     pointer-events: auto;
+}
+.mh-lightbox-link {
     padding: 5px 12px;
     border-radius: 999px;
     border: 1px solid ${u.border};
@@ -569,7 +589,7 @@ body {
     text-decoration: none;
     text-transform: uppercase;
 }
-.mh-lightbox-4k:hover {
+.mh-lightbox-link:hover {
     border-color: ${u.brass};
     background: ${u.techBuyBg};
     color: ${u.text};
@@ -598,20 +618,38 @@ body {
 }
 @media (max-width: 720px) {
     .mh-lightbox-stage {
-        inset: 56px 8px 96px;
+        inset: 48px 0 84px;
     }
     .mh-lightbox-nav {
-        width: 40px;
-        height: 56px;
-        font-size: 30px;
+        display: none;
     }
-    .mh-lightbox-nav.prev { left: 4px; }
-    .mh-lightbox-nav.next { right: 4px; }
+    .mh-lightbox-img {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        max-height: 100%;
+        width: 100%;
+        object-fit: contain;
+    }
     .mh-lightbox-footer {
-        bottom: 52px;
+        bottom: 40px;
+        gap: 6px;
     }
     .mh-lightbox-caption {
         font-size: 12px;
+        padding: 4px 10px;
+    }
+    .mh-lightbox-link {
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+    .mh-lightbox-dots {
+        bottom: 10px;
+        gap: 10px;
+    }
+    .mh-lightbox-dot {
+        width: 8px;
+        height: 8px;
     }
 }
 

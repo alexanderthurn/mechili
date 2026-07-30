@@ -48,6 +48,7 @@ const SCREENSHOT_DEFS = [
 
 const MORE_SCREENSHOTS = SCREENSHOT_DEFS.map((s) => ({
     src: new URL(`../../assets/marketing/screenshots/fullhd/screen_${s.n}.webp`, import.meta.url).href,
+    fullhd: new URL(`../../assets/marketing/screenshots/fullhd/screen_${s.n}.jpg`, import.meta.url).href,
     raw4k: new URL(`../../assets/marketing/screenshots/4k/sc${s.n}.jpg`, import.meta.url).href,
     label: s.label,
 }));
@@ -469,7 +470,10 @@ app.innerHTML = `
   </div>
   <div class="mh-lightbox-footer">
     <p class="mh-lightbox-caption" id="mh-lightbox-caption"></p>
-    <a class="mh-lightbox-4k" id="mh-lightbox-4k" href="#" target="_blank" rel="noopener noreferrer">Open 4K JPG</a>
+    <div class="mh-lightbox-links">
+      <a class="mh-lightbox-link" id="mh-lightbox-fullhd" href="#" target="_blank" rel="noopener noreferrer">Full HD</a>
+      <a class="mh-lightbox-link" id="mh-lightbox-4k" href="#" target="_blank" rel="noopener noreferrer">4K</a>
+    </div>
   </div>
   <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="Screenshots"></div>
 </dialog>
@@ -530,6 +534,7 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
     const imgEl = app.querySelector<HTMLImageElement>('#mh-lightbox-img');
     const countEl = app.querySelector<HTMLElement>('#mh-lightbox-count');
     const captionEl = app.querySelector<HTMLElement>('#mh-lightbox-caption');
+    const linkFullhd = app.querySelector<HTMLAnchorElement>('#mh-lightbox-fullhd');
     const link4k = app.querySelector<HTMLAnchorElement>('#mh-lightbox-4k');
     const dotsEl = app.querySelector<HTMLElement>('#mh-lightbox-dots');
     const stageEl = app.querySelector<HTMLElement>('#mh-lightbox-stage');
@@ -539,7 +544,7 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
     const nextBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-next');
     let index = 0;
 
-    if (lightbox && imgEl && countEl && captionEl && link4k && dotsEl && stageEl && openBtn) {
+    if (lightbox && imgEl && countEl && captionEl && linkFullhd && link4k && dotsEl && stageEl && openBtn) {
         dotsEl.innerHTML = MORE_SCREENSHOTS.map(
             (s, i) =>
                 `<button type="button" class="mh-lightbox-dot" role="tab" aria-label="${esc(s.label)}" data-index="${i}"></button>`,
@@ -554,8 +559,8 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
             imgEl.alt = shot.label;
             countEl.textContent = `${index + 1} / ${n}`;
             captionEl.textContent = shot.label;
+            linkFullhd.href = shot.fullhd;
             link4k.href = shot.raw4k;
-            link4k.download = `melodan-screenshot-${index + 1}-4k.jpg`;
             for (const [di, dot] of dots.entries()) {
                 const on = di === index;
                 dot.classList.toggle('active', on);
@@ -598,8 +603,17 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
         let dragX = 0;
         let dragY = 0;
         let dragging = false;
+        let dragPointers = 0;
         stageEl.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
+            dragPointers += 1;
+            // Multi-touch — don't steal the gesture.
+            if (dragPointers > 1) {
+                dragging = false;
+                imgEl.style.transition = '';
+                imgEl.style.transform = '';
+                return;
+            }
             dragging = true;
             dragX = e.clientX;
             dragY = e.clientY;
@@ -612,11 +626,13 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
                 imgEl.style.transform = `translateX(${dx}px)`;
                 return;
             }
+            if (e.pointerType === 'touch') return;
             const rect = stageEl.getBoundingClientRect();
             stageEl.classList.toggle('mh-lightbox-left', e.clientX < rect.left + rect.width / 2);
             stageEl.classList.toggle('mh-lightbox-right', e.clientX >= rect.left + rect.width / 2);
         });
         const endDrag = (e: PointerEvent) => {
+            dragPointers = Math.max(0, dragPointers - 1);
             if (!dragging) return;
             dragging = false;
             const dx = e.clientX - dragX;
