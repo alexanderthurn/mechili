@@ -530,13 +530,24 @@ body {
     inset: 56px 64px 88px;
     display: grid;
     place-items: center;
-    touch-action: pan-y;
+    touch-action: none;
     cursor: pointer;
     user-select: none;
+    overflow: hidden;
 }
 .mh-lightbox-stage.mh-lightbox-left { cursor: w-resize; }
 .mh-lightbox-stage.mh-lightbox-right { cursor: e-resize; }
 .mh-lightbox-stage:active { cursor: grabbing; }
+.mh-lightbox-stage.mh-lightbox-zoomed {
+    cursor: grab;
+}
+.mh-lightbox-stage.mh-lightbox-zoomed:active {
+    cursor: grabbing;
+}
+.mh-lightbox-stage.mh-lightbox-zoomed.mh-lightbox-left,
+.mh-lightbox-stage.mh-lightbox-zoomed.mh-lightbox-right {
+    cursor: grab;
+}
 .mh-lightbox-img {
     max-width: 100%;
     max-height: 100%;
@@ -547,7 +558,9 @@ body {
     border: 2px solid ${u.border};
     box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
     transition: transform 0.18s ease;
+    transform-origin: center center;
     pointer-events: none;
+    will-change: transform;
 }
 .mh-lightbox-footer {
     position: absolute;

@@ -561,6 +561,7 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
             captionEl.textContent = shot.label;
             linkFullhd.href = shot.fullhd;
             link4k.href = shot.raw4k;
+            resetZoom(false);
             for (const [di, dot] of dots.entries()) {
                 const on = di === index;
                 dot.classList.toggle('active', on);
@@ -600,60 +601,213 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
             }
         });
 
-        let dragX = 0;
-        let dragY = 0;
-        let dragging = false;
-        let dragPointers = 0;
-        stageEl.addEventListener('pointerdown', (e) => {
-            if (e.button !== 0) return;
-            dragPointers += 1;
-            // Multi-touch — don't steal the gesture.
-            if (dragPointers > 1) {
-                dragging = false;
-                imgEl.style.transition = '';
-                imgEl.style.transform = '';
+        const MIN_SCALE = 1;
+        const MAX_SCALE = 4;
+        const pointers = new Map<number, { x: number; y: number }>();
+        let scale = 1;
+        let panX = 0;
+        let panY = 0;
+        let mode: 'none' | 'swipe' | 'pan' | 'pinch' = 'none';
+        let startX = 0;
+        let startY = 0;
+        let originPanX = 0;
+        let originPanY = 0;
+        let pinchStartDist = 0;
+        let pinchStartScale = 1;
+        let lastTapAt = 0;
+        let lastTapX = 0;
+        let lastTapY = 0;
+
+        const applyTransform = (animated: boolean) => {
+            imgEl.style.transition = animated ? 'transform 0.18s ease' : 'none';
+            imgEl.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+            stageEl.classList.toggle('mh-lightbox-zoomed', scale > 1.02);
+        };
+
+        const clampPan = () => {
+            if (scale <= 1.02) {
+                panX = 0;
+                panY = 0;
                 return;
             }
-            dragging = true;
-            dragX = e.clientX;
-            dragY = e.clientY;
+            const rect = stageEl.getBoundingClientRect();
+            const maxX = (rect.width * (scale - 1)) * 0.5;
+            const maxY = (rect.height * (scale - 1)) * 0.5;
+            panX = Math.max(-maxX, Math.min(maxX, panX));
+            panY = Math.max(-maxY, Math.min(maxY, panY));
+        };
+
+        function resetZoom(animated: boolean): void {
+            scale = 1;
+            panX = 0;
+            panY = 0;
+            mode = 'none';
+            pointers.clear();
+            applyTransform(animated);
+        }
+
+        const pointerList = () => [...pointers.values()];
+        const distBetween = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+            Math.hypot(a.x - b.x, a.y - b.y);
+
+        stageEl.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             stageEl.setPointerCapture(e.pointerId);
             imgEl.style.transition = 'none';
+
+            if (pointers.size >= 2) {
+                const [a, b] = pointerList();
+                if (!a || !b) return;
+                mode = 'pinch';
+                pinchStartDist = distBetween(a, b) || 1;
+                pinchStartScale = scale;
+                return;
+            }
+
+            startX = e.clientX;
+            startY = e.clientY;
+            originPanX = panX;
+            originPanY = panY;
+            mode = scale > 1.02 ? 'pan' : 'swipe';
         });
+
         stageEl.addEventListener('pointermove', (e) => {
-            if (dragging) {
-                const dx = e.clientX - dragX;
+            if (!pointers.has(e.pointerId)) return;
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+            if (mode === 'pinch' && pointers.size >= 2) {
+                const [a, b] = pointerList();
+                if (!a || !b) return;
+                const d = distBetween(a, b) || 1;
+                scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * (d / pinchStartDist)));
+                clampPan();
+                applyTransform(false);
+                return;
+            }
+
+            if (mode === 'pan') {
+                panX = originPanX + (e.clientX - startX);
+                panY = originPanY + (e.clientY - startY);
+                clampPan();
+                applyTransform(false);
+                return;
+            }
+
+            if (mode === 'swipe') {
+                const dx = e.clientX - startX;
                 imgEl.style.transform = `translateX(${dx}px)`;
                 return;
             }
-            if (e.pointerType === 'touch') return;
+
+            if (e.pointerType === 'touch' || scale > 1.02) return;
             const rect = stageEl.getBoundingClientRect();
             stageEl.classList.toggle('mh-lightbox-left', e.clientX < rect.left + rect.width / 2);
             stageEl.classList.toggle('mh-lightbox-right', e.clientX >= rect.left + rect.width / 2);
         });
-        const endDrag = (e: PointerEvent) => {
-            dragPointers = Math.max(0, dragPointers - 1);
-            if (!dragging) return;
-            dragging = false;
-            const dx = e.clientX - dragX;
-            const dy = e.clientY - dragY;
-            imgEl.style.transition = '';
-            imgEl.style.transform = '';
-            if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
-                show(dx < 0 ? index + 1 : index - 1);
+
+        const endPointer = (e: PointerEvent) => {
+            if (!pointers.has(e.pointerId)) return;
+            pointers.delete(e.pointerId);
+            if (stageEl.hasPointerCapture(e.pointerId)) stageEl.releasePointerCapture(e.pointerId);
+
+            if (pointers.size >= 2) {
+                const [a, b] = pointerList();
+                if (a && b) {
+                    mode = 'pinch';
+                    pinchStartDist = distBetween(a, b) || 1;
+                    pinchStartScale = scale;
+                }
                 return;
             }
-            if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
-                const rect = stageEl.getBoundingClientRect();
-                show(e.clientX < rect.left + rect.width / 2 ? index - 1 : index + 1);
+
+            if (pointers.size === 1) {
+                const remaining = pointerList()[0]!;
+                startX = remaining.x;
+                startY = remaining.y;
+                originPanX = panX;
+                originPanY = panY;
+                mode = scale > 1.02 ? 'pan' : 'swipe';
+                applyTransform(false);
+                return;
+            }
+
+            const endedMode = mode;
+            mode = 'none';
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            if (endedMode === 'pinch') {
+                if (scale < 1.05) resetZoom(true);
+                else applyTransform(true);
+                return;
+            }
+
+            if (endedMode === 'pan') {
+                applyTransform(true);
+                return;
+            }
+
+            if (endedMode === 'swipe') {
+                imgEl.style.transition = '';
+                if (scale <= 1.02) imgEl.style.transform = '';
+                else applyTransform(false);
+
+                if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)) {
+                    show(dx < 0 ? index + 1 : index - 1);
+                    return;
+                }
+                if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+                    const now = performance.now();
+                    const isDoubleTap =
+                        now - lastTapAt < 320 &&
+                        Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 36;
+                    lastTapAt = now;
+                    lastTapX = e.clientX;
+                    lastTapY = e.clientY;
+                    if (isDoubleTap) {
+                        if (scale > 1.02) resetZoom(true);
+                        else {
+                            scale = 2.4;
+                            panX = 0;
+                            panY = 0;
+                            clampPan();
+                            applyTransform(true);
+                        }
+                        return;
+                    }
+                    const rect = stageEl.getBoundingClientRect();
+                    show(e.clientX < rect.left + rect.width / 2 ? index - 1 : index + 1);
+                }
             }
         };
-        stageEl.addEventListener('pointerup', endDrag);
-        stageEl.addEventListener('pointercancel', endDrag);
+
+        stageEl.addEventListener('pointerup', endPointer);
+        stageEl.addEventListener('pointercancel', endPointer);
         stageEl.addEventListener('pointerleave', () => {
-            if (dragging) return;
+            if (mode !== 'none') return;
             stageEl.classList.remove('mh-lightbox-left', 'mh-lightbox-right');
         });
+
+        stageEl.addEventListener(
+            'wheel',
+            (e) => {
+                e.preventDefault();
+                const factor = Math.exp(-e.deltaY * 0.0015);
+                const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+                if (next === scale) return;
+                scale = next;
+                if (scale <= 1.02) {
+                    resetZoom(false);
+                    return;
+                }
+                clampPan();
+                applyTransform(false);
+            },
+            { passive: false },
+        );
+
+        lightbox.addEventListener('close', () => resetZoom(false));
     }
 }
 
