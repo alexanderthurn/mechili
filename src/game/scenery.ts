@@ -31,6 +31,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather, TRANSITION_TAU, type Season } from './weather';
 import { THEME } from '../theme';
+import type { EffectToggles } from './effectToggles';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
 import {
     CELL,
@@ -82,6 +83,8 @@ function sceneryDensity(quality: SceneryQuality): {
     beltRamp: number;
     /** distance where far taper begins */
     beltFar: number;
+    forestFogCards: number;
+    /** summit wisps parked on snowy peaks */
     peakClouds: number;
 } {
     if (quality === 'ultra') {
@@ -98,6 +101,7 @@ function sceneryDensity(quality: SceneryQuality): {
             beltRamp: 18,
             // stay dense across green foothills; rockFactor rejects stone
             beltFar: 500,
+            forestFogCards: 22,
             peakClouds: 22,
         };
     }
@@ -114,6 +118,7 @@ function sceneryDensity(quality: SceneryQuality): {
             beltNear: 8,
             beltRamp: 18,
             beltFar: 500,
+            forestFogCards: 18,
             peakClouds: 18,
         };
     }
@@ -129,6 +134,7 @@ function sceneryDensity(quality: SceneryQuality): {
         beltNear: 25,
         beltRamp: 70,
         beltFar: 300,
+        forestFogCards: 12,
         peakClouds: 12,
     };
 }
@@ -144,8 +150,7 @@ function smooth01(t: number): number {
 
 /**
  * Everything around and above the battlefield, generated in code: sky dome,
- * sun glow, the outer world (ground, trees, rocks), drifting clouds and
- * their shadows sweeping across the field.
+ * sun glow, the outer world (ground, trees), horizon clouds, forest fog, rain/snow.
  */
 export class Scenery {
     readonly group = new Group();
@@ -159,7 +164,6 @@ export class Scenery {
     private readonly fogCards: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private forestFogMaterial: MeshBasicMaterial | null = null;
     private time = 0;
-    private readonly cloudShadow: Mesh;
     private readonly cloudBoundsX: number;
     private readonly map: BattleMap;
     private weather: Weather | null = null;
@@ -276,13 +280,9 @@ export class Scenery {
             this.createForest(map, rng);
             this.createMeadowDetails(map, rng);
         }
-        this.cloudShadow = this.createCloudShadow(map);
-        this.group.add(this.cloudShadow);
-        this.createClouds(map, rng);
+        this.createHorizonClouds(map, rng);
         if (this.detailed) this.createForestFog(map, rng);
         if (this.quality === 'off') {
-            // scenery 'off' = no weather FX at all: hide every cloud layer
-            this.cloudShadow.visible = false;
             for (const c of this.clouds) c.mesh.visible = false;
         }
     }
@@ -303,7 +303,7 @@ export class Scenery {
         const geometry = new PlaneGeometry(1, 0.55);
         geometry.rotateX(-Math.PI / 2);
 
-        const count = Math.round(14 + this.density.peakClouds);
+        const count = Math.round(14 + this.density.forestFogCards);
         const beltMax = Math.min(this.density.beltFar, 360);
         let placed = 0;
         for (let attempt = 0; attempt < 4000 && placed < count; attempt++) {
@@ -358,6 +358,7 @@ export class Scenery {
         hemi: HemisphereLight,
         renderer: WebGLRenderer,
         seed: number,
+        effectToggles?: EffectToggles,
     ): Weather {
         this.weather = new Weather(
             {
@@ -368,7 +369,6 @@ export class Scenery {
                 repaintSky: this.repaintSky,
                 glow: this.sunGlow,
                 cloudMaterial: this.cloudMaterial,
-                cloudShadowMaterial: this.cloudShadow.material as MeshBasicMaterial,
                 cloudTexture: this.cloudTexture,
                 forestFogMaterial: this.forestFogMaterial,
                 forestFogScale: Math.min(1.2, sceneryHeightFog(this.quality)),
@@ -376,6 +376,7 @@ export class Scenery {
                 worldGroup: this.group,
                 map: this.map,
                 onSeasonChange: (season) => this.setSeason(season),
+                effectToggles,
             },
             seed,
         );
@@ -422,14 +423,11 @@ export class Scenery {
             this.waterMaterial.roughness = 0.18 + freeze * 0.55;
             this.waterMaterial.opacity = 0.86 + freeze * 0.12;
         }
-        const mat = this.cloudShadow.material as MeshBasicMaterial;
-        mat.map!.offset.x += dtSeconds * 0.0035;
-        mat.map!.offset.y += dtSeconds * 0.0012;
+        this.time += dtSeconds;
         for (const c of this.clouds) {
             c.mesh.position.x += c.speed * dtSeconds;
             if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
         }
-        this.time += dtSeconds;
         for (const p of this.peakClouds) {
             p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
         }
@@ -1159,7 +1157,7 @@ export class Scenery {
     }
 
     /**
-     * Trees, bushes and rocks — forest belt + a few on the battlefield.
+     * Trees, bushes — forest belt + a few on the battlefield.
      * High: dense low-poly forest. Ultra: same density with Tripo mid-poly GLBs.
      */
     private createForest(map: BattleMap, rng: () => number): void {
@@ -1243,7 +1241,6 @@ export class Scenery {
         const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
         const FIELD_PINES = hq ? 0 : scaleCount(5, dens.field);
         const FIELD_LEAFY = hq ? 0 : scaleCount(6, dens.field);
-        const ROCKS = scaleCount(170, dens.outer);
         const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
         const FIELD_BUSHES = hq ? 0 : scaleCount(45, dens.field);
         // horde mode widens the neutral strip into a real belt — grow a
@@ -1292,11 +1289,6 @@ export class Scenery {
             // pines stay green year-round — only the leafy (oak) canopy retints
             attachSeasonTint(blobs.material as MeshStandardMaterial);
         }
-        const rocks = new InstancedMesh(
-            new IcosahedronGeometry(1.4, 0),
-            new MeshStandardMaterial({ color: s.rock, roughness: 0.95, flatShading: true }),
-            ROCKS,
-        );
         if (bushCapacity > 0 && !highMix) {
             bushes = new InstancedMesh(
                 new IcosahedronGeometry(1, 1),
@@ -1382,28 +1374,6 @@ export class Scenery {
             }
         }
 
-        // prefer foothill / lower-slope rocks for silhouette variation
-        const rockSpot = (): { x: number; z: number } => {
-            for (let attempt = 0; attempt < 16; attempt++) {
-                const x = (rng() * 2 - 1) * (map.halfW + margin);
-                const z = (rng() * 2 - 1) * (map.halfH + margin);
-                if (distOut(x, z) < keepOut) continue;
-                const h = this.terrainHeight(x, z);
-                // decorative stones belong on rocky / upper slopes, not meadow
-                if (h > 4 && h < 140 && this.rockFactorAt(x, z) > 0.25) return { x, z };
-            }
-            return forestSpot(150);
-        };
-        for (let i = 0; i < ROCKS; i++) {
-            const { x, z } = rockSpot();
-            const sc = 0.5 + rng() * 1.5;
-            dummy.position.set(x, groundY(x, z) + 0.4 * sc, z);
-            dummy.scale.set(sc, sc * 0.55, sc);
-            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-            dummy.updateMatrix();
-            rocks.setMatrixAt(i, dummy.matrix);
-        }
-
         if (bushes || highMix) {
             let bushI = 0;
             for (let i = 0; i < BUSHES + FIELD_BUSHES + BELT_BUSHES; i++) {
@@ -1432,7 +1402,7 @@ export class Scenery {
         if (cones) cones.count = coneI;
         if (blobs) blobs.count = blobI;
 
-        for (const m of [trunks, cones, blobs, rocks, bushes]) {
+        for (const m of [trunks, cones, blobs, bushes]) {
             if (!m) continue;
             m.castShadow = true;
             m.instanceMatrix.needsUpdate = true;
@@ -1759,51 +1729,8 @@ export class Scenery {
         }
     }
 
-    /** soft dark blobs on a repeating texture, slowly panning over the field */
-    private createCloudShadow(map: BattleMap): Mesh {
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d')!;
-        const rng = mulberry32(7);
-        for (let i = 0; i < 10; i++) {
-            const cx = rng() * 512;
-            const cy = rng() * 512;
-            // each cloud shadow is a cluster of overlapping soft blobs
-            for (let b = 0; b < 6; b++) {
-                const x = cx + (rng() - 0.5) * 130;
-                const y = cy + (rng() - 0.5) * 70;
-                const r = 28 + rng() * 45;
-                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-                grad.addColorStop(0, 'rgba(0, 0, 0, 0.55)');
-                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(x, y, r, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-        const texture = new CanvasTexture(canvas);
-        texture.wrapS = RepeatWrapping;
-        texture.wrapT = RepeatWrapping;
-
-        const geometry = new PlaneGeometry(map.width * 2.5, map.height * 2.5);
-        geometry.rotateX(-Math.PI / 2);
-        const mesh = new Mesh(
-            geometry,
-            new MeshBasicMaterial({
-                map: texture,
-                transparent: true,
-                opacity: THEME.scenery.cloudShadowOpacity,
-                depthWrite: false,
-            }),
-        );
-        mesh.position.y = THEME.terrain.reliefDepth + 0.1; // clears the ground-relief mounds
-        return mesh;
-    }
-
-    /** flat white puffs drifting near the horizon — never over the field itself */
-    private createClouds(map: BattleMap, rng: () => number): void {
+    /** flat puffs on the horizon + summit wisps — tinted by the weather system */
+    private createHorizonClouds(map: BattleMap, rng: () => number): void {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 128;
@@ -1836,7 +1763,6 @@ export class Scenery {
 
         for (let i = 0; i < 12; i++) {
             const mesh = new Mesh(geometry, material);
-            // lanes beyond the field edges so clouds never hide units from above
             const farSide = rng() < 0.7;
             const lane = map.halfH + 100 + rng() * 320;
             mesh.position.set(
@@ -1850,10 +1776,7 @@ export class Scenery {
             this.group.add(mesh);
         }
 
-        // summit wisps: parked just below the white peaks, swaying in place.
-        // They share the horizon clouds' material, so every weather scenario
-        // tints and fades them automatically.
-        if (!this.detailed) return; // decoration only — low/off skip it regardless of relief
+        if (!this.detailed) return;
         const peakCap = this.density.peakClouds;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {
@@ -1861,7 +1784,6 @@ export class Scenery {
             const z = (rng() * 2 - 1) * 1300;
             const h = this.terrainHeight(x, z);
             if (h < 165) continue;
-            // keep them spread out — one wisp per summit area
             if (this.peakClouds.some((p) => Math.hypot(p.mesh.position.x - x, p.mesh.position.z - z) < 90)) {
                 continue;
             }

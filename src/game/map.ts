@@ -83,6 +83,8 @@ export const BASE_ANCHORS = {
     research: { xFrac: 0.25, rowFrac: 0.62, r: 9 },
     command: { xFrac: 0.75, rowFrac: 0.62, r: 9 },
     stronghold: { xFrac: 0.5, rowFrac: 0.22, r: 14 },
+    outerTowerRowFrac: 0.36,
+    outerTowerXFrac: 0.17,
 } as const;
 
 let groundHeightFn: (x: number, z: number) => number = () => 0;
@@ -336,7 +338,16 @@ export class BattleMap {
     baseAnchors(): { x: number; z: number; r: number }[] {
         const { flankCols, zoneCols, zoneRows } = this.size;
         const anchors: { x: number; z: number; r: number }[] = [];
-        for (const a of Object.values(BASE_ANCHORS)) {
+        const specs = [
+            BASE_ANCHORS.stronghold,
+            BASE_ANCHORS.research,
+            BASE_ANCHORS.command,
+            { xFrac: 0.375, rowFrac: 0.62, r: 9 },
+            { xFrac: 0.625, rowFrac: 0.62, r: 9 },
+            { xFrac: BASE_ANCHORS.outerTowerXFrac, rowFrac: BASE_ANCHORS.outerTowerRowFrac, r: 9 },
+            { xFrac: 1 - BASE_ANCHORS.outerTowerXFrac, rowFrac: BASE_ANCHORS.outerTowerRowFrac, r: 9 },
+        ];
+        for (const a of specs) {
             const x = -this.halfW + (flankCols + zoneCols * a.xFrac) * CELL;
             const z = this.halfH - zoneRows * a.rowFrac * CELL;
             anchors.push({ x, z, r: a.r }, { x: -x, z: -z, r: a.r });

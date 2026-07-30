@@ -30,6 +30,8 @@ export interface DebugPerfStats {
     simSteps?: number;
     /** Weather.debugLines() — live sky/fog/light state for finetuning presets */
     weatherLines?: string[];
+    /** EffectToggles.debugLines() — Shift+1…9 layer on/off */
+    effectLines?: string[];
 }
 
 /**
@@ -225,6 +227,7 @@ export class DebugOverlay {
                 ? `\ninst ${stats.instanceCount} in ${stats.instancePools ?? 0} pools`
                 : '') +
             (stats.weatherLines?.length ? `\n${stats.weatherLines[0]}` : '') +
+            (stats.effectLines?.length ? `\n${stats.effectLines[0]}` : '') +
             cpuBlock +
             `\n(click to copy)`;
         this.lastHud = hud;
@@ -249,6 +252,7 @@ export class DebugOverlay {
             `inst  count=${stats.instanceCount ?? 0}  pools=${stats.instancePools ?? 0}`,
             ...(stats.instanceLines ?? []),
             ...(stats.weatherLines?.length ? ['--- weather ---', ...stats.weatherLines] : []),
+            ...(stats.effectLines?.length ? ['--- fx toggles (Shift+1…9) ---', ...stats.effectLines] : []),
             '--- cpu frame (avg) ---',
             ...formatCpuLines(this.cpuAvg),
         ];

@@ -18,7 +18,13 @@ export class HpBars {
     /** the match roster — secondary seats tint green/orange */
     roster: SeatDef[] = [];
 
+    /** Pixi v8 nulls `context` on destroy — guard every draw call. */
+    private get alive(): boolean {
+        return this.view.context != null;
+    }
+
     clear(): void {
+        if (!this.alive) return;
         this.view.clear();
     }
 
@@ -30,6 +36,7 @@ export class HpBars {
         selected: Actor | null,
         elapsed: number,
     ): void {
+        if (!this.alive) return;
         this.view.clear();
         for (const a of actors) {
             if (!a.alive) continue;
@@ -40,11 +47,19 @@ export class HpBars {
             // spawning bars stay fully visible so the hp ramp reads
             const alpha =
                 isSelected || spawning ? 1 : Math.min(1, a.hurtTimer / (HURT_BAR_SECONDS * 0.35));
-            this.drawBar(a, camera, width, height, alpha, isSelected);
+            this.drawBar(this.view, a, camera, width, height, alpha, isSelected);
         }
     }
 
+    /** Tear down the Pixi graphics (match exit / Game.destroy). */
+    destroy(): void {
+        if (!this.alive) return;
+        this.view.parent?.removeChild(this.view);
+        this.view.destroy({ children: true });
+    }
+
     private drawBar(
+        g: Graphics,
         a: Actor,
         camera: PerspectiveCamera,
         width: number,
@@ -69,11 +84,13 @@ export class HpBars {
 
         if (selected) {
             // the ground shows the 3D attack-range ring instead of a marker here
-            this.view
-                .rect(sx - w / 2 - 1.5, sy - h - 1.5, w + 3, h + 3)
-                .stroke({ width: 1.5, color: THEME.selection, alpha: 0.8 });
+            g.rect(sx - w / 2 - 1.5, sy - h - 1.5, w + 3, h + 3).stroke({
+                width: 1.5,
+                color: THEME.selection,
+                alpha: 0.8,
+            });
         }
-        this.view.rect(sx - w / 2, sy - h, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
-        if (ratio > 0) this.view.rect(sx - w / 2, sy - h, w * ratio, h).fill({ color, alpha });
+        g.rect(sx - w / 2, sy - h, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
+        if (ratio > 0) g.rect(sx - w / 2, sy - h, w * ratio, h).fill({ color, alpha });
     }
 }

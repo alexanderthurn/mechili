@@ -7,8 +7,8 @@
  *
  * Frame keys in JSON include ".png"; callers use bare ids (e.g. "ui-supply").
  *
- * IMPORTANT: Pixi HTMLSource (in-game HUD) often skips external CSS
- * background-image URLs. We paint from a data-URL after {@link preloadIconAtlas}.
+ * Icons are served as a data-URL after {@link preloadIconAtlas} so CSS
+ * mask/background paints don't depend on a separate network fetch mid-match.
  */
 
 import atlasJson from '../../assets/icons/icons.json';
@@ -27,7 +27,7 @@ const atlasUrl = new URL('../../assets/icons/icons.webp', import.meta.url).href;
 const sheetW = atlas.meta.size.w;
 const sheetH = atlas.meta.size.h;
 
-/** Prefer data URL so HTMLSource / canvas mirroring can rasterize icons. */
+/** Prefer data URL so HUD CSS masks/backgrounds paint without a late network fetch. */
 let atlasPaintUrl = atlasUrl;
 /** Decoded atlas image — used by world sprites that stamp frames onto canvas. */
 let atlasImage: HTMLImageElement | null = null;
@@ -42,8 +42,7 @@ export function hasIcon(id: string): boolean {
 }
 
 /**
- * Load the atlas into a data URL. Call during boot before constructing the HUD
- * so in-canvas HTMLSource paints see the sheet.
+ * Load the atlas into a data URL. Call during boot before constructing the HUD.
  */
 export function preloadIconAtlas(): Promise<void> {
     if (atlasImage && atlasPaintUrl.startsWith('data:')) return Promise.resolve();
@@ -58,7 +57,7 @@ export function preloadIconAtlas(): Promise<void> {
             fr.onerror = () => reject(fr.error ?? new Error('icon atlas FileReader failed'));
             fr.readAsDataURL(blob);
         });
-        // decode so first HTMLSource paint isn't blank, and keep the Image for
+        // decode so first HUD paint isn't blank, and keep the Image for
         // world-sprite stamping (tech badges over packs, etc.)
         atlasImage = await new Promise<HTMLImageElement>((resolve, reject) => {
             const img = new Image();

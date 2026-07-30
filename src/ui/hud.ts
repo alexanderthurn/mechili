@@ -1,5 +1,4 @@
-import { Sprite, type Application } from 'pixi.js';
-import { HTMLSource } from 'pixi.js/html-source';
+import type { Application } from 'pixi.js';
 import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
@@ -7,7 +6,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
-import { iconHtml, applyIcon, iconCss } from './iconAtlas';
+import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -137,14 +136,10 @@ export interface SelectionInfo {
 
 /**
  * HUD built from real HTML: deployment shop (bottom-right), unit inspector
- * (bottom-left), item sidebars, and the round/phase top bar. When the browser
- * supports the experimental HTML-in-Canvas API, the elements live inside the
- * Pixi canvas and are mirrored to the GPU via HTMLSource (staying natively
- * interactive). Otherwise they fall back to a plain DOM overlay above the canvases.
+ * (bottom-left), item sidebars, and the round/phase top bar — mounted as a
+ * DOM overlay above the three.js / Pixi canvases.
  */
 export class Hud {
-    /** 'html-in-canvas' when mirrored via HTMLSource, 'dom-overlay' otherwise */
-    readonly mode: 'html-in-canvas' | 'dom-overlay';
     onEndDeployment: (() => void) | null = null;
     onSpeedUp: (() => void) | null = null;
     onSpeedDown: (() => void) | null = null;
@@ -275,14 +270,11 @@ export class Hud {
     private extrasBudgetLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
-    private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
-    /** every HUD root passed through mount() — needed for dom-overlay teardown */
+    /** every HUD root passed through mount() — needed for teardown */
     private readonly mountedRoots: HTMLElement[] = [];
     /** cinema / screenshot mode — all chrome hidden except the exit hint */
     private uiHidden = false;
     private cinemaHint: HTMLDivElement | null = null;
-    private readonly pixiCanvas: HTMLCanvasElement;
-    private readonly app: Application;
     private readonly overlayParent: HTMLElement;
     private readonly hudStyle: HTMLStyleElement;
     private readonly onItemGhostMove = (e: PointerEvent) => {
@@ -292,20 +284,15 @@ export class Hud {
     };
 
     constructor(
-        app: Application,
+        _app: Application,
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
         onBuy: (type: UnitType) => boolean,
     ) {
-        this.app = app;
-        this.pixiCanvas = app.canvas;
         this.overlayParent = overlayParent;
         this.costOf = costOf;
-        this.mode =
-            typeof (app.canvas as any).requestPaint === 'function' ? 'html-in-canvas' : 'dom-overlay';
 
-        const style = document.createElement('style');
-        style.textContent = hudStyles();
+        const style = document.createElement('style');        style.textContent = hudStyles();
         document.head.appendChild(style);
         this.hudStyle = style;
 
@@ -350,10 +337,10 @@ export class Hud {
         this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} Undo`;
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
-        shopToolbar.append(this.undoEl);
 
         const toolbarRight = document.createElement('div');
         toolbarRight.className = 'shop-toolbar-right';
+        toolbarRight.append(this.undoEl);
         this.levelAllGlobalBtn = document.createElement('button');
         this.levelAllGlobalBtn.className = 'level-all-global';
         this.levelAllGlobalBtn.style.display = 'none';
@@ -767,21 +754,21 @@ export class Hud {
             this.touchLevelBtn.style.display = levelUp ? 'flex' : 'none';
             if (levelUp) {
                 this.touchLevelBtn.innerHTML =
-                    `${iconHtml('ability-level', 'pb-ico')}` +
+                    `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
                     `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
                 this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
             }
             this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
             if (levelAll) {
                 this.touchLevelAllBtn.innerHTML =
-                    `${iconHtml('ability-level-type', 'pb-ico')}` +
+                    `${iconHtml('ability-level-type', 'pb-ico mask-ico')}` +
                     `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
                 this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
             }
             this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
             if (upgrade) {
                 this.touchUpgradeBtn.innerHTML =
-                    `${iconHtml('ability-level', 'pb-ico')}` +
+                    `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
                     `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
                 this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
             }
@@ -807,8 +794,8 @@ export class Hud {
     }
 
     /**
-     * Rect-selected formation (2+ packs): shop stays closed, no unit sheet —
-     * packs may differ, so there are no shared details to show.
+     * Rect-selected formation (1+ packs via rubber-band): shop stays closed,
+     * no unit sheet — packs may differ, so there are no shared details to show.
      */
     setFormationSelection(): void {
         this.phoneBar.classList.add('has-unit');
@@ -1383,7 +1370,7 @@ export class Hud {
         const label =
             info.count >= 2 ? `Level all (${info.count})` : 'Level up';
         const html =
-            `${iconHtml('ability-level-all', 'lag-ico')}` +
+            `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
             `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
         // the shop-toolbar button and its phone twin (top-right strip) mirror each other
         for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
@@ -1765,12 +1752,15 @@ export class Hud {
                             : t.cost !== undefined
                               ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
                               : '';
+                    const levelIcon = t.icon.startsWith('ability-level');
+                    const icoClass = levelIcon ? 'at-icon m-icon mask-ico' : 'at-icon m-icon';
+                    const icoStyle = levelIcon ? iconMaskCss(t.icon) : iconCss(t.icon);
                     return (
                         `<button class="action-tile ${t.state}" ${t.data}` +
                         ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
                         ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
                         ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +
-                        `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>${badge}</button>`
+                        `<span class="${icoClass}" style="${icoStyle}"></span>${badge}</button>`
                     );
                 })
                 .join('') +
@@ -1796,8 +1786,10 @@ export class Hud {
             inputMode() === 'touch' && state === 'buy'
                 ? `<button type="button" class="ai-buy">Buy${cost ? ` · ⬢ ${cost}` : ''}</button>`
                 : '';
+        const levelIcon = !!d.ticon?.startsWith('ability-level');
         frame.innerHTML =
-            `<div class="ai-head">${d.ticon ? iconHtml(d.ticon, 'ai-icon') : ''}` +
+            `<div class="ai-head"${levelIcon ? ` style="color:${THEME.ui.brassLight}"` : ''}>` +
+            `${d.ticon ? iconHtml(d.ticon, levelIcon ? 'ai-icon mask-ico' : 'ai-icon') : ''}` +
             `<span class="ai-title">${d.ttitle ?? ''}</span></div>` +
             `<div class="ai-desc">${d.tdesc ?? ''}</div>` +
             note +
@@ -1959,11 +1951,6 @@ export class Hud {
     private removeCardOverlayElement(el: HTMLElement): void {
         const rootIdx = this.mountedRoots.indexOf(el);
         if (rootIdx >= 0) this.mountedRoots.splice(rootIdx, 1);
-        const spriteIdx = this.sprites.findIndex((s) => s.el === el);
-        if (spriteIdx >= 0) {
-            this.sprites[spriteIdx]!.sprite.destroy();
-            this.sprites.splice(spriteIdx, 1);
-        }
         el.remove();
     }
 
@@ -2110,11 +2097,6 @@ export class Hud {
             if (!el.classList.contains('mechili-gameover')) continue;
             el.remove();
             this.mountedRoots.splice(i, 1);
-            const spriteIdx = this.sprites.findIndex((s) => s.el === el);
-            if (spriteIdx >= 0) {
-                this.sprites[spriteIdx]!.sprite.destroy();
-                this.sprites.splice(spriteIdx, 1);
-            }
         }
         this.syncOverlayOpen();
     }
@@ -2593,16 +2575,8 @@ export class Hud {
         );
     }
 
-    /** Keeps the mirrored sprites aligned with each element's layout box. */
-    layout(): void {
-        if (this.sprites.length === 0) return;
-        const canvasRect = this.pixiCanvas.getBoundingClientRect();
-        for (const { el, sprite } of this.sprites) {
-            const r = el.getBoundingClientRect();
-            sprite.visible = r.width > 0 && r.height > 0; // hidden elements have no box
-            sprite.position.set(r.left - canvasRect.left, r.top - canvasRect.top);
-        }
-    }
+    /** No-op — kept so the match tick can call it unconditionally. */
+    layout(): void {}
 
     private mount(el: HTMLElement): void {
         // don't let HUD interactions fall through to camera/placement handlers
@@ -2612,15 +2586,7 @@ export class Hud {
         this.mountedRoots.push(el);
         if (this.uiHidden) el.classList.add('mechili-cinema-hide');
         if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
-        if (this.mode === 'html-in-canvas') {
-            // must be a direct child of the Pixi canvas; mirrored to the GPU each repaint
-            this.pixiCanvas.appendChild(el);
-            const sprite = Sprite.from(new HTMLSource({ resource: el, autoUpdate: true }));
-            this.app.stage.addChild(sprite);
-            this.sprites.push({ el, sprite });
-        } else {
-            this.overlayParent.appendChild(el);
-        }
+        this.overlayParent.appendChild(el);
     }
 
     get isUiHidden(): boolean {
@@ -2670,13 +2636,13 @@ export class Hud {
         }
     }
 
-    /** Update the cinema footer (e.g. `C — 1/11 Spring morning`). */
+    /** Update the cinema footer (e.g. `Shift+C — 1/11 Spring morning`). */
     setCinemaHint(text: string): void {
         if (!this.cinemaHint) return;
         this.cinemaHint.textContent = text;
     }
 
-    /** removes every HUD element from the page / canvas mirror */
+    /** removes every HUD element from the page */
     destroy(): void {
         this.hidePauseMenu();
         this.hideCardOverlay();
@@ -2686,10 +2652,6 @@ export class Hud {
         this.itemGhost = null;
         this.cinemaHint?.remove();
         this.cinemaHint = null;
-        for (const { sprite } of this.sprites) {
-            sprite.destroy();
-        }
-        this.sprites.length = 0;
         for (const el of this.mountedRoots) {
             el.remove();
         }

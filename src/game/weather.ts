@@ -4,6 +4,7 @@ import {
     BufferGeometry,
     CanvasTexture,
     Color,
+    Fog,
     Group,
     Mesh,
     MeshBasicMaterial,
@@ -15,13 +16,13 @@ import {
     Sprite,
     Vector3,
     type DirectionalLight,
-    type Fog,
     type HemisphereLight,
     type Scene,
     type Texture,
     type WebGLRenderer,
 } from 'three';
-import { mulberry32, type BattleMap } from './map';
+import type { EffectToggleId, EffectToggles } from './effectToggles';
+import { mulberry32, type BattleMap, worldHeightAt } from './map';
 import { sceneryFogScale } from './prefs';
 import { loadWorldTexture, moonUrl } from './worldTextures';
 
@@ -61,7 +62,6 @@ interface TimePreset {
     glowOpacity: number;
     cloudTint: number;
     cloudOpacity: number;
-    cloudShadowOpacity: number;
     nearCloudOpacity: number;
     /** opacity of the fog cards drifting between the forest trees */
     forestFog: number;
@@ -87,7 +87,6 @@ interface WeatherOverlay {
     glowOpacity: number;
     cloudTint: number;
     cloudOpacity: number;
-    cloudShadowOpacity: number;
     nearCloudOpacity: number;
     forestFog: number;
     exposureMul: number;
@@ -119,7 +118,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glowOpacity: 0.9,
         cloudTint: 0xffd9c2,
         cloudOpacity: 0.55,
-        cloudShadowOpacity: 0.08,
         nearCloudOpacity: 0.18,
         forestFog: 0.32,
         stars: 0.08,
@@ -144,7 +142,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glowOpacity: 1,
         cloudTint: 0xffffff,
         cloudOpacity: 0.8,
-        cloudShadowOpacity: 0.14,
         nearCloudOpacity: 0.12,
         forestFog: 0.07,
         stars: 0,
@@ -169,7 +166,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glowOpacity: 1,
         cloudTint: 0xffd39a,
         cloudOpacity: 0.5,
-        cloudShadowOpacity: 0.1,
         nearCloudOpacity: 0.14,
         forestFog: 0.12,
         stars: 0,
@@ -194,7 +190,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glowOpacity: 0.95,
         cloudTint: 0xff9a6c,
         cloudOpacity: 0.6,
-        cloudShadowOpacity: 0.1,
         nearCloudOpacity: 0.2,
         forestFog: 0.34,
         stars: 0.12,
@@ -219,7 +214,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glowOpacity: 0.95,
         cloudTint: 0x3a465a,
         cloudOpacity: 0,
-        cloudShadowOpacity: 0,
         nearCloudOpacity: 0,
         forestFog: 0.28,
         stars: 1,
@@ -245,7 +239,6 @@ const RAIN_OVERLAY: WeatherOverlay = {
     glowOpacity: 0,
     cloudTint: 0x8a949a,
     cloudOpacity: 0.95,
-    cloudShadowOpacity: 0.2,
     nearCloudOpacity: 0.42,
     forestFog: 0.55,
     exposureMul: 0.9,
@@ -271,7 +264,6 @@ const SNOW_OVERLAY: WeatherOverlay = {
     glowOpacity: 0.32,
     cloudTint: 0xdfe7ea,
     cloudOpacity: 0.9,
-    cloudShadowOpacity: 0.04,
     nearCloudOpacity: 0.3,
     forestFog: 0.35,
     exposureMul: 0.97,
@@ -318,7 +310,6 @@ function lerpOverlay(p: TimePreset, overlay: WeatherOverlay, t: number): void {
     p.glowOpacity += (overlay.glowOpacity - p.glowOpacity) * t;
     p.cloudTint = lerpHex(p.cloudTint, overlay.cloudTint, t);
     p.cloudOpacity += (overlay.cloudOpacity - p.cloudOpacity) * t;
-    p.cloudShadowOpacity += (overlay.cloudShadowOpacity - p.cloudShadowOpacity) * t;
     p.nearCloudOpacity += (overlay.nearCloudOpacity - p.nearCloudOpacity) * t;
     p.forestFog += (overlay.forestFog - p.forestFog) * t;
     p.exposureMul += (overlay.exposureMul - p.exposureMul) * t;
@@ -337,7 +328,6 @@ function composeTarget(atmosphere: Atmosphere): ComposedTarget {
     applySeasonBias(p, atmosphere.season);
     if (atmosphere.weatherKind === 'clear' && atmosphere.timeOfDay === 'night') {
         p.cloudOpacity = 0;
-        p.cloudShadowOpacity = 0;
         p.nearCloudOpacity = 0;
     }
     if (atmosphere.weatherKind !== 'clear') {
@@ -417,8 +407,10 @@ const STAR_COUNT = 1400;
 const SNOW_FLAKES = 1600;
 /** World-space slab around the camera. `y` is the vertical span above the camera. */
 const SNOW_BOX = { x: 190, y: 110, z: 190 };
-/** How far below the camera flakes may fall before respawning (keeps near-ground fill). */
-const SNOW_BELOW = 55;
+/** Flakes settle this far above terrain before respawning. */
+const SNOW_GROUND_CLEARANCE = 0.9;
+/** Skip terrain lookup when a flake is clearly above the ground band (per frame). */
+const SNOW_TERRAIN_CHECK_BELOW = 28;
 /** ground snow builds up while it's snowing and melts (slower) once it stops.
  *  Seconds for an exponential ease — lower = faster. Production ~45 / 100;
  *  use ~8 / 20 while testing the look. */
@@ -435,7 +427,6 @@ export interface WeatherHandles {
     /** sun disc/moon sprite (white radial texture, tinted via material.color) */
     glow: Sprite;
     cloudMaterial: MeshBasicMaterial;
-    cloudShadowMaterial: MeshBasicMaterial;
     cloudTexture: Texture;
     /** shared material of the forest fog cards (null on low scenery) */
     forestFogMaterial: MeshBasicMaterial | null;
@@ -449,6 +440,8 @@ export interface WeatherHandles {
     renderer: WebGLRenderer;
     /** fired whenever the season changes, so scenery can retint vegetation */
     onSeasonChange?: (season: Season) => void;
+    /** dev hotkeys Shift+1…9 — when absent every layer stays on */
+    effectToggles?: EffectToggles;
 }
 
 /** a fully numeric/lerpable copy of a composed target, used as the live state */
@@ -469,7 +462,6 @@ class WeatherState {
     glowOpacity = 0;
     cloudTint = new Color();
     cloudOpacity = 0;
-    cloudShadowOpacity = 0;
     nearCloudOpacity = 0;
     forestFog = 0;
     stars = 0;
@@ -498,7 +490,6 @@ class WeatherState {
         this.glowOpacity += (p.glowOpacity - this.glowOpacity) * k;
         this.cloudTint.lerp(new Color(p.cloudTint), k);
         this.cloudOpacity += (p.cloudOpacity - this.cloudOpacity) * k;
-        this.cloudShadowOpacity += (p.cloudShadowOpacity - this.cloudShadowOpacity) * k;
         this.nearCloudOpacity += (p.nearCloudOpacity - this.nearCloudOpacity) * k;
         this.forestFog += (p.forestFog - this.forestFog) * k;
         this.stars += (p.stars - this.stars) * k;
@@ -595,8 +586,8 @@ export class Weather {
         const snowRoll = mulberry32(seed ^ 0x50f7);
         for (let i = 0; i < SNOW_FLAKES; i++) {
             this.snowPositions[i * 3] = (snowRoll() * 2 - 1) * SNOW_BOX.x;
-            // start distributed through a tall column; first updates re-anchor to camera
-            this.snowPositions[i * 3 + 1] = snowRoll() * (SNOW_BOX.y + SNOW_BELOW);
+            // tall column — respawn logic keeps a steady fill once the camera moves
+            this.snowPositions[i * 3 + 1] = 20 + snowRoll() * SNOW_BOX.y;
             this.snowPositions[i * 3 + 2] = (snowRoll() * 2 - 1) * SNOW_BOX.z;
             this.snowSpeeds[i] = 4 + snowRoll() * 7;
             this.snowPhase[i] = snowRoll() * Math.PI * 2;
@@ -797,6 +788,7 @@ export class Weather {
             `fog near ${s.fogNear.toFixed(0)} far ${s.fogFar.toFixed(0)}`,
             `sun ${hex(s.sun)} int ${s.sunIntensity.toFixed(2)}  hemi ${hex(s.hemiSky)}/${hex(s.hemiGround)} int ${s.hemiIntensity.toFixed(2)}`,
             `exposureMul ${s.exposureMul.toFixed(2)}  glow ${hex(s.glow)} op ${s.glowOpacity.toFixed(2)}`,
+            `horizonClouds ${hex(s.cloudTint)} op ${s.cloudOpacity.toFixed(2)}  nearClouds ${s.nearCloudOpacity.toFixed(2)}`,
             `rain ${s.rain.toFixed(2)}  snow ${s.snow.toFixed(2)}  stars ${s.stars.toFixed(2)}  forestFog ${s.forestFog.toFixed(2)}`,
         ];
     }
@@ -887,11 +879,16 @@ export class Weather {
             this.skyDirty = false;
         }
         (h.scene.background as Color).copy(s.skyHorizon);
-        const fog = h.scene.fog as Fog;
-        fog.color.copy(s.skyHorizon);
         const fogScale = sceneryFogScale();
-        fog.near = s.fogNear * fogScale;
-        fog.far = s.fogFar * fogScale;
+        if (this.fx('distanceFog')) {
+            if (!h.scene.fog) h.scene.fog = new Fog(0xffffff, 1, 2);
+            const fog = h.scene.fog as Fog;
+            fog.color.copy(s.skyHorizon);
+            fog.near = s.fogNear * fogScale;
+            fog.far = s.fogFar * fogScale;
+        } else if (h.scene.fog) {
+            h.scene.fog = null;
+        }
 
         h.sun.color.copy(s.sun);
         h.sun.intensity = s.sunIntensity;
@@ -918,22 +915,24 @@ export class Weather {
         this.moon.material.opacity = night;
         this.moon.visible = night > 0.02;
 
+        const stars = this.fx('stars') ? s.stars : 0;
+        this.starMaterial.opacity = stars;
+        this.starsMesh.visible = stars > 0.02;
+
         h.cloudMaterial.color.copy(s.cloudTint);
         h.cloudMaterial.opacity = s.cloudOpacity;
-        h.cloudShadowMaterial.opacity = s.cloudShadowOpacity;
-
-        this.starMaterial.opacity = s.stars;
-        this.starsMesh.visible = s.stars > 0.02;
 
         if (h.forestFogMaterial) {
             // fog cards blend toward the horizon/fog color of the scenario
-            h.forestFogMaterial.opacity = s.forestFog * h.forestFogScale;
+            const forestFog = this.fx('forestFog') ? s.forestFog * h.forestFogScale : 0;
+            h.forestFogMaterial.opacity = forestFog;
             h.forestFogMaterial.color.copy(s.skyHorizon);
         }
 
-        this.nearCloudMaterial.opacity = s.nearCloudOpacity;
+        const nearClouds = this.fx('nearClouds') ? s.nearCloudOpacity : 0;
+        this.nearCloudMaterial.opacity = nearClouds;
         for (const c of this.nearClouds) {
-            c.mesh.visible = s.nearCloudOpacity > 0.02;
+            c.mesh.visible = nearClouds > 0.02;
             c.mesh.position.x += c.speed * dtSeconds;
             const bound = this.h.map.halfW + 200;
             if (c.mesh.position.x > bound) c.mesh.position.x = -bound;
@@ -949,9 +948,14 @@ export class Weather {
         this.snowCover += (targetCover - this.snowCover) * Math.min(1, dtSeconds / tau);
     }
 
+    private fx(id: EffectToggleId): boolean {
+        return this.h.effectToggles?.isEnabled(id) ?? true;
+    }
+
     private updateRain(dt: number, cameraPos: Vector3): void {
-        this.rainMaterial.opacity = this.state.rain * 0.55;
-        const active = this.state.rain > 0.02;
+        const rain = this.fx('rain') ? this.state.rain : 0;
+        this.rainMaterial.opacity = rain * 0.55;
+        const active = rain > 0.02;
         this.rainGroup.visible = active;
         if (!active) return;
         // drops live in WORLD space (the group never moves): panning the
@@ -977,30 +981,41 @@ export class Weather {
         this.rainGeometry.attributes.position!.needsUpdate = true;
     }
 
+    private respawnSnowflake(i: number, cameraPos: Vector3): void {
+        const p = this.snowPositions;
+        const x = cameraPos.x + (Math.random() * 2 - 1) * SNOW_BOX.x;
+        const z = cameraPos.z + (Math.random() * 2 - 1) * SNOW_BOX.z;
+        const yCeil = cameraPos.y + SNOW_BOX.y;
+        const groundY = worldHeightAt(x, z) + SNOW_GROUND_CLEARANCE;
+        const yMin = Math.min(yCeil - 6, groundY + 6);
+        p[i * 3] = x;
+        p[i * 3 + 1] = yMin + Math.random() * Math.max(8, yCeil - yMin);
+        p[i * 3 + 2] = z;
+    }
+
     private updateSnow(dt: number, cameraPos: Vector3): void {
-        this.snowMaterial.opacity = this.state.snow * 0.8;
-        const active = this.state.snow > 0.02;
+        const snow = this.fx('snow') ? this.state.snow : 0;
+        this.snowMaterial.opacity = snow * 0.8;
+        const active = snow > 0.02;
         this.snowGroup.visible = active;
         if (!active) return;
         this.snowTime += dt;
-        // Camera-relative volume: XZ wraps like rain; Y spans from below the
-        // camera up into the sky so the top of the frustum stays filled when
-        // zoomed out / pitched (fixed world Y=90 left the upper screen empty).
+        // Camera-relative XZ window; Y uses terrain collision so zooming out
+        // doesn't lift an artificial floor above the visible board.
         const p = this.snowPositions;
         const wind = 4;
         const yCeil = cameraPos.y + SNOW_BOX.y;
-        const yFloor = cameraPos.y - SNOW_BELOW;
+        const terrainCheckY = cameraPos.y - SNOW_TERRAIN_CHECK_BELOW;
         for (let i = 0; i < SNOW_FLAKES; i++) {
             const sway = Math.sin(this.snowTime * 0.6 + this.snowPhase[i]!) * 3.2;
             p[i * 3] = p[i * 3]! + (wind + sway) * dt;
             p[i * 3 + 1] = p[i * 3 + 1]! - this.snowSpeeds[i]! * dt;
-            if (p[i * 3 + 1]! < yFloor) {
-                p[i * 3 + 1] = yCeil;
-                p[i * 3] = cameraPos.x + (Math.random() * 2 - 1) * SNOW_BOX.x;
-                p[i * 3 + 2] = cameraPos.z + (Math.random() * 2 - 1) * SNOW_BOX.z;
-            } else if (p[i * 3 + 1]! > yCeil + 5) {
-                // camera zoomed/moved under a flake — drop it back into the slab
-                p[i * 3 + 1] = yFloor + Math.random() * (yCeil - yFloor);
+            const y = p[i * 3 + 1]!;
+            if (y > yCeil + 5) {
+                this.respawnSnowflake(i, cameraPos);
+            } else if (y < terrainCheckY) {
+                const groundY = worldHeightAt(p[i * 3]!, p[i * 3 + 2]!) + SNOW_GROUND_CLEARANCE;
+                if (y < groundY) this.respawnSnowflake(i, cameraPos);
             }
             const dx = p[i * 3]! - cameraPos.x;
             if (dx > SNOW_BOX.x) p[i * 3] = p[i * 3]! - 2 * SNOW_BOX.x;

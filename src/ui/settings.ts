@@ -6,6 +6,7 @@ import {
     type GraphicsPreset,
     type Prefs,
 } from '../game/prefs';
+import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
 
 /**
  * The settings dialog — one shared overlay, opened from the main menu and
@@ -14,11 +15,23 @@ import {
 export function openSettings(parent: HTMLElement): void {
     if (document.querySelector('.mechili-settings')) return; // already open
 
+    const fontOptions = (Object.keys(UI_FONTS) as UiFontId[])
+        .map((id) => {
+            const f = UI_FONTS[id];
+            return `<option value="${id}">${f.label}</option>`;
+        })
+        .join('');
+
     const overlay = document.createElement('div');
     overlay.className = 'mechili-settings';
     overlay.innerHTML =
         `<div class="box">` +
         `<div class="s-title">Settings</div>` +
+        `<section class="s-section">` +
+        `<div class="s-section-head">Look</div>` +
+        `<label class="s-row">UI font <select class="s-font">${fontOptions}</select>` +
+        ` <span class="s-hint s-font-hint"></span></label>` +
+        `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head">Chat</div>` +
         `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
@@ -74,6 +87,8 @@ export function openSettings(parent: HTMLElement): void {
 
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     const global = overlay.querySelector<HTMLInputElement>('.s-global')!;
+    const fontSel = overlay.querySelector<HTMLSelectElement>('.s-font')!;
+    const fontHint = overlay.querySelector<HTMLElement>('.s-font-hint')!;
     const scenery = overlay.querySelector<HTMLSelectElement>('.s-scenery')!;
     const ground = overlay.querySelector<HTMLSelectElement>('.s-ground')!;
     const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
@@ -87,6 +102,8 @@ export function openSettings(parent: HTMLElement): void {
         const p = prefs();
         combat.checked = p.combatChat;
         global.checked = p.globalChat;
+        fontSel.value = p.uiFont;
+        fontHint.textContent = UI_FONTS[p.uiFont]?.hint ?? '';
         scenery.value = p.scenery;
         ground.value = p.groundEffects;
         fire.value = p.fireVfx;
@@ -107,6 +124,12 @@ export function openSettings(parent: HTMLElement): void {
 
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
     global.addEventListener('change', () => updatePrefs({ globalChat: global.checked }));
+    fontSel.addEventListener('change', () => {
+        const uiFont = fontSel.value as UiFontId;
+        updatePrefs({ uiFont });
+        applyUiFont(uiFont);
+        syncFromPrefs();
+    });
 
     scenery.addEventListener('change', () => {
         updatePrefs({ scenery: scenery.value as Prefs['scenery'] });

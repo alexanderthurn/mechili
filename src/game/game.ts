@@ -8,6 +8,7 @@ import {
     HemisphereLight,
     MeshBasicMaterial,
     MeshLambertMaterial,
+    MeshNormalMaterial,
     PCFSoftShadowMap,
     PMREMGenerator,
     Scene,
@@ -19,6 +20,7 @@ import {
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
+import { EffectToggles } from './effectToggles';
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
@@ -170,7 +172,7 @@ import { updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 /** menu→match camera fly-in (fresh starts only) */
-const MATCH_INTRO_SEC = 1.6;
+const MATCH_INTRO_SEC = 1.0;
 /** card overlays begin fading in during the tail of the fly-in (t = 0..1) */
 const MATCH_INTRO_CARDS_START = 0.55;
 const MATCH_INTRO_CARDS_END = 0.88;
@@ -267,12 +269,17 @@ export class Game {
     private appliedScenery: SceneryQuality = prefs().scenery;
     private appliedGroundEffects: GroundEffectsQuality = prefs().groundEffects;
     private appliedShadows: ShadowQuality = prefs().shadows;
+    /** dev hotkeys Shift+1…9 — per-layer weather / fog toggles */
+    private readonly effectToggles = new EffectToggles();
+    /** scenery-tier height-mist scale (see applyHeightMistStrength) */
+    private heightMistBase = sceneryHeightFog();
     private readonly blobShadows: BlobShadows;
     private shadowMapFrame = 0;
-    /** debug: scene.overrideMaterial — off | clay (no textures) | wireframe */
-    private materialDebug: 'off' | 'clay' | 'wire' = 'off';
+    /** debug: scene.overrideMaterial — off | clay | wireframe | normals */
+    private materialDebug: 'off' | 'clay' | 'wire' | 'normals' = 'off';
     private readonly clayOverride = new MeshLambertMaterial({ color: 0xc8c2b4 });
     private readonly wireOverride = new MeshBasicMaterial({ color: 0x1a1a1a, wireframe: true });
+    private readonly normalsOverride = new MeshNormalMaterial();
     private readonly rallyVisuals: RallyVisuals;
     private readonly spellVisuals: SpellVisuals;
     /** hammer charge rings for the current battle (visual countdown) */
@@ -607,12 +614,28 @@ export class Game {
             this.cheatSpawnHordePacks();
             return;
         }
-        if (e.code === 'KeyT') {
-            // T = clay (no textures); Shift+T = wireframe
-            this.toggleMaterialDebug(e.shiftKey ? 'wire' : 'clay');
+        if (e.code === 'KeyT' && e.shiftKey) {
+            // Shift+T cycles material debug: clay → wireframe → normals → off
+            this.cycleMaterialDebug();
             return;
         }
-        if (e.code === 'KeyC') {
+        if (e.shiftKey && e.code.startsWith('Digit')) {
+            const digit = parseInt(e.code.slice(5), 10);
+            if (digit === 0) {
+                this.effectToggles.resetAll();
+                this.applyHeightMistStrength();
+                console.info('[fx] all effects on (Shift+0)');
+                return;
+            }
+            const def = this.effectToggles.defForKey(digit);
+            if (def) {
+                const on = this.effectToggles.toggle(def.id);
+                if (def.id === 'heightMist') this.applyHeightMistStrength();
+                console.info(`[fx] Shift+${digit} ${def.label}: ${on ? 'on' : 'off'}`);
+                return;
+            }
+        }
+        if (e.code === 'KeyC' && e.shiftKey) {
             this.toggleUiHidden();
             return;
         }
@@ -637,21 +660,37 @@ export class Game {
         if (hide) this.refreshCinemaHint();
     }
 
-    /** Cinema footer: `C — 1/11 Spring morning` (same scene text as the debug overlay). */
+    /** Cinema footer: `Shift+C — 1/11 Spring morning` (same scene text as the debug overlay). */
     private refreshCinemaHint(): void {
         if (!this.hud.isUiHidden) return;
-        this.hud.setCinemaHint(`C — ${this.weather?.sceneStatus() ?? '—'}`);
+        this.hud.setCinemaHint(`Shift+C — ${this.weather?.sceneStatus() ?? '—'}`);
     }
 
-    /** T / Shift+T debug: flat clay or wireframe for every mesh (no textures). */
-    private toggleMaterialDebug(mode: 'clay' | 'wire'): void {
-        if (this.materialDebug === mode) {
-            this.materialDebug = 'off';
-            this.scene.overrideMaterial = null;
-            return;
-        }
-        this.materialDebug = mode;
-        this.scene.overrideMaterial = mode === 'clay' ? this.clayOverride : this.wireOverride;
+    /** Shift+T debug: cycle clay → wireframe → normals → off for every mesh. */
+    private cycleMaterialDebug(): void {
+        const order = ['clay', 'wire', 'normals', 'off'] as const;
+        const i = order.indexOf(this.materialDebug);
+        const next = order[(i + 1) % order.length]!;
+        this.materialDebug = next;
+        this.scene.overrideMaterial =
+            next === 'clay' ? this.clayOverride
+            : next === 'wire' ? this.wireOverride
+            : next === 'normals' ? this.normalsOverride
+            : null;
+    }
+
+    /** Re-bake height-mist shader strength and recompile fogged materials (Shift+3). */
+    private applyHeightMistStrength(): void {
+        const strength = this.effectToggles.isEnabled('heightMist') ? this.heightMistBase : 0;
+        setHeightFogStrength(strength);
+        this.scene.traverse((o) => {
+            const m = (o as import('three').Mesh).material as
+                | import('three').Material
+                | import('three').Material[]
+                | undefined;
+            if (!m) return;
+            for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
+        });
     }
 
     /**
@@ -782,10 +821,8 @@ export class Game {
             initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
         } | null = null,
         /** fresh match only: hold specialist cards + HUD while the camera
-         *  flies in from a wide overlook (menu logo covers the ctor hitch).
-         *  Pass `{ originX, originY }` (0–1) from the menu CSS dive so the
-         *  3D approach angle matches that zoom point. */
-        matchIntro: boolean | { originX: number; originY: number } = false,
+         *  flies in from a wide overlook (menu logo covers the ctor hitch). */
+        matchIntro = false,
     ) {
         this.watching = replay !== null || spectate !== null;
         this.watcherName = spectate?.watcherName ?? null;
@@ -900,7 +937,8 @@ export class Game {
         this.scene.fog = sceneryWeatherFx() ? new Fog(THEME.sky, THEME.fogNear, THEME.fogFar) : null;
         // ground-mist strength for the current scenery tier (baked into the
         // fog shader chunk before the first material compiles)
-        setHeightFogStrength(sceneryHeightFog());
+        this.heightMistBase = sceneryHeightFog();
+        this.applyHeightMistStrength();
 
         // PBR environment: metallic (Tripo) models render near-black with nothing
         // to reflect, so give the scene a neutral image-based light. Kept subtle so
@@ -968,18 +1006,9 @@ export class Game {
         this.rig.startAt(0, ownZoneZ, PLAY_START_ZOOM);
         if (matchIntro) {
             const play = this.rig.getPose();
-            const bias =
-                typeof matchIntro === 'object'
-                    ? matchIntro
-                    : { originX: 0.5, originY: 0.12 };
-            // menu dive left/right of center → start the fly-in slightly offset
-            // that way, then ease into the normal play framing (hand-in-hand)
-            const nx = (bias.originX - 0.5) * 2; // ~-0.12..0.12 with current menu band
             this.introTo = play;
             this.introFrom = {
                 ...play,
-                x: play.x + nx * this.map.halfW * 0.28,
-                heading: play.heading + nx * 0.14,
                 zoom: Math.min(this.rig.maxZoom, MATCH_INTRO_ZOOM),
                 pitch: MATCH_INTRO_PITCH,
             };
@@ -1018,7 +1047,14 @@ export class Game {
         };
         this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
-            ? this.scenery.createWeather(this.scene, sun, hemi, this.renderer, seedFrom(this.seed, 'weather'))
+            ? this.scenery.createWeather(
+                  this.scene,
+                  sun,
+                  hemi,
+                  this.renderer,
+                  seedFrom(this.seed, 'weather'),
+                  this.effectToggles,
+              )
             : null;
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // specialist streams are keyed by canonical side (different draws)
@@ -1895,6 +1931,7 @@ export class Game {
                 this.hemi,
                 this.renderer,
                 seedFrom(this.seed, 'weather'),
+                this.effectToggles,
             );
             if (weatherSnapshot) this.weather.setAtmosphere(weatherSnapshot);
         } else {
@@ -1918,12 +1955,8 @@ export class Game {
         // ground-mist strength is baked into the fog shader chunk — re-bake
         // for the new tier and recompile every fogged material still alive
         // (the rebuilt ground/scenery materials compile fresh anyway)
-        setHeightFogStrength(sceneryHeightFog(scenery));
-        this.scene.traverse((o) => {
-            const m = (o as Mesh).material as import('three').Material | import('three').Material[] | undefined;
-            if (!m) return;
-            for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
-        });
+        this.heightMistBase = sceneryHeightFog(scenery);
+        this.applyHeightMistStrength();
         this.enforceCinemaWorld();
     }
 
@@ -1990,14 +2023,13 @@ export class Game {
         this.controls.dispose();
         this.gamepad.dispose();
         this.hud.destroy();
-        this.pixiApp.stage.removeChild(this.hpBars.view);
-        this.hpBars.view.destroy({ children: true });
+        this.hpBars.destroy();
         this.debug.destroy();
         this.debugDumpButton?.destroy();
         this.scene.overrideMaterial = null;
         this.clayOverride.dispose();
         this.wireOverride.dispose();
-        // drop any HTML HUD nodes still attached to the pixi canvas (html-in-canvas mode)
+        this.normalsOverride.dispose();
         for (const node of [...this.pixiApp.canvas.children]) {
             if (node instanceof HTMLElement) node.remove();
         }
@@ -2058,20 +2090,38 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             for (const seat of seatIdsOf(this.seats, team)) {
                 const lane = seatLane(this.seats, seat);
-                // remap the classic full-zone xFrac into this seat's own
-                // half of the zone — 'full' (1 seat per side) is unchanged
-                const laneXFrac = (xFrac: number): number =>
-                    lane === 'full' ? xFrac : lane === 'left' ? xFrac * 0.5 : 0.5 + xFrac * 0.5;
+                // remap classic full-zone xFrac into seat's lane; in 2v2 (duo), outer
+                // towers use outerTowerXFrac (0.17 / 0.83) to pull horizontally closer
+                // to the center stronghold while sitting back at outerTowerRowFrac (0.36)
+                const resX =
+                    lane === 'full'
+                        ? BASE_ANCHORS.research.xFrac
+                        : lane === 'left'
+                          ? BASE_ANCHORS.outerTowerXFrac
+                          : 1 - BASE_ANCHORS.outerTowerXFrac;
+
+                const cmdX =
+                    lane === 'full'
+                        ? BASE_ANCHORS.command.xFrac
+                        : lane === 'left'
+                          ? BASE_ANCHORS.command.xFrac * 0.5
+                          : 0.5 + BASE_ANCHORS.research.xFrac * 0.5;
+
+                const isOuter = (xFrac: number) => lane !== 'full' && (xFrac < 0.25 || xFrac > 0.75);
+
+                const resRow = isOuter(resX) ? BASE_ANCHORS.outerTowerRowFrac : BASE_ANCHORS.research.rowFrac;
+                const cmdRow = isOuter(cmdX) ? BASE_ANCHORS.outerTowerRowFrac : BASE_ANCHORS.command.rowFrac;
+
                 spawnBuilding(
-                    laneXFrac(BASE_ANCHORS.research.xFrac),
-                    BASE_ANCHORS.research.rowFrac,
+                    resX,
+                    resRow,
                     RESEARCH_CENTER,
                     team,
                     seat,
                 );
                 spawnBuilding(
-                    laneXFrac(BASE_ANCHORS.command.xFrac),
-                    BASE_ANCHORS.command.rowFrac,
+                    cmdX,
+                    cmdRow,
                     COMMAND_TOWER,
                     team,
                     seat,
@@ -6941,6 +6991,7 @@ export class Game {
             simCpu: simCpu,
             simSteps: simSteps || undefined,
             weatherLines: this.weather?.debugLines(),
+            effectLines: this.effectToggles.debugLines(),
         }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.net && !this.star && !this.matchOver && !this.hydrating) {
@@ -7060,6 +7111,7 @@ export class Game {
     }
 
     private updateSelectionUi(): void {
+        if (this.disposed) return;
         this.updateBattleRangeRing();
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;

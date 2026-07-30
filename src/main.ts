@@ -50,7 +50,7 @@ import { openSuggest } from './suggest';
 import { iconHtml } from './ui/iconAtlas';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings, type HordeFactor } from './game/settings';
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
-import { THEME, menuStyles } from './theme';
+import { THEME, applyUiFont, menuStyles } from './theme';
 
 // the only mode right now (Single Player / Matchmaking both force this) —
 // PvPvE: a neutral dwarf horde spawns from the forest ring outside the
@@ -285,6 +285,8 @@ document.body.appendChild(wrapper);
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
+applyUiFont(prefs().uiFont);
+onPrefsChange(() => applyUiFont(prefs().uiFont));
 
 const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
 versionEl.className = 'mechili-version';
@@ -300,13 +302,13 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
-const feuerwareLogoUrl = new URL('../assets/marketing/feuerware.webp', import.meta.url).href;
+const feuerwareLogoUrl = new URL('../assets/marketing/feuerware_melodan.webp', import.meta.url).href;
 const feuerwareEl = document.createElement('img');
 feuerwareEl.className = 'mechili-feuerware';
 feuerwareEl.src = feuerwareLogoUrl;
 feuerwareEl.alt = 'Feuerware';
 feuerwareEl.width = 82;
-feuerwareEl.height = 16;
+feuerwareEl.height = 82;
 wrapper.appendChild(feuerwareEl);
 
 const loadingEl = document.createElement('div');
@@ -363,8 +365,6 @@ function setGameLayerVisible(visible: boolean): void {
 
 /** menu→match cover — CSS animation on the compositor (survives sync Game boot) */
 let introCoverEl: HTMLDivElement | null = null;
-/** last menu-dive origin (0–1), shared with the 3D fly-in so both aim the same way */
-let pendingMenuZoom: { originX: number; originY: number } | null = null;
 let introGen = 0;
 
 function clearIntroCover(): void {
@@ -382,15 +382,12 @@ function restoreMenuTitle(): void {
     app.render();
 }
 
-function applyRandomMenuZoomOrigin(bg: HTMLElement): { originX: number; originY: number } {
-    // Mostly top + near-horizontal-center: matches the 3D intro (wide overlook
-    // diving into the board). Tiny X/Y jitter so starts aren't identical.
-    const originX = (44 + Math.random() * 12) / 100; // 0.44–0.56
-    const originY = (6 + Math.random() * 14) / 100; // 0.06–0.20 (top of the plate)
+function applyRandomMenuZoomOrigin(bg: HTMLElement): void {
+    // Full plate — any XY on the menu bg (slight inset so edges don't pin).
+    const originX = 0.08 + Math.random() * 0.84; // 0.08–0.92
+    const originY = 0.08 + Math.random() * 0.84; // 0.08–0.92
     bg.style.setProperty('--zoom-ox', `${(originX * 100).toFixed(1)}%`);
     bg.style.setProperty('--zoom-oy', `${(originY * 100).toFixed(1)}%`);
-    pendingMenuZoom = { originX, originY };
-    return pendingMenuZoom;
 }
 
 function showIntroCover(): void {
@@ -454,12 +451,14 @@ logo.anchor.set(0.5);
 // the logo art is on a black background (alpha isn't supported in this pipeline);
 // additive blending drops the black and lets the wordmark glow over the scene
 logo.blendMode = 'add';
+void document.fonts.load('700 18px Cinzel').catch(() => {});
 const subtitle = new Text({
     text: 'FANTASY AUTO·BATTLER',
     style: {
         fill: THEME.subtitle,
+        fontFamily: 'Cinzel',
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
         letterSpacing: 6,
         dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
     },
@@ -1377,7 +1376,7 @@ function startGame(
             star,
             replay,
             spectate,
-            useIntro ? (pendingMenuZoom ?? true) : false,
+            useIntro,
         );
         activeGame = game;
         wireGameMenuReturn(game);
