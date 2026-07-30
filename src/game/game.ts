@@ -3113,6 +3113,17 @@ export class Game {
             this.hud.hidePauseMenu();
             this.placement.deselect();
             this.armedItem = null;
+            // broadcast, not just host-local — every OTHER connected seat
+            // needs to pause too (see NetMessage's 'starSync' doc comment
+            // for the bug this closes: previously only the host paused,
+            // other seats kept ticking through the whole outage)
+            this.star.hub.broadcast({
+                type: 'starSync',
+                suspended: true,
+                round: this.round,
+                phase: this.phase,
+                target: this.starSyncTarget(),
+            });
         }
         // recompute every time, not just on the first drop — a second seat
         // dropping while already suspended for a different one must not
@@ -3124,17 +3135,21 @@ export class Game {
         this.spectateRegistration?.refreshNow();
     }
 
+    /** the exact point every seat should sync to right now — phaseRemaining
+     *  during build (no per-tick sim to replay), sim.elapsed during battle
+     *  (fastForwardBattle can headless-simulate any seat to this exact
+     *  point). See NetMessage's 'starSync' doc comment. */
+    private starSyncTarget(): number {
+        return this.phase === 'battle' ? (this.sim?.elapsed ?? 0) : this.phaseRemaining;
+    }
+
     /** names every currently-pending seat, not just whichever dropped first —
-     *  called on every pendingStarSeats change while still suspended */
+     *  called on every pendingStarSeats change while still suspended.
+     *  Deliberately generic ("Waiting…"), not naming who dropped — same
+     *  text every connected seat sees, regardless of ally/opponent/host. */
     private refreshStarSuspendNotice(): void {
         if (this.pendingStarSeats.size === 0) return;
-        const names = [...this.pendingStarSeats]
-            .map((seat) => this.seats[seat]?.name ?? 'a player')
-            .join(', ');
-        const verb = this.pendingStarSeats.size > 1 ? 'have' : 'has';
-        this.hud.showNotice(`${names} ${verb} lost connection — waiting to reconnect…`, 'Give up', () =>
-            this.quitToMenu(),
-        );
+        this.hud.showNotice('Waiting…', 'Give up', () => this.quitToMenu());
     }
 
     /** star host only: the transport reclaimed the seat — send it
@@ -3169,6 +3184,20 @@ export class Game {
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
             this.suspended = false;
             this.hud.hideNotice();
+            // broadcast the resume too, same reasoning as the pause
+            // broadcast in beginStarSeatSuspend — every other connected
+            // seat needs to un-pause in lockstep, not just the host.
+            // Reuses starSyncTarget(): disconnect time is always free, so
+            // this is the same number the pause broadcast already sent.
+            if (this.star?.role === 'host') {
+                this.star.hub.broadcast({
+                    type: 'starSync',
+                    suspended: false,
+                    round: this.round,
+                    phase: this.phase,
+                    target: this.starSyncTarget(),
+                });
+            }
         } else {
             // still waiting on at least one more seat — drop this one's
             // name out of the notice instead of leaving it listed forever
@@ -4360,6 +4389,34 @@ export class Game {
             if (isHost && msg.round === this.round) {
                 this.starChecks.set(msg.seat, msg.hash);
                 this.verifyStarChecks();
+            }
+        } else if (msg.type === 'starSync') {
+            // host already applied this locally at the point it broadcast
+            // it; every OTHER connected seat (ally, opponent, or the
+            // reconnecting seat itself once it's back) reconciles here.
+            // Round/phase mismatch means our own catch-up (starResumeState
+            // for a reconnecting seat) hasn't reached this point yet, or a
+            // stale/out-of-order message — either way, nothing to do.
+            if (!isHost && msg.round === this.round && msg.phase === this.phase) {
+                if (msg.suspended) {
+                    this.suspended = true;
+                    this.hud.showNotice('Waiting…', 'Give up', () => this.quitToMenu());
+                } else {
+                    // reconcile to the exact target rather than just
+                    // resuming wherever we happen to be — a seat that was
+                    // already correctly paused at this same point no-ops
+                    // here (fastForwardBattle's loop/the direct assignment
+                    // both do nothing new); this only does real work for a
+                    // seat that's behind. A seat that raced slightly AHEAD
+                    // of the target before the pause message reached it
+                    // (bounded by one network round-trip, not the multi-
+                    // second gaps this was built to fix) stays ahead —
+                    // accepted, not worth a full sim-rollback mechanism for.
+                    if (msg.phase === 'battle') this.fastForwardBattle(msg.target);
+                    else this.phaseRemaining = msg.target;
+                    this.suspended = false;
+                    this.hud.hideNotice();
+                }
             }
         } else if (msg.type === 'roster') {
             // guest-side: the host is the only one that ever sends this for

@@ -275,6 +275,24 @@ export type NetMessage =
      *  auto-resynced. */
     | { type: 'starCheck'; round: number; seat: SeatId; hash: number }
     /**
+     * Host → every connected seat: a seat dropped (`suspended:true`) or
+     * every dropped seat has caught up and confirmed ready
+     * (`suspended:false`) — broadcast, not just host-local bookkeeping, so
+     * every OTHER connected seat (not just the host) pauses/resumes in
+     * lockstep too (previously only the host paused; other seats kept
+     * ticking through the whole outage, unaware, ending up ahead of the
+     * host and the reconnecting seat once it returned — a real 2v2+ gap,
+     * never caught by 1v1-only reconnect testing). `target` is the exact
+     * point every seat should be at: `phaseRemaining` for `phase:'build'`,
+     * `sim.elapsed` for `phase:'battle'` — explicit on both messages (not
+     * an implicit "just freeze/unfreeze wherever you are") so a recipient
+     * always reconciles to a precise number rather than assuming zero
+     * relay latency. Disconnect time is always free: the resume target
+     * always equals the pause target, since nothing advances while
+     * everyone is correctly paused — this is never used to skip time
+     * forward as a fairness penalty. */
+    | { type: 'starSync'; suspended: boolean; round: number; phase: 'build' | 'battle'; target: number }
+    /**
      * A guest whose connection to the host dropped, redialing the SAME
      * host peer id with its OWN still-alive Peer object (no page reload —
      * that's a separate, still-unbuilt story for star mode, same as
