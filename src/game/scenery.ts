@@ -145,7 +145,7 @@ function smooth01(t: number): number {
 
 /**
  * Everything around and above the battlefield, generated in code: sky dome,
- * sun glow, the outer world (ground, trees, rocks), forest fog, rain/snow.
+ * sun glow, the outer world (ground, trees), forest fog, rain/snow.
  */
 export class Scenery {
     readonly group = new Group();
@@ -1135,7 +1135,7 @@ export class Scenery {
     }
 
     /**
-     * Trees, bushes and rocks — forest belt + a few on the battlefield.
+     * Trees, bushes — forest belt + a few on the battlefield.
      * High: dense low-poly forest. Ultra: same density with Tripo mid-poly GLBs.
      */
     private createForest(map: BattleMap, rng: () => number): void {
@@ -1219,7 +1219,6 @@ export class Scenery {
         const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
         const FIELD_PINES = hq ? 0 : scaleCount(5, dens.field);
         const FIELD_LEAFY = hq ? 0 : scaleCount(6, dens.field);
-        const ROCKS = scaleCount(170, dens.outer);
         const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
         const FIELD_BUSHES = hq ? 0 : scaleCount(45, dens.field);
         // horde mode widens the neutral strip into a real belt — grow a
@@ -1268,11 +1267,6 @@ export class Scenery {
             // pines stay green year-round — only the leafy (oak) canopy retints
             attachSeasonTint(blobs.material as MeshStandardMaterial);
         }
-        const rocks = new InstancedMesh(
-            new IcosahedronGeometry(1.4, 0),
-            new MeshStandardMaterial({ color: s.rock, roughness: 0.95, flatShading: true }),
-            ROCKS,
-        );
         if (bushCapacity > 0 && !highMix) {
             bushes = new InstancedMesh(
                 new IcosahedronGeometry(1, 1),
@@ -1358,28 +1352,6 @@ export class Scenery {
             }
         }
 
-        // prefer foothill / lower-slope rocks for silhouette variation
-        const rockSpot = (): { x: number; z: number } => {
-            for (let attempt = 0; attempt < 16; attempt++) {
-                const x = (rng() * 2 - 1) * (map.halfW + margin);
-                const z = (rng() * 2 - 1) * (map.halfH + margin);
-                if (distOut(x, z) < keepOut) continue;
-                const h = this.terrainHeight(x, z);
-                // decorative stones belong on rocky / upper slopes, not meadow
-                if (h > 4 && h < 140 && this.rockFactorAt(x, z) > 0.25) return { x, z };
-            }
-            return forestSpot(150);
-        };
-        for (let i = 0; i < ROCKS; i++) {
-            const { x, z } = rockSpot();
-            const sc = 0.5 + rng() * 1.5;
-            dummy.position.set(x, groundY(x, z) + 0.4 * sc, z);
-            dummy.scale.set(sc, sc * 0.55, sc);
-            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-            dummy.updateMatrix();
-            rocks.setMatrixAt(i, dummy.matrix);
-        }
-
         if (bushes || highMix) {
             let bushI = 0;
             for (let i = 0; i < BUSHES + FIELD_BUSHES + BELT_BUSHES; i++) {
@@ -1408,7 +1380,7 @@ export class Scenery {
         if (cones) cones.count = coneI;
         if (blobs) blobs.count = blobI;
 
-        for (const m of [trunks, cones, blobs, rocks, bushes]) {
+        for (const m of [trunks, cones, blobs, bushes]) {
             if (!m) continue;
             m.castShadow = true;
             m.instanceMatrix.needsUpdate = true;
