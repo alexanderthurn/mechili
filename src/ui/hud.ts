@@ -947,8 +947,12 @@ export class Hud {
         setTimeout(() => bubble.remove(), 4500);
 
         // floating line above the chat bar (XSS-safe: textContent only for text)
+        // — colored by the sender's actual TEAM (chip.team), not just
+        // local/remote: a teammate's message is still "player" green, only
+        // a genuine opponent's should read as "enemy" red (previously any
+        // non-self sender, ally included, rendered in the enemy color)
         const line = document.createElement('div');
-        line.className = `cf-msg ${from}`;
+        line.className = `cf-msg ${chip.team}`;
         const who = document.createElement('span');
         who.className = 'cf-name';
         who.textContent = name;

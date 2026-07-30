@@ -2024,7 +2024,18 @@ function startStarMatch(): void {
         null,
         { role: 'host', hub, mySeat: 0 },
     );
-    starHosting = null; // ownership passes to the running Game now
+    // the room is no longer "waiting to join" — stop the lobby heartbeat
+    // and tell the backend it's gone (does NOT touch `hub`/its Peer
+    // connection, which the running Game now owns and keeps alive; only
+    // clears the interval + sends ?action=leave for the OLD kind=lobby
+    // registration). Previously skipped here, so the lobby heartbeat kept
+    // re-registering `kind=lobby` forever in the background for as long as
+    // the tab stayed open — showing a stale, still-"joinable" room in the
+    // list alongside the real kind=spectate entry the running match
+    // registers separately (repro: "mangoo" AND "mangoo (2v2)" AND "Watch
+    // mangoo (2v2)" all listed for the same host at once).
+    starHosting?.cleanup();
+    starHosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
 }
 

@@ -2486,8 +2486,8 @@ ${fontFaceCss()}
     animation: chat-pop 0.15s ease-out, chat-fade 0.8s ease-in 6s forwards;
 }
 .mechili-chat-float .cf-name { font-weight: bold; color: ${u.brassLight}; }
-.mechili-chat-float .cf-msg.remote .cf-name { color: ${ec}; }
-.mechili-chat-float .cf-msg.local .cf-name { color: ${pc}; }
+.mechili-chat-float .cf-msg.enemy .cf-name { color: ${ec}; }
+.mechili-chat-float .cf-msg.player .cf-name { color: ${pc}; }
 
 .mechili-cards {
     position: absolute;
