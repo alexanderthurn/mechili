@@ -245,7 +245,8 @@ function settingsGroupHtml(g: SettingGroup): string {
 const ALL_TACTICS = Object.values(TACTICS);
 
 const versionLabel = `v${__APP_VERSION__} · ${GAME_VERSION}`;
-const first = BUILDINGS[0] ?? UNITS[0]!;
+const first =
+    BUILDINGS.find((t) => t.id === STRONGHOLD.id) ?? BUILDINGS[0] ?? UNITS[0]!;
 
 const app = document.getElementById('app');
 if (!app) throw new Error('#app missing');
