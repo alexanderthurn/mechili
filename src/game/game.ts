@@ -367,6 +367,18 @@ export class Game {
      *  non-empty, same as classic 1v1 stays suspended until the one peer is
      *  both back AND ready (see beginStarSeatSuspend/starSeatReady) */
     private readonly pendingStarSeats = new Set<SeatId>();
+    /** wall-clock deadline (performance.now()) the current star seat-drop
+     *  suspend resolves by, one way or another: either the seat reconnects,
+     *  or the grace window elapses and the host auto-resolves (forfeit-win
+     *  for the last human on a side, or an AI takeover if a teammate
+     *  remains). Drives the live countdown in the "Waiting…" notice, on
+     *  every connected seat, not just the host. Null whenever not suspended
+     *  for this reason (also unset — no countdown shown — for
+     *  requestStarResync's own notice, which has no fixed grace deadline). */
+    private suspendDeadline: number | null = null;
+    /** last whole second rendered in the countdown notice — re-render only
+     *  on change, not every frame */
+    private lastSuspendNoticeSecond = -1;
     /** per-seat "next seq I'll stamp when I originate a message for this
      *  seat" — only load-bearing for humanSeat, and for any host-driven AI
      *  seat via aiCtxFor. Seeded (never persisted) from the log's own
@@ -3237,6 +3249,8 @@ export class Game {
         this.pendingStarSeats.add(seat);
         if (!wasSuspended) {
             this.suspended = true;
+            this.suspendDeadline = performance.now() + STAR_RECONNECT_GRACE_MS;
+            this.lastSuspendNoticeSecond = -1;
             this.hud.hidePauseMenu();
             this.placement.deselect();
             this.armedItem = null;
@@ -3324,7 +3338,31 @@ export class Game {
      *  text every connected seat sees, regardless of ally/opponent/host. */
     private refreshStarSuspendNotice(): void {
         if (this.pendingStarSeats.size === 0) return;
-        this.hud.showNotice('Waiting…', 'Give up', () => this.quitToMenu());
+        this.showSuspendNotice();
+    }
+
+    /** the "Waiting…" notice, with a live countdown toward
+     *  `suspendDeadline` when one is set (a real seat-drop, not a
+     *  requestStarResync gap). Re-invoke whenever the displayed second
+     *  should change (see the per-frame check in tick()) or the underlying
+     *  pending-seat set changes. */
+    private showSuspendNotice(): void {
+        this.hud.showNotice(this.suspendNoticeText(), 'Give up', () => this.quitToMenu());
+    }
+
+    /** `1v1` (exactly one seat per side) has only one possible outcome once
+     *  the grace window elapses: a forfeit-win for whoever's still here —
+     *  there's no teammate a dropped seat could be handed to instead. 2v2+
+     *  depends on per-side human counts (could resolve to an AI takeover
+     *  instead), so that case stays deliberately generic rather than
+     *  promising a win that might not happen. */
+    private suspendNoticeText(): string {
+        if (this.suspendDeadline === null) return 'Waiting…';
+        const remainingS = Math.max(0, Math.ceil((this.suspendDeadline - performance.now()) / 1000));
+        const time = `${Math.floor(remainingS / 60)}:${String(remainingS % 60).padStart(2, '0')}`;
+        return this.seats.length === 2
+            ? `Waiting for reconnect — you win by forfeit in ${time} if they don't return.`
+            : `Waiting — resolves automatically in ${time} if they don't return.`;
     }
 
     /** star host only: the transport reclaimed the seat — send it
@@ -3360,6 +3398,7 @@ export class Game {
         this.pendingStarSeats.delete(seat);
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
             this.suspended = false;
+            this.suspendDeadline = null;
             this.hud.hideNotice();
             // broadcast the resume too, same reasoning as the pause
             // broadcast in beginStarSeatSuspend — every other connected
@@ -3438,6 +3477,7 @@ export class Game {
         // on — re-check same as starSeatReady does
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
             this.suspended = false;
+            this.suspendDeadline = null;
             this.hud.hideNotice();
         } else if (this.suspended && !this.matchOver) {
             this.refreshStarSuspendNotice();
@@ -4599,7 +4639,9 @@ export class Game {
             if (!isHost && msg.round === this.round && msg.phase === this.phase) {
                 if (msg.suspended) {
                     this.suspended = true;
-                    this.hud.showNotice('Waiting…', 'Give up', () => this.quitToMenu());
+                    this.suspendDeadline = performance.now() + STAR_RECONNECT_GRACE_MS;
+                    this.lastSuspendNoticeSecond = -1;
+                    this.showSuspendNotice();
                 } else {
                     // reconcile to the exact target rather than just
                     // resuming wherever we happen to be — a seat that was
@@ -4614,6 +4656,7 @@ export class Game {
                     if (msg.phase === 'battle') this.fastForwardBattle(msg.target);
                     else this.phaseRemaining = msg.target;
                     this.suspended = false;
+                    this.suspendDeadline = null;
                     this.hud.hideNotice();
                 }
             }
@@ -6972,6 +7015,15 @@ export class Game {
                 (seat) => seat !== this.humanSeat && this.seatReady[seat],
             );
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn);
+        // live countdown on the "Waiting…" seat-drop notice — re-render
+        // only when the displayed second actually changes, not every frame
+        if (this.suspendDeadline !== null) {
+            const remainingS = Math.max(0, Math.ceil((this.suspendDeadline - performance.now()) / 1000));
+            if (remainingS !== this.lastSuspendNoticeSecond) {
+                this.lastSuspendNoticeSecond = remainingS;
+                this.showSuspendNotice();
+            }
+        }
         this.hud.setUndoVisible(this.canUndo());
         this.hud.setDeploys(
             this.deployState.used[this.humanSeat]!,
