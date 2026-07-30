@@ -35,6 +35,7 @@ import {
     isRevealable,
     NetworkOpponent,
     registerSpectateEndpoint,
+    seatVisionPolicy,
     SpectatorHub,
     STAR_RECONNECT_GRACE_MS,
     type GuestSession,
@@ -46,7 +47,6 @@ import {
     type SpectatorSession,
     type SpectatorVision,
     type StarRole,
-    type VisionPolicy,
 } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode, type MatchResult } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
@@ -3885,7 +3885,7 @@ export class Game {
         const hub = this.star.hub;
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return all;
-        const policy: VisionPolicy = { kind: 'seat', side: hub.sideOf(seat) };
+        const policy = seatVisionPolicy(hub.sideOf(seat));
         return all.filter((e) => {
             if (e.round !== this.round) return true;
             const fromSide = hub.sideOf(e.action.seat!);

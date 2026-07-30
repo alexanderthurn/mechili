@@ -474,26 +474,57 @@ export type SpectatorVision =
  * shape; `isRevealable` below is the one gate predicate shared between
  * them, so there's a single place that decides visibility instead of two
  * slightly different reimplementations of the same idea.
+ *
+ * One shape for every viewer, not "seat vs spectator": `ownSides` is the
+ * viewer's own side(s) (empty for a spectator — no side of their own),
+ * always visible with no lock/grant needed. `granted` is an explicit
+ * early-access grant, keyed the same way regardless of viewer kind — today
+ * only ever populated for spectators (see SpectatorHub.setSeatLive), but
+ * nothing here assumes that; a future grant from one player to another
+ * (ally or opponent) is the same shape, same predicate, no new code path.
  */
-export type VisionPolicy = { kind: 'seat'; side: 'a' | 'b' } | { kind: 'spectator'; vision: SpectatorVision };
+export interface VisionPolicy {
+    ownSides: ReadonlySet<'a' | 'b'>;
+    granted: ReadonlySet<'a' | 'b'>;
+}
 
 /**
  * Is a build action/undo FROM `fromSide` visible to a viewer with `policy`
  * right now? `sideLocked` is supplied by the caller (Game owns lock-in
- * state; this module only knows connections): for a seat viewer it's
- * queried per side (an ally always sees their own side immediately; an
- * enemy side waits for `sideLocked(fromSide)`); a spectator only ever cares
- * about the combined `sideLocked('a') && sideLocked('b')` ("both locked"),
- * alongside any standing live-vision grant on that specific side.
+ * state; this module only knows connections).
+ *
+ * A viewer with an own side (a real seat, ally or opponent) only ever
+ * needs THAT side's own lock — once `fromSide` locks in, it has nothing
+ * left to act on this round, so revealing it can't leak an advantage back
+ * against its own future choices. A NEUTRAL viewer (no own side — a true
+ * spectator) instead waits for EVERY side to lock before seeing anything
+ * ungranted: without that stricter bar, a spectator could relay one side's
+ * reveal to the other side while it's still building, a real leak a seat
+ * viewer's own gate can't cause. This asymmetry is deliberate and must
+ * survive any future refactor of this function.
  */
 export function isRevealable(
     policy: VisionPolicy,
     fromSide: 'a' | 'b',
     sideLocked: (side: 'a' | 'b') => boolean,
 ): boolean {
-    if (policy.kind === 'seat') return policy.side === fromSide || sideLocked(fromSide);
-    if (sideLocked('a') && sideLocked('b')) return true;
-    return policy.vision.mode === 'live' && policy.vision.seats.includes(fromSide);
+    if (policy.ownSides.has(fromSide)) return true;
+    if (policy.granted.has(fromSide)) return true;
+    if (policy.ownSides.size > 0) return sideLocked(fromSide);
+    return sideLocked('a') && sideLocked('b');
+}
+
+/** VisionPolicy for a real seat viewer — always sees its own side; no
+ *  explicit grants exist for seats yet (see isRevealable's doc comment on
+ *  why the model allows for it regardless). */
+export function seatVisionPolicy(side: 'a' | 'b'): VisionPolicy {
+    return { ownSides: new Set([side]), granted: new Set() };
+}
+
+/** VisionPolicy for a spectator viewer — no own side; granted sides come
+ *  from its own live-vision grant state (SpectatorHub.setSeatLive). */
+export function spectatorVisionPolicy(vision: SpectatorVision): VisionPolicy {
+    return { ownSides: new Set(), granted: new Set(vision.mode === 'live' ? vision.seats : []) };
 }
 
 /**
@@ -861,7 +892,7 @@ export class StarHub implements HostHub {
             // recipient gets fully caught up via starResumeState on
             // reconnect instead — nothing useful to buffer for them here
             if (seat === fromSeat || !viewer.conn) continue;
-            const policy: VisionPolicy = { kind: 'seat', side: this.sideOf(seat) };
+            const policy = seatVisionPolicy(this.sideOf(seat));
             if (isRevealable(policy, fromSide, sideLocked)) {
                 if (viewer.buffer.length > 0) {
                     for (const buffered of viewer.buffer) viewer.conn.send(buffered);
@@ -1346,7 +1377,7 @@ export class SpectatorHub {
         bothLocked: boolean,
     ): boolean {
         if (!msg.side) return bothLocked;
-        return isRevealable({ kind: 'spectator', vision: viewer.vision }, msg.side, () => bothLocked);
+        return isRevealable(spectatorVisionPolicy(viewer.vision), msg.side, () => bothLocked);
     }
 
     /**
