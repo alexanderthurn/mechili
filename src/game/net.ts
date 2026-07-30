@@ -27,7 +27,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 18; // v18: classic 1v1 now connects via the star (hostStarRoom/joinStarRoom) path instead of NetSession's hello/setup handshake — 1v1 is just a 2-seat star room now, unifying reconnect/relay/resume onto one mechanism (Phase 1 of the full netcode unification)
+export const GAME_VERSION = 19; // v19: 'action'/'undo' now carry a mandatory per-seat seq (gap detection), plus new 'starResyncRequest' message (Phase 2 of the full netcode unification)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -161,12 +161,22 @@ export type NetMessage =
      * see Game.seatRank's doc comment), so a spectator resolving team from
      * `action.seat` alone collapses both players onto the same seat. The
      * two real players never read this field; they already know who they are.
+     *
+     * `seq` is the ORIGINATING seat's own monotonic counter (one shared
+     * sequence per seat across both action and undo), stamped once at
+     * origination and never touched by any relay hop — lets any recipient
+     * (another seat, the host relaying onward) notice a skipped number and
+     * know immediately something's missing, instead of only ever
+     * discovering it indirectly later (a stuck phase, a battle-start hash
+     * mismatch). See Game.seedSeqTracking's doc comment for how both sides
+     * agree on the starting count after any hydrate/resync.
      */
-    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b' }
+    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b'; seq: number }
     /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
      *  needs it since more than one remote seat can send an undo. `side` is
-     *  the same spectator-only wire tag as on `action` above. */
-    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b' }
+     *  the same spectator-only wire tag as on `action` above. `seq` is the
+     *  same per-seat monotonic counter `action` uses (see its doc comment). */
+    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq: number }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
@@ -271,8 +281,8 @@ export type NetMessage =
      *  starBattleStart rather than each client deciding independently) */
     | { type: 'starNextRound'; round: number }
     /** every client's battle-start state fingerprint, sent to the host for
-     *  N-way comparison. Detection only for v1 — a mismatch is logged, not
-     *  auto-resynced. */
+     *  N-way comparison. A mismatch is logged AND treated as a resync
+     *  trigger for the disagreeing seat(s) — see Game.verifyStarChecks. */
     | { type: 'starCheck'; round: number; seat: SeatId; hash: number }
     /**
      * Host → every connected seat: a seat dropped (`suspended:true`) or
@@ -292,6 +302,20 @@ export type NetMessage =
      * everyone is correctly paused — this is never used to skip time
      * forward as a fairness penalty. */
     | { type: 'starSync'; suspended: boolean; round: number; phase: 'build' | 'battle'; target: number }
+    /**
+     * Guest → host only: this guest's own per-seat `seq` tracking
+     * (Game.lastSeqSeen) noticed a gap in relayed action/undo traffic —
+     * a message from some seat was skipped or dropped in transit despite
+     * the connection staying up. Treated exactly like that guest needing
+     * to reconnect (see Game.beginStarSeatSuspend/starSeatReconnected):
+     * pause the whole match, resend the full state via `starResumeState`,
+     * resume once the guest confirms with `ready` — the same recovery
+     * path already used for a real drop, not a second mechanism. The
+     * host is always the source of truth here: this only fires for a
+     * gap in what the HOST relayed, which the host's own log can always
+     * answer fully (see Game.onStarMessage's doc comment on the rarer,
+     * not-auto-recovered reverse direction). */
+    | { type: 'starResyncRequest' }
     /**
      * A guest whose connection to the host dropped, redialing the SAME
      * host peer id with its OWN still-alive Peer object (no page reload —

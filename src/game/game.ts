@@ -339,7 +339,13 @@ export class Game {
     /** streamed peer events, applied in order once our game reaches their round */
     private readonly remoteQueue: { round: number; action?: Action; undo?: boolean; seat?: SeatId }[] = [];
     /** star mode's own incoming queue — parallel to remoteQueue */
-    private readonly starRemoteQueue: { round: number; seat: SeatId; action?: Action; undo?: boolean }[] = [];
+    private readonly starRemoteQueue: {
+        round: number;
+        seat: SeatId;
+        action?: Action;
+        undo?: boolean;
+        seq: number;
+    }[] = [];
     /** spectator-only incoming queue — see drainSpectateQueue for why this
      *  can't reuse starRemoteQueue/drainStarRemoteQueue despite the
      *  identical shape */
@@ -355,6 +361,18 @@ export class Game {
      *  non-empty, same as classic 1v1 stays suspended until the one peer is
      *  both back AND ready (see beginStarSeatSuspend/starSeatReady) */
     private readonly pendingStarSeats = new Set<SeatId>();
+    /** per-seat "next seq I'll stamp when I originate a message for this
+     *  seat" — only load-bearing for humanSeat, and for any host-driven AI
+     *  seat via aiCtxFor. Seeded (never persisted) from the log's own
+     *  per-seat action counts — see seedSeqTracking — then purely
+     *  incremented per send, immune to undo removing entries from the log. */
+    private seatSendSeq: number[] = [];
+    /** per-seat "last seq I've seen originate from this seat" — checked on
+     *  every incoming action/undo (onStarMessage) to detect a dropped or
+     *  skipped message. Seeded the same way as seatSendSeq, so both sides
+     *  agree on the resume point after any hydrate without needing to
+     *  reconstruct or persist anything explicitly. */
+    private lastSeqSeen: number[] = [];
     /** star guest only: aborts an in-flight redial loop if we give up first
      *  (quitToMenu) — mirrors classic 1v1's onReconnectTimeout callback */
     private starRedialAbort: AbortController | null = null;
@@ -1487,6 +1505,10 @@ export class Game {
             else sendReady();
         }
         if (spectate) this.wireSpectateSession(spectate.session);
+        // any of the hydrate/replay paths above may already have a non-
+        // empty log (resume/spectate) — seed once construction's own
+        // catch-up is fully done, not before
+        this.seedSeqTracking();
 
         // Escape toggles the in-game menu (the match keeps running underneath)
         window.addEventListener('keydown', this.onEscapeKey);
@@ -2347,7 +2369,12 @@ export class Game {
         // mode never buffers locally (see sendStarBuildMessage), so its
         // own round-0 starter pick is always safe to send immediately.
         if (this.round >= 1 || (this.star && stamped.kind === 'chooseCard')) {
-            this.sendPlayerBuildMessage({ type: 'action', round: this.round, action: stamped });
+            this.sendPlayerBuildMessage({
+                type: 'action',
+                round: this.round,
+                action: stamped,
+                seq: this.nextSeatSeq(this.humanSeat),
+            });
         }
         return true;
     }
@@ -2447,7 +2474,10 @@ export class Game {
                 if (ok && this.star?.role === 'host' && !this.hydrating) {
                     const seat = action.seat ?? this.humanSeat;
                     if (this.round >= 1 || action.kind === 'chooseCard') {
-                        this.relayStarBuildMessage({ type: 'action', round: this.round, action }, seat);
+                        this.relayStarBuildMessage(
+                            { type: 'action', round: this.round, action, seq: this.nextSeatSeq(seat) },
+                            seat,
+                        );
                     }
                 }
                 return ok;
@@ -2529,13 +2559,15 @@ export class Game {
     }
 
     /**
-     * Host only, diagnostic: once every connected seat's battle-start hash
-     * has arrived for this round, warn (console only — no gameplay
-     * interruption) if any of them disagrees with the host's own. Star mode
-     * has no auto-resync yet, so this is detection for debugging, not a fix.
-     * A seat that never reports (e.g. it dropped) just never completes the
-     * check — harmless, since a drop already pauses the whole match via
-     * wireStar's onSeatDropped.
+     * Host only: once every connected seat's battle-start hash has arrived
+     * for this round, warn (console + debugLog) if any of them disagrees
+     * with the host's own, AND treat each disagreeing seat exactly like it
+     * needs a resync (see checkStarSeq/'starResyncRequest' — a hash
+     * mismatch is really just a gap that per-seq tracking failed to catch,
+     * e.g. a logic bug rather than a dropped message). A seat that never
+     * reports (e.g. it dropped) just never completes the check — harmless,
+     * since a drop already pauses the whole match via wireStar's
+     * onSeatDropped.
      */
     private verifyStarChecks(): void {
         if (!this.star || this.star.role !== 'host') return;
@@ -2551,14 +2583,16 @@ export class Game {
             // console-only was invisible outside an open devtools tab — this
             // makes it part of the same aggregated per-client debug timeline
             // (DebugDumpButton) already used to diagnose every other netcode
-            // issue this session, without changing any actual match behavior
-            // (still detection-only, no auto-recovery — see this method's
-            // own doc comment).
+            // issue this session.
             this.debugLog.log('star.desyncDetected', {
                 round: this.round,
                 mismatched,
                 hashes: Object.fromEntries(this.starChecks),
             });
+            for (const seat of mismatched) {
+                this.beginStarSeatSuspend(seat);
+                this.starSeatReconnected(seat);
+            }
         }
     }
 
@@ -2929,6 +2963,9 @@ export class Game {
                         round: e.round,
                         action: e.action,
                         side: e.action.team === 'player' ? 'a' : 'b',
+                        // spectators aren't seq-checked (see NetMessage's
+                        // 'action' doc comment) — placeholder only
+                        seq: 0,
                     });
                 }
             });
@@ -3093,9 +3130,39 @@ export class Game {
         this.hydrating = true;
         this.replayLogFrom(log, fromIndex, msg.battleElapsed);
         this.hydrating = false;
+        this.seedSeqTracking();
         if (this.phase === 'build' && msg.phaseRemaining !== undefined) {
             this.phaseRemaining = msg.phaseRemaining;
         }
+    }
+
+    /**
+     * (Re)seeds `seatSendSeq`/`lastSeqSeen` from the current log — called
+     * once at construction (fresh match: everything zero) and again after
+     * any hydrate/replay completes (cold reconnect, live resync), since a
+     * resumed log already reflects everything that happened and both
+     * counters must resume from exactly that point. Deliberately NOT
+     * persisted anywhere: anyone reconstructing state from the same log
+     * (host or guest, at any point) derives the identical seed via this
+     * same formula, so both sides always agree on the resume point without
+     * needing to reconcile a separately-tracked number.
+     */
+    private seedSeqTracking(): void {
+        const counts = new Array<number>(this.seats.length).fill(0);
+        for (const entry of this.dispatcher.serializable()) {
+            const seat = entry.action.seat;
+            if (seat !== undefined) counts[seat] = (counts[seat] ?? 0) + 1;
+        }
+        this.seatSendSeq = counts.slice();
+        this.lastSeqSeen = counts.slice();
+    }
+
+    /** the next seq to stamp when originating an action/undo for `seat` —
+     *  advances the counter as a side effect, so call exactly once per
+     *  message actually sent. */
+    private nextSeatSeq(seat: SeatId): number {
+        this.seatSendSeq[seat] = (this.seatSendSeq[seat] ?? 0) + 1;
+        return this.seatSendSeq[seat];
     }
 
     /** star host only: a seat's connection just dropped — pause the whole
@@ -3133,6 +3200,54 @@ export class Game {
         // not up to HEARTBEAT_MS late — someone deciding "resume vs.
         // spectate" from the menu is trusting this to be current
         this.spectateRegistration?.refreshNow();
+    }
+
+    /**
+     * Checks an incoming action/undo's per-seat seq against what's
+     * expected (see NetMessage's 'action'/'undo' doc comment). Returns
+     * true if the caller should proceed normally (queue + drain this
+     * message); false means a guest-side gap triggered a resync request
+     * instead, and this particular message must be dropped (the resync's
+     * full state resend will bring the true picture).
+     *
+     * A host-side gap is a different, rarer case (see NetMessage's
+     * 'starResyncRequest' doc comment on why it isn't auto-recovered): the
+     * message is still legitimate content, just unexpectedly numbered, so
+     * it's logged and accepted as-is rather than dropped.
+     */
+    private checkStarSeq(seat: SeatId, seq: number, isHost: boolean): boolean {
+        const expected = (this.lastSeqSeen[seat] ?? 0) + 1;
+        if (seq === expected) {
+            this.lastSeqSeen[seat] = seq;
+            return true;
+        }
+        if (isHost) {
+            this.debugLog.log('star.seqGapHostSide', { seat, expected, got: seq });
+            this.lastSeqSeen[seat] = seq;
+            return true;
+        }
+        this.requestStarResync(seat, expected, seq);
+        return false;
+    }
+
+    /**
+     * Star guest only: our own seq tracking noticed a gap in what the
+     * host relayed — pause locally (same shape as a real disconnect) and
+     * ask the host to treat us exactly like a reconnecting seat (see
+     * NetMessage's 'starResyncRequest' doc comment): full starResumeState
+     * resend, resume once we confirm with 'ready'. The `suspended` guard
+     * avoids piling up duplicate requests if more gaps are noticed while
+     * one resync is already in flight.
+     */
+    private requestStarResync(seat: SeatId, expected: number, got: number): void {
+        if (!this.star || this.star.role !== 'guest' || this.suspended) return;
+        this.debugLog.log('star.seqGapDetected', { seat, expected, got });
+        this.suspended = true;
+        this.hud.hidePauseMenu();
+        this.placement.deselect();
+        this.armedItem = null;
+        this.hud.showNotice('Waiting…', 'Give up', () => this.quitToMenu());
+        this.star.session.send({ type: 'starResyncRequest' });
     }
 
     /** the exact point every seat should sync to right now — phaseRemaining
@@ -3632,6 +3747,9 @@ export class Game {
                 type: 'action',
                 round: this.round,
                 action: { kind: 'endDeployment', team: 'player' },
+                // classic 1v1's own path never seq-checks (see NetMessage's
+                // 'action' doc comment) — placeholder only
+                seq: 0,
             });
         }
         if (this.battleReady.player) {
@@ -4343,12 +4461,16 @@ export class Game {
             // the very action that completed the last lock-in (see there).
             const seat = isHost ? fromSeat! : msg.action.seat!;
             const action = msg.action.seat === seat ? msg.action : { ...msg.action, seat };
-            this.starRemoteQueue.push({ round: msg.round, seat, action });
-            this.drainStarRemoteQueue();
+            if (this.checkStarSeq(seat, msg.seq, isHost)) {
+                this.starRemoteQueue.push({ round: msg.round, seat, action, seq: msg.seq });
+                this.drainStarRemoteQueue();
+            }
         } else if (msg.type === 'undo') {
             const seat = isHost ? fromSeat! : (msg.seat ?? this.humanSeat);
-            this.starRemoteQueue.push({ round: msg.round, seat, undo: true });
-            this.drainStarRemoteQueue();
+            if (this.checkStarSeq(seat, msg.seq, isHost)) {
+                this.starRemoteQueue.push({ round: msg.round, seat, undo: true, seq: msg.seq });
+                this.drainStarRemoteQueue();
+            }
         } else if (msg.type === 'debugLog') {
             // only a star guest ever sends this (the host ingests its own
             // events directly, never over the wire)
@@ -4417,6 +4539,25 @@ export class Game {
                     this.suspended = false;
                     this.hud.hideNotice();
                 }
+            }
+        } else if (msg.type === 'starResyncRequest') {
+            // a guest's own seq tracking noticed a gap in what we relayed —
+            // treat it exactly like that seat needing to reconnect (see
+            // NetMessage's doc comment): pause everyone, resend full state.
+            if (isHost && fromSeat !== undefined) {
+                this.beginStarSeatSuspend(fromSeat);
+                this.starSeatReconnected(fromSeat);
+            }
+        } else if (msg.type === 'starResumeState') {
+            // only reached here for a LIVE resync (seq gap or hash
+            // mismatch) with the connection never actually dropping — a
+            // real cold/in-session reconnect instead consumes this via its
+            // own one-time read (beginStarGuestReconnect's fresh.once(), or
+            // the main-menu cold-reconnect flow) before onStarMessage is
+            // ever wired up to receive it, so there's no double-handling.
+            if (star.role === 'guest') {
+                this.applyStarResumeState(msg);
+                star.session.send({ type: 'ready' });
             }
         } else if (msg.type === 'roster') {
             // guest-side: the host is the only one that ever sends this for
@@ -4555,14 +4696,19 @@ export class Game {
             if (this.seatReady[head.seat]) continue;
             if (head.undo) {
                 this.dispatcher.undoLast(head.round, head.seat);
-                this.relayStarBuildMessage({ type: 'undo', round: head.round, seat: head.seat }, head.seat);
+                // relay preserves the ORIGINATING seat's seq unchanged —
+                // this is a forward, not a new origination
+                this.relayStarBuildMessage(
+                    { type: 'undo', round: head.round, seat: head.seat, seq: head.seq },
+                    head.seat,
+                );
             } else if (head.action) {
                 const team = this.seats[head.seat]?.team;
                 if (team) {
                     const resolved = { ...head.action, team, seat: head.seat };
                     this.dispatcher.dispatch(resolved);
                     this.relayStarBuildMessage(
-                        { type: 'action', round: head.round, action: resolved },
+                        { type: 'action', round: head.round, action: resolved, seq: head.seq },
                         head.seat,
                     );
                     // classic 1v1's dedicated 'starter' message triggers this
@@ -5580,7 +5726,12 @@ export class Game {
         if (!this.canUndo()) return;
         this.placement.deselect();
         if (this.dispatcher.undoLast(this.round, this.humanSeat)) {
-            this.sendPlayerBuildMessage({ type: 'undo', round: this.round, seat: this.humanSeat });
+            this.sendPlayerBuildMessage({
+                type: 'undo',
+                round: this.round,
+                seat: this.humanSeat,
+                seq: this.nextSeatSeq(this.humanSeat),
+            });
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
