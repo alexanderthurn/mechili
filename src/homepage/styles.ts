@@ -7,18 +7,25 @@ export function homepageStyles(): string {
     return `
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body {
+html, body {
     margin: 0;
     min-height: 100%;
+    min-height: 100dvh;
     color: ${u.text};
     background: #1a2818;
 }
 
 .melodan-home {
     min-height: 100vh;
-    background:
-        linear-gradient(180deg, rgba(12, 20, 10, 0.55), rgba(18, 28, 14, 0.88)),
-        var(--menu-bg) center / cover no-repeat fixed;
+    min-height: 100dvh;
+    background: linear-gradient(180deg, #1a2818 0%, #121c12 35%, #0a0e0a 70%, #000000 100%);
+}
+@media (min-width: 721px) {
+    .melodan-home {
+        background:
+            linear-gradient(180deg, rgba(12, 20, 10, 0.55), rgba(18, 28, 14, 0.88)),
+            var(--menu-bg) center / cover no-repeat fixed;
+    }
 }
 
 .mh-wrap {
