@@ -1,6 +1,5 @@
 import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_CARDS, type RoundCard, type StartCard } from '../game/cards';
-import { GAME_VERSION } from '../game/net';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { TACTICS, formatTacticStats } from '../game/tactics';
 import {
@@ -245,7 +244,7 @@ function settingsGroupHtml(g: SettingGroup): string {
 
 const ALL_TACTICS = Object.values(TACTICS);
 
-const versionLabel = `v${__APP_VERSION__} · ${GAME_VERSION}`;
+const versionLabel = `v${__APP_VERSION__}`;
 const first =
     BUILDINGS.find((t) => t.id === STRONGHOLD.id) ?? BUILDINGS[0] ?? UNITS[0]!;
 
@@ -414,7 +413,7 @@ app.innerHTML = `
     <h2>About</h2>
     <div class="mh-about">
       <a class="mh-about-brand" href="https://feuerware.com/" rel="noopener noreferrer" target="_blank">
-        <img src="${esc(feuerwareLogoUrl)}" alt="Feuerware" width="320" height="64" />
+        <img src="${esc(feuerwareLogoUrl)}" alt="Feuerware" width="307" height="307" />
       </a>
       <p class="mh-about-lead">
         MELODAN is made by Feuerware. A small team of germans who love to code and make games.
