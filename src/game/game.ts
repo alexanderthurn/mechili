@@ -2043,7 +2043,6 @@ export class Game {
         this.clayOverride.dispose();
         this.wireOverride.dispose();
         this.normalsOverride.dispose();
-        // drop any HTML HUD nodes still attached to the pixi canvas (html-in-canvas mode)
         for (const node of [...this.pixiApp.canvas.children]) {
             if (node instanceof HTMLElement) node.remove();
         }

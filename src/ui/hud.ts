@@ -1,5 +1,4 @@
-import { Sprite, type Application } from 'pixi.js';
-import { HTMLSource } from 'pixi.js/html-source';
+import type { Application } from 'pixi.js';
 import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
@@ -137,14 +136,10 @@ export interface SelectionInfo {
 
 /**
  * HUD built from real HTML: deployment shop (bottom-right), unit inspector
- * (bottom-left), item sidebars, and the round/phase top bar. When the browser
- * supports the experimental HTML-in-Canvas API, the elements live inside the
- * Pixi canvas and are mirrored to the GPU via HTMLSource (staying natively
- * interactive). Otherwise they fall back to a plain DOM overlay above the canvases.
+ * (bottom-left), item sidebars, and the round/phase top bar — mounted as a
+ * DOM overlay above the three.js / Pixi canvases.
  */
 export class Hud {
-    /** 'html-in-canvas' when mirrored via HTMLSource, 'dom-overlay' otherwise */
-    readonly mode: 'html-in-canvas' | 'dom-overlay';
     onEndDeployment: (() => void) | null = null;
     onSpeedUp: (() => void) | null = null;
     onSpeedDown: (() => void) | null = null;
@@ -275,14 +270,11 @@ export class Hud {
     private extrasBudgetLeft = Infinity;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
-    private readonly sprites: { el: HTMLElement; sprite: Sprite }[] = [];
-    /** every HUD root passed through mount() — needed for dom-overlay teardown */
+    /** every HUD root passed through mount() — needed for teardown */
     private readonly mountedRoots: HTMLElement[] = [];
     /** cinema / screenshot mode — all chrome hidden except the exit hint */
     private uiHidden = false;
     private cinemaHint: HTMLDivElement | null = null;
-    private readonly pixiCanvas: HTMLCanvasElement;
-    private readonly app: Application;
     private readonly overlayParent: HTMLElement;
     private readonly hudStyle: HTMLStyleElement;
     private readonly onItemGhostMove = (e: PointerEvent) => {
@@ -292,20 +284,15 @@ export class Hud {
     };
 
     constructor(
-        app: Application,
+        _app: Application,
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
         onBuy: (type: UnitType) => boolean,
     ) {
-        this.app = app;
-        this.pixiCanvas = app.canvas;
         this.overlayParent = overlayParent;
         this.costOf = costOf;
-        this.mode =
-            typeof (app.canvas as any).requestPaint === 'function' ? 'html-in-canvas' : 'dom-overlay';
 
-        const style = document.createElement('style');
-        style.textContent = hudStyles();
+        const style = document.createElement('style');        style.textContent = hudStyles();
         document.head.appendChild(style);
         this.hudStyle = style;
 
@@ -1964,11 +1951,6 @@ export class Hud {
     private removeCardOverlayElement(el: HTMLElement): void {
         const rootIdx = this.mountedRoots.indexOf(el);
         if (rootIdx >= 0) this.mountedRoots.splice(rootIdx, 1);
-        const spriteIdx = this.sprites.findIndex((s) => s.el === el);
-        if (spriteIdx >= 0) {
-            this.sprites[spriteIdx]!.sprite.destroy();
-            this.sprites.splice(spriteIdx, 1);
-        }
         el.remove();
     }
 
@@ -2115,11 +2097,6 @@ export class Hud {
             if (!el.classList.contains('mechili-gameover')) continue;
             el.remove();
             this.mountedRoots.splice(i, 1);
-            const spriteIdx = this.sprites.findIndex((s) => s.el === el);
-            if (spriteIdx >= 0) {
-                this.sprites[spriteIdx]!.sprite.destroy();
-                this.sprites.splice(spriteIdx, 1);
-            }
         }
         this.syncOverlayOpen();
     }
@@ -2598,16 +2575,8 @@ export class Hud {
         );
     }
 
-    /** Keeps the mirrored sprites aligned with each element's layout box. */
-    layout(): void {
-        if (this.sprites.length === 0) return;
-        const canvasRect = this.pixiCanvas.getBoundingClientRect();
-        for (const { el, sprite } of this.sprites) {
-            const r = el.getBoundingClientRect();
-            sprite.visible = r.width > 0 && r.height > 0; // hidden elements have no box
-            sprite.position.set(r.left - canvasRect.left, r.top - canvasRect.top);
-        }
-    }
+    /** No-op — kept so the match tick can call it unconditionally. */
+    layout(): void {}
 
     private mount(el: HTMLElement): void {
         // don't let HUD interactions fall through to camera/placement handlers
@@ -2617,15 +2586,7 @@ export class Hud {
         this.mountedRoots.push(el);
         if (this.uiHidden) el.classList.add('mechili-cinema-hide');
         if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
-        if (this.mode === 'html-in-canvas') {
-            // must be a direct child of the Pixi canvas; mirrored to the GPU each repaint
-            this.pixiCanvas.appendChild(el);
-            const sprite = Sprite.from(new HTMLSource({ resource: el, autoUpdate: true }));
-            this.app.stage.addChild(sprite);
-            this.sprites.push({ el, sprite });
-        } else {
-            this.overlayParent.appendChild(el);
-        }
+        this.overlayParent.appendChild(el);
     }
 
     get isUiHidden(): boolean {
@@ -2681,7 +2642,7 @@ export class Hud {
         this.cinemaHint.textContent = text;
     }
 
-    /** removes every HUD element from the page / canvas mirror */
+    /** removes every HUD element from the page */
     destroy(): void {
         this.hidePauseMenu();
         this.hideCardOverlay();
@@ -2691,10 +2652,6 @@ export class Hud {
         this.itemGhost = null;
         this.cinemaHint?.remove();
         this.cinemaHint = null;
-        for (const { sprite } of this.sprites) {
-            sprite.destroy();
-        }
-        this.sprites.length = 0;
         for (const el of this.mountedRoots) {
             el.remove();
         }
