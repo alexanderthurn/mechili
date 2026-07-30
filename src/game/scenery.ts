@@ -83,7 +83,7 @@ function sceneryDensity(quality: SceneryQuality): {
     beltRamp: number;
     /** distance where far taper begins */
     beltFar: number;
-    peakClouds: number;
+    forestFogCards: number;
 } {
     if (quality === 'ultra') {
         return {
@@ -99,7 +99,7 @@ function sceneryDensity(quality: SceneryQuality): {
             beltRamp: 18,
             // stay dense across green foothills; rockFactor rejects stone
             beltFar: 500,
-            peakClouds: 22,
+            forestFogCards: 22,
         };
     }
     if (quality === 'high') {
@@ -115,7 +115,7 @@ function sceneryDensity(quality: SceneryQuality): {
             beltNear: 8,
             beltRamp: 18,
             beltFar: 500,
-            peakClouds: 18,
+            forestFogCards: 18,
         };
     }
     // medium — former "full"
@@ -130,7 +130,7 @@ function sceneryDensity(quality: SceneryQuality): {
         beltNear: 25,
         beltRamp: 70,
         beltFar: 300,
-        peakClouds: 12,
+        forestFogCards: 12,
     };
 }
 
@@ -145,22 +145,17 @@ function smooth01(t: number): number {
 
 /**
  * Everything around and above the battlefield, generated in code: sky dome,
- * sun glow, the outer world (ground, trees, rocks), drifting clouds and
- * their shadows sweeping across the field.
+ * sun glow, the outer world (ground, trees, rocks), forest fog, rain/snow.
  */
 export class Scenery {
     readonly group = new Group();
 
     /** dome + sun glow follow the camera so the horizon never hits the far plane */
     private readonly skyGroup = new Group();
-    private readonly clouds: { mesh: Mesh; speed: number }[] = [];
-    /** wisps clinging to the snowy summits — they sway in place, never leave */
-    private readonly peakClouds: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     /** low fog cards drifting between the forest trees */
     private readonly fogCards: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private forestFogMaterial: MeshBasicMaterial | null = null;
     private time = 0;
-    private readonly cloudBoundsX: number;
     private readonly map: BattleMap;
     private weather: Weather | null = null;
 
@@ -181,7 +176,6 @@ export class Scenery {
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
     private sunGlow!: Sprite;
-    private cloudMaterial!: MeshBasicMaterial;
     private cloudTexture!: CanvasTexture;
 
     /** outer-world height: meadow band with soft relief, then slopes into a mountain ring */
@@ -199,7 +193,6 @@ export class Scenery {
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
         this.map = map;
-        this.cloudBoundsX = map.halfW + 600;
 
         const noise = makeValueNoise(31337);
         this.noise = noise;
@@ -276,12 +269,8 @@ export class Scenery {
             this.createForest(map, rng);
             this.createMeadowDetails(map, rng);
         }
-        this.createClouds(map, rng);
+        this.createCloudTexture(rng);
         if (this.detailed) this.createForestFog(map, rng);
-        if (this.quality === 'off') {
-            // scenery 'off' = no weather FX at all: hide every cloud layer
-            for (const c of this.clouds) c.mesh.visible = false;
-        }
     }
 
     /**
@@ -300,7 +289,7 @@ export class Scenery {
         const geometry = new PlaneGeometry(1, 0.55);
         geometry.rotateX(-Math.PI / 2);
 
-        const count = Math.round(14 + this.density.peakClouds);
+        const count = Math.round(14 + this.density.forestFogCards);
         const beltMax = Math.min(this.density.beltFar, 360);
         let placed = 0;
         for (let attempt = 0; attempt < 4000 && placed < count; attempt++) {
@@ -365,7 +354,6 @@ export class Scenery {
                 renderer,
                 repaintSky: this.repaintSky,
                 glow: this.sunGlow,
-                cloudMaterial: this.cloudMaterial,
                 cloudTexture: this.cloudTexture,
                 forestFogMaterial: this.forestFogMaterial,
                 forestFogScale: Math.min(1.2, sceneryHeightFog(this.quality)),
@@ -420,14 +408,7 @@ export class Scenery {
             this.waterMaterial.roughness = 0.18 + freeze * 0.55;
             this.waterMaterial.opacity = 0.86 + freeze * 0.12;
         }
-        for (const c of this.clouds) {
-            c.mesh.position.x += c.speed * dtSeconds;
-            if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
-        }
         this.time += dtSeconds;
-        for (const p of this.peakClouds) {
-            p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
-        }
         for (const f of this.fogCards) {
             f.mesh.position.x = f.baseX + Math.sin(this.time * f.speed + f.phase) * 8;
             f.mesh.visible = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
@@ -1754,8 +1735,8 @@ export class Scenery {
         }
     }
 
-    /** flat white puffs drifting near the horizon — never over the field itself */
-    private createClouds(map: BattleMap, rng: () => number): void {
+    /** soft cloud puff texture — shared by forest fog cards and rain near-clouds */
+    private createCloudTexture(rng: () => number): void {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 128;
@@ -1776,60 +1757,6 @@ export class Scenery {
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         this.cloudTexture = texture;
-        const material = new MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            opacity: THEME.scenery.cloudOpacity,
-            depthWrite: false,
-        });
-        this.cloudMaterial = material;
-        const geometry = new PlaneGeometry(1, 0.5);
-        geometry.rotateX(-Math.PI / 2);
-
-        for (let i = 0; i < 12; i++) {
-            const mesh = new Mesh(geometry, material);
-            // lanes beyond the field edges so clouds never hide units from above
-            const farSide = rng() < 0.7;
-            const lane = map.halfH + 100 + rng() * 320;
-            mesh.position.set(
-                (rng() * 2 - 1) * this.cloudBoundsX,
-                110 + rng() * 60,
-                farSide ? -lane : lane,
-            );
-            const scale = 90 + rng() * 130;
-            mesh.scale.set(scale, 1, scale * (0.4 + rng() * 0.3));
-            this.clouds.push({ mesh, speed: 2 + rng() * 3 });
-            this.group.add(mesh);
-        }
-
-        // summit wisps: parked just below the white peaks, swaying in place.
-        // They share the horizon clouds' material, so every weather scenario
-        // tints and fades them automatically.
-        if (!this.detailed) return; // decoration only — low/off skip it regardless of relief
-        const peakCap = this.density.peakClouds;
-        let placed = 0;
-        for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {
-            const x = (rng() * 2 - 1) * 1300;
-            const z = (rng() * 2 - 1) * 1300;
-            const h = this.terrainHeight(x, z);
-            if (h < 165) continue;
-            // keep them spread out — one wisp per summit area
-            if (this.peakClouds.some((p) => Math.hypot(p.mesh.position.x - x, p.mesh.position.z - z) < 90)) {
-                continue;
-            }
-            const mesh = new Mesh(geometry, material);
-            mesh.position.set(x, h - 4 + rng() * 16, z);
-            const scale = 55 + rng() * 70;
-            mesh.scale.set(scale, 1, scale * (0.35 + rng() * 0.3));
-            this.peakClouds.push({
-                mesh,
-                baseX: x,
-                phase: rng() * Math.PI * 2,
-                speed: 0.05 + rng() * 0.06,
-            });
-            this.group.add(mesh);
-            placed++;
-        }
     }
 }
 

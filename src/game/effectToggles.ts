@@ -1,10 +1,9 @@
-/** Visual layers toggled at runtime via Shift+1 … Shift+8 (Shift+0 = all on). */
+/** Visual layers toggled at runtime via Shift+1 … Shift+7 (Shift+0 = all on). */
 export type EffectToggleId =
     | 'nearClouds'
     | 'distanceFog'
     | 'heightMist'
     | 'forestFog'
-    | 'horizonClouds'
     | 'rain'
     | 'snow'
     | 'stars';
@@ -13,20 +12,19 @@ export interface EffectToggleDef {
     id: EffectToggleId;
     /** shown in console / debug overlay */
     label: string;
-    /** digit key (1–8) with Shift held */
+    /** digit key (1–7) with Shift held */
     key: number;
 }
 
-/** Order matches Shift+1 … Shift+8. */
+/** Order matches Shift+1 … Shift+7. */
 export const EFFECT_TOGGLE_DEFS: readonly EffectToggleDef[] = [
     { id: 'nearClouds', label: 'Near clouds', key: 1 },
     { id: 'distanceFog', label: 'Distance fog', key: 2 },
     { id: 'heightMist', label: 'Height mist', key: 3 },
     { id: 'forestFog', label: 'Forest fog', key: 4 },
-    { id: 'horizonClouds', label: 'Horizon clouds', key: 5 },
-    { id: 'rain', label: 'Rain', key: 6 },
-    { id: 'snow', label: 'Snow', key: 7 },
-    { id: 'stars', label: 'Stars', key: 8 },
+    { id: 'rain', label: 'Rain', key: 5 },
+    { id: 'snow', label: 'Snow', key: 6 },
+    { id: 'stars', label: 'Stars', key: 7 },
 ] as const;
 
 export class EffectToggles {
@@ -35,7 +33,6 @@ export class EffectToggles {
         distanceFog: true,
         heightMist: true,
         forestFog: true,
-        horizonClouds: true,
         rain: true,
         snow: true,
         stars: true,

@@ -60,8 +60,6 @@ interface TimePreset {
     glow: number;
     glowScale: number;
     glowOpacity: number;
-    cloudTint: number;
-    cloudOpacity: number;
     nearCloudOpacity: number;
     /** opacity of the fog cards drifting between the forest trees */
     forestFog: number;
@@ -85,8 +83,6 @@ interface WeatherOverlay {
     glow: number;
     glowScale: number;
     glowOpacity: number;
-    cloudTint: number;
-    cloudOpacity: number;
     nearCloudOpacity: number;
     forestFog: number;
     exposureMul: number;
@@ -116,8 +112,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glow: 0xffe0b4,
         glowScale: 300,
         glowOpacity: 0.9,
-        cloudTint: 0xffd9c2,
-        cloudOpacity: 0.55,
         nearCloudOpacity: 0.18,
         forestFog: 0.32,
         stars: 0.08,
@@ -140,8 +134,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glow: 0xfff6d8,
         glowScale: 340,
         glowOpacity: 1,
-        cloudTint: 0xffffff,
-        cloudOpacity: 0.8,
         nearCloudOpacity: 0.12,
         forestFog: 0.07,
         stars: 0,
@@ -164,8 +156,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glow: 0xffc670,
         glowScale: 390,
         glowOpacity: 1,
-        cloudTint: 0xffd39a,
-        cloudOpacity: 0.5,
         nearCloudOpacity: 0.14,
         forestFog: 0.12,
         stars: 0,
@@ -188,8 +178,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glow: 0xffab6a,
         glowScale: 330,
         glowOpacity: 0.95,
-        cloudTint: 0xff9a6c,
-        cloudOpacity: 0.6,
         nearCloudOpacity: 0.2,
         forestFog: 0.34,
         stars: 0.12,
@@ -212,8 +200,6 @@ const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
         glow: 0xe8f2ff,
         glowScale: 170,
         glowOpacity: 0.95,
-        cloudTint: 0x3a465a,
-        cloudOpacity: 0,
         nearCloudOpacity: 0,
         forestFog: 0.28,
         stars: 1,
@@ -237,8 +223,6 @@ const RAIN_OVERLAY: WeatherOverlay = {
     glow: 0xd8e0e8,
     glowScale: 200,
     glowOpacity: 0,
-    cloudTint: 0x8a949a,
-    cloudOpacity: 0.95,
     nearCloudOpacity: 0.42,
     forestFog: 0.55,
     exposureMul: 0.9,
@@ -262,8 +246,6 @@ const SNOW_OVERLAY: WeatherOverlay = {
     glow: 0xeef6fa,
     glowScale: 220,
     glowOpacity: 0.32,
-    cloudTint: 0xdfe7ea,
-    cloudOpacity: 0.9,
     nearCloudOpacity: 0.3,
     forestFog: 0.35,
     exposureMul: 0.97,
@@ -308,8 +290,6 @@ function lerpOverlay(p: TimePreset, overlay: WeatherOverlay, t: number): void {
     p.glow = lerpHex(p.glow, overlay.glow, t);
     p.glowScale += (overlay.glowScale - p.glowScale) * t;
     p.glowOpacity += (overlay.glowOpacity - p.glowOpacity) * t;
-    p.cloudTint = lerpHex(p.cloudTint, overlay.cloudTint, t);
-    p.cloudOpacity += (overlay.cloudOpacity - p.cloudOpacity) * t;
     p.nearCloudOpacity += (overlay.nearCloudOpacity - p.nearCloudOpacity) * t;
     p.forestFog += (overlay.forestFog - p.forestFog) * t;
     p.exposureMul += (overlay.exposureMul - p.exposureMul) * t;
@@ -327,7 +307,6 @@ function composeTarget(atmosphere: Atmosphere): ComposedTarget {
     const p: TimePreset = { ...time, sunPos: time.sunPos };
     applySeasonBias(p, atmosphere.season);
     if (atmosphere.weatherKind === 'clear' && atmosphere.timeOfDay === 'night') {
-        p.cloudOpacity = 0;
         p.nearCloudOpacity = 0;
     }
     if (atmosphere.weatherKind !== 'clear') {
@@ -424,7 +403,6 @@ export interface WeatherHandles {
     repaintSky: (zenith: string, mid: string, horizon: string) => void;
     /** sun disc/moon sprite (white radial texture, tinted via material.color) */
     glow: Sprite;
-    cloudMaterial: MeshBasicMaterial;
     cloudTexture: Texture;
     /** shared material of the forest fog cards (null on low scenery) */
     forestFogMaterial: MeshBasicMaterial | null;
@@ -458,8 +436,6 @@ class WeatherState {
     glow = new Color();
     glowScale = 0;
     glowOpacity = 0;
-    cloudTint = new Color();
-    cloudOpacity = 0;
     nearCloudOpacity = 0;
     forestFog = 0;
     stars = 0;
@@ -486,8 +462,6 @@ class WeatherState {
         this.glow.lerp(new Color(p.glow), k);
         this.glowScale += (p.glowScale - this.glowScale) * k;
         this.glowOpacity += (p.glowOpacity - this.glowOpacity) * k;
-        this.cloudTint.lerp(new Color(p.cloudTint), k);
-        this.cloudOpacity += (p.cloudOpacity - this.cloudOpacity) * k;
         this.nearCloudOpacity += (p.nearCloudOpacity - this.nearCloudOpacity) * k;
         this.forestFog += (p.forestFog - this.forestFog) * k;
         this.stars += (p.stars - this.stars) * k;
@@ -911,10 +885,6 @@ export class Weather {
         this.moon.position.copy(h.glow.position);
         this.moon.material.opacity = night;
         this.moon.visible = night > 0.02;
-
-        h.cloudMaterial.color.copy(s.cloudTint);
-        const horizonClouds = this.fx('horizonClouds') ? s.cloudOpacity : 0;
-        h.cloudMaterial.opacity = horizonClouds;
 
         const stars = this.fx('stars') ? s.stars : 0;
         this.starMaterial.opacity = stars;
