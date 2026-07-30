@@ -199,8 +199,13 @@ export type NetMessage =
     /** chat: emote or short text — never part of game state. `from` is
      *  required (not just implied by "whoever's on the other end of this
      *  connection") because spectators mean more than one possible sender —
-     *  the host relays a spectator's chat to the player link too. */
-    | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' } }
+     *  the host relays a spectator's chat to the player link too.
+     *  `role: 'system'` is a host-originated announcement (a spectator
+     *  joined/left, a seat reconnected) rather than something a person
+     *  typed — `name` is the relevant person's name for context, but a
+     *  receiver renders it via Hud.addSystemMessage (no sender chip, no
+     *  commander-card bubble), not addChat. */
+    | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' | 'system' } }
     /** dev-only (`?debug`): batched debug events, streamed to whichever
      *  client is the host so `DebugLog.dump()` can print one aggregated,
      *  cross-client timeline — never part of game state, never rendered */
@@ -1206,6 +1211,12 @@ export class SpectatorHub {
 
     /** fired whenever a spectator connects or disconnects */
     onRosterChange: (() => void) | null = null;
+    /** fired once a spectator is fully admitted (after onRosterChange, so a
+     *  caller announcing this can rely on the roster already reflecting it) */
+    onSpectatorJoined: ((name: string) => void) | null = null;
+    /** fired once a spectator's connection drops, named — onRosterChange
+     *  alone can't tell a caller WHO left, just that the roster changed */
+    onSpectatorLeft: ((name: string) => void) | null = null;
     /** fired for chat relayed FROM a spectator (needs mirroring to the
      *  player link and every other spectator) */
     onSpectatorChat: ((name: string, item: ChatItem) => void) | null = null;
@@ -1282,6 +1293,7 @@ export class SpectatorHub {
         );
         this.viewers.set(conn, { name, vision, buildBuffer: [], liveness });
         this.onRosterChange?.();
+        this.onSpectatorJoined?.(name);
     }
 
     /** grant or revoke live build vision for a seat on a named spectator */
@@ -1392,6 +1404,7 @@ export class SpectatorHub {
         viewer.liveness.stop();
         this.viewers.delete(conn);
         this.onRosterChange?.();
+        this.onSpectatorLeft?.(viewer.name);
     }
 
     /**

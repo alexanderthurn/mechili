@@ -2488,6 +2488,8 @@ ${fontFaceCss()}
 .mechili-chat-float .cf-name { font-weight: bold; color: ${u.brassLight}; }
 .mechili-chat-float .cf-msg.enemy .cf-name { color: ${ec}; }
 .mechili-chat-float .cf-msg.player .cf-name { color: ${pc}; }
+.mechili-chat-float .cf-msg.system { font-style: italic; color: ${u.textMuted}; }
+.mechili-chat-float .cf-msg.system .cf-body { color: ${u.textMuted}; }
 
 .mechili-cards {
     position: absolute;

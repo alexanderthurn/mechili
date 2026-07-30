@@ -2867,6 +2867,17 @@ export class Game {
         this.mirrorToSpectators(msg);
     }
 
+    /** a host-originated announcement (spectator joined/left, a seat
+     *  reconnected) — shown locally AND broadcast, via the same 'chat'
+     *  channel real chat rides, but rendered with Hud.addSystemMessage
+     *  (no sender chip) instead of addChat. `subject` is the relevant
+     *  person's name, kept for context/debugging even though a receiver
+     *  never treats a `role:'system'` message as something they said. */
+    private announceSystem(text: string, subject: string): void {
+        this.hud.addSystemMessage(text);
+        this.broadcast({ type: 'chat', item: { kind: 'text', text }, from: { name: subject, role: 'system' } });
+    }
+
     /** relays something we already handled (sent OR just received from the
      *  opponent) out to spectators — never echoed back onto `this.net`,
      *  that's the peer who either sent it to us or already has it */
@@ -2948,6 +2959,8 @@ export class Game {
                 hub.broadcast(relayed);
             };
             hub.onSpectatorDebugLog = (events) => this.debugLog.ingest(events);
+            hub.onSpectatorJoined = (name) => this.announceSystem(`${name} joined as a spectator.`, name);
+            hub.onSpectatorLeft = (name) => this.announceSystem(`${name} stopped spectating.`, name);
             hub.listen((name, version, conn) => {
                 if (version !== GAME_VERSION) {
                     conn.send({ type: 'spectateRejected', reason: 'Version mismatch' });
@@ -3215,6 +3228,12 @@ export class Game {
     private beginStarSeatSuspend(seat: SeatId): void {
         if (this.matchOver || !this.star || this.star.role !== 'host') return;
         const wasSuspended = this.suspended;
+        // only once per drop, not on every liveness-watchdog re-trigger
+        // while it's already pending
+        if (!this.pendingStarSeats.has(seat)) {
+            const name = this.seats[seat]?.name;
+            if (name) this.announceSystem(`${name} disconnected — waiting for them to reconnect.`, name);
+        }
         this.pendingStarSeats.add(seat);
         if (!wasSuspended) {
             this.suspended = true;
@@ -3336,6 +3355,8 @@ export class Game {
     /** star host only: a reconnected seat confirmed it finished catching up
      *  — un-suspend once every pending seat has done the same */
     private starSeatReady(seat: SeatId): void {
+        const name = this.seats[seat]?.name;
+        if (name) this.announceSystem(`${name} reconnected.`, name);
         this.pendingStarSeats.delete(seat);
         if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
             this.suspended = false;
@@ -3596,7 +3617,8 @@ export class Game {
                 msg.item.kind === 'text'
                     ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
                     : msg.item;
-            this.hud.addChat(msg.from.name, item, 'remote');
+            if (msg.from.role === 'system') this.hud.addSystemMessage(item.kind === 'text' ? item.text : '');
+            else this.hud.addChat(msg.from.name, item, 'remote');
         } else if (msg.type === 'speed') {
             // follow whichever real player's speed message arrives most
             // recently (last write wins) — otherwise a spectator stuck at 1x
@@ -4443,6 +4465,9 @@ export class Game {
                     item,
                     from: { name: this.playerNames.opponent, role: 'player' },
                 });
+            } else if (msg.from.role === 'system') {
+                if (item.kind === 'text') this.hud.addSystemMessage(item.text);
+                this.mirrorToSpectators({ type: 'chat', item, from: msg.from });
             } else {
                 // a spectator's chat, relayed to us by the host — no UI surface
                 // for this yet (spectator chat renders separately from player
@@ -4531,7 +4556,11 @@ export class Game {
                 msg.item.kind === 'text'
                     ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
                     : msg.item;
-            this.hud.addChat(msg.from.name, item, 'remote');
+            if (msg.from.role === 'system') {
+                if (item.kind === 'text') this.hud.addSystemMessage(item.text);
+            } else {
+                this.hud.addChat(msg.from.name, item, 'remote');
+            }
             if (isHost && fromSeat !== undefined) {
                 const relayed: NetMessage = { type: 'chat', item, from: msg.from };
                 star.hub.broadcast(relayed, fromSeat);

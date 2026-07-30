@@ -969,6 +969,24 @@ export class Hud {
         setTimeout(() => line.remove(), 7000);
     }
 
+    /** a system-level line in the same floating chat list — a spectator
+     *  joining/leaving, etc. Deliberately NOT addChat: those events have no
+     *  commander chip to attach a portrait bubble to (a spectator isn't a
+     *  seat), so this skips the bubble/chip lookup entirely and just shows
+     *  plain, neutral-colored text. */
+    addSystemMessage(text: string): void {
+        if (!prefs().combatChat) return;
+        const line = document.createElement('div');
+        line.className = 'cf-msg system';
+        const what = document.createElement('span');
+        what.className = 'cf-body';
+        what.textContent = text;
+        line.append(what);
+        this.chatFloat.appendChild(line);
+        while (this.chatFloat.children.length > 4) this.chatFloat.firstChild?.remove();
+        setTimeout(() => line.remove(), 7000);
+    }
+
     /** one combined team card per side — built once at match start */
     setCommanders(
         entries: { seat: number; team: 'player' | 'enemy'; name: string; primary: boolean }[],
