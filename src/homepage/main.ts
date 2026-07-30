@@ -36,29 +36,22 @@ const PLAY_URL =
 const TRAILER_YOUTUBE_ID = '-Kspr2J8jWQ';
 const DEVLOG_YOUTUBE_ID = 'hfVDwHk4xCA';
 
-const SCREENSHOTS = [
-    { file: '01.webp', label: 'Screenshot 1' },
-    { file: '02.webp', label: 'Screenshot 2' },
-    { file: '03.webp', label: 'Screenshot 3' },
-    { file: '04.webp', label: 'Screenshot 4' },
-].map((s) => ({
-    src: new URL(`../../assets/marketing/screenshots/${s.file}`, import.meta.url).href,
-    label: s.label,
-}));
-
 const MORE_SCREENSHOTS = [
-    { file: 'screen_1.webp', label: 'Deployment at the castle wall' },
-    { file: 'screen_2.webp', label: 'Battle around a ward stone' },
-    { file: 'screen_3.webp', label: 'Placing archers on the grid' },
-    { file: 'screen_4.webp', label: 'Dragon fire breath over the field' },
-    { file: 'screen_5.webp', label: 'Close combat melee' },
-    { file: 'screen_6.webp', label: 'Mass army deployment' },
-    { file: 'screen_7.webp', label: 'Large-scale battle' },
-    { file: 'screen_8.webp', label: 'Stronghold and unit deployment' },
+    { file: 'screen_1.webp', label: 'Army deployment in the forest clearing' },
+    { file: 'screen_2.webp', label: 'Deployment phase and unit shop' },
+    { file: 'screen_3.webp', label: 'Dragon fire breath over the field' },
+    { file: 'screen_4.webp', label: 'Side-by-side deployment zones' },
+    { file: 'screen_5.webp', label: 'Mass battle on the plains' },
+    { file: 'screen_6.webp', label: 'Winter stronghold in the snow' },
+    { file: 'screen_7.webp', label: 'Dual bases on the grid' },
+    { file: 'screen_8.webp', label: 'Large fortified base' },
 ].map((s) => ({
     src: new URL(`../../assets/marketing/screenshots/fullhd/${s.file}`, import.meta.url).href,
     label: s.label,
 }));
+
+/** First four Full HD shots shown in the homepage grid. */
+const SCREENSHOTS = MORE_SCREENSHOTS.slice(0, 4);
 
 const SHOWCASE_UNITS: UnitType[] = [
     ...UNIT_TYPES,
