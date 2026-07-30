@@ -102,6 +102,7 @@ export const THEME = {
         leafLight: 0x74bc52,
         rock: 0x8a8d82,
         snow: 0xeef3f0,
+        cloudOpacity: 0.85,
     },
 
     ui: {

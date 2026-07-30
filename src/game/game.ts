@@ -2036,8 +2036,7 @@ export class Game {
         this.controls.dispose();
         this.gamepad.dispose();
         this.hud.destroy();
-        this.pixiApp.stage.removeChild(this.hpBars.view);
-        this.hpBars.view.destroy({ children: true });
+        this.hpBars.destroy();
         this.debug.destroy();
         this.debugDumpButton?.destroy();
         this.scene.overrideMaterial = null;
@@ -7111,6 +7110,7 @@ export class Game {
     }
 
     private updateSelectionUi(): void {
+        if (this.disposed) return;
         this.updateBattleRangeRing();
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
