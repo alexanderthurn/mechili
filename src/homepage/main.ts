@@ -28,30 +28,36 @@ const steamLogoUrl = new URL('../../assets/marketing/steam-logo.png', import.met
 const STEAM_URL = 'https://steam.melodan.com';
 const DISCORD_URL = 'https://discord.melodan.com';
 const GITHUB_URL = 'https://github.melodan.com';
+const TRAILER_URL = 'https://trailer.melodan.com';
+const DEVLOG_URL = 'https://devlog.melodan.com';
 const PLAY_URL =
     location.hostname === 'melodan.com' || location.hostname === 'www.melodan.com'
         ? 'https://play.melodan.com/'
         : new URL('./index.html', location.href).href;
 
-const TRAILER_YOUTUBE_ID = '-Kspr2J8jWQ';
-const DEVLOG_YOUTUBE_ID = 'hfVDwHk4xCA';
+const SCREENSHOT_DEFS = [
+    { n: 1, label: 'Army deployment in the forest clearing' },
+    { n: 2, label: 'Deployment phase and unit shop' },
+    { n: 3, label: 'Dragon fire breath over the field' },
+    { n: 4, label: 'Side-by-side deployment zones' },
+    { n: 5, label: 'Mass battle on the plains' },
+    { n: 6, label: 'Winter stronghold in the snow' },
+    { n: 7, label: 'Dual bases on the grid' },
+    { n: 8, label: 'Large fortified base' },
+] as const;
 
-const MORE_SCREENSHOTS = [
-    { file: 'screen_1.webp', label: 'Army deployment in the forest clearing' },
-    { file: 'screen_2.webp', label: 'Deployment phase and unit shop' },
-    { file: 'screen_3.webp', label: 'Dragon fire breath over the field' },
-    { file: 'screen_4.webp', label: 'Side-by-side deployment zones' },
-    { file: 'screen_5.webp', label: 'Mass battle on the plains' },
-    { file: 'screen_6.webp', label: 'Winter stronghold in the snow' },
-    { file: 'screen_7.webp', label: 'Dual bases on the grid' },
-    { file: 'screen_8.webp', label: 'Large fortified base' },
-].map((s) => ({
-    src: new URL(`../../assets/marketing/screenshots/fullhd/${s.file}`, import.meta.url).href,
+const MORE_SCREENSHOTS = SCREENSHOT_DEFS.map((s) => ({
+    src: new URL(`../../assets/marketing/screenshots/fullhd/screen_${s.n}.webp`, import.meta.url).href,
+    raw4k: new URL(`../../assets/marketing/screenshots/4k/sc${s.n}.jpg`, import.meta.url).href,
     label: s.label,
 }));
 
-/** First four Full HD shots shown in the homepage grid. */
-const SCREENSHOTS = MORE_SCREENSHOTS.slice(0, 4);
+/** Small thumbs for the homepage grid (first four). */
+const SCREENSHOTS = SCREENSHOT_DEFS.slice(0, 4).map((s, i) => ({
+    src: new URL(`../../assets/marketing/screenshots/0${s.n}.webp`, import.meta.url).href,
+    label: s.label,
+    index: i,
+}));
 
 const SHOWCASE_UNITS: UnitType[] = [
     ...UNIT_TYPES,
@@ -182,11 +188,11 @@ function statsHtml(t: UnitType): string {
     ${abilityBlock}`;
 }
 
-function shotCard(shot: { src: string; label: string }, index: number): string {
+function shotCard(shot: { src: string; label: string; index: number }): string {
     return `
-<figure class="mh-shot" data-shot="${index}">
+<button type="button" class="mh-shot" data-shot="${shot.index}" aria-haspopup="dialog" aria-label="Open screenshot: ${esc(shot.label)}">
   <img src="${esc(shot.src)}" alt="${esc(shot.label)}" loading="lazy" data-placeholder="${esc(shot.label)}" />
-</figure>`;
+</button>`;
 }
 
 function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
@@ -271,10 +277,10 @@ app.innerHTML = `
       <span class="mh-play-note">Ranked Multiplayer · Play with Friends</span>`,
     )}
   </div>
-  <button type="button" class="mh-trailer-btn" id="mh-trailer-open" aria-haspopup="dialog">
+  <a class="mh-trailer-btn" href="${esc(TRAILER_URL)}" rel="noopener noreferrer" target="_blank">
     ${YOUTUBE_ICON_SVG}
     <span>Watch Trailer</span>
-  </button>
+  </a>
 </header>
 
 <main class="mh-wrap">
@@ -384,10 +390,10 @@ app.innerHTML = `
     <div class="mh-together-cta">
       <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Send feedback</button>
       <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} Discord</a>
-      <button type="button" class="mh-trailer-btn" id="mh-devlog-open" aria-haspopup="dialog">
+      <a class="mh-trailer-btn" href="${esc(DEVLOG_URL)}" rel="noopener noreferrer" target="_blank">
         ${YOUTUBE_ICON_SVG}
         <span>Developer Log</span>
-      </button>
+      </a>
     </div>
     <div class="mh-community-body">
       <div class="mh-community-block">
@@ -460,19 +466,11 @@ app.innerHTML = `
   <div class="mh-lightbox-stage" id="mh-lightbox-stage">
     <img class="mh-lightbox-img" id="mh-lightbox-img" alt="" draggable="false" />
   </div>
-  <p class="mh-lightbox-caption" id="mh-lightbox-caption"></p>
-  <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="Screenshots"></div>
-</dialog>
-
-<dialog class="mh-trailer-dialog" id="mh-trailer-dialog" aria-label="MELODAN trailer">
-  <div class="mh-trailer-dialog-chrome">
-    <button type="button" class="mh-lightbox-close mh-trailer-dialog-close" id="mh-trailer-close" aria-label="Close trailer">&times;</button>
+  <div class="mh-lightbox-footer">
+    <p class="mh-lightbox-caption" id="mh-lightbox-caption"></p>
+    <a class="mh-lightbox-4k" id="mh-lightbox-4k" href="#" target="_blank" rel="noopener noreferrer">Open 4K JPG</a>
   </div>
-  <div class="mh-trailer-dialog-frame" id="mh-trailer-mount"></div>
-  <p class="mh-trailer-dialog-note">
-    Playing via YouTube. Cookies may be set &mdash;
-    <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">data privacy</a>.
-  </p>
+  <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="Screenshots"></div>
 </dialog>
 `;
 
@@ -526,44 +524,12 @@ for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
     });
 }
 
-const trailerDialog = app.querySelector<HTMLDialogElement>('#mh-trailer-dialog');
-const trailerMount = app.querySelector<HTMLElement>('#mh-trailer-mount');
-const trailerOpenBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-open');
-const devlogOpenBtn = app.querySelector<HTMLButtonElement>('#mh-devlog-open');
-const trailerCloseBtn = app.querySelector<HTMLButtonElement>('#mh-trailer-close');
-
-const unloadTrailer = () => {
-    trailerMount?.replaceChildren();
-};
-
-const openYoutube = (videoId: string, title: string) => {
-    if (!trailerDialog || !trailerMount) return;
-    const iframe = document.createElement('iframe');
-    iframe.className = 'mh-trailer-frame';
-    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0`;
-    iframe.title = title;
-    iframe.allow =
-        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-    iframe.allowFullscreen = true;
-    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-    trailerMount.replaceChildren(iframe);
-    trailerDialog.setAttribute('aria-label', title);
-    if (!trailerDialog.open) trailerDialog.showModal();
-};
-
-trailerOpenBtn?.addEventListener('click', () => openYoutube(TRAILER_YOUTUBE_ID, 'MELODAN trailer'));
-devlogOpenBtn?.addEventListener('click', () => openYoutube(DEVLOG_YOUTUBE_ID, 'MELODAN developer log'));
-trailerCloseBtn?.addEventListener('click', () => trailerDialog?.close());
-trailerDialog?.addEventListener('click', (e) => {
-    if (e.target === trailerDialog) trailerDialog.close();
-});
-trailerDialog?.addEventListener('close', unloadTrailer);
-
 {
     const lightbox = app.querySelector<HTMLDialogElement>('#mh-lightbox');
     const imgEl = app.querySelector<HTMLImageElement>('#mh-lightbox-img');
     const countEl = app.querySelector<HTMLElement>('#mh-lightbox-count');
     const captionEl = app.querySelector<HTMLElement>('#mh-lightbox-caption');
+    const link4k = app.querySelector<HTMLAnchorElement>('#mh-lightbox-4k');
     const dotsEl = app.querySelector<HTMLElement>('#mh-lightbox-dots');
     const stageEl = app.querySelector<HTMLElement>('#mh-lightbox-stage');
     const openBtn = app.querySelector<HTMLButtonElement>('#mh-shots-more');
@@ -572,7 +538,7 @@ trailerDialog?.addEventListener('close', unloadTrailer);
     const nextBtn = app.querySelector<HTMLButtonElement>('#mh-lightbox-next');
     let index = 0;
 
-    if (lightbox && imgEl && countEl && captionEl && dotsEl && stageEl && openBtn) {
+    if (lightbox && imgEl && countEl && captionEl && link4k && dotsEl && stageEl && openBtn) {
         dotsEl.innerHTML = MORE_SCREENSHOTS.map(
             (s, i) =>
                 `<button type="button" class="mh-lightbox-dot" role="tab" aria-label="${esc(s.label)}" data-index="${i}"></button>`,
@@ -587,6 +553,8 @@ trailerDialog?.addEventListener('close', unloadTrailer);
             imgEl.alt = shot.label;
             countEl.textContent = `${index + 1} / ${n}`;
             captionEl.textContent = shot.label;
+            link4k.href = shot.raw4k;
+            link4k.download = `melodan-screenshot-${index + 1}-4k.jpg`;
             for (const [di, dot] of dots.entries()) {
                 const on = di === index;
                 dot.classList.toggle('active', on);
@@ -603,6 +571,9 @@ trailerDialog?.addEventListener('close', unloadTrailer);
         };
 
         openBtn.addEventListener('click', () => open(0));
+        for (const btn of app.querySelectorAll<HTMLButtonElement>('.mh-shot[data-shot]')) {
+            btn.addEventListener('click', () => open(Number(btn.dataset.shot)));
+        }
         closeBtn?.addEventListener('click', close);
         prevBtn?.addEventListener('click', () => show(index - 1));
         nextBtn?.addEventListener('click', () => show(index + 1));
