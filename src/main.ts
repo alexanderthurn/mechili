@@ -59,7 +59,7 @@ import { openSuggest } from './suggest';
 import { iconHtml } from './ui/iconAtlas';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings, type HordeFactor } from './game/settings';
 import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
-import { THEME, menuStyles } from './theme';
+import { THEME, applyUiFont, menuStyles } from './theme';
 
 // the only mode right now (Single Player / Matchmaking both force this) —
 // PvPvE: a neutral dwarf horde spawns from the forest ring outside the
@@ -294,6 +294,8 @@ document.body.appendChild(wrapper);
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
+applyUiFont(prefs().uiFont);
+onPrefsChange(() => applyUiFont(prefs().uiFont));
 
 const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
 versionEl.className = 'mechili-version';
@@ -309,13 +311,13 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
-const feuerwareLogoUrl = new URL('../assets/marketing/feuerware.webp', import.meta.url).href;
+const feuerwareLogoUrl = new URL('../assets/marketing/feuerware_melodan.webp', import.meta.url).href;
 const feuerwareEl = document.createElement('img');
 feuerwareEl.className = 'mechili-feuerware';
 feuerwareEl.src = feuerwareLogoUrl;
 feuerwareEl.alt = 'Feuerware';
 feuerwareEl.width = 82;
-feuerwareEl.height = 16;
+feuerwareEl.height = 82;
 wrapper.appendChild(feuerwareEl);
 
 const loadingEl = document.createElement('div');
@@ -458,12 +460,14 @@ logo.anchor.set(0.5);
 // the logo art is on a black background (alpha isn't supported in this pipeline);
 // additive blending drops the black and lets the wordmark glow over the scene
 logo.blendMode = 'add';
+void document.fonts.load('700 18px Cinzel').catch(() => {});
 const subtitle = new Text({
     text: 'FANTASY AUTO·BATTLER',
     style: {
         fill: THEME.subtitle,
+        fontFamily: 'Cinzel',
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '700',
         letterSpacing: 6,
         dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
     },

@@ -221,10 +221,82 @@ export interface BarAssets {
     barFillBlue: string;
 }
 
+/** Display + UI face options — OFL, self-hosted for Steam/offline. */
+export type UiFontId = 'cinzel' | 'exo2' | 'marcellus';
+
+export const UI_FONTS: Record<
+    UiFontId,
+    { label: string; hint: string; stack: string }
+> = {
+    cinzel: {
+        label: 'Cinzel',
+        hint: 'fantasy titles',
+        stack: '"Cinzel", "Palatino Linotype", Palatino, Georgia, serif',
+    },
+    exo2: {
+        label: 'Exo 2',
+        hint: 'game UI / HUD',
+        stack: '"Exo 2", "Segoe UI", system-ui, sans-serif',
+    },
+    marcellus: {
+        label: 'Marcellus',
+        hint: 'softer Roman',
+        stack: '"Marcellus", "Palatino Linotype", Palatino, Georgia, serif',
+    },
+};
+
+/** Default stack (Cinzel) — Pixi / callers that need a concrete family string. */
+export const FONT_UI = UI_FONTS.cinzel.stack;
+
+const CINZEL_URL = new URL('../assets/fonts/Cinzel-Variable.ttf', import.meta.url).href;
+const EXO2_URL = new URL('../assets/fonts/Exo2-Variable.ttf', import.meta.url).href;
+const MARCELLUS_URL = new URL('../assets/fonts/Marcellus-Regular.ttf', import.meta.url).href;
+
+/** Live-switch `--font-ui` (everything inherits via body + form-control rules). */
+export function applyUiFont(id: UiFontId): void {
+    const font = UI_FONTS[id] ?? UI_FONTS.cinzel;
+    document.documentElement.style.setProperty('--font-ui', font.stack);
+}
+
+/**
+ * One global font setup: @font-face for all candidates, --font-ui, body default,
+ * and form-control inherit (buttons/inputs ignore parent font-family otherwise).
+ * Safe to inject more than once.
+ */
+export function fontFaceCss(): string {
+    return `
+@font-face {
+    font-family: 'Cinzel';
+    font-style: normal;
+    font-weight: 400 900;
+    font-display: swap;
+    src: url('${CINZEL_URL}') format('truetype');
+}
+@font-face {
+    font-family: 'Exo 2';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('${EXO2_URL}') format('truetype');
+}
+@font-face {
+    font-family: 'Marcellus';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('${MARCELLUS_URL}') format('truetype');
+}
+:root { --font-ui: ${FONT_UI}; }
+html, body { font-family: var(--font-ui); }
+button, input, select, textarea { font-family: inherit; }
+`;
+}
+
 export function menuStyles(bars?: BarAssets): string {
     const u = THEME.ui;
     const pc = teamColors.player.css;
     return `
+${fontFaceCss()}
 .mechili-menu {
     position: absolute;
     left: 50%;
@@ -246,7 +318,6 @@ export function menuStyles(bars?: BarAssets): string {
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     -webkit-backdrop-filter: blur(12px) saturate(1.1);
     backdrop-filter: blur(12px) saturate(1.1);
-    font-family: system-ui, sans-serif;
     user-select: none;
     z-index: 30;
 }
@@ -388,7 +459,6 @@ export function menuStyles(bars?: BarAssets): string {
     transform: translateX(-50%);
     width: min(440px, calc(100vw - 32px));
     box-sizing: border-box;
-    font-family: system-ui, sans-serif;
     color: ${u.text};
     z-index: 30;
 }
@@ -692,7 +762,6 @@ export function menuStyles(bars?: BarAssets): string {
 .mechili-menu .m-seat-you { color: ${u.brassLight}; }
 button.m-seat-invite {
     cursor: pointer;
-    font-family: inherit;
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 button.m-seat-invite:hover:not(:disabled) { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
@@ -716,7 +785,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     border: 1.5px solid ${u.border};
     border-radius: 10px;
     color: ${u.text};
-    font-family: system-ui, sans-serif;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -743,7 +811,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     border: 1.5px solid ${u.border};
     border-radius: 10px;
     color: ${u.text};
-    font-family: system-ui, sans-serif;
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -773,7 +840,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     border: 1.5px solid ${u.border};
     border-radius: 10px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-    font-family: system-ui, sans-serif;
     font-size: 13px;
     color: ${u.text};
 }
@@ -848,7 +914,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     border: 1.5px solid ${u.border};
     border-radius: 10px;
     color: ${u.text};
-    font-family: system-ui, sans-serif;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -872,7 +937,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     border: none;
     background: none;
     color: ${u.textMuted};
-    font-family: system-ui, sans-serif;
     font-size: 12px;
     letter-spacing: 0.4px;
     opacity: 0.85;
@@ -901,7 +965,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     gap: 18px;
     width: min(520px, calc(100vw - 48px));
     z-index: 35;
-    font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
 }
@@ -1118,7 +1181,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     min-width: 280px;
     max-width: min(360px, 92vw);
     color: ${u.text};
-    font-family: system-ui, sans-serif;
 }
 .mechili-name-edit .title {
     font-size: 14px;
@@ -1173,7 +1235,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.5);
-    font-family: system-ui, sans-serif;
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     z-index: 70;
@@ -1271,7 +1332,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.55);
-    font-family: system-ui, sans-serif;
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     z-index: 80;
@@ -1393,7 +1453,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     z-index: 30;
-    font-family: system-ui, sans-serif;
     user-select: none;
 }
 /* reload reconnect: menu zoom keeps moving underneath — only the dialog blocks */
@@ -1469,6 +1528,7 @@ export function hudStyles(bars?: BarAssets): string {
     const pc = teamColors.player.css;
     const ec = teamColors.enemy.css;
     return `
+${fontFaceCss()}
 .mechili-cinema-hide {
     visibility: hidden !important;
     pointer-events: none !important;
@@ -1503,7 +1563,6 @@ export function hudStyles(bars?: BarAssets): string {
     flex-direction: column;
     align-items: flex-end;
     gap: 6px;
-    font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
 }
@@ -1518,7 +1577,6 @@ export function hudStyles(bars?: BarAssets): string {
     background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(26, 40, 22, 0.96));
     border: 2px solid ${u.brassDark};
     border-radius: 10px;
-    font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
@@ -1574,7 +1632,6 @@ export function hudStyles(bars?: BarAssets): string {
     letter-spacing: 0.5px;
     cursor: pointer;
     appearance: none;
-    font-family: system-ui, sans-serif;
     flex-shrink: 0;
 }
 .shop-toolbar .undo,
@@ -1595,7 +1652,6 @@ export function hudStyles(bars?: BarAssets): string {
     align-items: flex-end;
     gap: 8px;
     z-index: 3;
-    font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
 }
@@ -1657,7 +1713,6 @@ export function hudStyles(bars?: BarAssets): string {
     border-radius: 0 0 0 10px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     color: ${u.text};
-    font-family: system-ui, sans-serif;
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -1691,7 +1746,6 @@ export function hudStyles(bars?: BarAssets): string {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     appearance: none;
-    font-family: system-ui, sans-serif;
     cursor: pointer;
     pointer-events: auto;
     flex-shrink: 0;
@@ -1786,7 +1840,6 @@ export function hudStyles(bars?: BarAssets): string {
     overflow: hidden;
     appearance: none;
     -webkit-appearance: none;
-    font-family: system-ui, sans-serif;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -1918,7 +1971,6 @@ export function hudStyles(bars?: BarAssets): string {
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
-    font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
 }
@@ -2072,7 +2124,6 @@ export function hudStyles(bars?: BarAssets): string {
     border: 1.5px solid ${u.brassLight};
     border-radius: 8px;
     color: #20180a;
-    font-family: inherit;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 0.6px;
@@ -2100,7 +2151,6 @@ export function hudStyles(bars?: BarAssets): string {
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
-    font-family: system-ui, sans-serif;
     user-select: none;
 }
 .mechili-sidebar.left {
@@ -2284,7 +2334,6 @@ export function hudStyles(bars?: BarAssets): string {
     color: ${u.text};
     pointer-events: none;
     z-index: 50;
-    font-family: system-ui, sans-serif;
 }
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
@@ -2344,7 +2393,6 @@ export function hudStyles(bars?: BarAssets): string {
     bottom: 4px;
     transform: translateX(-50%);
     width: 360px;
-    font-family: system-ui, sans-serif;
     user-select: none;
     z-index: 15;
 }
@@ -2425,7 +2473,6 @@ export function hudStyles(bars?: BarAssets): string {
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    font-family: system-ui, sans-serif;
     pointer-events: none;
     z-index: 14;
 }
@@ -2451,7 +2498,6 @@ export function hudStyles(bars?: BarAssets): string {
     justify-content: center;
     gap: clamp(10px, 2vw, 26px);
     background: rgba(12, 20, 8, 0.55);
-    font-family: system-ui, sans-serif;
     user-select: none;
     /* .mechili-topbar sets z-index: 1 to sit above ordinary HUD elements —
      * without an explicit z-index here (auto) a card-style overlay (round
@@ -2525,7 +2571,6 @@ export function hudStyles(bars?: BarAssets): string {
     overflow: hidden;
     appearance: none;
     -webkit-appearance: none;
-    font-family: system-ui, sans-serif;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -2784,7 +2829,6 @@ export function hudStyles(bars?: BarAssets): string {
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     z-index: 55;
-    font-family: system-ui, sans-serif;
     user-select: none;
 }
 .mechili-pause .pause-box {
@@ -2848,7 +2892,6 @@ export function hudStyles(bars?: BarAssets): string {
     border: 2px solid ${u.border};
     border-radius: 16px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    font-family: system-ui, sans-serif;
     user-select: none;
 }
 .mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
@@ -2887,7 +2930,6 @@ export function hudStyles(bars?: BarAssets): string {
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
-    font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
 }
@@ -2912,7 +2954,6 @@ export function hudStyles(bars?: BarAssets): string {
     padding: 0;
     background: none;
     border: none;
-    font-family: system-ui, sans-serif;
     color: ${u.text};
     user-select: none;
     pointer-events: auto;
@@ -2987,7 +3028,6 @@ export function hudStyles(bars?: BarAssets): string {
     right: 0;
     top: 0;
     overflow: visible;
-    font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: none;
 }
@@ -3355,7 +3395,6 @@ export function hudStyles(bars?: BarAssets): string {
         calc(8px + env(safe-area-inset-left));
     background: linear-gradient(180deg, rgba(26, 40, 22, 0.96), rgba(14, 24, 12, 0.98));
     border-top: 1.5px solid ${u.border};
-    font-family: system-ui, sans-serif;
     user-select: none;
     pointer-events: auto;
 }
@@ -3371,7 +3410,6 @@ export function hudStyles(bars?: BarAssets): string {
     border: none;
     border-radius: 8px;
     color: ${u.textMuted};
-    font-family: inherit;
     font-size: 10px;
     font-weight: bold;
     letter-spacing: 0.6px;
@@ -3461,7 +3499,6 @@ ${gamepadCursorStyles(u)}
     border-radius: 12px;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
     color: ${u.text};
-    font-family: system-ui, sans-serif;
     font-size: 13px;
     line-height: 1.5;
     white-space: pre-line;

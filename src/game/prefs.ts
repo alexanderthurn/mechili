@@ -1,6 +1,7 @@
 /** Player preferences, persisted in localStorage (not match state). */
 
 import { touchFirstDevice } from './inputCapabilities';
+import type { UiFontId } from '../theme';
 
 /** Outer world / forests / terrain detail ('off' also disables all weather FX). */
 export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low' | 'off';
@@ -76,6 +77,8 @@ export interface Prefs {
      * what device last generated an event.
      */
     controlScheme: ControlScheme;
+    /** UI typeface — Cinzel / Exo 2 / Marcellus (live-switched via --font-ui). */
+    uiFont: UiFontId;
     /**
      * One-shot flag: a touch-first device was dropped to the low preset once
      * (phones crash on desktop-grade settings). Never downgrades again, so
@@ -171,6 +174,7 @@ const DEFAULTS: Prefs = {
     renderDeadUnits: true,
     antialias: true,
     controlScheme: 'auto',
+    uiFont: 'cinzel',
     mobileTuned: false,
 };
 
@@ -244,6 +248,9 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
         p.controlScheme !== 'gamepad'
     ) {
         p.controlScheme = DEFAULTS.controlScheme;
+    }
+    if (p.uiFont !== 'cinzel' && p.uiFont !== 'exo2' && p.uiFont !== 'marcellus') {
+        p.uiFont = DEFAULTS.uiFont;
     }
     return p;
 }

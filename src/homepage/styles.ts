@@ -11,7 +11,6 @@ body {
     margin: 0;
     min-height: 100%;
     color: ${u.text};
-    font-family: "Segoe UI", system-ui, sans-serif;
     background: #1a2818;
 }
 
