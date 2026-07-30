@@ -641,7 +641,7 @@ menu.innerHTML = `
         <button class="m-btn m-small" data-mode="cg-back">Back</button>
     </div>
     <div class="m-status" style="display:none"></div>
-    <button class="m-btn m-small" data-mode="startstar" style="display:none">Start 2v2 Match</button>
+    <button class="m-btn m-small" data-mode="startstar" style="display:none">Start Match</button>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
@@ -1878,6 +1878,15 @@ let starCustomConfig: CustomGameConfig | null = null;
  * (see its own comment near the URL-param block) raises this to 3 or 4 so
  * a real multi-tab test can actually gather everyone before the match
  * begins, instead of racing the very first join.
+ *
+ * `offerAiStart`: shows the "give up waiting, start now" button/copy while
+ * the room is short of `waitForJoined`. Plain 1v1 Matchmaking deliberately
+ * passes `false` — Single Player already covers "vs AI", so open 1v1
+ * matchmaking should only ever end in a real opponent or a cancel, never
+ * silently duplicate Single Player. 2v2 keeps it (AI-filling the *other*
+ * seats is a real, intentional feature there, not a vs-AI escape hatch),
+ * and Custom Game keeps it for both — that screen is exactly where "start
+ * now, AI takes whatever's left" belongs.
  */
 async function beginStarHost(
     horde = false,
@@ -1885,6 +1894,7 @@ async function beginStarHost(
     customConfig: CustomGameConfig | null = null,
     buildRoster: (hostName: string) => CanonicalSeatDef[] = initialStarRoster,
     mode: '1v1' | '2v2' = '2v2',
+    offerAiStart = true,
 ): Promise<void> {
     starHordeFlag = horde;
     starCustomConfig = customConfig;
@@ -1902,27 +1912,47 @@ async function beginStarHost(
     setMenuBusy(false);
     starHosting = hosted;
     const { hub } = hosted;
-    startStarBtn.style.display = '';
+    if (offerAiStart) {
+        // shared with 2v2 (same button) since 1v1 now hosts through the
+        // same star path — label it for whichever mode is actually running
+        // instead of the old static "Start 2v2 Match" text 1v1 inherited
+        // by accident
+        startStarBtn.textContent = mode === '1v1' ? 'Start 1v1 Match' : 'Start 2v2 Match';
+        startStarBtn.style.display = '';
+    }
     const refresh = () => {
         if (!starHosting) return;
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // only ACTUALLY joined seats (host + currently connected) — the
+        // rest of `roster` is still "Waiting…" placeholders, not real names
+        const connectedNames = [0, ...hub.connectedSeats()]
+            .sort((a, b) => a - b)
+            .map((i) => roster[i]?.name ?? '')
+            .join(', ');
         // let every currently-connected guest see the same live roster
         // preview instead of just a static "waiting for the host" — see
         // runStarPending's 'starRoster' handling
         hub.broadcast({ type: 'starRoster', roster });
         // auto-start once `waitForJoined` have joined — no manual "click
-        // Start" step; the Start button (still shown) is only for "give up
+        // Start" step; the Start button (when shown) is only for "give up
         // waiting, go vs AI now" while the room hasn't reached that yet
         if (joined >= waitForJoined) {
             setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Starting…`);
             startStarMatch();
             return;
         }
-        setStatus(
-            `Room "${hostName}" — waiting for a friend to join (share your name: "${hostName}"). Click Start to play vs AI now instead.`,
-        );
+        if (offerAiStart) {
+            const modeLabel = mode === '1v1' ? '1vs1' : '2vs2';
+            const remaining = waitForJoined - joined;
+            const namesPart = joined > 1 ? `${connectedNames} - ` : '';
+            setStatus(
+                `Room "${hostName}" ${modeLabel} - ${namesPart}waiting for ${remaining} more player${remaining === 1 ? '' : 's'}. Click Start to play vs AI`,
+            );
+        } else {
+            setStatus('Waiting for an opponent');
+        }
     };
     hub.onRosterChange = refresh;
     hub.listen((name, version, conn) => {
@@ -2362,8 +2392,10 @@ function tryMatchmaking(): void {
             // from any tab, finds this one instead of also hosting blind.
             // horde=true: this menu button is "1v1 Horde only" for now
             // (see its own call site's comment) — same as the old
-            // `applyHordeMode` hook this replaces.
-            void beginStarHost(true, 2, null, initial1v1Roster, '1v1');
+            // `applyHordeMode` hook this replaces. offerAiStart=false: open
+            // matchmaking should only end in a real opponent or a cancel —
+            // Single Player already covers vs-AI.
+            void beginStarHost(true, 2, null, initial1v1Roster, '1v1', false);
         }
     });
 }
@@ -2655,7 +2687,7 @@ menu.addEventListener('click', (e) => {
             mmLinkEl.textContent = `Send this to your friend: ${link}`;
             mmLinkEl.style.display = '';
             if (team === '2v2') void beginStarHost(horde);
-            else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1');
+            else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false);
             break;
         }
         case 'mm-play': {
@@ -2688,7 +2720,7 @@ menu.addEventListener('click', (e) => {
                 const open = rooms.find((r) => r.mode === team && r.name.toLowerCase() !== mine);
                 if (open) beginStarJoin(open.name);
                 else if (team === '2v2') void beginStarHost(horde);
-                else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1');
+                else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false);
             });
             break;
         }

@@ -501,6 +501,12 @@ export interface RosterEntry {
     name: string;
     role: 'player' | 'spectator';
     team?: string;
+    /** star mode only — lets a receiving client notice a seat got taken
+     *  over by AI mid-match (see Game.takeOverSeatWithAi/refreshCommanders)
+     *  and update its own commander display accordingly. Classic 1v1 has
+     *  no AI-takeover concept (a quit forfeits immediately instead), so its
+     *  entries never set this. */
+    controller?: 'human' | 'ai';
 }
 
 /** the remote player as an Opponent: it acts via received messages, so the

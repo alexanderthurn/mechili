@@ -1295,16 +1295,7 @@ export class Game {
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
-        this.hud.setCommanders(
-            this.seats.map((def, seat) => ({
-                seat,
-                team: def.team,
-                name: this.ownerName(def.team, seat),
-                primary: seat === primarySeatOf(this.seats, def.team),
-            })),
-            this.humanSeat,
-            settings.startingHp,
-        );
+        this.hud.setCommanders(this.commanderEntries(), this.humanSeat, settings.startingHp);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
                 this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
@@ -2810,6 +2801,7 @@ export class Game {
                   name: seat === this.humanSeat ? this.playerNames.local : def.name,
                   role: 'player' as const,
                   team: def.team,
+                  controller: def.controller,
               }))
             : [
                   { name: this.playerNames.local, role: 'player', team: 'player' },
@@ -3463,7 +3455,14 @@ export class Game {
         const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
         const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
         this.extraAis.push({ ai, rng, team: def.team, seat });
+        // announce it through the same chat channel everyone already
+        // watches — sent BEFORE refreshCommanders() so the bubble still
+        // attaches to this seat's own (pre-"(AI)") chip
+        const announcement: ChatItem = { kind: 'text', text: `${def.name} disconnected — AI has taken over.` };
+        this.hud.addChat(def.name, announcement, 'remote');
+        this.broadcast({ type: 'chat', item: announcement, from: { name: def.name, role: 'player' } });
         this.broadcastRoster();
+        this.refreshCommanders();
         // this round's build may already be in progress with nobody left
         // to finish it for this seat — let the AI lock it in right away
         // instead of leaving the round stuck waiting on an endDeployment
@@ -4613,6 +4612,20 @@ export class Game {
             // a star match — mirrors classic 1v1's onNetMessage roster case
             this.receivedRoster = msg.entries;
             this.pushSpectatorBadge();
+            // player entries come first, one per seat (see buildRoster) —
+            // sync any controller change (a seat quitting mid-match, handed
+            // to AI) so our own commander display doesn't go stale (see
+            // takeOverSeatWithAi's doc comment on the bug this closes)
+            let controllerChanged = false;
+            for (let seat = 0; seat < this.seats.length; seat++) {
+                const controller = msg.entries[seat]?.controller;
+                const current = this.seats[seat];
+                if (controller && current && current.controller !== controller) {
+                    this.seats[seat] = { ...current, controller };
+                    controllerChanged = true;
+                }
+            }
+            if (controllerChanged) this.refreshCommanders();
         } else if (msg.type === 'spectateGrant') {
             // host only: ANY seat may grant/revoke live vision for its own
             // side — trust the CONNECTION-derived side (fromSeat), never
@@ -7184,6 +7197,32 @@ export class Game {
         }
         if (seat === this.humanSeat) return this.playerNames.local;
         return this.seats[seat]?.name ?? (team === 'player' ? this.playerNames.local : this.playerNames.opponent);
+    }
+
+    /** the HUD's topbar commander cards — shared by the constructor's
+     *  one-time setup and refreshCommanders' live update. `(AI)` only ever
+     *  applies to a real networked match (this.star) — single-player's own
+     *  AI opponent is already presented as such, nothing new to flag there. */
+    private commanderEntries(): { seat: SeatId; team: Team; name: string; primary: boolean }[] {
+        return this.seats.map((def, seat) => ({
+            seat,
+            team: def.team,
+            name:
+                this.star && def.controller === 'ai'
+                    ? `${this.ownerName(def.team, seat)} (AI)`
+                    : this.ownerName(def.team, seat),
+            primary: seat === primarySeatOf(this.seats, def.team),
+        }));
+    }
+
+    /** re-renders the topbar commander cards from the current `this.seats` —
+     *  called whenever a seat's controller changes mid-match (takeOverSeatWithAi,
+     *  or a guest/spectator learning of one via the 'roster' broadcast), which
+     *  the constructor's one-time setCommanders call never accounted for
+     *  (repro: host saw no change at all when a quitting client's seat got
+     *  handed to AI — same stale name, no visible cue anything happened). */
+    private refreshCommanders(): void {
+        this.hud.setCommanders(this.commanderEntries(), this.humanSeat, this.settings.startingHp);
     }
 
     /** veterancy display values for a pack (enemy uses phase-start intel while fogged) */
