@@ -174,7 +174,7 @@ const DEFAULTS: Prefs = {
     renderDeadUnits: true,
     antialias: true,
     controlScheme: 'auto',
-    uiFont: 'cinzel',
+    uiFont: 'exo2',
     mobileTuned: false,
 };
 

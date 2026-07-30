@@ -245,8 +245,8 @@ export const UI_FONTS: Record<
     },
 };
 
-/** Default stack (Cinzel) — Pixi / callers that need a concrete family string. */
-export const FONT_UI = UI_FONTS.cinzel.stack;
+/** Default stack (Exo 2) — Pixi / callers that need a concrete family string. */
+export const FONT_UI = UI_FONTS.exo2.stack;
 
 const CINZEL_URL = new URL('../assets/fonts/Cinzel-Variable.ttf', import.meta.url).href;
 const EXO2_URL = new URL('../assets/fonts/Exo2-Variable.ttf', import.meta.url).href;
@@ -254,7 +254,7 @@ const MARCELLUS_URL = new URL('../assets/fonts/Marcellus-Regular.ttf', import.me
 
 /** Live-switch `--font-ui` (everything inherits via body + form-control rules). */
 export function applyUiFont(id: UiFontId): void {
-    const font = UI_FONTS[id] ?? UI_FONTS.cinzel;
+    const font = UI_FONTS[id] ?? UI_FONTS.exo2;
     document.documentElement.style.setProperty('--font-ui', font.stack);
 }
 
