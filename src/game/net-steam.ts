@@ -1,6 +1,14 @@
 import { lobby, net, type SteamLobbyInfo } from 'steam-electron-build/native';
 import { getPlayerName } from './player';
-import { GAME_VERSION, type GuestSession, type HostHub, type NetMessage, type Session, type SessionPending } from './net';
+import {
+    GAME_VERSION,
+    watchLiveness,
+    type GuestSession,
+    type HostHub,
+    type NetMessage,
+    type Session,
+    type SessionPending,
+} from './net';
 import type { CanonicalSeatDef, SeatId } from './seats';
 
 /**
@@ -11,9 +19,21 @@ import type { CanonicalSeatDef, SeatId } from './seats';
  * `starSetup` handshake for star-mode seat assignment — Steam only replaces
  * *how bytes move*, never what's carried over them.
  *
- * Not covered (same v1 scope as the PeerJS star path): spectating,
- * reconnect/resume — a dropped Steam P2P session gets the same "give up"
- * treatment star mode already has.
+ * Disconnect DETECTION now matches the PeerJS path (see `SteamChannel`'s
+ * `watchLiveness` wiring) — a drop is noticed within a bounded time
+ * regardless of transport. Still not covered: an explicit reconnect/resume
+ * handshake. Unlike PeerJS's WebRTC, Steam's own P2P layer (Steam Datagram
+ * Relay via `ISteamNetworkingMessages`, underneath this wrapper's
+ * connectionless `net.send`/`net.onData`) transparently retries/relay-falls-
+ * back on its own — a brief drop never tears down the underlying session,
+ * so once real connectivity returns, packets simply resume without any
+ * application-level "I'm back" step. That means the grace window itself
+ * can be much simpler here than PeerJS's redial+`starResumeState` dance:
+ * there is nothing to reconstruct, since nothing was ever destroyed. A
+ * silence that outlasts the watchdog's timeout is instead treated as
+ * genuinely, permanently gone — same terminal "give up" treatment as
+ * before, just now reliably triggered instead of relying on the coarser,
+ * slower lobby-membership signal alone.
  */
 
 // ── P2P message routing ──────────────────────────────────────────────────────
@@ -45,13 +65,38 @@ function installDispatcher(): void {
 class SteamChannel {
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
+    private readonly liveness: { markSeen: () => void; stop: () => void };
+    /**
+     * Fires once total silence (ping, pong, or any real message all count
+     * as "alive" — see `watchLiveness`) exceeds the liveness timeout. This
+     * is the PRIMARY disconnect signal here, not a fallback: Steam has no
+     * per-connection close/error event the way PeerJS's DataConnection
+     * does — every caller of `SteamChannel` also keeps the coarser,
+     * slower lobby-membership check running alongside this as a secondary
+     * fast path (see `SteamSession`/`SteamGuestSession`/`SteamStarHub`).
+     */
+    onClose: (() => void) | null = null;
 
     constructor(readonly remoteSteamId: string) {
         installDispatcher();
         routes.set(remoteSteamId, (msg) => {
+            this.liveness.markSeen();
+            if (msg.type === 'ping') {
+                this.send({ type: 'pong' });
+                return;
+            }
+            if (msg.type === 'pong') return;
             if (this.handler) this.handler(msg);
             else this.backlog.push(msg);
         });
+        // registered before this assignment, but routes' callback only ever
+        // fires asynchronously (via net.onData's IPC dispatch) — never
+        // synchronously during registration — so `this.liveness` is always
+        // set by the time any message could actually arrive.
+        this.liveness = watchLiveness(
+            () => void net.send(this.remoteSteamId, { type: 'ping' }),
+            () => this.onClose?.(),
+        );
     }
 
     attach(handler: (msg: NetMessage) => void): void {
@@ -77,6 +122,7 @@ class SteamChannel {
     }
 
     dispose(): void {
+        this.liveness.stop();
         routes.delete(this.remoteSteamId);
     }
 }
@@ -114,11 +160,21 @@ export class SteamSession implements Session {
         readonly lobbyId: string,
     ) {
         this.channel = new SteamChannel(remoteSteamId);
-        // Steam has no per-connection "close" event like PeerJS's DataConnection
-        // — a drop only shows up as the lobby losing a member.
+        // The watchdog (primary, see SteamChannel) and Steam's own lobby-
+        // membership signal (secondary fast path — catches a hard leave/
+        // kick Steam notices immediately, without waiting for the
+        // watchdog's timeout) can both fire for the same drop; this guard
+        // keeps a double-fire from re-invoking onClose.
+        let closed = false;
+        const fireClose = () => {
+            if (closed) return;
+            closed = true;
+            this.onClose?.();
+        };
+        this.channel.onClose = fireClose;
         this.unsubscribe = onLobbyChatUpdate(() => {
             void lobby.getMembers().then((members) => {
-                if (!members.includes(remoteSteamId)) this.onClose?.();
+                if (!members.includes(remoteSteamId)) fireClose();
             });
         });
     }
@@ -232,9 +288,17 @@ export class SteamGuestSession implements GuestSession {
         readonly lobbyId: string,
     ) {
         this.channel = new SteamChannel(hostSteamId);
+        // see SteamSession's identical guard
+        let closed = false;
+        const fireClose = () => {
+            if (closed) return;
+            closed = true;
+            this.onClose?.();
+        };
+        this.channel.onClose = fireClose;
         this.unsubscribe = onLobbyChatUpdate(() => {
             void lobby.getMembers().then((members) => {
-                if (!members.includes(hostSteamId)) this.onClose?.();
+                if (!members.includes(hostSteamId)) fireClose();
             });
         });
     }
@@ -357,6 +421,15 @@ export class SteamStarHub implements HostHub {
                 for (const steamId64 of this.pending) {
                     if (!present.has(steamId64)) this.pending.delete(steamId64);
                 }
+                // secondary fast path for an already-seated member leaving —
+                // each seat's own channel.onClose (the watchdog, see
+                // SteamChannel) is the primary signal and handles this on its
+                // own via dropSeat, but Steam's lobby-membership signal can
+                // sometimes notice a hard leave/kick faster. dropSeat is
+                // idempotent (guards on bySeat.has), so racing both is safe.
+                for (const [seat, viewer] of this.bySeat) {
+                    if (!present.has(viewer.steamId64)) this.dropSeat(seat);
+                }
                 for (const steamId64 of members) {
                     if (steamId64 === this.hostSteamId || this.pending.has(steamId64)) continue;
                     if ([...this.bySeat.values()].some((v) => v.steamId64 === steamId64)) continue;
@@ -386,8 +459,27 @@ export class SteamStarHub implements HostHub {
         }
         const seat = result;
         channel.attach((m) => this.onMessage?.(seat, m));
+        channel.onClose = () => this.dropSeat(seat);
         this.bySeat.set(seat, { steamId64, channel, buffer: [] });
         this.onRosterChange?.();
+    }
+
+    /**
+     * A seat's connection is gone for good. Unlike PeerJS's `StarHub`,
+     * there's no grace window here yet — see this file's own doc comment
+     * for why that's a smaller gap than it looks (Steam's P2P self-heals a
+     * brief drop with no app-level step needed at all; this only ever
+     * fires once the liveness watchdog has given up, or Steam's lobby
+     * signal reports a genuine departure). Idempotent via the `bySeat.has`
+     * guard: the watchdog and the lobby-scan secondary path in `listen()`
+     * can both try to drop the same seat.
+     */
+    private dropSeat(seat: SeatId): void {
+        if (!this.bySeat.has(seat)) return;
+        this.bySeat.get(seat)!.channel.dispose();
+        this.bySeat.delete(seat);
+        this.onRosterChange?.();
+        this.onSeatDropped?.(seat);
     }
 
     send(seat: SeatId, msg: NetMessage): void {

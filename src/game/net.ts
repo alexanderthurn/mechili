@@ -27,7 +27,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 16; // v16: reinstated classic 1v1's spectatorFeed/spectatorWantsLive + seq dedup — needed after all (live testing found the guest's early actions never reached a live-vision spectator without it)
+export const GAME_VERSION = 19; // v19: 'action'/'undo' now carry a mandatory per-seat seq (gap detection), plus new 'starResyncRequest' message (Phase 2 of the full netcode unification)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -139,9 +139,11 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
 }
 
 /**
- * Everything that crosses the wire. Build-phase `action`/`undo` are withheld
- * until the *receiving* peer has locked in (sender-side buffer). Spectators
- * get a per-connection vision policy (default: battle-only).
+ * Everything that crosses the wire. Build-phase `action`/`undo` now send
+ * immediately in every mode (trust-world tradeoff, deferred encryption
+ * reintroduces fog here later — see TEAM_MODES_PLAN.md). Spectators get a
+ * per-connection vision policy (default: battle-only), unaffected by that
+ * change.
  */
 export type NetMessage =
     | { type: 'hello'; name: string }
@@ -159,21 +161,22 @@ export type NetMessage =
      * see Game.seatRank's doc comment), so a spectator resolving team from
      * `action.seat` alone collapses both players onto the same seat. The
      * two real players never read this field; they already know who they are.
-     * `seq` (classic 1v1 only) is the sender's own monotonic build-action
-     * counter — set once, at the moment sendPlayerBuildMessage first decides
-     * to send-or-buffer this action, so it's identical on every copy of the
-     * same logical action (the immediate `spectatorFeed` copy AND the later
-     * real flush once the peer locks in carry the SAME seq). Lets the host
-     * dedupe a spectator-feed-then-real-flush double-delivery of one action
-     * (see mirrorBuildToSpectators) — undefined for messages that never flow
-     * through that path (seeded backfill, star mode).
+     *
+     * `seq` is the ORIGINATING seat's own monotonic counter (one shared
+     * sequence per seat across both action and undo), stamped once at
+     * origination and never touched by any relay hop — lets any recipient
+     * (another seat, the host relaying onward) notice a skipped number and
+     * know immediately something's missing, instead of only ever
+     * discovering it indirectly later (a stuck phase, a battle-start hash
+     * mismatch). See Game.seedSeqTracking's doc comment for how both sides
+     * agree on the starting count after any hydrate/resync.
      */
-    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b'; seq?: number }
+    | { type: 'action'; round: number; action: Action; side?: 'a' | 'b'; seq: number }
     /** `seat` is unused by classic 1v1 (implicitly "the opponent"); star mode
      *  needs it since more than one remote seat can send an undo. `side` is
      *  the same spectator-only wire tag as on `action` above. `seq` is the
-     *  same dedup counter described on `action` above. */
-    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq?: number }
+     *  same per-seat monotonic counter `action` uses (see its doc comment). */
+    | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq: number }
     /** state checksum at every battle start — mismatch = desync, triggers a resync */
     | { type: 'check'; round: number; hash: number }
     /** a reloaded/rejoining peer asks for the full match state */
@@ -196,8 +199,13 @@ export type NetMessage =
     /** chat: emote or short text — never part of game state. `from` is
      *  required (not just implied by "whoever's on the other end of this
      *  connection") because spectators mean more than one possible sender —
-     *  the host relays a spectator's chat to the player link too. */
-    | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' } }
+     *  the host relays a spectator's chat to the player link too.
+     *  `role: 'system'` is a host-originated announcement (a spectator
+     *  joined/left, a seat reconnected) rather than something a person
+     *  typed — `name` is the relevant person's name for context, but a
+     *  receiver renders it via Hud.addSystemMessage (no sender chip, no
+     *  commander-card bubble), not addChat. */
+    | { type: 'chat'; item: ChatItem; from: { name: string; role: 'player' | 'spectator' | 'system' } }
     /** dev-only (`?debug`): batched debug events, streamed to whichever
      *  client is the host so `DebugLog.dump()` can print one aggregated,
      *  cross-client timeline — never part of game state, never rendered */
@@ -247,30 +255,6 @@ export type NetMessage =
     /** guest asks host to grant/revoke live deploy vision for a spectator
      *  (guest may only grant its own seat `'b'`) */
     | { type: 'spectateGrant'; spectatorName: string; seat: 'a' | 'b'; grant: boolean }
-    /** host → guest only: whether at least one spectator currently has live
-     *  vision granted on the GUEST's seat ('b'). The host's own actions
-     *  already reach spectators live regardless of wire fog (mirrored at
-     *  decision time, independent of `outboundBuildBuffer`) — but the
-     *  guest's build actions are withheld from the HOST ITSELF (not just
-     *  the opponent) until mutual lock-in, so the host has no early
-     *  knowledge to relay. This tells the guest to open the `spectatorFeed`
-     *  side channel below instead of waiting for the normal flush. */
-    | { type: 'spectatorWantsLive'; want: boolean }
-    /** guest → host only: a copy of a build action/undo the guest is STILL
-     *  WITHHOLDING from the opponent (wire fog) but a live-granted spectator
-     *  should see now. The host relays it straight to spectators — it must
-     *  NEVER touch the normal action-application path, or the opponent
-     *  would see it early too. */
-    | { type: 'spectatorFeed'; payload: Extract<NetMessage, { type: 'action' | 'undo' }> }
-    /**
-     * Sent after flushing the outbound build buffer to the peer. Battle must
-     * not start until both sides have locked in AND each has received the
-     * other's `deployCaughtUp` (otherwise the second locker races ahead of
-     * the first's sell/buys still in flight). `side` is unused between the
-     * two real players (each already knows it can only mean "the other
-     * one") — set only when mirrored to spectators, who need to tell the
-     * two confirmations apart since they're watching both sides at once. */
-    | { type: 'deployCaughtUp'; round: number; side?: 'a' | 'b' }
     // ---- star topology (2v2+, N seats): host-relayed, own message family so
     // the classic 2-seat path above stays completely untouched ------------
     /** guest's opening handshake on connecting to a star (2v2+) room */
@@ -302,9 +286,41 @@ export type NetMessage =
      *  starBattleStart rather than each client deciding independently) */
     | { type: 'starNextRound'; round: number }
     /** every client's battle-start state fingerprint, sent to the host for
-     *  N-way comparison. Detection only for v1 — a mismatch is logged, not
-     *  auto-resynced. */
+     *  N-way comparison. A mismatch is logged AND treated as a resync
+     *  trigger for the disagreeing seat(s) — see Game.verifyStarChecks. */
     | { type: 'starCheck'; round: number; seat: SeatId; hash: number }
+    /**
+     * Host → every connected seat: a seat dropped (`suspended:true`) or
+     * every dropped seat has caught up and confirmed ready
+     * (`suspended:false`) — broadcast, not just host-local bookkeeping, so
+     * every OTHER connected seat (not just the host) pauses/resumes in
+     * lockstep too (previously only the host paused; other seats kept
+     * ticking through the whole outage, unaware, ending up ahead of the
+     * host and the reconnecting seat once it returned — a real 2v2+ gap,
+     * never caught by 1v1-only reconnect testing). `target` is the exact
+     * point every seat should be at: `phaseRemaining` for `phase:'build'`,
+     * `sim.elapsed` for `phase:'battle'` — explicit on both messages (not
+     * an implicit "just freeze/unfreeze wherever you are") so a recipient
+     * always reconciles to a precise number rather than assuming zero
+     * relay latency. Disconnect time is always free: the resume target
+     * always equals the pause target, since nothing advances while
+     * everyone is correctly paused — this is never used to skip time
+     * forward as a fairness penalty. */
+    | { type: 'starSync'; suspended: boolean; round: number; phase: 'build' | 'battle'; target: number }
+    /**
+     * Guest → host only: this guest's own per-seat `seq` tracking
+     * (Game.lastSeqSeen) noticed a gap in relayed action/undo traffic —
+     * a message from some seat was skipped or dropped in transit despite
+     * the connection staying up. Treated exactly like that guest needing
+     * to reconnect (see Game.beginStarSeatSuspend/starSeatReconnected):
+     * pause the whole match, resend the full state via `starResumeState`,
+     * resume once the guest confirms with `ready` — the same recovery
+     * path already used for a real drop, not a second mechanism. The
+     * host is always the source of truth here: this only fires for a
+     * gap in what the HOST relayed, which the host's own log can always
+     * answer fully (see Game.onStarMessage's doc comment on the rarer,
+     * not-auto-recovered reverse direction). */
+    | { type: 'starResyncRequest' }
     /**
      * A guest whose connection to the host dropped, redialing the SAME
      * host peer id with its OWN still-alive Peer object (no page reload —
@@ -395,8 +411,19 @@ const LIVENESS_TIMEOUT_MS = 75_000;
  * `LIVENESS_TIMEOUT_MS`, fire `onDead` exactly once. Callers still keep
  * their own 'close'/'error' listeners too (an orderly drop should still be
  * as instant as it already is) — this only covers the gap those miss.
+ *
+ * Exported for net-steam.ts too: this is pure application-layer message
+ * traffic, no WebRTC-specific dependency at all, so it's the SAME
+ * mechanism for both transports rather than a parallel reimplementation.
+ * For Steam specifically it's the PRIMARY disconnect signal, not a
+ * fallback — Steam has no per-connection close/error event to fall back
+ * from (a drop there only shows up as the lobby losing a member, a
+ * coarser and slower signal — see SteamChannel's own doc comment).
  */
-function watchLiveness(send: () => void, onDead: () => void): { markSeen: () => void; stop: () => void } {
+export function watchLiveness(
+    send: () => void,
+    onDead: () => void,
+): { markSeen: () => void; stop: () => void } {
     let lastSeenAt = Date.now();
     let dead = false;
     const pingTimer = setInterval(() => {
@@ -447,26 +474,57 @@ export type SpectatorVision =
  * shape; `isRevealable` below is the one gate predicate shared between
  * them, so there's a single place that decides visibility instead of two
  * slightly different reimplementations of the same idea.
+ *
+ * One shape for every viewer, not "seat vs spectator": `ownSides` is the
+ * viewer's own side(s) (empty for a spectator — no side of their own),
+ * always visible with no lock/grant needed. `granted` is an explicit
+ * early-access grant, keyed the same way regardless of viewer kind — today
+ * only ever populated for spectators (see SpectatorHub.setSeatLive), but
+ * nothing here assumes that; a future grant from one player to another
+ * (ally or opponent) is the same shape, same predicate, no new code path.
  */
-export type VisionPolicy = { kind: 'seat'; side: 'a' | 'b' } | { kind: 'spectator'; vision: SpectatorVision };
+export interface VisionPolicy {
+    ownSides: ReadonlySet<'a' | 'b'>;
+    granted: ReadonlySet<'a' | 'b'>;
+}
 
 /**
  * Is a build action/undo FROM `fromSide` visible to a viewer with `policy`
  * right now? `sideLocked` is supplied by the caller (Game owns lock-in
- * state; this module only knows connections): for a seat viewer it's
- * queried per side (an ally always sees their own side immediately; an
- * enemy side waits for `sideLocked(fromSide)`); a spectator only ever cares
- * about the combined `sideLocked('a') && sideLocked('b')` ("both locked"),
- * alongside any standing live-vision grant on that specific side.
+ * state; this module only knows connections).
+ *
+ * A viewer with an own side (a real seat, ally or opponent) only ever
+ * needs THAT side's own lock — once `fromSide` locks in, it has nothing
+ * left to act on this round, so revealing it can't leak an advantage back
+ * against its own future choices. A NEUTRAL viewer (no own side — a true
+ * spectator) instead waits for EVERY side to lock before seeing anything
+ * ungranted: without that stricter bar, a spectator could relay one side's
+ * reveal to the other side while it's still building, a real leak a seat
+ * viewer's own gate can't cause. This asymmetry is deliberate and must
+ * survive any future refactor of this function.
  */
 export function isRevealable(
     policy: VisionPolicy,
     fromSide: 'a' | 'b',
     sideLocked: (side: 'a' | 'b') => boolean,
 ): boolean {
-    if (policy.kind === 'seat') return policy.side === fromSide || sideLocked(fromSide);
-    if (sideLocked('a') && sideLocked('b')) return true;
-    return policy.vision.mode === 'live' && policy.vision.seats.includes(fromSide);
+    if (policy.ownSides.has(fromSide)) return true;
+    if (policy.granted.has(fromSide)) return true;
+    if (policy.ownSides.size > 0) return sideLocked(fromSide);
+    return sideLocked('a') && sideLocked('b');
+}
+
+/** VisionPolicy for a real seat viewer — always sees its own side; no
+ *  explicit grants exist for seats yet (see isRevealable's doc comment on
+ *  why the model allows for it regardless). */
+export function seatVisionPolicy(side: 'a' | 'b'): VisionPolicy {
+    return { ownSides: new Set([side]), granted: new Set() };
+}
+
+/** VisionPolicy for a spectator viewer — no own side; granted sides come
+ *  from its own live-vision grant state (SpectatorHub.setSeatLive). */
+export function spectatorVisionPolicy(vision: SpectatorVision): VisionPolicy {
+    return { ownSides: new Set(), granted: new Set(vision.mode === 'live' ? vision.seats : []) };
 }
 
 /**
@@ -479,6 +537,12 @@ export interface RosterEntry {
     name: string;
     role: 'player' | 'spectator';
     team?: string;
+    /** star mode only — lets a receiving client notice a seat got taken
+     *  over by AI mid-match (see Game.takeOverSeatWithAi/refreshCommanders)
+     *  and update its own commander display accordingly. Classic 1v1 has
+     *  no AI-takeover concept (a quit forfeits immediately instead), so its
+     *  entries never set this. */
+    controller?: 'human' | 'ai';
 }
 
 /** the remote player as an Opponent: it acts via received messages, so the
@@ -490,154 +554,40 @@ export class NetworkOpponent implements Opponent {
 }
 
 /**
- * What `Game` needs from a 1v1 connection during actual play — a narrow
- * slice of `NetSession`'s full surface. Reconnect/redial/naming stay
- * main.ts's concern, operating on the concrete `NetSession` class directly
- * before handing a freshly-reconnected one to `Game.resumeWith`. Any
- * transport that satisfies this (`NetSession`/PeerJS today, a Steam P2P
- * equivalent later) can be passed to `Game` unchanged.
+ * What `Game`/`main.ts` need from a 1v1 connection during actual play and
+ * its own recovery — the FULL shared surface, so `main.ts`'s reconnect
+ * wiring (`wireReconnect`) never has to know or care which transport this
+ * is (`NetSession`/PeerJS, `SteamSession`/Steam, or a future one) — it only
+ * ever calls methods declared here. Naming/handshake setup still stays each
+ * transport's own concern (`resumeSession`/`hostSteamRoom` etc. construct a
+ * fresh `Session` however they need to).
  */
 export interface Session {
     onClose: (() => void) | null;
     attach(handler: (msg: NetMessage) => void): void;
+    /** waits for the next single message (used for the post-recovery handshake) */
+    once(): Promise<NetMessage>;
     send(msg: NetMessage): void;
     close(): void;
-}
-
-/** one open peer-to-peer connection, host or guest */
-export class NetSession implements Session {
-    onClose: (() => void) | null = null;
-    private handler: ((msg: NetMessage) => void) | null = null;
-    private readonly backlog: NetMessage[] = [];
-    private readonly liveness: { markSeen: () => void; stop: () => void };
-
-    readonly localName: string;
-    remoteName: string;
-
-    constructor(
-        readonly role: 'host' | 'guest',
-        private readonly peer: Peer,
-        private readonly conn: DataConnection,
-        localName: string,
-        remoteName: string,
-    ) {
-        this.localName = localName;
-        this.remoteName = remoteName;
-        // 'close'/'error' on the connection AND 'error' on the peer can all
-        // fire for the same underlying drop — without this guard each one
-        // re-invokes the caller's onClose (e.g. restarting the reconnect
-        // grace countdown mid-count)
-        let closed = false;
-        const fireClose = () => {
-            if (closed) return;
-            closed = true;
-            this.liveness.stop();
-            this.onClose?.();
-        };
-        conn.on('data', (data) => {
-            const msg = data as NetMessage;
-            this.liveness.markSeen();
-            if (msg.type === 'ping') {
-                conn.send({ type: 'pong' });
-                return;
-            }
-            if (msg.type === 'pong') return;
-            if (this.handler) this.handler(msg);
-            else this.backlog.push(msg);
-        });
-        conn.on('close', fireClose);
-        conn.on('error', fireClose);
-        peer.on('error', fireClose);
-        this.liveness = watchLiveness(() => conn.send({ type: 'ping' }), fireClose);
-    }
-
-    /** installs the message handler and drains anything that arrived early */
-    attach(handler: (msg: NetMessage) => void): void {
-        this.handler = handler;
-        while (this.backlog.length > 0) handler(this.backlog.shift()!);
-    }
-
-    send(msg: NetMessage): void {
-        this.conn.send(msg);
-    }
-
-    /** waits for the next single message (used for the setup handshake) */
-    once(): Promise<NetMessage> {
-        return new Promise((resolve) => {
-            if (this.backlog.length > 0) {
-                resolve(this.backlog.shift()!);
-                return;
-            }
-            this.handler = (msg) => {
-                this.handler = null;
-                resolve(msg);
-            };
-        });
-    }
-
-    close(): void {
-        this.onClose = null;
-        this.liveness.stop();
-        this.conn.close();
-        this.peer.destroy();
-    }
-
     /**
-     * Closes just THIS session's own connection, WITHOUT touching the
-     * shared `peer` — unlike `close()`. Needed wherever two `NetSession`s
-     * can be racing on the same underlying Peer object (`resumeSession`'s
-     * listen-vs-dial race, both built on one `Peer`) and only the LOSER
-     * needs tearing down: `close()`'s `peer.destroy()` would take the
-     * winner's own connection down with it, since they share that Peer —
-     * exactly the `StarGuestSession.discard()` hazard, same fix here.
+     * Called once `onClose` has fired: attempt to recover this SAME
+     * logical connection, resolving with a replacement `Session` if/when
+     * it succeeds (bounded by `signal` — the caller owns the timeout).
+     * Omit entirely (leave undefined) if this transport has nothing left
+     * to try once `onClose` fires — the caller then treats the grace
+     * window as already elapsed, uniformly, with no transport check of
+     * its own. PeerJS's DataConnection can genuinely die and needs an
+     * explicit redial (see `NetSession.attemptRecovery`); Steam's own P2P
+     * layer self-heals a brief drop transparently BEFORE its watchdog-
+     * driven `onClose` ever fires (see net-steam.ts's own doc comment), so
+     * by the time `onClose` fires there, there's nothing left worth
+     * retrying — `SteamSession` simply doesn't implement this method.
      */
-    discardConnection(): void {
-        this.onClose = null;
-        this.liveness.stop();
-        this.conn.close();
-    }
-
-    /** host learns the guest's display name during handshake */
-    setRemoteName(name: string): void {
-        this.remoteName = name;
-    }
-
-    get ownId(): string {
-        return this.peer.id;
-    }
-
-    get remoteId(): string {
-        return this.conn.peer;
-    }
-
-    /** survivor who OWNS the room id: keep the peer open, wait for the rejoin.
-     *  Bounded by `signal` — the caller times this out (reconnect grace window). */
-    awaitReconnect(signal: AbortSignal): Promise<NetSession> {
-        return awaitConnection(this.peer, this.localName, signal).then((s) => {
-            s.setRemoteName(this.remoteName);
-            return s;
-        });
-    }
-
-    /** survivor on the other end: redial the dropped peer until it comes back,
-     *  or `signal` fires (the caller's reconnect grace window elapsed). */
-    async redial(signal: AbortSignal, delayMs = 3000): Promise<NetSession> {
-        for (;;) {
-            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-            try {
-                return await connectTo(
-                    this.peer,
-                    this.remoteId,
-                    this.localName,
-                    this.remoteName,
-                    signal,
-                );
-            } catch (e) {
-                if (e instanceof DOMException && e.name === 'AbortError') throw e;
-                await delay(delayMs, signal);
-            }
-        }
-    }
+    attemptRecovery?(signal: AbortSignal): Promise<Session>;
+    /** identity fields behind the (PeerJS-only) cold-reload resume marker —
+     *  undefined for transports (Steam) with no such feature. */
+    ownId?: string;
+    remoteId?: string;
 }
 
 /**
@@ -942,7 +892,7 @@ export class StarHub implements HostHub {
             // recipient gets fully caught up via starResumeState on
             // reconnect instead — nothing useful to buffer for them here
             if (seat === fromSeat || !viewer.conn) continue;
-            const policy: VisionPolicy = { kind: 'seat', side: this.sideOf(seat) };
+            const policy = seatVisionPolicy(this.sideOf(seat));
             if (isRevealable(policy, fromSide, sideLocked)) {
                 if (viewer.buffer.length > 0) {
                     for (const buffered of viewer.buffer) viewer.conn.send(buffered);
@@ -1199,6 +1149,7 @@ export type StarRole =
 export async function hostStarRoom(
     initialRoster: CanonicalSeatDef[],
     onStatus: (status: string) => void,
+    mode: '1v1' | '2v2' = '2v2',
 ): Promise<{ hub: StarHub; roomId: string; cleanup: () => void }> {
     const name = getPlayerName();
     const roomId = peerRoomId(name);
@@ -1209,10 +1160,12 @@ export async function hostStarRoom(
     } catch {
         throw new Error(`Name "${name}" is already hosting — pick another username`);
     }
-    // reuses the SAME room-code registration as 1v1 custom rooms, tagged
-    // mode=2v2 so the room list can route joiners to the star join flow
-    await lobbyRegister(hub.peerId, name, '2v2');
-    const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, '2v2'), HEARTBEAT_MS);
+    // reuses the SAME room-code registration as 1v1 custom rooms — `mode`
+    // is purely a display label for the room list now (every room is
+    // star-hosted; joining always goes through the star join flow
+    // regardless of `mode`, see joinStarRoom's callers in main.ts).
+    await lobbyRegister(hub.peerId, name, mode);
+    const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, mode), HEARTBEAT_MS);
     return {
         hub,
         roomId,
@@ -1289,6 +1242,12 @@ export class SpectatorHub {
 
     /** fired whenever a spectator connects or disconnects */
     onRosterChange: (() => void) | null = null;
+    /** fired once a spectator is fully admitted (after onRosterChange, so a
+     *  caller announcing this can rely on the roster already reflecting it) */
+    onSpectatorJoined: ((name: string) => void) | null = null;
+    /** fired once a spectator's connection drops, named — onRosterChange
+     *  alone can't tell a caller WHO left, just that the roster changed */
+    onSpectatorLeft: ((name: string) => void) | null = null;
     /** fired for chat relayed FROM a spectator (needs mirroring to the
      *  player link and every other spectator) */
     onSpectatorChat: ((name: string, item: ChatItem) => void) | null = null;
@@ -1365,6 +1324,7 @@ export class SpectatorHub {
         );
         this.viewers.set(conn, { name, vision, buildBuffer: [], liveness });
         this.onRosterChange?.();
+        this.onSpectatorJoined?.(name);
     }
 
     /** grant or revoke live build vision for a seat on a named spectator */
@@ -1417,7 +1377,7 @@ export class SpectatorHub {
         bothLocked: boolean,
     ): boolean {
         if (!msg.side) return bothLocked;
-        return isRevealable({ kind: 'spectator', vision: viewer.vision }, msg.side, () => bothLocked);
+        return isRevealable(spectatorVisionPolicy(viewer.vision), msg.side, () => bothLocked);
     }
 
     /**
@@ -1475,6 +1435,7 @@ export class SpectatorHub {
         viewer.liveness.stop();
         this.viewers.delete(conn);
         this.onRosterChange?.();
+        this.onSpectatorLeft?.(viewer.name);
     }
 
     /**
@@ -1546,44 +1507,42 @@ export class SpectatorHub {
     }
 }
 
-// --- resume marker: enough to find the match again after a reload ---
+// --- star resume marker: enough to rejoin a star room after a reload ---
+// Simpler than classic 1v1's ResumeMarker: joinStarRoom always dials the
+// host's room code fresh (no peer ids to remember), and the host's own
+// name-matched implicit reclaim (StarHub.findDroppedSeatByName) does the
+// rest — so all that needs to survive a reload is which room to rejoin.
+// Host-only concept in reverse: only a GUEST ever saves one — if the
+// HOST's own tab reloads, its StarHub (and the whole match) is gone with
+// it, nothing to resume into.
 
-const RESUME_KEY = 'mechili-resume';
+const STAR_RESUME_KEY = 'mechili-star-resume';
 
-export interface ResumeMarker {
-    side: 'a' | 'b';
+export interface StarResumeMarker {
+    hostName: string;
     names: { local: string; opponent: string };
-    /** the opponent's last-known PeerJS id (redialed after our reload) */
-    remotePeerId: string;
-    /**
-     * our own last-known PeerJS id — reopened verbatim after a reload,
-     * regardless of whether it's a human-readable room id (Host Room) or an
-     * auto-generated one (Matchmaking). Nothing about *which side* reloaded
-     * changes this: either side's id can always be reclaimed the same way.
-     */
-    ownPeerId: string;
 }
 
-export function saveResumeMarker(marker: ResumeMarker): void {
+export function saveStarResumeMarker(marker: StarResumeMarker): void {
     try {
-        sessionStorage.setItem(RESUME_KEY, JSON.stringify(marker));
+        sessionStorage.setItem(STAR_RESUME_KEY, JSON.stringify(marker));
     } catch {
         /* private browsing */
     }
 }
 
-export function loadResumeMarker(): ResumeMarker | null {
+export function loadStarResumeMarker(): StarResumeMarker | null {
     try {
-        const raw = sessionStorage.getItem(RESUME_KEY);
-        return raw ? (JSON.parse(raw) as ResumeMarker) : null;
+        const raw = sessionStorage.getItem(STAR_RESUME_KEY);
+        return raw ? (JSON.parse(raw) as StarResumeMarker) : null;
     } catch {
         return null;
     }
 }
 
-export function clearResumeMarker(): void {
+export function clearStarResumeMarker(): void {
     try {
-        sessionStorage.removeItem(RESUME_KEY);
+        sessionStorage.removeItem(STAR_RESUME_KEY);
     } catch {
         /* ignore */
     }
@@ -1629,129 +1588,6 @@ export function clearSinglePlayer(): void {
     }
 }
 
-/** re-registers `id` with the signaling server, riding out the brief window
- *  where it may not have released our pre-reload registration yet */
-async function reopenOwnId(id: string, signal?: AbortSignal, attempts = 6, delayMs = 2000): Promise<Peer> {
-    for (let i = 0; i < attempts; i++) {
-        try {
-            return await openPeer(id, signal);
-        } catch (e) {
-            if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
-            if (i === attempts - 1) throw e;
-            await delay(delayMs, signal);
-        }
-    }
-    throw new Error('Could not reopen connection');
-}
-
-/** repeatedly dials `remoteId` until it connects or `signal` fires */
-async function redialUntilConnected(
-    peer: Peer,
-    remoteId: string,
-    localName: string,
-    remoteName: string,
-    signal?: AbortSignal,
-    delayMs = 3000,
-): Promise<NetSession> {
-    for (;;) {
-        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-        try {
-            return await connectTo(peer, remoteId, localName, remoteName, signal);
-        } catch (e) {
-            if (e instanceof DOMException && e.name === 'AbortError') throw e;
-            await delay(delayMs, signal);
-        }
-    }
-}
-
-/**
- * After a reload: reopen our OWN previous peer id (remembered regardless of
- * whether it happens to look like a hosted room — an auto-generated
- * Matchmaking id is just as reclaimable) and race two strategies at once:
- * wait for the peer to dial back in, or dial them ourselves at their last-
- * known id. We can't know in advance which side needs to be "the listener"
- * this time — either side could be the one that just reloaded — so trying
- * both and taking whichever connects first works regardless.
- */
-export async function resumeSession(marker: ResumeMarker, signal?: AbortSignal): Promise<NetSession> {
-    let peer: Peer | null = null;
-    const abort = () => peer?.destroy();
-    signal?.addEventListener('abort', abort, { once: true });
-    try {
-        peer = await reopenOwnId(marker.ownPeerId, signal);
-        const p = peer;
-        const session = await raceReconnectStrategies(
-            (s) => awaitConnection(p, marker.names.local, s),
-            (s) => redialUntilConnected(p, marker.remotePeerId, marker.names.local, marker.names.opponent, s),
-            signal,
-        );
-        session.setRemoteName(marker.names.opponent);
-        return session;
-    } finally {
-        signal?.removeEventListener('abort', abort);
-    }
-}
-
-/**
- * Races "wait for the peer to dial us" against "we dial the peer" — takes
- * whichever connects first, then cancels the other so it doesn't leave a
- * dangling listener (or keep redialing) that could double-wrap some LATER,
- * unrelated reconnect on the same Peer object. Both strategies get their
- * OWN abort signal (chained to the caller's) so cancelling one never touches
- * the other. Exported: `wireReconnect` (main.ts) races
- * `NetSession.awaitReconnect`/`redial` the same way for a live (non-reload)
- * disconnect.
- */
-export async function raceReconnectStrategies(
-    listen: (signal: AbortSignal) => Promise<NetSession>,
-    dial: (signal: AbortSignal) => Promise<NetSession>,
-    signal?: AbortSignal,
-): Promise<NetSession> {
-    const listenAbort = new AbortController();
-    const dialAbort = new AbortController();
-    const onOuterAbort = () => {
-        listenAbort.abort();
-        dialAbort.abort();
-    };
-    signal?.addEventListener('abort', onOuterAbort, { once: true });
-    const listening = listen(listenAbort.signal);
-    const dialing = dial(dialAbort.signal);
-    // If BOTH strategies happen to connect (both peers dial each other at
-    // nearly the same moment — plausible, since both sides typically run
-    // this same race symmetrically), the loser's `*Abort.abort()` below
-    // only stops FUTURE work on it; a connection that already finished
-    // opening moments earlier is otherwise left dangling — open, unused,
-    // and (now that every NetSession runs its own ping/pong watchdog)
-    // quietly pinging into a connection nobody's listening to, forever.
-    // `winner` is only assigned after the race settles, so registering
-    // these BEFORE calling Promise.race means the eventual winner's own
-    // resolution is observed here with `winner` still null and correctly
-    // skips closing itself.
-    //
-    // discardConnection(), NOT close(): both strategies here are built on
-    // the SAME underlying Peer object (see this function's own callers —
-    // resumeSession races two strategies on one `p`; wireReconnect races
-    // NetSession.awaitReconnect/redial, both `this.peer`), so close()'s
-    // peer.destroy() would tear down the WINNER's connection too, since
-    // they share that Peer. Caught by a fork review before this ever
-    // shipped — same hazard StarGuestSession.discard() already exists for.
-    let winner: NetSession | null = null;
-    const closeIfLoser = (s: NetSession) => {
-        if (winner !== null && winner !== s) s.discardConnection();
-    };
-    listening.then(closeIfLoser).catch(() => undefined);
-    dialing.then(closeIfLoser).catch(() => undefined);
-    try {
-        const session = await Promise.race([listening, dialing]);
-        winner = session;
-        listenAbort.abort();
-        dialAbort.abort();
-        return session;
-    } finally {
-        signal?.removeEventListener('abort', onOuterAbort);
-    }
-}
-
 function openPeer(id?: string, signal?: AbortSignal): Promise<Peer> {
     return new Promise((resolve, reject) => {
         if (signal?.aborted) {
@@ -1775,100 +1611,6 @@ function openPeer(id?: string, signal?: AbortSignal): Promise<Peer> {
     });
 }
 
-function connectTo(
-    peer: Peer,
-    remoteId: string,
-    localName: string,
-    remoteName: string,
-    signal?: AbortSignal,
-): Promise<NetSession> {
-    return new Promise((resolve, reject) => {
-        if (signal?.aborted) {
-            reject(new DOMException('Aborted', 'AbortError'));
-            return;
-        }
-        // a timed-out/aborted/errored attempt still holds a live
-        // RTCPeerConnection underneath — must be explicitly closed or it
-        // leaks for the rest of the tab's life. NetSession.redial() calls
-        // this repeatedly on a drop; without this, each failed attempt
-        // leaves one more RTCPeerConnection dangling, eventually hitting
-        // the browser's hard cap on concurrent/cumulative peer connections
-        // (seen live: "Cannot create so many PeerConnections"). `peer`
-        // itself is shared and long-lived across every retry, so its own
-        // 'error' listener must be torn down on every settle path too —
-        // otherwise each retry stacks another one for the rest of the
-        // tab's life (a leaked listener, not a connection, but the same
-        // species of bug).
-        let settled = false;
-        const cleanup = () => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', onAbort);
-            peer.off('error', onPeerError);
-        };
-        const timer = setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            conn.close();
-            reject(new Error('Room not found or host offline'));
-        }, CONNECT_TIMEOUT_MS);
-        const onAbort = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            conn.close();
-            reject(new DOMException('Aborted', 'AbortError'));
-        };
-        const onPeerError = (e: Error) => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            conn.close();
-            reject(e);
-        };
-        signal?.addEventListener('abort', onAbort, { once: true });
-        peer.on('error', onPeerError);
-        const conn = peer.connect(remoteId, { reliable: true });
-        conn.on('open', () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            resolve(new NetSession('guest', peer, conn, localName, remoteName));
-        });
-        conn.on('error', (e) => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            conn.close();
-            reject(e);
-        });
-    });
-}
-
-function awaitConnection(peer: Peer, localName: string, signal?: AbortSignal): Promise<NetSession> {
-    return new Promise((resolve, reject) => {
-        if (signal?.aborted) {
-            reject(new DOMException('Aborted', 'AbortError'));
-            return;
-        }
-        // detach on EITHER outcome — left registered, a losing race attempt
-        // (see resumeSession/wireReconnect) would still be listening for a
-        // NEXT incoming connection and could double-wrap a later reconnect
-        const onConnection = (conn: DataConnection) => {
-            conn.on('open', () => {
-                signal?.removeEventListener('abort', onAbort);
-                peer.off('connection', onConnection);
-                resolve(new NetSession('host', peer, conn, localName, ''));
-            });
-        };
-        const onAbort = () => {
-            peer.off('connection', onConnection);
-            reject(new DOMException('Aborted', 'AbortError'));
-        };
-        signal?.addEventListener('abort', onAbort, { once: true });
-        peer.on('connection', onConnection);
-    });
-}
 
 async function lobbyLeave(peerId: string): Promise<void> {
     await fetch(`${matchUrl()}?action=leave&peer=${encodeURIComponent(peerId)}`).catch(() => undefined);
@@ -1947,130 +1689,6 @@ export async function fetchLobbyRooms(): Promise<LobbyRoom[]> {
     const res = await fetch(`${matchUrl()}?action=list`);
     const data = (await res.json()) as { rooms?: LobbyRoom[] };
     return data.rooms ?? [];
-}
-
-/** a cancellable matchmaking attempt */
-export interface Pending {
-    session: Promise<NetSession>;
-    cancel: () => void;
-}
-
-/**
- * Quick match via the PHP endpoint: register our PeerJS id as waiting, or
- * take a waiting one and connect to it. `onWaiting` fires the moment we
- * learn no one's already waiting (right before we start waiting ourselves)
- * — the one point where a caller can still meaningfully offer choices
- * (e.g. match settings), since anyone who instead finds and joins an
- * existing wait never sees this callback at all and just connects.
- */
-export function quickMatch(onStatus: (status: string) => void, onWaiting?: () => void): Pending {
-    let cancelled = false;
-    let heartbeat: ReturnType<typeof setInterval> | null = null;
-    let peer: Peer | null = null;
-    const localName = getPlayerName();
-
-    const cleanup = () => {
-        if (heartbeat) clearInterval(heartbeat);
-        if (peer) void lobbyLeave(peer.id);
-    };
-
-    const session = (async () => {
-        onStatus('Connecting…');
-        peer = await openPeer();
-        if (cancelled) throw new Error('cancelled');
-        onStatus('Searching for an opponent…');
-        const res = await fetch(`${matchUrl()}?action=join&peer=${encodeURIComponent(peer.id)}`);
-        const data = (await res.json()) as { match: string | null };
-        if (cancelled) throw new Error('cancelled');
-        if (data.match) {
-            onStatus('Opponent found — connecting…');
-            return await connectTo(peer, data.match, localName, 'Opponent');
-        }
-        heartbeat = setInterval(() => {
-            void fetch(`${matchUrl()}?action=join&peer=${encodeURIComponent(peer!.id)}`).catch(
-                () => undefined,
-            );
-        }, HEARTBEAT_MS);
-        onStatus('Waiting for an opponent…');
-        onWaiting?.();
-        const s = await awaitConnection(peer, localName);
-        cleanup();
-        return s;
-    })();
-
-    return {
-        session,
-        cancel: () => {
-            cancelled = true;
-            cleanup();
-            peer?.destroy();
-        },
-    };
-}
-
-/**
- * Host a public room. The room code is the player's username — friends can
- * find it in the lobby list or connect directly by name.
- */
-export function hostLobby(onStatus: (status: string) => void): Pending {
-    let cancelled = false;
-    let heartbeat: ReturnType<typeof setInterval> | null = null;
-    let peer: Peer | null = null;
-    const name = getPlayerName();
-    const roomId = peerRoomId(name);
-
-    const cleanup = () => {
-        if (heartbeat) clearInterval(heartbeat);
-        if (peer) void lobbyLeave(peer.id);
-    };
-
-    const session = (async () => {
-        onStatus('Opening room…');
-        try {
-            peer = await openPeer(roomId);
-        } catch {
-            throw new Error(`Name "${name}" is already hosting — pick another username`);
-        }
-        if (cancelled) throw new Error('cancelled');
-        await lobbyRegister(peer.id, name);
-        heartbeat = setInterval(() => {
-            void lobbyRegister(peer!.id, name);
-        }, HEARTBEAT_MS);
-        onStatus(`Room open — waiting for an opponent…`);
-        const s = await awaitConnection(peer, name);
-        cleanup();
-        return s;
-    })();
-
-    return {
-        session,
-        cancel: () => {
-            cancelled = true;
-            cleanup();
-            peer?.destroy();
-        },
-    };
-}
-
-/** Join a public room by the host's username (room code). */
-export function joinLobby(hostName: string, onStatus: (status: string) => void): Pending {
-    let peer: Peer | null = null;
-    const localName = getPlayerName();
-    const code = roomCodeFromName(hostName);
-    if (!code) {
-        return {
-            session: Promise.reject(new Error('Invalid room name')),
-            cancel: () => undefined,
-        };
-    }
-
-    const session = (async () => {
-        onStatus(`Joining "${hostName.trim()}"…`);
-        peer = await openPeer();
-        return await connectTo(peer, peerRoomId(hostName), localName, hostName.trim());
-    })();
-
-    return { session, cancel: () => peer?.destroy() };
 }
 
 /**
@@ -2211,18 +1829,3 @@ export async function joinAsSpectator(
     }
 }
 
-/** Guest sends hello; host waits for the guest's display name. */
-export async function handshake(session: NetSession): Promise<void> {
-    if (session.role === 'guest') {
-        session.send({ type: 'hello', name: session.localName });
-        return;
-    }
-    const msg = await Promise.race([
-        session.once(),
-        new Promise<NetMessage>((_, reject) =>
-            setTimeout(() => reject(new Error('Opponent did not respond')), CONNECT_TIMEOUT_MS),
-        ),
-    ]);
-    if (msg.type !== 'hello') throw new Error('Unexpected handshake');
-    session.setRemoteName(msg.name);
-}

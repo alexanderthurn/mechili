@@ -6,31 +6,22 @@ import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
 import {
-    clearResumeMarker,
     clearSinglePlayer,
+    clearStarResumeMarker,
     fetchGlobalChat,
     fetchLobbyRooms,
     GAME_VERSION,
-    handshake,
-    hostLobby,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
-    joinLobby,
     joinStarRoom,
-    loadResumeMarker,
     loadSinglePlayer,
+    loadStarResumeMarker,
     lookupSpectateEndpoint,
-    NetSession,
     postGlobalChat,
-    quickMatch,
-    raceReconnectStrategies,
-    resumeSession,
-    saveResumeMarker,
     saveSinglePlayer,
+    saveStarResumeMarker,
     type NetMessage,
-    type Pending,
-    type ResumeMarker,
     type Session,
     type SinglePlayerSave,
     type SpectatorSession,
@@ -58,7 +49,7 @@ import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { iconHtml } from './ui/iconAtlas';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings, type HordeFactor } from './game/settings';
-import { duoSeats, localizeRoster, type CanonicalSeatDef } from './game/seats';
+import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { THEME, applyUiFont, menuStyles } from './theme';
 
 // the only mode right now (Single Player / Matchmaking both force this) —
@@ -650,7 +641,7 @@ menu.innerHTML = `
         <button class="m-btn m-small" data-mode="cg-back">Back</button>
     </div>
     <div class="m-status" style="display:none"></div>
-    <button class="m-btn m-small" data-mode="startstar" style="display:none">Start 2v2 Match</button>
+    <button class="m-btn m-small" data-mode="startstar" style="display:none">Start Match</button>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
@@ -916,11 +907,10 @@ function closeCustomGameScreen(): void {
     scheduleLayoutTitle();
 }
 
-/** host a game with the Custom Game screen's current settings — 1v1 reuses
- *  the plain lobby host flow (settings applied via runPending's applyMode
- *  hook, same shape as the horde-only quickMatch case), 2v2/2v2ai reuse
- *  beginStarHost with the mode-appropriate join threshold (see its own
- *  doc comment: 2v2ai isn't a different wire mode, just waitFor=2). */
+/** host a game with the Custom Game screen's current settings — every
+ *  online mode reuses beginStarHost now (1v1 is just a 2-seat star room),
+ *  with the mode-appropriate roster + join threshold (see beginStarHost's
+ *  own doc comment: 2v2ai isn't a different wire mode, just waitFor=2). */
 function hostCustomGame(): void {
     const cfg = readCustomGameForm();
     saveCustomGameConfig(cfg);
@@ -933,19 +923,21 @@ function hostCustomGame(): void {
         return;
     }
     if (cfg.mode === '1v1') {
-        runPending(hostLobby(setStatus), (settings) => applyCustomGameConfig(settings, cfg));
+        void beginStarHost(false, 2, cfg, initial1v1Roster, '1v1');
         return;
     }
     void beginStarHost(false, cfg.mode === '2v2' ? 4 : 2, cfg);
 }
 
 let started = false;
-let pending: Pending | null = null;
+/** a cancellable in-flight connection attempt (matchmaking probe, star
+ *  join/host, Steam join) — only ever cancelled or checked for busyness,
+ *  never awaited on directly here */
+let pending: { cancel: () => void } | null = null;
 /** true after 3D assets finish loading — match starts wait for this */
 let bootReady = false;
 let roomPoll: ReturnType<typeof setInterval> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
-let resumeAbort: AbortController | null = null;
 let activeGame: Game | null = null;
 let stopSinglePlayerPersist: (() => void) | null = null;
 
@@ -961,38 +953,6 @@ function hideResumeOverlay(): void {
     resumeOverlay = null;
 }
 
-function showResumeOverlay(message: string, sub: string, onCancel: () => void, overIntro = false): void {
-    hideResumeOverlay();
-    const overlay = document.createElement('div');
-    overlay.className = overIntro ? 'mechili-resume mechili-resume-over-intro' : 'mechili-resume';
-    overlay.innerHTML =
-        `<div class="resume-box">` +
-        `<div class="resume-msg">${message}</div>` +
-        (sub ? `<div class="resume-sub">${sub}</div>` : '') +
-        `<button type="button" class="resume-cancel">Cancel</button>` +
-        `</div>`;
-    overlay.querySelector('.resume-cancel')!.addEventListener('click', onCancel);
-    wrapper.appendChild(overlay);
-    resumeOverlay = overlay;
-}
-
-function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
-    return new Promise((resolve, reject) => {
-        if (signal.aborted) {
-            reject(new DOMException('Aborted', 'AbortError'));
-            return;
-        }
-        const timer = setTimeout(resolve, ms);
-        signal.addEventListener(
-            'abort',
-            () => {
-                clearTimeout(timer);
-                reject(new DOMException('Aborted', 'AbortError'));
-            },
-            { once: true },
-        );
-    });
-}
 
 function refreshUsernameLabel(): void {
     const name = getPlayerName();
@@ -1247,7 +1207,7 @@ function stopRoomPoll(): void {
 }
 
 function clearMatchResumeData(): void {
-    clearResumeMarker();
+    clearStarResumeMarker();
     clearSinglePlayer();
     try {
         sessionStorage.removeItem('mechili-desync-guard');
@@ -1365,8 +1325,6 @@ function startGame(
     destroyMenuGamepadCursor();
     stopGlobalChatPoll();
     hideResumeOverlay();
-    resumeAbort?.abort();
-    resumeAbort = null;
     // Cinematic handoff for any live match entry (fresh, resume, lobby join).
     // Skip for replay/spectate — those jump straight into playback/viewing.
     const useIntro = !replay && !spectate;
@@ -1383,26 +1341,25 @@ function startGame(
     gchatEl.remove();
 
     if (net) {
+        // Steam is the only live user of `net` now (classic PeerJS 1v1 runs
+        // over star — see initial1v1Roster). Steam sessions have no cold-
+        // reload-resume feature yet (net-steam.ts), so there's no marker to
+        // save here, just the single-player save to clear.
         clearSinglePlayer();
-        // resume/redial is PeerJS-specific (peer ids) — a Steam session has
-        // no equivalent yet (v1 scope, see net-steam.ts), so it just skips
-        // the marker rather than saving one it could never actually resume
-        if (net instanceof NetSession) {
-            saveResumeMarker({
-                side,
-                names,
-                remotePeerId: net.remoteId,
-                ownPeerId: net.ownId,
-            });
-        }
+    } else if (star?.role === 'guest' && !resume?.local) {
+        // Only a GUEST ever saves one — if the HOST's own tab reloads, its
+        // StarHub (and the whole match) is gone with it, nothing to resume
+        // into. joinStarRoom always dials the room code fresh, so all that
+        // needs to survive a reload is the host's name (seat 0 is always
+        // the host, canonically, regardless of which side we are).
+        const hostName = settings.seats?.[0]?.name;
+        if (hostName) saveStarResumeMarker({ hostName, names });
     } else if (!replay && !spectate) {
         // watching a replay/spectating a live match touches neither marker —
         // it isn't a new match of ours, and clearing either here would wipe
         // out the player's real, unrelated saved game just because they
         // clicked Watch
-        clearResumeMarker();
-        // star matches have no save/resume story yet (v1 scope) — never
-        // persist or resume one via the single-player slot
+        clearStarResumeMarker();
         if (!resume?.local && !star) clearSinglePlayer();
     }
 
@@ -1423,8 +1380,8 @@ function startGame(
         );
         activeGame = game;
         wireGameMenuReturn(game);
-        if (net instanceof NetSession) wireReconnect(game, net, side, names);
-        else if (!net && !star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+        if (net) wireReconnect(game, net);
+        else if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
         return game;
     };
 
@@ -1517,33 +1474,34 @@ const RECONNECT_GRACE_SECONDS = 30;
  * for the peer to come back, answer their resume request with the full
  * match state, then continue. If the peer hasn't returned within the grace
  * window, we win by forfeit.
+ *
+ * Transport-agnostic on purpose — `session` is the `Session` interface,
+ * and every step here (`attemptRecovery`, `once`, `send`) is a `Session`-
+ * level capability. This function never checks which transport it's
+ * talking to; a transport with nothing to retry (see `attemptRecovery`'s
+ * own doc comment — Steam's P2P self-heals a brief drop before its
+ * watchdog-driven `onClose` ever fires, so there's nothing left worth
+ * attempting by the time we're here) just omits the method, handled once,
+ * uniformly, right below. The only live caller today is Steam 1v1 —
+ * classic PeerJS 1v1 now runs over the star transport (initial1v1Roster),
+ * which has its own, separate reconnect path.
  */
-function wireReconnect(
-    game: Game,
-    initial: NetSession,
-    side: 'a' | 'b',
-    names: { local: string; opponent: string },
-): void {
+function wireReconnect(game: Game, initial: Session): void {
     let session = initial;
     game.onConnectionLost = () => {
+        if (!session.attemptRecovery) {
+            // Nothing to wait for — treat the grace window as already
+            // elapsed and let the existing, already-correct grace-timeout
+            // path (tick()'s own internal handling) take it from here.
+            game.beginReconnectGrace(0);
+            return;
+        }
         const ac = new AbortController();
         game.onReconnectTimeout = () => ac.abort();
         game.beginReconnectGrace(RECONNECT_GRACE_SECONDS);
         void (async () => {
             try {
-                // race both strategies instead of guessing who should dial
-                // vs listen: our own Peer object is still alive either way
-                // (we never reloaded), so waiting on it costs nothing, and
-                // redialing the peer's last-known id costs nothing either —
-                // whichever one actually connects first wins. This also
-                // means it doesn't matter whether the OTHER side is doing a
-                // live reconnect or a full reload (attemptResume races the
-                // same two strategies on its end).
-                const next = await raceReconnectStrategies(
-                    (s) => session.awaitReconnect(s),
-                    (s) => session.redial(s),
-                    ac.signal,
-                );
+                const next = await session.attemptRecovery!(ac.signal);
                 if (activeGame !== game) return;
                 const first = await next.once();
                 if (activeGame !== game) return;
@@ -1552,88 +1510,15 @@ function wireReconnect(
                 }
                 session = next;
                 game.resumeWith(next);
-                // the peer's id may have just changed (it reloaded and got a
-                // fresh PeerJS id) — refresh our own marker so that IF we
-                // reload next, we redial its CURRENT id, not the one from
-                // match start (that staleness is what broke host's reload
-                // after guest's earlier one: guest's id had already moved on)
-                saveResumeMarker({
-                    side,
-                    names,
-                    remotePeerId: next.remoteId,
-                    ownPeerId: next.ownId,
-                });
             } catch (e) {
                 if (activeGame !== game) return;
                 // grace window already elapsed — forfeitWin() has the result,
                 // nothing more to show here
                 if (e instanceof DOMException && e.name === 'AbortError') return;
-                clearResumeMarker();
                 game.suspend('The opponent did not come back.');
             }
         })();
     };
-}
-
-/** After a reload mid-match: rejoin the room and rebuild from the peer's log. */
-async function attemptResume(marker: ResumeMarker): Promise<void> {
-    const ac = new AbortController();
-    resumeAbort = ac;
-    setMenuBusy(true);
-    setMenuChromeVisible(false);
-    primeIntroCover();
-    showResumeOverlay(
-        'Reconnecting…',
-        'Waiting for your opponent and restoring the match.',
-        () => {
-            ac.abort();
-            clearResumeMarker();
-            hideResumeOverlay();
-            clearIntroCover();
-            restoreMenuTitle();
-            setMenuChromeVisible(true);
-            setMenuBusy(false);
-        },
-        true,
-    );
-    let session: NetSession | null = null;
-    try {
-        session = await resumeSession(marker, ac.signal);
-        session.send({ type: 'resume' });
-        const msg = await Promise.race([
-            session.once(),
-            abortableDelay(30_000, ac.signal).then(() => {
-                throw new Error('No answer from the opponent');
-            }),
-        ]);
-        if (msg.type !== 'state' || msg.version !== GAME_VERSION) {
-            throw new Error('Resume rejected (version mismatch?)');
-        }
-        const settings = msg.settings;
-        settings.seed = msg.seed;
-        hideResumeOverlay();
-        setMenuBusy(false);
-        startGame(settings, session, marker.side, marker.names, {
-            actions: msg.actions,
-            battleElapsed: msg.battleElapsed,
-            phaseRemaining: msg.phaseRemaining,
-        });
-    } catch (e) {
-        session?.close();
-        hideResumeOverlay();
-        clearIntroCover();
-        restoreMenuTitle();
-        setMenuChromeVisible(true);
-        if (e instanceof DOMException && e.name === 'AbortError') {
-            setMenuBusy(false);
-            return;
-        }
-        clearResumeMarker();
-        setMenuBusy(false);
-        setStatus(`Could not rejoin: ${e instanceof Error ? e.message : e}`);
-    } finally {
-        resumeAbort = null;
-    }
 }
 
 function resumeSinglePlayer(save: SinglePlayerSave): void {
@@ -1877,63 +1762,9 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
     location.href = new URL('backend/replays.html', location.href).href;
 }
 
-async function beginNetGame(
-    session: NetSession,
-    applyMode?: (settings: GameSettings) => void,
-): Promise<void> {
-    await handshake(session);
-    const localName = session.localName;
-
-    if (session.role === 'host') {
-        const settings = settingsFromUrl();
-        applyMode?.(settings);
-        // networked matches are classic 1v1 — local-mode rosters never travel
-        delete settings.seats;
-        settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-        session.send({
-            type: 'setup',
-            version: GAME_VERSION,
-            seed: settings.seed,
-            settings,
-            hostName: localName,
-            guestName: session.remoteName,
-        });
-        startGame(settings, session, 'a', { local: localName, opponent: session.remoteName });
-    } else {
-        setStatus('Receiving match setup…');
-        const msg = await session.once();
-        if (msg.type !== 'setup' || msg.version !== GAME_VERSION) {
-            setStatus('Version mismatch — both players need the same game version.');
-            session.close();
-            return;
-        }
-        const settings = msg.settings;
-        settings.seed = msg.seed;
-        startGame(settings, session, 'b', { local: localName, opponent: msg.hostName });
-    }
-}
-
-function runPending(p: Pending, applyMode?: (settings: GameSettings) => void): void {
-    pending?.cancel();
-    pending = p;
-    setMenuBusy(true);
-    p.session
-        .then((session) => {
-            pending = null;
-            setMenuBusy(false);
-            void beginNetGame(session, applyMode);
-        })
-        .catch((e: unknown) => {
-            pending = null;
-            setMenuBusy(false);
-            if (String(e).includes('cancelled')) setStatus('');
-            else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
-        });
-}
-
-// ---- Steam 1v1 (parallel to beginNetGame/runPending above; PeerJS's
-// NetSession has no equivalent on Steam, so this is its own small
-// orchestration rather than a shared function — see net-steam.ts) ----------
+// ---- Steam 1v1 (PeerJS's NetSession has no equivalent on Steam, so this
+// is its own small orchestration rather than a shared function — see
+// net-steam.ts) --------------------------------------------------------
 
 const STEAM_HANDSHAKE_TIMEOUT_MS = 20_000;
 
@@ -1988,7 +1819,7 @@ function runSteamPending(
     });
 }
 
-// ---- 2v2 online (star topology) ----------------------------------------
+// ---- online play (star topology — every mode, 1v1 included) -----------
 
 /** host is always seat 0, side 'a'; the other 3 slots start open for joiners */
 function initialStarRoster(hostName: string): CanonicalSeatDef[] {
@@ -1999,8 +1830,31 @@ function initialStarRoster(hostName: string): CanonicalSeatDef[] {
         { side: 'b', controller: 'human', name: 'Waiting…' },
     ];
 }
-/** fallback names for seats still empty when the host clicks Start */
-const STAR_AI_NAMES: Record<number, string> = { 1: 'Ally', 2: 'Foe West', 3: 'Foe East' };
+/** 1v1 is just a 2-seat star room — one seat per side, no AI-fill slots
+ *  besides the guest's own (see beginStarHost's roster param). */
+function initial1v1Roster(hostName: string): CanonicalSeatDef[] {
+    return [
+        { side: 'a', controller: 'human', name: hostName },
+        { side: 'b', controller: 'human', name: 'Waiting…' },
+    ];
+}
+/** fallback name for a still-empty seat when the host clicks Start —
+ *  derived from side (host's own side = 'Ally', the other = 'Foe'), so
+ *  this works for any roster size, not just the hardcoded 4-seat layout */
+function starAiName(seat: SeatId, roster: CanonicalSeatDef[]): string {
+    const mySide = roster[0]!.side;
+    if (roster[seat]!.side === mySide) return 'Ally';
+    const foeSeats = roster.map((_, i) => i).filter((i) => roster[i]!.side !== mySide);
+    if (foeSeats.length <= 1) return 'Foe';
+    return foeSeats.indexOf(seat) === 0 ? 'Foe West' : 'Foe East';
+}
+/** the HUD's "opponent" name field only ever makes sense for a genuine
+ *  2-seat (1v1-via-star) roster — a real 2v2+ has no single opponent to
+ *  name, so it keeps the generic '2v2' label the HUD already expects. */
+function opponentDisplayName(roster: CanonicalSeatDef[], mySeat: SeatId): string {
+    if (roster.length !== 2) return '2v2';
+    return roster[mySeat === 0 ? 1 : 0]?.name ?? '2v2';
+}
 
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
 let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
@@ -2024,20 +1878,32 @@ let starCustomConfig: CustomGameConfig | null = null;
  * (see its own comment near the URL-param block) raises this to 3 or 4 so
  * a real multi-tab test can actually gather everyone before the match
  * begins, instead of racing the very first join.
+ *
+ * `offerAiStart`: shows the "give up waiting, start now" button/copy while
+ * the room is short of `waitForJoined`. Plain 1v1 Matchmaking deliberately
+ * passes `false` — Single Player already covers "vs AI", so open 1v1
+ * matchmaking should only ever end in a real opponent or a cancel, never
+ * silently duplicate Single Player. 2v2 keeps it (AI-filling the *other*
+ * seats is a real, intentional feature there, not a vs-AI escape hatch),
+ * and Custom Game keeps it for both — that screen is exactly where "start
+ * now, AI takes whatever's left" belongs.
  */
 async function beginStarHost(
     horde = false,
     waitForJoined = 2,
     customConfig: CustomGameConfig | null = null,
+    buildRoster: (hostName: string) => CanonicalSeatDef[] = initialStarRoster,
+    mode: '1v1' | '2v2' = '2v2',
+    offerAiStart = true,
 ): Promise<void> {
     starHordeFlag = horde;
     starCustomConfig = customConfig;
     setMenuBusy(true);
-    setStatus('Opening 2v2 room…');
+    setStatus(mode === '1v1' ? 'Opening room…' : 'Opening 2v2 room…');
     const hostName = getPlayerName();
     let hosted: Awaited<ReturnType<typeof hostStarRoom>>;
     try {
-        hosted = await hostStarRoom(initialStarRoster(hostName), setStatus);
+        hosted = await hostStarRoom(buildRoster(hostName), setStatus, mode);
     } catch (e) {
         setMenuBusy(false);
         setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
@@ -2046,27 +1912,47 @@ async function beginStarHost(
     setMenuBusy(false);
     starHosting = hosted;
     const { hub } = hosted;
-    startStarBtn.style.display = '';
+    if (offerAiStart) {
+        // shared with 2v2 (same button) since 1v1 now hosts through the
+        // same star path — label it for whichever mode is actually running
+        // instead of the old static "Start 2v2 Match" text 1v1 inherited
+        // by accident
+        startStarBtn.textContent = mode === '1v1' ? 'Start 1v1 Match' : 'Start 2v2 Match';
+        startStarBtn.style.display = '';
+    }
     const refresh = () => {
         if (!starHosting) return;
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        // only ACTUALLY joined seats (host + currently connected) — the
+        // rest of `roster` is still "Waiting…" placeholders, not real names
+        const connectedNames = [0, ...hub.connectedSeats()]
+            .sort((a, b) => a - b)
+            .map((i) => roster[i]?.name ?? '')
+            .join(', ');
         // let every currently-connected guest see the same live roster
         // preview instead of just a static "waiting for the host" — see
         // runStarPending's 'starRoster' handling
         hub.broadcast({ type: 'starRoster', roster });
         // auto-start once `waitForJoined` have joined — no manual "click
-        // Start" step; the Start button (still shown) is only for "give up
+        // Start" step; the Start button (when shown) is only for "give up
         // waiting, go vs AI now" while the room hasn't reached that yet
         if (joined >= waitForJoined) {
-            setStatus(`Room "${hostName}" — ${joined}/4 joined: ${names}. Starting…`);
+            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Starting…`);
             startStarMatch();
             return;
         }
-        setStatus(
-            `Room "${hostName}" — waiting for a friend to join (share your name: "${hostName}"). Click Start to play vs AI now instead.`,
-        );
+        if (offerAiStart) {
+            const modeLabel = mode === '1v1' ? '1vs1' : '2vs2';
+            const remaining = waitForJoined - joined;
+            const namesPart = joined > 1 ? `${connectedNames} - ` : '';
+            setStatus(
+                `Room "${hostName}" ${modeLabel} - ${namesPart}waiting for ${remaining} more player${remaining === 1 ? '' : 's'}. Click Start to play vs AI`,
+            );
+        } else {
+            setStatus('Waiting for an opponent');
+        }
     };
     hub.onRosterChange = refresh;
     hub.listen((name, version, conn) => {
@@ -2095,9 +1981,10 @@ function startStarMatch(): void {
     if (!starHosting) return;
     const { hub } = starHosting;
     const connected = new Set(hub.connectedSeats());
-    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+    const currentRoster = hub.currentRoster();
+    const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+            return { side: s.side, controller: 'ai', name: starAiName(i, currentRoster) };
         }
         return s;
     });
@@ -2129,12 +2016,26 @@ function startStarMatch(): void {
     }
     startStarBtn.style.display = 'none';
     const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
-    startGame(hostSettings, null, 'a', { local: getPlayerName(), opponent: '2v2' }, null, {
-        role: 'host',
-        hub,
-        mySeat: 0,
-    });
-    starHosting = null; // ownership passes to the running Game now
+    startGame(
+        hostSettings,
+        null,
+        'a',
+        { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) },
+        null,
+        { role: 'host', hub, mySeat: 0 },
+    );
+    // the room is no longer "waiting to join" — stop the lobby heartbeat
+    // and tell the backend it's gone (does NOT touch `hub`/its Peer
+    // connection, which the running Game now owns and keeps alive; only
+    // clears the interval + sends ?action=leave for the OLD kind=lobby
+    // registration). Previously skipped here, so the lobby heartbeat kept
+    // re-registering `kind=lobby` forever in the background for as long as
+    // the tab stayed open — showing a stale, still-"joinable" room in the
+    // list alongside the real kind=spectate entry the running match
+    // registers separately (repro: "mangoo" AND "mangoo (2v2)" AND "Watch
+    // mangoo (2v2)" all listed for the same host at once).
+    starHosting?.cleanup();
+    starHosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
 }
 
@@ -2147,10 +2048,6 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
     pending?.cancel();
     let cancelled = false;
     pending = {
-        // never actually read back — `pending` only needs `.cancel()` here;
-        // this satisfies the shared Pending<NetSession> shape without
-        // touching it (star join has no NetSession at all)
-        session: Promise.resolve() as unknown as Promise<NetSession>,
         cancel: () => {
             cancelled = true;
             p.cancel();
@@ -2209,7 +2106,7 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                         settings,
                         null,
                         yourSide,
-                        { local: myName, opponent: '2v2' },
+                        { local: myName, opponent: opponentDisplayName(msg.roster, msg.seat) },
                         {
                             actions: msg.actions,
                             battleElapsed: msg.battleElapsed,
@@ -2229,11 +2126,18 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                 settings.seed = msg.seed;
                 settings.seats = localizeRoster(msg.roster, msg.yourSide);
                 const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
-                startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
-                    role: 'guest',
-                    session,
-                    mySeat: msg.yourSeat,
-                });
+                startGame(
+                    settings,
+                    null,
+                    msg.yourSide,
+                    { local: myName, opponent: opponentDisplayName(msg.roster, msg.yourSeat) },
+                    null,
+                    {
+                        role: 'guest',
+                        session,
+                        mySeat: msg.yourSeat,
+                    },
+                );
             });
         })
         .catch((e: unknown) => {
@@ -2313,9 +2217,10 @@ function startSteamStarMatch(): void {
     if (!steamStarHosting) return;
     const { hub } = steamStarHosting;
     const connected = new Set(hub.connectedSeats());
-    const finalRoster: CanonicalSeatDef[] = hub.currentRoster().map((s, i) => {
+    const currentRoster = hub.currentRoster();
+    const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai', name: STAR_AI_NAMES[i] ?? 'AI' };
+            return { side: s.side, controller: 'ai', name: starAiName(i, currentRoster) };
         }
         return s;
     });
@@ -2352,11 +2257,6 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
     pending?.cancel();
     let cancelled = false;
     pending = {
-        // never actually read back — `pending` only needs `.cancel()` here;
-        // this satisfies the shared Pending<NetSession> shape without
-        // touching it (star join has no NetSession at all — same trick as
-        // the PeerJS runStarPending above)
-        session: Promise.resolve() as unknown as Promise<NetSession>,
         cancel: () => {
             cancelled = true;
         },
@@ -2440,53 +2340,6 @@ function showMatchmakingPicker(): void {
 }
 
 /**
- * Plain (non-Steam) 1v1 quick match, probe-first.
- *
- * `committed=false` (the default): used for the initial "just clicked
- * Matchmaking" attempt, before the player has chosen a mode. Finds someone
- * already waiting → connects immediately. Finds no one → gives up on this
- * probe and reveals the simplified picker (mmSimpleEl) so the player can
- * choose a mode.
- *
- * `committed=true`: used by the picker's OWN mode buttons (mms-1v1/
- * mms-horde) — the player already chose, so "nobody's waiting" here means
- * actually queue and wait (status + Cancel button), not bounce back to the
- * same picker. Bug fix: this used to call the same not-committed path, so
- * picking a mode from the picker re-ran the exact same probe-and-bail
- * behavior that got them there, cancelling the wait instead of starting it —
- * looked like the click did nothing (a quick flicker back to the picker).
- */
-function tryQuickMatch(horde: boolean, committed = false): void {
-    mmSimpleEl.style.display = 'none';
-    setStatus('Looking for a match…');
-    setMenuBusy(true);
-    const probe = quickMatch(
-        (s) => setStatus(s),
-        committed
-            ? undefined
-            : () => {
-                  pending = null;
-                  probe.cancel();
-                  setMenuBusy(false);
-                  setStatus('');
-                  mmSimpleEl.style.display = '';
-              },
-    );
-    pending = probe;
-    probe.session
-        .then((session) => {
-            pending = null;
-            setMenuBusy(false);
-            setStatus('');
-            void beginNetGame(session, horde ? applyHordeMode : undefined);
-        })
-        .catch(() => {
-            // either the deliberate cancel-and-reveal above, or the
-            // player's own Cancel click — both handled where they happened
-        });
-}
-
-/**
  * `?test2v2=4` (4 real players) or `?test2v2=2` (2 real players, AI fills
  * the other 2 — today's normal 2v2-vs-AI default, just explicit) lets the
  * Matchmaking button skip straight to the star (2v2) flow instead of the
@@ -2537,18 +2390,23 @@ function tryMatchmaking(): void {
         // any OPEN room (not a spectate-only entry for an already-running
         // match) — 1v1 or 2v2 alike, so a plain "Matchmaking" click on one
         // tab always finds what another tab's "Matchmaking" click just
-        // hosted, the same way both used to only work for 2v2
+        // hosted. Every room is star-hosted now (1v1 is just a 2-seat star
+        // room), so joining is always beginStarJoin regardless of `mode` —
+        // that field is a display label only, not a protocol distinction.
         const open = rooms.find((r) => r.kind === 'lobby' && r.name.toLowerCase() !== mine);
-        if (open?.mode === '2v2') {
+        if (open) {
             beginStarJoin(open.name);
-        } else if (open) {
-            runPending(joinLobby(open.name, setStatus));
         } else {
             // nothing open — host a discoverable room (not the old
             // anonymous quickMatch queue, which never showed up in the
             // room list at all) so the very next "Matchmaking" click,
-            // from any tab, finds this one instead of also hosting blind
-            runPending(hostLobby(setStatus), applyHordeMode);
+            // from any tab, finds this one instead of also hosting blind.
+            // horde=true: this menu button is "1v1 Horde only" for now
+            // (see its own call site's comment) — same as the old
+            // `applyHordeMode` hook this replaces. offerAiStart=false: open
+            // matchmaking should only end in a real opponent or a cancel —
+            // Single Player already covers vs-AI.
+            void beginStarHost(true, 2, null, initial1v1Roster, '1v1', false);
         }
     });
 }
@@ -2693,10 +2551,11 @@ menu.addEventListener('click', (e) => {
             setStatus('Still loading — one moment…');
             return;
         }
-        if (roomBtn.dataset.roomKind === 'resume') beginStarJoin(roomBtn.dataset.room);
-        else if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
-        else if (roomBtn.dataset.roomMode === '2v2') beginStarJoin(roomBtn.dataset.room);
-        else runPending(joinLobby(roomBtn.dataset.room, setStatus));
+        if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
+        // every room is star-hosted now (1v1 is just a 2-seat star room),
+        // including 'resume' rows — always beginStarJoin regardless of
+        // roomMode, which is a display label only.
+        else beginStarJoin(roomBtn.dataset.room);
         return;
     }
 
@@ -2716,9 +2575,7 @@ menu.addEventListener('click', (e) => {
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
             mode === 'matchmaking' ||
-            mode === 'mms-1v1' ||
             mode === 'mms-2v2' ||
-            mode === 'mms-horde' ||
             mode === 'mm-play' ||
             mode === 'mm-invite' ||
             mode === 'host' ||
@@ -2795,12 +2652,6 @@ menu.addEventListener('click', (e) => {
             tryMatchmaking();
             break;
         }
-        case 'mms-1v1':
-            tryQuickMatch(false, true);
-            break;
-        case 'mms-horde':
-            tryQuickMatch(true, true);
-            break;
         case 'mms-2v2':
             try2v2Match(false);
             break;
@@ -2847,7 +2698,7 @@ menu.addEventListener('click', (e) => {
             mmLinkEl.textContent = `Send this to your friend: ${link}`;
             mmLinkEl.style.display = '';
             if (team === '2v2') void beginStarHost(horde);
-            else runPending(hostLobby(setStatus), horde ? applyHordeMode : undefined);
+            else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false);
             break;
         }
         case 'mm-play': {
@@ -2874,17 +2725,14 @@ menu.addEventListener('click', (e) => {
                 }
                 break;
             }
-            if (team === '2v2') {
-                setStatus('Looking for an open 2v2 room…');
-                void fetchLobbyRooms().then((rooms) => {
-                    const mine = getPlayerName().toLowerCase();
-                    const open = rooms.find((r) => r.mode === '2v2' && r.name.toLowerCase() !== mine);
-                    if (open) beginStarJoin(open.name);
-                    else void beginStarHost(horde);
-                });
-            } else {
-                runPending(quickMatch(setStatus), horde ? applyHordeMode : undefined);
-            }
+            setStatus(team === '2v2' ? 'Looking for an open 2v2 room…' : 'Looking for an open room…');
+            void fetchLobbyRooms().then((rooms) => {
+                const mine = getPlayerName().toLowerCase();
+                const open = rooms.find((r) => r.mode === team && r.name.toLowerCase() !== mine);
+                if (open) beginStarJoin(open.name);
+                else if (team === '2v2') void beginStarHost(horde);
+                else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false);
+            });
             break;
         }
         case 'custom': {
@@ -2931,7 +2779,7 @@ const watchId = watchParams.get('watch');
 const watchSide = watchParams.get('side');
 const verifyId = watchParams.get('verify');
 const bulkVerify = watchParams.get('bulkverify');
-const mpMarker = loadResumeMarker();
+const starMpMarker = loadStarResumeMarker();
 const spSave = loadSinglePlayer();
 if (bulkVerify) {
     // seeded by replays.html's Bulk Verify button just before navigating
@@ -2948,8 +2796,17 @@ if (bulkVerify) {
     // outranks any resume marker/single-player save — a replay link should
     // never be silently preempted by stale local state
     void startReplayWatch(watchId, watchSide);
-} else if (mpMarker) {
-    void attemptResume(mpMarker);
+} else if (starMpMarker) {
+    // joinStarRoom always dials the room code fresh and the host's own
+    // name-matched
+    // implicit reclaim (StarHub.findDroppedSeatByName) does the rest, so
+    // this is just an automatic version of clicking a "resume" row in the
+    // room list (beginStarJoin/runStarPending already handle busy state,
+    // status text, and every failure case the same way a manual click
+    // would — no separate dedicated overlay needed here).
+    setMenuChromeVisible(true);
+    setStatus(`Reconnecting to "${starMpMarker.hostName}"…`);
+    beginStarJoin(starMpMarker.hostName);
 } else if (spSave) {
     if (spSave.version !== GAME_VERSION) {
         clearSinglePlayer();
@@ -2957,17 +2814,12 @@ if (bulkVerify) {
     } else resumeSinglePlayer(spSave);
 } else {
     setMenuChromeVisible(true);
-    // ?room=mangoo — join that host's room directly. Unlike the room-list
-    // buttons, a deep link carries no mode — look it up first so a 2v2
-    // room routes to the star join flow instead of hanging forever on
-    // the classic one (a star host never answers a classic 'hello').
+    // ?room=mangoo — join that host's room directly. Every room is
+    // star-hosted now (1v1 is just a 2-seat star room), so this is
+    // always beginStarJoin regardless of mode.
     const roomParam = new URLSearchParams(location.search).get('room');
     if (roomParam) {
-        void fetchLobbyRooms().then((rooms) => {
-            const match = rooms.find((r) => r.name.toLowerCase() === roomParam.toLowerCase());
-            if (match?.mode === '2v2') beginStarJoin(roomParam);
-            else runPending(joinLobby(roomParam, setStatus));
-        });
+        beginStarJoin(roomParam);
     }
     // ?spectate=mangoo — deep link straight into watching that host's match.
     // Doesn't depend on the Rooms list showing it (spectate-register/-lookup

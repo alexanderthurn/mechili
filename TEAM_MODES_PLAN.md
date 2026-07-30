@@ -814,6 +814,56 @@ original author of Y never would have gone looking for.
   1v1 already has a working reload-and-resume pattern this could
   reuse, worth a dedicated design session.
 
+## 3f. Fix: classic 1v1's outbound build buffer permanently lost actions on disconnect (2026-07-29)
+
+Live-tested reconnect found a real, serious bug: classic 1v1 buffered a
+player's own build actions locally (`outboundBuildBuffer`) and only sent
+them once the opponent locked in. A disconnect in that window meant the
+buffered actions never reached the peer, and a cold reconnect wiped the
+sender's own in-memory copy too — permanently gone from both sides, each
+side then simulating a different battle from that point on (confirmed via
+a live repro: matching `sim.battleStart` hash at match start, diverging
+hash + unit-count after a guest reconnect).
+
+The instinct — "just relay through a host, like star mode already does" —
+doesn't port cleanly: there's no neutral third party in a host-relay model
+in *any* mode, the host is always one of the real players. In 2v2/star,
+the host is one of four, so the existing "host sees it early" cost only
+ever affects one specific opponent (when the host happens to be on the
+other side). In classic 1v1 the host and "the party that would peek
+early" are the same person — your only opponent — so naively copying
+star's model would have meant total loss of fog-of-war for 1v1
+specifically, not a minor extension of an existing, accepted cost.
+
+**Fix shipped (trust-world, encryption deferred):** classic 1v1 now sends
+every build action immediately, exactly like star mode already did —
+`outboundBuildBuffer`, the `deployCaughtUp` handshake
+(`deployFlushedToPeer`/`deployCaughtUpFromPeer`), and the `spectatorFeed`/
+`spectatorWantsLive` side-channel that existed specifically to route
+around the buffer for a live-vision spectator are all deleted.
+`maybeStartBattleAfterDeploy` simplifies to just "both sides locked in" —
+there's nothing left to "catch up" on. `drainRemoteQueue` gained the
+same already-locked-in rejection guard `drainStarRemoteQueue` always had;
+it was deliberately absent before because the old buffer's release timing
+could reorder a peer's own action behind their bypass-the-buffer
+`endDeployment` — sending everything immediately removes that reordering
+case, so the guard is now safe everywhere. `GAME_VERSION` bumped (17).
+
+**The accepted cost, stated plainly:** the two real players in a classic
+1v1 match no longer hide build actions from each other on the wire until
+lock-in — nothing is durable-but-hidden the way commit-reveal encryption
+would make it. This is a deliberate, explicit tradeoff (confirmed in
+conversation): fixing durability now, accepting the trust-world gap,
+deferring the fix that closes it (commit-reveal: encrypt each action
+locally, send the ciphertext immediately so it's durable, release the key
+only once the recipient is actually entitled to see it — needs zero key
+exchange, since the key never has to be shared until it's meant to become
+visible anyway; this is the same "commit-reveal encryption for build
+actions" item §3e already listed as designed-but-not-built). Star mode
+was never touched by this pass — it already sent immediately and was
+never the mode with the bug; spectator vision (`SpectatorHub`, both modes)
+was already independent of the removed buffer and needed no changes either.
+
 ---
 
 ## 4. Mode: Horde (PvPvE — build first)
@@ -914,15 +964,20 @@ relays their chat; `matchmaking.php` already has `spectate-register`/
 friend to watch a game that's already running" works today for 1v1. What's
 new is *who may see what*, and a host that watches instead of playing.
 
-### The trust model (1v1 wire fog — landed)
+### The trust model (1v1 wire fog — superseded 2026-07-29, see §3f)
 
-Build-phase actions are **withheld on the wire** until the *receiving*
+~~Build-phase actions are **withheld on the wire** until the *receiving*
 player locks in: each peer buffers outbound `action`/`undo`, flushes when
-it sees the opponent's `endDeployment`, then streams live. Reconnect
-`state` / spectator catch-up redact the unfinished build round the same
-way. Spectators default to `vision: { mode: 'battle' }` (see backlog until
-both locked); a player can grant `{ mode: 'live', seats: [...] }` for
-their own seat from the pause menu (`spectateGrant` / `visionUpdate`).
+it sees the opponent's `endDeployment`, then streams live.~~ As of §3f,
+classic 1v1 build actions send immediately, same as star mode always has —
+a disconnect during that withholding window was silently, permanently
+losing unflushed actions, and a fix that preserves fog needs commit-reveal
+encryption (§3, still not built). Reconnect `state` / spectator catch-up
+redact the unfinished build round the same way. Spectators default to
+`vision: { mode: 'battle' }` (see backlog until both locked); a player can
+grant `{ mode: 'live', seats: [...] }` for their own seat from the pause
+menu (`spectateGrant` / `visionUpdate`) — spectator vision is unaffected by
+§3f, it was never based on the players' own wire fog.
 
 Presentation intel fog remains for single-player (AI is local). Seatless
 host / big-screen `vision: all` is still later (§ below). Full host-

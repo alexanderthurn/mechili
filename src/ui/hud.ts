@@ -947,8 +947,12 @@ export class Hud {
         setTimeout(() => bubble.remove(), 4500);
 
         // floating line above the chat bar (XSS-safe: textContent only for text)
+        // — colored by the sender's actual TEAM (chip.team), not just
+        // local/remote: a teammate's message is still "player" green, only
+        // a genuine opponent's should read as "enemy" red (previously any
+        // non-self sender, ally included, rendered in the enemy color)
         const line = document.createElement('div');
-        line.className = `cf-msg ${from}`;
+        line.className = `cf-msg ${chip.team}`;
         const who = document.createElement('span');
         who.className = 'cf-name';
         who.textContent = name;
@@ -960,6 +964,24 @@ export class Hud {
             what.textContent = ` ${text}`;
         }
         line.append(who, what);
+        this.chatFloat.appendChild(line);
+        while (this.chatFloat.children.length > 4) this.chatFloat.firstChild?.remove();
+        setTimeout(() => line.remove(), 7000);
+    }
+
+    /** a system-level line in the same floating chat list — a spectator
+     *  joining/leaving, etc. Deliberately NOT addChat: those events have no
+     *  commander chip to attach a portrait bubble to (a spectator isn't a
+     *  seat), so this skips the bubble/chip lookup entirely and just shows
+     *  plain, neutral-colored text. */
+    addSystemMessage(text: string): void {
+        if (!prefs().combatChat) return;
+        const line = document.createElement('div');
+        line.className = 'cf-msg system';
+        const what = document.createElement('span');
+        what.className = 'cf-body';
+        what.textContent = text;
+        line.append(what);
         this.chatFloat.appendChild(line);
         while (this.chatFloat.children.length > 4) this.chatFloat.firstChild?.remove();
         setTimeout(() => line.remove(), 7000);
