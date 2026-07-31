@@ -1,5 +1,5 @@
 import type { Application } from 'pixi.js';
-import { SHOP_UNIT_IDS, startCardForgeIcons, unitUnlockCost, type StartCard } from '../game/cards';
+import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
@@ -15,6 +15,7 @@ import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
+import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -316,7 +317,7 @@ export class Hud {
     private settingsGroups: SettingGroup[] = [];
     private settingsDetailOverlay: HTMLDivElement | null = null;
     /** hover tip for forge spells on specialist / round cards */
-    private cardSpellTip: HTMLDivElement | null = null;
+    private readonly cardSpellTips = new CardSpellTips();
     /** item ids currently in the selected Stronghold forge (for slot hover preview) */
     private lastForgeOvenIds: string[] = [];
     private lastForgeSpellPool: string[] = [];
@@ -2418,7 +2419,7 @@ export class Hud {
                 : '';
         const levelIcon = !!d.ticon?.startsWith('ability-level');
         frame.innerHTML =
-            this.spellInfoFrameHtml({
+            spellInfoFrameHtml({
                 title: d.ttitle ?? '',
                 desc: d.tdesc ?? '',
                 icon: d.ticon,
@@ -2438,34 +2439,6 @@ export class Hud {
             tile.click();
             this.hideActionInfo();
         });
-    }
-
-    /**
-     * Shared body for panel action-info and card spell tips:
-     * icon + title, rune ingredients top-right, then description.
-     */
-    private spellInfoFrameHtml(opts: {
-        title: string;
-        desc?: string;
-        icon?: string;
-        ingredientIcons?: readonly string[];
-        levelIcon?: boolean;
-    }): string {
-        const ings =
-            opts.ingredientIcons && opts.ingredientIcons.length > 0
-                ? `<div class="ai-forge-ings">${opts.ingredientIcons
-                      .map((ico) => iconHtml(ico, 'ai-forge-ing'))
-                      .join('')}</div>`
-                : '';
-        const descHtml = escapeHtml(opts.desc ?? '').replace(/\n/g, '<br>');
-        return (
-            `<div class="ai-head"${opts.levelIcon ? ` style="color:${THEME.ui.brassLight}"` : ''}>` +
-            `${opts.icon ? iconHtml(opts.icon, opts.levelIcon ? 'ai-icon mask-ico' : 'ai-icon') : ''}` +
-            `<span class="ai-title">${escapeHtml(opts.title)}</span>` +
-            ings +
-            `</div>` +
-            (descHtml ? `<div class="ai-desc">${descHtml}</div>` : '')
-        );
     }
 
     private hideActionInfo(): void {
@@ -2873,29 +2846,7 @@ export class Hud {
 
     /** the face of a specialist card (static data only — safe for innerHTML) */
     private startCardFace(c: StartCard): string {
-        const forge = startCardForgeIcons(c);
-        const forgeRow =
-            forge.length > 0
-                ? `<div class="c-forge-spells">${forge
-                      .map(
-                          (f) =>
-                              `<span class="c-forge-spell-hit" data-spell-tip="1" ` +
-                              `data-ttitle="${escapeAttr(f.name)}" ` +
-                              `data-tdesc="${escapeAttr(f.desc)}" ` +
-                              `data-ticon="${escapeAttr(f.icon)}" ` +
-                              `data-forge-ings="${escapeAttr(f.ingredientIcons.join(','))}">` +
-                              `${iconHtml(f.icon, 'c-forge-spell-ico')}</span>`,
-                      )
-                      .join('')}</div>`
-                : '';
-        return (
-            `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
-            `<div class="c-title">${c.title}</div>` +
-            `<div class="c-units">${c.unitsLabel}</div>` +
-            `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
-            `<div class="c-desc">${c.description}</div>` +
-            forgeRow
-        );
+        return startCardFaceHtml(c);
     }
 
     /** the pre-round-1 loadout pick: four cards, click one, the game begins.
@@ -3109,56 +3060,11 @@ export class Hud {
 
     /** mouse hover details for forge spells on specialist cards / recipe tiles */
     private bindCardSpellTips(root: HTMLElement): void {
-        root.addEventListener('pointerover', (e) => {
-            if ((e as PointerEvent).pointerType === 'touch') return;
-            const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-spell-tip]');
-            if (!hit || !root.contains(hit)) return;
-            this.showCardSpellTip(hit);
-        });
-        root.addEventListener('pointerout', (e) => {
-            if ((e as PointerEvent).pointerType === 'touch') return;
-            const from = (e.target as HTMLElement).closest<HTMLElement>('[data-spell-tip]');
-            const to = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-spell-tip]');
-            if (from && from !== to) this.hideCardSpellTip();
-        });
-    }
-
-    private showCardSpellTip(el: HTMLElement): void {
-        const title = el.dataset.ttitle ?? '';
-        const desc = el.dataset.tdesc ?? '';
-        const icon = el.dataset.ticon ?? '';
-        if (!title && !desc) return;
-        if (!this.cardSpellTip) {
-            this.cardSpellTip = document.createElement('div');
-            this.cardSpellTip.className = 'mechili-card-spell-tip';
-            document.body.appendChild(this.cardSpellTip);
-        }
-        const tip = this.cardSpellTip;
-        tip.innerHTML = this.spellInfoFrameHtml({
-            title,
-            desc,
-            icon,
-            ingredientIcons: (el.dataset.forgeIngs ?? '').split(',').filter(Boolean),
-        });
-        tip.style.display = 'block';
-        const rect = el.getBoundingClientRect();
-        const tipW = 280;
-        let left = rect.right + 10;
-        const top = rect.top;
-        if (left + tipW > window.innerWidth - 8) left = Math.max(8, rect.left - tipW - 10);
-        tip.style.left = `${left}px`;
-        tip.style.top = `${top}px`;
-        requestAnimationFrame(() => {
-            if (!this.cardSpellTip) return;
-            const h = this.cardSpellTip.offsetHeight;
-            const maxTop = window.innerHeight - h - 8;
-            this.cardSpellTip.style.top = `${Math.max(8, Math.min(top, maxTop))}px`;
-        });
+        this.cardSpellTips.bind(root);
     }
 
     private hideCardSpellTip(): void {
-        if (!this.cardSpellTip) return;
-        this.cardSpellTip.style.display = 'none';
+        this.cardSpellTips.hide();
     }
 
     /** this match's settings, described once at match start (see game/settings.ts's
@@ -3490,8 +3396,7 @@ export class Hud {
         this.itemGhost = null;
         this.cinemaHint?.remove();
         this.cinemaHint = null;
-        this.cardSpellTip?.remove();
-        this.cardSpellTip = null;
+        this.cardSpellTips.destroy();
         for (const el of this.mountedRoots) {
             el.remove();
         }

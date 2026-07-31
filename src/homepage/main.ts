@@ -1,5 +1,5 @@
 import { buildingAbilities } from '../game/buildingAbilities';
-import { START_CARDS, ROUND_RUNE_CARDS, roundCardIcon, startCardForgeIcons, type RoundCard, type StartCard } from '../game/cards';
+import { START_CARDS, ROUND_RUNE_CARDS, roundCardIcon, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { forgeRecipesForRuneCard } from '../game/forgeRecipes';
 import { ITEMS } from '../game/items';
@@ -18,6 +18,7 @@ import {
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
 import { hudStyles, menuStyles } from '../theme';
+import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { iconHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from './modelViewer';
@@ -110,31 +111,7 @@ function esc(s: string): string {
 }
 
 function startCardFace(c: StartCard): string {
-    const forge = startCardForgeIcons(c);
-    const forgeRow =
-        forge.length > 0
-            ? `<div class="c-forge-spells">${forge
-                  .map(
-                      (f) =>
-                          `<span class="c-forge-spell-hit" title="${esc(
-                              `${f.name}\n${f.desc}${
-                                  f.ingredientIcons.length
-                                      ? `\nRunes: ${f.ingredientIcons.length}`
-                                      : ''
-                              }`,
-                          )}">` +
-                          `${iconHtml(f.icon, 'c-forge-spell-ico')}</span>`,
-                  )
-                  .join('')}</div>`
-            : '';
-    return (
-        `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
-        `<div class="c-title">${esc(c.title)}</div>` +
-        `<div class="c-units">${esc(c.unitsLabel)}</div>` +
-        `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
-        `<div class="c-desc">${esc(c.description)}</div>` +
-        forgeRow
-    );
+    return startCardFaceHtml(c);
 }
 
 function roundCardFace(c: RoundCard): string {
@@ -921,3 +898,7 @@ function wireCardSelect(selectId: string, cardSelector: string): void {
 wireCardSelect('mh-specialists-select', '#mh-specialists-row > .card');
 wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
 wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
+
+const commanderSpellTips = new CardSpellTips();
+const specialistsRow = document.getElementById('mh-specialists-row');
+if (specialistsRow) commanderSpellTips.bind(specialistsRow);
