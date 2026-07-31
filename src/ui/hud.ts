@@ -1690,22 +1690,13 @@ export class Hud {
         );
     }
 
-    /** bake + paths beside a hovered forge rune / empty slot */
+    /** bake + paths beside a hovered forge rune; recipe tiles beside an empty slot */
     private syncForgeSlotHoverPreview(anchor: HTMLElement | null): void {
         if (
             !anchor ||
             !this.isForgePreviewSlot(anchor) ||
             this.itemGhost?.classList.contains('forge-preview')
         ) {
-            this.hideForgeSlotHoverPreview();
-            return;
-        }
-        const view = forgePreviewView(
-            this.lastForgeOvenIds,
-            null,
-            this.lastForgeSpellPool,
-        );
-        if (!view.bakeIcon && view.paths.length === 0) {
             this.hideForgeSlotHoverPreview();
             return;
         }
@@ -1716,6 +1707,34 @@ export class Hud {
             document.body.appendChild(this.forgeSlotPreviewEl);
         }
         this.forgeSlotPreviewAnchor = anchor;
+
+        // empty oven circles: show the same recipe tiles as specialist detail
+        if (anchor.classList.contains('empty')) {
+            const recipes = this.forgeRecipesBlockHtml(
+                this.lastForgeSpellPool,
+                this.lastForgeOvenIds,
+            );
+            if (!recipes) {
+                this.hideForgeSlotHoverPreview();
+                return;
+            }
+            this.forgeSlotPreviewEl.classList.add('recipes');
+            this.forgeSlotPreviewEl.innerHTML = recipes;
+            this.forgeSlotPreviewEl.hidden = false;
+            this.positionForgeSlotHoverPreview();
+            return;
+        }
+
+        const view = forgePreviewView(
+            this.lastForgeOvenIds,
+            null,
+            this.lastForgeSpellPool,
+        );
+        if (!view.bakeIcon && view.paths.length === 0) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        this.forgeSlotPreviewEl.classList.remove('recipes');
         this.forgeSlotPreviewEl.innerHTML = this.forgeSpellColsHtml(view);
         this.forgeSlotPreviewEl.hidden = false;
         this.positionForgeSlotHoverPreview();
@@ -1726,14 +1745,37 @@ export class Hud {
         const anchor = this.forgeSlotPreviewAnchor;
         if (!el || !anchor || el.hidden) return;
         const rect = anchor.getBoundingClientRect();
-        el.style.left = `${Math.round(rect.right + 6)}px`;
-        el.style.top = `${Math.round(rect.top + rect.height / 2)}px`;
+        const pad = 8;
+        const gap = 6;
+
+        if (!el.classList.contains('recipes')) {
+            el.style.left = `${Math.round(rect.right + gap)}px`;
+            el.style.top = `${Math.round(rect.top + rect.height / 2)}px`;
+            return;
+        }
+
+        el.style.maxHeight = `${Math.round(window.innerHeight - pad * 2)}px`;
+        const w = el.offsetWidth;
+        const h = el.offsetHeight;
+
+        let left = rect.right + gap;
+        if (left + w > window.innerWidth - pad) left = rect.left - gap - w;
+        left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+
+        // shift up so the full recipe list stays on screen
+        let top = rect.top;
+        if (top + h > window.innerHeight - pad) top = window.innerHeight - pad - h;
+        top = Math.max(pad, top);
+
+        el.style.left = `${Math.round(left)}px`;
+        el.style.top = `${Math.round(top)}px`;
     }
 
     private hideForgeSlotHoverPreview(): void {
         this.forgeSlotPreviewAnchor = null;
         if (this.forgeSlotPreviewEl) {
             this.forgeSlotPreviewEl.hidden = true;
+            this.forgeSlotPreviewEl.classList.remove('recipes');
             this.forgeSlotPreviewEl.replaceChildren();
         }
     }

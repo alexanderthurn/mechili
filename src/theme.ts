@@ -2491,6 +2491,49 @@ ${fontFaceCss()}
 .forge-slot-preview[hidden] {
     display: none !important;
 }
+.forge-slot-preview.recipes {
+    flex-direction: column;
+    transform: none;
+    align-items: stretch;
+    gap: 0;
+    max-height: min(70vh, 440px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.94), rgba(22, 34, 19, 0.96));
+    border: 1.5px solid ${u.border};
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.forge-slot-preview.recipes .forge-recipes-block {
+    margin: 0;
+    padding: 0;
+}
+.forge-slot-preview.recipes .forge-tile-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.forge-slot-preview.recipes .forge-tile {
+    padding: 6px 8px;
+    column-gap: 4px;
+    row-gap: 2px;
+    background: ${u.panelBgDark};
+    border-color: ${u.border};
+    min-width: 168px;
+    max-width: 220px;
+}
+.forge-slot-preview.recipes .forge-tile .forge-spell {
+    width: 26px;
+    height: 26px;
+}
+.forge-slot-preview.recipes .forge-tile-ings .forge-ing {
+    width: 22px;
+    height: 22px;
+}
+.forge-slot-preview.recipes .forge-tile-name {
+    font-size: 11px;
+}
 .forge-slot-preview .inv-drag-spell {
     display: flex;
     flex-direction: column;
