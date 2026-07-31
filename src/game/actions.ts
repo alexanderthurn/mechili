@@ -12,7 +12,9 @@ import {
 } from './fire';
 import { ITEMS, itemSlotLimit } from './items';
 import {
-    FORGE_SLOT_COUNT,
+    FORGE_SLOTS_PER_PLAYER,
+    forgeSeatCanInsert,
+    forgeSeatFilledCount,
     type ForgeSlot,
 } from './forgeRecipes';
 import { isTechSelectedForUnit, techById } from './techCatalog';
@@ -189,8 +191,15 @@ export interface ForgeInsertAction {
     kind: 'forgeInsert';
     team: Team;
     itemId: string;
-    /** empty oven index 0..FORGE_SLOT_COUNT-1; omitted = first empty */
+    /** empty oven index 0..capacity-1; omitted = first empty */
     slot?: number;
+}
+/** places several bag runes into the forge in one step (recipe quick-fill) */
+export interface ForgeFillAction {
+    kind: 'forgeFill';
+    team: Team;
+    /** rune ids to insert (order preserved into successive empty slots) */
+    itemIds: string[];
 }
 /** returns the inserter's this-deploy forge rune to their bag */
 export interface ForgeRemoveAction {
@@ -298,6 +307,7 @@ type ActionVariant =
     | ApplyItemAction
     | RemoveItemAction
     | ForgeInsertAction
+    | ForgeFillAction
     | ForgeRemoveAction
     | RoundCardAction
     | ForfeitSideAction
@@ -343,8 +353,10 @@ interface LogEntry extends LoggedAction {
     grantedTactics?: string[];
     /** the one-shot tactic charge this action consumed, if any (see consumeTacticCharge) */
     usedTactic?: string;
-    /** applyItem / removeItem: slot index on the pack */
+    /** applyItem / removeItem / forgeInsert: slot index on the pack or oven */
     itemSlot?: number;
+    /** forgeFill: oven slots written (for undo) */
+    forgeFillSlots?: { slot: number; itemId: string }[];
     /** removeItem: round the rune was originally applied (for undo re-attach) */
     itemAppliedRound?: number;
     /** placeRallyRoute: the spawned route */
@@ -406,8 +418,9 @@ export interface ActionContext {
     /** per-SEAT tactical order charges (e.g. rally routes) — not pack items */
     tactics: string[][];
     /**
-     * Shared Stronghold forge oven per side (3 slots). Insert/remove are
-     * logged; burn+grant happens in Game.startBuildPhase (not an action).
+     * Shared Stronghold forge oven per side. Each seat may fill up to
+     * FORGE_SLOTS_PER_PLAYER; duo trays hold twice that. Insert/remove/fill
+     * are logged; burn+grant happens in Game.startBuildPhase (not an action).
      */
     forgeSlots: Record<Team, (ForgeSlot | null)[]>;
     /** rally routes placed this deployment round (cleared each round) */
@@ -920,11 +933,12 @@ export class ActionDispatcher {
             case 'forgeInsert': {
                 if (!ITEMS[action.itemId]) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
+                if (!forgeSeatCanInsert(oven, seat)) return false;
                 let slot = action.slot;
                 if (slot === undefined) {
                     slot = oven.findIndex((s) => s === null);
                 }
-                if (slot < 0 || slot >= FORGE_SLOT_COUNT || oven[slot] !== null) return false;
+                if (slot < 0 || slot >= oven.length || oven[slot] !== null) return false;
                 const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);
                 if (held < 0) return false;
@@ -933,10 +947,43 @@ export class ActionDispatcher {
                 entry.itemSlot = slot;
                 return true;
             }
+            case 'forgeFill': {
+                const ids = action.itemIds;
+                if (ids.length === 0 || ids.length > FORGE_SLOTS_PER_PLAYER) return false;
+                for (const id of ids) {
+                    if (!ITEMS[id]) return false;
+                }
+                const oven = this.ctx.forgeSlots[action.team]!;
+                if (forgeSeatFilledCount(oven, seat) + ids.length > FORGE_SLOTS_PER_PLAYER) {
+                    return false;
+                }
+                const emptyCount = oven.reduce((n, s) => n + (s === null ? 1 : 0), 0);
+                if (emptyCount < ids.length) return false;
+                const inventory = this.ctx.items[seat]!;
+                const bag = new Map<string, number>();
+                for (const id of inventory) bag.set(id, (bag.get(id) ?? 0) + 1);
+                const need = new Map<string, number>();
+                for (const id of ids) need.set(id, (need.get(id) ?? 0) + 1);
+                for (const [id, n] of need) {
+                    if ((bag.get(id) ?? 0) < n) return false;
+                }
+                const placed: { slot: number; itemId: string }[] = [];
+                for (const itemId of ids) {
+                    const slot = oven.findIndex((s) => s === null);
+                    if (slot < 0) return false;
+                    const held = inventory.indexOf(itemId);
+                    if (held < 0) return false;
+                    inventory.splice(held, 1);
+                    oven[slot] = { itemId, seat, round: entry.round };
+                    placed.push({ slot, itemId });
+                }
+                entry.forgeFillSlots = placed;
+                return true;
+            }
             case 'forgeRemove': {
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const { slot, itemId } = action;
-                if (slot < 0 || slot >= FORGE_SLOT_COUNT) return false;
+                if (slot < 0 || slot >= oven.length) return false;
                 const cur = oven[slot];
                 if (!cur || cur.itemId !== itemId) return false;
                 // only the inserter, and only this deploy (same as pack remove)
@@ -1325,6 +1372,17 @@ export class ActionDispatcher {
                 const slot = e.itemSlot ?? action.slot ?? 0;
                 oven[slot] = null;
                 this.ctx.items[seat]!.push(action.itemId);
+                break;
+            }
+            case 'forgeFill': {
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const placed = e.forgeFillSlots ?? [];
+                // remove in reverse so later slots stay valid if we ever compacted
+                for (let i = placed.length - 1; i >= 0; i--) {
+                    const p = placed[i]!;
+                    oven[p.slot] = null;
+                    this.ctx.items[seat]!.push(p.itemId);
+                }
                 break;
             }
             case 'forgeRemove': {

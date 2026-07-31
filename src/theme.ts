@@ -2118,6 +2118,20 @@ ${fontFaceCss()}
 .mechili-panel .action-info .ai-icon { font-size: 28px; line-height: 1; }
 .mechili-panel .action-info .ai-title { font-size: 14px; font-weight: bold; color: ${u.brassLight}; }
 .mechili-panel .action-info .ai-desc { font-size: 12px; line-height: 1.5; color: ${u.text}; margin-top: 8px; }
+.mechili-panel .action-info .ai-forge-ings {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+    align-items: center;
+}
+.mechili-panel .action-info .ai-forge-ing {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+}
 .mechili-panel .action-info .ai-note { font-size: 11px; color: ${u.textMuted}; margin-top: 6px; font-style: italic; }
 .mechili-panel .action-info .ai-cost { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: bold; color: ${u.brass}; }
 .mechili-panel .action-info .ai-cost.refund { color: ${u.techOwned}; }
@@ -2522,6 +2536,15 @@ ${fontFaceCss()}
     border-color: ${u.brassLight};
     color: ${u.text};
     filter: brightness(1.1);
+}
+.mechili-panel .item-sq.forge-suggest {
+    cursor: pointer;
+    box-shadow: 0 0 0 1.5px rgba(0, 255, 102, 0.55);
+    opacity: 0.95;
+}
+.mechili-panel .item-sq.forge-suggest:hover {
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.9), 0 0 10px rgba(0, 255, 102, 0.35);
+    filter: brightness(1.12);
 }
 
 .forge-detail .forge-group-note {

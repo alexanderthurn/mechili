@@ -28,11 +28,13 @@ import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import {
-    FORGE_SLOT_COUNT,
     emptyForgeSlots,
     forgeHintText,
     forgePreviewView,
     forgeRecipesForRuneCard,
+    forgeRecipesCraftableFromBag,
+    forgeSeatCanInsert,
+    forgeTeamCapacity,
     resolveForge,
     type ForgeSlot,
 } from './forgeRecipes';
@@ -936,6 +938,12 @@ export class Game {
         this.speciality = this.seats.map(() => null);
         this.flankSpawnMult = this.seats.map(() => 1);
         this.techTree = new TechTree(this.seats.length);
+        this.forgeSlots.player = emptyForgeSlots(
+            forgeTeamCapacity(seatIdsOf(this.seats, 'player').length),
+        );
+        this.forgeSlots.enemy = emptyForgeSlots(
+            forgeTeamCapacity(seatIdsOf(this.seats, 'enemy').length),
+        );
         // starts at 0, not settings.startingHp: each seat's own card ADDS its
         // own startingHp in chooseCard (additive, so it's safe regardless of
         // which seat's pick a client applies first) — settings.startingHp is
@@ -1378,6 +1386,9 @@ export class Game {
         };
         this.hud.onRemoveForge = (slot, itemId) => {
             this.forgeRemoveItem(slot, itemId);
+        };
+        this.hud.onForgeFill = (itemIds) => {
+            this.forgeFillItems(itemIds);
         };
         this.hud.onApplyArmedItem = () => {
             const unit = this.placement.selectedUnit;
@@ -5894,7 +5905,7 @@ export class Game {
         if (!this.armedItem || !this.playerCanAct) return false;
         if (unit.type !== STRONGHOLD || unit.team !== 'player') return false;
         if (!ITEMS[this.armedItem]) return false;
-        return this.forgeSlots.player.some((s) => s === null);
+        return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat);
     }
 
     /** press-drag release over the board — equip if the pack under the cursor is valid */
@@ -5956,8 +5967,18 @@ export class Game {
     /** slot a rune into the shared Stronghold forge */
     private forgeInsertItem(itemId: string): boolean {
         if (!this.playerCanAct || !ITEMS[itemId]) return false;
-        if (!this.forgeSlots.player.some((s) => s === null)) return false;
+        if (!forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat)) return false;
         return this.dispatchPlayer({ kind: 'forgeInsert', team: 'player', itemId });
+    }
+
+    /** place several bag runes into the forge at once (empty-forge spell suggestion) */
+    private forgeFillItems(itemIds: readonly string[]): boolean {
+        if (!this.playerCanAct || itemIds.length === 0) return false;
+        return this.dispatchPlayer({
+            kind: 'forgeFill',
+            team: 'player',
+            itemIds: [...itemIds],
+        });
     }
 
     /** drag/click a this-deploy forge rune back to the inserter's bag */
@@ -5983,7 +6004,9 @@ export class Game {
             for (const { itemId, seat } of result.refunds) {
                 this.itemInventory[seat]!.push(itemId);
             }
-            this.forgeSlots[team] = emptyForgeSlots();
+            this.forgeSlots[team] = emptyForgeSlots(
+                forgeTeamCapacity(seatIdsOf(this.seats, team).length),
+            );
         }
     }
 
@@ -8011,11 +8034,26 @@ export class Game {
         const hintSlots: (ForgeSlot | null)[] = snapIds
             ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
             : live;
+        const slotCount = snapIds?.length ?? live.length;
+        const ovenEmpty = !fogged && live.every((s) => s === null);
+        const suggestions =
+            ovenEmpty && canBuy && !this.armedItem
+                ? forgeRecipesCraftableFromBag(this.itemInventory[this.humanSeat] ?? []).map(
+                      (r) => ({
+                          tacticId: r.tacticId,
+                          icon: r.spellIcon,
+                          name: r.spellName,
+                          desc: r.spellDesc,
+                          itemIds: r.ingredients,
+                      }),
+                  )
+                : [];
         out.forge = {
-            slotCount: FORGE_SLOT_COUNT,
+            slotCount,
             dropReady: !fogged && this.canDropForgeOn(u),
             hint: forgeHintText(hintSlots, fogged ? 'this' : 'next'),
-            slots: Array.from({ length: FORGE_SLOT_COUNT }, (_, i) => {
+            suggestions,
+            slots: Array.from({ length: slotCount }, (_, i) => {
                 if (snapIds) {
                     const id = snapIds[i];
                     if (!id) return null;

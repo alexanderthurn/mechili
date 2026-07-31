@@ -8,6 +8,7 @@ import {
     forgeRecipeMatch,
     type ForgePreviewView,
 } from '../game/forgeRecipes';
+import { ITEMS } from '../game/items';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
@@ -123,6 +124,17 @@ export interface SelectionInfo {
         dropReady: boolean;
         /** predicted burn outcome for the current tray */
         hint: string;
+        /**
+         * When the oven is empty: spells craftable from the player's bag,
+         * shown in the empty slot circles — click fills all needed runes.
+         */
+        suggestions?: {
+            tacticId: string;
+            icon: string;
+            name: string;
+            desc: string;
+            itemIds: string[];
+        }[];
         /** parallel to slotCount; null = empty */
         slots: ({
             icon: string;
@@ -219,6 +231,8 @@ export class Hud {
     onRemoveItem: ((unitId: number, itemId: string, slot: number) => void) | null = null;
     /** drag/click a this-deploy forge rune back to the inserter's bag */
     onRemoveForge: ((slot: number, itemId: string) => void) | null = null;
+    /** empty-forge spell suggestion: place all recipe runes at once */
+    onForgeFill: ((itemIds: string[]) => void) | null = null;
     /** while dragging a rune/spell from the strip — keep world hover in sync */
     onInventoryDragMove: ((clientX: number, clientY: number) => void) | null = null;
     /**
@@ -704,6 +718,11 @@ export class Hud {
                     '.item-sq.empty.drop-target',
                 );
                 if (emptySlot) this.onApplyArmedItem?.();
+                const fill = (e.target as HTMLElement).closest<HTMLElement>('.forge-suggest');
+                if (fill?.dataset.forgeFill) {
+                    const itemIds = fill.dataset.forgeFill.split(',').filter(Boolean);
+                    if (itemIds.length > 0) this.onForgeFill?.(itemIds);
+                }
                 return;
             }
             // locked (unaffordable / not ready) and owned tiles stay hoverable
@@ -1653,6 +1672,7 @@ export class Hud {
         return (
             el.classList.contains('item-sq') &&
             !el.classList.contains('forge-help') &&
+            !el.classList.contains('forge-suggest') &&
             !!el.closest('.forge-row')
         );
     }
@@ -2231,6 +2251,20 @@ export class Hud {
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
                   if (!item) {
+                      const suggest = forge.suggestions?.[i];
+                      if (suggest) {
+                          const ingIcons = suggest.itemIds
+                              .map((id) => ITEMS[id]?.icon)
+                              .filter((id): id is string => !!id);
+                          return (
+                              `<span class="item-sq m-icon forge-suggest" style="${iconCss(suggest.icon)}" ` +
+                              `data-forge-fill="${escapeAttr(suggest.itemIds.join(','))}" ` +
+                              `data-forge-ings="${escapeAttr(ingIcons.join(','))}" ` +
+                              `data-ttitle="${escapeAttr(suggest.name)}" ` +
+                              `data-tdesc="${escapeAttr(`${suggest.desc}\nClick to place these ${DISPLAY.items.toLowerCase()} in the forge.`)}" ` +
+                              `data-ticon="${escapeAttr(suggest.icon)}"></span>`
+                          );
+                      }
                       const slot = i + 1;
                       const drop = forge.dropReady ? ' drop-target' : '';
                       return (
@@ -2385,11 +2419,20 @@ export class Hud {
                 ? `<button type="button" class="ai-buy">Buy${cost ? ` · ⬢ ${cost}` : ''}</button>`
                 : '';
         const levelIcon = !!d.ticon?.startsWith('ability-level');
+        const descHtml = (d.tdesc ?? '').replace(/\n/g, '<br>');
+        const ingIcons = (d.forgeIngs ?? '').split(',').filter(Boolean);
+        const ingsHtml =
+            ingIcons.length > 0
+                ? `<div class="ai-forge-ings">${ingIcons
+                      .map((ico) => iconHtml(ico, 'ai-forge-ing'))
+                      .join('')}</div>`
+                : '';
         frame.innerHTML =
             `<div class="ai-head"${levelIcon ? ` style="color:${THEME.ui.brassLight}"` : ''}>` +
             `${d.ticon ? iconHtml(d.ticon, levelIcon ? 'ai-icon mask-ico' : 'ai-icon') : ''}` +
             `<span class="ai-title">${d.ttitle ?? ''}</span></div>` +
-            `<div class="ai-desc">${d.tdesc ?? ''}</div>` +
+            `<div class="ai-desc">${descHtml}</div>` +
+            ingsHtml +
             note +
             costLine +
             touchBuy;

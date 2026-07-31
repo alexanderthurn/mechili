@@ -1,5 +1,6 @@
 /**
- * Stronghold forge: shared 3-slot oven per side. Multiset recipes → one spell
+ * Stronghold forge: shared oven per side. Each player may fill up to
+ * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6). Multiset recipes → one spell
  * next deploy (best / largest match); unused runes refund to their inserters.
  *
  * One recipe per spell. Singles are weak experiments; stronger spells use
@@ -24,7 +25,10 @@ import {
 import { ITEMS } from './items';
 import { DISPLAY } from './displayNames';
 
-export const FORGE_SLOT_COUNT = 3;
+/** Max runes one player may insert into the shared forge */
+export const FORGE_SLOTS_PER_PLAYER = 3;
+/** @deprecated alias of {@link FORGE_SLOTS_PER_PLAYER} */
+export const FORGE_SLOT_COUNT = FORGE_SLOTS_PER_PLAYER;
 
 export interface ForgeSlot {
     itemId: string;
@@ -42,9 +46,35 @@ export interface ForgeRecipe {
     priority: number;
 }
 
-/** one empty tray */
-export function emptyForgeSlots(): (ForgeSlot | null)[] {
-    return Array.from({ length: FORGE_SLOT_COUNT }, () => null);
+/** Shared oven size for a side: each seat may fill {@link FORGE_SLOTS_PER_PLAYER}. */
+export function forgeTeamCapacity(teamSeatCount: number): number {
+    return Math.max(1, teamSeatCount) * FORGE_SLOTS_PER_PLAYER;
+}
+
+/** How many oven runes this seat currently owns. */
+export function forgeSeatFilledCount(
+    oven: readonly (ForgeSlot | null)[],
+    seat: SeatId,
+): number {
+    let n = 0;
+    for (const s of oven) {
+        if (s && s.seat === seat) n++;
+    }
+    return n;
+}
+
+/** True if this seat may insert another rune (empty tray slot + under personal cap). */
+export function forgeSeatCanInsert(
+    oven: readonly (ForgeSlot | null)[],
+    seat: SeatId,
+): boolean {
+    if (forgeSeatFilledCount(oven, seat) >= FORGE_SLOTS_PER_PLAYER) return false;
+    return oven.some((s) => s === null);
+}
+
+/** one empty tray sized for the side (default = solo / per-player size) */
+export function emptyForgeSlots(capacity = FORGE_SLOTS_PER_PLAYER): (ForgeSlot | null)[] {
+    return Array.from({ length: capacity }, () => null);
 }
 
 /**
@@ -195,9 +225,6 @@ export function forgeOvenPreview(
 ): ForgeDragPreview {
     let next = [...ovenItemIds];
     if (addingItemId) {
-        if (next.length >= FORGE_SLOT_COUNT) {
-            return { bakeTacticId: null, paths: [] };
-        }
         next.push(addingItemId);
     }
     if (next.length === 0) {
@@ -264,8 +291,8 @@ export function forgeHintText(
     const whenLabel = when === 'this' ? 'This deploy' : 'Next deploy';
     if (filled.length === 0) {
         return (
-            `Slot up to ${FORGE_SLOT_COUNT} runes. Next deploy they burn into one spell ` +
-            `(best match); unused runes return to their owners' bags.`
+            `Each player can slot up to ${FORGE_SLOTS_PER_PLAYER} runes in the shared forge. ` +
+            `Next deploy they burn into one spell (best match); unused runes return to their owners' bags.`
         );
     }
     const result = resolveForge(slots);
@@ -332,10 +359,45 @@ export function forgeHelpRows(): ForgeHelpRow[] {
 
 export function forgeHowItWorksNote(): string {
     return (
-        `Slot up to ${FORGE_SLOT_COUNT} ${DISPLAY.items.toLowerCase()} in the shared Stronghold forge. ` +
+        `Each player slots up to ${FORGE_SLOTS_PER_PLAYER} ${DISPLAY.items.toLowerCase()} ` +
+        `in the shared Stronghold forge (allies share one oven). ` +
         `Next deploy they burn into one ${DISPLAY.tactic.toLowerCase()} (largest match); ` +
-        `leftovers return to their owners. Only you can remove what you inserted this deploy.`
+        `leftovers return to their owners. Only you can remove what you inserted this deploy. ` +
+        `When the forge is empty, click a suggested spell to place all its runes at once.`
     );
+}
+
+/** Recipes the bag can fully pay for right now (largest first). */
+export function forgeRecipesCraftableFromBag(bagItemIds: readonly string[]): {
+    tacticId: string;
+    ingredients: string[];
+    spellIcon: string;
+    spellName: string;
+    spellDesc: string;
+}[] {
+    const have = countMultiset([...bagItemIds]);
+    const out: {
+        tacticId: string;
+        ingredients: string[];
+        spellIcon: string;
+        spellName: string;
+        spellDesc: string;
+    }[] = [];
+    for (const recipe of sortedRecipes()) {
+        if (recipe.ingredients.length > FORGE_SLOTS_PER_PLAYER) continue;
+        const need = countMultiset(recipe.ingredients);
+        if (!recipeFits(need, have)) continue;
+        const tactic = TACTICS[recipe.tacticId];
+        if (!tactic) continue;
+        out.push({
+            tacticId: recipe.tacticId,
+            ingredients: [...recipe.ingredients],
+            spellIcon: tactic.icon,
+            spellName: tactic.name,
+            spellDesc: tactic.description,
+        });
+    }
+    return out;
 }
 
 /**
