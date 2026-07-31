@@ -53,8 +53,8 @@ export const TECHS: Record<string, TechDef> = {
         icon: 'tech-fire-arrows',
         description: 'Arrows leave a brief ground fire and burn — enough to ignite oil puddles.',
         fire: {
-            burn: { dps: 14, duration: 8 },
-            ground: { radius: 2.5, duration: 8, intensity: 14 },
+            burn: { dps: 21, duration: 8 },
+            ground: { radius: 2.5, duration: 8, intensity: 21 },
         },
     },
     engines: {

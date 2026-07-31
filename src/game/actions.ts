@@ -2,6 +2,7 @@ import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, star
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
+    FIRE_TINT_DRAGON,
     HAZARD_POUR_DELAY_SEC,
     HAZARD_POUR_DURATION_SEC,
     HazardField,
@@ -1589,6 +1590,7 @@ export function prepareHazardPours(
             intensity: ignite.intensity,
             damage: ignite.damage,
             fallSeconds: 0,
+            tint: FIRE_TINT_DRAGON,
         });
     }
     return pours;

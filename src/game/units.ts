@@ -628,7 +628,7 @@ export const UNIT_TYPES: UnitType[] = [
         // splash + lingering burn + ground fire (oil connected to this ignites)
         fire: {
             burn: { dps: 28, duration: 12 },
-            ground: { radius: 8, duration: 20, intensity: 18 },
+            ground: { radius: 8, duration: 20, intensity: 27 },
         },
         burn: { takenMult: 0 }, // the bolt itself doesn't cook
         targets: { ground: true, air: true }, // what it may home onto / hurt

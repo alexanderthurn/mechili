@@ -1,6 +1,7 @@
-import { PointLight, type Scene } from 'three';
+import { Color, PointLight, type Scene } from 'three';
 import { groundSupportAt } from './map';
 import type { HazardField } from './fire';
+import { FIRE_TINT_DRAGON } from './fire';
 import { prefs, type FireVfxQuality } from './prefs';
 import type { Particles } from './effects';
 import { FlameRenderer } from './flameRenderer';
@@ -9,6 +10,18 @@ import type { Actor, SimEvent } from './sim';
 function usesTongues(q: FireVfxQuality): boolean {
     return q === 'medium' || q === 'high';
 }
+
+const ORANGE_EMBER = 0xff6a18;
+const ORANGE_CORE = 0xffd040;
+const ORANGE_HOT = 0xff2200;
+const ORANGE_SPARK = 0xff5510;
+// dragon: orange + deep blue accents (icea = full icy; see FIRE_TINT_DRAGON)
+const AZURE_EMBER = 0xff7030;
+const AZURE_CORE = 0xffc878;
+const AZURE_HOT = 0x2840a0;
+const AZURE_SPARK = 0xff8238;
+const LIGHT_ORANGE = new Color(0xff7a28);
+const LIGHT_AZURE = new Color(0xe07040);
 
 /**
  * Fire VFX — visual only (may use Math.random). Anchors flames at terrain height.
@@ -66,10 +79,12 @@ export class FireFx {
     private updateFireLight(dt: number, field: HazardField, now: number): void {
         if (!usesTongues(this.quality)) return;
         let total = 0;
+        let dragon = 0;
         let cx = 0;
         let cz = 0;
-        field.forEachFireCell(now, (x, z) => {
+        field.forEachFireCell(now, (x, z, _dps, _until, tint) => {
             total++;
+            if (tint === FIRE_TINT_DRAGON) dragon++;
             cx += x;
             cz += z;
         });
@@ -95,6 +110,7 @@ export class FireFx {
         // two incommensurate sine waves ≈ organic flicker without randomness
         const flicker = 0.82 + 0.12 * Math.sin(t * 11.3) + 0.06 * Math.sin(t * 27.7);
         const size = Math.min(1, total / 24); // small fires glow less
+        this.fireLight.color.copy(LIGHT_ORANGE).lerp(LIGHT_AZURE, dragon / total);
         this.fireLight.position.set(bestX, groundSupportAt(bestX, bestZ) + 2.4, bestZ);
         this.fireLight.intensity = (this.quality === 'high' ? 260 : 170) * size * flicker;
         this.fireLight.distance = 30 + 26 * size;
@@ -107,17 +123,18 @@ export class FireFx {
         for (const e of events) {
             if (e.kind !== 'groundFire') continue;
             const y = e.y + 0.2;
+            const azure = e.tint === FIRE_TINT_DRAGON;
             const count = maxTier ? 40 : rich ? 28 : 10;
             this.particles.burst(e.x, y, e.z, {
                 count,
-                color: 0xff6a18,
+                color: azure ? AZURE_EMBER : ORANGE_EMBER,
                 speed: 6,
                 life: 0.7,
                 up: 8,
             });
             this.particles.burst(e.x, y + 0.4, e.z, {
                 count: maxTier ? 22 : rich ? 14 : 5,
-                color: 0xffd040,
+                color: azure ? AZURE_CORE : ORANGE_CORE,
                 speed: 4,
                 life: 0.45,
                 up: 10,
@@ -125,7 +142,7 @@ export class FireFx {
             if (e.oilCells > 0) {
                 this.particles.burst(e.x, y + 0.2, e.z, {
                     count: maxTier ? 32 : rich ? 20 : 8,
-                    color: 0xff2200,
+                    color: azure ? AZURE_HOT : ORANGE_HOT,
                     speed: 9,
                     life: 0.9,
                     up: 12,
@@ -230,14 +247,14 @@ export class FireFx {
         // stable subset — rotating phase made sparks hop and felt laggy
         let i = 0;
         let n = 0;
-        field.forEachFireCell(now, (x, z) => {
+        field.forEachFireCell(now, (x, z, _dps, _until, tint) => {
             if (n >= budget) return;
             if (i++ % stride !== 0) return;
             if (this.quality === 'low' && ((Math.floor(x) + Math.floor(z)) & 1) === 0) return;
             const y = groundSupportAt(x, z) + 0.15;
             this.particles.burst(x, y, z, {
                 count: maxTier ? 4 : rich ? 3 : 1,
-                color: 0xff5510,
+                color: tint === FIRE_TINT_DRAGON ? AZURE_SPARK : ORANGE_SPARK,
                 speed: 2.5,
                 life: 0.55,
                 up: 6,

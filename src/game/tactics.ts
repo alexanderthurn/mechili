@@ -321,7 +321,7 @@ export const TACTICS: Record<
         maxSpan: 24 * CELL,
         spell: {
             delaySeconds: 5,
-            igniteCapsule: { burnSeconds: 4, intensity: 28, damage: 900 },
+            igniteCapsule: { burnSeconds: 4, intensity: 48, damage: 1400 },
         },
         description:
             'Draw the dragon’s strafing path (wider and longer than oil). It dives in and breathes fire along the corridor — the beam scorches units as it passes and paints the ground ablaze. Ward domes absorb the breath (and pay for it).',

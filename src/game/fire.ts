@@ -31,7 +31,7 @@ export const ACID_DPS_PERCENT = 3;
 /** Fire Spill — same capsule as oil/acid; battle-seconds burn (not round expiry) */
 export const FIRE_SPILL_RADIUS = 4 * CELL;
 export const FIRE_SPILL_BURN_SEC = 12;
-export const FIRE_SPILL_INTENSITY = 14;
+export const FIRE_SPILL_INTENSITY = 21;
 
 /** after battle freeze, wait this long before the first drip starts falling */
 export const HAZARD_POUR_DELAY_SEC = 0.55;
@@ -58,6 +58,8 @@ export interface HazardPour {
     burnSeconds?: number;
     /** fire only: DPS intensity for the stamped disc */
     intensity?: number;
+    /** fire only: {@link FIRE_TINT_NORMAL} or {@link FIRE_TINT_DRAGON} */
+    tint?: number;
     /**
      * Fire only: direct damage applied in the stamped disc when the drip lands
      * (dragon breath). Ward domes absorb like spell strikes.
@@ -72,7 +74,23 @@ export interface HazardPour {
 
 /** Fire Bolt / weapon ground-fire defaults (can be overridden per UnitType.fire) */
 export const DEFAULT_GROUND_FIRE_DURATION = 16;
-export const DEFAULT_GROUND_FIRE_INTENSITY = 14;
+export const DEFAULT_GROUND_FIRE_INTENSITY = 21;
+
+/** visual tint for ground fire (sim-stored; VFX + ground shader read it) */
+export const FIRE_TINT_NORMAL = 0;
+/**
+ * Dragon breath — cooler than orange fire (live look is a mild cool wash).
+ *
+ * icea — archived full icy palette (restore if you want the crazy ice look):
+ *   breath tube stops:
+ *     rgba(255,248,235,0.28) → rgba(210,230,255,0.8) → rgba(150,185,235,0.9)
+ *     → rgba(110,140,200,0.82) → rgba(70,85,150,0.6) → rgba(35,40,70,0.28)
+ *   tongue azure: body mix(vec3(0.22,0.28,0.55), vec3(0.45,0.62,0.95)), core vec3(0.92,0.96,1.0)
+ *   particles: ember 0x8eb8ff, core 0xd8ecff, hot 0x4a78e8, spark 0x6a9cff, light 0x7aa8ff
+ *   ground azureCol: mix(vec3(0.04,0.06,0.12), vec3(0.35,0.55,0.95), flicker) @ azureM*0.9
+ *   capsule: fill 0x121828, line 0x8aa8d8
+ */
+export const FIRE_TINT_DRAGON = 1;
 
 /** ground units on oil cells move at this fraction of normal speed */
 export const OIL_SPEED_MULT = 0.55;
@@ -210,6 +228,8 @@ export class HazardField {
     readonly fireUntil: Float32Array;
     /** DPS while standing in this fire cell */
     readonly fireDps: Float32Array;
+    /** visual tint per fire cell ({@link FIRE_TINT_NORMAL} / {@link FIRE_TINT_DRAGON}) */
+    readonly fireTint: Uint8Array;
     /** last inclusive round the acid cell remains (0 = empty) — same model as oilExpires */
     readonly acidExpires: Uint16Array;
 
@@ -224,6 +244,7 @@ export class HazardField {
         this.oilExpires = new Uint16Array(n);
         this.fireUntil = new Float32Array(n);
         this.fireDps = new Float32Array(n);
+        this.fireTint = new Uint8Array(n);
         this.acidExpires = new Uint16Array(n);
     }
 
@@ -239,6 +260,7 @@ export class HazardField {
         (f as { oilExpires: Uint16Array }).oilExpires = new Uint16Array(n);
         (f as { fireUntil: Float32Array }).fireUntil = new Float32Array(n);
         (f as { fireDps: Float32Array }).fireDps = new Float32Array(n);
+        (f as { fireTint: Uint8Array }).fireTint = new Uint8Array(n);
         (f as { acidExpires: Uint16Array }).acidExpires = new Uint16Array(n);
         return f;
     }
@@ -268,6 +290,7 @@ export class HazardField {
     clearFire(): void {
         this.fireUntil.fill(0);
         this.fireDps.fill(0);
+        this.fireTint.fill(0);
     }
 
     clearOil(): void {
@@ -530,6 +553,7 @@ export class HazardField {
         duration: number,
         intensity: number,
         blockedBy: readonly ShieldDisk[] = [],
+        tint: number = FIRE_TINT_NORMAL,
     ): number {
         if (radius <= 0 || duration <= 0 || intensity <= 0) return 0;
         const until = now + duration;
@@ -538,11 +562,11 @@ export class HazardField {
         this.forEachDiscCells(x, z, radius, (wx, wz, cx, cz) => {
             if (blockedBy.length > 0 && insideAnyShield(wx, wz, blockedBy)) return;
             const i = this.index(cx, cz);
-            this.setFireCell(i, until, intensity);
+            this.setFireCell(i, until, intensity, tint);
             if (this.oilExpires[i]! !== 0) seedOil.push(i);
         });
 
-        const consumed = this.igniteConnectedOil(seedOil, until, intensity);
+        const consumed = this.igniteConnectedOil(seedOil, until, intensity, tint);
         // any oil that somehow still sits under the new blaze is gone
         this.consumeOilUnderFire(now);
         return consumed;
@@ -565,12 +589,18 @@ export class HazardField {
         const seeds: number[] = [];
         let until = now;
         let intensity = 0;
+        let tint = FIRE_TINT_NORMAL;
         const neigh = [-1, 1, -this.cellCols, this.cellCols];
         for (let i = 0; i < this.fireUntil.length; i++) {
             const fireUntil = this.fireUntil[i]!;
             if (fireUntil <= now) continue;
             until = Math.max(until, fireUntil);
-            intensity = Math.max(intensity, this.fireDps[i]!);
+            if (this.fireDps[i]! > intensity) {
+                intensity = this.fireDps[i]!;
+                tint = this.fireTint[i]!;
+            } else if (this.fireDps[i]! === intensity && this.fireTint[i]! === FIRE_TINT_DRAGON) {
+                tint = FIRE_TINT_DRAGON;
+            }
             if (this.oilExpires[i]! !== 0) seeds.push(i);
             const cx = i % this.cellCols;
             const cz = (i / this.cellCols) | 0;
@@ -588,15 +618,24 @@ export class HazardField {
             this.consumeOilUnderFire(now);
             return 0;
         }
-        const consumed = this.igniteConnectedOil(seeds, until, intensity);
+        const consumed = this.igniteConnectedOil(seeds, until, intensity, tint);
         this.consumeOilUnderFire(now);
         return consumed;
     }
 
-    private setFireCell(i: number, until: number, intensity: number): void {
+    private setFireCell(i: number, until: number, intensity: number, tint: number = FIRE_TINT_NORMAL): void {
         const prev = this.fireUntil[i]!;
         if (prev === 0 || until > prev) this.fireUntil[i] = until;
-        this.fireDps[i] = Math.max(this.fireDps[i]!, intensity);
+        const prevDps = this.fireDps[i]!;
+        if (intensity > prevDps) {
+            this.fireDps[i] = intensity;
+            this.fireTint[i] = tint;
+        } else if (intensity === prevDps && tint === FIRE_TINT_DRAGON) {
+            this.fireTint[i] = FIRE_TINT_DRAGON;
+        } else if (tint === FIRE_TINT_DRAGON && prevDps > 0) {
+            // dragon wash over an existing weaker-or-equal blaze keeps the azure look
+            this.fireTint[i] = FIRE_TINT_DRAGON;
+        }
     }
 
     /**
@@ -604,7 +643,12 @@ export class HazardField {
      * Scratch visit uses fireUntil temporarily only for oil cells being processed
      * via a separate Uint8Array to stay clear.
      */
-    igniteConnectedOil(seedIndices: number[], until: number, intensity: number): number {
+    igniteConnectedOil(
+        seedIndices: number[],
+        until: number,
+        intensity: number,
+        tint: number = FIRE_TINT_NORMAL,
+    ): number {
         if (seedIndices.length === 0) return 0;
         const visited = new Uint8Array(this.oilExpires.length);
         const queue: number[] = [];
@@ -620,7 +664,7 @@ export class HazardField {
         while (head < queue.length) {
             const i = queue[head++]!;
             this.oilExpires[i] = 0;
-            this.setFireCell(i, until, intensity);
+            this.setFireCell(i, until, intensity, tint);
             consumed++;
             const cx = i % this.cellCols;
             const cz = (i / this.cellCols) | 0;
@@ -646,6 +690,7 @@ export class HazardField {
             if (this.fireUntil[i]! !== 0 && this.fireUntil[i]! <= now) {
                 this.fireUntil[i] = 0;
                 this.fireDps[i] = 0;
+                this.fireTint[i] = 0;
             }
         }
     }
@@ -666,14 +711,17 @@ export class HazardField {
     }
 
     /** iterate active fire cell centers (for VFX — order is deterministic) */
-    forEachFireCell(now: number, fn: (x: number, z: number, dps: number, until: number) => void): void {
+    forEachFireCell(
+        now: number,
+        fn: (x: number, z: number, dps: number, until: number, tint: number) => void,
+    ): void {
         for (let cz = 0; cz < this.cellRows; cz++) {
             for (let cx = 0; cx < this.cellCols; cx++) {
                 const i = this.index(cx, cz);
                 const until = this.fireUntil[i]!;
                 if (until <= now) continue;
                 const c = this.cellCenter(cx, cz);
-                fn(c.x, c.z, this.fireDps[i]!, until);
+                fn(c.x, c.z, this.fireDps[i]!, until, this.fireTint[i]!);
             }
         }
     }
