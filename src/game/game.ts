@@ -26,7 +26,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import { AiOpponent, type Opponent } from './ai';
 import {
     clearSinglePlayer,
@@ -199,7 +199,7 @@ const HORDE_PATH_SAMPLES = 8;
 /** worldHeightAt below this reads as deep water (per HORDE_MODE_NOTES.md) */
 const HORDE_LAKE_HEIGHT = -0.5;
 
-/** SP cheat (U): tactic ids topped up for free testing (see cheatGrantAllTactics) */
+/** SP cheat (Shift+U): tactic ids topped up for free testing (see cheatGrantAllTactics) */
 const CHEAT_TACTIC_GRANTS = [
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
@@ -214,7 +214,9 @@ const CHEAT_TACTIC_GRANTS = [
     'acidSpill',
     'fireSpill',
     'dragonAttack',
-];
+] as const;
+/** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
+const CHEAT_TACTIC_COPIES = 2;
 
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
@@ -2150,10 +2152,10 @@ export class Game {
     /**
      * SP cheat (Shift+U): free-spawn every unit type on both sides during
      * deployment, bump HP sky-high, +10000 supply to both seats, +2 of each
-     * item and one of each tactic for the human, grant up to 3 new techs per
-     * press, then let the AI re-spend. Ctrl+Shift+U also scrambles levels.
-     * Enemy moves stay behind intel fog; newly granted enemy packs are
-     * snapshotted at land pose.
+     * item and up to 2 of each test tactic for the human (resets uses so they
+     * can be placed again), grant up to 3 new techs per press, then let the
+     * AI re-spend. Ctrl+Shift+U also scrambles levels. Enemy moves stay
+     * behind intel fog; newly granted enemy packs are snapshotted at land pose.
      */
     private cheatSpawnAllUnits(opts: { scrambleLevels?: boolean } = {}): void {
         if (this.phase !== 'build' || this.matchOver) return;
@@ -2357,14 +2359,65 @@ export class Game {
     }
 
     /**
-     * SP cheat (Shift+U): add one charge of each test tactic to the human seat —
-     * press again to stack more. NOT logged as an action, so it does not
-     * survive a reload/replay — press it again after one.
+     * SP cheat (Shift+U): set each test tactic to exactly {@link CHEAT_TACTIC_COPIES}
+     * charges, and clear placements / sell uses / cooling so they can be
+     * applied again. Extra presses do not stack beyond the cap. NOT logged —
+     * does not survive reload/replay.
      */
     private cheatGrantAllTactics(): void {
         const seat = this.humanSeat;
+        const grants = new Set<string>(CHEAT_TACTIC_GRANTS);
+        this.cheatResetTacticUses(seat, grants);
+        this.tacticInventory[seat] = this.tacticInventory[seat]!.filter((id) => !grants.has(id));
         for (const id of CHEAT_TACTIC_GRANTS) {
-            this.tacticInventory[seat]!.push(id);
+            for (let i = 0; i < CHEAT_TACTIC_COPIES; i++) {
+                this.tacticInventory[seat]!.push(id);
+            }
+            // one-shot cooling is derived from the action log — pad so avail
+            // still lands at CHEAT_TACTIC_COPIES without rewriting history
+            const tactic = TACTICS[id];
+            if (!tactic || tactic.kind !== 'oneShot') continue;
+            const cooling = this.dispatcher.tacticUseRounds(
+                seat,
+                id,
+                this.round - tactic.cooldownRounds,
+            ).length;
+            for (let i = 0; i < cooling; i++) this.tacticInventory[seat]!.push(id);
+        }
+        this.cancelTacticPlacement();
+        this.syncTacticVisuals();
+    }
+
+    /**
+     * Clear human placements / sell-round uses / spell cooldown windows for
+     * cheat-granted tactics so Shift+U can hand out fresh usable charges.
+     */
+    private cheatResetTacticUses(seat: SeatId, grants: ReadonlySet<string>): void {
+        this.sellState.used[seat] = 0;
+
+        for (let i = this.rallyRoutes.length - 1; i >= 0; i--) {
+            if (this.rallyRoutes[i]!.seat === seat) this.rallyRoutes.splice(i, 1);
+        }
+
+        let oilChanged = false;
+        for (let i = this.oilStamps.length - 1; i >= 0; i--) {
+            if (this.oilStamps[i]!.seat === seat) {
+                this.oilStamps.splice(i, 1);
+                oilChanged = true;
+            }
+        }
+        if (oilChanged) {
+            resetOilFieldToBaseline({
+                oilField: this.oilField,
+                oilBaseline: this.oilBaseline,
+            });
+        }
+
+        // this-round stamps block a charge; older ones only grey the strip —
+        // drop both for granted ids so every charge is free again
+        for (let i = this.spellStamps.length - 1; i >= 0; i--) {
+            const s = this.spellStamps[i]!;
+            if (s.seat === seat && grants.has(s.tacticId)) this.spellStamps.splice(i, 1);
         }
     }
 

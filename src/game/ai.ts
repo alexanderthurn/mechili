@@ -267,7 +267,7 @@ export class AiOpponent implements Opponent {
         }
     }
 
-    /** spend remaining supply on techs / levels / tower upgrades while affordable */
+    /** spend remaining supply on techs / pack levels while affordable (no building upgrades) */
     private spendLeftoverUpgrades(): void {
         const { dispatch, placement, economy, techTree } = this.ctx;
         const team = this.team;
@@ -303,11 +303,6 @@ export class AiOpponent implements Opponent {
         for (const unit of placement.allUnits()) {
             if (unit.seat !== this.seat || unit.type.structure || unit.type.extra) continue;
             dispatch({ kind: 'buyLevel', team, seat: this.seat, unitId: unit.id });
-        }
-
-        for (const unit of placement.allUnits()) {
-            if (unit.seat !== this.seat || !unit.type.structure || unit.type.extra) continue;
-            dispatch({ kind: 'upgradeTower', team, seat: this.seat, unitId: unit.id });
         }
     }
 }
