@@ -31,6 +31,7 @@ import {
     FORGE_SLOT_COUNT,
     emptyForgeSlots,
     forgeHintText,
+    forgePreviewView,
     resolveForge,
     type ForgeSlot,
 } from './forgeRecipes';
@@ -1273,6 +1274,8 @@ export class Game {
             const owned = this.intelTechOwned(unit);
             return selected.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
         };
+        // Stronghold oven: rune badges + predicted spell (fog uses phase-start snapshot)
+        this.placement.forgeStatusIcons = (unit) => this.forgeWorldBadges(unit);
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit, previous) => {
             if (this.armedItem) {
@@ -5966,6 +5969,56 @@ export class Game {
         }
     }
 
+    /** world strip over the Stronghold: forge runes + spell that will bake */
+    private forgeWorldBadges(
+        unit: Unit,
+    ): { runes: string[]; spellIcon: string | null } | null {
+        if (unit.type !== STRONGHOLD) return null;
+        const team: Team = unit.team === 'horde' ? 'player' : unit.team;
+        const fogged = this.placement.isIntelFogged(unit);
+        const snapIds =
+            fogged && this.buildingIntelSnapshot
+                ? this.buildingIntelSnapshot.forge[team]
+                : null;
+        const slots: (ForgeSlot | null)[] = snapIds
+            ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
+            : this.forgeSlots[team]!;
+        const runes: string[] = [];
+        for (const s of slots) {
+            if (!s) continue;
+            const icon = ITEMS[s.itemId]?.icon;
+            if (icon) runes.push(icon);
+        }
+        if (runes.length === 0) return null;
+        const result = resolveForge(slots);
+        const spellIcon = result.tacticId ? (TACTICS[result.tacticId]?.icon ?? null) : null;
+        return { runes, spellIcon };
+    }
+
+    /**
+     * While dragging a rune over the forge, decorate the cursor ghost with the
+     * spell that would bake now + smaller icons for recipes still reachable.
+     */
+    private syncArmedRuneForgeGhost(): void {
+        if (!this.armedItem || !ITEMS[this.armedItem]) {
+            this.hud.setItemGhostForgePreview(null);
+            return;
+        }
+        const overWorldForge = this.placement.itemDropOnForge;
+        const overPanelForge =
+            this.placement.selectedUnit?.type === STRONGHOLD &&
+            this.hud.isPanelItemDropReady() &&
+            this.canDropForgeOn(this.placement.selectedUnit);
+        if (!overWorldForge && !overPanelForge) {
+            this.hud.setItemGhostForgePreview(null);
+            return;
+        }
+        const oven = this.forgeSlots.player
+            .filter((s): s is ForgeSlot => !!s)
+            .map((s) => s.itemId);
+        this.hud.setItemGhostForgePreview(forgePreviewView(oven, this.armedItem));
+    }
+
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
     private canLevel(unit: Unit): boolean {
         return this.playerCanAct && this.packUpgradeReady(unit, unit.level, unit.xp);
@@ -7303,6 +7356,7 @@ export class Game {
         );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
+        this.syncArmedRuneForgeGhost();
         const enemyInv = this.enemyInventoryView();
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
@@ -7942,7 +7996,7 @@ export class Game {
         out.forge = {
             slotCount: FORGE_SLOT_COUNT,
             dropReady: !fogged && this.canDropForgeOn(u),
-            hint: forgeHintText(hintSlots),
+            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next'),
             slots: Array.from({ length: FORGE_SLOT_COUNT }, (_, i) => {
                 if (snapIds) {
                     const id = snapIds[i];

@@ -1,6 +1,13 @@
 import type { Application } from 'pixi.js';
 import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
+import {
+    forgeHelpRows,
+    forgeHowItWorksNote,
+    forgePreviewView,
+    forgeRecipeMatch,
+    type ForgePreviewView,
+} from '../game/forgeRecipes';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
@@ -291,6 +298,11 @@ export class Hud {
     /** this match's settings, described for the click-to-open panel — set once via setSettingsGroups */
     private settingsGroups: SettingGroup[] = [];
     private settingsDetailOverlay: HTMLDivElement | null = null;
+    private forgeDetailOverlay: HTMLDivElement | null = null;
+    /** true when forge help was opened by hovering the ? (auto-closes on leave) */
+    private forgeDetailViaHover = false;
+    /** item ids currently in the selected Stronghold forge (for help highlighting) */
+    private lastForgeOvenIds: string[] = [];
     private playerHpFill!: HTMLDivElement;
     private enemyHpFill!: HTMLDivElement;
     private playerHpVal!: HTMLSpanElement;
@@ -666,6 +678,11 @@ export class Hud {
         this.panel.addEventListener('click', (e) => {
             // touch has no hover: first tap peeks at the info, second tap acts
             if (inputMode() === 'touch') {
+                const helpTap = (e.target as HTMLElement).closest<HTMLElement>('.forge-help');
+                if (helpTap) {
+                    this.showForgeDetail(false);
+                    return;
+                }
                 const peek = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
                 if (peek) {
                     if (this.actionInfoFor !== peek) {
@@ -678,6 +695,11 @@ export class Hud {
             }
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.action-tile');
             if (!button) {
+                const help = (e.target as HTMLElement).closest<HTMLElement>('.forge-help');
+                if (help) {
+                    this.showForgeDetail(false);
+                    return;
+                }
                 const emptySlot = (e.target as HTMLElement).closest<HTMLElement>(
                     '.item-sq.empty.drop-target',
                 );
@@ -705,6 +727,11 @@ export class Hud {
         // touch would open it mid-tap and turn the first tap into a blind buy)
         this.panel.addEventListener('pointerover', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
+            const help = (e.target as HTMLElement).closest<HTMLElement>('.forge-help');
+            if (help) {
+                this.showForgeDetail(true);
+                return;
+            }
             const tile = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             if (tile) {
                 this.showActionInfo(tile);
@@ -713,6 +740,9 @@ export class Hud {
         });
         this.panel.addEventListener('pointerout', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
+            const fromHelp = (e.target as HTMLElement).closest<HTMLElement>('.forge-help');
+            const toHelp = (e.relatedTarget as HTMLElement | null)?.closest?.('.forge-help');
+            if (fromHelp && !toHelp && this.forgeDetailViaHover) this.hideForgeDetail();
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) {
@@ -1507,6 +1537,9 @@ export class Hud {
             this.itemGhost = document.createElement('div');
             this.itemGhost.className = 'inv-drag';
             this.itemGhost.style.left = '-100px';
+            this.itemGhost.innerHTML =
+                `<span class="inv-drag-rune m-icon"></span>` +
+                `<div class="inv-drag-spells" hidden></div>`;
             document.body.appendChild(this.itemGhost);
         }
         if (this.itemGhost) {
@@ -1515,10 +1548,22 @@ export class Hud {
                 this.itemGhost = null;
                 this.worldItemDropReady = false;
                 this.panelItemDropReady = false;
+                this.forgeGhostPreview = null;
+                this.forgeGhostPreviewKey = '';
             } else {
-                this.itemGhost.className = 'inv-drag m-icon';
-                applyIcon(this.itemGhost, picked.icon);
+                this.itemGhost.classList.add('inv-drag');
+                this.itemGhost.classList.remove('unequipping');
+                const rune = this.itemGhost.querySelector<HTMLElement>('.inv-drag-rune');
+                if (rune) applyIcon(rune, picked.icon);
+                else {
+                    // legacy / unequip may have flattened the ghost — rebuild
+                    this.itemGhost.innerHTML =
+                        `<span class="inv-drag-rune m-icon"></span>` +
+                        `<div class="inv-drag-spells" hidden></div>`;
+                    applyIcon(this.itemGhost.querySelector<HTMLElement>('.inv-drag-rune')!, picked.icon);
+                }
                 this.syncItemGhostDropReady();
+                this.paintForgeGhostPreview();
             }
         }
     }
@@ -1527,6 +1572,133 @@ export class Hud {
     setItemGhostDropReady(ready: boolean): void {
         this.worldItemDropReady = ready;
         this.syncItemGhostDropReady();
+    }
+
+    /** true when an empty forge/pack slot in the details panel is lit as a drop target */
+    isPanelItemDropReady(): boolean {
+        return this.panelItemDropReady;
+    }
+
+    /**
+     * While dragging a rune over the forge: bake spell + path spells to the
+     * ghost's right, each path showing tiny missing-rune icons underneath.
+     */
+    setItemGhostForgePreview(preview: ForgePreviewView | null): void {
+        const key = preview
+            ? `${preview.bakeIcon ?? ''}|${preview.paths
+                  .map((p) => `${p.spellIcon}:${p.missingIcons.join('+')}`)
+                  .join(';')}`
+            : '';
+        if (key === this.forgeGhostPreviewKey) return;
+        this.forgeGhostPreviewKey = key;
+        this.forgeGhostPreview = preview;
+        this.paintForgeGhostPreview();
+    }
+
+    private forgeGhostPreview: ForgePreviewView | null = null;
+    private forgeGhostPreviewKey = '';
+    /** oven bake/paths floating next to a hovered forge slot (not the ?) */
+    private forgeSlotPreviewEl: HTMLDivElement | null = null;
+    private forgeSlotPreviewAnchor: HTMLElement | null = null;
+
+    private forgeSpellColsHtml(preview: ForgePreviewView): string {
+        const cols: string[] = [];
+        if (preview.bakeIcon) {
+            cols.push(
+                `<div class="inv-drag-spell bake">` +
+                    `${iconHtml(preview.bakeIcon, 'inv-drag-spell-ico')}` +
+                    `</div>`,
+            );
+        }
+        for (const p of preview.paths) {
+            const missing = p.missingIcons
+                .map((ico) => iconHtml(ico, 'inv-drag-miss'))
+                .join('');
+            cols.push(
+                `<div class="inv-drag-spell path">` +
+                    `${iconHtml(p.spellIcon, 'inv-drag-spell-ico')}` +
+                    `<div class="inv-drag-missing">${missing}</div>` +
+                    `</div>`,
+            );
+        }
+        return cols.join('');
+    }
+
+    private paintForgeGhostPreview(): void {
+        const ghost = this.itemGhost;
+        if (!ghost || ghost.classList.contains('unequipping')) return;
+        let spells = ghost.querySelector<HTMLElement>('.inv-drag-spells');
+        if (!spells) {
+            spells = document.createElement('div');
+            spells.className = 'inv-drag-spells';
+            ghost.appendChild(spells);
+        }
+        const preview = this.forgeGhostPreview;
+        const hasSpells =
+            !!preview && (!!preview.bakeIcon || preview.paths.length > 0);
+        ghost.classList.toggle('forge-preview', hasSpells);
+        if (!hasSpells || !preview) {
+            spells.hidden = true;
+            spells.replaceChildren();
+            // drag no longer owns the preview — restore slot hover if any
+            if (this.actionInfoFor) this.syncForgeSlotHoverPreview(this.actionInfoFor);
+            return;
+        }
+        spells.hidden = false;
+        spells.innerHTML = this.forgeSpellColsHtml(preview);
+        this.hideForgeSlotHoverPreview();
+    }
+
+    private isForgePreviewSlot(el: HTMLElement): boolean {
+        return (
+            el.classList.contains('item-sq') &&
+            !el.classList.contains('forge-help') &&
+            !!el.closest('.forge-row')
+        );
+    }
+
+    /** bake + paths beside a hovered forge rune / empty slot (not ?) */
+    private syncForgeSlotHoverPreview(anchor: HTMLElement | null): void {
+        if (
+            !anchor ||
+            !this.isForgePreviewSlot(anchor) ||
+            this.itemGhost?.classList.contains('forge-preview')
+        ) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        const view = forgePreviewView(this.lastForgeOvenIds);
+        if (!view.bakeIcon && view.paths.length === 0) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        if (!this.forgeSlotPreviewEl) {
+            this.forgeSlotPreviewEl = document.createElement('div');
+            this.forgeSlotPreviewEl.className = 'forge-slot-preview';
+            this.forgeSlotPreviewEl.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(this.forgeSlotPreviewEl);
+        }
+        this.forgeSlotPreviewAnchor = anchor;
+        this.forgeSlotPreviewEl.innerHTML = this.forgeSpellColsHtml(view);
+        this.forgeSlotPreviewEl.hidden = false;
+        this.positionForgeSlotHoverPreview();
+    }
+
+    private positionForgeSlotHoverPreview(): void {
+        const el = this.forgeSlotPreviewEl;
+        const anchor = this.forgeSlotPreviewAnchor;
+        if (!el || !anchor || el.hidden) return;
+        const rect = anchor.getBoundingClientRect();
+        el.style.left = `${Math.round(rect.right + 6)}px`;
+        el.style.top = `${Math.round(rect.top + rect.height / 2)}px`;
+    }
+
+    private hideForgeSlotHoverPreview(): void {
+        this.forgeSlotPreviewAnchor = null;
+        if (this.forgeSlotPreviewEl) {
+            this.forgeSlotPreviewEl.hidden = true;
+            this.forgeSlotPreviewEl.replaceChildren();
+        }
     }
 
     private worldItemDropReady = false;
@@ -1861,13 +2033,19 @@ export class Hud {
             this.lastPanelKey = '';
             this.unitSheetAutoKey = null;
             if (this.phoneTab === 'unit') this.setPhoneTab(null);
+            this.lastForgeOvenIds = [];
+            this.hideForgeSlotHoverPreview();
             return;
         }
+        this.lastForgeOvenIds = (info.forge?.slots ?? [])
+            .map((s) => s?.id)
+            .filter((id): id is string => !!id);
         this.panel.style.display = 'block';
         const key = JSON.stringify(info);
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
         this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
+        this.hideForgeSlotHoverPreview();
         this.setPanelItemDropReady(false);
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
 
@@ -2078,7 +2256,9 @@ export class Hud {
                               : ''
                       }></span>`
                   );
-              }).join('')}</div>` +
+              }).join('')}` +
+              `<span class="item-sq empty forge-help" data-forge-help="1" data-ttitle="Forge recipes" data-tdesc="Open the full forge recipe overview — which ${DISPLAY.items.toLowerCase()} bake into which ${DISPLAY.tactics.toLowerCase()}.">?</span>` +
+              `</div>` +
               `<div class="forge-hint">${escapeHtml(forge.hint)}</div>` +
               `</div>`;
         // XP (or tower level) progress toward the next rank
@@ -2215,6 +2395,7 @@ export class Hud {
             touchBuy;
         frame.style.display = 'block';
         this.actionInfoFor = tile;
+        this.syncForgeSlotHoverPreview(tile);
         frame.querySelector<HTMLButtonElement>('.ai-buy')?.addEventListener('click', (e) => {
             e.stopPropagation();
             // while actionInfoFor === tile, the delegated handler treats this
@@ -2228,6 +2409,7 @@ export class Hud {
         const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
         if (frame) frame.style.display = 'none';
         this.actionInfoFor = null;
+        this.hideForgeSlotHoverPreview();
     }
 
     setPhase(
@@ -2344,7 +2526,10 @@ export class Hud {
      * not — pause already stops everything itself).
      */
     private syncOverlayOpen(): void {
-        const blocksTopBar = this.cardOverlay !== null || this.settingsDetailOverlay !== null;
+        const blocksTopBar =
+            this.cardOverlay !== null ||
+            this.settingsDetailOverlay !== null ||
+            this.forgeDetailOverlay !== null;
         const open = blocksTopBar || this.pauseMenu !== null;
         this.topBar.classList.toggle('overlay-open', blocksTopBar);
         this.phoneBar.classList.toggle('overlay-open', open);
@@ -2844,6 +3029,82 @@ export class Hud {
         this.syncOverlayOpen();
     }
 
+    /** forge recipe overview — dense grid; highlights recipes for runes in the oven */
+    private showForgeDetail(viaHover = false): void {
+        // sticky click wins over a hover peek
+        if (this.forgeDetailOverlay && !viaHover && this.forgeDetailViaHover) {
+            this.forgeDetailViaHover = false;
+            this.forgeDetailOverlay.classList.remove('peek');
+            return;
+        }
+        if (this.forgeDetailOverlay && this.forgeDetailViaHover === viaHover) return;
+        if (this.forgeDetailOverlay) this.forgeDetailOverlay.remove();
+
+        const oven = this.lastForgeOvenIds;
+        const rows = forgeHelpRows();
+        // ready / partial first so matches fill the top of the grid
+        const ranked = [...rows].sort((a, b) => {
+            const rank = (r: (typeof rows)[number]) => {
+                const m = forgeRecipeMatch(r.ingredients, oven);
+                return m === 'ready' ? 0 : m === 'partial' ? 1 : 2;
+            };
+            return rank(a) - rank(b);
+        });
+        const tiles = ranked
+            .map((r) => {
+                const match = forgeRecipeMatch(r.ingredients, oven);
+                const matchClass =
+                    match === 'ready'
+                        ? ' forge-tile-ready'
+                        : match === 'partial'
+                          ? ' forge-tile-partial'
+                          : '';
+                const ings = r.ingredientIcons.map((ico) => iconHtml(ico, 'forge-ing')).join('');
+                return (
+                    `<div class="forge-tile${matchClass}" title="${escapeAttr(r.spellDesc)}">` +
+                    `<div class="forge-tile-ings">${ings}</div>` +
+                    `<span class="forge-arrow">→</span>` +
+                    `${iconHtml(r.spellIcon, 'forge-spell')}` +
+                    `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
+                    `</div>`
+                );
+            })
+            .join('');
+
+        const overlay = document.createElement('div');
+        overlay.className = `mechili-cards detail settings-detail forge-detail${viaHover ? ' peek' : ''}`;
+        overlay.innerHTML =
+            `<div class="settings-panel forge-panel">` +
+            `<button type="button" class="settings-close" aria-label="Close">&times;</button>` +
+            `<div class="settings-panel-title">Forge recipes</div>` +
+            `<p class="forge-group-note">${escapeHtml(forgeHowItWorksNote())}</p>` +
+            `<div class="forge-tile-grid">${tiles}</div></div>`;
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay || (e.target as HTMLElement).closest('.settings-close')) {
+                this.hideForgeDetail();
+            }
+        });
+        if (viaHover) {
+            overlay.addEventListener('pointerenter', () => {
+                this.forgeDetailViaHover = false;
+                overlay.classList.remove('peek');
+            });
+        }
+        this.forgeDetailOverlay = overlay;
+        this.forgeDetailViaHover = viaHover;
+        this.mount(overlay);
+        this.syncOverlayOpen();
+    }
+
+    private hideForgeDetail(): void {
+        if (this.forgeDetailOverlay) {
+            this.forgeDetailOverlay.remove();
+            this.forgeDetailOverlay = null;
+        }
+        this.forgeDetailViaHover = false;
+        this.syncOverlayOpen();
+    }
+
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
     showRoundCards(
         cards: readonly { id: string; title: string; body: string; cost: number; affordable: boolean }[],
@@ -3064,6 +3325,8 @@ export class Hud {
     destroy(): void {
         this.hidePauseMenu();
         this.hideCardOverlay();
+        this.hideSettingsDetail();
+        this.hideForgeDetail();
         this.hideNotice();
         this.hideBattleReport();
         this.clearInvDragListeners();

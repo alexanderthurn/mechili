@@ -29,9 +29,10 @@ export const THEME = {
     light: 0xf0ecd8,
     accentEmissive: 0.85,
 
-    // placement markers — vivid green/red validity feedback on the ground
+    // placement markers — valid stays neon green; invalid is hot magenta so it
+    // never reads as the red faction color (SIDE_COLORS guest / Soviet red)
     valid: 0x00ff66,
-    invalid: 0xff2244,
+    invalid: 0xff3dce,
     select: 0xffd040,
     movable: 0xffffff,
 
@@ -2337,11 +2338,122 @@ ${fontFaceCss()}
     background: transparent;
     border: none;
     border-radius: 50%;
-    overflow: hidden;
+    overflow: visible;
     color: ${u.text};
     pointer-events: none;
     z-index: 50;
     transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.inv-drag.m-icon { width: 40px; height: 40px; font-size: 0; background-color: ${u.techBuyBg}; }
+.inv-drag .inv-drag-rune {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: ${u.techBuyBg};
+    flex: 0 0 auto;
+}
+.inv-drag .inv-drag-spells {
+    position: absolute;
+    left: calc(100% + 6px);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+}
+.inv-drag .inv-drag-spell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.inv-drag .inv-drag-spell-ico {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: ${u.panelBgDark};
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.inv-drag .inv-drag-spell.bake .inv-drag-spell-ico {
+    width: 30px;
+    height: 30px;
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 10px rgba(0, 255, 102, 0.45);
+}
+.inv-drag .inv-drag-spell.path .inv-drag-spell-ico {
+    opacity: 0.9;
+    filter: saturate(0.9);
+}
+.inv-drag .inv-drag-missing {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1px;
+    justify-content: center;
+    min-height: 12px;
+}
+.inv-drag .inv-drag-miss {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    overflow: hidden;
+    opacity: 0.8;
+}
+.inv-drag.forge-preview {
+    overflow: visible;
+}
+.forge-slot-preview {
+    position: fixed;
+    z-index: 52;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+.forge-slot-preview[hidden] {
+    display: none !important;
+}
+.forge-slot-preview .inv-drag-spell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.forge-slot-preview .inv-drag-spell-ico {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: ${u.panelBgDark};
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.forge-slot-preview .inv-drag-spell.bake .inv-drag-spell-ico {
+    width: 30px;
+    height: 30px;
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 10px rgba(0, 255, 102, 0.45);
+}
+.forge-slot-preview .inv-drag-spell.path .inv-drag-spell-ico {
+    opacity: 0.9;
+    filter: saturate(0.9);
+}
+.forge-slot-preview .inv-drag-missing {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1px;
+    justify-content: center;
+    min-height: 12px;
+}
+.forge-slot-preview .inv-drag-miss {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    overflow: hidden;
+    opacity: 0.8;
 }
 .inv-drag.drop-ready {
     box-shadow: 0 0 0 3px #00ff66, 0 0 14px rgba(0, 255, 102, 0.85);
@@ -2398,6 +2510,108 @@ ${fontFaceCss()}
     box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.45);
 }
 .mechili-panel .item-sq.removable:active { cursor: grabbing; }
+.mechili-panel .item-sq.forge-help {
+    cursor: help;
+    font-size: 22px;
+    font-weight: 800;
+    color: ${u.brassLight};
+    border: 1.5px dashed ${u.border};
+    background: ${u.techBuyBg};
+}
+.mechili-panel .item-sq.forge-help:hover {
+    border-color: ${u.brassLight};
+    color: ${u.text};
+    filter: brightness(1.1);
+}
+
+.forge-detail .forge-group-note {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: ${u.textMuted};
+    text-align: center;
+    max-width: 52rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+.forge-panel {
+    max-width: min(96vw, 1100px);
+}
+.forge-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 10px;
+}
+.forge-tile {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 4px;
+    padding: 10px 10px 8px;
+    border-radius: 10px;
+    border: 1.5px solid ${u.divider};
+    background: rgba(0, 0, 0, 0.18);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.forge-tile-ings {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 28px;
+}
+.forge-tile .forge-arrow {
+    grid-column: 2;
+    grid-row: 1;
+    color: ${u.brassLight};
+    font-weight: 800;
+    font-size: 14px;
+}
+.forge-tile .forge-spell {
+    grid-column: 3;
+    grid-row: 1;
+    width: 32px;
+    height: 32px;
+}
+.forge-tile-ings .forge-ing {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+}
+.forge-tile-name {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 12px;
+    font-weight: 700;
+    color: ${u.text};
+    line-height: 1.25;
+    min-width: 0;
+}
+.forge-tile-partial {
+    border-color: rgba(255, 208, 64, 0.75);
+    box-shadow: 0 0 0 1px rgba(255, 208, 64, 0.25), 0 0 14px rgba(255, 208, 64, 0.28);
+    animation: forge-pulse-partial 1.6s ease-in-out infinite;
+}
+.forge-tile-ready {
+    border-color: rgba(0, 255, 102, 0.85);
+    box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 18px rgba(0, 255, 102, 0.4);
+    animation: forge-pulse-ready 1.25s ease-in-out infinite;
+}
+@keyframes forge-pulse-partial {
+    0%, 100% { transform: translateY(0); box-shadow: 0 0 0 1px rgba(255, 208, 64, 0.25), 0 0 10px rgba(255, 208, 64, 0.22); }
+    50% { transform: translateY(-1px); box-shadow: 0 0 0 2px rgba(255, 208, 64, 0.45), 0 0 18px rgba(255, 208, 64, 0.4); }
+}
+@keyframes forge-pulse-ready {
+    0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 12px rgba(0, 255, 102, 0.3); }
+    50% { transform: translateY(-2px) scale(1.02); box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.55), 0 0 22px rgba(0, 255, 102, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .forge-tile-partial,
+    .forge-tile-ready { animation: none; }
+}
 
 /* --- in-match chat ------------------------------------------------------ */
 .mechili-fightbar .fighter { position: relative; }

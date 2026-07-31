@@ -166,6 +166,12 @@ export class PlacementController {
      * type — empty when none; shown on every visible pack (including enemies)
      */
     ownedTechIcons: ((unit: Unit) => string[]) | null = null;
+    /**
+     * Stronghold forge strip — rune atlas ids + optional predicted spell icon.
+     * Null / empty = no forge strip for this unit.
+     */
+    forgeStatusIcons: ((unit: Unit) => { runes: string[]; spellIcon: string | null } | null) | null =
+        null;
     /** fires on every click that lands on a unit (used for item application).
      *  `previous` is the selection before this click (null if none). */
     onSelect: ((unit: Unit, previous: Unit | null) => void) | null = null;
@@ -176,6 +182,8 @@ export class PlacementController {
     itemDropValid: ((unit: Unit) => boolean) | null = null;
     /** true this frame while the item cursor is over a pack that can take it */
     itemDropHovering = false;
+    /** true when {@link itemDropHovering} is over the Stronghold forge */
+    itemDropOnForge = false;
     /** when set, left clicks are offered here first; return true to swallow */
     groundClickInterceptor: ((x: number, y: number) => boolean) | null = null;
     /** blocks normal placement interaction (tactic placement mode) */
@@ -1080,83 +1088,114 @@ export class PlacementController {
      * One camera-aligned status strip over each visible pack:
      * `[item?] · [item?] · tech · tech …` (items leftmost on circular plates;
      * techs use the same atlas art as the details pane, no plate).
+     * Stronghold: forge runes (plates) + predicted spell icon (tech style).
      * The upgrade arrow sits above this strip when both are present.
      */
     private updateStatusBadges(): void {
         let itemUsed = 0;
         let techUsed = 0;
-        if (this.enabled) {
-            this.statusBadgeRight.setFromMatrixColumn(this.rig.camera.matrixWorld, 0);
-            this.statusBadgeRight.y = 0;
-            if (this.statusBadgeRight.lengthSq() < 1e-8) this.statusBadgeRight.set(1, 0, 0);
-            else this.statusBadgeRight.normalize();
-            const right = this.statusBadgeRight;
-            const spacing = 2.3;
+        this.statusBadgeRight.setFromMatrixColumn(this.rig.camera.matrixWorld, 0);
+        this.statusBadgeRight.y = 0;
+        if (this.statusBadgeRight.lengthSq() < 1e-8) this.statusBadgeRight.set(1, 0, 0);
+        else this.statusBadgeRight.normalize();
+        const right = this.statusBadgeRight;
+        const spacing = 2.3;
 
-            const placeStrip = (unit: Unit, world: Vector3, itemIconIds: string[]) => {
-                const techs = this.ownedTechIcons?.(unit) ?? [];
-                const n = itemIconIds.length + techs.length;
-                if (n === 0) return;
-                const y = this.statusStripY(unit, world);
-                const mid = (n - 1) / 2;
-                let slot = 0;
-                for (const itemIconId of itemIconIds) {
-                    let sprite = this.itemBadges[itemUsed];
-                    if (!sprite) {
-                        sprite = new Sprite();
-                        this.scene.add(sprite);
-                        this.itemBadges.push(sprite);
-                    }
-                    sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
-                    sprite.material = this.itemBadgeMaterial(itemIconId);
-                    sprite.renderOrder = 0;
-                    const t = slot - mid;
-                    sprite.position.set(
-                        world.x + right.x * t * spacing,
-                        y,
-                        world.z + right.z * t * spacing,
-                    );
-                    sprite.visible = true;
-                    itemUsed++;
-                    slot++;
+        const placeStrip = (
+            unit: Unit,
+            world: Vector3,
+            itemIconIds: string[],
+            techIconIds: string[],
+        ) => {
+            const n = itemIconIds.length + techIconIds.length;
+            if (n === 0) return;
+            const y = this.statusStripY(unit, world);
+            const mid = (n - 1) / 2;
+            let slot = 0;
+            for (const itemIconId of itemIconIds) {
+                let sprite = this.itemBadges[itemUsed];
+                if (!sprite) {
+                    sprite = new Sprite();
+                    this.scene.add(sprite);
+                    this.itemBadges.push(sprite);
                 }
-                for (const iconId of techs) {
-                    let sprite = this.techBadges[techUsed];
-                    if (!sprite) {
-                        sprite = new Sprite();
-                        this.scene.add(sprite);
-                        this.techBadges.push(sprite);
-                    }
-                    sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
-                    sprite.material = this.techBadgeMaterial(iconId);
-                    sprite.renderOrder = 0;
-                    const t = slot - mid;
-                    sprite.position.set(
-                        world.x + right.x * t * spacing,
-                        y,
-                        world.z + right.z * t * spacing,
-                    );
-                    sprite.visible = true;
-                    techUsed++;
-                    slot++;
-                }
-            };
-
-            for (const unit of this.units) {
-                if (!this.enemyIntelVisible(unit)) continue;
-                placeStrip(unit, this.intelWorldOf(unit), this.intelItemIcons(unit));
+                sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
+                sprite.material = this.itemBadgeMaterial(itemIconId);
+                sprite.renderOrder = 0;
+                const t = slot - mid;
+                sprite.position.set(
+                    world.x + right.x * t * spacing,
+                    y,
+                    world.z + right.z * t * spacing,
+                );
+                sprite.visible = true;
+                itemUsed++;
+                slot++;
             }
-            if (this.intelFog) {
-                for (const [id, snap] of this.intelSnapshot) {
-                    if (!this.isFoggedSnapshot(snap)) continue;
-                    if (this.units.some((u) => u.id === id)) continue;
-                    const ghost = this.intelGhosts.get(id);
-                    if (!ghost) continue;
-                    const itemIcons = snap.items
-                        .map((id) => itemIcon(id))
-                        .filter((id): id is string => id !== null);
-                    placeStrip(ghost, snap.world, itemIcons);
+            for (const iconId of techIconIds) {
+                let sprite = this.techBadges[techUsed];
+                if (!sprite) {
+                    sprite = new Sprite();
+                    this.scene.add(sprite);
+                    this.techBadges.push(sprite);
                 }
+                sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
+                sprite.material = this.techBadgeMaterial(iconId);
+                sprite.renderOrder = 0;
+                const t = slot - mid;
+                sprite.position.set(
+                    world.x + right.x * t * spacing,
+                    y,
+                    world.z + right.z * t * spacing,
+                );
+                sprite.visible = true;
+                techUsed++;
+                slot++;
+            }
+        };
+
+        for (const unit of this.units) {
+            if (!this.enemyIntelVisible(unit)) continue;
+            const world = this.intelWorldOf(unit);
+            // forge stays visible in battle (oven is locked / cooking)
+            const forge = this.forgeStatusIcons?.(unit);
+            if (forge) {
+                placeStrip(
+                    unit,
+                    world,
+                    forge.runes,
+                    forge.spellIcon ? [forge.spellIcon] : [],
+                );
+                continue;
+            }
+            if (!this.enabled) continue;
+            placeStrip(
+                unit,
+                world,
+                this.intelItemIcons(unit),
+                this.ownedTechIcons?.(unit) ?? [],
+            );
+        }
+        if (this.enabled && this.intelFog) {
+            for (const [id, snap] of this.intelSnapshot) {
+                if (!this.isFoggedSnapshot(snap)) continue;
+                if (this.units.some((u) => u.id === id)) continue;
+                const ghost = this.intelGhosts.get(id);
+                if (!ghost) continue;
+                const forge = this.forgeStatusIcons?.(ghost);
+                if (forge) {
+                    placeStrip(
+                        ghost,
+                        snap.world,
+                        forge.runes,
+                        forge.spellIcon ? [forge.spellIcon] : [],
+                    );
+                    continue;
+                }
+                const itemIcons = snap.items
+                    .map((id) => itemIcon(id))
+                    .filter((id): id is string => id !== null);
+                placeStrip(ghost, snap.world, itemIcons, this.ownedTechIcons?.(ghost) ?? []);
             }
         }
         for (let i = itemUsed; i < this.itemBadges.length; i++) this.itemBadges[i]!.visible = false;
@@ -1184,6 +1223,8 @@ export class PlacementController {
 
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
     private statusStripCount(unit: Unit): number {
+        const forge = this.forgeStatusIcons?.(unit);
+        if (forge) return forge.runes.length + (forge.spellIcon ? 1 : 0);
         const items = this.intelItemIcons(unit).length;
         const techs = this.ownedTechIcons?.(unit)?.length ?? 0;
         return items + techs;
@@ -1839,6 +1880,7 @@ export class PlacementController {
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
         this.itemDropHovering = false;
+        this.itemDropOnForge = false;
 
         // an extra riding the cursor: ghost mesh + footprint plate + effect ring
         if (this.pendingType && this.pendingUnit && this.enabled) {
@@ -1895,6 +1937,7 @@ export class PlacementController {
             const over = this.pickUnitAt(this.pointer.x, this.pointer.y);
             if (over && !over.destroyed && this.itemDropValid(over)) {
                 this.itemDropHovering = true;
+                this.itemDropOnForge = over.type.id === 'stronghold';
                 this.targetPreview.clear();
                 const snap = this.isFogged(over) ? this.intelSnapshot.get(over.id) : undefined;
                 const cell = snap?.cell ?? over.cell;

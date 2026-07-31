@@ -2,8 +2,8 @@
  * Stronghold forge: shared 3-slot oven per side. Multiset recipes → one spell
  * next deploy (best / largest match); unused runes refund to their inserters.
  *
- * Recipes are arbitrary multisets — 1×, 2× same, 3× same, or mixes like
- * 2× A + 1× B. Singles cover weak spells; larger recipes cover the rest.
+ * One recipe per spell. Singles are weak experiments; stronger spells use
+ * mixed rune pairs / a triple — not stacks of the same rune.
  * Tweak {@link FORGE_RECIPES} freely; the matcher does not care about shape.
  */
 import type { SeatId } from './seats';
@@ -16,14 +16,13 @@ import {
     METEOR_SHOWER_ID,
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
-    RALLY_ROUTE_ID,
-    SELL_UNIT_ID,
     SPAWN_CROWS_ID,
     SPAWN_DWARVES_ID,
     STORM_ID,
     TACTICS,
 } from './tactics';
 import { ITEMS } from './items';
+import { DISPLAY } from './displayNames';
 
 export const FORGE_SLOT_COUNT = 3;
 
@@ -50,38 +49,29 @@ export function emptyForgeSlots(): (ForgeSlot | null)[] {
 
 /**
  * Experimental v1 table — tweak freely.
- * Any multiset works (order irrelevant). Size dominates match order (3 > 2 > 1);
- * same size → higher {@link ForgeRecipe.priority}; leftovers refund.
+ * One recipe per spell. Size dominates match (3 > 2 > 1); leftovers refund.
+ * Sell / Rally are not forgeable (come from buildings / cards).
+ *
+ * Runes: addi=Valor, power=Carnage, vigor=Giant Blood, colossus=Mithril,
+ * wrath=Berserk, golden=Sunstone.
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
-    // --- singles (weak) — every rune yields something ---
+    // --- singles (weak) ---
     { ingredients: ['addi'], tacticId: OIL_SPILL_ID, priority: 1 },
-    { ingredients: ['power'], tacticId: SELL_UNIT_ID, priority: 1 },
-    { ingredients: ['vigor'], tacticId: RALLY_ROUTE_ID, priority: 1 },
+    { ingredients: ['power'], tacticId: SPAWN_DWARVES_ID, priority: 1 },
+    { ingredients: ['vigor'], tacticId: POISON_CLOUD_ID, priority: 1 },
     { ingredients: ['colossus'], tacticId: SPAWN_CROWS_ID, priority: 1 },
     { ingredients: ['wrath'], tacticId: ACID_ID, priority: 1 },
     { ingredients: ['golden'], tacticId: FIRE_SPILL_ID, priority: 1 },
 
-    // --- doubles (same rune) ---
-    { ingredients: ['addi', 'addi'], tacticId: SPAWN_DWARVES_ID, priority: 1 },
-    { ingredients: ['power', 'power'], tacticId: POISON_CLOUD_ID, priority: 1 },
-    { ingredients: ['vigor', 'vigor'], tacticId: STORM_ID, priority: 1 },
-    { ingredients: ['colossus', 'colossus'], tacticId: BIG_METEOR_ID, priority: 1 },
-    { ingredients: ['wrath', 'wrath'], tacticId: METEOR_SHOWER_ID, priority: 1 },
-    { ingredients: ['golden', 'golden'], tacticId: HAMMER_ID, priority: 1 },
+    // --- mixed pairs ---
+    { ingredients: ['vigor', 'colossus'], tacticId: STORM_ID, priority: 1 }, // Giant Blood + Mithril
+    { ingredients: ['addi', 'colossus'], tacticId: BIG_METEOR_ID, priority: 1 }, // Valor + Mithril
+    { ingredients: ['wrath', 'golden'], tacticId: METEOR_SHOWER_ID, priority: 1 }, // Berserk + Sunstone
 
-    // --- triples: 3× same OR mixed 2+1 — all craft dragon for now ---
-    { ingredients: ['addi', 'addi', 'addi'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['power', 'power', 'power'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['vigor', 'vigor', 'vigor'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['colossus', 'colossus', 'colossus'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['wrath', 'wrath', 'wrath'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['golden', 'golden', 'golden'], tacticId: DRAGON_ID, priority: 1 },
-    // mixed examples (2× + 1×) — same matcher, just different ingredients
-    { ingredients: ['wrath', 'wrath', 'golden'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['power', 'power', 'addi'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['colossus', 'colossus', 'vigor'], tacticId: DRAGON_ID, priority: 1 },
-    { ingredients: ['golden', 'golden', 'wrath'], tacticId: DRAGON_ID, priority: 1 },
+    // --- mixed triples ---
+    { ingredients: ['addi', 'colossus', 'golden'], tacticId: HAMMER_ID, priority: 1 }, // Valor + Mithril + Sunstone
+    { ingredients: ['wrath', 'power', 'golden'], tacticId: DRAGON_ID, priority: 1 }, // Berserk + Carnage + Sunstone
 ];
 
 export interface ForgeResolveResult {
@@ -161,9 +151,117 @@ export function resolveForge(slots: readonly (ForgeSlot | null)[]): ForgeResolve
     return { tacticId: matched.tacticId, consumed, refunds };
 }
 
-/** short HUD blurb for the Stronghold details pane */
-export function forgeHintText(slots: readonly (ForgeSlot | null)[]): string {
+/** true when every count in `have` is ≤ the corresponding count in `need` */
+function isMultisetSubset(have: Map<string, number>, need: Map<string, number>): boolean {
+    for (const [id, n] of have) {
+        if ((need.get(id) ?? 0) < n) return false;
+    }
+    return true;
+}
+
+export interface ForgeDragPreview {
+    /** spell that would bake if the oven burned now (with optional add) */
+    bakeTacticId: string | null;
+    /** larger recipes still reachable — each with runes still needed */
+    paths: { tacticId: string; missingItemIds: string[] }[];
+}
+
+/** HUD-ready icons for {@link forgeOvenPreview} */
+export interface ForgePreviewView {
+    bakeIcon: string | null;
+    paths: { spellIcon: string; missingIcons: string[] }[];
+}
+
+/** item ids still required to complete `need` given `have` (one entry per missing copy) */
+function missingIngredients(
+    have: Map<string, number>,
+    need: Map<string, number>,
+): string[] {
+    const missing: string[] = [];
+    for (const [id, n] of need) {
+        const short = n - (have.get(id) ?? 0);
+        for (let i = 0; i < short; i++) missing.push(id);
+    }
+    return missing;
+}
+
+/**
+ * Bake + reachable paths for the current oven, optionally as if `addingItemId`
+ * were inserted (drag-over preview).
+ */
+export function forgeOvenPreview(
+    ovenItemIds: readonly string[],
+    addingItemId?: string | null,
+): ForgeDragPreview {
+    let next = [...ovenItemIds];
+    if (addingItemId) {
+        if (next.length >= FORGE_SLOT_COUNT) {
+            return { bakeTacticId: null, paths: [] };
+        }
+        next.push(addingItemId);
+    }
+    if (next.length === 0) {
+        return { bakeTacticId: null, paths: [] };
+    }
+    const slots: ForgeSlot[] = next.map((itemId) => ({
+        itemId,
+        seat: 0 as SeatId,
+        round: 0,
+    }));
+    const bakeTacticId = resolveForge(slots).tacticId;
+    const have = countMultiset(next);
+    const paths: ForgeDragPreview['paths'] = [];
+    for (const recipe of FORGE_RECIPES) {
+        if (recipe.ingredients.length <= next.length) continue;
+        if (recipe.tacticId === bakeTacticId) continue;
+        const need = countMultiset(recipe.ingredients);
+        if (!isMultisetSubset(have, need)) continue;
+        paths.push({
+            tacticId: recipe.tacticId,
+            missingItemIds: missingIngredients(have, need),
+        });
+    }
+    return { bakeTacticId, paths };
+}
+
+/** Preview while dragging a rune onto the forge. */
+export function forgeDragPreview(
+    ovenItemIds: readonly string[],
+    addingItemId: string,
+): ForgeDragPreview {
+    return forgeOvenPreview(ovenItemIds, addingItemId);
+}
+
+/** Icon view for drag ghost / forge-slot hover. */
+export function forgePreviewView(
+    ovenItemIds: readonly string[],
+    addingItemId?: string | null,
+): ForgePreviewView {
+    const preview = forgeOvenPreview(ovenItemIds, addingItemId);
+    return {
+        bakeIcon: preview.bakeTacticId
+            ? (TACTICS[preview.bakeTacticId]?.icon ?? null)
+            : null,
+        paths: preview.paths.map((p) => ({
+            spellIcon: TACTICS[p.tacticId]?.icon ?? '?',
+            missingIcons: p.missingItemIds
+                .map((id) => ITEMS[id]?.icon)
+                .filter((id): id is string => !!id),
+        })),
+    };
+}
+
+/**
+ * Short HUD blurb for the Stronghold details pane.
+ * @param when `next` = oven still cooking for the following deploy;
+ *   `this` = fogged/intel view of what already burned at this deploy's start.
+ */
+export function forgeHintText(
+    slots: readonly (ForgeSlot | null)[],
+    when: 'next' | 'this' = 'next',
+): string {
     const filled = slots.filter((s): s is ForgeSlot => !!s);
+    const whenLabel = when === 'this' ? 'This deploy' : 'Next deploy';
     if (filled.length === 0) {
         return (
             `Slot up to ${FORGE_SLOT_COUNT} runes. Next deploy they burn into one spell ` +
@@ -173,14 +271,19 @@ export function forgeHintText(slots: readonly (ForgeSlot | null)[]): string {
     const result = resolveForge(slots);
     const tactic = result.tacticId ? TACTICS[result.tacticId] : null;
     if (!tactic) {
-        return 'No matching recipe — all runes return to their owners next deploy.';
+        return when === 'this'
+            ? 'No matching recipe — all runes returned to their owners this deploy.'
+            : 'No matching recipe — all runes return to their owners next deploy.';
     }
     const parts = result.consumed.map((c) => ITEMS[c.itemId]?.name ?? c.itemId);
     const recipeLabel = summarizeMultiset(parts);
-    let text = `Next deploy: ${tactic.name} (${recipeLabel}).`;
+    let text = `${whenLabel}: ${tactic.name} (${recipeLabel}).`;
     if (result.refunds.length > 0) {
         const back = summarizeMultiset(result.refunds.map((r) => ITEMS[r.itemId]?.name ?? r.itemId));
-        text += ` Leftover ${back} return to bag.`;
+        text +=
+            when === 'this'
+                ? ` Leftover ${back} returned to bag.`
+                : ` Leftover ${back} return to bag.`;
     }
     return text;
 }
@@ -191,4 +294,66 @@ function summarizeMultiset(names: string[]): string {
     return [...counts.entries()]
         .map(([n, c]) => (c > 1 ? `${c}× ${n}` : n))
         .join(' + ');
+}
+
+export interface ForgeHelpRow {
+    /** rune item ids (for matching against the oven) */
+    ingredients: string[];
+    ingredientIcons: string[];
+    spellIcon: string;
+    spellName: string;
+    spellDesc: string;
+}
+
+function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
+    const tactic = TACTICS[recipe.tacticId];
+    if (!tactic) return null;
+    const icons = recipe.ingredients
+        .map((id) => ITEMS[id]?.icon)
+        .filter((id): id is string => !!id);
+    return {
+        ingredients: [...recipe.ingredients],
+        ingredientIcons: icons,
+        spellIcon: tactic.icon,
+        spellName: tactic.name,
+        spellDesc: tactic.description,
+    };
+}
+
+/** Flat recipe list for the forge help overlay (one row per spell). */
+export function forgeHelpRows(): ForgeHelpRow[] {
+    const rows: ForgeHelpRow[] = [];
+    for (const recipe of FORGE_RECIPES) {
+        const row = helpRow(recipe);
+        if (row) rows.push(row);
+    }
+    return rows;
+}
+
+export function forgeHowItWorksNote(): string {
+    return (
+        `Slot up to ${FORGE_SLOT_COUNT} ${DISPLAY.items.toLowerCase()} in the shared Stronghold forge. ` +
+        `Next deploy they burn into one ${DISPLAY.tactic.toLowerCase()} (largest match); ` +
+        `leftovers return to their owners. Only you can remove what you inserted this deploy.`
+    );
+}
+
+/**
+ * How well the current oven lines up with a recipe:
+ * - ready: oven has every ingredient (could bake this)
+ * - partial: oven shares at least one needed rune
+ * - none: no overlap
+ */
+export function forgeRecipeMatch(
+    ingredients: readonly string[],
+    ovenItemIds: readonly string[],
+): 'ready' | 'partial' | 'none' {
+    if (ovenItemIds.length === 0) return 'none';
+    const have = countMultiset([...ovenItemIds]);
+    const need = countMultiset([...ingredients]);
+    if (recipeFits(need, have)) return 'ready';
+    for (const [id] of need) {
+        if ((have.get(id) ?? 0) > 0) return 'partial';
+    }
+    return 'none';
 }
