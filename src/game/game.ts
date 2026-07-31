@@ -5196,7 +5196,6 @@ export class Game {
         const runeId = c.items?.length === 1 ? c.items[0]! : null;
         const owned = runeId ? this.ownedRunesForCardPreview() : [];
         const pool = this.teamForgePool('player');
-        const showLocked = this.settings.forgeShowLockedRecipes;
         return {
             id: c.id,
             title: c.title,
@@ -5205,7 +5204,7 @@ export class Game {
             affordable: this.economy.balance(this.humanSeat) >= c.cost,
             icon: roundCardIcon(c),
             forgeRows: runeId
-                ? forgeRecipesForRuneCard(runeId, owned, pool, showLocked)
+                ? forgeRecipesForRuneCard(runeId, owned, pool)
                 : undefined,
         };
     }
@@ -6078,7 +6077,6 @@ export class Game {
                 oven,
                 this.armedItem,
                 this.teamForgePool('player'),
-                this.settings.forgeShowLockedRecipes,
             ),
         );
     }
@@ -8060,7 +8058,6 @@ export class Game {
         const slotCount = snapIds?.length ?? live.length;
         const ovenEmpty = !fogged && live.every((s) => s === null);
         const pool = this.teamForgePool(team);
-        const showLocked = this.settings.forgeShowLockedRecipes;
         const suggestions =
             ovenEmpty && canBuy && !this.armedItem
                 ? forgeRecipesCraftableFromBag(
@@ -8082,7 +8079,6 @@ export class Game {
             hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
             suggestions,
             spellPool: pool,
-            showLockedRecipes: showLocked,
             bake: bakeTactic
                 ? {
                       icon: bakeTactic.icon,

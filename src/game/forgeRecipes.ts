@@ -223,7 +223,7 @@ export interface ForgeDragPreview {
     /** spell that would bake if the oven burned now (with optional add) */
     bakeTacticId: string | null;
     /** larger recipes still reachable — each with runes still needed */
-    paths: { tacticId: string; missingItemIds: string[]; locked?: boolean }[];
+    paths: { tacticId: string; missingItemIds: string[] }[];
 }
 
 /** item ids still required to complete `need` given `have` (one entry per missing copy) */
@@ -241,13 +241,12 @@ function missingIngredients(
 
 /**
  * Bake + reachable paths for the current oven, optionally as if `addingItemId`
- * were inserted (drag-over preview).
+ * were inserted (drag-over preview). Locked (non-pool) recipes are omitted.
  */
 export function forgeOvenPreview(
     ovenItemIds: readonly string[],
     addingItemId?: string | null,
     pool: ForgeSpellPool = 'all',
-    showLocked = false,
 ): ForgeDragPreview {
     let next = [...ovenItemIds];
     if (addingItemId) {
@@ -265,8 +264,7 @@ export function forgeOvenPreview(
     const have = countMultiset(next);
     const paths: ForgeDragPreview['paths'] = [];
     for (const recipe of FORGE_RECIPES) {
-        const allowed = isForgeSpellAllowed(recipe.tacticId, pool);
-        if (!allowed && !showLocked) continue;
+        if (!isForgeSpellAllowed(recipe.tacticId, pool)) continue;
         if (recipe.ingredients.length <= next.length) continue;
         if (recipe.tacticId === bakeTacticId) continue;
         const need = countMultiset(recipe.ingredients);
@@ -274,7 +272,6 @@ export function forgeOvenPreview(
         paths.push({
             tacticId: recipe.tacticId,
             missingItemIds: missingIngredients(have, need),
-            locked: !allowed,
         });
     }
     return { bakeTacticId, paths };
@@ -285,15 +282,14 @@ export function forgeDragPreview(
     ovenItemIds: readonly string[],
     addingItemId: string,
     pool: ForgeSpellPool = 'all',
-    showLocked = false,
 ): ForgeDragPreview {
-    return forgeOvenPreview(ovenItemIds, addingItemId, pool, showLocked);
+    return forgeOvenPreview(ovenItemIds, addingItemId, pool);
 }
 
 /** HUD-ready icons for {@link forgeOvenPreview} */
 export interface ForgePreviewView {
     bakeIcon: string | null;
-    paths: { spellIcon: string; missingIcons: string[]; locked?: boolean }[];
+    paths: { spellIcon: string; missingIcons: string[] }[];
 }
 
 /** Icon view for drag ghost / forge-slot hover. */
@@ -301,9 +297,8 @@ export function forgePreviewView(
     ovenItemIds: readonly string[],
     addingItemId?: string | null,
     pool: ForgeSpellPool = 'all',
-    showLocked = false,
 ): ForgePreviewView {
-    const preview = forgeOvenPreview(ovenItemIds, addingItemId, pool, showLocked);
+    const preview = forgeOvenPreview(ovenItemIds, addingItemId, pool);
     return {
         bakeIcon: preview.bakeTacticId
             ? (TACTICS[preview.bakeTacticId]?.icon ?? null)
@@ -313,7 +308,6 @@ export function forgePreviewView(
             missingIcons: p.missingItemIds
                 .map((id) => ITEMS[id]?.icon)
                 .filter((id): id is string => !!id),
-            locked: p.locked,
         })),
     };
 }
@@ -368,11 +362,9 @@ export interface ForgeHelpRow {
     spellIcon: string;
     spellName: string;
     spellDesc: string;
-    /** true when shown only because forgeShowLockedRecipes is on */
-    locked?: boolean;
 }
 
-function helpRow(recipe: ForgeRecipe, locked = false): ForgeHelpRow | null {
+function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
     const tactic = TACTICS[recipe.tacticId];
     if (!tactic) return null;
     const icons = recipe.ingredients
@@ -384,23 +376,26 @@ function helpRow(recipe: ForgeRecipe, locked = false): ForgeHelpRow | null {
         spellIcon: tactic.icon,
         spellName: tactic.name,
         spellDesc: tactic.description,
-        locked: locked || undefined,
     };
 }
 
+/** Rune atlas icons required to bake `tacticId` (empty if no recipe). */
+export function forgeIngredientIcons(tacticId: string): string[] {
+    const recipe = FORGE_RECIPES.find((r) => r.tacticId === tacticId);
+    if (!recipe) return [];
+    return recipe.ingredients
+        .map((id) => ITEMS[id]?.icon)
+        .filter((id): id is string => !!id);
+}
+
 /**
- * Flat recipe list for the forge help overlay.
- * @param pool team unlocks; @param showLocked include greyed non-pool recipes
+ * Flat recipe list for the forge help overlay (team-unlocked spells only).
  */
-export function forgeHelpRows(
-    pool: ForgeSpellPool = 'all',
-    showLocked = false,
-): ForgeHelpRow[] {
+export function forgeHelpRows(pool: ForgeSpellPool = 'all'): ForgeHelpRow[] {
     const rows: ForgeHelpRow[] = [];
     for (const recipe of FORGE_RECIPES) {
-        const allowed = isForgeSpellAllowed(recipe.tacticId, pool);
-        if (!allowed && !showLocked) continue;
-        const row = helpRow(recipe, !allowed);
+        if (!isForgeSpellAllowed(recipe.tacticId, pool)) continue;
+        const row = helpRow(recipe);
         if (row) rows.push(row);
     }
     return rows;
@@ -469,27 +464,24 @@ export interface RuneCardForgeRow {
     /** every ingredient owned once this card is taken */
     ready: boolean;
     ingredients: { itemId: string; icon: string; owned: boolean }[];
-    /** not unlocked by this team's specialists */
-    locked?: boolean;
 }
 
 /**
  * Forge recipes that use `runeId`, with ownership marks as if the player
  * already held `ownedItemIds` plus this rune (the card being offered).
+ * Locked (non-pool) recipes are omitted.
  */
 export function forgeRecipesForRuneCard(
     runeId: string,
     ownedItemIds: readonly string[] = [],
     pool: ForgeSpellPool = 'all',
-    showLocked = false,
 ): RuneCardForgeRow[] {
     if (!ITEMS[runeId]) return [];
     const have = countMultiset([...ownedItemIds, runeId]);
     const rows: RuneCardForgeRow[] = [];
     for (const recipe of FORGE_RECIPES) {
         if (!recipe.ingredients.includes(runeId)) continue;
-        const allowed = isForgeSpellAllowed(recipe.tacticId, pool);
-        if (!allowed && !showLocked) continue;
+        if (!isForgeSpellAllowed(recipe.tacticId, pool)) continue;
         const tactic = TACTICS[recipe.tacticId];
         if (!tactic) continue;
         const poolMap = new Map(have);
@@ -503,9 +495,8 @@ export function forgeRecipesForRuneCard(
         rows.push({
             spellIcon: tactic.icon,
             spellName: tactic.name,
-            ready: allowed && ingredients.every((ing) => ing.owned),
+            ready: ingredients.every((ing) => ing.owned),
             ingredients,
-            locked: !allowed || undefined,
         });
     }
     rows.sort((a, b) => a.ingredients.length - b.ingredients.length);

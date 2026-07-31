@@ -2116,21 +2116,29 @@ ${fontFaceCss()}
 }
 .mechili-panel .action-info .ai-head { display: flex; align-items: center; gap: 10px; }
 .mechili-panel .action-info .ai-icon { font-size: 28px; line-height: 1; }
-.mechili-panel .action-info .ai-title { font-size: 14px; font-weight: bold; color: ${u.brassLight}; }
+.mechili-panel .action-info .ai-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: ${u.brassLight};
+}
 .mechili-panel .action-info .ai-desc { font-size: 12px; line-height: 1.5; color: ${u.text}; margin-top: 8px; }
 .mechili-panel .action-info .ai-forge-ings {
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 8px;
+    flex-wrap: nowrap;
+    gap: 3px;
+    margin: 0 0 0 auto;
     align-items: center;
+    flex-shrink: 0;
 }
 .mechili-panel .action-info .ai-forge-ing {
     width: 22px;
     height: 22px;
     border-radius: 50%;
     overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 .mechili-panel .action-info .ai-note { font-size: 11px; color: ${u.textMuted}; margin-top: 6px; font-style: italic; }
 .mechili-panel .action-info .ai-cost { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: bold; color: ${u.brass}; }
@@ -2564,19 +2572,6 @@ ${fontFaceCss()}
     box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.45);
 }
 .mechili-panel .item-sq.removable:active { cursor: grabbing; }
-.mechili-panel .item-sq.forge-help {
-    cursor: help;
-    font-size: 22px;
-    font-weight: 800;
-    color: ${u.brassLight};
-    border: 1.5px dashed ${u.border};
-    background: ${u.techBuyBg};
-}
-.mechili-panel .item-sq.forge-help:hover {
-    border-color: ${u.brassLight};
-    color: ${u.text};
-    filter: brightness(1.1);
-}
 .mechili-panel .item-sq.forge-suggest {
     cursor: pointer;
     box-shadow: 0 0 0 1.5px rgba(0, 255, 102, 0.55);
@@ -2587,7 +2582,7 @@ ${fontFaceCss()}
     filter: brightness(1.12);
 }
 
-.forge-detail .forge-group-note {
+.mechili-cards.detail .forge-group-note {
     margin: 0 0 12px;
     font-size: 12px;
     line-height: 1.4;
@@ -2596,6 +2591,56 @@ ${fontFaceCss()}
     max-width: 52rem;
     margin-left: auto;
     margin-right: auto;
+}
+/* specialist detail: forge list beside the card on desktop; hidden when cramped */
+.mechili-cards.detail .spec-card-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.mechili-cards.detail .forge-recipes-block {
+    display: none;
+}
+@media (min-width: 700px) and (min-height: 541px) {
+    .mechili-cards.detail .spec-card-row {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 14px;
+    }
+    .mechili-cards.detail .forge-recipes-block {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: auto;
+        margin: 0;
+        padding: 0;
+        min-width: 168px;
+        max-width: 220px;
+    }
+    .mechili-cards.detail .forge-recipes-block .forge-tile-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .mechili-cards.detail .forge-tile {
+        padding: 6px 8px;
+        column-gap: 4px;
+        row-gap: 2px;
+        background: ${u.panelBgDark};
+        border-color: ${u.border};
+    }
+    .mechili-cards.detail .forge-tile .forge-spell {
+        width: 26px;
+        height: 26px;
+    }
+    .mechili-cards.detail .forge-tile-ings .forge-ing {
+        width: 22px;
+        height: 22px;
+    }
+    .mechili-cards.detail .forge-tile-name {
+        font-size: 11px;
+    }
 }
 .forge-panel {
     max-width: min(96vw, 1100px);
@@ -2663,24 +2708,75 @@ ${fontFaceCss()}
     box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 18px rgba(0, 255, 102, 0.4);
     animation: forge-pulse-ready 1.25s ease-in-out infinite;
 }
-.mechili-cards .c-forge-spell.path.locked .c-forge-spell-ico,
-.inv-drag .inv-drag-spell.path.locked .inv-drag-spell-ico,
-.forge-slot-preview .inv-drag-spell.path.locked .inv-drag-spell-ico {
-    opacity: 0.35;
-    filter: grayscale(0.85);
-}
-.forge-tile-locked {
-    opacity: 0.4;
-    filter: grayscale(0.7);
-}
 .mechili-cards .c-forge-spells {
     display: flex;
     flex-direction: row;
-    gap: 4px;
+    gap: 8px;
     justify-content: center;
-    margin-top: 4px;
+    margin-top: 8px;
+}
+.mechili-cards .c-forge-spell-hit {
+    display: inline-flex;
+    cursor: help;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+.mechili-cards .c-forge-spell-hit:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
 }
 .mechili-cards .c-forge-spells .c-forge-spell-ico {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+}
+.mechili-card-spell-tip {
+    position: fixed;
+    z-index: 10050;
+    width: 280px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    color: ${u.text};
+}
+.mechili-card-spell-tip .ai-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.mechili-card-spell-tip .ai-icon {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+}
+.mechili-card-spell-tip .ai-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: ${u.brassLight};
+}
+.mechili-card-spell-tip .ai-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: ${u.text};
+    margin-top: 8px;
+}
+.mechili-card-spell-tip .ai-forge-ings {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 3px;
+    margin: 0 0 0 auto;
+    align-items: center;
+    flex-shrink: 0;
+}
+.mechili-card-spell-tip .ai-forge-ing {
     width: 22px;
     height: 22px;
     border-radius: 50%;

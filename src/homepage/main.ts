@@ -1,5 +1,5 @@
 import { buildingAbilities } from '../game/buildingAbilities';
-import { START_CARDS, ROUND_CARDS, roundCardIcon, startCardForgeIcons, type RoundCard, type StartCard } from '../game/cards';
+import { START_CARDS, ROUND_RUNE_CARDS, roundCardIcon, startCardForgeIcons, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { forgeRecipesForRuneCard } from '../game/forgeRecipes';
 import { ITEMS } from '../game/items';
@@ -113,9 +113,19 @@ function startCardFace(c: StartCard): string {
     const forge = startCardForgeIcons(c);
     const forgeRow =
         forge.length > 0
-            ? `<div class="c-forge-spells" title="${esc(
-                  `Forge: ${forge.map((f) => f.name).join(' · ')}`,
-              )}">${forge.map((f) => iconHtml(f.icon, 'c-forge-spell-ico')).join('')}</div>`
+            ? `<div class="c-forge-spells">${forge
+                  .map(
+                      (f) =>
+                          `<span class="c-forge-spell-hit" title="${esc(
+                              `${f.name}\n${f.desc}${
+                                  f.ingredientIcons.length
+                                      ? `\nRunes: ${f.ingredientIcons.length}`
+                                      : ''
+                              }`,
+                          )}">` +
+                          `${iconHtml(f.icon, 'c-forge-spell-ico')}</span>`,
+                  )
+                  .join('')}</div>`
             : '';
     return (
         `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
@@ -156,9 +166,8 @@ function roundCardFace(c: RoundCard): string {
                                     .join('')}</div>`
                               : '';
                       const kind = row.ready ? 'bake' : 'path';
-                      const locked = row.locked ? ' locked' : '';
                       return (
-                          `<div class="c-forge-spell ${kind}${locked}" title="${esc(row.spellName)}">` +
+                          `<div class="c-forge-spell ${kind}" title="${esc(row.spellName)}">` +
                           `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
                           under +
                           `</div>`
@@ -401,13 +410,13 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward, draft one of four offered cards — always three ${DISPLAY.items.toLowerCase()} and one of Rally Route, Buyback, or Flanky. Forgeable battle spells come from the Stronghold, not cards.</p>
+    <p class="mh-sub">From round two onward, draft one of four offered ${DISPLAY.items.toLowerCase()} cards. Forgeable battle spells come from the Stronghold, not cards.</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
-      ${ROUND_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
+      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-round-cards-row">
-        ${ROUND_CARDS.map(
+        ${ROUND_RUNE_CARDS.map(
             (c, i) =>
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
         ).join('')}
@@ -417,7 +426,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="tactics">
     <h2>${DISPLAY.tactics}</h2>
-    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Most battle spells are forged at the Stronghold; Rally and Buyback can also arrive as round cards. Icons match what you see in-game.</p>
+    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Most battle spells are forged at the Stronghold. Icons match what you see in-game.</p>
     <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a ${DISPLAY.tactic.toLowerCase()}">
       ${ALL_TACTICS.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
     </select>

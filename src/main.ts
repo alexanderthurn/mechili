@@ -114,7 +114,6 @@ interface CustomGameConfig {
     cardSeconds: number;
     horde: CustomHordeFactor;
     roundCards: boolean;
-    forgeShowLockedRecipes: boolean;
 }
 
 const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
@@ -125,7 +124,6 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     cardSeconds: DEFAULT_SETTINGS.cardTimeSeconds as number,
     horde: 'off',
     roundCards: true,
-    forgeShowLockedRecipes: false,
 };
 
 const CUSTOM_GAME_KEY = 'mechili-custom-game';
@@ -156,7 +154,6 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.specialistTimeSeconds = cfg.specialistSeconds;
     settings.cardTimeSeconds = cfg.cardSeconds;
     settings.roundCards = cfg.roundCards;
-    settings.forgeShowLockedRecipes = cfg.forgeShowLockedRecipes;
     settings.horde = structuredClone(DEFAULT_HORDE);
     settings.horde.factor = cfg.horde as HordeFactor;
 }
@@ -207,13 +204,6 @@ function settingsFromUrl(): GameSettings {
                 .filter((n) => Number.isFinite(n) && n > 0);
             if (rounds.length > 0) settings.roundCards = rounds;
         }
-    }
-    // forge locked-recipe UI: ?forgeLocked=1 | on | 0 | off
-    const forgeLocked = params.get('forgeLocked');
-    if (forgeLocked === '1' || forgeLocked === 'on' || forgeLocked === 'true') {
-        settings.forgeShowLockedRecipes = true;
-    } else if (forgeLocked === '0' || forgeLocked === 'off' || forgeLocked === 'false') {
-        settings.forgeShowLockedRecipes = false;
     }
     return settings;
 }
@@ -644,7 +634,6 @@ menu.innerHTML = `
             </select>
         </label>
         <label class="m-spmode-horde"><input type="checkbox" class="cg-roundcards"><span class="m-label">Between-round cards</span></label>
-        <label class="m-spmode-horde"><input type="checkbox" class="cg-forgelocked"><span class="m-label">Show locked forge recipes</span></label>
         <div class="m-room-row">
             <button class="m-btn m-small" data-mode="cg-reset">Reset Defaults</button>
             <button class="m-btn m-primary m-small" data-mode="cg-host">Host Game</button>
@@ -870,7 +859,6 @@ const cgSpecialistEl = menu.querySelector<HTMLInputElement>('.cg-specialist')!;
 const cgCardEl = menu.querySelector<HTMLInputElement>('.cg-card')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLInputElement>('.cg-roundcards')!;
-const cgForgeLockedEl = menu.querySelector<HTMLInputElement>('.cg-forgelocked')!;
 
 function updateCgHostButtonLabel(): void {
     const modeInput = customEl.querySelector<HTMLInputElement>('input[name="cgmode"]:checked');
@@ -889,7 +877,6 @@ function populateCustomGameForm(cfg: CustomGameConfig): void {
     cgCardEl.value = String(cfg.cardSeconds);
     cgHordeEl.value = cfg.horde;
     cgRoundCardsEl.checked = cfg.roundCards;
-    cgForgeLockedEl.checked = cfg.forgeShowLockedRecipes;
     updateCgHostButtonLabel();
 }
 
@@ -907,7 +894,6 @@ function readCustomGameForm(): CustomGameConfig {
         cardSeconds: Number(cgCardEl.value) || DEFAULT_CUSTOM_GAME.cardSeconds,
         horde: (cgHordeEl.value as CustomHordeFactor) || 'off',
         roundCards: cgRoundCardsEl.checked,
-        forgeShowLockedRecipes: cgForgeLockedEl.checked,
     };
 }
 

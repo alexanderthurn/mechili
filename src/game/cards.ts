@@ -2,7 +2,7 @@
  * The specialist system: before round 1 each player picks a SPECIALIST card
  * — a starting army (equal total value), a starting HP pool, a permanent
  * speciality, and possibly pack items. Between rounds, {@link ROUND_CARDS}
- * offer runes plus a few non-forgeable extras (rally, sell, Flanky).
+ * hold the full catalog; the live offer currently draws runes only.
  *
  * Each specialist also unlocks a small set of Stronghold forge spells
  * ({@link StartCard.forgeSpells}); teammates share the union of those lists.
@@ -25,6 +25,7 @@ import {
     STORM_ID,
     TACTICS,
 } from './tactics';
+import { forgeIngredientIcons } from './forgeRecipes';
 
 export type SpecialityId = 'air' | 'costControl' | 'elite' | 'archer' | 'addi' | 'flanky';
 
@@ -90,8 +91,46 @@ function runeRoundCard(itemId: (typeof RUNE_ROUND_CARD_IDS)[number]): RoundCard 
 export const ROUND_RUNE_CARDS: RoundCard[] = RUNE_ROUND_CARD_IDS.map(runeRoundCard);
 
 /**
+ * Unit-pack between-round cards (kept for later; not in the live offer).
+ */
+export const ROUND_UNIT_CARDS: RoundCard[] = [
+    {
+        id: 'dwarves4',
+        title: 'Dwarf Band',
+        cost: 150,
+        units: ['dwarf', 'dwarf', 'dwarf', 'dwarf'],
+        unitsLabel: '4× Dwarves',
+        description: 'Four Dwarf packs join your army.',
+    },
+    {
+        id: 'archers4',
+        title: 'Archer Company',
+        cost: 150,
+        units: ['archer', 'archer', 'archer', 'archer'],
+        unitsLabel: '4× Archers',
+        description: 'Four Archers join your army.',
+    },
+    {
+        id: 'crowRiders2',
+        title: 'Crow Wing',
+        cost: 150,
+        units: ['crowRider', 'crowRider'],
+        unitsLabel: '2× Crow Riders',
+        description: 'Two Crow Rider flocks join your army.',
+    },
+    {
+        id: 'ballista1',
+        title: 'Siege Ballista',
+        cost: 150,
+        units: ['ballista'],
+        unitsLabel: '1× Ballista',
+        description: 'A Ballista joins your army.',
+    },
+];
+
+/**
  * Non-rune between-round cards (Rally, Buyback, Flanky).
- * Each offer draws exactly one of these plus three runes.
+ * Kept for later; not in the live offer for now.
  */
 export const ROUND_EXTRA_CARDS: RoundCard[] = [
     {
@@ -119,10 +158,14 @@ export const ROUND_EXTRA_CARDS: RoundCard[] = [
 ];
 
 /**
- * Between-round offer pool. Forgeable spells are Stronghold-only — not here.
- * Keep Rally, Sell, and Flanky (can't be baked in the forge).
+ * Full between-round catalog (lookup by id). Live offers use
+ * {@link drawRoundCardOffer} — runes only for now.
  */
-export const ROUND_CARDS: RoundCard[] = [...ROUND_RUNE_CARDS, ...ROUND_EXTRA_CARDS];
+export const ROUND_CARDS: RoundCard[] = [
+    ...ROUND_RUNE_CARDS,
+    ...ROUND_UNIT_CARDS,
+    ...ROUND_EXTRA_CARDS,
+];
 
 /** shuffle in place with the given rng */
 function shuffleInPlace<T>(deck: T[], rng: () => number): void {
@@ -133,17 +176,13 @@ function shuffleInPlace<T>(deck: T[], rng: () => number): void {
 }
 
 /**
- * Between-round offer: always 3 runes + 1 extra (Rally / Buyback / Flanky),
- * shuffled for display order.
+ * Between-round offer: four random runes for now
+ * (unit packs / Rally / Buyback / Flanky stay in the catalog but are not drawn).
  */
 export function drawRoundCardOffer(rng: () => number): RoundCard[] {
     const runes = [...ROUND_RUNE_CARDS];
     shuffleInPlace(runes, rng);
-    const extras = [...ROUND_EXTRA_CARDS];
-    shuffleInPlace(extras, rng);
-    const offer = [...runes.slice(0, 3), extras[0]!];
-    shuffleInPlace(offer, rng);
-    return offer;
+    return runes.slice(0, 4);
 }
 /** atlas icon for a round-card face (rune / tactic / Flanky) */
 export function roundCardIcon(c: RoundCard): string | null {
@@ -199,11 +238,20 @@ export interface StartCard {
 }
 
 /** atlas icons for a specialist's forge spell row */
-export function startCardForgeIcons(card: StartCard): { icon: string; name: string }[] {
-    const out: { icon: string; name: string }[] = [];
+export function startCardForgeIcons(
+    card: StartCard,
+): { icon: string; name: string; desc: string; ingredientIcons: string[] }[] {
+    const out: { icon: string; name: string; desc: string; ingredientIcons: string[] }[] = [];
     for (const id of card.forgeSpells) {
         const t = TACTICS[id];
-        if (t) out.push({ icon: t.icon, name: t.name });
+        if (t) {
+            out.push({
+                icon: t.icon,
+                name: t.name,
+                desc: t.description,
+                ingredientIcons: forgeIngredientIcons(id),
+            });
+        }
     }
     return out;
 }

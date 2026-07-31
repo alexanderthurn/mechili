@@ -58,11 +58,6 @@ export interface GameSettings {
      * Custom games can override this later.
      */
     roundCards: boolean | number[];
-    /**
-     * When true, forge UI also shows recipes not unlocked by this team's
-     * specialists (greyed). Resolve/burn still ignore locked recipes.
-     */
-    forgeShowLockedRecipes: boolean;
 }
 
 /**
@@ -328,7 +323,6 @@ export const DEFAULT_SETTINGS: GameSettings = {
         recruitLevel2Cost: 100,
     },
     roundCards: true,
-    forgeShowLockedRecipes: false,
 };
 
 /** resolve a constant or per-round timer for the given round (round 1 → index 0) */
@@ -537,11 +531,6 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: Array.isArray(settings.roundCards)
                         ? `rounds ${settings.roundCards.join(', ')}`
                         : 'from round 2 onward when on',
-                },
-                {
-                    label: 'Show locked forge recipes',
-                    value: settings.forgeShowLockedRecipes ? 'On' : 'Off',
-                    note: 'greyed recipes not unlocked by your specialists (testing)',
                 },
             ],
         },

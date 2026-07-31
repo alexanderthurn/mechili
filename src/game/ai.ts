@@ -65,12 +65,17 @@ export class AiOpponent implements Opponent {
     }
 
     onRoundCards(offer: readonly RoundCard[]): void {
-        // takes an affordable UNIT card most of the time, else skips
-        const candidates = offer.filter(
-            (c) => c.units && this.ctx.economy.balance(this.seat) >= c.cost,
-        );
-        const pick = candidates.length > 0 && this.ctx.rng() < 0.75 ? candidates[0]! : null;
-        this.ctx.dispatch({ kind: 'roundCard', team: this.team, seat: this.seat, cardId: pick?.id ?? null });
+        const affordable = offer.filter((c) => this.ctx.economy.balance(this.seat) >= c.cost);
+        const pick =
+            affordable.length > 0
+                ? affordable[Math.floor(this.ctx.rng() * affordable.length)]!
+                : null;
+        this.ctx.dispatch({
+            kind: 'roundCard',
+            team: this.team,
+            seat: this.seat,
+            cardId: pick?.id ?? null,
+        });
     }
 
     onBuildPhase(_round: number): void {
