@@ -3201,9 +3201,8 @@ ${fontFaceCss()}
     filter: saturate(0.9);
 }
 .mechili-cards .c-forge-missing {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: repeat(3, 12px);
     gap: 1px;
     justify-content: center;
     min-height: 12px;
@@ -3214,10 +3213,14 @@ ${fontFaceCss()}
     border-radius: 50%;
     overflow: hidden;
 }
+.mechili-cards .c-forge-miss.ghost {
+    visibility: hidden;
+    pointer-events: none;
+}
 .mechili-cards .c-forge-miss.owned {
     box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.9);
 }
-/* triples: keep the tight row, but lift the outer two toward the spell */
+/* trio arc: left + right up, center a bit down (left slot is usually ghost) */
 .mechili-cards .c-forge-missing.trio .c-forge-miss:first-child,
 .mechili-cards .c-forge-missing.trio .c-forge-miss:last-child {
     transform: translateY(-3px);

@@ -1,11 +1,12 @@
 import type { Application } from 'pixi.js';
-import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
+import { SHOP_UNIT_IDS, unitUnlockCost, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
     forgePreviewView,
     forgeRecipeMatch,
     type ForgePreviewView,
+    type ForgeSpellPool,
 } from '../game/forgeRecipes';
 import { ITEMS } from '../game/items';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
@@ -16,6 +17,7 @@ import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { roundCardFaceHtml } from './roundCardFace';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -3121,66 +3123,31 @@ export class Hud {
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
     showRoundCards(
-        cards: readonly {
-            id: string;
-            title: string;
-            body: string;
-            cost: number;
-            affordable: boolean;
-            icon?: string | null;
-            forgeRows?: {
-                spellIcon: string;
-                spellName: string;
-                ready: boolean;
-                ingredients: { itemId: string; icon: string; owned: boolean }[];
-            }[];
-        }[],
+        cards: readonly RoundCard[],
         skipReward: number,
         onPick: (cardId: string | null) => void,
         title = 'Choose your card',
+        opts?: {
+            ownedItemIds?: readonly string[];
+            forgePool?: ForgeSpellPool;
+            canAfford?: (card: RoundCard) => boolean;
+        },
     ): void {
+        const canAfford = opts?.canAfford ?? (() => true);
+        const faceOpts = {
+            ownedItemIds: opts?.ownedItemIds,
+            forgePool: opts?.forgePool,
+        };
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
             `<div class="cards-title">${escapeHtml(title)}</div><div class="cards-row">` +
             cards
                 .map((c) => {
-                    const forge =
-                        c.forgeRows && c.forgeRows.length > 0
-                            ? `<div class="c-forge">${c.forgeRows
-                                  .map((row) => {
-                                      // singles: spell only; pairs/triples: tiny runes under
-                                      // (even when already complete)
-                                      const under =
-                                          row.ingredients.length >= 2
-                                              ? `<div class="c-forge-missing${row.ingredients.length >= 3 ? ' trio' : ''}">${row.ingredients
-                                                    .map((ing) =>
-                                                        iconHtml(
-                                                            ing.icon,
-                                                            `c-forge-miss${ing.owned ? ' owned' : ' need'}`,
-                                                        ),
-                                                    )
-                                                    .join('')}</div>`
-                                              : '';
-                                      const kind = row.ready ? 'bake' : 'path';
-                                      return (
-                                          `<div class="c-forge-spell ${kind}" title="${escapeAttr(row.spellName)}">` +
-                                          `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
-                                          under +
-                                          `</div>`
-                                      );
-                                  })
-                                  .join('')}</div>`
-                            : '';
+                    const affordable = canAfford(c);
                     return (
-                        `<button class="card" data-card="${c.id}" ${c.affordable ? '' : 'disabled'}>` +
-                        (c.icon
-                            ? `<div class="c-portrait">${iconHtml(c.icon, 'c-portrait-ico')}</div>`
-                            : '') +
-                        `<div class="c-title">${c.title}</div>` +
-                        `<div class="c-desc">${c.body}</div>` +
-                        forge +
-                        `<div class="c-cost">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>` +
+                        `<button class="card" data-card="${escapeAttr(c.id)}" ${affordable ? '' : 'disabled'}>` +
+                        roundCardFaceHtml(c, faceOpts) +
                         `</button>`
                     );
                 })

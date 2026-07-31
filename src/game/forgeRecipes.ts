@@ -461,6 +461,7 @@ export function forgeRecipeMatch(
 export interface RuneCardForgeRow {
     spellIcon: string;
     spellName: string;
+    spellDesc: string;
     /** every ingredient owned once this card is taken */
     ready: boolean;
     ingredients: { itemId: string; icon: string; owned: boolean }[];
@@ -495,6 +496,7 @@ export function forgeRecipesForRuneCard(
         rows.push({
             spellIcon: tactic.icon,
             spellName: tactic.name,
+            spellDesc: tactic.description,
             ready: ingredients.every((ing) => ing.owned),
             ingredients,
         });

@@ -1,8 +1,7 @@
 import { buildingAbilities } from '../game/buildingAbilities';
-import { START_CARDS, ROUND_RUNE_CARDS, roundCardIcon, type RoundCard, type StartCard } from '../game/cards';
+import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
-import { forgeRecipesForRuneCard } from '../game/forgeRecipes';
-import { ITEMS } from '../game/items';
+import { forgeIngredientIcons } from '../game/forgeRecipes';
 import { DEFAULT_HORDE, DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { TACTICS, formatTacticStats } from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
@@ -19,6 +18,7 @@ import {
 import { MODEL_SPECS } from '../game/unitModels';
 import { hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
+import { roundCardFaceHtml } from '../ui/roundCardFace';
 import { iconHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from './modelViewer';
@@ -115,51 +115,7 @@ function startCardFace(c: StartCard): string {
 }
 
 function roundCardFace(c: RoundCard): string {
-    const icon = roundCardIcon(c);
-    const extras: string[] = [];
-    if (c.unitsLabel) extras.push(c.unitsLabel);
-    if (c.items?.length) {
-        extras.push(c.items.map((id) => ITEMS[id]?.name ?? id).join(', '));
-    }
-    if (c.tactics?.length) {
-        extras.push(c.tactics.map((id) => TACTICS[id]?.name ?? id).join(', '));
-    }
-    if (c.flankSpawnHalf) extras.push('Flank spawn half-time');
-    const runeId = c.items?.length === 1 ? c.items[0]! : null;
-    const forgeRows = runeId ? forgeRecipesForRuneCard(runeId) : [];
-    const forge =
-        forgeRows.length > 0
-            ? `<div class="c-forge">${forgeRows
-                  .map((row) => {
-                      const under =
-                          row.ingredients.length >= 2
-                              ? `<div class="c-forge-missing${row.ingredients.length >= 3 ? ' trio' : ''}">${row.ingredients
-                                    .map((ing) =>
-                                        iconHtml(
-                                            ing.icon,
-                                            `c-forge-miss${ing.owned ? ' owned' : ' need'}`,
-                                        ),
-                                    )
-                                    .join('')}</div>`
-                              : '';
-                      const kind = row.ready ? 'bake' : 'path';
-                      return (
-                          `<div class="c-forge-spell ${kind}" title="${esc(row.spellName)}">` +
-                          `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
-                          under +
-                          `</div>`
-                      );
-                  })
-                  .join('')}</div>`
-            : '';
-    return (
-        (icon ? `<div class="c-portrait">${iconHtml(icon, 'c-portrait-ico')}</div>` : '') +
-        `<div class="c-title">${esc(c.title)}</div>` +
-        (extras.length ? `<div class="c-units">${esc(extras.join(' · '))}</div>` : '') +
-        `<div class="c-desc">${esc(c.description)}</div>` +
-        forge +
-        `<div class="c-cost">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>`
-    );
+    return roundCardFaceHtml(c, { catalog: true });
 }
 
 function unitFlags(t: UnitType): string[] {
@@ -236,6 +192,12 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     const statsHtml = stats.length
         ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
         : '';
+    const forgeIcons = forgeIngredientIcons(t.id);
+    const forgeHtml = forgeIcons.length
+        ? `<div class="mh-tactic-forge" aria-label="Required runes">${forgeIcons
+              .map((ico) => iconHtml(ico, 'mh-tactic-rune'))
+              .join('')}</div>`
+        : '';
     return `
 <article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
   <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(t.icon, 'mh-tactic-tile')}</div>
@@ -245,6 +207,7 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     </div>
     <p class="mh-tactic-meta">${kindLabel} · ${esc(t.targeting)}</p>
     <p class="mh-tactic-desc">${esc(t.description)}</p>
+    ${forgeHtml}
     ${statsHtml}
   </div>
 </article>`;
@@ -902,3 +865,5 @@ wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
 const commanderSpellTips = new CardSpellTips();
 const specialistsRow = document.getElementById('mh-specialists-row');
 if (specialistsRow) commanderSpellTips.bind(specialistsRow);
+const roundCardsRow = document.getElementById('mh-round-cards-row');
+if (roundCardsRow) commanderSpellTips.bind(roundCardsRow);

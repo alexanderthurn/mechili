@@ -31,7 +31,6 @@ import {
     emptyForgeSlots,
     forgeHintText,
     forgePreviewView,
-    forgeRecipesForRuneCard,
     forgeRecipesCraftableFromBag,
     forgeSeatCanInsert,
     forgeTeamCapacity,
@@ -73,7 +72,6 @@ import {
     SKIP_CARD_REWARD,
     START_CARDS,
     drawRoundCardOffer,
-    roundCardIcon,
     roundOfferTitle,
     type RoundCard,
     type SpecialityId,
@@ -5185,7 +5183,7 @@ export class Game {
             return;
         }
         this.hud.showRoundCards(
-            offer.map((c) => this.roundCardView(c)),
+            offer,
             SKIP_CARD_REWARD,
             (cardId) => {
                 this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId });
@@ -5193,32 +5191,12 @@ export class Game {
                 this.phaseRemaining = this.deploySeconds();
             },
             roundOfferTitle(offer),
+            {
+                ownedItemIds: this.ownedRunesForCardPreview(),
+                forgePool: this.teamForgePool('player'),
+                canAfford: (c) => this.economy.balance(this.humanSeat) >= c.cost,
+            },
         );
-    }
-
-    private roundCardView(c: RoundCard): {
-        id: string;
-        title: string;
-        body: string;
-        cost: number;
-        affordable: boolean;
-        icon: string | null;
-        forgeRows?: ReturnType<typeof forgeRecipesForRuneCard>;
-    } {
-        const runeId = c.items?.length === 1 ? c.items[0]! : null;
-        const owned = runeId ? this.ownedRunesForCardPreview() : [];
-        const pool = this.teamForgePool('player');
-        return {
-            id: c.id,
-            title: c.title,
-            body: (c.unitsLabel ? `${c.unitsLabel} — ` : '') + c.description,
-            cost: c.cost,
-            affordable: this.economy.balance(this.humanSeat) >= c.cost,
-            icon: roundCardIcon(c),
-            forgeRows: runeId
-                ? forgeRecipesForRuneCard(runeId, owned, pool)
-                : undefined,
-        };
     }
 
     /** bag + forge oven runes the player can still use for forging */

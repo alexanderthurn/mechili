@@ -1048,6 +1048,20 @@ html, body {
     line-height: 1.5;
     color: ${u.phase};
 }
+.mh-tactic-forge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    align-items: center;
+}
+.mh-tactic-rune {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
+}
 .mh-tactic-stats {
     list-style: none;
     margin: 12px 0 0;
