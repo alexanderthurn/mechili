@@ -322,7 +322,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
         levelCostFactor: 0.5,
         recruitLevel2Cost: 100,
     },
-    roundCards: false,
+    roundCards: true,
 };
 
 /** resolve a constant or per-round timer for the given round (round 1 → index 0) */

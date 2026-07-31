@@ -3107,7 +3107,20 @@ export class Hud {
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
     showRoundCards(
-        cards: readonly { id: string; title: string; body: string; cost: number; affordable: boolean }[],
+        cards: readonly {
+            id: string;
+            title: string;
+            body: string;
+            cost: number;
+            affordable: boolean;
+            icon?: string | null;
+            forgeRows?: {
+                spellIcon: string;
+                spellName: string;
+                ready: boolean;
+                ingredients: { itemId: string; icon: string; owned: boolean }[];
+            }[];
+        }[],
         skipReward: number,
         onPick: (cardId: string | null) => void,
     ): void {
@@ -3116,14 +3129,43 @@ export class Hud {
         overlay.innerHTML =
             `<div class="cards-title">Choose a card</div><div class="cards-row">` +
             cards
-                .map(
-                    (c) =>
+                .map((c) => {
+                    const forge =
+                        c.forgeRows && c.forgeRows.length > 0
+                            ? `<div class="c-forge">${c.forgeRows
+                                  .map((row) => {
+                                      const missing = row.ingredients
+                                          .filter((ing) => !ing.owned)
+                                          .map((ing) =>
+                                              iconHtml(ing.icon, 'c-forge-miss'),
+                                          )
+                                          .join('');
+                                      const kind = row.ready ? 'bake' : 'path';
+                                      const under =
+                                          !row.ready && missing
+                                              ? `<div class="c-forge-missing">${missing}</div>`
+                                              : '';
+                                      return (
+                                          `<div class="c-forge-spell ${kind}" title="${escapeAttr(row.spellName)}">` +
+                                          `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
+                                          under +
+                                          `</div>`
+                                      );
+                                  })
+                                  .join('')}</div>`
+                            : '';
+                    return (
                         `<button class="card" data-card="${c.id}" ${c.affordable ? '' : 'disabled'}>` +
+                        (c.icon
+                            ? `<div class="c-portrait">${iconHtml(c.icon, 'c-portrait-ico')}</div>`
+                            : '') +
                         `<div class="c-title">${c.title}</div>` +
                         `<div class="c-desc">${c.body}</div>` +
+                        forge +
                         `<div class="c-cost">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>` +
-                        `</button>`,
-                )
+                        `</button>`
+                    );
+                })
                 .join('') +
             `</div>` +
             `<button class="cards-skip">Skip — take ⬢ ${skipReward}</button>`;

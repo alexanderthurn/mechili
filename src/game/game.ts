@@ -32,6 +32,7 @@ import {
     emptyForgeSlots,
     forgeHintText,
     forgePreviewView,
+    forgeRecipesForRuneCard,
     resolveForge,
     type ForgeSlot,
 } from './forgeRecipes';
@@ -68,6 +69,8 @@ import {
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
+    drawRoundCardOffer,
+    roundCardIcon,
     type RoundCard,
     type SpecialityId,
     type StartCard,
@@ -5120,12 +5123,12 @@ export class Game {
     private offerRoundCards(): void {
         this.roundCardTaken.fill(false);
 
-        const myOffer = this.draw(ROUND_CARDS, 4, this.rngRoundCards[this.humanSeat]!);
+        const myOffer = drawRoundCardOffer(this.rngRoundCards[this.humanSeat]!);
         // the classic single opponent's own seat-scoped draw (vestigial no-op
         // on a star guest, since NetworkOpponent.onRoundCards does nothing —
         // still drawn so every client consumes this seat's stream equally)
         const enemyPrimary = primarySeatOf(this.seats, 'enemy');
-        const enemyOffer = this.draw(ROUND_CARDS, 4, this.rngRoundCards[enemyPrimary]!);
+        const enemyOffer = drawRoundCardOffer(this.rngRoundCards[enemyPrimary]!);
         this.triggerExtraRoundCards();
         if (this.hydrating || this.watching) {
             // no UI, no opponent hook — hydrating: the recorded actions
@@ -5146,7 +5149,7 @@ export class Game {
      *  round-card offer and picks for itself — mirrors triggerExtraStarters */
     private triggerExtraRoundCards(): void {
         for (const e of this.extraAis) {
-            e.ai.onRoundCards(this.draw(ROUND_CARDS, 4, this.rngRoundCards[e.seat]!));
+            e.ai.onRoundCards(drawRoundCardOffer(this.rngRoundCards[e.seat]!));
         }
     }
 
@@ -5174,14 +5177,29 @@ export class Game {
         body: string;
         cost: number;
         affordable: boolean;
+        icon: string | null;
+        forgeRows?: ReturnType<typeof forgeRecipesForRuneCard>;
     } {
+        const runeId = c.items?.length === 1 ? c.items[0]! : null;
+        const owned = runeId ? this.ownedRunesForCardPreview() : [];
         return {
             id: c.id,
             title: c.title,
             body: (c.unitsLabel ? `${c.unitsLabel} — ` : '') + c.description,
             cost: c.cost,
             affordable: this.economy.balance(this.humanSeat) >= c.cost,
+            icon: roundCardIcon(c),
+            forgeRows: runeId ? forgeRecipesForRuneCard(runeId, owned) : undefined,
         };
+    }
+
+    /** bag + forge oven runes the player can still use for forging */
+    private ownedRunesForCardPreview(): string[] {
+        const bag = this.itemInventory[this.humanSeat] ?? [];
+        const oven = this.forgeSlots.player
+            .filter((s): s is ForgeSlot => !!s)
+            .map((s) => s.itemId);
+        return [...bag, ...oven];
     }
 
     /** tech-resolved stats plus army boosts, card speciality, and the pack's items */

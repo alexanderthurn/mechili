@@ -2984,6 +2984,54 @@ ${fontFaceCss()}
 .mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
 .mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
 .mechili-cards .c-desc { font-size: 12.5px; color: ${u.phase}; line-height: 1.55; }
+.mechili-cards .c-forge {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 2px;
+}
+.mechili-cards .c-forge-spell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.mechili-cards .c-forge-spell-ico {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: ${u.panelBg};
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.mechili-cards .c-forge-spell.bake .c-forge-spell-ico {
+    width: 28px;
+    height: 28px;
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 8px rgba(0, 255, 102, 0.4);
+}
+.mechili-cards .c-forge-spell.path .c-forge-spell-ico {
+    opacity: 0.9;
+    filter: saturate(0.9);
+}
+.mechili-cards .c-forge-missing {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1px;
+    justify-content: center;
+    min-height: 12px;
+}
+.mechili-cards .c-forge-miss {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    overflow: hidden;
+    opacity: 0.85;
+}
 .mechili-cards .c-cost { margin-top: auto; font-size: 15px; font-weight: bold; color: ${u.brass}; }
 .mechili-cards .cards-skip {
     padding: 9px 24px;

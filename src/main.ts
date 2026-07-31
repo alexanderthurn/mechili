@@ -123,7 +123,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     specialistSeconds: DEFAULT_SETTINGS.specialistTimeSeconds as number,
     cardSeconds: DEFAULT_SETTINGS.cardTimeSeconds as number,
     horde: 'off',
-    roundCards: false,
+    roundCards: true,
 };
 
 const CUSTOM_GAME_KEY = 'mechili-custom-game';

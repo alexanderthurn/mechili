@@ -357,3 +357,46 @@ export function forgeRecipeMatch(
     }
     return 'none';
 }
+
+/** One forge path shown on a between-round rune card. */
+export interface RuneCardForgeRow {
+    spellIcon: string;
+    spellName: string;
+    /** every ingredient owned once this card is taken */
+    ready: boolean;
+    ingredients: { itemId: string; icon: string; owned: boolean }[];
+}
+
+/**
+ * Forge recipes that use `runeId`, with ownership marks as if the player
+ * already held `ownedItemIds` plus this rune (the card being offered).
+ */
+export function forgeRecipesForRuneCard(
+    runeId: string,
+    ownedItemIds: readonly string[] = [],
+): RuneCardForgeRow[] {
+    if (!ITEMS[runeId]) return [];
+    const have = countMultiset([...ownedItemIds, runeId]);
+    const rows: RuneCardForgeRow[] = [];
+    for (const recipe of FORGE_RECIPES) {
+        if (!recipe.ingredients.includes(runeId)) continue;
+        const tactic = TACTICS[recipe.tacticId];
+        if (!tactic) continue;
+        const pool = new Map(have);
+        const ingredients = recipe.ingredients.map((id) => {
+            const icon = ITEMS[id]?.icon ?? '?';
+            const n = pool.get(id) ?? 0;
+            const owned = n > 0;
+            if (owned) pool.set(id, n - 1);
+            return { itemId: id, icon, owned };
+        });
+        rows.push({
+            spellIcon: tactic.icon,
+            spellName: tactic.name,
+            ready: ingredients.every((ing) => ing.owned),
+            ingredients,
+        });
+    }
+    rows.sort((a, b) => a.ingredients.length - b.ingredients.length);
+    return rows;
+}
