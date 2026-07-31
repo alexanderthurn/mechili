@@ -136,15 +136,18 @@ function roundCardFace(c: RoundCard): string {
         forgeRows.length > 0
             ? `<div class="c-forge">${forgeRows
                   .map((row) => {
-                      const missing = row.ingredients
-                          .filter((ing) => !ing.owned)
-                          .map((ing) => iconHtml(ing.icon, 'c-forge-miss'))
-                          .join('');
-                      const kind = row.ready ? 'bake' : 'path';
                       const under =
-                          !row.ready && missing
-                              ? `<div class="c-forge-missing">${missing}</div>`
+                          row.ingredients.length >= 2
+                              ? `<div class="c-forge-missing${row.ingredients.length >= 3 ? ' trio' : ''}">${row.ingredients
+                                    .map((ing) =>
+                                        iconHtml(
+                                            ing.icon,
+                                            `c-forge-miss${ing.owned ? ' owned' : ' need'}`,
+                                        ),
+                                    )
+                                    .join('')}</div>`
                               : '';
+                      const kind = row.ready ? 'bake' : 'path';
                       return (
                           `<div class="c-forge-spell ${kind}" title="${esc(row.spellName)}">` +
                           `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +

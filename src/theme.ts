@@ -3030,7 +3030,14 @@ ${fontFaceCss()}
     height: 12px;
     border-radius: 50%;
     overflow: hidden;
-    opacity: 0.85;
+}
+.mechili-cards .c-forge-miss.owned {
+    box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.9);
+}
+/* triples: keep the tight row, but lift the outer two toward the spell */
+.mechili-cards .c-forge-missing.trio .c-forge-miss:first-child,
+.mechili-cards .c-forge-missing.trio .c-forge-miss:last-child {
+    transform: translateY(-3px);
 }
 .mechili-cards .c-cost { margin-top: auto; font-size: 15px; font-weight: bold; color: ${u.brass}; }
 .mechili-cards .cards-skip {

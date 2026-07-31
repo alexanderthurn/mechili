@@ -3134,17 +3134,20 @@ export class Hud {
                         c.forgeRows && c.forgeRows.length > 0
                             ? `<div class="c-forge">${c.forgeRows
                                   .map((row) => {
-                                      const missing = row.ingredients
-                                          .filter((ing) => !ing.owned)
-                                          .map((ing) =>
-                                              iconHtml(ing.icon, 'c-forge-miss'),
-                                          )
-                                          .join('');
-                                      const kind = row.ready ? 'bake' : 'path';
+                                      // singles: spell only; pairs/triples: tiny runes under
+                                      // (even when already complete)
                                       const under =
-                                          !row.ready && missing
-                                              ? `<div class="c-forge-missing">${missing}</div>`
+                                          row.ingredients.length >= 2
+                                              ? `<div class="c-forge-missing${row.ingredients.length >= 3 ? ' trio' : ''}">${row.ingredients
+                                                    .map((ing) =>
+                                                        iconHtml(
+                                                            ing.icon,
+                                                            `c-forge-miss${ing.owned ? ' owned' : ' need'}`,
+                                                        ),
+                                                    )
+                                                    .join('')}</div>`
                                               : '';
+                                      const kind = row.ready ? 'bake' : 'path';
                                       return (
                                           `<div class="c-forge-spell ${kind}" title="${escapeAttr(row.spellName)}">` +
                                           `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
