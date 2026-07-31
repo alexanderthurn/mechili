@@ -27,13 +27,13 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 19; // v19: 'action'/'undo' now carry a mandatory per-seat seq (gap detection), plus new 'starResyncRequest' message (Phase 2 of the full netcode unification)
+export const GAME_VERSION = 20; // v20: 'starSync' now carries the dropped seat(s)' names, for a non-host's own "waiting" notice
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
 /** how long a star seat's connection may stay dropped before the host gives
  *  up and frees it — matches classic 1v1's RECONNECT_GRACE_SECONDS (main.ts) */
-export const STAR_RECONNECT_GRACE_MS = 90_000;
+export const STAR_RECONNECT_GRACE_MS = 60_000;
 
 /**
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
@@ -305,8 +305,19 @@ export type NetMessage =
      * relay latency. Disconnect time is always free: the resume target
      * always equals the pause target, since nothing advances while
      * everyone is correctly paused — this is never used to skip time
-     * forward as a fairness penalty. */
-    | { type: 'starSync'; suspended: boolean; round: number; phase: 'build' | 'battle'; target: number }
+     * forward as a fairness penalty. `names`: every currently-pending
+     * (dropped, not yet reconnected) seat's name, so a non-host recipient
+     * can show the same "<name> disconnected — waiting <time>" notice the
+     * host shows, instead of a generic message with no idea who dropped —
+     * always sent (empty array on `suspended:false`, unused there). */
+    | {
+          type: 'starSync';
+          suspended: boolean;
+          round: number;
+          phase: 'build' | 'battle';
+          target: number;
+          names: string[];
+      }
     /**
      * Guest → host only: this guest's own per-seat `seq` tracking
      * (Game.lastSeqSeen) noticed a gap in relayed action/undo traffic —

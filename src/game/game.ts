@@ -379,6 +379,11 @@ export class Game {
     /** last whole second rendered in the countdown notice — re-render only
      *  on change, not every frame */
     private lastSuspendNoticeSecond = -1;
+    /** name(s) of the currently-pending (dropped) seat(s), for the "Waiting…"
+     *  notice — the host derives this straight from `pendingStarSeats`; a
+     *  non-host seat has no such set of its own, so it's told via
+     *  `starSync`'s `names` field instead. */
+    private pendingDropNames: string[] = [];
     /** per-seat "next seq I'll stamp when I originate a message for this
      *  seat" — only load-bearing for humanSeat, and for any host-driven AI
      *  seat via aiCtxFor. Seeded (never persisted) from the log's own
@@ -3247,6 +3252,7 @@ export class Game {
             if (name) this.announceSystem(`${name} disconnected — waiting for them to reconnect.`, name);
         }
         this.pendingStarSeats.add(seat);
+        this.pendingDropNames = this.computePendingDropNames();
         if (!wasSuspended) {
             this.suspended = true;
             this.suspendDeadline = performance.now() + STAR_RECONNECT_GRACE_MS;
@@ -3264,6 +3270,7 @@ export class Game {
                 round: this.round,
                 phase: this.phase,
                 target: this.starSyncTarget(),
+                names: this.pendingDropNames,
             });
         }
         // recompute every time, not just on the first drop — a second seat
@@ -3332,13 +3339,22 @@ export class Game {
         return this.phase === 'battle' ? (this.sim?.elapsed ?? 0) : this.phaseRemaining;
     }
 
-    /** names every currently-pending seat, not just whichever dropped first —
-     *  called on every pendingStarSeats change while still suspended.
-     *  Deliberately generic ("Waiting…"), not naming who dropped — same
-     *  text every connected seat sees, regardless of ally/opponent/host. */
+    /** names every currently-pending seat — called on every pendingStarSeats
+     *  change while still suspended, so a second seat dropping while
+     *  already suspended for a different one doesn't leave the notice
+     *  naming only the first. */
     private refreshStarSuspendNotice(): void {
         if (this.pendingStarSeats.size === 0) return;
+        this.pendingDropNames = this.computePendingDropNames();
         this.showSuspendNotice();
+    }
+
+    /** host only — the names of every seat in `pendingStarSeats` right now,
+     *  in wire order for `starSync`'s `names` field. */
+    private computePendingDropNames(): string[] {
+        return [...this.pendingStarSeats]
+            .map((s) => this.seats[s]?.name)
+            .filter((n): n is string => !!n);
     }
 
     /** the "Waiting…" notice, with a live countdown toward
@@ -3350,19 +3366,12 @@ export class Game {
         this.hud.showNotice(this.suspendNoticeText(), 'Give up', () => this.quitToMenu());
     }
 
-    /** `1v1` (exactly one seat per side) has only one possible outcome once
-     *  the grace window elapses: a forfeit-win for whoever's still here —
-     *  there's no teammate a dropped seat could be handed to instead. 2v2+
-     *  depends on per-side human counts (could resolve to an AI takeover
-     *  instead), so that case stays deliberately generic rather than
-     *  promising a win that might not happen. */
     private suspendNoticeText(): string {
-        if (this.suspendDeadline === null) return 'Waiting…';
+        const who = this.pendingDropNames.length > 0 ? this.pendingDropNames.join(', ') : 'Player';
+        if (this.suspendDeadline === null) return `${who} disconnected — waiting…`;
         const remainingS = Math.max(0, Math.ceil((this.suspendDeadline - performance.now()) / 1000));
         const time = `${Math.floor(remainingS / 60)}:${String(remainingS % 60).padStart(2, '0')}`;
-        return this.seats.length === 2
-            ? `Waiting for reconnect — you win by forfeit in ${time} if they don't return.`
-            : `Waiting — resolves automatically in ${time} if they don't return.`;
+        return `${who} disconnected — waiting ${time}`;
     }
 
     /** star host only: the transport reclaimed the seat — send it
@@ -3396,28 +3405,45 @@ export class Game {
         const name = this.seats[seat]?.name;
         if (name) this.announceSystem(`${name} reconnected.`, name);
         this.pendingStarSeats.delete(seat);
-        if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
-            this.suspended = false;
-            this.suspendDeadline = null;
-            this.hud.hideNotice();
-            // broadcast the resume too, same reasoning as the pause
-            // broadcast in beginStarSeatSuspend — every other connected
-            // seat needs to un-pause in lockstep, not just the host.
-            // Reuses starSyncTarget(): disconnect time is always free, so
-            // this is the same number the pause broadcast already sent.
-            if (this.star?.role === 'host') {
-                this.star.hub.broadcast({
-                    type: 'starSync',
-                    suspended: false,
-                    round: this.round,
-                    phase: this.phase,
-                    target: this.starSyncTarget(),
-                });
-            }
-        } else {
-            // still waiting on at least one more seat — drop this one's
-            // name out of the notice instead of leaving it listed forever
-            this.refreshStarSuspendNotice();
+        this.resumeIfAllClear();
+    }
+
+    /**
+     * Star host only: broadcasts + applies the "everyone may resume" edge
+     * once `pendingStarSeats` is empty — shared by `starSeatReady` (a seat
+     * reconnected) and `resolveSeatGone` (the grace window elapsed instead,
+     * resolved via AI takeover or forfeit) so neither path can silently
+     * skip telling every OTHER connected seat to resume too. Found live:
+     * after `resolveSeatGone`'s AI-takeover, the host kept going but other
+     * connected guests stayed stuck on the "Waiting…" notice forever
+     * (countdown frozen at 0:00), since only `starSeatReady` used to
+     * broadcast this — `resolveSeatGone` cleared its OWN `suspended` flag
+     * but never told anyone else.
+     */
+    private resumeIfAllClear(): void {
+        if (this.pendingStarSeats.size !== 0 || !this.suspended || this.matchOver) {
+            // still waiting on at least one more seat — drop the resolved
+            // one's name out of the notice instead of leaving it listed
+            if (this.suspended && !this.matchOver) this.refreshStarSuspendNotice();
+            return;
+        }
+        this.suspended = false;
+        this.suspendDeadline = null;
+        this.hud.hideNotice();
+        // broadcast the resume too, same reasoning as the pause broadcast
+        // in beginStarSeatSuspend — every other connected seat needs to
+        // un-pause in lockstep, not just the host. Reuses starSyncTarget():
+        // disconnect time is always free, so this is the same number the
+        // pause broadcast already sent.
+        if (this.star?.role === 'host') {
+            this.star.hub.broadcast({
+                type: 'starSync',
+                suspended: false,
+                round: this.round,
+                phase: this.phase,
+                target: this.starSyncTarget(),
+                names: [],
+            });
         }
     }
 
@@ -3474,14 +3500,10 @@ export class Game {
         // then fails once they actually try to reclaim an AI-driven seat.
         this.spectateRegistration?.refreshNow();
         // this seat was possibly the one thing this.suspended was waiting
-        // on — re-check same as starSeatReady does
-        if (this.pendingStarSeats.size === 0 && this.suspended && !this.matchOver) {
-            this.suspended = false;
-            this.suspendDeadline = null;
-            this.hud.hideNotice();
-        } else if (this.suspended && !this.matchOver) {
-            this.refreshStarSuspendNotice();
-        }
+        // on — re-check same as starSeatReady does, AND broadcast the
+        // resume to every other connected seat (see resumeIfAllClear's own
+        // doc comment on the bug this closes)
+        this.resumeIfAllClear();
     }
 
     /**
@@ -4641,6 +4663,7 @@ export class Game {
                     this.suspended = true;
                     this.suspendDeadline = performance.now() + STAR_RECONNECT_GRACE_MS;
                     this.lastSuspendNoticeSecond = -1;
+                    this.pendingDropNames = msg.names;
                     this.showSuspendNotice();
                 } else {
                     // reconcile to the exact target rather than just
