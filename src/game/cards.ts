@@ -1,9 +1,32 @@
 /**
  * The specialist system: before round 1 each player picks a SPECIALIST card
  * — a starting army (equal total value), a starting HP pool, a permanent
- * speciality, and possibly pack items. The same card UI will later serve
- * between-round cards with different content.
+ * speciality, and possibly pack items. Between rounds, {@link ROUND_CARDS}
+ * hold the full catalog; the live offer currently draws runes only.
+ *
+ * Each specialist also unlocks a small set of Stronghold forge spells
+ * ({@link StartCard.forgeSpells}); teammates share the union of those lists.
  */
+
+import { DISPLAY } from './displayNames';
+import { ITEMS } from './items';
+import {
+    ACID_ID,
+    BIG_METEOR_ID,
+    DRAGON_ID,
+    FIRE_SPILL_ID,
+    HAMMER_ID,
+    METEOR_SHOWER_ID,
+    OIL_SPILL_ID,
+    POISON_CLOUD_ID,
+    RALLY_ROUTE_ID,
+    SELL_UNIT_ID,
+    SPAWN_CROWS_ID,
+    SPAWN_DWARVES_ID,
+    STORM_ID,
+    TACTICS,
+} from './tactics';
+import { forgeIngredientIcons } from './forgeRecipes';
 
 export type SpecialityId = 'air' | 'costControl' | 'elite' | 'archer' | 'addi' | 'flanky';
 
@@ -38,7 +61,43 @@ export interface RoundCard {
     description: string;
 }
 
-export const ROUND_CARDS: RoundCard[] = [
+/** rune ids offered as between-round cards */
+const RUNE_ROUND_CARD_IDS = [
+    'addi',
+    'power',
+    'vigor',
+    'colossus',
+    'wrath',
+    'golden',
+] as const;
+
+/** supply cost overrides (default 50) */
+const RUNE_ROUND_CARD_COST: Partial<Record<(typeof RUNE_ROUND_CARD_IDS)[number], number>> = {
+    colossus: 100, // Mithril Cuirass
+    wrath: 100, // Berserk
+};
+
+function runeRoundCard(itemId: (typeof RUNE_ROUND_CARD_IDS)[number]): RoundCard {
+    const item = ITEMS[itemId]!;
+    return {
+        id: itemId,
+        title: item.name,
+        cost: RUNE_ROUND_CARD_COST[itemId] ?? 50,
+        items: [itemId],
+        description: item.description,
+    };
+}
+
+/** Rune cards in the between-round pool. */
+export const ROUND_RUNE_CARDS: RoundCard[] = RUNE_ROUND_CARD_IDS.map(runeRoundCard);
+
+/** All rune item ids in the between-round catalog (default match pool). */
+export const ROUND_RUNE_ITEM_IDS: string[] = [...RUNE_ROUND_CARD_IDS];
+
+/**
+ * Unit-pack between-round cards (kept for later; not in the live offer).
+ */
+export const ROUND_UNIT_CARDS: RoundCard[] = [
     {
         id: 'dwarves4',
         title: 'Dwarf Band',
@@ -71,38 +130,17 @@ export const ROUND_CARDS: RoundCard[] = [
         unitsLabel: '1× Ballista',
         description: 'A Ballista joins your army.',
     },
-    {
-        id: 'power',
-        title: 'Carnage',
-        cost: 0,
-        items: ['power'],
-        description: 'Item: +75% attack damage for one pack.',
-    },
-    {
-        id: 'vigor',
-        title: 'Giant Blood',
-        cost: 50,
-        items: ['vigor'],
-        description: 'Item: +100% HP for one pack.',
-    },
-    {
-        id: 'colossus',
-        title: 'Mithril Cuirass',
-        cost: 250,
-        items: ['colossus'],
-        description: 'Item: +250% HP for one pack.',
-    },
-    {
-        id: 'wrath',
-        title: 'Berserk',
-        cost: 300,
-        items: ['wrath'],
-        description: 'Item: +300% attack damage for one pack.',
-    },
+];
+
+/**
+ * Non-rune between-round cards (Rally, Buyback, Flanky).
+ * Kept for later; not in the live offer for now.
+ */
+export const ROUND_EXTRA_CARDS: RoundCard[] = [
     {
         id: 'flanky',
         title: 'Flanky',
-        cost: 100,
+        cost: 50,
         flankSpawnHalf: true,
         description: 'First-time flank spawns take half the time (2.5s).',
     },
@@ -110,105 +148,96 @@ export const ROUND_CARDS: RoundCard[] = [
         id: 'rallyRoute',
         title: 'Rally Route',
         cost: 50,
-        tactics: ['rallyRoute'],
-        description: 'Place a march route: units in the start zone head to the end zone, fighting along the way.',
-    },
-    {
-        id: 'oilSpill',
-        title: 'Oil Spill',
-        cost: 50,
-        tactics: ['oilSpill'],
+        tactics: [RALLY_ROUTE_ID],
         description:
-            'Stamp oil on the shared ground layer. Connected oil ignites together when fire touches it (lasts 2 rounds).',
+            'Place a march route: units in the start zone head to the end zone, fighting along the way.',
     },
     {
         id: 'sellPack',
-        title: 'Buyback Deal',
-        cost: 25,
-        tactics: ['sellUnit'],
-        description: 'One-shot tactic: sell one of your packs for a supply refund.',
-    },
-    {
-        id: 'spawnDwarves',
-        title: 'Summon Dwarves',
-        cost: 100,
-        tactics: ['spawnDwarves'],
-        description:
-            'Battle spell: mark a spot — a dwarf war band bursts from the ground there shortly after battle start (this battle only).',
-    },
-    {
-        id: 'bigMeteor',
-        title: 'Great Meteor',
-        cost: 150,
-        tactics: ['bigMeteor'],
-        description:
-            'Battle spell: mark a small area — seconds into the battle a meteor obliterates everything there (ward domes protect).',
-    },
-    {
-        id: 'spawnCrows',
-        title: 'Summon Crow Riders',
-        cost: 125,
-        tactics: ['spawnCrows'],
-        description:
-            'Battle spell: mark a spot — crow riders swoop in there shortly after battle start (this battle only).',
-    },
-    {
-        id: 'hammerOfGods',
-        title: 'Hammer of the Gods',
-        cost: 200,
-        tactics: ['hammerOfGods'],
-        description:
-            'Battle spell: a divine hammer stamps a HUGE area flat — severe damage to everything not under a ward dome.',
-    },
-    {
-        id: 'storm',
-        title: 'Storm Call',
-        cost: 125,
-        tactics: ['storm'],
-        description:
-            'Battle spell: a storm hurls lightning at random units in a wide area for a while (ward domes absorb the bolts).',
-    },
-    {
-        id: 'meteorShower',
-        title: 'Meteor Shower',
-        cost: 125,
-        tactics: ['meteorShower'],
-        description:
-            'Battle spell: meteors rain onto random spots in a wide area, each blast burning the ground it hits.',
-    },
-    {
-        id: 'poisonCloud',
-        title: 'Poison Cloud',
-        cost: 100,
-        tactics: ['poisonCloud'],
-        description:
-            'Battle spell: a toxic cloud gnaws at every unit inside for a while — gas seeps under ward domes.',
-    },
-    {
-        id: 'acidSpill',
-        title: 'Acid Spill',
-        cost: 100,
-        tactics: ['acidSpill'],
-        description:
-            'Battle spell: pour an acid capsule (placed like oil) — units inside lose max-HP percent per second and take extra damage while corroded.',
-    },
-    {
-        id: 'fireSpill',
-        title: 'Fire Spill',
-        cost: 100,
-        tactics: ['fireSpill'],
-        description:
-            'Battle spell: pour a fire capsule (placed like oil) — drips left-to-right shortly after battle start and sets the path ablaze (ward discs stay clear).',
-    },
-    {
-        id: 'dragonAttack',
-        title: 'Dragon Attack',
-        cost: 200,
-        tactics: ['dragonAttack'],
-        description:
-            'Battle spell: draw the dragon’s strafing path — it dives in and scorches units along the corridor under the beam, then leaves the ground ablaze. Ward domes absorb the breath (and pay for it).',
+        title: 'Buyback',
+        cost: 50,
+        tactics: [SELL_UNIT_ID],
+        description: 'One-shot spell: sell one of your packs for a supply refund.',
     },
 ];
+
+/**
+ * Full between-round catalog (lookup by id). Live offers use
+ * {@link drawRoundCardOffer} — runes only for now.
+ */
+export const ROUND_CARDS: RoundCard[] = [
+    ...ROUND_RUNE_CARDS,
+    ...ROUND_UNIT_CARDS,
+    ...ROUND_EXTRA_CARDS,
+];
+
+/** shuffle in place with the given rng */
+function shuffleInPlace<T>(deck: T[], rng: () => number): void {
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [deck[i], deck[j]] = [deck[j]!, deck[i]!];
+    }
+}
+
+/**
+ * Between-round offer: shuffle the configured rune pool and take up to
+ * `offerCount` (unit packs / Rally / Buyback / Flanky stay in the catalog
+ * but are not drawn).
+ */
+export function drawRoundCardOffer(
+    rng: () => number,
+    opts?: { itemIds?: readonly string[]; offerCount?: number },
+): RoundCard[] {
+    const allowed = opts?.itemIds?.length
+        ? new Set(opts.itemIds)
+        : null;
+    const pool = allowed
+        ? ROUND_RUNE_CARDS.filter((c) => allowed.has(c.id))
+        : [...ROUND_RUNE_CARDS];
+    if (pool.length === 0) return [];
+    const runes = [...pool];
+    shuffleInPlace(runes, rng);
+    const n = Math.max(1, opts?.offerCount ?? runes.length);
+    return runes.slice(0, Math.min(n, runes.length));
+}
+
+/** Classify a round card for offer-title wording. */
+export function roundCardKind(c: RoundCard): 'rune' | 'unit' | 'spell' | 'other' {
+    if (c.items?.length) return 'rune';
+    if (c.units?.length) return 'unit';
+    if (c.tactics?.length) return 'spell';
+    return 'other';
+}
+
+/**
+ * Title for the between-round picker. When every offered card is the same
+ * kind: "Choose your rune" / "Choose your unit pack" / "Choose your spell"; mixed
+ * offers stay generic.
+ */
+export function roundOfferTitle(cards: readonly RoundCard[]): string {
+    if (cards.length === 0) return 'Choose your card';
+    const kinds = new Set(cards.map(roundCardKind));
+    if (kinds.size !== 1) return 'Choose your card';
+    switch ([...kinds][0]) {
+        case 'rune':
+            return `Choose your ${DISPLAY.item.toLowerCase()}`;
+        case 'unit':
+            return 'Choose your unit pack';
+        case 'spell':
+            return `Choose your ${DISPLAY.tactic.toLowerCase()}`;
+        default:
+            return 'Choose your card';
+    }
+}
+/** atlas icon for a round-card face (rune / tactic / Flanky) */
+export function roundCardIcon(c: RoundCard): string | null {
+    const itemId = c.items?.[0];
+    if (itemId) return ITEMS[itemId]?.icon ?? null;
+    const tacticId = c.tactics?.[0];
+    if (tacticId) return TACTICS[tacticId]?.icon ?? null;
+    if (c.flankSpawnHalf) return 'spec-flanky';
+    return null;
+}
 
 /** buyable army types in the deployment shop (not board extras) */
 export const SHOP_UNIT_IDS = ['dwarf', 'archer', 'crowRider', 'ballista'] as const;
@@ -245,7 +274,31 @@ export interface StartCard {
     speciality: SpecialityId;
     /** pack items granted into the player's inventory */
     items?: string[];
+    /**
+     * Stronghold forge spells this specialist unlocks (tactic ids).
+     * Teammates share the union. V1: one single, one pair, one triple.
+     */
+    forgeSpells: string[];
     description: string;
+}
+
+/** atlas icons for a specialist's forge spell row */
+export function startCardForgeIcons(
+    card: StartCard,
+): { icon: string; name: string; desc: string; ingredientIcons: string[] }[] {
+    const out: { icon: string; name: string; desc: string; ingredientIcons: string[] }[] = [];
+    for (const id of card.forgeSpells) {
+        const t = TACTICS[id];
+        if (t) {
+            out.push({
+                icon: t.icon,
+                name: t.name,
+                desc: t.description,
+                ingredientIcons: forgeIngredientIcons(id),
+            });
+        }
+    }
+    return out;
 }
 
 /** starter packs + the specialist's signature unit */
@@ -271,6 +324,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Crow Riders · 1× Dwarves',
         startingHp: 1800,
         speciality: 'air',
+        forgeSpells: [SPAWN_CROWS_ID, METEOR_SHOWER_ID, DRAGON_ID],
         description: 'Air units get +12% attack and HP.',
     },
     {
@@ -281,6 +335,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
         startingHp: 2400,
         speciality: 'costControl',
+        forgeSpells: [POISON_CLOUD_ID, STORM_ID, HAMMER_ID],
         description: 'All units −12% attack and HP, but +100 supply every round.',
     },
     {
@@ -291,17 +346,19 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '1× Ballista · 1× Dwarves',
         startingHp: 1700,
         speciality: 'elite',
+        forgeSpells: [FIRE_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
         description:
-            'Recruiting at level 2 is permanently on, free of the switch fee (units still pay their level premium). +100 supply in round 1.',
+            'Recruiting at level 2. +100 supply in round 1.',
     },
     {
         id: 'archer',
-        title: 'Archer Specialist',
+        title: 'Archer Commander',
         portrait: 'spec-archer',
         units: ['archer', 'archer', 'archer', 'dwarf', 'dwarf'],
         unitsLabel: '3× Archers · 2× Dwarves',
         startingHp: 2000,
         speciality: 'archer',
+        forgeSpells: [ACID_ID, STORM_ID, DRAGON_ID],
         description: 'A free level-3 Archer arrives in round 2.',
     },
     {
@@ -313,7 +370,8 @@ export const START_CARDS: StartCard[] = [
         startingHp: 2000,
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
-        description: '3× Valor item: +15% attack and HP for one pack each.',
+        forgeSpells: [OIL_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
+        description: '3× Valor rune: +15% attack and HP for one pack each.',
     },
     {
         id: 'flanky',
@@ -323,6 +381,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Dwarves · 2× Archers',
         startingHp: 2000,
         speciality: 'flanky',
-        description: 'First-time flank spawns take half the time (2.5s).',
+        forgeSpells: [SPAWN_DWARVES_ID, METEOR_SHOWER_ID, DRAGON_ID],
+        description: 'First-time flank spawns take half the time.',
     },
 ];

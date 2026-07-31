@@ -18,6 +18,7 @@ import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
 import { itemIcon } from './items';
+import { getUnitVisualHeight } from './unitModels';
 import { CELL, cellKey, groundHeightAt, worldHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import {
@@ -57,6 +58,10 @@ const SELECT_COLOR = THEME.select;
 const SELECT_LIFT = 2.8;
 /** green tint for movable packs that are not currently selected */
 const MOVABLE_PLATE_OPACITY = 0.52;
+/** world size of status-strip item/tech sprites (full height; center sits mid-sprite) */
+const STATUS_BADGE_SIZE = 2.2;
+/** gap between mesh top and the bottom of the status badge */
+const STATUS_BADGE_CLEARANCE = 0.35;
 
 /**
  * The attack-range ring visual, shared by deployment selection and the
@@ -161,8 +166,29 @@ export class PlacementController {
      * type — empty when none; shown on every visible pack (including enemies)
      */
     ownedTechIcons: ((unit: Unit) => string[]) | null = null;
-    /** fires on every click that lands on a unit (used for item application) */
-    onSelect: ((unit: Unit) => void) | null = null;
+    /**
+     * Stronghold forge strip — rune atlas ids + optional predicted spell icon.
+     * Null / empty = no forge strip for this unit.
+     */
+    forgeStatusIcons: ((unit: Unit) => { runes: string[]; spellIcon: string | null } | null) | null =
+        null;
+    /**
+     * Forge strip stays on during battle; cinema (Shift+C) turns this off so
+     * the oven icons leave the world shot.
+     */
+    forgeStatusVisible = true;
+    /** fires on every click that lands on a unit (used for item application).
+     *  `previous` is the selection before this click (null if none). */
+    onSelect: ((unit: Unit, previous: Unit | null) => void) | null = null;
+    /**
+     * When set (armed inventory item), hover paints a valid-drop plate over
+     * packs this returns true for. Null / false = no drop highlight.
+     */
+    itemDropValid: ((unit: Unit) => boolean) | null = null;
+    /** true this frame while the item cursor is over a pack that can take it */
+    itemDropHovering = false;
+    /** true when {@link itemDropHovering} is over the Stronghold forge */
+    itemDropOnForge = false;
     /** when set, left clicks are offered here first; return true to swallow */
     groundClickInterceptor: ((x: number, y: number) => boolean) | null = null;
     /** blocks normal placement interaction (tactic placement mode) */
@@ -1065,83 +1091,116 @@ export class PlacementController {
 
     /**
      * One camera-aligned status strip over each visible pack:
-     * `[item?] · tech · tech …` (item leftmost, plated; techs borderless).
+     * `[item?] · [item?] · tech · tech …` (items leftmost on circular plates;
+     * techs use the same atlas art as the details pane, no plate).
+     * Stronghold: forge runes (plates) + predicted spell icon (tech style).
      * The upgrade arrow sits above this strip when both are present.
      */
     private updateStatusBadges(): void {
         let itemUsed = 0;
         let techUsed = 0;
-        if (this.enabled) {
-            this.statusBadgeRight.setFromMatrixColumn(this.rig.camera.matrixWorld, 0);
-            this.statusBadgeRight.y = 0;
-            if (this.statusBadgeRight.lengthSq() < 1e-8) this.statusBadgeRight.set(1, 0, 0);
-            else this.statusBadgeRight.normalize();
-            const right = this.statusBadgeRight;
-            const spacing = 2.3;
+        this.statusBadgeRight.setFromMatrixColumn(this.rig.camera.matrixWorld, 0);
+        this.statusBadgeRight.y = 0;
+        if (this.statusBadgeRight.lengthSq() < 1e-8) this.statusBadgeRight.set(1, 0, 0);
+        else this.statusBadgeRight.normalize();
+        const right = this.statusBadgeRight;
+        const spacing = 2.3;
 
-            const placeStrip = (unit: Unit, world: Vector3, itemIconId: string | null) => {
-                const techs = this.ownedTechIcons?.(unit) ?? [];
-                const n = (itemIconId ? 1 : 0) + techs.length;
-                if (n === 0) return;
-                const y = this.statusStripY(unit, world);
-                const mid = (n - 1) / 2;
-                let slot = 0;
-                if (itemIconId) {
-                    let sprite = this.itemBadges[itemUsed];
-                    if (!sprite) {
-                        sprite = new Sprite();
-                        this.scene.add(sprite);
-                        this.itemBadges.push(sprite);
-                    }
-                    sprite.scale.set(2.2, 2.2, 1);
-                    sprite.material = this.itemBadgeMaterial(itemIconId);
-                    sprite.renderOrder = 0;
-                    const t = slot - mid;
-                    sprite.position.set(
-                        world.x + right.x * t * spacing,
-                        y,
-                        world.z + right.z * t * spacing,
-                    );
-                    sprite.visible = true;
-                    itemUsed++;
-                    slot++;
+        const placeStrip = (
+            unit: Unit,
+            world: Vector3,
+            itemIconIds: string[],
+            techIconIds: string[],
+        ) => {
+            const n = itemIconIds.length + techIconIds.length;
+            if (n === 0) return;
+            const y = this.statusStripY(unit, world);
+            const mid = (n - 1) / 2;
+            let slot = 0;
+            for (const itemIconId of itemIconIds) {
+                let sprite = this.itemBadges[itemUsed];
+                if (!sprite) {
+                    sprite = new Sprite();
+                    this.scene.add(sprite);
+                    this.itemBadges.push(sprite);
                 }
-                for (const iconId of techs) {
-                    let sprite = this.techBadges[techUsed];
-                    if (!sprite) {
-                        sprite = new Sprite();
-                        this.scene.add(sprite);
-                        this.techBadges.push(sprite);
-                    }
-                    sprite.scale.set(2.2, 2.2, 1);
-                    sprite.material = this.techBadgeMaterial(iconId);
-                    sprite.renderOrder = 0;
-                    const t = slot - mid;
-                    sprite.position.set(
-                        world.x + right.x * t * spacing,
-                        y,
-                        world.z + right.z * t * spacing,
-                    );
-                    sprite.visible = true;
-                    techUsed++;
-                    slot++;
-                }
-            };
-
-            for (const unit of this.units) {
-                if (!this.enemyIntelVisible(unit)) continue;
-                placeStrip(unit, this.intelWorldOf(unit), this.intelItemIcon(unit));
+                sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
+                sprite.material = this.itemBadgeMaterial(itemIconId);
+                sprite.renderOrder = 0;
+                const t = slot - mid;
+                sprite.position.set(
+                    world.x + right.x * t * spacing,
+                    y,
+                    world.z + right.z * t * spacing,
+                );
+                sprite.visible = true;
+                itemUsed++;
+                slot++;
             }
-            if (this.intelFog) {
-                for (const [id, snap] of this.intelSnapshot) {
-                    if (!this.isFoggedSnapshot(snap)) continue;
-                    if (this.units.some((u) => u.id === id)) continue;
-                    const ghost = this.intelGhosts.get(id);
-                    if (!ghost) continue;
-                    const item =
-                        snap.items.length > 0 ? itemIcon(snap.items[0]!) : null;
-                    placeStrip(ghost, snap.world, item);
+            for (const iconId of techIconIds) {
+                let sprite = this.techBadges[techUsed];
+                if (!sprite) {
+                    sprite = new Sprite();
+                    this.scene.add(sprite);
+                    this.techBadges.push(sprite);
                 }
+                sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
+                sprite.material = this.techBadgeMaterial(iconId);
+                sprite.renderOrder = 0;
+                const t = slot - mid;
+                sprite.position.set(
+                    world.x + right.x * t * spacing,
+                    y,
+                    world.z + right.z * t * spacing,
+                );
+                sprite.visible = true;
+                techUsed++;
+                slot++;
+            }
+        };
+
+        for (const unit of this.units) {
+            if (!this.enemyIntelVisible(unit)) continue;
+            const world = this.intelWorldOf(unit);
+            // forge stays visible in battle (oven is locked / cooking), unless cinema
+            const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
+            if (forge) {
+                placeStrip(
+                    unit,
+                    world,
+                    forge.runes,
+                    forge.spellIcon ? [forge.spellIcon] : [],
+                );
+                continue;
+            }
+            if (!this.enabled) continue;
+            placeStrip(
+                unit,
+                world,
+                this.intelItemIcons(unit),
+                this.ownedTechIcons?.(unit) ?? [],
+            );
+        }
+        if (this.enabled && this.intelFog) {
+            for (const [id, snap] of this.intelSnapshot) {
+                if (!this.isFoggedSnapshot(snap)) continue;
+                if (this.units.some((u) => u.id === id)) continue;
+                const ghost = this.intelGhosts.get(id);
+                if (!ghost) continue;
+                const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(ghost) : null;
+                if (forge) {
+                    placeStrip(
+                        ghost,
+                        snap.world,
+                        forge.runes,
+                        forge.spellIcon ? [forge.spellIcon] : [],
+                    );
+                    continue;
+                }
+                const itemIcons = snap.items
+                    .map((id) => itemIcon(id))
+                    .filter((id): id is string => id !== null);
+                placeStrip(ghost, snap.world, itemIcons, this.ownedTechIcons?.(ghost) ?? []);
             }
         }
         for (let i = itemUsed; i < this.itemBadges.length; i++) this.itemBadges[i]!.visible = false;
@@ -1150,92 +1209,100 @@ export class PlacementController {
 
     /**
      * World Y of the status strip (item + tech icons) just above a pack.
-     * Uses the same terrain + flight base as member meshes (`worldHeightAt` +
-     * `memberBaseY`), then a short lift past the scaled model top — large
-     * flyers (crow meshScale ~4) used to float icons far above the deploy hug.
+     * Uses terrain + flight base, then the cached real mesh height (local ×
+     * meshScale) so ground packs and flyers both clear the model top.
      */
     private statusStripY(unit: Unit, world: Vector3): number {
         const ground = worldHeightAt(world.x, world.z);
-        // meshScale ≈ world model height; sprite center sits a little above that
-        return ground + unit.memberBaseY() + unit.type.meshScale * 1.15 + 1.5;
+        const modelKey = unit.type.modelId ?? unit.type.id;
+        const meshTop = getUnitVisualHeight(modelKey) * unit.type.meshScale;
+        // sprite is centered; lift by half its size so the disc sits above the mesh
+        return (
+            ground +
+            unit.memberBaseY() +
+            meshTop +
+            STATUS_BADGE_SIZE * 0.5 +
+            STATUS_BADGE_CLEARANCE
+        );
     }
 
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
     private statusStripCount(unit: Unit): number {
-        const item = this.intelItemIcon(unit) ? 1 : 0;
+        const forge = this.forgeStatusIcons?.(unit);
+        if (forge) return forge.runes.length + (forge.spellIcon ? 1 : 0);
+        const items = this.intelItemIcons(unit).length;
         const techs = this.ownedTechIcons?.(unit)?.length ?? 0;
-        return item + techs;
+        return items + techs;
     }
 
     private itemBadgeMaterial(iconId: string): SpriteMaterial {
-        let material = this.itemBadgeMaterials.get(iconId);
+        // style tag busts the cache when the paint/depth recipe changes
+        const key = `${iconId}|solid`;
+        let material = this.itemBadgeMaterials.get(key);
         if (!material) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d')!;
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(32, 32, 30, 0, Math.PI * 2);
-            ctx.clip();
-            const ok = drawIcon(ctx, iconId, 0, 0, 64);
-            ctx.restore();
-            if (!ok) {
-                ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
-                ctx.beginPath();
-                ctx.arc(32, 32, 28, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            const texture = new CanvasTexture(canvas);
-            texture.colorSpace = SRGBColorSpace;
+            const texture = this.paintItemBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
-                depthWrite: false,
-                transparent: true,
+                // cut out the square corners; disc itself is opaque and depth-writing
+                transparent: false,
+                alphaTest: 0.5,
+                depthTest: true,
+                depthWrite: true,
             });
-            this.itemBadgeMaterials.set(iconId, material);
+            this.itemBadgeMaterials.set(key, material);
         }
-        // revive depth testing if an older always-on-top material is still cached
-        material.depthTest = true;
-        material.depthWrite = false;
         return material;
     }
 
-    /** atlas icon with a circular plate frame matching items — brass tint, depth-tested */
+    /** atlas icon as-is (same as details-pane tech tiles) — no plate, depth-tested */
     private techBadgeMaterial(iconId: string): SpriteMaterial {
-        // style tag busts the cache when the paint/tint recipe changes
-        const key = `${iconId}|brass|framed`;
+        const key = `${iconId}|atlas|flat`;
         let material = this.techBadgeMaterials.get(key);
         if (!material) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d')!;
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(32, 32, 30, 0, Math.PI * 2);
-            ctx.clip();
-            const ok = drawIcon(ctx, iconId, 0, 0, 64);
-            ctx.restore();
-            if (!ok) {
-                ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
-                ctx.beginPath();
-                ctx.arc(32, 32, 28, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            const texture = new CanvasTexture(canvas);
-            texture.colorSpace = SRGBColorSpace;
+            const texture = this.paintTechBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
-                depthWrite: false,
-                transparent: true,
-                color: THEME.ui.brassLight,
+                transparent: false,
+                alphaTest: 0.5,
+                depthTest: true,
+                depthWrite: true,
             });
-            if (ok) this.techBadgeMaterials.set(key, material);
+            this.techBadgeMaterials.set(key, material);
         }
-        material.depthTest = true;
-        material.depthWrite = false;
         return material;
+    }
+
+    /** opaque circular plate + atlas icon; corners stay transparent for alphaTest */
+    private paintItemBadgeTexture(iconId: string): CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        ctx.beginPath();
+        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.fillStyle = THEME.ui.techBuyBg;
+        ctx.fill();
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.clip();
+        drawIcon(ctx, iconId, 0, 0, 64);
+        ctx.restore();
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        return texture;
+    }
+
+    /** same atlas frame the HUD uses for tech action tiles — keep shading / cutouts */
+    private paintTechBadgeTexture(iconId: string): CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        drawIcon(ctx, iconId, 0, 0, 64);
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        return texture;
     }
 
     /**
@@ -1267,11 +1334,13 @@ export class PlacementController {
                 }
                 const bob = Math.sin(timeSeconds * 3 + seed) * 0.2;
                 const hasStrip = this.statusStripCount(unit) > 0;
+                const modelKey = unit.type.modelId ?? unit.type.id;
+                const meshTop = getUnitVisualHeight(modelKey) * unit.type.meshScale;
                 const top = hasStrip
                     ? this.statusStripY(unit, world) + 2.4
                     : worldHeightAt(world.x, world.z) +
                       unit.memberBaseY() +
-                      unit.type.meshScale * 1.1 +
+                      meshTop +
                       0.8;
                 arrow.position.set(world.x, top + bob, world.z);
                 arrow.renderOrder = 0;
@@ -1406,17 +1475,17 @@ export class PlacementController {
         return unit.world;
     }
 
-    private intelItemIcon(unit: Unit): string | null {
-        if (!this.isFogged(unit)) {
-            return unit.items[0] ? itemIcon(unit.items[0]) : null;
-        }
-        if (!this.enemyIntelVisible(unit)) return null;
-        if (this.intelFog) {
-            const snap = this.intelSnapshot.get(unit.id);
-            if (!snap || snap.items.length === 0) return null;
-            return itemIcon(snap.items[0]!);
-        }
-        return unit.items[0] ? itemIcon(unit.items[0]) : null;
+    private intelItemIcons(unit: Unit): string[] {
+        const ids = (() => {
+            if (!this.isFogged(unit)) return unit.items;
+            if (!this.enemyIntelVisible(unit)) return [];
+            if (this.intelFog) {
+                const snap = this.intelSnapshot.get(unit.id);
+                return snap?.items ?? [];
+            }
+            return unit.items;
+        })();
+        return ids.map((id) => itemIcon(id)).filter((id): id is string => id !== null);
     }
 
     private memberPositionsAt(world: Vector3, unit: Unit): Vector3[] {
@@ -1563,6 +1632,12 @@ export class PlacementController {
         const clicked = this.pickUnitAt(x, y, { skipExtras: carrying });
         // selecting: any own pack, or an enemy pack visible in intel
         if (clicked && !clicked.destroyed && (clicked.team === 'player' || this.enemyIntelVisible(clicked))) {
+            const previouslySelected = this.selectedUnit;
+            // armed rune drop: apply without selecting / picking up the pack
+            if (this.itemDropValid?.(clicked)) {
+                this.onSelect?.(clicked, previouslySelected);
+                return;
+            }
             if (clicked === this.selectedUnit && !this.formationActive) {
                 if (this.isMovable(clicked)) {
                     if (!this.carryingSelected) {
@@ -1586,7 +1661,7 @@ export class PlacementController {
                 this.rectFormation = false;
                 this.carryingSelected = false; // first click only selects
             }
-            this.onSelect?.(clicked);
+            this.onSelect?.(clicked, previouslySelected);
             return;
         }
         // empty ground: drop the carried formation there — all packs or none
@@ -1774,9 +1849,21 @@ export class PlacementController {
         return ground ? this.map.worldToCell(ground) : null;
     }
 
-    /** latest pointer position in canvas-local pixels (for tactic previews) */
+    /** latest pointer in canvas-local pixels (for tactic previews / drag hover) */
     get lastPointer(): { x: number; y: number } | null {
         return this.pointer;
+    }
+
+    /** update hover tracking from a client-space pointer (inventory strip drags) */
+    setPointerFromClient(clientX: number, clientY: number): void {
+        const rect = this.surface.getBoundingClientRect();
+        this.pointer = { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    /** canvas-local point from a client-space event */
+    clientToLocal(clientX: number, clientY: number): { x: number; y: number } {
+        const rect = this.surface.getBoundingClientRect();
+        return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
     /** all tiles under the footprint, or null when part of it is off the map */
@@ -1797,6 +1884,8 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+        this.itemDropHovering = false;
+        this.itemDropOnForge = false;
 
         // an extra riding the cursor: ghost mesh + footprint plate + effect ring
         if (this.pendingType && this.pendingUnit && this.enabled) {
@@ -1848,6 +1937,31 @@ export class PlacementController {
             return;
         }
         this.showGroupPlates([], null, false, timeSeconds);
+        // armed inventory item: green footprint over a pack that can take the drop
+        if (this.itemDropValid && this.enabled && this.pointer) {
+            const over = this.pickUnitAt(this.pointer.x, this.pointer.y);
+            if (over && !over.destroyed && this.itemDropValid(over)) {
+                this.itemDropHovering = true;
+                this.itemDropOnForge = over.type.id === 'stronghold';
+                this.targetPreview.clear();
+                const snap = this.isFogged(over) ? this.intelSnapshot.get(over.id) : undefined;
+                const cell = snap?.cell ?? over.cell;
+                const plateFp = snap
+                    ? this.footprintOf(over.type, snap.rotated)
+                    : this.footprintOf(over.type, over.rotated);
+                const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
+                this.placeFootprintPlate(
+                    this.hoverMesh,
+                    this.hoverMaterial,
+                    center,
+                    plateFp,
+                    VALID_COLOR,
+                    timeSeconds,
+                    true,
+                );
+                return;
+            }
+        }
         if (!sel || !this.enabled) {
             this.targetPreview.clear();
             return;

@@ -17,7 +17,7 @@ to prevent exactly that.
 | `src/game/units.ts` | unit type definitions, the `Unit` (pack) class, mesh builders, battle tints |
 | `src/game/map.ts` | grid math, zones/flanks, ground + overlay textures |
 | `src/game/settings.ts` | one JSON-serializable object defines a match; `Economy` |
-| `src/game/cards.ts` / `items.ts` / `tech.ts` | specialist cards, round cards, pack items, per-type techs |
+| `src/game/cards.ts` / `items.ts` / `tech.ts` | specialist cards, round cards, pack runes (`items.ts`), per-type talents (`tech.ts`) |
 | `src/game/ai.ts` | the built-in opponent — dispatches actions like any player |
 | `src/game/net.ts` | PeerJS sessions, matchmaking endpoints, wire protocol, resume markers |
 | `src/game/colors.ts` | canonical side colors (host blue, guest red, on both screens) |
@@ -146,7 +146,7 @@ FTP deploy excludes `backend/players/`.
 
 1. Entry in `UNIT_TYPES` (`units.ts`): stats, footprint/formation,
    `targets` (can-attack matrix), `collisionRadius` + `colliders` (bullet
-   hit spheres), techs, and a `build(parts)` mesh function. Flags:
+   hit spheres), talents, and a `build(parts)` mesh function. Flags:
    `flying` (altitude), `structure`, `extra` (+`shield`/`rocket`),
    `projectileSpeed`/`homing`/`splashRadius`.
 2. Price in `DEFAULT_SETTINGS.economy.unitCosts` (falls back to `cost`).
@@ -156,13 +156,13 @@ FTP deploy excludes `backend/players/`.
    thumbnails from the same builders) all read the type definition.
 5. Bump `GAME_VERSION`.
 
-Items (`items.ts`), techs (on the type), and cards (`cards.ts`) are pure
+Runes (`items.ts`), talents (`techCatalog.ts` / `tech.ts`), and cards (`cards.ts`) are pure
 data — multipliers resolve in `TechTree.statsFor` → `Game.resolvedStats` →
 sim `statsOf`; level scaling stays inside the sim (`levelMult`).
 
 ## Known quirks (deliberate or accepted)
 
-- The AI doesn't use items, selling, board extras, boosts, or flank
+- The AI doesn't use runes, selling, board extras, boosts, or flank
   deploys (it avoids flanks on purpose — it doesn't understand the spawn
   tax).
 - A homing projectile whose victim dies mid-flight continues as a dumb

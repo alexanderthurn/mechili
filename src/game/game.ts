@@ -26,7 +26,18 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, prepareHazardPours, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import {
+    emptyForgeSlots,
+    forgeHintText,
+    forgePreviewView,
+    forgeRecipesCraftableFromBag,
+    forgeSeatCanInsert,
+    forgeTeamCapacity,
+    resolveForge,
+    unionForgeSpellPools,
+    type ForgeSlot,
+} from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
 import {
     clearSinglePlayer,
@@ -60,6 +71,8 @@ import {
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
+    drawRoundCardOffer,
+    roundOfferTitle,
     type RoundCard,
     type SpecialityId,
     type StartCard,
@@ -75,7 +88,7 @@ import { CloudFx } from './cloudFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
-import { ITEMS } from './items';
+import { ITEMS, itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -137,6 +150,7 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree } from './tech';
+import { techSlotLimit, techsForUnit } from './techCatalog';
 import {
     COMMAND_TOWER,
     HORDE_DWARF,
@@ -198,7 +212,7 @@ const HORDE_PATH_SAMPLES = 8;
 /** worldHeightAt below this reads as deep water (per HORDE_MODE_NOTES.md) */
 const HORDE_LAKE_HEIGHT = -0.5;
 
-/** SP cheat (U): tactic ids topped up for free testing (see cheatGrantAllTactics) */
+/** SP cheat (Shift+U): tactic ids topped up for free testing (see cheatGrantAllTactics) */
 const CHEAT_TACTIC_GRANTS = [
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
@@ -213,7 +227,9 @@ const CHEAT_TACTIC_GRANTS = [
     'acidSpill',
     'fireSpill',
     'dragonAttack',
-];
+] as const;
+/** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
+const CHEAT_TACTIC_COPIES = 1;
 
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
@@ -450,6 +466,11 @@ export class Game {
     private readonly itemInventory: string[][];
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
     private readonly tacticInventory: string[][];
+    /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
+    private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
+        player: emptyForgeSlots(),
+        enemy: emptyForgeSlots(),
+    };
     /** rally routes placed this deployment round */
     private readonly rallyRoutes: RallyRoute[] = [];
     private readonly rallyRouteIds = { next: 1 };
@@ -618,9 +639,9 @@ export class Game {
             this.refreshCinemaHint();
             return;
         }
-        if (e.code === 'KeyU' && !this.net && !this.star) {
-            // single-player: one of every unit type on both sides + huge HP
-            this.cheatSpawnAllUnits();
+        if (e.code === 'KeyU' && e.shiftKey && !this.net && !this.star) {
+            // Shift+U = SP deploy cheat; Ctrl+Shift+U also scrambles pack levels
+            this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey });
             return;
         }
         if (e.code === 'KeyH' && !this.net && !this.star) {
@@ -716,6 +737,7 @@ export class Game {
      * Call with `true` again after any phase transition that might re-show deploy chrome.
      */
     private applyCinemaWorld(hide: boolean): void {
+        this.placement.forgeStatusVisible = !hide;
         if (hide) {
             this.placement.deselect();
             this.selectedActor = null;
@@ -922,6 +944,12 @@ export class Game {
         this.speciality = this.seats.map(() => null);
         this.flankSpawnMult = this.seats.map(() => 1);
         this.techTree = new TechTree(this.seats.length);
+        this.forgeSlots.player = emptyForgeSlots(
+            forgeTeamCapacity(seatIdsOf(this.seats, 'player').length),
+        );
+        this.forgeSlots.enemy = emptyForgeSlots(
+            forgeTeamCapacity(seatIdsOf(this.seats, 'enemy').length),
+        );
         // starts at 0, not settings.startingHp: each seat's own card ADDS its
         // own startingHp in chooseCard (additive, so it's safe regardless of
         // which seat's pick a client applies first) — settings.startingHp is
@@ -1120,6 +1148,7 @@ export class Game {
             flankSpawnMult: this.flankSpawnMult,
             items: this.itemInventory,
             tactics: this.tacticInventory,
+            forgeSlots: this.forgeSlots,
             rallyRoutes: this.rallyRoutes,
             rallyRouteIds: this.rallyRouteIds,
             oilField: this.oilField,
@@ -1256,23 +1285,35 @@ export class Game {
         this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
         // world tech icons — phase-start intel while fogged, live after reveal
         this.placement.ownedTechIcons = (unit) => {
-            if (unit.type.structure || unit.type.techs.length === 0) return [];
+            if (unit.type.structure) return [];
+            const selected = techsForUnit(unit.type.id);
+            if (selected.length === 0) return [];
             const owned = this.intelTechOwned(unit);
-            return unit.type.techs.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
+            return selected.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
         };
+        // Stronghold oven: rune badges + predicted spell (fog uses phase-start snapshot)
+        this.placement.forgeStatusIcons = (unit) => this.forgeWorldBadges(unit);
         // an armed inventory item lands on the next own pack that gets clicked
-        this.placement.onSelect = (unit) => {
+        this.placement.onSelect = (unit, previous) => {
             if (this.armedItem) {
-                if (this.applyItemTo(unit, this.armedItem)) {
+                const applied =
+                    unit.type === STRONGHOLD && unit.team === 'player'
+                        ? this.forgeInsertItem(this.armedItem)
+                        : this.applyItemTo(unit, this.armedItem);
+                if (applied) {
                     this.armedItem = null;
-                    // equipping is not selecting — leave the pack unselected
-                    this.placement.deselect();
+                    this.armedItemIndex = null;
+                    // keep details only when this pack's panel was already open;
+                    // otherwise don't open the drop target (and close a wrong panel)
+                    if (previous && previous !== unit) this.placement.deselect();
                 }
                 return;
             }
             // buildings act through their details — auto-open the sheet (phone-only visual)
             if (unit.type.structure) this.hud.openUnitDetails();
         };
+        this.placement.itemDropValid = (unit) =>
+            this.canDropArmedItemOn(unit) || this.canDropForgeOn(unit);
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
         this.controls.onMiddleClick = () => {
             if (this.armedTactic) return;
@@ -1332,7 +1373,7 @@ export class Game {
         };
         this.hud.onArmItem = (itemId, index) => {
             if (!this.playerCanAct || this.armedTactic) return;
-            // click the armed slot again to disarm; another slot re-arms there
+            // press the armed slot again to disarm; another slot re-arms there
             if (this.armedItem === itemId && this.armedItemIndex === index) {
                 this.armedItem = null;
                 this.armedItemIndex = null;
@@ -1341,6 +1382,73 @@ export class Game {
                 this.armedItemIndex = index;
             }
         };
+        this.hud.onCancelInventoryArm = () => {
+            this.armedItem = null;
+            this.armedItemIndex = null;
+            this.armedTactic = null;
+        };
+        this.hud.onRemoveItem = (unitId, itemId, slot) => {
+            this.removeItemFrom(unitId, itemId, slot);
+        };
+        this.hud.onRemoveForge = (slot, itemId) => {
+            this.forgeRemoveItem(slot, itemId);
+        };
+        this.hud.onForgeFill = (itemIds) => {
+            this.forgeFillItems(itemIds);
+        };
+        this.hud.onApplyArmedItem = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || !this.armedItem) return;
+            if (unit.type === STRONGHOLD) {
+                if (this.forgeInsertItem(this.armedItem)) {
+                    this.armedItem = null;
+                    this.armedItemIndex = null;
+                }
+                return;
+            }
+            if (this.applyItemTo(unit, this.armedItem)) {
+                this.armedItem = null;
+                this.armedItemIndex = null;
+                // keep the pack selected so a second item can fill the other slot
+            }
+        };
+        this.hud.onInventoryDragMove = (clientX, clientY) => {
+            this.placement.setPointerFromClient(clientX, clientY);
+        };
+        this.hud.onInventoryDragEnd = ({ clientX, clientY, moved, target }) => {
+            if (!this.armedItem) {
+                if (this.armedTactic && moved) this.tryPlaceArmedTacticAtClient(clientX, clientY);
+                return;
+            }
+            // press-drag release: drop on details panel or 3D pack
+            if (moved) {
+                const overDetails =
+                    target?.closest?.('.item-sq.empty') || target?.closest?.('.mechili-panel');
+                if (overDetails) {
+                    const unit = this.placement.selectedUnit;
+                    if (unit?.type === STRONGHOLD && this.canDropForgeOn(unit) && this.forgeInsertItem(this.armedItem)) {
+                        this.armedItem = null;
+                        this.armedItemIndex = null;
+                        return;
+                    }
+                    if (unit && this.canDropArmedItemOn(unit) && this.applyItemTo(unit, this.armedItem)) {
+                        this.armedItem = null;
+                        this.armedItemIndex = null;
+                        return;
+                    }
+                }
+                if (this.tryDropArmedItemAtClient(clientX, clientY)) {
+                    this.armedItem = null;
+                    this.armedItemIndex = null;
+                    return;
+                }
+                // dragged onto nothing valid → cancel arm
+                this.armedItem = null;
+                this.armedItemIndex = null;
+                return;
+            }
+            // short click: stay armed for the existing click-to-place flow
+        };
         this.hud.onArmTactic = (tacticId, index) => {
             if (!this.playerCanAct) return;
             if (this.armedTactic === tacticId && this.armedTacticIndex === index) {
@@ -1348,6 +1456,7 @@ export class Game {
                 return;
             }
             this.armedItem = null;
+            this.armedItemIndex = null;
             this.placement.deselect();
             this.armedTactic = tacticId;
             this.armedTacticIndex = index;
@@ -2139,23 +2248,25 @@ export class Game {
     }
 
     /**
-     * SP cheat (U): free-spawn every unit type on both sides during
-     * deployment (3 dwarf packs, 1 of each other type), bump HP sky-high,
-     * top up tactics, grant +5000 supply and one of each item to both sides,
-     * scramble levels, then let the AI re-spend — enemy moves stay behind
-     * intel fog; newly granted enemy packs are snapshotted at land pose.
+     * SP cheat (Shift+U): free-spawn every unit type on both sides during
+     * deployment, bump HP sky-high, +10000 supply to both seats, +1 of each
+     * item and 1 of each test spell for the human (resets uses so they
+     * can be placed again), grant up to 3 new techs per press, then let the
+     * AI re-spend. Ctrl+Shift+U also scrambles levels. Enemy moves stay
+     * behind intel fog; newly granted enemy packs are snapshotted at land pose.
      */
-    private cheatSpawnAllUnits(): void {
+    private cheatSpawnAllUnits(opts: { scrambleLevels?: boolean } = {}): void {
         if (this.phase !== 'build' || this.matchOver) return;
 
         const CHEAT_HP = 999_999;
         this.playerHp = CHEAT_HP;
         this.enemyHp = CHEAT_HP;
         this.hud.setHp(this.playerHp, this.enemyHp);
-        this.cheatGrantSupply(5000);
+        this.cheatGrantSupply(10_000);
         this.cheatGrantAllTactics();
-        this.cheatGrantAllItems();
-        // sidebar intel: show the freshly granted bag without lifting pack fog
+        this.cheatGrantAllItems(1);
+        this.cheatGrantTechs(3);
+        // sidebar intel: enemy bag unchanged by human-only item/tactic grants
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
@@ -2176,28 +2287,29 @@ export class Game {
             }
         }
 
-        // scramble veterancy on every pack so level badges / panel LVL differ
-        const unitMax = this.settings.leveling.maxLevel;
-        const towerMax = this.settings.towers.upgrade.maxLevel;
-        for (const unit of this.placement.allUnits()) {
-            if (unit.type.structure && !unit.type.extra) {
-                unit.level = 1 + Math.floor(Math.random() * towerMax);
-            } else if (!unit.type.structure) {
-                unit.level = 1 + Math.floor(Math.random() * unitMax);
-                if (unit.level < unitMax) {
-                    const need = xpThresholdFor(
-                        unit.type,
-                        unit.level,
-                        this.economy,
-                        this.settings.leveling,
-                    );
-                    // some packs bank enough XP to show the upgrade arrow
-                    unit.xp = Math.random() < 0.45 ? need : Math.floor(Math.random() * need);
-                } else {
-                    unit.xp = 0;
+        if (opts.scrambleLevels) {
+            // Ctrl+Shift+U: scramble veterancy so level badges / panel LVL differ
+            const unitMax = this.settings.leveling.maxLevel;
+            const towerMax = this.settings.towers.upgrade.maxLevel;
+            for (const unit of this.placement.allUnits()) {
+                if (unit.type.structure && !unit.type.extra) {
+                    unit.level = 1 + Math.floor(Math.random() * towerMax);
+                } else if (!unit.type.structure) {
+                    unit.level = 1 + Math.floor(Math.random() * unitMax);
+                    if (unit.level < unitMax) {
+                        const need = xpThresholdFor(
+                            unit.type,
+                            unit.level,
+                            this.economy,
+                            this.settings.leveling,
+                        );
+                        unit.xp = Math.random() < 0.45 ? need : Math.floor(Math.random() * need);
+                    } else {
+                        unit.xp = 0;
+                    }
                 }
+                unit.refreshLevelBadge();
             }
-            unit.refreshLevelBadge();
         }
 
         // newly granted enemy packs: visible at land pose; later AI moves stay fogged
@@ -2210,6 +2322,9 @@ export class Game {
         // behind fog (existing packs stay at phase-start pose)
         this.opponent.rerunBuildActions?.();
         for (const e of this.extraAis) e.ai.rerunBuildActions?.();
+        console.info(
+            `[cheat] Shift+U${opts.scrambleLevels ? ' (Ctrl: levels)' : ''}: supply/items/techs/spawns`,
+        );
     }
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */
@@ -2329,6 +2444,8 @@ export class Game {
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
+        // burn AFTER intel capture so the enemy fog still shows last round's oven
+        this.burnForges();
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
@@ -2342,38 +2459,95 @@ export class Game {
     }
 
     /**
-     * SP cheat (U): top up every tactic's charge count so the whole strip is
-     * immediately usable with no cooldown wait — call again each round to
-     * keep testing a spell (e.g. dragon breath) back to back. NOT logged as
-     * an action, so it does not survive a reload/replay — press it again
-     * after one.
+     * SP cheat (Shift+U): set each test tactic to exactly {@link CHEAT_TACTIC_COPIES}
+     * charges, and clear placements / sell uses / cooling so they can be
+     * applied again. Extra presses do not stack beyond the cap. NOT logged —
+     * does not survive reload/replay.
      */
     private cheatGrantAllTactics(): void {
-        // comfortably above the highest cooldownRounds (3) so cooling charges
-        // never eat into the pool
-        const CHEAT_CHARGE_COUNT = 6;
-        for (let seat = 0; seat < this.seats.length; seat++) {
-            for (const id of CHEAT_TACTIC_GRANTS) {
-                const have = this.tacticInventory[seat]!.filter((t) => t === id).length;
-                for (let i = have; i < CHEAT_CHARGE_COUNT; i++) {
-                    this.tacticInventory[seat]!.push(id);
-                }
+        const seat = this.humanSeat;
+        const grants = new Set<string>(CHEAT_TACTIC_GRANTS);
+        this.cheatResetTacticUses(seat, grants);
+        this.tacticInventory[seat] = this.tacticInventory[seat]!.filter((id) => !grants.has(id));
+        for (const id of CHEAT_TACTIC_GRANTS) {
+            for (let i = 0; i < CHEAT_TACTIC_COPIES; i++) {
+                this.tacticInventory[seat]!.push(id);
             }
+            // one-shot cooling is derived from the action log — pad so avail
+            // still lands at CHEAT_TACTIC_COPIES without rewriting history
+            const tactic = TACTICS[id];
+            if (!tactic || tactic.kind !== 'oneShot') continue;
+            const cooling = this.dispatcher.tacticUseRounds(
+                seat,
+                id,
+                this.round - tactic.cooldownRounds,
+            ).length;
+            for (let i = 0; i < cooling; i++) this.tacticInventory[seat]!.push(id);
+        }
+        this.cancelTacticPlacement();
+        this.syncTacticVisuals();
+    }
+
+    /**
+     * Clear human placements / sell-round uses / spell cooldown windows for
+     * cheat-granted tactics so Shift+U can hand out fresh usable charges.
+     */
+    private cheatResetTacticUses(seat: SeatId, grants: ReadonlySet<string>): void {
+        this.sellState.used[seat] = 0;
+
+        for (let i = this.rallyRoutes.length - 1; i >= 0; i--) {
+            if (this.rallyRoutes[i]!.seat === seat) this.rallyRoutes.splice(i, 1);
+        }
+
+        let oilChanged = false;
+        for (let i = this.oilStamps.length - 1; i >= 0; i--) {
+            if (this.oilStamps[i]!.seat === seat) {
+                this.oilStamps.splice(i, 1);
+                oilChanged = true;
+            }
+        }
+        if (oilChanged) {
+            resetOilFieldToBaseline({
+                oilField: this.oilField,
+                oilBaseline: this.oilBaseline,
+            });
+        }
+
+        // this-round stamps block a charge; older ones only grey the strip —
+        // drop both for granted ids so every charge is free again
+        for (let i = this.spellStamps.length - 1; i >= 0; i--) {
+            const s = this.spellStamps[i]!;
+            if (s.seat === seat && grants.has(s.tacticId)) this.spellStamps.splice(i, 1);
         }
     }
 
-    /** SP cheat (U): +supply to every seat (same amount each press). */
-    private cheatGrantSupply(amount = 5000): void {
+    /** SP cheat (Shift+U): +supply to every seat (same amount each press). */
+    private cheatGrantSupply(amount = 10_000): void {
         for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
     }
 
-    /** SP cheat (U): ensure every seat's inventory has one of every pack item. */
-    private cheatGrantAllItems(): void {
-        for (let seat = 0; seat < this.seats.length; seat++) {
-            for (const id of Object.keys(ITEMS)) {
-                if (!this.itemInventory[seat]!.includes(id)) {
-                    this.itemInventory[seat]!.push(id);
-                }
+    /** SP cheat (Shift+U): add `copies` of every pack item to the human seat. */
+    private cheatGrantAllItems(copies = 1): void {
+        const seat = this.humanSeat;
+        for (const id of Object.keys(ITEMS)) {
+            for (let i = 0; i < copies; i++) this.itemInventory[seat]!.push(id);
+        }
+    }
+
+    /**
+     * SP cheat (Shift+U): unlock up to `maxPerPress` unowned selected techs for
+     * the human seat (across unit types). Press again for the next batch.
+     */
+    private cheatGrantTechs(maxPerPress = 3): void {
+        const seat = this.humanSeat;
+        let granted = 0;
+        for (const type of UNIT_TYPES) {
+            if (type.structure || type.extra) continue;
+            for (const tech of techsForUnit(type.id)) {
+                if (granted >= maxPerPress) return;
+                if (this.techTree.has(seat, type.id, tech.id)) continue;
+                this.techTree.add(seat, type.id, tech.id);
+                granted++;
             }
         }
     }
@@ -4984,12 +5158,17 @@ export class Game {
     private offerRoundCards(): void {
         this.roundCardTaken.fill(false);
 
-        const myOffer = this.draw(ROUND_CARDS, 4, this.rngRoundCards[this.humanSeat]!);
+        const draw = (rng: () => number) =>
+            drawRoundCardOffer(rng, {
+                itemIds: this.settings.roundCardItems,
+                offerCount: this.settings.roundCardOfferCount,
+            });
+        const myOffer = draw(this.rngRoundCards[this.humanSeat]!);
         // the classic single opponent's own seat-scoped draw (vestigial no-op
         // on a star guest, since NetworkOpponent.onRoundCards does nothing —
         // still drawn so every client consumes this seat's stream equally)
         const enemyPrimary = primarySeatOf(this.seats, 'enemy');
-        const enemyOffer = this.draw(ROUND_CARDS, 4, this.rngRoundCards[enemyPrimary]!);
+        const enemyOffer = draw(this.rngRoundCards[enemyPrimary]!);
         this.triggerExtraRoundCards();
         if (this.hydrating || this.watching) {
             // no UI, no opponent hook — hydrating: the recorded actions
@@ -5010,7 +5189,12 @@ export class Game {
      *  round-card offer and picks for itself — mirrors triggerExtraStarters */
     private triggerExtraRoundCards(): void {
         for (const e of this.extraAis) {
-            e.ai.onRoundCards(this.draw(ROUND_CARDS, 4, this.rngRoundCards[e.seat]!));
+            e.ai.onRoundCards(
+                drawRoundCardOffer(this.rngRoundCards[e.seat]!, {
+                    itemIds: this.settings.roundCardItems,
+                    offerCount: this.settings.roundCardOfferCount,
+                }),
+            );
         }
     }
 
@@ -5022,30 +5206,29 @@ export class Game {
             return;
         }
         this.hud.showRoundCards(
-            offer.map((c) => this.roundCardView(c)),
+            offer,
             SKIP_CARD_REWARD,
             (cardId) => {
                 this.dispatchPlayer({ kind: 'roundCard', team: 'player', cardId });
                 this.awaitingCards = false;
                 this.phaseRemaining = this.deploySeconds();
             },
+            roundOfferTitle(offer),
+            {
+                ownedItemIds: this.ownedRunesForCardPreview(),
+                forgePool: this.teamForgePool('player'),
+                canAfford: (c) => this.economy.balance(this.humanSeat) >= c.cost,
+            },
         );
     }
 
-    private roundCardView(c: RoundCard): {
-        id: string;
-        title: string;
-        body: string;
-        cost: number;
-        affordable: boolean;
-    } {
-        return {
-            id: c.id,
-            title: c.title,
-            body: (c.unitsLabel ? `${c.unitsLabel} — ` : '') + c.description,
-            cost: c.cost,
-            affordable: this.economy.balance(this.humanSeat) >= c.cost,
-        };
+    /** bag + forge oven runes the player can still use for forging */
+    private ownedRunesForCardPreview(): string[] {
+        const bag = this.itemInventory[this.humanSeat] ?? [];
+        const oven = this.forgeSlots.player
+            .filter((s): s is ForgeSlot => !!s)
+            .map((s) => s.itemId);
+        return [...bag, ...oven];
     }
 
     /** tech-resolved stats plus army boosts, card speciality, and the pack's items */
@@ -5092,10 +5275,19 @@ export class Game {
     }
 
     /** the left-side item strip: one square per item instance, hidden outside build.
-     *  Items are per-SEAT — this shows only MY OWN seat's pool, not my ally's. */
-    private inventoryView(): { id: string; icon: string; name: string; armed: boolean }[] {
+     *  Items are per-SEAT — this shows only MY OWN seat's pool, not my ally's.
+     *  Same ids are grouped (catalog order), like the spells strip. */
+    private inventoryView(): {
+        id: string;
+        icon: string;
+        name: string;
+        armed: boolean;
+        index: number;
+    }[] {
         if (!this.playerCanAct) return [];
-        return this.itemInventory[this.humanSeat]!.map((id, index) => {
+        const bag = this.itemInventory[this.humanSeat]!;
+        return this.sortedItemIndices(bag).map((index) => {
+            const id = bag[index]!;
             const item = ITEMS[id];
             return {
                 id,
@@ -5103,8 +5295,24 @@ export class Game {
                 name: item ? `${item.name} — ${item.description}` : id,
                 // duplicates share an id: highlight exactly the clicked slot
                 armed: this.armedItem === id && this.armedItemIndex === index,
+                index,
             };
         });
+    }
+
+    /** stable indices into `bag` grouped by {@link ITEMS} catalog order */
+    private sortedItemIndices(bag: readonly string[]): number[] {
+        const order = Object.keys(ITEMS);
+        const rank = (id: string) => {
+            const i = order.indexOf(id);
+            return i < 0 ? order.length : i;
+        };
+        return bag
+            .map((_, index) => index)
+            .sort((a, b) => {
+                const d = rank(bag[a]!) - rank(bag[b]!);
+                return d !== 0 ? d : a - b;
+            });
     }
 
     /** the left-side tactics strip: placed routes/oil + remaining slots */
@@ -5307,7 +5515,7 @@ export class Game {
             };
         };
         return {
-            items: items.map(mapItem),
+            items: this.sortedItemIndices(items).map((i) => mapItem(items[i]!)),
             tactics: tactics.map(mapTactic),
             sellAbility,
         };
@@ -5702,9 +5910,51 @@ export class Game {
         return true;
     }
 
+    /** true while an inventory item is armed and this pack can still take it */
+    private canDropArmedItemOn(unit: Unit): boolean {
+        if (!this.armedItem || !this.playerCanAct) return false;
+        if (unit.seat !== this.humanSeat || unit.type.structure) return false;
+        if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
+        return !!ITEMS[this.armedItem];
+    }
+
+    /** armed rune → shared Stronghold forge (any seat on this side) */
+    private canDropForgeOn(unit: Unit): boolean {
+        if (!this.armedItem || !this.playerCanAct) return false;
+        if (unit.type !== STRONGHOLD || unit.team !== 'player') return false;
+        if (!ITEMS[this.armedItem]) return false;
+        return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat);
+    }
+
+    /** press-drag release over the board — equip if the pack under the cursor is valid */
+    private tryDropArmedItemAtClient(clientX: number, clientY: number): boolean {
+        if (!this.armedItem || !this.playerCanAct) return false;
+        const local = this.placement.clientToLocal(clientX, clientY);
+        this.placement.setPointerFromClient(clientX, clientY);
+        const unit = this.placement.unitAtPoint(local.x, local.y);
+        if (!unit) return false;
+        const previouslySelected = this.placement.selectedUnit;
+        let ok = false;
+        if (this.canDropForgeOn(unit)) ok = this.forgeInsertItem(this.armedItem);
+        else if (this.canDropArmedItemOn(unit)) ok = this.applyItemTo(unit, this.armedItem);
+        if (!ok) return false;
+        // drop on another pack while details show a different one → close the panel
+        if (previouslySelected && previouslySelected !== unit) this.placement.deselect();
+        return true;
+    }
+
+    /** press-drag release — place the armed spell at the pointer (same as a map click) */
+    private tryPlaceArmedTacticAtClient(clientX: number, clientY: number): void {
+        if (!this.armedTactic || !this.playerCanAct) return;
+        const local = this.placement.clientToLocal(clientX, clientY);
+        this.placement.setPointerFromClient(clientX, clientY);
+        this.handleTacticGroundClick(local.x, local.y);
+    }
+
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
     private applyItemTo(unit: Unit, itemId: string): boolean {
         if (!this.playerCanAct || unit.seat !== this.humanSeat || unit.type.structure) return false;
+        if (unit.items.length >= itemSlotLimit(unit.type.id) || !ITEMS[itemId]) return false;
         if (!this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
             return false;
         }
@@ -5716,6 +5966,132 @@ export class Game {
         }));
         this.particles.spawnFromEvents(bursts);
         return true;
+    }
+
+    /** returns a this-deploy rune from a pack to the bag (drag-off) */
+    private removeItemFrom(unitId: number, itemId: string, slot: number): boolean {
+        if (!this.playerCanAct) return false;
+        const unit = this.placement.unitById(unitId);
+        if (!unit || unit.seat !== this.humanSeat || unit.type.structure) return false;
+        return this.dispatchPlayer({
+            kind: 'removeItem',
+            team: 'player',
+            unitId,
+            itemId,
+            slot,
+        });
+    }
+
+    /** slot a rune into the shared Stronghold forge */
+    private forgeInsertItem(itemId: string): boolean {
+        if (!this.playerCanAct || !ITEMS[itemId]) return false;
+        if (!forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat)) return false;
+        return this.dispatchPlayer({ kind: 'forgeInsert', team: 'player', itemId });
+    }
+
+    /** place several bag runes into the forge at once (empty-forge spell suggestion) */
+    private forgeFillItems(itemIds: readonly string[]): boolean {
+        if (!this.playerCanAct || itemIds.length === 0) return false;
+        return this.dispatchPlayer({
+            kind: 'forgeFill',
+            team: 'player',
+            itemIds: [...itemIds],
+        });
+    }
+
+    /** drag/click a this-deploy forge rune back to the inserter's bag */
+    private forgeRemoveItem(slot: number, itemId: string): boolean {
+        if (!this.playerCanAct) return false;
+        return this.dispatchPlayer({ kind: 'forgeRemove', team: 'player', itemId, slot });
+    }
+
+    /**
+     * Start of deploy (after intel snapshot): resolve each side's oven → grant
+     * one spell to every seat on that side; refund unused runes; clear tray.
+     */
+    private burnForges(): void {
+        if (this.round <= 1) return;
+        for (const team of ['player', 'enemy'] as const) {
+            const oven = this.forgeSlots[team]!;
+            const pool = this.teamForgePool(team);
+            const result = resolveForge(oven, pool);
+            if (result.tacticId) {
+                for (const seat of seatIdsOf(this.seats, team)) {
+                    this.tacticInventory[seat]!.push(result.tacticId);
+                }
+            }
+            for (const { itemId, seat } of result.refunds) {
+                this.itemInventory[seat]!.push(itemId);
+            }
+            this.forgeSlots[team] = emptyForgeSlots(
+                forgeTeamCapacity(seatIdsOf(this.seats, team).length),
+            );
+        }
+    }
+
+    /** union of forge spells unlocked by specialists on this side */
+    private teamForgePool(team: Team): string[] {
+        return unionForgeSpellPools(
+            ...seatIdsOf(this.seats, team).map(
+                (seat) => this.starterCardOfSeat(seat)?.forgeSpells,
+            ),
+        );
+    }
+
+    /** world strip over the Stronghold: forge runes + spell that will bake */
+    private forgeWorldBadges(
+        unit: Unit,
+    ): { runes: string[]; spellIcon: string | null } | null {
+        if (unit.type !== STRONGHOLD) return null;
+        const team: Team = unit.team === 'horde' ? 'player' : unit.team;
+        const fogged = this.placement.isIntelFogged(unit);
+        const snapIds =
+            fogged && this.buildingIntelSnapshot
+                ? this.buildingIntelSnapshot.forge[team]
+                : null;
+        const slots: (ForgeSlot | null)[] = snapIds
+            ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
+            : this.forgeSlots[team]!;
+        const runes: string[] = [];
+        for (const s of slots) {
+            if (!s) continue;
+            const icon = ITEMS[s.itemId]?.icon;
+            if (icon) runes.push(icon);
+        }
+        if (runes.length === 0) return null;
+        const result = resolveForge(slots, this.teamForgePool(team));
+        const spellIcon = result.tacticId ? (TACTICS[result.tacticId]?.icon ?? null) : null;
+        return { runes, spellIcon };
+    }
+
+    /**
+     * While dragging a rune over the forge, decorate the cursor ghost with the
+     * spell that would bake now + smaller icons for recipes still reachable.
+     */
+    private syncArmedRuneForgeGhost(): void {
+        if (!this.armedItem || !ITEMS[this.armedItem]) {
+            this.hud.setItemGhostForgePreview(null);
+            return;
+        }
+        const overWorldForge = this.placement.itemDropOnForge;
+        const overPanelForge =
+            this.placement.selectedUnit?.type === STRONGHOLD &&
+            this.hud.isPanelItemDropReady() &&
+            this.canDropForgeOn(this.placement.selectedUnit);
+        if (!overWorldForge && !overPanelForge) {
+            this.hud.setItemGhostForgePreview(null);
+            return;
+        }
+        const oven = this.forgeSlots.player
+            .filter((s): s is ForgeSlot => !!s)
+            .map((s) => s.itemId);
+        this.hud.setItemGhostForgePreview(
+            forgePreviewView(
+                oven,
+                this.armedItem,
+                this.teamForgePool('player'),
+            ),
+        );
     }
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
@@ -7054,6 +7430,8 @@ export class Game {
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
         );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
+        this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
+        this.syncArmedRuneForgeGhost();
         const enemyInv = this.enemyInventoryView();
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
@@ -7358,13 +7736,11 @@ export class Game {
             attackInterval: rs.attackInterval,
             splash: u.type.splashRadius,
             structure: !!u.type.structure,
-            items: u.items.length
-                ? u.items.map((id) => ({
-                      icon: ITEMS[id]?.icon ?? '?',
-                      name: ITEMS[id]?.name ?? id,
-                      desc: ITEMS[id]?.description ?? '',
-                  }))
-                : undefined,
+            unitId: u.id,
+            items: this.selectionItems(u, false),
+            itemSlotCount:
+                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
+            itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure
                 ? undefined
                 : { damageDealt: u.damageDealt, kills: u.kills },
@@ -7383,7 +7759,7 @@ export class Game {
     private unitInfo(u: Unit): SelectionInfo {
         const rs = this.resolvedStats(u);
         const lv = this.levelInfo(u);
-        const itemIds = this.placement.intelOf(u)?.items ?? u.items;
+        const fogItems = this.placement.intelOf(u)?.items;
         const ownInteractive = u.team === 'player' && this.playerCanAct;
         return {
             name: u.type.name,
@@ -7402,13 +7778,11 @@ export class Game {
             xp: lv.xp,
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
-            items: itemIds.length
-                ? itemIds.map((id) => ({
-                      icon: ITEMS[id]?.icon ?? '?',
-                      name: ITEMS[id]?.name ?? id,
-                      desc: ITEMS[id]?.description ?? '',
-                  }))
-                : undefined,
+            unitId: u.id,
+            items: this.selectionItems(u, ownInteractive && !fogItems, fogItems),
+            itemSlotCount:
+                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
+            itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
@@ -7429,6 +7803,27 @@ export class Game {
             ...this.commandTowerSelection(u),
             ...this.strongholdSelection(u),
         };
+    }
+
+    /** pack detail rune squares — removable only for this-deploy applications on own packs */
+    private selectionItems(
+        u: Unit,
+        allowRemove: boolean,
+        fogItems?: readonly string[],
+    ): SelectionInfo['items'] {
+        const itemIds = fogItems ?? u.items;
+        if (!itemIds.length) return undefined;
+        return itemIds.map((id, i) => ({
+            id,
+            icon: ITEMS[id]?.icon ?? '?',
+            name: ITEMS[id]?.name ?? id,
+            desc: ITEMS[id]?.description ?? '',
+            removable:
+                allowRemove &&
+                u.seat === this.humanSeat &&
+                !u.type.structure &&
+                u.itemAppliedRound[i] === this.round,
+        }));
     }
 
     /**
@@ -7466,19 +7861,25 @@ export class Game {
         });
     }
 
-    /** pack/unit techs for the action row — always listed when the type has
-     *  techs; owned flags use deploy intel (phase-start while fogged). */
+    /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks */
     private techSelection(u: Unit): SelectionInfo['techs'] {
-        if (u.type.structure || u.type.techs.length === 0) return undefined;
+        if (u.type.structure || u.type.extra) return undefined;
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-
+        const selected = techsForUnit(u.type.id);
+        const slotsN = techSlotLimit(u.type.id);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;
         const bal = this.economy.balance(u.seat);
-        return u.type.techs.map((t) => {
+        const slots: NonNullable<SelectionInfo['techs']> = [];
+        for (let i = 0; i < slotsN; i++) {
+            const t = selected[i];
+            if (!t) {
+                slots.push({ empty: true });
+                continue;
+            }
             const isOwned = owned.has(t.id);
             const cost = this.economy.techCostOf(t, ownedCount);
-            return {
+            slots.push({
                 id: t.id,
                 name: t.name,
                 desc: techDescription(t),
@@ -7486,8 +7887,9 @@ export class Game {
                 cost,
                 owned: isOwned,
                 affordable: canBuy && !isOwned && bal >= cost,
-            };
-        });
+            });
+        }
+        return slots;
     }
 
     /**
@@ -7629,6 +8031,10 @@ export class Game {
             boostHp: this.boostState.hp.slice(),
             sellOwned: this.sellState.owned.slice(),
             rallyOwned: this.rallyRouteOwned.slice(),
+            forge: {
+                player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
+                enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
+            },
         };
     }
 
@@ -7637,10 +8043,11 @@ export class Game {
      * battle, own or enemy). Buyable only for your side while you can act.
      * Duo-only actions omit themselves in 1v1; add future abilities here.
      */
-    private strongholdSelection(u: Unit): Pick<SelectionInfo, 'sendSupply'> {
+    private strongholdSelection(u: Unit): Pick<SelectionInfo, 'sendSupply' | 'forge'> {
         if (u.type !== STRONGHOLD) return {};
-        const out: Pick<SelectionInfo, 'sendSupply'> = {};
-        const teamSeats = seatIdsOf(this.seats, u.team === 'horde' ? 'player' : u.team);
+        const out: Pick<SelectionInfo, 'sendSupply' | 'forge'> = {};
+        const team: Team = u.team === 'horde' ? 'player' : u.team;
+        const teamSeats = seatIdsOf(this.seats, team);
         const canBuy = u.team === 'player' && this.playerCanAct;
 
         // Ally supply gift — only when this side has two seats
@@ -7651,6 +8058,71 @@ export class Game {
                 affordable: canBuy && this.economy.balance(this.humanSeat) >= amount,
             };
         }
+
+        const fogged = this.placement.isIntelFogged(u);
+        const snapIds =
+            fogged && this.buildingIntelSnapshot
+                ? this.buildingIntelSnapshot.forge[team]
+                : null;
+        const live = this.forgeSlots[team]!;
+        const hintSlots: (ForgeSlot | null)[] = snapIds
+            ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
+            : live;
+        const slotCount = snapIds?.length ?? live.length;
+        const ovenEmpty = !fogged && live.every((s) => s === null);
+        const pool = this.teamForgePool(team);
+        const suggestions =
+            ovenEmpty && canBuy && !this.armedItem
+                ? forgeRecipesCraftableFromBag(
+                      this.itemInventory[this.humanSeat] ?? [],
+                      pool,
+                  ).map((r) => ({
+                      tacticId: r.tacticId,
+                      icon: r.spellIcon,
+                      name: r.spellName,
+                      desc: r.spellDesc,
+                      itemIds: r.ingredients,
+                  }))
+                : [];
+        const bakeResult = resolveForge(hintSlots, pool);
+        const bakeTactic = bakeResult.tacticId ? TACTICS[bakeResult.tacticId] : null;
+        out.forge = {
+            slotCount,
+            dropReady: !fogged && this.canDropForgeOn(u),
+            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
+            suggestions,
+            spellPool: pool,
+            bake: bakeTactic
+                ? {
+                      icon: bakeTactic.icon,
+                      name: bakeTactic.name,
+                      desc: bakeTactic.description,
+                  }
+                : undefined,
+            slots: Array.from({ length: slotCount }, (_, i) => {
+                if (snapIds) {
+                    const id = snapIds[i];
+                    if (!id) return null;
+                    return {
+                        id,
+                        icon: ITEMS[id]?.icon ?? '?',
+                        name: ITEMS[id]?.name ?? id,
+                        desc: ITEMS[id]?.description ?? '',
+                        removable: false,
+                    };
+                }
+                const s = live[i];
+                if (!s) return null;
+                return {
+                    id: s.itemId,
+                    icon: ITEMS[s.itemId]?.icon ?? '?',
+                    name: ITEMS[s.itemId]?.name ?? s.itemId,
+                    desc: ITEMS[s.itemId]?.description ?? '',
+                    removable:
+                        canBuy && s.seat === this.humanSeat && s.round === this.round,
+                };
+            }),
+        };
 
         return out;
     }
@@ -7667,6 +8139,8 @@ interface BuildingIntelSnapshot {
     boostHp: number[];
     sellOwned: boolean[];
     rallyOwned: boolean[];
+    /** Stronghold oven contents (item ids) at phase start — fogged view */
+    forge: Record<Team, (string | null)[]>;
 }
 
 interface BuildingIntelSeat {

@@ -1,23 +1,29 @@
 # Steam graphical assets (English)
 
-Two parallel sets (same logo, 1v1 two-base layout):
+**Shipping set:** `h4-night-units-aerial-fire`  
+Folders: `store_center/`, `library_center/`
 
-| Set | Dragon | Folders |
-| --- | --- | --- |
-| **Side dragon** | Flies in from the right | `store/`, `library/`, masters without `_center` |
-| **Center dragon** | Flies toward camera from midfield; **golden-hour** look | `store_center/`, `library_center/`, `*_center.png` masters |
+**Prompts, logo prep, export commands, lessons:** see **[STYLE.md](./STYLE.md)** (same idea as `misc/icons/STYLE.md`).
 
-Center main capsule variants (explorations) live in `store_center/main_variants/` — shipping set uses **v2 golden hour**.
+Quick regen after editing masters:
 
-### Archived / alternate sets
-| Folder | Style | Contents |
-| --- | --- | --- |
-| `golden/` | Golden-hour center set (archive) | `store/`, `library/`, `masters/` |
-| `epic/` | Epic daylight center set + variants | Full `store/` + `library/` from **a_max_punch**; more main capsules in `epic/variants/` |
+```bash
+bash scripts/prep-steam-logo.sh      # if logo-trimmed.png changed
+bash scripts/export-steam-center.sh  # rebuild all Steam sizes
+```
 
-## Upload checklist (same filenames in each set)
+## Style lock (short)
 
-### Store (`store/` or `store_center/`)
+- Night, full moon **right**, dragon **back-left** with aerial center fire (not hitting units/ground)
+- Left keep + red banner; right azure wizard tower
+- Chunky dwarfs vs knights on raised dark ground
+- Wordmark: `assets/ui/logo-trimmed.png` on dark ground
+
+Locked refs: `store_center/header_ideas/LOCKED_h4_higher_ground_units_*`
+
+## Upload checklist
+
+### Store (`store_center/`)
 | File | Size | Steam slot |
 | --- | --- | --- |
 | `header_capsule.png` | 920×430 | Header Capsule * |
@@ -26,22 +32,25 @@ Center main capsule variants (explorations) live in `store_center/main_variants/
 | `vertical_capsule.png` | 748×896 | Vertical Capsule * |
 | `page_background.png` | 1438×810 | Page Background |
 
-### Library (`library/` or `library_center/`)
+### Library (`library_center/`)
 | File | Size | Steam slot |
 | --- | --- | --- |
 | `library_capsule.png` | 600×900 | Library Capsule * |
 | `library_header.png` | 920×430 | Library Header * |
 | `library_hero.png` | 3840×1240 | Library Hero * (no logo) |
-| `library_logo.png` | 1280×420 | Library Logo * (transparent) |
+| `library_logo.png` | transparent wordmark | Library Logo * |
 
-In Steamworks Library Logo placement tool, prefer **bottom-left** over the hero.
+Prefer Library Logo **bottom-left** over the hero in Steamworks.
 
 ### Masters (`masters/`)
-- Side: `landscape.png`, `portrait.png`, `hero.png`, `logo.png`
-- Center: `landscape_center.png`, `portrait_center.png`, `hero_center.png`
-- History: `landscape_v1_td.png`, `landscape_v2_side_dragon.png`, `landscape_v3_center_dragon.png`
+- `landscape_center.png` / `landscape_center_main.png`
+- `portrait_center.png` / `portrait_vertical.png`
+- `hero_center.png`
+- `page_bg_center.png`
+- `logo_trimmed.png` / `logo.png`
 
-## Notes
-- Capsules include the MELODAN logo only (no quotes/awards).
-- Small capsule is logo-first for tiny list thumbnails.
-- Screenshots: use `assets/marketing/screenshots/fullhd/` separately.
+### Notes
+- Capsules: MELODAN wordmark only
+- Small capsule is logo-first
+- `icons/` may still be from an older generation
+- Screenshots: `assets/marketing/screenshots/fullhd/`

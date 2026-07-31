@@ -7,18 +7,25 @@ export function homepageStyles(): string {
     return `
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body {
+html, body {
     margin: 0;
     min-height: 100%;
+    min-height: 100dvh;
     color: ${u.text};
     background: #1a2818;
 }
 
 .melodan-home {
     min-height: 100vh;
-    background:
-        linear-gradient(180deg, rgba(12, 20, 10, 0.55), rgba(18, 28, 14, 0.88)),
-        var(--menu-bg) center / cover no-repeat fixed;
+    min-height: 100dvh;
+    background: linear-gradient(180deg, #1a2818 0%, #121c12 35%, #0a0e0a 70%, #000000 100%);
+}
+@media (min-width: 721px) {
+    .melodan-home {
+        background:
+            linear-gradient(180deg, rgba(12, 20, 10, 0.55), rgba(18, 28, 14, 0.88)),
+            var(--menu-bg) center / cover no-repeat fixed;
+    }
 }
 
 .mh-wrap {
@@ -150,7 +157,7 @@ body {
 .mh-sticky-play {
     display: flex;
     position: fixed;
-    z-index: 40;
+    z-index: 50;
     right: 0;
     bottom: 0;
     left: auto;
@@ -329,6 +336,7 @@ body {
     font-size: 1.1rem;
     font-weight: 900;
     letter-spacing: 0.04em;
+    text-decoration: none;
     cursor: pointer;
     transition: border-color 0.12s, background 0.12s, transform 0.12s;
 }
@@ -349,92 +357,16 @@ body {
     color: #ff2a2a;
 }
 
-.mh-trailer-dialog {
-    position: fixed;
-    inset: 0;
-    width: min(960px, calc(100% - 24px));
-    max-width: none;
-    height: fit-content;
-    max-height: min(100% - 24px, 100dvh - 24px);
-    margin: auto;
-    padding: 12px;
-    border: 2px solid ${u.border};
-    border-radius: 14px;
-    background: rgba(8, 12, 10, 0.98);
-    color: ${u.text};
-    overflow: auto;
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
-}
-.mh-trailer-dialog[open] {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.mh-trailer-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.72);
-}
-.mh-trailer-dialog-chrome {
-    display: flex;
-    justify-content: flex-end;
-    flex: 0 0 auto;
-}
-.mh-trailer-dialog-close {
-    position: static;
-}
-.mh-trailer-dialog-frame {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    flex: 0 0 auto;
-    border-radius: 10px;
-    overflow: hidden;
-    background: #000;
-}
-.mh-trailer-frame {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border: 0;
-    display: block;
-}
-.mh-trailer-dialog-note {
-    margin: 0;
-    color: ${u.textMuted};
-    font-size: 12px;
-    line-height: 1.45;
-    text-align: center;
-}
-.mh-trailer-dialog-note a {
-    color: ${u.brassLight};
-    font-weight: 700;
-    text-decoration: none;
-}
-.mh-trailer-dialog-note a:hover { text-decoration: underline; }
-@media (max-width: 720px) {
-    .mh-trailer-dialog {
-        width: calc(100% - 16px);
-        max-height: min(100% - 16px, 100dvh - 16px);
-        margin: auto;
-        padding: 10px;
-        gap: 8px;
-        border-radius: 12px;
-    }
-    .mh-trailer-dialog-note {
-        font-size: 11px;
-        padding: 0 4px;
-    }
-}
-
 .mh-shots {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 14px;
+    gap: 22px;
+    margin: 8px 12px 0;
 }
 .mh-shots-more-wrap {
     display: flex;
     justify-content: center;
-    margin-top: 18px;
+    margin-top: 22px;
 }
 .mh-shots-more-btn {
     padding: 10px 18px;
@@ -459,23 +391,31 @@ body {
     box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
 }
 @media (max-width: 720px) {
+    #screenshots.mh-section {
+        margin: 24px 0 36px;
+        padding-top: 56px;
+    }
+    #screenshots .mh-sub {
+        margin-bottom: 12px;
+        padding: 0 4px;
+    }
     .mh-shots {
         grid-template-columns: repeat(2, 1fr);
         gap: 8px;
+        margin: 0;
     }
-
-    .mh-shot {
-        margin: 45px;
+    .mh-shots-more-wrap {
+        margin-top: 14px;
     }
 }
 
 @media (max-width: 520px) {
-    .mh-shot {
-        margin: 5px;
+    .mh-shots {
+        gap: 6px;
     }
 }
 .mh-shot {
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 16 / 9;
     border-radius: 12px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
@@ -484,12 +424,33 @@ body {
     place-items: center;
     color: ${u.textMuted};
     font-size: 13px;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    cursor: pointer;
+    font: inherit;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+@media (max-width: 720px) {
+    .mh-shot {
+        border-radius: 8px;
+        border-width: 1.5px;
+    }
+}
+.mh-shot:hover {
+    border-color: ${u.brass};
+    transform: translateY(-1px);
+}
+.mh-shot:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
 }
 .mh-shot img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    pointer-events: none;
 }
 
 .mh-lightbox {
@@ -576,13 +537,24 @@ body {
     inset: 56px 64px 88px;
     display: grid;
     place-items: center;
-    touch-action: pan-y;
+    touch-action: none;
     cursor: pointer;
     user-select: none;
+    overflow: hidden;
 }
 .mh-lightbox-stage.mh-lightbox-left { cursor: w-resize; }
 .mh-lightbox-stage.mh-lightbox-right { cursor: e-resize; }
 .mh-lightbox-stage:active { cursor: grabbing; }
+.mh-lightbox-stage.mh-lightbox-zoomed {
+    cursor: grab;
+}
+.mh-lightbox-stage.mh-lightbox-zoomed:active {
+    cursor: grabbing;
+}
+.mh-lightbox-stage.mh-lightbox-zoomed.mh-lightbox-left,
+.mh-lightbox-stage.mh-lightbox-zoomed.mh-lightbox-right {
+    cursor: grab;
+}
 .mh-lightbox-img {
     max-width: 100%;
     max-height: 100%;
@@ -593,16 +565,25 @@ body {
     border: 2px solid ${u.border};
     box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
     transition: transform 0.18s ease;
+    transform-origin: center center;
     pointer-events: none;
+    will-change: transform;
 }
-.mh-lightbox-caption {
+.mh-lightbox-footer {
     position: absolute;
     z-index: 3;
     left: 50%;
     bottom: 48px;
     transform: translateX(-50%);
-    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     max-width: min(720px, calc(100% - 32px));
+    pointer-events: none;
+}
+.mh-lightbox-caption {
+    margin: 0;
     padding: 6px 12px;
     border-radius: 8px;
     background: rgba(0, 0, 0, 0.4);
@@ -610,6 +591,28 @@ body {
     font-size: 13px;
     line-height: 1.4;
     text-align: center;
+}
+.mh-lightbox-links {
+    display: flex;
+    gap: 8px;
+    pointer-events: auto;
+}
+.mh-lightbox-link {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid ${u.border};
+    background: rgba(0, 0, 0, 0.45);
+    color: ${u.brassLight};
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    text-transform: uppercase;
+}
+.mh-lightbox-link:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+    color: ${u.text};
 }
 .mh-lightbox-dots {
     position: absolute;
@@ -635,18 +638,38 @@ body {
 }
 @media (max-width: 720px) {
     .mh-lightbox-stage {
-        inset: 56px 8px 96px;
+        inset: 48px 0 84px;
     }
     .mh-lightbox-nav {
-        width: 40px;
-        height: 56px;
-        font-size: 30px;
+        display: none;
     }
-    .mh-lightbox-nav.prev { left: 4px; }
-    .mh-lightbox-nav.next { right: 4px; }
+    .mh-lightbox-img {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        max-height: 100%;
+        width: 100%;
+        object-fit: contain;
+    }
+    .mh-lightbox-footer {
+        bottom: 40px;
+        gap: 6px;
+    }
     .mh-lightbox-caption {
-        bottom: 52px;
         font-size: 12px;
+        padding: 4px 10px;
+    }
+    .mh-lightbox-link {
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+    .mh-lightbox-dots {
+        bottom: 10px;
+        gap: 10px;
+    }
+    .mh-lightbox-dot {
+        width: 8px;
+        height: 8px;
     }
 }
 
@@ -951,11 +974,13 @@ body {
 .melodan-home .mechili-cards {
     position: relative;
     inset: auto;
+    z-index: auto;
     background: transparent;
     gap: 16px;
     user-select: text;
     justify-content: flex-start;
     align-items: center;
+    overflow: visible;
 }
 .melodan-home .mechili-cards .cards-title {
     letter-spacing: 0.12em;
@@ -1022,6 +1047,20 @@ body {
     font-size: 13px;
     line-height: 1.5;
     color: ${u.phase};
+}
+.mh-tactic-forge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    align-items: center;
+}
+.mh-tactic-rune {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
 }
 .mh-tactic-stats {
     list-style: none;

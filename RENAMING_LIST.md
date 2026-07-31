@@ -4,16 +4,30 @@ Edit the text in the **"Your Chosen Name"** column below. When you're happy with
 
 ---
 
-## 1. Items (`src/game/items.ts`)
+## 0. System category names (player-facing)
+
+Code still uses `item` / `tech` internally. Display strings live in `src/game/displayNames.ts`.
+
+| System | Old display name | Current display name |
+| :--- | :--- | :--- |
+| Pack equippables (`items.ts`) | Items | **Runes** |
+| Unit research (`techCatalog.ts`) | Techs | **Talents** |
+| Castable orders (`tactics.ts`) | Tactics | **Spells** |
+
+---
+
+## 1. Items / Runes (`src/game/items.ts`)
+
+Player-facing category: **Runes**. Icon craft (carved medallion + internal glow): see `misc/icons/STYLE.md` and `misc/concepts/runes/README.md`.
 
 | Internal ID | Current Name | Suggested Fantasy Name | Your Chosen Name |
 | :--- | :--- | :--- | :--- |
-| `addi` | Addi | Valor | |
-| `power` | Power Module | Carnage | |
-| `vigor` | Vigor Core | Giant Blood | |
-| `colossus` | Colossus Plating | Mithril Cuirass | |
-| `wrath` | Wrath Engine | Berserk  | |
-| `golden` | Golden Plating | Sunstone  | |
+| `addi` | Valor | Valor | |
+| `power` | Carnage | Carnage | |
+| `vigor` | Giant Blood | Giant Blood | |
+| `colossus` | Mithril Cuirass | Mithril Cuirass | |
+| `wrath` | Berserk | Berserk | |
+| `golden` | Sunstone | Sunstone | |
 
 ---
 

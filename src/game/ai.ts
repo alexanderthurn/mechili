@@ -11,8 +11,10 @@ import {
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
+import { techsForUnit } from './techCatalog';
 import { UNIT_TYPES, unitTypeById, type Team } from './units';
 import type { SeatId } from './seats';
+import { itemSlotLimit } from './items';
 
 /**
  * A side's decision maker. The built-in AI implements it; a future network
@@ -63,12 +65,17 @@ export class AiOpponent implements Opponent {
     }
 
     onRoundCards(offer: readonly RoundCard[]): void {
-        // takes an affordable UNIT card most of the time, else skips
-        const candidates = offer.filter(
-            (c) => c.units && this.ctx.economy.balance(this.seat) >= c.cost,
-        );
-        const pick = candidates.length > 0 && this.ctx.rng() < 0.75 ? candidates[0]! : null;
-        this.ctx.dispatch({ kind: 'roundCard', team: this.team, seat: this.seat, cardId: pick?.id ?? null });
+        const affordable = offer.filter((c) => this.ctx.economy.balance(this.seat) >= c.cost);
+        const pick =
+            affordable.length > 0
+                ? affordable[Math.floor(this.ctx.rng() * affordable.length)]!
+                : null;
+        this.ctx.dispatch({
+            kind: 'roundCard',
+            team: this.team,
+            seat: this.seat,
+            cardId: pick?.id ?? null,
+        });
     }
 
     onBuildPhase(_round: number): void {
@@ -147,17 +154,25 @@ export class AiOpponent implements Opponent {
         const team = this.team;
         const bag = [...items[this.seat]!];
         if (bag.length === 0) return;
-        const packs = placement
-            .allUnits()
-            .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra && u.items.length === 0);
-        for (const unit of packs) {
-            if (bag.length === 0) break;
+        // fill emptier packs first so items spread across the army
+        while (bag.length > 0) {
+            const packs = placement
+                .allUnits()
+                .filter(
+                    (u) =>
+                        u.seat === this.seat &&
+                        !u.type.structure &&
+                        !u.type.extra &&
+                        u.items.length < itemSlotLimit(u.type.id),
+                )
+                .sort((a, b) => a.items.length - b.items.length);
+            if (packs.length === 0) break;
+            const unit = packs[0]!;
             const i = Math.floor(rng() * bag.length);
             const itemId = bag.splice(i, 1)[0]!;
-            if (dispatch({ kind: 'applyItem', team, seat: this.seat, unitId: unit.id, itemId })) {
-                // inventory was mutated by dispatch; keep bag in sync
-            } else {
+            if (!dispatch({ kind: 'applyItem', team, seat: this.seat, unitId: unit.id, itemId })) {
                 bag.push(itemId);
+                break;
             }
         }
     }
@@ -257,7 +272,7 @@ export class AiOpponent implements Opponent {
         }
     }
 
-    /** spend remaining supply on techs / levels / tower upgrades while affordable */
+    /** spend remaining supply on techs / pack levels while affordable (no building upgrades) */
     private spendLeftoverUpgrades(): void {
         const { dispatch, placement, economy, techTree } = this.ctx;
         const team = this.team;
@@ -276,9 +291,10 @@ export class AiOpponent implements Opponent {
             bought = false;
             for (const typeId of ownedTypeIds) {
                 const type = unitTypeById(typeId);
-                if (!type?.techs.length) continue;
+                const techs = type ? techsForUnit(type.id) : [];
+                if (!type || techs.length === 0) continue;
                 const owned = techTree.ownedFor(this.seat, type.id);
-                for (const tech of type.techs) {
+                for (const tech of techs) {
                     if (owned.has(tech.id)) continue;
                     const cost = economy.techCostOf(tech, owned.size);
                     if (economy.balance(this.seat) < cost) continue;
@@ -292,11 +308,6 @@ export class AiOpponent implements Opponent {
         for (const unit of placement.allUnits()) {
             if (unit.seat !== this.seat || unit.type.structure || unit.type.extra) continue;
             dispatch({ kind: 'buyLevel', team, seat: this.seat, unitId: unit.id });
-        }
-
-        for (const unit of placement.allUnits()) {
-            if (unit.seat !== this.seat || !unit.type.structure || unit.type.extra) continue;
-            dispatch({ kind: 'upgradeTower', team, seat: this.seat, unitId: unit.id });
         }
     }
 }

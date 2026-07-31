@@ -1,4 +1,6 @@
 import { STANDARD_MAP, type MapSize } from './map';
+import { DISPLAY } from './displayNames';
+import { ROUND_RUNE_ITEM_IDS } from './cards';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -51,12 +53,19 @@ export interface GameSettings {
     seats?: SeatDef[];
     /**
      * Between-round card offers (not the round-0 specialist pick).
-     * - `false` — never (current default)
+     * - `false` — never
      * - `true`  — every round ≥ 2
      * - number[] — only those rounds, e.g. `[3, 6, 9]`
-     * Custom games can override this later.
      */
     roundCards: boolean | number[];
+    /**
+     * Item ids eligible for between-round rune offers (subset of the rune
+     * catalog). Each offer draws {@link roundCardOfferCount} from this pool.
+     * Host settings travel with the match setup message.
+     */
+    roundCardItems: string[];
+    /** How many cards each between-round offer shows (capped by the pool). */
+    roundCardOfferCount: number;
 }
 
 /**
@@ -321,7 +330,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
         levelCostFactor: 0.5,
         recruitLevel2Cost: 100,
     },
-    roundCards: false,
+    roundCards: true,
+    /** full rune catalog — each offer picks {@link roundCardOfferCount} at random */
+    roundCardItems: [...ROUND_RUNE_ITEM_IDS],
+    roundCardOfferCount: 3,
 };
 
 /** resolve a constant or per-round timer for the given round (round 1 → index 0) */
@@ -369,6 +381,13 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
+        roundCardItems: settings.roundCardItems?.length
+            ? [...settings.roundCardItems]
+            : [...DEFAULT_SETTINGS.roundCardItems],
+        roundCardOfferCount:
+            typeof settings.roundCardOfferCount === 'number' && settings.roundCardOfferCount > 0
+                ? settings.roundCardOfferCount
+                : DEFAULT_SETTINGS.roundCardOfferCount,
     };
 }
 
@@ -499,7 +518,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
             rows: [
                 { label: 'Deployment phase', value: fmtTimer(settings.buildTimeSeconds) },
                 { label: 'Battle phase', value: fmtTimer(settings.battleTimeSeconds) },
-                { label: 'Specialist pick', value: fmtTimer(settings.specialistTimeSeconds) },
+                { label: `${DISPLAY.commander} pick`, value: fmtTimer(settings.specialistTimeSeconds) },
                 { label: 'Round card pick', value: fmtTimer(settings.cardTimeSeconds) },
                 { label: 'Starting HP', value: `${settings.startingHp}` },
             ],
@@ -514,9 +533,9 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: 'round N grants startingSupply + (N-1) × growth',
                 },
                 {
-                    label: 'Tech cost escalation',
+                    label: `${DISPLAY.tech} cost escalation`,
                     value: `+${settings.economy.techCostEscalation}`,
-                    note: 'added to a tech’s price per tech already owned of that unit type',
+                    note: `added to a ${DISPLAY.tech.toLowerCase()}’s price per ${DISPLAY.tech.toLowerCase()} already owned of that unit type`,
                 },
             ],
         },
@@ -530,6 +549,16 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: Array.isArray(settings.roundCards)
                         ? `rounds ${settings.roundCards.join(', ')}`
                         : 'from round 2 onward when on',
+                },
+                {
+                    label: 'Offer size',
+                    value: `${settings.roundCardOfferCount}`,
+                    note: 'cards shown each offer',
+                },
+                {
+                    label: 'Rune pool',
+                    value: settings.roundCardItems.join(', '),
+                    note: 'item ids eligible for between-round offers',
                 },
             ],
         },
@@ -625,7 +654,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Ability cost',
                     value: `${settings.rallyRoute.abilityCost} supply, one-time`,
-                    note: 'Vanguard — grants one rally-route tactic charge',
+                    note: `Vanguard — grants one rally-route ${DISPLAY.tactic.toLowerCase()} charge`,
                 },
                 {
                     label: 'Boosts',

@@ -29,9 +29,10 @@ export const THEME = {
     light: 0xf0ecd8,
     accentEmissive: 0.85,
 
-    // placement markers — vivid green/red validity feedback on the ground
+    // placement markers — valid stays neon green; invalid is hot magenta so it
+    // never reads as the red faction color (SIDE_COLORS guest / Soviet red)
     valid: 0x00ff66,
-    invalid: 0xff2244,
+    invalid: 0xff3dce,
     select: 0xffd040,
     movable: 0xffffff,
 
@@ -2090,6 +2091,13 @@ ${fontFaceCss()}
 .mechili-panel .action-tile.locked { opacity: 0.42; }
 .mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
+.mechili-panel .action-tile.empty {
+    background: ${u.techBuyBg};
+    border: 1.5px solid ${u.border};
+    cursor: default;
+    pointer-events: auto;
+}
+.mechili-panel .tech-slots { margin-top: 10px; }
 
 /* the big hover frame — pops to the right of the panel with full details */
 .mechili-panel .action-info {
@@ -2108,8 +2116,30 @@ ${fontFaceCss()}
 }
 .mechili-panel .action-info .ai-head { display: flex; align-items: center; gap: 10px; }
 .mechili-panel .action-info .ai-icon { font-size: 28px; line-height: 1; }
-.mechili-panel .action-info .ai-title { font-size: 14px; font-weight: bold; color: ${u.brassLight}; }
+.mechili-panel .action-info .ai-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: ${u.brassLight};
+}
 .mechili-panel .action-info .ai-desc { font-size: 12px; line-height: 1.5; color: ${u.text}; margin-top: 8px; }
+.mechili-panel .action-info .ai-forge-ings {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 3px;
+    margin: 0 0 0 auto;
+    align-items: center;
+    flex-shrink: 0;
+}
+.mechili-panel .action-info .ai-forge-ing {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
 .mechili-panel .action-info .ai-note { font-size: 11px; color: ${u.textMuted}; margin-top: 6px; font-style: italic; }
 .mechili-panel .action-info .ai-cost { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: bold; color: ${u.brass}; }
 .mechili-panel .action-info .ai-cost.refund { color: ${u.techOwned}; }
@@ -2330,13 +2360,184 @@ ${fontFaceCss()}
     background: transparent;
     border: none;
     border-radius: 50%;
-    overflow: hidden;
+    overflow: visible;
     color: ${u.text};
     pointer-events: none;
     z-index: 50;
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.inv-drag.m-icon { width: 40px; height: 40px; font-size: 0; background-color: ${u.techBuyBg}; }
+.inv-drag .inv-drag-rune {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: ${u.techBuyBg};
+    flex: 0 0 auto;
+}
+.inv-drag .inv-drag-spells {
+    position: absolute;
+    left: calc(100% + 6px);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+}
+.inv-drag .inv-drag-spell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.inv-drag .inv-drag-spell-ico {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: ${u.panelBgDark};
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.inv-drag .inv-drag-spell.bake .inv-drag-spell-ico {
+    width: 30px;
+    height: 30px;
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 10px rgba(0, 255, 102, 0.45);
+}
+.inv-drag .inv-drag-spell.path .inv-drag-spell-ico {
+    opacity: 0.9;
+    filter: saturate(0.9);
+}
+.inv-drag .inv-drag-missing {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1px;
+    justify-content: center;
+    min-height: 12px;
+}
+.inv-drag .inv-drag-miss {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    overflow: hidden;
+    opacity: 0.8;
+}
+.inv-drag.forge-preview {
+    overflow: visible;
+}
+.forge-slot-preview {
+    position: fixed;
+    z-index: 52;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+.forge-slot-preview[hidden] {
+    display: none !important;
+}
+.forge-slot-preview .inv-drag-spell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.forge-slot-preview .inv-drag-spell-ico {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: ${u.panelBgDark};
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.forge-slot-preview .inv-drag-spell.bake .inv-drag-spell-ico {
+    width: 30px;
+    height: 30px;
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 10px rgba(0, 255, 102, 0.45);
+}
+.forge-slot-preview .inv-drag-spell.path .inv-drag-spell-ico {
+    opacity: 0.9;
+    filter: saturate(0.9);
+}
+.forge-slot-preview .inv-drag-missing {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1px;
+    justify-content: center;
+    min-height: 12px;
+}
+.forge-slot-preview .inv-drag-miss {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    overflow: hidden;
+    opacity: 0.8;
+}
+.inv-drag.drop-ready {
+    box-shadow: 0 0 0 3px #00ff66, 0 0 14px rgba(0, 255, 102, 0.85);
+    transform: scale(1.12);
 }
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
+.mechili-panel .forge-block { margin: 4px 0 10px; }
+.mechili-panel .forge-block.ready {
+    padding: 8px 8px 6px;
+    margin-left: -8px;
+    margin-right: -8px;
+    border-radius: 12px;
+    background: rgba(0, 80, 40, 0.22);
+    box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.45);
+    animation: forge-panel-ready 1.6s ease-in-out infinite;
+}
+.mechili-panel .forge-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 4px;
+}
+.mechili-panel .forge-block.ready .forge-label {
+    opacity: 1;
+    color: #7dffb0;
+}
+.mechili-panel .forge-hint {
+    font-size: 12px;
+    line-height: 1.35;
+    opacity: 0.85;
+    margin-top: 4px;
+    max-width: 280px;
+}
+.mechili-panel .forge-bake-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #7dffb0;
+    opacity: 0.9;
+    flex: 0 0 auto;
+}
+.mechili-panel .item-sq.forge-bake {
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 12px rgba(0, 255, 102, 0.45);
+    animation: forge-bake-pulse 1.25s ease-in-out infinite;
+}
+@keyframes forge-panel-ready {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.4); }
+    50% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.85), 0 0 14px rgba(0, 255, 102, 0.2); }
+}
+@keyframes forge-bake-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.7), 0 0 8px rgba(0, 255, 102, 0.35); }
+    50% { box-shadow: 0 0 0 3px rgba(0, 255, 102, 1), 0 0 16px rgba(0, 255, 102, 0.65); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-panel .forge-block.ready,
+    .mechili-panel .item-sq.forge-bake { animation: none; }
+}
 .mechili-panel .item-sq {
     width: 44px;
     height: 44px;
@@ -2350,8 +2551,250 @@ ${fontFaceCss()}
     overflow: hidden;
     cursor: help;
 }
-.mechili-panel .item-sq { transition: transform 0.12s ease, filter 0.12s ease; }
-.mechili-panel .item-sq:hover { transform: translateY(-1px); filter: brightness(1.12); }
+.mechili-panel .item-sq.empty {
+    background: ${u.techBuyBg};
+    border: 1.5px solid ${u.border};
+    cursor: default;
+}
+.mechili-panel .item-sq.empty.drop-target {
+    border-color: #00ff66;
+    box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 10px rgba(0, 255, 102, 0.45);
+    cursor: pointer;
+}
+.mechili-panel .item-sq.empty.drop-target:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 0 0 2px #00ff66, 0 0 14px rgba(0, 255, 102, 0.7);
+}
+.mechili-panel .item-sq:not(.empty) { transition: transform 0.12s ease, filter 0.12s ease; }
+.mechili-panel .item-sq:not(.empty):hover { transform: translateY(-1px); filter: brightness(1.12); }
+.mechili-panel .item-sq.removable {
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.45);
+}
+.mechili-panel .item-sq.removable:active { cursor: grabbing; }
+.mechili-panel .item-sq.forge-suggest {
+    cursor: pointer;
+    box-shadow: 0 0 0 1.5px rgba(0, 255, 102, 0.55);
+    opacity: 0.95;
+}
+.mechili-panel .item-sq.forge-suggest:hover {
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.9), 0 0 10px rgba(0, 255, 102, 0.35);
+    filter: brightness(1.12);
+}
+
+.mechili-cards.detail .forge-group-note {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: ${u.textMuted};
+    text-align: center;
+    max-width: 52rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+/* specialist detail: forge list beside the card on desktop; hidden when cramped */
+.mechili-cards.detail .spec-card-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.mechili-cards.detail .forge-recipes-block {
+    display: none;
+}
+@media (min-width: 700px) and (min-height: 541px) {
+    .mechili-cards.detail .spec-card-row {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 14px;
+    }
+    .mechili-cards.detail .forge-recipes-block {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: auto;
+        margin: 0;
+        padding: 0;
+        min-width: 168px;
+        max-width: 220px;
+    }
+    .mechili-cards.detail .forge-recipes-block .forge-tile-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .mechili-cards.detail .forge-tile {
+        padding: 6px 8px;
+        column-gap: 4px;
+        row-gap: 2px;
+        background: ${u.panelBgDark};
+        border-color: ${u.border};
+    }
+    .mechili-cards.detail .forge-tile .forge-spell {
+        width: 26px;
+        height: 26px;
+    }
+    .mechili-cards.detail .forge-tile-ings .forge-ing {
+        width: 22px;
+        height: 22px;
+    }
+    .mechili-cards.detail .forge-tile-name {
+        font-size: 11px;
+    }
+}
+.forge-panel {
+    max-width: min(96vw, 1100px);
+}
+.forge-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 10px;
+}
+.forge-tile {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 4px;
+    padding: 10px 10px 8px;
+    border-radius: 10px;
+    border: 1.5px solid ${u.divider};
+    background: rgba(0, 0, 0, 0.18);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.forge-tile-ings {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 28px;
+}
+.forge-tile .forge-arrow {
+    grid-column: 2;
+    grid-row: 1;
+    color: ${u.brassLight};
+    font-weight: 800;
+    font-size: 14px;
+}
+.forge-tile .forge-spell {
+    grid-column: 3;
+    grid-row: 1;
+    width: 32px;
+    height: 32px;
+}
+.forge-tile-ings .forge-ing {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+}
+.forge-tile-name {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 12px;
+    font-weight: 700;
+    color: ${u.text};
+    line-height: 1.25;
+    min-width: 0;
+}
+.forge-tile-partial {
+    border-color: rgba(255, 208, 64, 0.75);
+    box-shadow: 0 0 0 1px rgba(255, 208, 64, 0.25), 0 0 14px rgba(255, 208, 64, 0.28);
+    animation: forge-pulse-partial 1.6s ease-in-out infinite;
+}
+.forge-tile-ready {
+    border-color: rgba(0, 255, 102, 0.85);
+    box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 18px rgba(0, 255, 102, 0.4);
+    animation: forge-pulse-ready 1.25s ease-in-out infinite;
+}
+.mechili-cards .c-forge-spells {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 8px;
+}
+.mechili-cards .c-forge-spell-hit {
+    display: inline-flex;
+    cursor: help;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+.mechili-cards .c-forge-spell-hit:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+}
+.mechili-cards .c-forge-spells .c-forge-spell-ico {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+}
+.mechili-card-spell-tip {
+    position: fixed;
+    z-index: 10050;
+    width: 280px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    color: ${u.text};
+}
+.mechili-card-spell-tip .ai-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.mechili-card-spell-tip .ai-icon {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+}
+.mechili-card-spell-tip .ai-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: ${u.brassLight};
+}
+.mechili-card-spell-tip .ai-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: ${u.text};
+    margin-top: 8px;
+}
+.mechili-card-spell-tip .ai-forge-ings {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 3px;
+    margin: 0 0 0 auto;
+    align-items: center;
+    flex-shrink: 0;
+}
+.mechili-card-spell-tip .ai-forge-ing {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+@keyframes forge-pulse-partial {
+    0%, 100% { transform: translateY(0); box-shadow: 0 0 0 1px rgba(255, 208, 64, 0.25), 0 0 10px rgba(255, 208, 64, 0.22); }
+    50% { transform: translateY(-1px); box-shadow: 0 0 0 2px rgba(255, 208, 64, 0.45), 0 0 18px rgba(255, 208, 64, 0.4); }
+}
+@keyframes forge-pulse-ready {
+    0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 12px rgba(0, 255, 102, 0.3); }
+    50% { transform: translateY(-2px) scale(1.02); box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.55), 0 0 22px rgba(0, 255, 102, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .forge-tile-partial,
+    .forge-tile-ready { animation: none; }
+}
 
 /* --- in-match chat ------------------------------------------------------ */
 .mechili-fightbar .fighter { position: relative; }
@@ -2724,6 +3167,64 @@ ${fontFaceCss()}
 .mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
 .mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
 .mechili-cards .c-desc { font-size: 12.5px; color: ${u.phase}; line-height: 1.55; }
+.mechili-cards .c-forge {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 2px;
+}
+.mechili-cards .c-forge-spell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.mechili-cards .c-forge-spell-ico {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: ${u.panelBg};
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.mechili-cards .c-forge-spell.bake .c-forge-spell-ico {
+    width: 28px;
+    height: 28px;
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 8px rgba(0, 255, 102, 0.4);
+}
+.mechili-cards .c-forge-spell.path .c-forge-spell-ico {
+    opacity: 0.9;
+    filter: saturate(0.9);
+}
+.mechili-cards .c-forge-missing {
+    display: grid;
+    grid-template-columns: repeat(3, 12px);
+    gap: 1px;
+    justify-content: center;
+    min-height: 12px;
+}
+.mechili-cards .c-forge-miss {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    overflow: hidden;
+}
+.mechili-cards .c-forge-miss.ghost {
+    visibility: hidden;
+    pointer-events: none;
+}
+.mechili-cards .c-forge-miss.owned {
+    box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.9);
+}
+/* trio arc: left + right up, center a bit down (left slot is usually ghost) */
+.mechili-cards .c-forge-missing.trio .c-forge-miss:first-child,
+.mechili-cards .c-forge-missing.trio .c-forge-miss:last-child {
+    transform: translateY(-3px);
+}
 .mechili-cards .c-cost { margin-top: auto; font-size: 15px; font-weight: bold; color: ${u.brass}; }
 .mechili-cards .cards-skip {
     padding: 9px 24px;
@@ -3524,7 +4025,7 @@ ${gamepadCursorStyles(u)}
         border-radius: 0;
     }
     .mechili-phonebar button { flex: 1; padding: 5px 4px; }
-    /* tabs share the bar with the actions: Shop/Tactics only while nothing
+    /* tabs share the bar with the actions: Shop/Spells only while nothing
        is selected; the Unit tab (and actions) take over on selection */
     .mechili-phonebar:not(.has-unit):not(.battle) .pb-shop { display: flex; }
     .mechili-phonebar:not(.has-unit):not(.battle).has-tactics .pb-tactics { display: flex; }

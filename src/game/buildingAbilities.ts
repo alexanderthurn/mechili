@@ -62,7 +62,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
                 name: 'Rally Route',
                 cost: s.rallyRoute.abilityCost,
                 description:
-                    'Add one rally-route charge to your tactics strip. Once per match.',
+                    'Add one rally-route charge to your spells strip. Once per match.',
             },
         );
     }

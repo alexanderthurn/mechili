@@ -1,5 +1,14 @@
 import type { Application } from 'pixi.js';
-import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
+import { SHOP_UNIT_IDS, unitUnlockCost, type RoundCard, type StartCard } from '../game/cards';
+import { DISPLAY } from '../game/displayNames';
+import {
+    forgeHelpRows,
+    forgePreviewView,
+    forgeRecipeMatch,
+    type ForgePreviewView,
+    type ForgeSpellPool,
+} from '../game/forgeRecipes';
+import { ITEMS } from '../game/items';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
@@ -7,6 +16,8 @@ import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
+import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { roundCardFaceHtml } from './roundCardFace';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle';
@@ -92,7 +103,53 @@ export interface SelectionInfo {
     alive: number;
     total: number;
     /** equipped pack items, as squares in the panel */
-    items?: { icon: string; name: string; desc: string }[];
+    items?: {
+        icon: string;
+        name: string;
+        desc: string;
+        id?: string;
+        /** this-deploy only — drag off to return to bag */
+        removable?: boolean;
+    }[];
+    /** live pack id — needed to unequip a rune from the details panel */
+    unitId?: number;
+    /** empty item slots accept an armed inventory item (own pack, build phase) */
+    itemDropReady?: boolean;
+    /** how many item circles to show (per unit type; empty pads unused) */
+    itemSlotCount?: number;
+    /**
+     * Shared Stronghold forge oven (3 slots). Present only when a Stronghold
+     * is selected — runes burn into a spell next deploy.
+     */
+    forge?: {
+        slotCount: number;
+        dropReady: boolean;
+        /** predicted burn outcome for the current tray */
+        hint: string;
+        /**
+         * When the oven is empty: spells craftable from the player's bag,
+         * shown in the empty slot circles — click fills all needed runes.
+         */
+        suggestions?: {
+            tacticId: string;
+            icon: string;
+            name: string;
+            desc: string;
+            itemIds: string[];
+        }[];
+        /** spell that would bake from the current tray (if any) */
+        bake?: { icon: string; name: string; desc: string };
+        /** tactic ids this side's specialists unlock */
+        spellPool?: string[];
+        /** parallel to slotCount; null = empty */
+        slots: ({
+            icon: string;
+            name: string;
+            desc: string;
+            id: string;
+            removable?: boolean;
+        } | null)[];
+    };
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -107,8 +164,20 @@ export interface SelectionInfo {
         affordable: boolean;
         all?: { count: number; cost: number; affordable: boolean };
     };
-    /** buyable / inspectable techs (phase-start intel while fogged; always listed) */
-    techs?: { id: string; name: string; desc: string; icon: string; cost: number; owned: boolean; affordable: boolean }[];
+    /** buyable / inspectable tech slots (length = that unit's slot limit; empty = unused) */
+    techs?: (
+        | { empty: true }
+        | {
+              empty?: false;
+              id: string;
+              name: string;
+              desc: string;
+              icon: string;
+              cost: number;
+              owned: boolean;
+              affordable: boolean;
+          }
+    )[];
     /** base buildings render their level as N / maxLevel and hide XP */
     structure?: boolean;
     /** a base building's supply-only level upgrade (own, build phase) */
@@ -158,7 +227,32 @@ export class Hud {
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     /** team modes only: gift supply to your ally, delivered at the start of next round */
     onSendSupply: ((amount: number) => void) | null = null;
+    /** pick up a pack item for placement onto a unit (press / drag) */
     onArmItem: ((itemId: string, index: number) => void) | null = null;
+    /** drop the armed inventory item onto the selected pack (panel empty slots) */
+    onApplyArmedItem: (() => void) | null = null;
+    /** clear armed rune/spell (e.g. when starting a pack unequip drag) */
+    onCancelInventoryArm: (() => void) | null = null;
+    /** drag a this-deploy rune off the pack details slot back into the bag */
+    onRemoveItem: ((unitId: number, itemId: string, slot: number) => void) | null = null;
+    /** drag/click a this-deploy forge rune back to the inserter's bag */
+    onRemoveForge: ((slot: number, itemId: string) => void) | null = null;
+    /** empty-forge spell suggestion: place all recipe runes at once */
+    onForgeFill: ((itemIds: string[]) => void) | null = null;
+    /** while dragging a rune/spell from the strip — keep world hover in sync */
+    onInventoryDragMove: ((clientX: number, clientY: number) => void) | null = null;
+    /**
+     * End of a strip press-drag. `moved` is true when the pointer left the
+     * click-slop — then a miss cancels the arm; a short click stays armed.
+     */
+    onInventoryDragEnd:
+        | ((info: {
+              clientX: number;
+              clientY: number;
+              moved: boolean;
+              target: Element | null;
+          }) => void)
+        | null = null;
     onArmTactic: ((tacticId: string, index: number) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
     onResetPlacedTactic: ((tacticId: string, routeId: number) => void) | null = null;
@@ -224,6 +318,11 @@ export class Hud {
     /** this match's settings, described for the click-to-open panel — set once via setSettingsGroups */
     private settingsGroups: SettingGroup[] = [];
     private settingsDetailOverlay: HTMLDivElement | null = null;
+    /** hover tip for forge spells on specialist / round cards */
+    private readonly cardSpellTips = new CardSpellTips();
+    /** item ids currently in the selected Stronghold forge (for slot hover preview) */
+    private lastForgeOvenIds: string[] = [];
+    private lastForgeSpellPool: string[] = [];
     private playerHpFill!: HTMLDivElement;
     private enemyHpFill!: HTMLDivElement;
     private playerHpVal!: HTMLSpanElement;
@@ -260,6 +359,133 @@ export class Hud {
     /** the tile whose info frame is open — touch taps that tile again to act */
     private actionInfoFor: HTMLElement | null = null;
     private itemGhost: HTMLDivElement | null = null;
+    /** press-drag from the left inventory strip (runes / spells) */
+    private invDrag: {
+        pointerId: number;
+        startX: number;
+        startY: number;
+        moved: boolean;
+    } | null = null;
+    /** press-drag a this-deploy rune off a pack details slot */
+    private unequipDrag: {
+        pointerId: number;
+        startX: number;
+        startY: number;
+        moved: boolean;
+        unitId: number;
+        itemId: string;
+        slot: number;
+        icon: string;
+        /** pack rune vs Stronghold forge oven */
+        kind: 'pack' | 'forge';
+    } | null = null;
+
+    private readonly onInvDragMove = (e: PointerEvent) => {
+        if (!this.invDrag || e.pointerId !== this.invDrag.pointerId) return;
+        if (
+            !this.invDrag.moved &&
+            Math.hypot(e.clientX - this.invDrag.startX, e.clientY - this.invDrag.startY) > 6
+        ) {
+            this.invDrag.moved = true;
+        }
+        this.onInventoryDragMove?.(e.clientX, e.clientY);
+        // panel empty slots light up while hovering during a press-drag
+        const under = this.elementUnderDrag(e.clientX, e.clientY);
+        this.setPanelItemDropReady(!!under?.closest?.('.item-sq.empty'));
+    };
+
+    private readonly onInvDragEnd = (e: PointerEvent) => {
+        if (!this.invDrag || e.pointerId !== this.invDrag.pointerId) return;
+        if (e.type === 'pointerup' && e.button !== 0) return;
+        const drag = this.invDrag;
+        this.clearInvDragListeners();
+        this.invDrag = null;
+        const target = this.elementUnderDrag(e.clientX, e.clientY);
+        this.setPanelItemDropReady(false);
+        this.onInventoryDragEnd?.({
+            clientX: e.clientX,
+            clientY: e.clientY,
+            moved: drag.moved,
+            target,
+        });
+    };
+
+    private readonly onUnequipDragMove = (e: PointerEvent) => {
+        if (!this.unequipDrag || e.pointerId !== this.unequipDrag.pointerId) return;
+        if (
+            !this.unequipDrag.moved &&
+            Math.hypot(e.clientX - this.unequipDrag.startX, e.clientY - this.unequipDrag.startY) > 6
+        ) {
+            this.unequipDrag.moved = true;
+            this.ensureUnequipGhost(this.unequipDrag.icon, e.clientX, e.clientY);
+        }
+        if (this.itemGhost && this.unequipDrag.moved) {
+            this.itemGhost.style.left = `${e.clientX - 20}px`;
+            this.itemGhost.style.top = `${e.clientY - 20}px`;
+        }
+    };
+
+    private readonly onUnequipDragEnd = (e: PointerEvent) => {
+        if (!this.unequipDrag || e.pointerId !== this.unequipDrag.pointerId) return;
+        if (e.type === 'pointerup' && e.button !== 0) return;
+        const drag = this.unequipDrag;
+        this.clearUnequipDragListeners();
+        this.unequipDrag = null;
+        this.clearUnequipGhost();
+        // touch: short tap only peeks the tooltip — remove via drag-off
+        // desktop: click or drag-off removes (release on same slot after a drag cancels)
+        if (!drag.moved) {
+            if (e.pointerType === 'touch' || inputMode() === 'touch') return;
+        } else {
+            const under = this.elementUnderDrag(e.clientX, e.clientY);
+            const backOnSame =
+                under?.closest?.<HTMLElement>('.item-sq.removable')?.dataset.itemSlot ===
+                String(drag.slot);
+            if (backOnSame) return;
+        }
+        if (drag.kind === 'forge') this.onRemoveForge?.(drag.slot, drag.itemId);
+        else this.onRemoveItem?.(drag.unitId, drag.itemId, drag.slot);
+    };
+
+    /** hit-test under the cursor, ignoring the floating rune/spell ghost */
+    private elementUnderDrag(clientX: number, clientY: number): Element | null {
+        const ghost = this.itemGhost;
+        const prev = ghost?.style.pointerEvents;
+        if (ghost) ghost.style.pointerEvents = 'none';
+        const el = document.elementFromPoint(clientX, clientY);
+        if (ghost) ghost.style.pointerEvents = prev || '';
+        return el;
+    }
+
+    private clearInvDragListeners(): void {
+        window.removeEventListener('pointermove', this.onInvDragMove, true);
+        window.removeEventListener('pointerup', this.onInvDragEnd, true);
+        window.removeEventListener('pointercancel', this.onInvDragEnd, true);
+    }
+
+    private clearUnequipDragListeners(): void {
+        window.removeEventListener('pointermove', this.onUnequipDragMove, true);
+        window.removeEventListener('pointerup', this.onUnequipDragEnd, true);
+        window.removeEventListener('pointercancel', this.onUnequipDragEnd, true);
+    }
+
+    private ensureUnequipGhost(icon: string, clientX: number, clientY: number): void {
+        if (!this.itemGhost) {
+            this.itemGhost = document.createElement('div');
+            this.itemGhost.className = 'inv-drag m-icon';
+            document.body.appendChild(this.itemGhost);
+        }
+        this.itemGhost.className = 'inv-drag m-icon unequipping';
+        applyIcon(this.itemGhost, icon);
+        this.itemGhost.style.left = `${clientX - 20}px`;
+        this.itemGhost.style.top = `${clientY - 20}px`;
+    }
+
+    private clearUnequipGhost(): void {
+        if (!this.itemGhost?.classList.contains('unequipping')) return;
+        this.itemGhost.remove();
+        this.itemGhost = null;
+    }
     private lastInventoryKey = '';
     private lastEnemyInventoryKey = '';
     /** player inventory strip folded flat (titles only) when it wraps past one column */
@@ -282,6 +508,50 @@ export class Hud {
         this.itemGhost.style.left = `${e.clientX - 20}px`;
         this.itemGhost.style.top = `${e.clientY - 20}px`;
     };
+
+    private beginInvDrag(_btn: HTMLElement, e: PointerEvent): void {
+        this.clearUnequipDragListeners();
+        this.unequipDrag = null;
+        this.clearUnequipGhost();
+        this.clearInvDragListeners();
+        this.invDrag = {
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            moved: false,
+        };
+        // window capture — survives inventory strip re-render when the item arms
+        window.addEventListener('pointermove', this.onInvDragMove, true);
+        window.addEventListener('pointerup', this.onInvDragEnd, true);
+        window.addEventListener('pointercancel', this.onInvDragEnd, true);
+        this.onInventoryDragMove?.(e.clientX, e.clientY);
+    }
+
+    private beginUnequipDrag(
+        e: PointerEvent,
+        info: {
+            unitId: number;
+            itemId: string;
+            slot: number;
+            icon: string;
+            kind: 'pack' | 'forge';
+        },
+    ): void {
+        this.clearInvDragListeners();
+        this.invDrag = null;
+        this.onCancelInventoryArm?.();
+        this.clearUnequipDragListeners();
+        this.unequipDrag = {
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            moved: false,
+            ...info,
+        };
+        window.addEventListener('pointermove', this.onUnequipDragMove, true);
+        window.addEventListener('pointerup', this.onUnequipDragEnd, true);
+        window.addEventListener('pointercancel', this.onUnequipDragEnd, true);
+    }
 
     constructor(
         _app: Application,
@@ -408,6 +678,23 @@ export class Hud {
         this.panel.className = 'mechili-panel';
         this.panel.style.display = 'none';
         const infoSel = '.action-tile, .item-sq';
+        this.panel.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            const rem = (e.target as HTMLElement).closest<HTMLElement>('.item-sq.removable');
+            if (!rem?.dataset.itemId || rem.dataset.itemSlot === undefined) {
+                return;
+            }
+            const kind = rem.dataset.forge !== undefined ? 'forge' : 'pack';
+            if (kind === 'pack' && !rem.dataset.unitId) return;
+            e.preventDefault();
+            this.beginUnequipDrag(e, {
+                unitId: Number(rem.dataset.unitId ?? 0),
+                itemId: rem.dataset.itemId,
+                slot: Number(rem.dataset.itemSlot),
+                icon: rem.dataset.ticon ?? '',
+                kind,
+            });
+        });
         this.panel.addEventListener('click', (e) => {
             // touch has no hover: first tap peeks at the info, second tap acts
             if (inputMode() === 'touch') {
@@ -422,7 +709,18 @@ export class Hud {
                 }
             }
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.action-tile');
-            if (!button) return;
+            if (!button) {
+                const emptySlot = (e.target as HTMLElement).closest<HTMLElement>(
+                    '.item-sq.empty.drop-target',
+                );
+                if (emptySlot) this.onApplyArmedItem?.();
+                const fill = (e.target as HTMLElement).closest<HTMLElement>('.forge-suggest');
+                if (fill?.dataset.forgeFill) {
+                    const itemIds = fill.dataset.forgeFill.split(',').filter(Boolean);
+                    if (itemIds.length > 0) this.onForgeFill?.(itemIds);
+                }
+                return;
+            }
             // locked (unaffordable / not ready) and owned tiles stay hoverable
             // for their info frame, but do nothing on click
             if (button.classList.contains('locked') || button.classList.contains('owned')) return;
@@ -445,28 +743,56 @@ export class Hud {
         this.panel.addEventListener('pointerover', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
             const tile = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
-            if (tile) this.showActionInfo(tile);
+            if (tile) {
+                this.showActionInfo(tile);
+                if (tile.classList.contains('drop-target')) this.setPanelItemDropReady(true);
+            }
         });
         this.panel.addEventListener('pointerout', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
-            if (from && from !== to) this.hideActionInfo();
+            if (from && from !== to) {
+                this.hideActionInfo();
+                if (from.classList.contains('drop-target') && !to?.classList.contains('drop-target')) {
+                    this.setPanelItemDropReady(false);
+                }
+            }
         });
 
-        // unequipped pack items (left edge sidebar): click to pick up, click a pack to place
+        // unequipped pack items / spells (left edge): press to attach, release to drop
         this.inventoryEl = document.createElement('div');
         this.inventoryEl.className = 'mechili-sidebar left';
         this.inventoryEl.style.display = 'none';
-        this.inventoryEl.addEventListener('click', (e) => {
+        this.inventoryEl.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
             if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
-            const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-item]');
+            const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+                '.inv-item[data-item]',
+            );
             if (itemBtn?.dataset.item) {
+                e.preventDefault();
+                this.beginInvDrag(itemBtn, e);
                 this.onArmItem?.(itemBtn.dataset.item, Number(itemBtn.dataset.index ?? -1));
-                this.setPhoneTab(null); // aiming happens on the field
+                this.setPhoneTab(null);
                 return;
             }
-            // touch: tapping a PLACED tactic frees it again (desktop right-clicks)
+            const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+                '.inv-item[data-tactic]:not(.placed)',
+            );
+            if (tacticBtn?.dataset.tactic) {
+                e.preventDefault();
+                this.beginInvDrag(tacticBtn, e);
+                this.onArmTactic?.(
+                    tacticBtn.dataset.tactic,
+                    Number(tacticBtn.dataset.index ?? -1),
+                );
+                this.setPhoneTab(null);
+            }
+        });
+        this.inventoryEl.addEventListener('click', (e) => {
+            // arming is pointerdown — only handle collapse + touch placed-reset here
+            if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
             if (inputMode() === 'touch') {
                 const placedBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
                     '.inv-item[data-tactic].placed',
@@ -476,15 +802,7 @@ export class Hud {
                         placedBtn.dataset.tactic,
                         Number(placedBtn.dataset.routeId),
                     );
-                    return;
                 }
-            }
-            const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-                '.inv-item[data-tactic]:not(.placed)',
-            );
-            if (tacticBtn?.dataset.tactic) {
-                this.onArmTactic?.(tacticBtn.dataset.tactic, Number(tacticBtn.dataset.index ?? -1));
-                this.setPhoneTab(null);
             }
         });
         this.inventoryEl.addEventListener('contextmenu', (e) => {
@@ -569,14 +887,14 @@ export class Hud {
 
         this.fightBar.append(this.playerStackEl, this.topBar, this.enemyStackEl);
 
-        // one contextual bottom bar: sheet tabs (Shop/Tactics — phone only)
+        // one contextual bottom bar: sheet tabs (Shop/Spells — phone only)
         // while nothing is selected, unit actions once something is
         this.phoneBar = document.createElement('div');
         this.phoneBar.className = 'mechili-phonebar';
         const phoneTabs: ['shop' | 'unit' | 'tactics' | 'chat', string, string][] = [
             ['shop', 'ui-shop', 'Shop'],
             ['unit', 'ui-unit', 'Unit'],
-            ['tactics', 'ui-tactics', 'Tactics'],
+            ['tactics', 'ui-tactics', DISPLAY.tactics],
             ['chat', 'ui-chat', 'Chat'],
         ];
         for (const [tab, icon, label] of phoneTabs) {
@@ -1148,7 +1466,7 @@ export class Hud {
 
     /** the left-edge strip of unequipped items (one square each); empty list hides it */
     setInventory(
-        items: readonly { id: string; icon: string; name: string; armed: boolean }[],
+        items: readonly { id: string; icon: string; name: string; armed: boolean; index: number }[],
         tactics: readonly {
             id: string;
             icon: string;
@@ -1172,17 +1490,17 @@ export class Hud {
         if (!visible && this.phoneTab === 'tactics') this.setPhoneTab(null);
         const total = items.length + tactics.length;
         const itemHtml = items.length
-            ? this.invSectionTitle('Items', items.length, total) +
+            ? this.invSectionTitle(DISPLAY.items, items.length, total) +
               items
                   .map(
-                      (i, index) =>
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
+                      (i) =>
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}" title="${i.name}\nPress and drag onto a pack (or click to pick up, then click a pack). Free ${DISPLAY.item.toLowerCase()} slot required.">` +
                           `${iconHtml(i.icon)}</button>`,
                   )
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? this.invSectionTitle('Tactics', tactics.length, total) +
+            ? this.invSectionTitle(DISPLAY.tactics, tactics.length, total) +
               tactics
                   .map((t) => {
                       const routeAttr = t.routeId !== undefined ? ` data-route-id="${t.routeId}"` : '';
@@ -1226,17 +1544,187 @@ export class Hud {
             this.itemGhost = document.createElement('div');
             this.itemGhost.className = 'inv-drag';
             this.itemGhost.style.left = '-100px';
+            this.itemGhost.innerHTML =
+                `<span class="inv-drag-rune m-icon"></span>` +
+                `<div class="inv-drag-spells" hidden></div>`;
             document.body.appendChild(this.itemGhost);
         }
         if (this.itemGhost) {
             if (!picked) {
                 this.itemGhost.remove();
                 this.itemGhost = null;
+                this.worldItemDropReady = false;
+                this.panelItemDropReady = false;
+                this.forgeGhostPreview = null;
+                this.forgeGhostPreviewKey = '';
             } else {
-                this.itemGhost.className = 'inv-drag m-icon';
-                applyIcon(this.itemGhost, picked.icon);
+                this.itemGhost.classList.add('inv-drag');
+                this.itemGhost.classList.remove('unequipping');
+                const rune = this.itemGhost.querySelector<HTMLElement>('.inv-drag-rune');
+                if (rune) applyIcon(rune, picked.icon);
+                else {
+                    // legacy / unequip may have flattened the ghost — rebuild
+                    this.itemGhost.innerHTML =
+                        `<span class="inv-drag-rune m-icon"></span>` +
+                        `<div class="inv-drag-spells" hidden></div>`;
+                    applyIcon(this.itemGhost.querySelector<HTMLElement>('.inv-drag-rune')!, picked.icon);
+                }
+                this.syncItemGhostDropReady();
+                this.paintForgeGhostPreview();
             }
         }
+    }
+
+    /** ring the carried item ghost when the cursor is over a pack that can take it */
+    setItemGhostDropReady(ready: boolean): void {
+        this.worldItemDropReady = ready;
+        this.syncItemGhostDropReady();
+    }
+
+    /** true when an empty forge/pack slot in the details panel is lit as a drop target */
+    isPanelItemDropReady(): boolean {
+        return this.panelItemDropReady;
+    }
+
+    /**
+     * While dragging a rune over the forge: bake spell + path spells to the
+     * ghost's right, each path showing tiny missing-rune icons underneath.
+     */
+    setItemGhostForgePreview(preview: ForgePreviewView | null): void {
+        const key = preview
+            ? `${preview.bakeIcon ?? ''}|${preview.paths
+                  .map((p) => `${p.spellIcon}:${p.missingIcons.join('+')}`)
+                  .join(';')}`
+            : '';
+        if (key === this.forgeGhostPreviewKey) return;
+        this.forgeGhostPreviewKey = key;
+        this.forgeGhostPreview = preview;
+        this.paintForgeGhostPreview();
+    }
+
+    private forgeGhostPreview: ForgePreviewView | null = null;
+    private forgeGhostPreviewKey = '';
+    /** oven bake/paths floating next to a hovered forge slot (not the ?) */
+    private forgeSlotPreviewEl: HTMLDivElement | null = null;
+    private forgeSlotPreviewAnchor: HTMLElement | null = null;
+
+    private forgeSpellColsHtml(preview: ForgePreviewView): string {
+        const cols: string[] = [];
+        if (preview.bakeIcon) {
+            cols.push(
+                `<div class="inv-drag-spell bake">` +
+                    `${iconHtml(preview.bakeIcon, 'inv-drag-spell-ico')}` +
+                    `</div>`,
+            );
+        }
+        for (const p of preview.paths) {
+            const missing = p.missingIcons
+                .map((ico) => iconHtml(ico, 'inv-drag-miss'))
+                .join('');
+            cols.push(
+                `<div class="inv-drag-spell path">` +
+                    `${iconHtml(p.spellIcon, 'inv-drag-spell-ico')}` +
+                    `<div class="inv-drag-missing">${missing}</div>` +
+                    `</div>`,
+            );
+        }
+        return cols.join('');
+    }
+
+    private paintForgeGhostPreview(): void {
+        const ghost = this.itemGhost;
+        if (!ghost || ghost.classList.contains('unequipping')) return;
+        let spells = ghost.querySelector<HTMLElement>('.inv-drag-spells');
+        if (!spells) {
+            spells = document.createElement('div');
+            spells.className = 'inv-drag-spells';
+            ghost.appendChild(spells);
+        }
+        const preview = this.forgeGhostPreview;
+        const hasSpells =
+            !!preview && (!!preview.bakeIcon || preview.paths.length > 0);
+        ghost.classList.toggle('forge-preview', hasSpells);
+        if (!hasSpells || !preview) {
+            spells.hidden = true;
+            spells.replaceChildren();
+            // drag no longer owns the preview — restore slot hover if any
+            if (this.actionInfoFor) this.syncForgeSlotHoverPreview(this.actionInfoFor);
+            return;
+        }
+        spells.hidden = false;
+        spells.innerHTML = this.forgeSpellColsHtml(preview);
+        this.hideForgeSlotHoverPreview();
+    }
+
+    private isForgePreviewSlot(el: HTMLElement): boolean {
+        return (
+            el.classList.contains('item-sq') &&
+            !el.classList.contains('forge-suggest') &&
+            !!el.closest('.forge-row')
+        );
+    }
+
+    /** bake + paths beside a hovered forge rune / empty slot */
+    private syncForgeSlotHoverPreview(anchor: HTMLElement | null): void {
+        if (
+            !anchor ||
+            !this.isForgePreviewSlot(anchor) ||
+            this.itemGhost?.classList.contains('forge-preview')
+        ) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        const view = forgePreviewView(
+            this.lastForgeOvenIds,
+            null,
+            this.lastForgeSpellPool,
+        );
+        if (!view.bakeIcon && view.paths.length === 0) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        if (!this.forgeSlotPreviewEl) {
+            this.forgeSlotPreviewEl = document.createElement('div');
+            this.forgeSlotPreviewEl.className = 'forge-slot-preview';
+            this.forgeSlotPreviewEl.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(this.forgeSlotPreviewEl);
+        }
+        this.forgeSlotPreviewAnchor = anchor;
+        this.forgeSlotPreviewEl.innerHTML = this.forgeSpellColsHtml(view);
+        this.forgeSlotPreviewEl.hidden = false;
+        this.positionForgeSlotHoverPreview();
+    }
+
+    private positionForgeSlotHoverPreview(): void {
+        const el = this.forgeSlotPreviewEl;
+        const anchor = this.forgeSlotPreviewAnchor;
+        if (!el || !anchor || el.hidden) return;
+        const rect = anchor.getBoundingClientRect();
+        el.style.left = `${Math.round(rect.right + 6)}px`;
+        el.style.top = `${Math.round(rect.top + rect.height / 2)}px`;
+    }
+
+    private hideForgeSlotHoverPreview(): void {
+        this.forgeSlotPreviewAnchor = null;
+        if (this.forgeSlotPreviewEl) {
+            this.forgeSlotPreviewEl.hidden = true;
+            this.forgeSlotPreviewEl.replaceChildren();
+        }
+    }
+
+    private worldItemDropReady = false;
+    private panelItemDropReady = false;
+
+    private setPanelItemDropReady(ready: boolean): void {
+        this.panelItemDropReady = ready;
+        this.syncItemGhostDropReady();
+    }
+
+    private syncItemGhostDropReady(): void {
+        this.itemGhost?.classList.toggle(
+            'drop-ready',
+            this.worldItemDropReady || this.panelItemDropReady,
+        );
     }
 
     /** opponent items/tactics at phase-start intel (right sidebar, read-only) */
@@ -1252,7 +1740,7 @@ export class Hud {
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
         const total = items.length + tactics.length + (options.sellAbility ? 1 : 0);
         const itemHtml = items.length
-            ? this.invSectionTitle('Enemy items', items.length, total) +
+            ? this.invSectionTitle(`Enemy ${DISPLAY.items.toLowerCase()}`, items.length, total) +
               items
                   .map(
                       (i) =>
@@ -1262,7 +1750,7 @@ export class Hud {
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? this.invSectionTitle('Enemy tactics', tactics.length, total) +
+            ? this.invSectionTitle(`Enemy ${DISPLAY.tactics.toLowerCase()}`, tactics.length, total) +
               tactics
                   .map(
                       (t) =>
@@ -1556,13 +2044,22 @@ export class Hud {
             this.lastPanelKey = '';
             this.unitSheetAutoKey = null;
             if (this.phoneTab === 'unit') this.setPhoneTab(null);
+            this.lastForgeOvenIds = [];
+            this.lastForgeSpellPool = [];
+            this.hideForgeSlotHoverPreview();
             return;
         }
+        this.lastForgeOvenIds = (info.forge?.slots ?? [])
+            .map((s) => s?.id)
+            .filter((id): id is string => !!id);
+        this.lastForgeSpellPool = info.forge?.spellPool ?? [];
         this.panel.style.display = 'block';
         const key = JSON.stringify(info);
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
         this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
+        this.hideForgeSlotHoverPreview();
+        this.setPanelItemDropReady(false);
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
 
         // leveling sits at the top-right of the frame (next to the name);
@@ -1692,7 +2189,7 @@ export class Hud {
                 data: 'data-rallyroute="1"',
                 icon: 'tactic-rally',
                 title: 'Buy Rally Route',
-                desc: 'Add one rally-route charge to your tactics. Once per match.',
+                desc: `Add one rally-route charge to your ${DISPLAY.tactics.toLowerCase()}. Once per match.`,
                 cost: info.rallyRouteAbility.cost,
                 state: info.rallyRouteAbility.owned
                     ? 'owned'
@@ -1701,27 +2198,104 @@ export class Hud {
                       : 'locked',
             });
         }
-        for (const t of info.techs ?? []) {
-            tiles.push({
-                data: `data-tech="${t.id}"`,
-                icon: t.icon,
-                title: t.name,
-                desc: t.desc,
-                cost: t.owned || info.team === 'player' ? t.cost : undefined,
-                note: !t.owned && info.team === 'enemy' ? 'Not purchased' : undefined,
-                state: t.owned ? 'owned' : t.affordable ? 'buy' : 'locked',
-            });
-        }
+        // unit techs render in their own slotted row (see techSlotsHtml below)
         const actions = this.renderActionTiles(tiles);
         const levelActions = this.renderActionTiles(levelTiles, 'level-actions');
-        const itemSquares = info.items?.length
-            ? `<div class="item-row">${info.items
-                  .map(
-                      (i) =>
-                          `<span class="item-sq m-icon" style="${iconCss(i.icon)}" data-ttitle="${escapeAttr(i.name)}" data-tdesc="${escapeAttr(i.desc ?? i.name)}" data-ticon="${escapeAttr(i.icon)}"></span>`,
-                  )
-                  .join('')}</div>`
-            : '';
+        const techSlots = this.renderTechSlots(info.techs);
+        // packs show that type's item slots (empty = dark circle); structures hide them
+        const itemSlotCount = info.itemSlotCount ?? 0;
+        const itemSquares =
+            info.structure || itemSlotCount <= 0
+                ? ''
+                : `<div class="item-row">${Array.from({ length: itemSlotCount }, (_, i) => {
+                      const item = info.items?.[i];
+                      if (!item) {
+                          const slot = i + 1;
+                          const drop = info.itemDropReady ? ' drop-target' : '';
+                          return (
+                              `<span class="item-sq empty${drop}" data-ttitle="${DISPLAY.item} slot ${slot}" data-tdesc="${
+                                  info.itemDropReady
+                                      ? `Drop your armed ${DISPLAY.item.toLowerCase()} here to equip it on this pack.`
+                                      : `Empty — equip a ${DISPLAY.item.toLowerCase()} from your inventory onto this pack.`
+                              }"></span>`
+                          );
+                      }
+                          const removeHint =
+                              inputMode() === 'touch'
+                                  ? `Drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`
+                                  : `Click or drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`;
+                          return (
+                          `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                              item.removable
+                                  ? `${item.desc ?? item.name}\n${removeHint}`
+                                  : (item.desc ?? item.name),
+                          )}" data-ticon="${escapeAttr(item.icon)}"${
+                              item.removable && info.unitId !== undefined && item.id
+                                  ? ` data-item-id="${escapeAttr(item.id)}" data-item-slot="${i}" data-unit-id="${info.unitId}"`
+                                  : ''
+                          }></span>`
+                      );
+                  }).join('')}</div>`;
+        const forge = info.forge;
+        const forgeSquares = !forge
+            ? ''
+            : `<div class="forge-block${forge.bake ? ' ready' : ''}">` +
+              `<div class="forge-label">Forge${forge.bake ? ' · ready' : ''}</div>` +
+              `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
+                  const item = forge.slots[i];
+                  if (!item) {
+                      const suggest = forge.suggestions?.[i];
+                      if (suggest) {
+                          const ingIcons = suggest.itemIds
+                              .map((id) => ITEMS[id]?.icon)
+                              .filter((id): id is string => !!id);
+                          return (
+                              `<span class="item-sq m-icon forge-suggest" style="${iconCss(suggest.icon)}" ` +
+                              `data-forge-fill="${escapeAttr(suggest.itemIds.join(','))}" ` +
+                              `data-forge-ings="${escapeAttr(ingIcons.join(','))}" ` +
+                              `data-ttitle="${escapeAttr(suggest.name)}" ` +
+                              `data-tdesc="${escapeAttr(`${suggest.desc}\nClick to place these ${DISPLAY.items.toLowerCase()} in the forge.`)}" ` +
+                              `data-ticon="${escapeAttr(suggest.icon)}"></span>`
+                          );
+                      }
+                      const slot = i + 1;
+                      const drop = forge.dropReady ? ' drop-target' : '';
+                      return (
+                          `<span class="item-sq empty${drop}" data-ttitle="Forge slot ${slot}" data-tdesc="${
+                              forge.dropReady
+                                  ? `Drop a ${DISPLAY.item.toLowerCase()} here — it burns into a ${DISPLAY.tactic.toLowerCase()} next deploy.`
+                                  : `Empty forge slot — equip a ${DISPLAY.item.toLowerCase()} from your bag.`
+                          }"></span>`
+                      );
+                  }
+                  const removeHint =
+                      inputMode() === 'touch'
+                          ? `Drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`
+                          : `Click or drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`;
+                  return (
+                      `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                          item.removable
+                              ? `${item.desc}\n${removeHint}`
+                              : item.desc,
+                      )}" data-ticon="${escapeAttr(item.icon)}"${
+                          item.removable
+                              ? ` data-forge="1" data-item-id="${escapeAttr(item.id)}" data-item-slot="${i}"`
+                              : ''
+                      }></span>`
+                  );
+              }).join('')}` +
+              (forge.bake
+                  ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
+                    `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
+                    `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                    `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
+                    `data-ticon="${escapeAttr(forge.bake.icon)}"></span>`
+                  : '') +
+              `</div>` +
+              (forge.hint
+                  ? `<div class="forge-hint">${escapeHtml(forge.hint)}</div>`
+                  : '') +
+              `</div>`;
         // XP (or tower level) progress toward the next rank
         const xpBarPct = info.structure
             ? info.towerUpgrade
@@ -1745,6 +2319,7 @@ export class Hud {
             levelActions +
             `</div>` +
             itemSquares +
+            forgeSquares +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
             row('Level', levelLabel) +
@@ -1757,8 +2332,44 @@ export class Hud {
                 ? row('Total dmg', String(Math.round(info.record.damageDealt))) +
                   row('Kills', String(info.record.kills))
                 : '') +
+            techSlots +
             actions +
             `<div class="action-info" style="display:none"></div>`;
+    }
+
+    /**
+     * One tile per tech slot for this pack — filled slots are buyable action
+     * tiles; unused slots are dark empty plates.
+     */
+    private renderTechSlots(
+        techs: SelectionInfo['techs'],
+    ): string {
+        if (!techs?.length) return '';
+        const cells = techs
+            .map((t, i) => {
+                if (t.empty) {
+                    const slot = i + 1;
+                    return (
+                        `<span class="action-tile empty" data-ttitle="${DISPLAY.tech} slot ${slot}" data-tdesc="Empty — no ${DISPLAY.tech.toLowerCase()} selected for this slot."></span>`
+                    );
+                }
+                const badge =
+                    t.owned
+                        ? `<span class="at-badge">✓</span>`
+                        : t.cost !== undefined
+                          ? `<span class="at-cost">${t.cost}</span>`
+                          : '';
+                const state = t.owned ? 'owned' : t.affordable ? 'buy' : 'locked';
+                return (
+                    `<button class="action-tile ${state}" data-tech="${t.id}"` +
+                    ` data-ttitle="${escapeAttr(t.name)}" data-tdesc="${escapeAttr(t.desc)}"` +
+                    ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost}"` +
+                    ` data-tstate="${state}">` +
+                    `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>${badge}</button>`
+                );
+            })
+            .join('');
+        return `<div class="action-row tech-slots">${cells}</div>`;
     }
 
     /** one horizontal row of square action tiles (icons); hover shows details */
@@ -1810,15 +2421,19 @@ export class Hud {
                 : '';
         const levelIcon = !!d.ticon?.startsWith('ability-level');
         frame.innerHTML =
-            `<div class="ai-head"${levelIcon ? ` style="color:${THEME.ui.brassLight}"` : ''}>` +
-            `${d.ticon ? iconHtml(d.ticon, levelIcon ? 'ai-icon mask-ico' : 'ai-icon') : ''}` +
-            `<span class="ai-title">${d.ttitle ?? ''}</span></div>` +
-            `<div class="ai-desc">${d.tdesc ?? ''}</div>` +
+            spellInfoFrameHtml({
+                title: d.ttitle ?? '',
+                desc: d.tdesc ?? '',
+                icon: d.ticon,
+                ingredientIcons: (d.forgeIngs ?? '').split(',').filter(Boolean),
+                levelIcon,
+            }) +
             note +
             costLine +
             touchBuy;
         frame.style.display = 'block';
         this.actionInfoFor = tile;
+        this.syncForgeSlotHoverPreview(tile);
         frame.querySelector<HTMLButtonElement>('.ai-buy')?.addEventListener('click', (e) => {
             e.stopPropagation();
             // while actionInfoFor === tile, the delegated handler treats this
@@ -1832,6 +2447,7 @@ export class Hud {
         const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
         if (frame) frame.style.display = 'none';
         this.actionInfoFor = null;
+        this.hideForgeSlotHoverPreview();
     }
 
     setPhase(
@@ -1844,7 +2460,7 @@ export class Hud {
         this.roundEl.textContent = waitingForPeer
             ? 'Waiting for opponent'
             : round === 0
-              ? 'Specialists'
+              ? DISPLAY.commanders
               : `Round ${round}`;
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -1948,7 +2564,8 @@ export class Hud {
      * not — pause already stops everything itself).
      */
     private syncOverlayOpen(): void {
-        const blocksTopBar = this.cardOverlay !== null || this.settingsDetailOverlay !== null;
+        const blocksTopBar =
+            this.cardOverlay !== null || this.settingsDetailOverlay !== null;
         const open = blocksTopBar || this.pauseMenu !== null;
         this.topBar.classList.toggle('overlay-open', blocksTopBar);
         this.phoneBar.classList.toggle('overlay-open', open);
@@ -1964,6 +2581,7 @@ export class Hud {
     /** dismisses the specialist or round-card picker if it is still open */
     hideCardOverlay(): void {
         if (!this.cardOverlay) return;
+        this.hideCardSpellTip();
         this.removeCardOverlayElement(this.cardOverlay);
         this.cardOverlay = null;
         this.cardIntroFading = false;
@@ -2128,6 +2746,7 @@ export class Hud {
         // phone: an open sheet (e.g. the shop behind the unlock picker) would
         // show through the overlay's dim layer — close it first
         this.setPhoneTab(null);
+        this.bindCardSpellTips(overlay);
         this.cardOverlay = overlay;
         this.syncOverlayOpen();
         this.mount(overlay);
@@ -2229,13 +2848,7 @@ export class Hud {
 
     /** the face of a specialist card (static data only — safe for innerHTML) */
     private startCardFace(c: StartCard): string {
-        return (
-            `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
-            `<div class="c-title">${c.title}</div>` +
-            `<div class="c-units">${c.unitsLabel}</div>` +
-            `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
-            `<div class="c-desc">${c.description}</div>`
-        );
+        return startCardFaceHtml(c);
     }
 
     /** the pre-round-1 loadout pick: four cards, click one, the game begins.
@@ -2249,7 +2862,7 @@ export class Hud {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose your specialist</div>` +
+            `<div class="cards-title">Choose your ${DISPLAY.commander.toLowerCase()}</div>` +
             (note ? `<div class="cards-note"></div>` : '') +
             `<div class="cards-row">` +
             cards
@@ -2332,7 +2945,11 @@ export class Hud {
         const teamChips = this.commanderChips.filter((c) => c.team === team);
 
         const picks = team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
-        const hasContent = teamChips.some((c) => c.card !== null) || picks.length > 0;
+        const oven = team === 'player' ? this.lastForgeOvenIds : [];
+        const hasContent =
+            teamChips.some((c) => c.card !== null) ||
+            picks.length > 0 ||
+            teamChips.some((c) => (c.card?.forgeSpells?.length ?? 0) > 0);
         if (!hasContent) return;
 
         // avoid stacking duplicate overlays
@@ -2344,8 +2961,14 @@ export class Hud {
         const colsHtml = teamChips
             .map((chip) => {
                 const card = chip.card;
+                const forgeHtml = card
+                    ? this.forgeRecipesBlockHtml(card.forgeSpells, oven)
+                    : '';
                 const specHtml = card
-                    ? `<div class="card static">${this.startCardFace(card)}</div>`
+                    ? `<div class="spec-card-row">` +
+                      `<div class="card static">${this.startCardFace(card)}</div>` +
+                      forgeHtml +
+                      `</div>`
                     : '';
                 const picksHtml =
                     picks.length === 0
@@ -2377,12 +3000,52 @@ export class Hud {
 
         overlay.innerHTML = `<div class="cards-row">${colsHtml}</div>`;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
+        this.bindCardSpellTips(overlay);
         this.specDetailOverlay = overlay;
         this.specDetailSeat = seat;
         this.specDetailViaHover = viaHover;
         // the enemy's unplaced items are intel that belongs to this screen
         this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
         this.mount(overlay);
+    }
+
+    /** forge recipe list for a specialist (desktop: beside the card) */
+    private forgeRecipesBlockHtml(pool: readonly string[], oven: readonly string[]): string {
+        const rows = forgeHelpRows(pool);
+        if (rows.length === 0) return '';
+        const ranked = [...rows].sort((a, b) => {
+            const rank = (r: (typeof rows)[number]) => {
+                const m = forgeRecipeMatch(r.ingredients, oven);
+                return m === 'ready' ? 0 : m === 'partial' ? 1 : 2;
+            };
+            return rank(a) - rank(b);
+        });
+        const tiles = ranked
+            .map((r) => {
+                const match = forgeRecipeMatch(r.ingredients, oven);
+                const matchClass =
+                    match === 'ready'
+                        ? ' forge-tile-ready'
+                        : match === 'partial'
+                          ? ' forge-tile-partial'
+                          : '';
+                const ings = r.ingredientIcons.map((ico) => iconHtml(ico, 'forge-ing')).join('');
+                return (
+                    `<div class="forge-tile${matchClass}" data-spell-tip="1" ` +
+                    `data-ttitle="${escapeAttr(r.spellName)}" ` +
+                    `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
+                    `data-ticon="${escapeAttr(r.spellIcon)}" ` +
+                    `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}" ` +
+                    `title="${escapeAttr(r.spellDesc)}">` +
+                    `<div class="forge-tile-ings">${ings}</div>` +
+                    `<span class="forge-arrow">→</span>` +
+                    `${iconHtml(r.spellIcon, 'forge-spell')}` +
+                    `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
+                    `</div>`
+                );
+            })
+            .join('');
+        return `<div class="forge-recipes-block"><div class="forge-tile-grid">${tiles}</div></div>`;
     }
 
     /** dismiss the specialist detail popup (hover-out or click) */
@@ -2393,7 +3056,17 @@ export class Hud {
         }
         this.specDetailSeat = null;
         this.specDetailViaHover = false;
+        this.hideCardSpellTip();
         this.enemyInventoryEl.classList.remove('reveal');
+    }
+
+    /** mouse hover details for forge spells on specialist cards / recipe tiles */
+    private bindCardSpellTips(root: HTMLElement): void {
+        this.cardSpellTips.bind(root);
+    }
+
+    private hideCardSpellTip(): void {
+        this.cardSpellTips.hide();
     }
 
     /** this match's settings, described once at match start (see game/settings.ts's
@@ -2450,23 +3123,34 @@ export class Hud {
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
     showRoundCards(
-        cards: readonly { id: string; title: string; body: string; cost: number; affordable: boolean }[],
+        cards: readonly RoundCard[],
         skipReward: number,
         onPick: (cardId: string | null) => void,
+        title = 'Choose your card',
+        opts?: {
+            ownedItemIds?: readonly string[];
+            forgePool?: ForgeSpellPool;
+            canAfford?: (card: RoundCard) => boolean;
+        },
     ): void {
+        const canAfford = opts?.canAfford ?? (() => true);
+        const faceOpts = {
+            ownedItemIds: opts?.ownedItemIds,
+            forgePool: opts?.forgePool,
+        };
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose a card</div><div class="cards-row">` +
+            `<div class="cards-title">${escapeHtml(title)}</div><div class="cards-row">` +
             cards
-                .map(
-                    (c) =>
-                        `<button class="card" data-card="${c.id}" ${c.affordable ? '' : 'disabled'}>` +
-                        `<div class="c-title">${c.title}</div>` +
-                        `<div class="c-desc">${c.body}</div>` +
-                        `<div class="c-cost">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>` +
-                        `</button>`,
-                )
+                .map((c) => {
+                    const affordable = canAfford(c);
+                    return (
+                        `<button class="card" data-card="${escapeAttr(c.id)}" ${affordable ? '' : 'disabled'}>` +
+                        roundCardFaceHtml(c, faceOpts) +
+                        `</button>`
+                    );
+                })
                 .join('') +
             `</div>` +
             `<button class="cards-skip">Skip — take ⬢ ${skipReward}</button>`;
@@ -2668,12 +3352,18 @@ export class Hud {
     destroy(): void {
         this.hidePauseMenu();
         this.hideCardOverlay();
+        this.hideSettingsDetail();
         this.hideNotice();
         this.hideBattleReport();
+        this.clearInvDragListeners();
+        this.invDrag = null;
+        this.clearUnequipDragListeners();
+        this.unequipDrag = null;
         this.itemGhost?.remove();
         this.itemGhost = null;
         this.cinemaHint?.remove();
         this.cinemaHint = null;
+        this.cardSpellTips.destroy();
         for (const el of this.mountedRoots) {
             el.remove();
         }

@@ -16,19 +16,19 @@ for the desktop / Steam client.
 ## Screenshots
 
 <p align="center">
-  <img src="assets/marketing/screenshots/01.webp" alt="MELODAN screenshot 1" width="480" />
-  <img src="assets/marketing/screenshots/02.webp" alt="MELODAN screenshot 2" width="480" />
-  <img src="assets/marketing/screenshots/03.webp" alt="MELODAN screenshot 3" width="480" />
-  <img src="assets/marketing/screenshots/04.webp" alt="MELODAN screenshot 4" width="480" />
+  <a href="assets/marketing/screenshots/4k/sc1.jpg"><img src="assets/marketing/screenshots/01.webp" alt="MELODAN screenshot 1" width="280" /></a>
+  <a href="assets/marketing/screenshots/4k/sc2.jpg"><img src="assets/marketing/screenshots/02.webp" alt="MELODAN screenshot 2" width="280" /></a>
+  <a href="assets/marketing/screenshots/4k/sc3.jpg"><img src="assets/marketing/screenshots/03.webp" alt="MELODAN screenshot 3" width="280" /></a>
+  <a href="assets/marketing/screenshots/4k/sc4.jpg"><img src="assets/marketing/screenshots/04.webp" alt="MELODAN screenshot 4" width="280" /></a>
 </p>
 
 ## How it plays
 
-- **Specialists** — before round one, each player picks a specialist. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.
-- **Deployment** — buy packs, level them with banked XP, buy techs and building upgrades, equip items, place wards and fire bolts; position everything on your side of the grid (flanks unlock after round 1), hidden from the enemy until the fight starts.
-- **Round cards** — from round two onward there is a chance to draft from a random offer. Cards grant packs, items, or tactic charges.
+- **Commanders** — before round one, each player picks a commander. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.
+- **Deployment** — buy packs, level them with banked XP, buy talents and building upgrades, equip runes, place wards and fire bolts; position everything on your side of the grid (flanks unlock after round 1), hidden from the enemy until the fight starts.
+- **Round cards** — from round two onward there is a chance to draft from a random offer. Cards grant packs, runes, or spell charges.
 - **Battle** — fully automatic: units march, fight, and cast. Survivors damage the enemy commander by their remaining value; losing a command tower debuffs your army for a while. First to 0 HP loses.
-- **Tactics & spells** — rallies, spills, summons, and battle spells like the dragon’s fire breath. Some arrive as round cards; others come from buildings or specialities.
+- **Spells** — rallies, spills, summons, and battle casts like the dragon’s fire breath. Some arrive as round cards; others come from buildings or specialities.
 
 **Multiplayer:** peer-to-peer (PeerJS) with quick match, a public lobby, and named rooms — deterministic lockstep with automatic desync recovery. Reloading mid-match reconnects and resumes.
 
@@ -38,9 +38,9 @@ Match rules (map, timers, economy, tower debuffs) live in one JSON-serializable 
 
 Default values from `src/game/settings.ts` (`DEFAULT_SETTINGS` / `DEFAULT_HORDE`) — the same numbers rendered live on [melodan.com/#settings](https://melodan.com/#settings). Everything here is tunable in code.
 
-**Timers & HP** — Deployment 90s · Battle 90s · Specialist pick 15s · Round card pick 15s · Starting HP 2000.
+**Timers & HP** — Deployment 90s · Battle 90s · Commander pick 15s · Round card pick 15s · Starting HP 2000.
 
-**Economy** — 200 supply round-1 income, +200/round growth (round N grants `startingSupply + (N-1) × growth`); tech cost escalation +200 per tech already owned of that unit type.
+**Economy** — 200 supply round-1 income, +200/round growth (round N grants `startingSupply + (N-1) × growth`); talent cost escalation +200 per talent already owned of that unit type.
 
 **Round cards** — off by default; from round 2 onward when on, or an explicit round list like `[3, 6, 9]`.
 
@@ -54,13 +54,13 @@ Default values from `src/game/settings.ts` (`DEFAULT_SETTINGS` / `DEFAULT_HORDE`
 
 **Sell** — one-time 100-supply Research Center purchase; once owned, sell up to 1 deployed pack per round for a 100% base-cost refund.
 
-**Rally Route** — one-time 100-supply Research Center purchase granting one rally-route tactic charge (route new deploys to a rally point automatically).
+**Rally Route** — one-time 100-supply Research Center purchase granting one rally-route spell charge (route new deploys to a rally point automatically).
 
 **Boosts** — Research Center army-wide stat tiers, one bought after the other: Tier 1 100 supply → +10% damage/+15% hp; Tier 2 300 supply → +20% damage/+30% hp (totals, not stacked on top of the previous tier).
 
 ## Units & buildings
 
-Your army and buildings: dwarves, archers, crow riders, ballistae, ward stones, fire bolts, command tower, research center, stronghold — each with stats, techs, and building abilities. Browse them on [melodan.com](https://melodan.com).
+Your army and buildings: dwarves, archers, crow riders, ballistae, ward stones, fire bolts, command tower, research center, stronghold — each with stats, talents, and building abilities. Browse them on [melodan.com](https://melodan.com).
 
 ## Controls
 

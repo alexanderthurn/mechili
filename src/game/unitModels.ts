@@ -73,6 +73,21 @@ export interface InstanceAsset {
 }
 
 const instanceAssets = new Map<string, InstanceAsset>();
+/**
+ * Local (pre-meshScale) visual height per model id — feet near y=0, top ≈ this.
+ * Procedural probe first; overwritten with the measured GLB bbox after normalize.
+ */
+const visualHeights = new Map<string, number>();
+
+/** Local mesh height for badges / arrows (× meshScale → world). Falls back to 1. */
+export function getUnitVisualHeight(id: string): number {
+    return visualHeights.get(id) ?? 1;
+}
+
+/** Record a provisional or measured local height (GLB load overwrites with bbox). */
+export function seedUnitVisualHeight(id: string, height: number): void {
+    visualHeights.set(id, Math.max(height, 0.05));
+}
 
 export function hasUnitModel(id: string): boolean {
     return templates.has(id);
@@ -278,9 +293,14 @@ export async function loadUnitModels(
                 spec.roll,
                 spec.offset,
             );
+            // measure after normalize+offset — real top relative to member origin
+            const box = new Box3().setFromObject(root);
+            visualHeights.set(id, Math.max(box.max.y, 0.05));
             templates.set(id, root);
             instanceAssets.set(id, bakeInstanceAsset(root));
-            console.info(`[unitModels] loaded '${id}' from ${spec.url} (height ${h.toFixed(2)})`);
+            console.info(
+                `[unitModels] loaded '${id}' from ${spec.url} (height ${visualHeights.get(id)!.toFixed(2)})`,
+            );
         } catch (e) {
             console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);
         } finally {

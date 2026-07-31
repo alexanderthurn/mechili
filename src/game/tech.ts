@@ -1,4 +1,5 @@
 import type { SeatId } from './seats';
+import { techById } from './techCatalog';
 import type { UnitType } from './units';
 
 /** a unit type's combat stats after tech multipliers (level scaling is separate) */
@@ -57,8 +58,10 @@ export class TechTree {
         };
         // horde units carry seat -1 (no economy, no tech) — never look them up
         const owned = seat >= 0 ? this.ownedFor(seat, type.id) : null;
-        for (const tech of type.techs) {
-            if (!owned?.has(tech.id)) continue;
+        if (!owned) return stats;
+        for (const techId of owned) {
+            const tech = techById(techId);
+            if (!tech) continue;
             stats.hp *= tech.mods.hp ?? 1;
             stats.damage *= tech.mods.damage ?? 1;
             stats.range *= tech.mods.range ?? 1;
