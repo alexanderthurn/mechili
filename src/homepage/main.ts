@@ -13,6 +13,7 @@ import {
     type UnitType,
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
+import { techsForUnit } from '../game/techCatalog';
 import { hudStyles, menuStyles } from '../theme';
 import { iconHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
@@ -144,12 +145,13 @@ function statsHtml(t: UnitType): string {
     const flags = unitFlags(t)
         .map((f) => `<span class="mh-flag">${esc(f)}</span>`)
         .join('');
+    const unitTechs = techsForUnit(t.id);
     const techs =
-        t.techs.length > 0
+        unitTechs.length > 0
             ? `<div class="mh-techs">
         <div class="mh-techs-label">Techs</div>
         <ul class="mh-tech-list">
-          ${t.techs
+          ${unitTechs
               .map(
                   (tech) =>
                       `<li>${iconHtml(techIcon(tech), 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(tech.name)}</strong> <span class="mh-tech-cost">⬢ ${tech.cost}</span><br /><span class="mh-tech-desc">${esc(techDescription(tech))}</span></span></li>`,

@@ -2090,6 +2090,13 @@ ${fontFaceCss()}
 .mechili-panel .action-tile.locked { opacity: 0.42; }
 .mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
+.mechili-panel .action-tile.empty {
+    background: ${u.techBuyBg};
+    border: 1.5px solid ${u.border};
+    cursor: default;
+    pointer-events: auto;
+}
+.mechili-panel .tech-slots { margin-top: 10px; }
 
 /* the big hover frame — pops to the right of the panel with full details */
 .mechili-panel .action-info {

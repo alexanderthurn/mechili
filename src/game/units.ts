@@ -216,8 +216,6 @@ export interface UnitType {
     /** seconds between shots */
     attackInterval: number;
     speed: number;
-    /** purchasable upgrades, applying to ALL packs of this type of the buyer — 4 per type at most */
-    techs: TechDef[];
     /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;
     /**
@@ -462,7 +460,6 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
         range: 0,
         attackInterval: 1,
         speed: 0,
-        techs: [],
         build: buildTower,
     };
 }
@@ -502,7 +499,6 @@ export const HORDE_DWARF: UnitType = {
     range: 2,
     attackInterval: 0.7,
     speed: 9,
-    techs: [], // horde never buys techs
     build: buildDwarf,
 };
 
@@ -523,10 +519,6 @@ export const UNIT_TYPES: UnitType[] = [
         range: 2,
         attackInterval: 0.7,
         speed: 9,
-        techs: [
-            { id: 'legs', name: 'Fleet Feet', cost: 150, mods: { speed: 1.35 }, icon: 'tech-fleet-feet' },
-            { id: 'carapace', name: 'Stone Hide', cost: 200, mods: { hp: 1.5 }, icon: 'tech-stone-hide' },
-        ],
         build: buildDwarf,
     },
     {
@@ -548,23 +540,6 @@ export const UNIT_TYPES: UnitType[] = [
         range: 45,
         attackInterval: 1.4,
         speed: 3.5,
-        techs: [
-            { id: 'barrel', name: 'Longbow', cost: 200, mods: { range: 1.3 }, icon: 'tech-longbow' },
-            { id: 'ap', name: 'Piercing Arrows', cost: 250, mods: { damage: 1.4 }, icon: 'tech-piercing-arrows' },
-            {
-                id: 'fireArrows',
-                name: 'Fire Arrows',
-                cost: 250,
-                mods: {},
-                icon: 'tech-fire-arrows',
-                description:
-                    'Arrows leave a brief ground fire and burn — enough to ignite oil puddles.',
-                fire: {
-                    burn: { dps: 14, duration: 8 },
-                    ground: { radius: 2.5, duration: 8, intensity: 14 },
-                },
-            },
-        ],
         build: buildArcher,
     },
     {
@@ -588,10 +563,6 @@ export const UNIT_TYPES: UnitType[] = [
         range: 12,
         attackInterval: 1.1,
         speed: 8,
-        techs: [
-            { id: 'engines', name: 'Gale Wings', cost: 150, mods: { speed: 1.3 }, icon: 'tech-gale-wings' },
-            { id: 'stingers', name: 'Crow Talons', cost: 200, mods: { damage: 1.4 }, icon: 'tech-crow-talons' },
-        ],
         build: buildCrowRider,
     },
     {
@@ -619,29 +590,6 @@ export const UNIT_TYPES: UnitType[] = [
         range: 84,
         attackInterval: 3.8,
         speed: 2.2,
-        techs: [
-            { id: 'armor', name: 'Iron Plating', cost: 300, mods: { hp: 1.5 }, icon: 'tech-iron-plating' },
-            { id: 'autoloader', name: 'Quick Winch', cost: 300, mods: { attackInterval: 0.7 }, icon: 'tech-quick-winch' },
-            {
-                id: 'golden',
-                name: 'Golden Aura',
-                cost: 50,
-                mods: {},
-                icon: 'tech-golden-aura',
-                description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
-            },
-            {
-                id: 'pitchBolts',
-                name: 'Pitch Bolts',
-                cost: 350,
-                mods: {},
-                icon: 'tech-pitch-bolts',
-                description: 'Bolts splash oil on impact (does not ignite — pair with fire arrows or a Fire Bolt).',
-                fire: {
-                    oil: { radius: 10 },
-                },
-            },
-        ],
         build: buildBallista,
     },
     {
@@ -663,7 +611,6 @@ export const UNIT_TYPES: UnitType[] = [
         range: 0,
         attackInterval: 1,
         speed: 0,
-        techs: [],
         build: buildShield,
     },
     {
@@ -692,7 +639,6 @@ export const UNIT_TYPES: UnitType[] = [
         range: 35,
         attackInterval: 1,
         speed: 0,
-        techs: [],
         build: buildRocket,
     },
 ];

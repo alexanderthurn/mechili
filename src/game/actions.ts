@@ -11,6 +11,7 @@ import {
     type HazardPour,
 } from './fire';
 import { ITEMS, MAX_PACK_ITEMS } from './items';
+import { isTechSelectedForUnit, techById } from './techCatalog';
 import {
     DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
@@ -628,7 +629,9 @@ export class ActionDispatcher {
             }
             case 'buyTech': {
                 const type = unitTypeById(action.typeId);
-                const tech = type?.techs.find((t) => t.id === action.techId);
+                const tech = type && isTechSelectedForUnit(type.id, action.techId)
+                    ? techById(action.techId)
+                    : null;
                 if (!type || !tech) return false;
                 if (techTree.has(seat, type.id, tech.id)) return false;
                 // every owned tech of the type makes the remaining ones pricier

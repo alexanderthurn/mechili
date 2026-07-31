@@ -137,6 +137,7 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree } from './tech';
+import { MAX_UNIT_TECH_SLOTS, techsForUnit } from './techCatalog';
 import {
     COMMAND_TOWER,
     HORDE_DWARF,
@@ -1251,9 +1252,11 @@ export class Game {
         this.placement.upgradeReadyAtCapture = (unit) => this.packUpgradeReady(unit, unit.level, unit.xp);
         // world tech icons — phase-start intel while fogged, live after reveal
         this.placement.ownedTechIcons = (unit) => {
-            if (unit.type.structure || unit.type.techs.length === 0) return [];
+            if (unit.type.structure) return [];
+            const selected = techsForUnit(unit.type.id);
+            if (selected.length === 0) return [];
             const owned = this.intelTechOwned(unit);
-            return unit.type.techs.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
+            return selected.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
         };
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit) => {
@@ -7457,19 +7460,24 @@ export class Game {
         });
     }
 
-    /** pack/unit techs for the action row — always listed when the type has
-     *  techs; owned flags use deploy intel (phase-start while fogged). */
+    /** pack tech slots — always {@link MAX_UNIT_TECH_SLOTS}; empty pads unused picks */
     private techSelection(u: Unit): SelectionInfo['techs'] {
-        if (u.type.structure || u.type.techs.length === 0) return undefined;
+        if (u.type.structure || u.type.extra) return undefined;
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-
+        const selected = techsForUnit(u.type.id);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;
         const bal = this.economy.balance(u.seat);
-        return u.type.techs.map((t) => {
+        const slots: NonNullable<SelectionInfo['techs']> = [];
+        for (let i = 0; i < MAX_UNIT_TECH_SLOTS; i++) {
+            const t = selected[i];
+            if (!t) {
+                slots.push({ empty: true });
+                continue;
+            }
             const isOwned = owned.has(t.id);
             const cost = this.economy.techCostOf(t, ownedCount);
-            return {
+            slots.push({
                 id: t.id,
                 name: t.name,
                 desc: techDescription(t),
@@ -7477,8 +7485,9 @@ export class Game {
                 cost,
                 owned: isOwned,
                 affordable: canBuy && !isOwned && bal >= cost,
-            };
-        });
+            });
+        }
+        return slots;
     }
 
     /**

@@ -13,6 +13,7 @@
 
 import { CELL, STANDARD_MAP, type MapSize } from './map';
 import type { SeatId } from './seats';
+import { techsForUnit } from './techCatalog';
 
 /** world units per hazard cell — finer than board tiles for splat connectivity */
 export const HAZARD_CELL = 2;
@@ -150,7 +151,7 @@ export interface FireProfile {
  * (tech oil/ground/burn replace missing base fields; both present → tech wins).
  */
 export function resolveFireProfile(
-    type: { id: string; fire?: FireProfile; techs: { id: string; fire?: FireProfile }[] },
+    type: { id: string; fire?: FireProfile },
     seat: SeatId,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
 ): FireProfile | undefined {
@@ -161,7 +162,7 @@ export function resolveFireProfile(
               oil: type.fire.oil ? { ...type.fire.oil } : undefined,
           }
         : undefined;
-    for (const tech of type.techs) {
+    for (const tech of techsForUnit(type.id)) {
         if (!tech.fire || !hasTech(seat, type.id, tech.id)) continue;
         if (!profile) profile = {};
         if (tech.fire.burn) profile.burn = { ...tech.fire.burn };

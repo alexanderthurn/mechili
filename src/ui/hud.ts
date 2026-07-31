@@ -110,8 +110,20 @@ export interface SelectionInfo {
         affordable: boolean;
         all?: { count: number; cost: number; affordable: boolean };
     };
-    /** buyable / inspectable techs (phase-start intel while fogged; always listed) */
-    techs?: { id: string; name: string; desc: string; icon: string; cost: number; owned: boolean; affordable: boolean }[];
+    /** buyable / inspectable tech slots (always {@link MAX_UNIT_TECH_SLOTS} for packs; empty = unused) */
+    techs?: (
+        | { empty: true }
+        | {
+              empty?: false;
+              id: string;
+              name: string;
+              desc: string;
+              icon: string;
+              cost: number;
+              owned: boolean;
+              affordable: boolean;
+          }
+    )[];
     /** base buildings render their level as N / maxLevel and hide XP */
     structure?: boolean;
     /** a base building's supply-only level upgrade (own, build phase) */
@@ -1745,19 +1757,10 @@ export class Hud {
                       : 'locked',
             });
         }
-        for (const t of info.techs ?? []) {
-            tiles.push({
-                data: `data-tech="${t.id}"`,
-                icon: t.icon,
-                title: t.name,
-                desc: t.desc,
-                cost: t.owned || info.team === 'player' ? t.cost : undefined,
-                note: !t.owned && info.team === 'enemy' ? 'Not purchased' : undefined,
-                state: t.owned ? 'owned' : t.affordable ? 'buy' : 'locked',
-            });
-        }
+        // unit techs render in their own slotted row (see techSlotsHtml below)
         const actions = this.renderActionTiles(tiles);
         const levelActions = this.renderActionTiles(levelTiles, 'level-actions');
+        const techSlots = this.renderTechSlots(info.techs);
         // packs always show MAX_PACK_ITEMS slots (empty = dark circle); structures hide them
         const itemSquares = info.structure
             ? ''
@@ -1813,8 +1816,44 @@ export class Hud {
                 ? row('Total dmg', String(Math.round(info.record.damageDealt))) +
                   row('Kills', String(info.record.kills))
                 : '') +
+            techSlots +
             actions +
             `<div class="action-info" style="display:none"></div>`;
+    }
+
+    /**
+     * Always {@link MAX_UNIT_TECH_SLOTS} tiles for packs — filled slots are
+     * buyable action tiles; unused slots are dark empty plates.
+     */
+    private renderTechSlots(
+        techs: SelectionInfo['techs'],
+    ): string {
+        if (!techs?.length) return '';
+        const cells = techs
+            .map((t, i) => {
+                if (t.empty) {
+                    const slot = i + 1;
+                    return (
+                        `<span class="action-tile empty" data-ttitle="Tech slot ${slot}" data-tdesc="Empty — no tech selected for this slot."></span>`
+                    );
+                }
+                const badge =
+                    t.owned
+                        ? `<span class="at-badge">✓</span>`
+                        : t.cost !== undefined
+                          ? `<span class="at-cost">${t.cost}</span>`
+                          : '';
+                const state = t.owned ? 'owned' : t.affordable ? 'buy' : 'locked';
+                return (
+                    `<button class="action-tile ${state}" data-tech="${t.id}"` +
+                    ` data-ttitle="${escapeAttr(t.name)}" data-tdesc="${escapeAttr(t.desc)}"` +
+                    ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost}"` +
+                    ` data-tstate="${state}">` +
+                    `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>${badge}</button>`
+                );
+            })
+            .join('');
+        return `<div class="action-row tech-slots">${cells}</div>`;
     }
 
     /** one horizontal row of square action tiles (icons); hover shows details */

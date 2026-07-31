@@ -11,6 +11,7 @@ import {
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
+import { techsForUnit } from './techCatalog';
 import { UNIT_TYPES, unitTypeById, type Team } from './units';
 import type { SeatId } from './seats';
 import { MAX_PACK_ITEMS } from './items';
@@ -285,9 +286,10 @@ export class AiOpponent implements Opponent {
             bought = false;
             for (const typeId of ownedTypeIds) {
                 const type = unitTypeById(typeId);
-                if (!type?.techs.length) continue;
+                const techs = type ? techsForUnit(type.id) : [];
+                if (!type || techs.length === 0) continue;
                 const owned = techTree.ownedFor(this.seat, type.id);
-                for (const tech of type.techs) {
+                for (const tech of techs) {
                     if (owned.has(tech.id)) continue;
                     const cost = economy.techCostOf(tech, owned.size);
                     if (economy.balance(this.seat) < cost) continue;
