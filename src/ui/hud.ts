@@ -135,6 +135,8 @@ export interface SelectionInfo {
             desc: string;
             itemIds: string[];
         }[];
+        /** spell that would bake from the current tray (if any) */
+        bake?: { icon: string; name: string; desc: string };
         /** parallel to slotCount; null = empty */
         slots: ({
             icon: string;
@@ -2246,8 +2248,8 @@ export class Hud {
         const forge = info.forge;
         const forgeSquares = !forge
             ? ''
-            : `<div class="forge-block">` +
-              `<div class="forge-label">Forge</div>` +
+            : `<div class="forge-block${forge.bake ? ' ready' : ''}">` +
+              `<div class="forge-label">Forge${forge.bake ? ' · ready' : ''}</div>` +
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
                   if (!item) {
@@ -2292,6 +2294,13 @@ export class Hud {
                   );
               }).join('')}` +
               `<span class="item-sq empty forge-help" data-forge-help="1" data-ttitle="Forge recipes" data-tdesc="Open the full forge recipe overview — which ${DISPLAY.items.toLowerCase()} bake into which ${DISPLAY.tactics.toLowerCase()}.">?</span>` +
+              (forge.bake
+                  ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
+                    `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
+                    `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                    `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
+                    `data-ticon="${escapeAttr(forge.bake.icon)}"></span>`
+                  : '') +
               `</div>` +
               `<div class="forge-hint">${escapeHtml(forge.hint)}</div>` +
               `</div>`;

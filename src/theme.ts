@@ -2476,6 +2476,15 @@ ${fontFaceCss()}
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
 .mechili-panel .forge-block { margin: 4px 0 10px; }
+.mechili-panel .forge-block.ready {
+    padding: 8px 8px 6px;
+    margin-left: -8px;
+    margin-right: -8px;
+    border-radius: 12px;
+    background: rgba(0, 80, 40, 0.22);
+    box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.45);
+    animation: forge-panel-ready 1.6s ease-in-out infinite;
+}
 .mechili-panel .forge-label {
     font-size: 11px;
     letter-spacing: 0.08em;
@@ -2483,12 +2492,43 @@ ${fontFaceCss()}
     opacity: 0.7;
     margin-bottom: 4px;
 }
+.mechili-panel .forge-block.ready .forge-label {
+    opacity: 1;
+    color: #7dffb0;
+}
 .mechili-panel .forge-hint {
     font-size: 12px;
     line-height: 1.35;
     opacity: 0.85;
     margin-top: 4px;
     max-width: 280px;
+}
+.mechili-panel .forge-bake-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #7dffb0;
+    opacity: 0.9;
+    flex: 0 0 auto;
+}
+.mechili-panel .item-sq.forge-bake {
+    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 12px rgba(0, 255, 102, 0.45);
+    animation: forge-bake-pulse 1.25s ease-in-out infinite;
+}
+@keyframes forge-panel-ready {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.4); }
+    50% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.85), 0 0 14px rgba(0, 255, 102, 0.2); }
+}
+@keyframes forge-bake-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.7), 0 0 8px rgba(0, 255, 102, 0.35); }
+    50% { box-shadow: 0 0 0 3px rgba(0, 255, 102, 1), 0 0 16px rgba(0, 255, 102, 0.65); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-panel .forge-block.ready,
+    .mechili-panel .item-sq.forge-bake { animation: none; }
 }
 .mechili-panel .item-sq {
     width: 44px;

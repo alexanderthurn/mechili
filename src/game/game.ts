@@ -8048,11 +8048,20 @@ export class Game {
                       }),
                   )
                 : [];
+        const bakeResult = resolveForge(hintSlots);
+        const bakeTactic = bakeResult.tacticId ? TACTICS[bakeResult.tacticId] : null;
         out.forge = {
             slotCount,
             dropReady: !fogged && this.canDropForgeOn(u),
             hint: forgeHintText(hintSlots, fogged ? 'this' : 'next'),
             suggestions,
+            bake: bakeTactic
+                ? {
+                      icon: bakeTactic.icon,
+                      name: bakeTactic.name,
+                      desc: bakeTactic.description,
+                  }
+                : undefined,
             slots: Array.from({ length: slotCount }, (_, i) => {
                 if (snapIds) {
                     const id = snapIds[i];
