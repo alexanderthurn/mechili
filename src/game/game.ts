@@ -74,6 +74,7 @@ import {
     START_CARDS,
     drawRoundCardOffer,
     roundCardIcon,
+    roundOfferTitle,
     type RoundCard,
     type SpecialityId,
     type StartCard,
@@ -5136,12 +5137,17 @@ export class Game {
     private offerRoundCards(): void {
         this.roundCardTaken.fill(false);
 
-        const myOffer = drawRoundCardOffer(this.rngRoundCards[this.humanSeat]!);
+        const draw = (rng: () => number) =>
+            drawRoundCardOffer(rng, {
+                itemIds: this.settings.roundCardItems,
+                offerCount: this.settings.roundCardOfferCount,
+            });
+        const myOffer = draw(this.rngRoundCards[this.humanSeat]!);
         // the classic single opponent's own seat-scoped draw (vestigial no-op
         // on a star guest, since NetworkOpponent.onRoundCards does nothing —
         // still drawn so every client consumes this seat's stream equally)
         const enemyPrimary = primarySeatOf(this.seats, 'enemy');
-        const enemyOffer = drawRoundCardOffer(this.rngRoundCards[enemyPrimary]!);
+        const enemyOffer = draw(this.rngRoundCards[enemyPrimary]!);
         this.triggerExtraRoundCards();
         if (this.hydrating || this.watching) {
             // no UI, no opponent hook — hydrating: the recorded actions
@@ -5162,7 +5168,12 @@ export class Game {
      *  round-card offer and picks for itself — mirrors triggerExtraStarters */
     private triggerExtraRoundCards(): void {
         for (const e of this.extraAis) {
-            e.ai.onRoundCards(drawRoundCardOffer(this.rngRoundCards[e.seat]!));
+            e.ai.onRoundCards(
+                drawRoundCardOffer(this.rngRoundCards[e.seat]!, {
+                    itemIds: this.settings.roundCardItems,
+                    offerCount: this.settings.roundCardOfferCount,
+                }),
+            );
         }
     }
 
@@ -5181,6 +5192,7 @@ export class Game {
                 this.awaitingCards = false;
                 this.phaseRemaining = this.deploySeconds();
             },
+            roundOfferTitle(offer),
         );
     }
 

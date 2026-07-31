@@ -3231,11 +3231,12 @@ export class Hud {
         }[],
         skipReward: number,
         onPick: (cardId: string | null) => void,
+        title = 'Choose your card',
     ): void {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose a card</div><div class="cards-row">` +
+            `<div class="cards-title">${escapeHtml(title)}</div><div class="cards-row">` +
             cards
                 .map((c) => {
                     const forge =

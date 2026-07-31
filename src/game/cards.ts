@@ -8,6 +8,7 @@
  * ({@link StartCard.forgeSpells}); teammates share the union of those lists.
  */
 
+import { DISPLAY } from './displayNames';
 import { ITEMS } from './items';
 import {
     ACID_ID,
@@ -176,13 +177,54 @@ function shuffleInPlace<T>(deck: T[], rng: () => number): void {
 }
 
 /**
- * Between-round offer: four random runes for now
- * (unit packs / Rally / Buyback / Flanky stay in the catalog but are not drawn).
+ * Between-round offer: shuffle the configured rune pool and take up to
+ * `offerCount` (unit packs / Rally / Buyback / Flanky stay in the catalog
+ * but are not drawn).
  */
-export function drawRoundCardOffer(rng: () => number): RoundCard[] {
-    const runes = [...ROUND_RUNE_CARDS];
+export function drawRoundCardOffer(
+    rng: () => number,
+    opts?: { itemIds?: readonly string[]; offerCount?: number },
+): RoundCard[] {
+    const allowed = opts?.itemIds?.length
+        ? new Set(opts.itemIds)
+        : null;
+    const pool = allowed
+        ? ROUND_RUNE_CARDS.filter((c) => allowed.has(c.id))
+        : [...ROUND_RUNE_CARDS];
+    if (pool.length === 0) return [];
+    const runes = [...pool];
     shuffleInPlace(runes, rng);
-    return runes.slice(0, 4);
+    const n = Math.max(1, opts?.offerCount ?? runes.length);
+    return runes.slice(0, Math.min(n, runes.length));
+}
+
+/** Classify a round card for offer-title wording. */
+export function roundCardKind(c: RoundCard): 'rune' | 'unit' | 'spell' | 'other' {
+    if (c.items?.length) return 'rune';
+    if (c.units?.length) return 'unit';
+    if (c.tactics?.length) return 'spell';
+    return 'other';
+}
+
+/**
+ * Title for the between-round picker. When every offered card is the same
+ * kind: "Choose your rune" / "Choose your unit pack" / "Choose your spell"; mixed
+ * offers stay generic.
+ */
+export function roundOfferTitle(cards: readonly RoundCard[]): string {
+    if (cards.length === 0) return 'Choose your card';
+    const kinds = new Set(cards.map(roundCardKind));
+    if (kinds.size !== 1) return 'Choose your card';
+    switch ([...kinds][0]) {
+        case 'rune':
+            return `Choose your ${DISPLAY.item.toLowerCase()}`;
+        case 'unit':
+            return 'Choose your unit pack';
+        case 'spell':
+            return `Choose your ${DISPLAY.tactic.toLowerCase()}`;
+        default:
+            return 'Choose your card';
+    }
 }
 /** atlas icon for a round-card face (rune / tactic / Flanky) */
 export function roundCardIcon(c: RoundCard): string | null {

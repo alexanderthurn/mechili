@@ -52,12 +52,18 @@ export interface GameSettings {
     seats?: SeatDef[];
     /**
      * Between-round card offers (not the round-0 specialist pick).
-     * - `false` — never (current default)
+     * - `false` — never
      * - `true`  — every round ≥ 2
      * - number[] — only those rounds, e.g. `[3, 6, 9]`
-     * Custom games can override this later.
      */
     roundCards: boolean | number[];
+    /**
+     * Item ids eligible for between-round rune offers (subset of the rune
+     * catalog). Host settings travel with the match setup message.
+     */
+    roundCardItems: string[];
+    /** How many cards each between-round offer shows (capped by the pool). */
+    roundCardOfferCount: number;
 }
 
 /**
@@ -323,6 +329,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
         recruitLevel2Cost: 100,
     },
     roundCards: true,
+    /** three basic runes for now — expand via settings / custom game later */
+    roundCardItems: ['addi', 'power', 'vigor'],
+    roundCardOfferCount: 3,
 };
 
 /** resolve a constant or per-round timer for the given round (round 1 → index 0) */
@@ -370,6 +379,13 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
+        roundCardItems: settings.roundCardItems?.length
+            ? [...settings.roundCardItems]
+            : [...DEFAULT_SETTINGS.roundCardItems],
+        roundCardOfferCount:
+            typeof settings.roundCardOfferCount === 'number' && settings.roundCardOfferCount > 0
+                ? settings.roundCardOfferCount
+                : DEFAULT_SETTINGS.roundCardOfferCount,
     };
 }
 
@@ -531,6 +547,16 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: Array.isArray(settings.roundCards)
                         ? `rounds ${settings.roundCards.join(', ')}`
                         : 'from round 2 onward when on',
+                },
+                {
+                    label: 'Offer size',
+                    value: `${settings.roundCardOfferCount}`,
+                    note: 'cards shown each offer',
+                },
+                {
+                    label: 'Rune pool',
+                    value: settings.roundCardItems.join(', '),
+                    note: 'item ids eligible for between-round offers',
                 },
             ],
         },
