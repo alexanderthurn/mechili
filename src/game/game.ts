@@ -75,7 +75,7 @@ import { CloudFx } from './cloudFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
-import { ITEMS, MAX_PACK_ITEMS } from './items';
+import { ITEMS, itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -137,7 +137,7 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree } from './tech';
-import { MAX_UNIT_TECH_SLOTS, techsForUnit } from './techCatalog';
+import { techSlotLimit, techsForUnit } from './techCatalog';
 import {
     COMMAND_TOWER,
     HORDE_DWARF,
@@ -5688,14 +5688,14 @@ export class Game {
     private canDropArmedItemOn(unit: Unit): boolean {
         if (!this.armedItem || !this.playerCanAct) return false;
         if (unit.seat !== this.humanSeat || unit.type.structure) return false;
-        if (unit.items.length >= MAX_PACK_ITEMS) return false;
+        if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
         return !!ITEMS[this.armedItem];
     }
 
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
     private applyItemTo(unit: Unit, itemId: string): boolean {
         if (!this.playerCanAct || unit.seat !== this.humanSeat || unit.type.structure) return false;
-        if (unit.items.length >= MAX_PACK_ITEMS || !ITEMS[itemId]) return false;
+        if (unit.items.length >= itemSlotLimit(unit.type.id) || !ITEMS[itemId]) return false;
         if (!this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
             return false;
         }
@@ -7357,6 +7357,8 @@ export class Game {
                       desc: ITEMS[id]?.description ?? '',
                   }))
                 : undefined,
+            itemSlotCount:
+                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure
                 ? undefined
@@ -7402,6 +7404,8 @@ export class Game {
                       desc: ITEMS[id]?.description ?? '',
                   }))
                 : undefined,
+            itemSlotCount:
+                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
@@ -7460,16 +7464,17 @@ export class Game {
         });
     }
 
-    /** pack tech slots — always {@link MAX_UNIT_TECH_SLOTS}; empty pads unused picks */
+    /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks */
     private techSelection(u: Unit): SelectionInfo['techs'] {
         if (u.type.structure || u.type.extra) return undefined;
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const selected = techsForUnit(u.type.id);
+        const slotsN = techSlotLimit(u.type.id);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;
         const bal = this.economy.balance(u.seat);
         const slots: NonNullable<SelectionInfo['techs']> = [];
-        for (let i = 0; i < MAX_UNIT_TECH_SLOTS; i++) {
+        for (let i = 0; i < slotsN; i++) {
             const t = selected[i];
             if (!t) {
                 slots.push({ empty: true });

@@ -1,15 +1,19 @@
 /**
- * Free tech catalog + per-unit allowlists.
+ * Free tech catalog + per-unit allowlists and slot limits.
  *
- * Techs are defined once here; each unit type lists which ids are allowed.
- * Pregame, the player will pick up to {@link MAX_UNIT_TECH_SLOTS} from that
- * allowlist — for now we auto-select the first N allowed ids (no picker UI yet).
+ * Techs are defined once here; each unit type lists which ids are allowed and
+ * how many slots it has. Pregame, the player will pick up to that unit's slot
+ * limit from the allowlist — for now we auto-select the first N allowed ids
+ * (no picker UI yet).
  */
 
 import type { TechDef } from './units';
 
-/** Max tech options a pack type can bring into a match (UI always shows this many slots). */
-export const MAX_UNIT_TECH_SLOTS = 4;
+/** Default tech-slot count when a unit has no entry in {@link UNIT_TECH_SLOTS}. */
+export const DEFAULT_UNIT_TECH_SLOTS = 4;
+
+/** @deprecated use {@link techSlotLimit} — kept as the default for docs/callers */
+export const MAX_UNIT_TECH_SLOTS = DEFAULT_UNIT_TECH_SLOTS;
 
 /** All researchable techs — assignable to any unit via {@link UNIT_TECH_ALLOWLIST}. */
 export const TECHS: Record<string, TechDef> = {
@@ -104,7 +108,7 @@ export const TECHS: Record<string, TechDef> = {
 
 /**
  * Manager allowlist: which catalog techs may appear on each unit type.
- * Order matters — auto-select takes the first {@link MAX_UNIT_TECH_SLOTS}.
+ * Order matters — auto-select takes the first {@link techSlotLimit} ids.
  */
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
@@ -112,6 +116,23 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     crowRider: ['engines', 'stingers'],
     ballista: ['armor', 'autoloader', 'golden', 'pitchBolts'],
 };
+
+/**
+ * Per-unit tech slot caps (how many the player may choose pregame / UI shows).
+ * Omit a type to use {@link DEFAULT_UNIT_TECH_SLOTS}. Strong units can go higher.
+ */
+export const UNIT_TECH_SLOTS: Record<string, number> = {
+    dwarf: 4,
+    archer: 4,
+    crowRider: 4,
+    ballista: 4,
+};
+
+/** How many tech slots this unit type shows / can select. */
+export function techSlotLimit(typeId: string): number {
+    const n = UNIT_TECH_SLOTS[typeId] ?? DEFAULT_UNIT_TECH_SLOTS;
+    return Math.max(0, Math.floor(n));
+}
 
 export function techById(id: string): TechDef | null {
     return TECHS[id] ?? null;
@@ -124,14 +145,14 @@ export function allowedTechIds(typeId: string): readonly string[] {
 
 /**
  * Techs selected for this match for a unit type.
- * Pregame picker will replace this; for now: first N allowed ids.
+ * Pregame picker will replace this; for now: first N allowed ids (N = slot limit).
  */
-export function selectedTechIds(typeId: string, maxSlots = MAX_UNIT_TECH_SLOTS): string[] {
+export function selectedTechIds(typeId: string, maxSlots = techSlotLimit(typeId)): string[] {
     return allowedTechIds(typeId).slice(0, maxSlots).filter((id) => id in TECHS);
 }
 
-/** Resolved TechDefs for the current match selection (≤ maxSlots). */
-export function techsForUnit(typeId: string, maxSlots = MAX_UNIT_TECH_SLOTS): TechDef[] {
+/** Resolved TechDefs for the current match selection (≤ that unit's slot limit). */
+export function techsForUnit(typeId: string, maxSlots = techSlotLimit(typeId)): TechDef[] {
     return selectedTechIds(typeId, maxSlots)
         .map((id) => TECHS[id])
         .filter((t): t is TechDef => !!t);
@@ -140,7 +161,7 @@ export function techsForUnit(typeId: string, maxSlots = MAX_UNIT_TECH_SLOTS): Te
 export function isTechSelectedForUnit(
     typeId: string,
     techId: string,
-    maxSlots = MAX_UNIT_TECH_SLOTS,
+    maxSlots = techSlotLimit(typeId),
 ): boolean {
     return selectedTechIds(typeId, maxSlots).includes(techId);
 }

@@ -8,7 +8,6 @@ import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { THEME, hudStyles } from '../theme';
-import { MAX_PACK_ITEMS } from '../game/items';
 
 export type Phase = 'build' | 'battle';
 
@@ -96,6 +95,8 @@ export interface SelectionInfo {
     items?: { icon: string; name: string; desc: string }[];
     /** empty item slots accept an armed inventory item (own pack, build phase) */
     itemDropReady?: boolean;
+    /** how many item circles to show (per unit type; empty pads unused) */
+    itemSlotCount?: number;
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -110,7 +111,7 @@ export interface SelectionInfo {
         affordable: boolean;
         all?: { count: number; cost: number; affordable: boolean };
     };
-    /** buyable / inspectable tech slots (always {@link MAX_UNIT_TECH_SLOTS} for packs; empty = unused) */
+    /** buyable / inspectable tech slots (length = that unit's slot limit; empty = unused) */
     techs?: (
         | { empty: true }
         | {
@@ -1761,26 +1762,28 @@ export class Hud {
         const actions = this.renderActionTiles(tiles);
         const levelActions = this.renderActionTiles(levelTiles, 'level-actions');
         const techSlots = this.renderTechSlots(info.techs);
-        // packs always show MAX_PACK_ITEMS slots (empty = dark circle); structures hide them
-        const itemSquares = info.structure
-            ? ''
-            : `<div class="item-row">${Array.from({ length: MAX_PACK_ITEMS }, (_, i) => {
-                  const item = info.items?.[i];
-                  if (!item) {
-                      const slot = i + 1;
-                      const drop = info.itemDropReady ? ' drop-target' : '';
+        // packs show that type's item slots (empty = dark circle); structures hide them
+        const itemSlotCount = info.itemSlotCount ?? 0;
+        const itemSquares =
+            info.structure || itemSlotCount <= 0
+                ? ''
+                : `<div class="item-row">${Array.from({ length: itemSlotCount }, (_, i) => {
+                      const item = info.items?.[i];
+                      if (!item) {
+                          const slot = i + 1;
+                          const drop = info.itemDropReady ? ' drop-target' : '';
+                          return (
+                              `<span class="item-sq empty${drop}" data-ttitle="Item slot ${slot}" data-tdesc="${
+                                  info.itemDropReady
+                                      ? 'Drop your armed item here to equip it on this pack.'
+                                      : 'Empty — equip an item from your inventory onto this pack.'
+                              }"></span>`
+                          );
+                      }
                       return (
-                          `<span class="item-sq empty${drop}" data-ttitle="Item slot ${slot}" data-tdesc="${
-                              info.itemDropReady
-                                  ? 'Drop your armed item here to equip it on this pack.'
-                                  : 'Empty — equip an item from your inventory onto this pack.'
-                          }"></span>`
+                          `<span class="item-sq m-icon" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(item.desc ?? item.name)}" data-ticon="${escapeAttr(item.icon)}"></span>`
                       );
-                  }
-                  return (
-                      `<span class="item-sq m-icon" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(item.desc ?? item.name)}" data-ticon="${escapeAttr(item.icon)}"></span>`
-                  );
-              }).join('')}</div>`;
+                  }).join('')}</div>`;
         // XP (or tower level) progress toward the next rank
         const xpBarPct = info.structure
             ? info.towerUpgrade
@@ -1822,8 +1825,8 @@ export class Hud {
     }
 
     /**
-     * Always {@link MAX_UNIT_TECH_SLOTS} tiles for packs — filled slots are
-     * buyable action tiles; unused slots are dark empty plates.
+     * One tile per tech slot for this pack — filled slots are buyable action
+     * tiles; unused slots are dark empty plates.
      */
     private renderTechSlots(
         techs: SelectionInfo['techs'],

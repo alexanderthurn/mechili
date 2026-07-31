@@ -10,7 +10,7 @@ import {
     livingShieldDisks,
     type HazardPour,
 } from './fire';
-import { ITEMS, MAX_PACK_ITEMS } from './items';
+import { ITEMS, itemSlotLimit } from './items';
 import { isTechSelectedForUnit, techById } from './techCatalog';
 import {
     DRAGON_POUR_DURATION_SEC,
@@ -847,7 +847,7 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
-                if (unit.items.length >= MAX_PACK_ITEMS) return false;
+                if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
                 if (!ITEMS[action.itemId]) return false;
                 const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);

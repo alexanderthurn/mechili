@@ -2,11 +2,31 @@
  * Unit pack items: equipped onto a pack, affecting every mech in it.
  * Applying is an action (undoable during the deployment it happened in);
  * once the deployment ends the item is fused to the pack for good.
- * A pack holds up to {@link MAX_PACK_ITEMS} at once.
+ * Slot count is per unit type via {@link itemSlotLimit} (default 2).
  */
 
-/** Max equipped items on one pack (inventory applies up to this). */
-export const MAX_PACK_ITEMS = 2;
+/** Default item slots when a unit has no entry in {@link UNIT_ITEM_SLOTS}. */
+export const DEFAULT_PACK_ITEM_SLOTS = 2;
+
+/** @deprecated use {@link itemSlotLimit} — default slot count */
+export const MAX_PACK_ITEMS = DEFAULT_PACK_ITEM_SLOTS;
+
+/**
+ * Per-unit item slot caps. Omit a type to use {@link DEFAULT_PACK_ITEM_SLOTS}.
+ * Strong packs can go higher (e.g. 4).
+ */
+export const UNIT_ITEM_SLOTS: Record<string, number> = {
+    dwarf: 2,
+    archer: 2,
+    crowRider: 2,
+    ballista: 2,
+};
+
+/** How many item slots this unit type has. */
+export function itemSlotLimit(typeId: string): number {
+    const n = UNIT_ITEM_SLOTS[typeId] ?? DEFAULT_PACK_ITEM_SLOTS;
+    return Math.max(0, Math.floor(n));
+}
 
 export interface ItemDef {
     id: string;

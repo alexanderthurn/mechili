@@ -663,7 +663,7 @@ export class Unit {
     destroyed = false;
     /** board extras: used up this battle (shield broken, rocket fired) — removed at the round reset */
     consumed = false;
-    /** the pack's equipped items (up to MAX_PACK_ITEMS) — permanent once its deployment ended */
+    /** the pack's equipped items (up to that type's itemSlotLimit) — permanent once its deployment ended */
     readonly items: string[] = [];
     /** flank spawn already happened once for this pack */
     flankSpawnDone = false;

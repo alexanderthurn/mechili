@@ -14,7 +14,7 @@ import type { TechTree } from './tech';
 import { techsForUnit } from './techCatalog';
 import { UNIT_TYPES, unitTypeById, type Team } from './units';
 import type { SeatId } from './seats';
-import { MAX_PACK_ITEMS } from './items';
+import { itemSlotLimit } from './items';
 
 /**
  * A side's decision maker. The built-in AI implements it; a future network
@@ -158,7 +158,7 @@ export class AiOpponent implements Opponent {
                         u.seat === this.seat &&
                         !u.type.structure &&
                         !u.type.extra &&
-                        u.items.length < MAX_PACK_ITEMS,
+                        u.items.length < itemSlotLimit(u.type.id),
                 )
                 .sort((a, b) => a.items.length - b.items.length);
             if (packs.length === 0) break;
