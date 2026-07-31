@@ -25,8 +25,8 @@ for the desktop / Steam client.
 ## How it plays
 
 - **Specialists** — before round one, each player picks a specialist. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.
-- **Deployment** — buy packs, level them with banked XP, buy techs and building upgrades, equip items, place wards and fire bolts; position everything on your side of the grid (flanks unlock after round 1), hidden from the enemy until the fight starts.
-- **Round cards** — from round two onward there is a chance to draft from a random offer. Cards grant packs, items, or tactic charges.
+- **Deployment** — buy packs, level them with banked XP, buy talents and building upgrades, equip runes, place wards and fire bolts; position everything on your side of the grid (flanks unlock after round 1), hidden from the enemy until the fight starts.
+- **Round cards** — from round two onward there is a chance to draft from a random offer. Cards grant packs, runes, or tactic charges.
 - **Battle** — fully automatic: units march, fight, and cast. Survivors damage the enemy commander by their remaining value; losing a command tower debuffs your army for a while. First to 0 HP loses.
 - **Tactics & spells** — rallies, spills, summons, and battle spells like the dragon’s fire breath. Some arrive as round cards; others come from buildings or specialities.
 
@@ -40,7 +40,7 @@ Default values from `src/game/settings.ts` (`DEFAULT_SETTINGS` / `DEFAULT_HORDE`
 
 **Timers & HP** — Deployment 90s · Battle 90s · Specialist pick 15s · Round card pick 15s · Starting HP 2000.
 
-**Economy** — 200 supply round-1 income, +200/round growth (round N grants `startingSupply + (N-1) × growth`); tech cost escalation +200 per tech already owned of that unit type.
+**Economy** — 200 supply round-1 income, +200/round growth (round N grants `startingSupply + (N-1) × growth`); talent cost escalation +200 per talent already owned of that unit type.
 
 **Round cards** — off by default; from round 2 onward when on, or an explicit round list like `[3, 6, 9]`.
 
@@ -60,7 +60,7 @@ Default values from `src/game/settings.ts` (`DEFAULT_SETTINGS` / `DEFAULT_HORDE`
 
 ## Units & buildings
 
-Your army and buildings: dwarves, archers, crow riders, ballistae, ward stones, fire bolts, command tower, research center, stronghold — each with stats, techs, and building abilities. Browse them on [melodan.com](https://melodan.com).
+Your army and buildings: dwarves, archers, crow riders, ballistae, ward stones, fire bolts, command tower, research center, stronghold — each with stats, talents, and building abilities. Browse them on [melodan.com](https://melodan.com).
 
 ## Controls
 

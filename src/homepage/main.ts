@@ -13,6 +13,7 @@ import {
     type UnitType,
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
+import { DISPLAY } from '../game/displayNames';
 import { techsForUnit } from '../game/techCatalog';
 import { hudStyles, menuStyles } from '../theme';
 import { iconHtml } from '../ui/iconAtlas';
@@ -119,7 +120,7 @@ function startCardFace(c: StartCard): string {
 function roundCardFace(c: RoundCard): string {
     const extras: string[] = [];
     if (c.unitsLabel) extras.push(c.unitsLabel);
-    if (c.items?.length) extras.push(`Items: ${c.items.join(', ')}`);
+    if (c.items?.length) extras.push(`${DISPLAY.items}: ${c.items.join(', ')}`);
     if (c.tactics?.length) extras.push(`Tactics: ${c.tactics.join(', ')}`);
     return (
         `<div class="c-title">${esc(c.title)}</div>` +
@@ -149,7 +150,7 @@ function statsHtml(t: UnitType): string {
     const techs =
         unitTechs.length > 0
             ? `<div class="mh-techs">
-        <div class="mh-techs-label">Techs</div>
+        <div class="mh-techs-label">${DISPLAY.techs}</div>
         <ul class="mh-tech-list">
           ${unitTechs
               .map(
@@ -354,7 +355,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward there is a chance to draft from a random offer. Cards grant packs, items, or tactic charges.</p>
+    <p class="mh-sub">From round two onward there is a chance to draft from a random offer. Cards grant packs, ${DISPLAY.items.toLowerCase()}, or tactic charges.</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
       ${ROUND_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>

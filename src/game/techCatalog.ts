@@ -1,10 +1,10 @@
 /**
- * Free tech catalog + per-unit allowlists and slot limits.
+ * Free talent catalog + per-unit allowlists and slot limits (code: tech).
  *
- * Techs are defined once here; each unit type lists which ids are allowed and
+ * Talents are defined once here; each unit type lists which ids are allowed and
  * how many slots it has. Pregame, the player will pick up to that unit's slot
  * limit from the allowlist — for now we auto-select the first N allowed ids
- * (no picker UI yet).
+ * (no picker UI yet). Player-facing name: "Talents" (`displayNames.ts`).
  */
 
 import type { TechDef } from './units';

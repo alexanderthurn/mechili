@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
 import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
+import { DISPLAY } from '../game/displayNames';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
@@ -1204,11 +1205,11 @@ export class Hud {
         if (!visible && this.phoneTab === 'tactics') this.setPhoneTab(null);
         const total = items.length + tactics.length;
         const itemHtml = items.length
-            ? this.invSectionTitle('Items', items.length, total) +
+            ? this.invSectionTitle(DISPLAY.items, items.length, total) +
               items
                   .map(
                       (i, index) =>
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click a pack that has a free item slot (up to 2).">` +
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click a pack that has a free ${DISPLAY.item.toLowerCase()} slot (up to 2).">` +
                           `${iconHtml(i.icon)}</button>`,
                   )
                   .join('')
@@ -1308,7 +1309,7 @@ export class Hud {
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
         const total = items.length + tactics.length + (options.sellAbility ? 1 : 0);
         const itemHtml = items.length
-            ? this.invSectionTitle('Enemy items', items.length, total) +
+            ? this.invSectionTitle(`Enemy ${DISPLAY.items.toLowerCase()}`, items.length, total) +
               items
                   .map(
                       (i) =>
@@ -1773,10 +1774,10 @@ export class Hud {
                           const slot = i + 1;
                           const drop = info.itemDropReady ? ' drop-target' : '';
                           return (
-                              `<span class="item-sq empty${drop}" data-ttitle="Item slot ${slot}" data-tdesc="${
+                              `<span class="item-sq empty${drop}" data-ttitle="${DISPLAY.item} slot ${slot}" data-tdesc="${
                                   info.itemDropReady
-                                      ? 'Drop your armed item here to equip it on this pack.'
-                                      : 'Empty — equip an item from your inventory onto this pack.'
+                                      ? `Drop your armed ${DISPLAY.item.toLowerCase()} here to equip it on this pack.`
+                                      : `Empty — equip a ${DISPLAY.item.toLowerCase()} from your inventory onto this pack.`
                               }"></span>`
                           );
                       }
@@ -1837,7 +1838,7 @@ export class Hud {
                 if (t.empty) {
                     const slot = i + 1;
                     return (
-                        `<span class="action-tile empty" data-ttitle="Tech slot ${slot}" data-tdesc="Empty — no tech selected for this slot."></span>`
+                        `<span class="action-tile empty" data-ttitle="${DISPLAY.tech} slot ${slot}" data-tdesc="Empty — no ${DISPLAY.tech.toLowerCase()} selected for this slot."></span>`
                     );
                 }
                 const badge =

@@ -1,4 +1,5 @@
 import { STANDARD_MAP, type MapSize } from './map';
+import { DISPLAY } from './displayNames';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -514,9 +515,9 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: 'round N grants startingSupply + (N-1) × growth',
                 },
                 {
-                    label: 'Tech cost escalation',
+                    label: `${DISPLAY.tech} cost escalation`,
                     value: `+${settings.economy.techCostEscalation}`,
-                    note: 'added to a tech’s price per tech already owned of that unit type',
+                    note: `added to a ${DISPLAY.tech.toLowerCase()}’s price per ${DISPLAY.tech.toLowerCase()} already owned of that unit type`,
                 },
             ],
         },

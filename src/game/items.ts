@@ -1,8 +1,9 @@
 /**
- * Unit pack items: equipped onto a pack, affecting every mech in it.
+ * Pack runes (code: items): equipped onto a pack, affecting every mech in it.
  * Applying is an action (undoable during the deployment it happened in);
- * once the deployment ends the item is fused to the pack for good.
+ * once the deployment ends the rune is fused to the pack for good.
  * Slot count is per unit type via {@link itemSlotLimit} (default 2).
+ * Player-facing name: "Runes" (`displayNames.ts`).
  */
 
 /** Default item slots when a unit has no entry in {@link UNIT_ITEM_SLOTS}. */
