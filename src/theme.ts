@@ -2349,6 +2349,21 @@ ${fontFaceCss()}
 }
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
+.mechili-panel .forge-block { margin: 4px 0 10px; }
+.mechili-panel .forge-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 4px;
+}
+.mechili-panel .forge-hint {
+    font-size: 12px;
+    line-height: 1.35;
+    opacity: 0.85;
+    margin-top: 4px;
+    max-width: 280px;
+}
 .mechili-panel .item-sq {
     width: 44px;
     height: 44px;

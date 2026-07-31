@@ -27,6 +27,13 @@ import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import {
+    FORGE_SLOT_COUNT,
+    emptyForgeSlots,
+    forgeHintText,
+    resolveForge,
+    type ForgeSlot,
+} from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
 import {
     clearSinglePlayer,
@@ -448,6 +455,11 @@ export class Game {
     private readonly itemInventory: string[][];
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
     private readonly tacticInventory: string[][];
+    /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
+    private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
+        player: emptyForgeSlots(),
+        enemy: emptyForgeSlots(),
+    };
     /** rally routes placed this deployment round */
     private readonly rallyRoutes: RallyRoute[] = [];
     private readonly rallyRouteIds = { next: 1 };
@@ -1118,6 +1130,7 @@ export class Game {
             flankSpawnMult: this.flankSpawnMult,
             items: this.itemInventory,
             tactics: this.tacticInventory,
+            forgeSlots: this.forgeSlots,
             rallyRoutes: this.rallyRoutes,
             rallyRouteIds: this.rallyRouteIds,
             oilField: this.oilField,
@@ -1263,7 +1276,11 @@ export class Game {
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit, previous) => {
             if (this.armedItem) {
-                if (this.applyItemTo(unit, this.armedItem)) {
+                const applied =
+                    unit.type === STRONGHOLD && unit.team === 'player'
+                        ? this.forgeInsertItem(this.armedItem)
+                        : this.applyItemTo(unit, this.armedItem);
+                if (applied) {
                     this.armedItem = null;
                     this.armedItemIndex = null;
                     // keep details only when this pack's panel was already open;
@@ -1275,7 +1292,8 @@ export class Game {
             // buildings act through their details — auto-open the sheet (phone-only visual)
             if (unit.type.structure) this.hud.openUnitDetails();
         };
-        this.placement.itemDropValid = (unit) => this.canDropArmedItemOn(unit);
+        this.placement.itemDropValid = (unit) =>
+            this.canDropArmedItemOn(unit) || this.canDropForgeOn(unit);
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
         this.controls.onMiddleClick = () => {
             if (this.armedTactic) return;
@@ -1352,9 +1370,19 @@ export class Game {
         this.hud.onRemoveItem = (unitId, itemId, slot) => {
             this.removeItemFrom(unitId, itemId, slot);
         };
+        this.hud.onRemoveForge = (slot, itemId) => {
+            this.forgeRemoveItem(slot, itemId);
+        };
         this.hud.onApplyArmedItem = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || !this.armedItem) return;
+            if (unit.type === STRONGHOLD) {
+                if (this.forgeInsertItem(this.armedItem)) {
+                    this.armedItem = null;
+                    this.armedItemIndex = null;
+                }
+                return;
+            }
             if (this.applyItemTo(unit, this.armedItem)) {
                 this.armedItem = null;
                 this.armedItemIndex = null;
@@ -1375,6 +1403,11 @@ export class Game {
                     target?.closest?.('.item-sq.empty') || target?.closest?.('.mechili-panel');
                 if (overDetails) {
                     const unit = this.placement.selectedUnit;
+                    if (unit?.type === STRONGHOLD && this.canDropForgeOn(unit) && this.forgeInsertItem(this.armedItem)) {
+                        this.armedItem = null;
+                        this.armedItemIndex = null;
+                        return;
+                    }
                     if (unit && this.canDropArmedItemOn(unit) && this.applyItemTo(unit, this.armedItem)) {
                         this.armedItem = null;
                         this.armedItemIndex = null;
@@ -2388,6 +2421,8 @@ export class Game {
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
+        // burn AFTER intel capture so the enemy fog still shows last round's oven
+        this.burnForges();
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
@@ -5833,15 +5868,26 @@ export class Game {
         return !!ITEMS[this.armedItem];
     }
 
+    /** armed rune → shared Stronghold forge (any seat on this side) */
+    private canDropForgeOn(unit: Unit): boolean {
+        if (!this.armedItem || !this.playerCanAct) return false;
+        if (unit.type !== STRONGHOLD || unit.team !== 'player') return false;
+        if (!ITEMS[this.armedItem]) return false;
+        return this.forgeSlots.player.some((s) => s === null);
+    }
+
     /** press-drag release over the board — equip if the pack under the cursor is valid */
     private tryDropArmedItemAtClient(clientX: number, clientY: number): boolean {
         if (!this.armedItem || !this.playerCanAct) return false;
         const local = this.placement.clientToLocal(clientX, clientY);
         this.placement.setPointerFromClient(clientX, clientY);
         const unit = this.placement.unitAtPoint(local.x, local.y);
-        if (!unit || !this.canDropArmedItemOn(unit)) return false;
+        if (!unit) return false;
         const previouslySelected = this.placement.selectedUnit;
-        if (!this.applyItemTo(unit, this.armedItem)) return false;
+        let ok = false;
+        if (this.canDropForgeOn(unit)) ok = this.forgeInsertItem(this.armedItem);
+        else if (this.canDropArmedItemOn(unit)) ok = this.applyItemTo(unit, this.armedItem);
+        if (!ok) return false;
         // drop on another pack while details show a different one → close the panel
         if (previouslySelected && previouslySelected !== unit) this.placement.deselect();
         return true;
@@ -5884,6 +5930,40 @@ export class Game {
             itemId,
             slot,
         });
+    }
+
+    /** slot a rune into the shared Stronghold forge */
+    private forgeInsertItem(itemId: string): boolean {
+        if (!this.playerCanAct || !ITEMS[itemId]) return false;
+        if (!this.forgeSlots.player.some((s) => s === null)) return false;
+        return this.dispatchPlayer({ kind: 'forgeInsert', team: 'player', itemId });
+    }
+
+    /** drag/click a this-deploy forge rune back to the inserter's bag */
+    private forgeRemoveItem(slot: number, itemId: string): boolean {
+        if (!this.playerCanAct) return false;
+        return this.dispatchPlayer({ kind: 'forgeRemove', team: 'player', itemId, slot });
+    }
+
+    /**
+     * Start of deploy (after intel snapshot): resolve each side's oven → grant
+     * one spell to every seat on that side; refund unused runes; clear tray.
+     */
+    private burnForges(): void {
+        if (this.round <= 1) return;
+        for (const team of ['player', 'enemy'] as const) {
+            const oven = this.forgeSlots[team]!;
+            const result = resolveForge(oven);
+            if (result.tacticId) {
+                for (const seat of seatIdsOf(this.seats, team)) {
+                    this.tacticInventory[seat]!.push(result.tacticId);
+                }
+            }
+            for (const { itemId, seat } of result.refunds) {
+                this.itemInventory[seat]!.push(itemId);
+            }
+            this.forgeSlots[team] = emptyForgeSlots();
+        }
     }
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
@@ -7822,6 +7902,10 @@ export class Game {
             boostHp: this.boostState.hp.slice(),
             sellOwned: this.sellState.owned.slice(),
             rallyOwned: this.rallyRouteOwned.slice(),
+            forge: {
+                player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
+                enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
+            },
         };
     }
 
@@ -7830,10 +7914,11 @@ export class Game {
      * battle, own or enemy). Buyable only for your side while you can act.
      * Duo-only actions omit themselves in 1v1; add future abilities here.
      */
-    private strongholdSelection(u: Unit): Pick<SelectionInfo, 'sendSupply'> {
+    private strongholdSelection(u: Unit): Pick<SelectionInfo, 'sendSupply' | 'forge'> {
         if (u.type !== STRONGHOLD) return {};
-        const out: Pick<SelectionInfo, 'sendSupply'> = {};
-        const teamSeats = seatIdsOf(this.seats, u.team === 'horde' ? 'player' : u.team);
+        const out: Pick<SelectionInfo, 'sendSupply' | 'forge'> = {};
+        const team: Team = u.team === 'horde' ? 'player' : u.team;
+        const teamSeats = seatIdsOf(this.seats, team);
         const canBuy = u.team === 'player' && this.playerCanAct;
 
         // Ally supply gift — only when this side has two seats
@@ -7844,6 +7929,44 @@ export class Game {
                 affordable: canBuy && this.economy.balance(this.humanSeat) >= amount,
             };
         }
+
+        const fogged = this.placement.isIntelFogged(u);
+        const snapIds =
+            fogged && this.buildingIntelSnapshot
+                ? this.buildingIntelSnapshot.forge[team]
+                : null;
+        const live = this.forgeSlots[team]!;
+        const hintSlots: (ForgeSlot | null)[] = snapIds
+            ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
+            : live;
+        out.forge = {
+            slotCount: FORGE_SLOT_COUNT,
+            dropReady: !fogged && this.canDropForgeOn(u),
+            hint: forgeHintText(hintSlots),
+            slots: Array.from({ length: FORGE_SLOT_COUNT }, (_, i) => {
+                if (snapIds) {
+                    const id = snapIds[i];
+                    if (!id) return null;
+                    return {
+                        id,
+                        icon: ITEMS[id]?.icon ?? '?',
+                        name: ITEMS[id]?.name ?? id,
+                        desc: ITEMS[id]?.description ?? '',
+                        removable: false,
+                    };
+                }
+                const s = live[i];
+                if (!s) return null;
+                return {
+                    id: s.itemId,
+                    icon: ITEMS[s.itemId]?.icon ?? '?',
+                    name: ITEMS[s.itemId]?.name ?? s.itemId,
+                    desc: ITEMS[s.itemId]?.description ?? '',
+                    removable:
+                        canBuy && s.seat === this.humanSeat && s.round === this.round,
+                };
+            }),
+        };
 
         return out;
     }
@@ -7860,6 +7983,8 @@ interface BuildingIntelSnapshot {
     boostHp: number[];
     sellOwned: boolean[];
     rallyOwned: boolean[];
+    /** Stronghold oven contents (item ids) at phase start — fogged view */
+    forge: Record<Team, (string | null)[]>;
 }
 
 interface BuildingIntelSeat {

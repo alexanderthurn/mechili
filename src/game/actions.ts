@@ -11,6 +11,10 @@ import {
     type HazardPour,
 } from './fire';
 import { ITEMS, itemSlotLimit } from './items';
+import {
+    FORGE_SLOT_COUNT,
+    type ForgeSlot,
+} from './forgeRecipes';
 import { isTechSelectedForUnit, techById } from './techCatalog';
 import {
     DRAGON_POUR_DURATION_SEC,
@@ -180,6 +184,21 @@ export interface RemoveItemAction {
     /** index into unit.items — required when duplicates share an id */
     slot: number;
 }
+/** slots a rune into the side's shared Stronghold forge oven */
+export interface ForgeInsertAction {
+    kind: 'forgeInsert';
+    team: Team;
+    itemId: string;
+    /** empty oven index 0..FORGE_SLOT_COUNT-1; omitted = first empty */
+    slot?: number;
+}
+/** returns the inserter's this-deploy forge rune to their bag */
+export interface ForgeRemoveAction {
+    kind: 'forgeRemove';
+    team: Team;
+    itemId: string;
+    slot: number;
+}
 /** the between-round card pick; cardId null = skip (paid the skip reward). NOT undoable. */
 export interface RoundCardAction {
     kind: 'roundCard';
@@ -278,6 +297,8 @@ type ActionVariant =
     | ChooseCardAction
     | ApplyItemAction
     | RemoveItemAction
+    | ForgeInsertAction
+    | ForgeRemoveAction
     | RoundCardAction
     | ForfeitSideAction
     | EndDeploymentAction
@@ -384,6 +405,11 @@ export interface ActionContext {
     items: string[][];
     /** per-SEAT tactical order charges (e.g. rally routes) — not pack items */
     tactics: string[][];
+    /**
+     * Shared Stronghold forge oven per side (3 slots). Insert/remove are
+     * logged; burn+grant happens in Game.startBuildPhase (not an action).
+     */
+    forgeSlots: Record<Team, (ForgeSlot | null)[]>;
     /** rally routes placed this deployment round (cleared each round) */
     rallyRoutes: RallyRoute[];
     /** monotonic id source for rally routes */
@@ -891,6 +917,36 @@ export class ActionDispatcher {
                 entry.itemAppliedRound = appliedRound;
                 return true;
             }
+            case 'forgeInsert': {
+                if (!ITEMS[action.itemId]) return false;
+                const oven = this.ctx.forgeSlots[action.team]!;
+                let slot = action.slot;
+                if (slot === undefined) {
+                    slot = oven.findIndex((s) => s === null);
+                }
+                if (slot < 0 || slot >= FORGE_SLOT_COUNT || oven[slot] !== null) return false;
+                const inventory = this.ctx.items[seat]!;
+                const held = inventory.indexOf(action.itemId);
+                if (held < 0) return false;
+                inventory.splice(held, 1);
+                oven[slot] = { itemId: action.itemId, seat, round: entry.round };
+                entry.itemSlot = slot;
+                return true;
+            }
+            case 'forgeRemove': {
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const { slot, itemId } = action;
+                if (slot < 0 || slot >= FORGE_SLOT_COUNT) return false;
+                const cur = oven[slot];
+                if (!cur || cur.itemId !== itemId) return false;
+                // only the inserter, and only this deploy (same as pack remove)
+                if (cur.seat !== seat || cur.round !== entry.round) return false;
+                oven[slot] = null;
+                this.ctx.items[seat]!.push(itemId);
+                entry.itemSlot = slot;
+                entry.itemAppliedRound = cur.round;
+                return true;
+            }
             case 'roundCard': {
                 // per SEAT now (was primary-only): each seat picks its own
                 // card, own economy, own units/items/tactics — no shared
@@ -1259,6 +1315,26 @@ export class ActionDispatcher {
                 const applied = e.itemAppliedRound ?? e.round;
                 unit.items.splice(slot, 0, action.itemId);
                 unit.itemAppliedRound.splice(slot, 0, applied);
+                const bag = this.ctx.items[seat]!;
+                const i = bag.lastIndexOf(action.itemId);
+                if (i >= 0) bag.splice(i, 1);
+                break;
+            }
+            case 'forgeInsert': {
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const slot = e.itemSlot ?? action.slot ?? 0;
+                oven[slot] = null;
+                this.ctx.items[seat]!.push(action.itemId);
+                break;
+            }
+            case 'forgeRemove': {
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const slot = e.itemSlot ?? action.slot;
+                oven[slot] = {
+                    itemId: action.itemId,
+                    seat,
+                    round: e.itemAppliedRound ?? e.round,
+                };
                 const bag = this.ctx.items[seat]!;
                 const i = bag.lastIndexOf(action.itemId);
                 if (i >= 0) bag.splice(i, 1);

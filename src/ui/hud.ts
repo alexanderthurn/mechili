@@ -107,6 +107,24 @@ export interface SelectionInfo {
     itemDropReady?: boolean;
     /** how many item circles to show (per unit type; empty pads unused) */
     itemSlotCount?: number;
+    /**
+     * Shared Stronghold forge oven (3 slots). Present only when a Stronghold
+     * is selected — runes burn into a spell next deploy.
+     */
+    forge?: {
+        slotCount: number;
+        dropReady: boolean;
+        /** predicted burn outcome for the current tray */
+        hint: string;
+        /** parallel to slotCount; null = empty */
+        slots: ({
+            icon: string;
+            name: string;
+            desc: string;
+            id: string;
+            removable?: boolean;
+        } | null)[];
+    };
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -192,6 +210,8 @@ export class Hud {
     onCancelInventoryArm: (() => void) | null = null;
     /** drag a this-deploy rune off the pack details slot back into the bag */
     onRemoveItem: ((unitId: number, itemId: string, slot: number) => void) | null = null;
+    /** drag/click a this-deploy forge rune back to the inserter's bag */
+    onRemoveForge: ((slot: number, itemId: string) => void) | null = null;
     /** while dragging a rune/spell from the strip — keep world hover in sync */
     onInventoryDragMove: ((clientX: number, clientY: number) => void) | null = null;
     /**
@@ -324,6 +344,8 @@ export class Hud {
         itemId: string;
         slot: number;
         icon: string;
+        /** pack rune vs Stronghold forge oven */
+        kind: 'pack' | 'forge';
     } | null = null;
 
     private readonly onInvDragMove = (e: PointerEvent) => {
@@ -389,7 +411,8 @@ export class Hud {
                 String(drag.slot);
             if (backOnSame) return;
         }
-        this.onRemoveItem?.(drag.unitId, drag.itemId, drag.slot);
+        if (drag.kind === 'forge') this.onRemoveForge?.(drag.slot, drag.itemId);
+        else this.onRemoveItem?.(drag.unitId, drag.itemId, drag.slot);
     };
 
     /** hit-test under the cursor, ignoring the floating rune/spell ghost */
@@ -474,7 +497,13 @@ export class Hud {
 
     private beginUnequipDrag(
         e: PointerEvent,
-        info: { unitId: number; itemId: string; slot: number; icon: string },
+        info: {
+            unitId: number;
+            itemId: string;
+            slot: number;
+            icon: string;
+            kind: 'pack' | 'forge';
+        },
     ): void {
         this.clearInvDragListeners();
         this.invDrag = null;
@@ -620,15 +649,18 @@ export class Hud {
         this.panel.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
             const rem = (e.target as HTMLElement).closest<HTMLElement>('.item-sq.removable');
-            if (!rem?.dataset.itemId || rem.dataset.itemSlot === undefined || !rem.dataset.unitId) {
+            if (!rem?.dataset.itemId || rem.dataset.itemSlot === undefined) {
                 return;
             }
+            const kind = rem.dataset.forge !== undefined ? 'forge' : 'pack';
+            if (kind === 'pack' && !rem.dataset.unitId) return;
             e.preventDefault();
             this.beginUnequipDrag(e, {
-                unitId: Number(rem.dataset.unitId),
+                unitId: Number(rem.dataset.unitId ?? 0),
                 itemId: rem.dataset.itemId,
                 slot: Number(rem.dataset.itemSlot),
                 icon: rem.dataset.ticon ?? '',
+                kind,
             });
         });
         this.panel.addEventListener('click', (e) => {
@@ -2013,6 +2045,42 @@ export class Hud {
                           }></span>`
                       );
                   }).join('')}</div>`;
+        const forge = info.forge;
+        const forgeSquares = !forge
+            ? ''
+            : `<div class="forge-block">` +
+              `<div class="forge-label">Forge</div>` +
+              `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
+                  const item = forge.slots[i];
+                  if (!item) {
+                      const slot = i + 1;
+                      const drop = forge.dropReady ? ' drop-target' : '';
+                      return (
+                          `<span class="item-sq empty${drop}" data-ttitle="Forge slot ${slot}" data-tdesc="${
+                              forge.dropReady
+                                  ? `Drop a ${DISPLAY.item.toLowerCase()} here — it burns into a ${DISPLAY.tactic.toLowerCase()} next deploy.`
+                                  : `Empty forge slot — equip a ${DISPLAY.item.toLowerCase()} from your bag.`
+                          }"></span>`
+                      );
+                  }
+                  const removeHint =
+                      inputMode() === 'touch'
+                          ? `Drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`
+                          : `Click or drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`;
+                  return (
+                      `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                          item.removable
+                              ? `${item.desc}\n${removeHint}`
+                              : item.desc,
+                      )}" data-ticon="${escapeAttr(item.icon)}"${
+                          item.removable
+                              ? ` data-forge="1" data-item-id="${escapeAttr(item.id)}" data-item-slot="${i}"`
+                              : ''
+                      }></span>`
+                  );
+              }).join('')}</div>` +
+              `<div class="forge-hint">${escapeHtml(forge.hint)}</div>` +
+              `</div>`;
         // XP (or tower level) progress toward the next rank
         const xpBarPct = info.structure
             ? info.towerUpgrade
@@ -2036,6 +2104,7 @@ export class Hud {
             levelActions +
             `</div>` +
             itemSquares +
+            forgeSquares +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
             row('Level', levelLabel) +
