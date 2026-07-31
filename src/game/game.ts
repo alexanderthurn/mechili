@@ -31,6 +31,7 @@ import {
     emptyForgeSlots,
     forgeHintText,
     forgePreviewView,
+    forgeProductInfo,
     forgeRecipesCraftableFromBag,
     forgeSeatCanInsert,
     forgeTeamCapacity,
@@ -5994,9 +5995,14 @@ export class Game {
             const oven = this.forgeSlots[team]!;
             const pool = this.teamForgePool(team);
             const result = resolveForge(oven, pool);
-            if (result.tacticId) {
+            if (result.product?.kind === 'tactic') {
                 for (const seat of seatIdsOf(this.seats, team)) {
-                    this.tacticInventory[seat]!.push(result.tacticId);
+                    this.tacticInventory[seat]!.push(result.product.id);
+                }
+            } else if (result.product?.kind === 'item') {
+                // same as spells: every seat on the side receives one copy
+                for (const seat of seatIdsOf(this.seats, team)) {
+                    this.itemInventory[seat]!.push(result.product.id);
                 }
             }
             for (const { itemId, seat } of result.refunds) {
@@ -6042,7 +6048,12 @@ export class Game {
         }
         if (!filled) return null;
         const result = resolveForge(slots, this.teamForgePool(team));
-        const spellIcon = result.tacticId ? (TACTICS[result.tacticId]?.icon ?? null) : null;
+        const info = result.product
+            ? (result.product.kind === 'tactic'
+                  ? TACTICS[result.product.id]
+                  : ITEMS[result.product.id])
+            : null;
+        const spellIcon = info?.icon ?? null;
         if (!spellIcon) return null;
         return { runes: [], spellIcon };
     }
@@ -8088,7 +8099,7 @@ export class Game {
                       this.itemInventory[this.humanSeat] ?? [],
                       pool,
                   ).map((r) => ({
-                      tacticId: r.tacticId,
+                      tacticId: r.productId,
                       icon: r.spellIcon,
                       name: r.spellName,
                       desc: r.spellDesc,
@@ -8096,18 +8107,20 @@ export class Game {
                   }))
                 : [];
         const bakeResult = resolveForge(hintSlots, pool);
-        const bakeTactic = bakeResult.tacticId ? TACTICS[bakeResult.tacticId] : null;
+        const bakeInfo = bakeResult.product
+            ? forgeProductInfo(bakeResult.product)
+            : null;
         out.forge = {
             slotCount,
             dropReady: !fogged && this.canDropForgeOn(u),
             hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
             suggestions,
             spellPool: pool,
-            bake: bakeTactic
+            bake: bakeInfo
                 ? {
-                      icon: bakeTactic.icon,
-                      name: bakeTactic.name,
-                      desc: bakeTactic.description,
+                      icon: bakeInfo.icon,
+                      name: bakeInfo.name,
+                      desc: bakeInfo.desc,
                   }
                 : undefined,
             slots: Array.from({ length: slotCount }, (_, i) => {

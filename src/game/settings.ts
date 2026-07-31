@@ -1,6 +1,7 @@
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
 import { ROUND_RUNE_ITEM_IDS } from './cards';
+import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS } from './items';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -59,8 +60,8 @@ export interface GameSettings {
      */
     roundCards: boolean | number[];
     /**
-     * Item ids eligible for between-round rune offers (subset of the rune
-     * catalog). Each offer draws {@link roundCardOfferCount} from this pool.
+     * Item ids eligible for between-round rune offers (default = four base
+     * runes). Each offer draws {@link roundCardOfferCount} from this pool.
      * Host settings travel with the match setup message.
      */
     roundCardItems: string[];
@@ -331,9 +332,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
         recruitLevel2Cost: 100,
     },
     roundCards: true,
-    /** full rune catalog — each offer picks {@link roundCardOfferCount} at random */
+    /** four free base runes — each offer shows all of them (shuffled) */
     roundCardItems: [...ROUND_RUNE_ITEM_IDS],
-    roundCardOfferCount: 3,
+    roundCardOfferCount: 4,
 };
 
 /** resolve a constant or per-round timer for the given round (round 1 → index 0) */
@@ -381,14 +382,36 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
-        roundCardItems: settings.roundCardItems?.length
-            ? [...settings.roundCardItems]
-            : [...DEFAULT_SETTINGS.roundCardItems],
-        roundCardOfferCount:
-            typeof settings.roundCardOfferCount === 'number' && settings.roundCardOfferCount > 0
-                ? settings.roundCardOfferCount
-                : DEFAULT_SETTINGS.roundCardOfferCount,
+        ...normalizeRoundCardOffer(settings),
     };
+}
+
+/**
+ * Live offer is the four free base runes (for now). Migrate older matches that
+ * still carried "draw 3 from the advanced pool".
+ */
+function normalizeRoundCardOffer(settings: GameSettings): {
+    roundCardItems: string[];
+    roundCardOfferCount: number;
+} {
+    const items = settings.roundCardItems?.length
+        ? [...settings.roundCardItems]
+        : [...DEFAULT_SETTINGS.roundCardItems];
+    const count =
+        typeof settings.roundCardOfferCount === 'number' && settings.roundCardOfferCount > 0
+            ? settings.roundCardOfferCount
+            : DEFAULT_SETTINGS.roundCardOfferCount;
+
+    const advanced = new Set<string>(ADVANCED_RUNE_IDS);
+    const onlyAdvanced = items.length > 0 && items.every((id) => advanced.has(id));
+    const missingBase = BASE_RUNE_IDS.some((id) => !items.includes(id));
+    if (onlyAdvanced || missingBase || count !== BASE_RUNE_IDS.length) {
+        return {
+            roundCardItems: [...ROUND_RUNE_ITEM_IDS],
+            roundCardOfferCount: BASE_RUNE_IDS.length,
+        };
+    }
+    return { roundCardItems: items, roundCardOfferCount: count };
 }
 
 /**

@@ -118,8 +118,8 @@ export interface SelectionInfo {
     /** how many item circles to show (per unit type; empty pads unused) */
     itemSlotCount?: number;
     /**
-     * Shared Stronghold forge oven (3 slots). Present only when a Stronghold
-     * is selected — runes burn into a spell next deploy.
+     * Shared Stronghold forge oven. Present only when a Stronghold is selected —
+     * runes forge into a spell or advanced rune next deploy.
      */
     forge?: {
         slotCount: number;
@@ -2263,7 +2263,7 @@ export class Hud {
                       return (
                           `<span class="item-sq empty${drop}" data-ttitle="Forge slot ${slot}" data-tdesc="${
                               forge.dropReady
-                                  ? `Drop a ${DISPLAY.item.toLowerCase()} here — it burns into a ${DISPLAY.tactic.toLowerCase()} next deploy.`
+                                  ? `Drop a ${DISPLAY.item.toLowerCase()} here — it forges next deploy.`
                                   : `Empty forge slot — equip a ${DISPLAY.item.toLowerCase()} from your bag.`
                           }"></span>`
                       );

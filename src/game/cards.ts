@@ -9,7 +9,7 @@
  */
 
 import { DISPLAY } from './displayNames';
-import { ITEMS } from './items';
+import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS } from './items';
 import {
     ACID_ID,
     BIG_METEOR_ID,
@@ -17,7 +17,6 @@ import {
     FIRE_SPILL_ID,
     HAMMER_ID,
     METEOR_SHOWER_ID,
-    OIL_SPILL_ID,
     POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
     SELL_UNIT_ID,
@@ -61,18 +60,15 @@ export interface RoundCard {
     description: string;
 }
 
-/** rune ids offered as between-round cards */
-const RUNE_ROUND_CARD_IDS = [
-    'addi',
-    'power',
-    'vigor',
-    'colossus',
-    'wrath',
-    'golden',
-] as const;
+/** rune ids offered as between-round cards (catalog = base + advanced) */
+const RUNE_ROUND_CARD_IDS = [...BASE_RUNE_IDS, ...ADVANCED_RUNE_IDS] as const;
 
-/** supply cost overrides (default 50) */
+/** supply cost overrides (default 50; base runes are free on round cards) */
 const RUNE_ROUND_CARD_COST: Partial<Record<(typeof RUNE_ROUND_CARD_IDS)[number], number>> = {
+    earth: 0,
+    fire: 0,
+    water: 0,
+    wind: 0,
     colossus: 100, // Mithril Cuirass
     wrath: 100, // Berserk
 };
@@ -88,11 +84,14 @@ function runeRoundCard(itemId: (typeof RUNE_ROUND_CARD_IDS)[number]): RoundCard 
     };
 }
 
-/** Rune cards in the between-round pool. */
+/** Rune cards in the between-round catalog (base + advanced). */
 export const ROUND_RUNE_CARDS: RoundCard[] = RUNE_ROUND_CARD_IDS.map(runeRoundCard);
 
-/** All rune item ids in the between-round catalog (default match pool). */
-export const ROUND_RUNE_ITEM_IDS: string[] = [...RUNE_ROUND_CARD_IDS];
+/**
+ * Default match offer pool: the four base runes only.
+ * Advanced runes come from the forge (and later modes/shop).
+ */
+export const ROUND_RUNE_ITEM_IDS: string[] = [...BASE_RUNE_IDS];
 
 /**
  * Unit-pack between-round cards (kept for later; not in the live offer).
@@ -370,7 +369,7 @@ export const START_CARDS: StartCard[] = [
         startingHp: 2000,
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
-        forgeSpells: [OIL_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
+        forgeSpells: [SPAWN_DWARVES_ID, BIG_METEOR_ID, HAMMER_ID],
         description: '3× Valor rune: +15% attack and HP for one pack each.',
     },
     {

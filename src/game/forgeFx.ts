@@ -43,7 +43,7 @@ export function forgeGlowMode(
         }
     }
     if (!filled) return 'off';
-    return resolveForge(oven, pool).tacticId ? 'ready' : 'cooking';
+    return resolveForge(oven, pool).product ? 'ready' : 'cooking';
 }
 
 /** Small depth-writing ember pool — same transparency trap as the old rune sprites. */
