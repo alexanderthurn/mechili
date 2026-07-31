@@ -1,6 +1,7 @@
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
 import { ROUND_RUNE_ITEM_IDS } from './cards';
+import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS } from './items';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -59,8 +60,8 @@ export interface GameSettings {
      */
     roundCards: boolean | number[];
     /**
-     * Item ids eligible for between-round rune offers (subset of the rune
-     * catalog). Each offer draws {@link roundCardOfferCount} from this pool.
+     * Item ids eligible for between-round rune offers (default = four base
+     * runes). Each offer draws {@link roundCardOfferCount} from this pool.
      * Host settings travel with the match setup message.
      */
     roundCardItems: string[];
@@ -215,10 +216,12 @@ export interface BoostSettings {
     hpTiers: number[];
 }
 
-/** how many unit purchases a deployment phase allows */
+/** how many unit / base-rune purchases a deployment phase allows */
 export interface DeploySettings {
     /** each player's STARTING per-round buy limit (specials may raise it permanently later) */
     unitsPerRound: number;
+    /** shop price of a base rune (earth/fire/water/wind); shares the buy limit with units */
+    baseRuneCost: number;
     /** Command Tower: price of +1 buy for the running round only */
     extraSlotCost: number;
     /** Command Tower: +rangeBoost range for all ranged units this round only */
@@ -308,6 +311,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     },
     deploy: {
         unitsPerRound: 2,
+        baseRuneCost: 50,
         extraSlotCost: 50,
         rangedRangeBoostCost: 100,
         rangeBoost: 5,
@@ -330,10 +334,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
         levelCostFactor: 0.5,
         recruitLevel2Cost: 100,
     },
-    roundCards: true,
-    /** full rune catalog — each offer picks {@link roundCardOfferCount} at random */
+    roundCards: false,
+    /** four free base runes — each offer shows all of them (shuffled) */
     roundCardItems: [...ROUND_RUNE_ITEM_IDS],
-    roundCardOfferCount: 3,
+    roundCardOfferCount: 4,
 };
 
 /** resolve a constant or per-round timer for the given round (round 1 → index 0) */
@@ -381,14 +385,36 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
-        roundCardItems: settings.roundCardItems?.length
-            ? [...settings.roundCardItems]
-            : [...DEFAULT_SETTINGS.roundCardItems],
-        roundCardOfferCount:
-            typeof settings.roundCardOfferCount === 'number' && settings.roundCardOfferCount > 0
-                ? settings.roundCardOfferCount
-                : DEFAULT_SETTINGS.roundCardOfferCount,
+        ...normalizeRoundCardOffer(settings),
     };
+}
+
+/**
+ * Live offer is the four free base runes (for now). Migrate older matches that
+ * still carried "draw 3 from the advanced pool".
+ */
+function normalizeRoundCardOffer(settings: GameSettings): {
+    roundCardItems: string[];
+    roundCardOfferCount: number;
+} {
+    const items = settings.roundCardItems?.length
+        ? [...settings.roundCardItems]
+        : [...DEFAULT_SETTINGS.roundCardItems];
+    const count =
+        typeof settings.roundCardOfferCount === 'number' && settings.roundCardOfferCount > 0
+            ? settings.roundCardOfferCount
+            : DEFAULT_SETTINGS.roundCardOfferCount;
+
+    const advanced = new Set<string>(ADVANCED_RUNE_IDS);
+    const onlyAdvanced = items.length > 0 && items.every((id) => advanced.has(id));
+    const missingBase = BASE_RUNE_IDS.some((id) => !items.includes(id));
+    if (onlyAdvanced || missingBase || count !== BASE_RUNE_IDS.length) {
+        return {
+            roundCardItems: [...ROUND_RUNE_ITEM_IDS],
+            roundCardOfferCount: BASE_RUNE_IDS.length,
+        };
+    }
+    return { roundCardItems: items, roundCardOfferCount: count };
 }
 
 /**
@@ -586,7 +612,12 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
         {
             title: 'Deploy',
             rows: [
-                { label: 'Buys per round', value: `${settings.deploy.unitsPerRound}` },
+                { label: 'Buys per round', value: `${settings.deploy.unitsPerRound}`, note: 'shared by units and base runes' },
+                {
+                    label: 'Base rune',
+                    value: `${settings.deploy.baseRuneCost} supply`,
+                    note: 'shop — uses one buy slot',
+                },
                 {
                     label: 'Extra buy slot',
                     value: `${settings.deploy.extraSlotCost} supply`,

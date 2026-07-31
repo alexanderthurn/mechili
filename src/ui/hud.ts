@@ -8,7 +8,7 @@ import {
     type ForgePreviewView,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
-import { ITEMS } from '../game/items';
+import { BASE_RUNE_IDS, ITEMS } from '../game/items';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
@@ -118,8 +118,8 @@ export interface SelectionInfo {
     /** how many item circles to show (per unit type; empty pads unused) */
     itemSlotCount?: number;
     /**
-     * Shared Stronghold forge oven (3 slots). Present only when a Stronghold
-     * is selected — runes burn into a spell next deploy.
+     * Shared Stronghold forge oven. Present only when a Stronghold is selected —
+     * runes forge into a spell or advanced rune next deploy.
      */
     forge?: {
         slotCount: number;
@@ -266,6 +266,8 @@ export class Hud {
     /** the player sent a chat item (emote or text) */
     onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
+    /** shop: buy a always-available base rune (shares the unit buy limit) */
+    onBuyRune: ((itemId: string) => boolean) | null = null;
     onQuitToMenu: (() => void) | null = null;
     /** grant/revoke live deploy vision for a spectator (own seat). Left null
      *  by a spectating client itself — it has no seat to grant from, so the
@@ -339,6 +341,10 @@ export class Hud {
     private phoneLevelAllEl!: HTMLButtonElement;
     private readonly levelAllGlobalBtn: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
+    private readonly shopRuneRow: HTMLDivElement;
+    private readonly shopRuneButtons: { el: HTMLButtonElement; itemId: string }[] = [];
+    private shopRuneCost = 50;
+    private shopRuneBalance = 0;
     private readonly inventoryEl: HTMLDivElement;
     private readonly enemyInventoryEl: HTMLDivElement;
     /** phone-size bottom tab bar; CSS hides it on larger screens */
@@ -642,11 +648,31 @@ export class Hud {
         shopHeader.className = 'shop-header';
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
-        this.deploysEl.title = 'Units bought this round / your limit';
+        this.deploysEl.title = 'Purchases this round / your limit (units + base runes)';
         // Render shop "gear" via the icon atlas (no unicode fallback).
         this.deploysEl.innerHTML =
             `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
-        shopHeader.append(this.deploysEl);
+        this.shopRuneRow = document.createElement('div');
+        this.shopRuneRow.className = 'shop-runes';
+        this.shopRuneRow.title = 'Base runes — always available; each buy uses one purchase slot';
+        for (const itemId of BASE_RUNE_IDS) {
+            const def = ITEMS[itemId]!;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'shop-rune';
+            btn.dataset.itemId = itemId;
+            btn.innerHTML =
+                `${iconHtml(def.icon, 'shop-rune-ico')}` +
+                `<span class="cost">${this.shopRuneCost}</span>`;
+            btn.title = `${def.name} — ${this.shopRuneCost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
+            btn.addEventListener('click', () => {
+                const lastSlot = this.deploysLeft <= 1;
+                if (this.onBuyRune?.(itemId) && lastSlot) this.setPhoneTab(null);
+            });
+            this.shopRuneButtons.push({ el: btn, itemId });
+            this.shopRuneRow.appendChild(btn);
+        }
+        shopHeader.append(this.deploysEl, this.shopRuneRow);
 
         const shopGrid = document.createElement('div');
         shopGrid.className = 'shop-grid';
@@ -1664,22 +1690,13 @@ export class Hud {
         );
     }
 
-    /** bake + paths beside a hovered forge rune / empty slot */
+    /** bake + paths beside a hovered forge rune; recipe tiles beside an empty slot */
     private syncForgeSlotHoverPreview(anchor: HTMLElement | null): void {
         if (
             !anchor ||
             !this.isForgePreviewSlot(anchor) ||
             this.itemGhost?.classList.contains('forge-preview')
         ) {
-            this.hideForgeSlotHoverPreview();
-            return;
-        }
-        const view = forgePreviewView(
-            this.lastForgeOvenIds,
-            null,
-            this.lastForgeSpellPool,
-        );
-        if (!view.bakeIcon && view.paths.length === 0) {
             this.hideForgeSlotHoverPreview();
             return;
         }
@@ -1690,6 +1707,34 @@ export class Hud {
             document.body.appendChild(this.forgeSlotPreviewEl);
         }
         this.forgeSlotPreviewAnchor = anchor;
+
+        // empty oven circles: show the same recipe tiles as specialist detail
+        if (anchor.classList.contains('empty')) {
+            const recipes = this.forgeRecipesBlockHtml(
+                this.lastForgeSpellPool,
+                this.lastForgeOvenIds,
+            );
+            if (!recipes) {
+                this.hideForgeSlotHoverPreview();
+                return;
+            }
+            this.forgeSlotPreviewEl.classList.add('recipes');
+            this.forgeSlotPreviewEl.innerHTML = recipes;
+            this.forgeSlotPreviewEl.hidden = false;
+            this.positionForgeSlotHoverPreview();
+            return;
+        }
+
+        const view = forgePreviewView(
+            this.lastForgeOvenIds,
+            null,
+            this.lastForgeSpellPool,
+        );
+        if (!view.bakeIcon && view.paths.length === 0) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        this.forgeSlotPreviewEl.classList.remove('recipes');
         this.forgeSlotPreviewEl.innerHTML = this.forgeSpellColsHtml(view);
         this.forgeSlotPreviewEl.hidden = false;
         this.positionForgeSlotHoverPreview();
@@ -1700,14 +1745,37 @@ export class Hud {
         const anchor = this.forgeSlotPreviewAnchor;
         if (!el || !anchor || el.hidden) return;
         const rect = anchor.getBoundingClientRect();
-        el.style.left = `${Math.round(rect.right + 6)}px`;
-        el.style.top = `${Math.round(rect.top + rect.height / 2)}px`;
+        const pad = 8;
+        const gap = 6;
+
+        if (!el.classList.contains('recipes')) {
+            el.style.left = `${Math.round(rect.right + gap)}px`;
+            el.style.top = `${Math.round(rect.top + rect.height / 2)}px`;
+            return;
+        }
+
+        el.style.maxHeight = `${Math.round(window.innerHeight - pad * 2)}px`;
+        const w = el.offsetWidth;
+        const h = el.offsetHeight;
+
+        let left = rect.right + gap;
+        if (left + w > window.innerWidth - pad) left = rect.left - gap - w;
+        left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+
+        // shift up so the full recipe list stays on screen
+        let top = rect.top;
+        if (top + h > window.innerHeight - pad) top = window.innerHeight - pad - h;
+        top = Math.max(pad, top);
+
+        el.style.left = `${Math.round(left)}px`;
+        el.style.top = `${Math.round(top)}px`;
     }
 
     private hideForgeSlotHoverPreview(): void {
         this.forgeSlotPreviewAnchor = null;
         if (this.forgeSlotPreviewEl) {
             this.forgeSlotPreviewEl.hidden = true;
+            this.forgeSlotPreviewEl.classList.remove('recipes');
             this.forgeSlotPreviewEl.replaceChildren();
         }
     }
@@ -1841,7 +1909,8 @@ export class Hud {
     }
 
         /** purchases used / allowed this round; buy buttons grey out at the limit.
-     *  `extrasBudgetLeft` is the separate supply cap for shields/rockets. */
+     *  `extrasBudgetLeft` is the separate supply cap for shields/rockets.
+     *  Unit buys and base-rune buys share the same counter. */
     setDeploys(used: number, limit: number, extrasBudgetLeft: number): void {
         this.deploysLeft = limit - used;
         this.extrasBudgetLeft = extrasBudgetLeft;
@@ -1849,7 +1918,32 @@ export class Hud {
         const labelEl = this.deploysEl.querySelector<HTMLSpanElement>('.unit-cap-label');
         if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
         this.deploysEl.title =
-            `Units bought this round / your limit · ◇ ${extrasBudgetLeft} left for shields & rockets`;
+            `Purchases this round / your limit (units + base runes) · ◇ ${extrasBudgetLeft} left for shields & rockets`;
+        this.refreshShopRuneAffordability();
+    }
+
+    /** supply price of each always-available base rune in the shop header */
+    setShopRuneCost(cost: number, balance: number): void {
+        this.shopRuneCost = cost;
+        this.shopRuneBalance = balance;
+        for (const { el, itemId } of this.shopRuneButtons) {
+            const def = ITEMS[itemId]!;
+            const costEl = el.querySelector('.cost');
+            if (costEl) costEl.textContent = String(cost);
+            el.title =
+                `${def.name} — ${cost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
+        }
+        this.refreshShopRuneAffordability();
+    }
+
+    private refreshShopRuneAffordability(): void {
+        const blocked = this.deploysLeft <= 0;
+        for (const { el } of this.shopRuneButtons) {
+            el.classList.toggle(
+                'unaffordable',
+                blocked || this.shopRuneCost > this.shopRuneBalance,
+            );
+        }
     }
 
     /** re-reads unit prices (they change while the recruit switch is active) */
@@ -2263,7 +2357,7 @@ export class Hud {
                       return (
                           `<span class="item-sq empty${drop}" data-ttitle="Forge slot ${slot}" data-tdesc="${
                               forge.dropReady
-                                  ? `Drop a ${DISPLAY.item.toLowerCase()} here — it burns into a ${DISPLAY.tactic.toLowerCase()} next deploy.`
+                                  ? `Drop a ${DISPLAY.item.toLowerCase()} here — it forges next deploy.`
                                   : `Empty forge slot — equip a ${DISPLAY.item.toLowerCase()} from your bag.`
                           }"></span>`
                       );

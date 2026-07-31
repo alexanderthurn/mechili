@@ -398,12 +398,14 @@ function makeFlameTexture(): CanvasTexture {
     c.height = h;
     const ctx = c.getContext('2d')!;
 
+    // dragon breath — orange with deep blue base (icea = full icy; see FIRE_TINT_DRAGON)
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, 'rgba(255, 240, 160, 0.15)');
-    g.addColorStop(0.2, 'rgba(255, 180, 40, 0.85)');
-    g.addColorStop(0.45, 'rgba(255, 90, 20, 0.95)');
-    g.addColorStop(0.7, 'rgba(220, 30, 10, 0.9)');
-    g.addColorStop(1, 'rgba(40, 0, 0, 0.35)');
+    g.addColorStop(0, 'rgba(255, 240, 180, 0.25)');
+    g.addColorStop(0.18, 'rgba(255, 190, 70, 0.88)');
+    g.addColorStop(0.4, 'rgba(255, 100, 25, 0.95)');
+    g.addColorStop(0.62, 'rgba(200, 45, 30, 0.9)');
+    g.addColorStop(0.82, 'rgba(50, 40, 140, 0.75)');
+    g.addColorStop(1, 'rgba(15, 12, 55, 0.4)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
@@ -412,8 +414,13 @@ function makeFlameTexture(): CanvasTexture {
         const y = Math.random() * h;
         const ww = 2 + Math.random() * 6;
         const hh = 12 + Math.random() * 40;
-        const alpha = 0.15 + Math.random() * 0.35;
-        ctx.fillStyle = `rgba(255, ${(180 + Math.random() * 60) | 0}, 60, ${alpha})`;
+        const alpha = 0.12 + Math.random() * 0.32;
+        const deepBlue = Math.random() > 0.7;
+        if (deepBlue) {
+            ctx.fillStyle = `rgba(${(20 + Math.random() * 40) | 0}, ${(25 + Math.random() * 50) | 0}, ${(120 + Math.random() * 100) | 0}, ${alpha})`;
+        } else {
+            ctx.fillStyle = `rgba(255, ${(150 + Math.random() * 80) | 0}, ${(30 + Math.random() * 50) | 0}, ${alpha})`;
+        }
         ctx.fillRect(x, y, ww, hh);
     }
 

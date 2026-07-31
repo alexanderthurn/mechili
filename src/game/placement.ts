@@ -1162,7 +1162,7 @@ export class PlacementController {
         for (const unit of this.units) {
             if (!this.enemyIntelVisible(unit)) continue;
             const world = this.intelWorldOf(unit);
-            // forge stays visible in battle (oven is locked / cooking), unless cinema
+            // forge spell badge is deploy-only (battle shows chimney sparks instead)
             const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
             if (forge) {
                 placeStrip(
@@ -1229,7 +1229,7 @@ export class PlacementController {
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
     private statusStripCount(unit: Unit): number {
         const forge = this.forgeStatusIcons?.(unit);
-        if (forge) return forge.runes.length + (forge.spellIcon ? 1 : 0);
+        if (forge) return forge.spellIcon ? 1 : 0;
         const items = this.intelItemIcons(unit).length;
         const techs = this.ownedTechIcons?.(unit)?.length ?? 0;
         return items + techs;

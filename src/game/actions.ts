@@ -2,6 +2,7 @@ import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, star
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
+    FIRE_TINT_DRAGON,
     HAZARD_POUR_DELAY_SEC,
     HAZARD_POUR_DURATION_SEC,
     HazardField,
@@ -10,7 +11,7 @@ import {
     livingShieldDisks,
     type HazardPour,
 } from './fire';
-import { ITEMS, itemSlotLimit } from './items';
+import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
     forgeSeatCanInsert,
@@ -61,6 +62,12 @@ export interface BuyAction {
     /** resolved spawn spot — the "find a free spot" search runs before the action is made */
     anchor: Cell;
     rotated: boolean;
+}
+/** buys a base rune into the seat's bag — shares the per-round unit buy limit */
+export interface BuyRuneAction {
+    kind: 'buyRune';
+    team: Team;
+    itemId: string;
 }
 export interface MoveAction {
     kind: 'move';
@@ -287,6 +294,7 @@ export interface RemoveSpellAction {
 
 type ActionVariant =
     | BuyAction
+    | BuyRuneAction
     | MoveAction
     | MoveGroupAction
     | RotateAction
@@ -658,6 +666,19 @@ export class ActionDispatcher {
                 entry.unit = unit;
                 if (type.extra) deploy.extrasSpent[seat] = (this.ctx.deployState.extrasSpent[seat] ?? 0) + economy.costOf(type);
                 else deploy.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
+                return true;
+            }
+            case 'buyRune': {
+                if (!(BASE_RUNE_IDS as readonly string[]).includes(action.itemId)) return false;
+                if (!ITEMS[action.itemId]) return false;
+                const deploy = this.ctx.deployState;
+                if (deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!) return false;
+                const cost = this.ctx.deploySettings.baseRuneCost;
+                if (!economy.spend(seat, cost)) return false;
+                this.ctx.items[seat]!.push(action.itemId);
+                entry.paid = cost;
+                entry.grantedItems = [action.itemId];
+                deploy.used[seat] = (deploy.used[seat] ?? 0) + 1;
                 return true;
             }
             case 'move': {
@@ -1250,6 +1271,15 @@ export class ActionDispatcher {
                     this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 }
                 break;
+            case 'buyRune': {
+                const bag = this.ctx.items[seat]!;
+                const id = action.itemId;
+                const i = bag.lastIndexOf(id);
+                if (i >= 0) bag.splice(i, 1);
+                economy.credit(seat, e.paid!);
+                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
+                break;
+            }
             case 'move':
                 placement.moveUnit(placement.unitById(action.unitId)!, e.from!);
                 break;
@@ -1560,6 +1590,7 @@ export function prepareHazardPours(
             intensity: ignite.intensity,
             damage: ignite.damage,
             fallSeconds: 0,
+            tint: FIRE_TINT_DRAGON,
         });
     }
     return pours;

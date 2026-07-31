@@ -27,7 +27,8 @@ const MARKER_GLOW: Record<string, string> = {
     [OIL_SPILL_ID]: 'rgba(40, 28, 8, 0.55)',
     [ACID_ID]: 'rgba(28, 36, 8, 0.55)',
     [FIRE_SPILL_ID]: 'rgba(48, 20, 8, 0.55)',
-    [DRAGON_ID]: 'rgba(48, 16, 8, 0.55)',
+    // orange + deep blue (icea was rgba(20, 28, 48, 0.55))
+    [DRAGON_ID]: 'rgba(36, 14, 10, 0.55)',
 };
 
 const MARKER_TACTIC_IDS = Object.keys(MARKER_GLOW);

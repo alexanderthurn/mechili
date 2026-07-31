@@ -31,6 +31,7 @@ import {
     emptyForgeSlots,
     forgeHintText,
     forgePreviewView,
+    forgeProductInfo,
     forgeRecipesCraftableFromBag,
     forgeSeatCanInsert,
     forgeTeamCapacity,
@@ -83,6 +84,7 @@ import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATI
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
+import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
 import { DragonFx } from './dragonFx';
@@ -261,6 +263,7 @@ export class Game {
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
+    private readonly forgeFx = new ForgeFx();
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
@@ -1350,6 +1353,7 @@ export class Game {
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
+        this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
@@ -6015,9 +6019,14 @@ export class Game {
             const oven = this.forgeSlots[team]!;
             const pool = this.teamForgePool(team);
             const result = resolveForge(oven, pool);
-            if (result.tacticId) {
+            if (result.product?.kind === 'tactic') {
                 for (const seat of seatIdsOf(this.seats, team)) {
-                    this.tacticInventory[seat]!.push(result.tacticId);
+                    this.tacticInventory[seat]!.push(result.product.id);
+                }
+            } else if (result.product?.kind === 'item') {
+                // same as spells: every seat on the side receives one copy
+                for (const seat of seatIdsOf(this.seats, team)) {
+                    this.itemInventory[seat]!.push(result.product.id);
                 }
             }
             for (const { itemId, seat } of result.refunds) {
@@ -6038,11 +6047,13 @@ export class Game {
         );
     }
 
-    /** world strip over the Stronghold: forge runes + spell that will bake */
+    /** world strip over the Stronghold: predicted bake spell (deploy only; battle = sparks) */
     private forgeWorldBadges(
         unit: Unit,
     ): { runes: string[]; spellIcon: string | null } | null {
         if (unit.type !== STRONGHOLD) return null;
+        // battle: chimney sparks only — spell badge is deploy intel / loading UI
+        if (this.phase !== 'build') return null;
         const team: Team = unit.team === 'horde' ? 'player' : unit.team;
         const fogged = this.placement.isIntelFogged(unit);
         const snapIds =
@@ -6052,16 +6063,50 @@ export class Game {
         const slots: (ForgeSlot | null)[] = snapIds
             ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
             : this.forgeSlots[team]!;
-        const runes: string[] = [];
+        let filled = false;
         for (const s of slots) {
-            if (!s) continue;
-            const icon = ITEMS[s.itemId]?.icon;
-            if (icon) runes.push(icon);
+            if (s) {
+                filled = true;
+                break;
+            }
         }
-        if (runes.length === 0) return null;
+        if (!filled) return null;
         const result = resolveForge(slots, this.teamForgePool(team));
-        const spellIcon = result.tacticId ? (TACTICS[result.tacticId]?.icon ?? null) : null;
-        return { runes, spellIcon };
+        const info = result.product
+            ? (result.product.kind === 'tactic'
+                  ? TACTICS[result.product.id]
+                  : ITEMS[result.product.id])
+            : null;
+        const spellIcon = info?.icon ?? null;
+        if (!spellIcon) return null;
+        return { runes: [], spellIcon };
+    }
+
+    /**
+     * Chimney sparks while an oven holds runes (denser when a recipe will bake).
+     * Respects intel fog so enemy oven state isn't leaked.
+     */
+    private updateForgeFx(dt: number): void {
+        const targets: { unit: Unit; mode: ReturnType<typeof forgeGlowMode> }[] = [];
+        for (const unit of this.placement.allUnits()) {
+            if (unit.type !== STRONGHOLD || unit.destroyed) continue;
+            const team: Team = unit.team === 'horde' ? 'player' : unit.team;
+            const fogged = this.placement.isIntelFogged(unit);
+            const snapIds =
+                fogged && this.buildingIntelSnapshot
+                    ? this.buildingIntelSnapshot.forge[team]
+                    : null;
+            const oven: (ForgeSlot | null)[] = snapIds
+                ? snapIds.map((id) =>
+                      id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null,
+                  )
+                : this.forgeSlots[team]!;
+            targets.push({
+                unit,
+                mode: forgeGlowMode(oven, this.teamForgePool(team)),
+            });
+        }
+        this.forgeFx.update(dt, this.time, targets, this.scene);
     }
 
     /**
@@ -6233,6 +6278,16 @@ export class Game {
             typeId: type.id,
             anchor,
             rotated: false,
+        });
+    }
+
+    /** HUD: buy a base rune into the bag — shares the per-round purchase limit with units. */
+    private buyRune(itemId: string): boolean {
+        if (!this.playerCanAct) return false;
+        return this.dispatchPlayer({
+            kind: 'buyRune',
+            team: 'player',
+            itemId,
         });
     }
 
@@ -7353,6 +7408,7 @@ export class Game {
         }
         if (profile) cpu.begin();
         this.particles.update(gameDt);
+        this.updateForgeFx(gameDt);
 
         if (!this.introActive && !this.outroActive) {
             this.controls.update(dtSeconds);
@@ -7428,6 +7484,10 @@ export class Game {
             this.deployState.used[this.humanSeat]!,
             this.deployState.limit[this.humanSeat]! + this.deployState.extra[this.humanSeat]!,
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
+        );
+        this.hud.setShopRuneCost(
+            this.settings.deploy.baseRuneCost,
+            this.economy.balance(this.humanSeat),
         );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
@@ -7863,7 +7923,7 @@ export class Game {
 
     /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks */
     private techSelection(u: Unit): SelectionInfo['techs'] {
-        if (u.type.structure || u.type.extra) return undefined;
+        if (u.type.structure || u.type.extra || u.team === 'horde' || u.seat < 0) return undefined;
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const selected = techsForUnit(u.type.id);
         const slotsN = techSlotLimit(u.type.id);
@@ -8077,7 +8137,7 @@ export class Game {
                       this.itemInventory[this.humanSeat] ?? [],
                       pool,
                   ).map((r) => ({
-                      tacticId: r.tacticId,
+                      tacticId: r.productId,
                       icon: r.spellIcon,
                       name: r.spellName,
                       desc: r.spellDesc,
@@ -8085,18 +8145,20 @@ export class Game {
                   }))
                 : [];
         const bakeResult = resolveForge(hintSlots, pool);
-        const bakeTactic = bakeResult.tacticId ? TACTICS[bakeResult.tacticId] : null;
+        const bakeInfo = bakeResult.product
+            ? forgeProductInfo(bakeResult.product)
+            : null;
         out.forge = {
             slotCount,
             dropReady: !fogged && this.canDropForgeOn(u),
             hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
             suggestions,
             spellPool: pool,
-            bake: bakeTactic
+            bake: bakeInfo
                 ? {
-                      icon: bakeTactic.icon,
-                      name: bakeTactic.name,
-                      desc: bakeTactic.description,
+                      icon: bakeInfo.icon,
+                      name: bakeInfo.name,
+                      desc: bakeInfo.desc,
                   }
                 : undefined,
             slots: Array.from({ length: slotCount }, (_, i) => {

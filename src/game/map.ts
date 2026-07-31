@@ -609,7 +609,7 @@ export class BattleMap {
             forEachOilCell: (fn: (x: number, z: number) => void) => void;
             forEachFireCell: (
                 now: number,
-                fn: (x: number, z: number, dps: number, until: number) => void,
+                fn: (x: number, z: number, dps: number, until: number, tint: number) => void,
             ) => void;
             forEachAcidCell: (fn: (x: number, z: number, expiresRound: number) => void) => void;
             forEachCapsuleCells: (
@@ -643,9 +643,15 @@ export class BattleMap {
             this.stampHazardChannel(x, z, cellR * 1.35, 0.22, 'r');
         };
         field.forEachOilCell((x, z) => stampOilCell(x, z));
-        field.forEachFireCell(now, (x, z) => {
+        field.forEachFireCell(now, (x, z, _dps, _until, tint) => {
             this.stampHazardChannel(x, z, cellR, 0.7, 'g');
             this.stampHazardChannel(x, z, cellR * 1.4, 0.3, 'g');
+            // dragon azure: G+B together (acid alone is B-only — see ground shader)
+            // tint === 1 is FIRE_TINT_DRAGON (avoid importing fire.ts — circular with map)
+            if (tint === 1) {
+                this.stampHazardChannel(x, z, cellR, 0.55, 'b');
+                this.stampHazardChannel(x, z, cellR * 1.35, 0.22, 'b');
+            }
         });
         field.forEachAcidCell((x, z) => {
             this.stampHazardChannel(x, z, cellR, 0.6, 'b');
@@ -858,12 +864,20 @@ export class BattleMap {
             inject +=
                 '\tvec3 haz = texture2D(uHazardMask, vMacroUv).rgb;\n' +
                 '\tfloat oilM = smoothstep(0.06, 0.4, haz.r);\n' +
-                '\tfloat fireM = smoothstep(0.08, 0.45, haz.g);\n' +
-                '\tfloat acidM = smoothstep(0.06, 0.4, haz.b);\n' +
+                '\tfloat fireG = smoothstep(0.08, 0.45, haz.g);\n' +
+                '\tfloat fireB = smoothstep(0.06, 0.4, haz.b);\n' +
+                // orange fire = G without B; azure dragon = G+B; acid = B without G
+                '\tfloat orangeM = fireG * (1.0 - fireB * 0.85);\n' +
+                '\tfloat azureM = min(fireG, fireB);\n' +
+                '\tfloat acidM = fireB * (1.0 - fireG * 0.85);\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.04, 0.03, 0.015), oilM * 0.92);\n' +
                 '\tfloat flicker = 0.65 + 0.35 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
-                '\tvec3 fireCol = mix(vec3(0.08, 0.02, 0.0), vec3(1.0, 0.35, 0.05), flicker);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, fireCol, fireM * 0.9);\n' +
+                '\tvec3 orangeCol = mix(vec3(0.08, 0.02, 0.0), vec3(1.0, 0.35, 0.05), flicker);\n' +
+                // dragon ground: orange scorch + deep blue flecks (icea was full azure @ 0.9)
+                '\tvec3 azureCol = mix(vec3(0.08, 0.02, 0.02), vec3(1.0, 0.36, 0.06), flicker);\n' +
+                '\tazureCol = mix(azureCol, vec3(0.12, 0.14, 0.55), 0.22);\n' +
+                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, orangeCol, orangeM * 0.9);\n' +
+                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * 0.88);\n' +
                 '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
                 '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
@@ -895,7 +909,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v14${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pgblob' : ''}-${
+            `ground-hazard-v18${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pgblob' : ''}-${
                 useDetail ? groundDetailCacheKey(profile) : 'plain'
             }`;
     }

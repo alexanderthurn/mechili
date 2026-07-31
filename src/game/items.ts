@@ -7,6 +7,10 @@
  * Player-facing name: "Runes" (`displayNames.ts`).
  * Icon craft (carved medallion + internal glow): `misc/icons/STYLE.md`,
  * `misc/concepts/runes/README.md`. Atlas ids: `item-*`.
+ *
+ * Economy: four weak base runes (earth/fire/water/wind) are offered on round
+ * cards and always buyable in the unit shop (sharing the per-round buy limit);
+ * advanced runes are forged from them at the Stronghold.
  */
 
 /** Default item slots when a unit has no entry in {@link UNIT_ITEM_SLOTS}. */
@@ -44,7 +48,52 @@ export interface ItemDef {
     description: string;
 }
 
+/** Weak elemental runes — round-card pool + always-on shop; forge fuel for advanced runes + spells. */
+export const BASE_RUNE_IDS = ['earth', 'fire', 'water', 'wind'] as const;
+export type BaseRuneId = (typeof BASE_RUNE_IDS)[number];
+
+/** Stronger runes — forged from base runes (not offered on cards by default). */
+export const ADVANCED_RUNE_IDS = [
+    'addi',
+    'power',
+    'vigor',
+    'colossus',
+    'wrath',
+    'golden',
+] as const;
+
 export const ITEMS: Record<string, ItemDef> = {
+    // --- base (minor) ---
+    earth: {
+        id: 'earth',
+        name: 'Earth',
+        icon: 'item-earth',
+        mods: { hp: 1.1 },
+        description: '+10% HP for this pack.',
+    },
+    fire: {
+        id: 'fire',
+        name: 'Fire',
+        icon: 'item-fire',
+        mods: { damage: 1.1 },
+        description: '+10% attack damage for this pack.',
+    },
+    water: {
+        id: 'water',
+        name: 'Water',
+        icon: 'item-water',
+        mods: { hp: 1.05, damage: 1.05 },
+        description: '+5% attack and HP for this pack.',
+    },
+    wind: {
+        id: 'wind',
+        name: 'Wind',
+        icon: 'item-wind',
+        mods: { range: 1.1 },
+        description: '+10% attack range for this pack.',
+    },
+
+    // --- advanced (forged / specialist starts) ---
     addi: {
         id: 'addi',
         name: 'Valor',
@@ -92,6 +141,10 @@ export const ITEMS: Record<string, ItemDef> = {
 
 /** Short glyphs for canvas / world badges (atlas sprites are HUD-only). */
 const WORLD_GLYPH: Record<string, string> = {
+    earth: '?',
+    fire: '?',
+    water: '?',
+    wind: '?',
     addi: '?',
     power: '?',
     vigor: '?',

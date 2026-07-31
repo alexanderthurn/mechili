@@ -2,6 +2,7 @@ import type { Group } from 'three';
 import {
     ACID_DPS_PERCENT,
     applyBurnStatus,
+    FIRE_TINT_NORMAL,
     HAZARD_DRIP_FALL_SEC,
     HazardField,
     OIL_SPEED_MULT,
@@ -262,7 +263,16 @@ export type SimEvent =
     | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
-    | { kind: 'groundFire'; x: number; y: number; z: number; radius: number; oilCells: number }
+    | {
+          kind: 'groundFire';
+          x: number;
+          y: number;
+          z: number;
+          radius: number;
+          oilCells: number;
+          /** {@link FIRE_TINT_NORMAL} or {@link FIRE_TINT_DRAGON} */
+          tint?: number;
+      }
     | { kind: 'summon'; x: number; y: number; z: number; flying: boolean }
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
@@ -407,11 +417,13 @@ export class BattleSim {
         z: number;
         radius: number;
         expiresRound: number;
-        burnSeconds: number;
-        intensity: number;
-        /** dragon breath: direct disc damage on stamp (0 = paint only) */
-        damage: number;
-        fallStart: number;
+            burnSeconds: number;
+            intensity: number;
+            /** dragon breath: direct disc damage on stamp (0 = paint only) */
+            damage: number;
+            /** {@link FIRE_TINT_NORMAL} or {@link FIRE_TINT_DRAGON} */
+            tint: number;
+            fallStart: number;
         landAt: number;
         announced: boolean;
         stamped: boolean;
@@ -861,6 +873,7 @@ export class BattleSim {
                     burnSeconds: pour.burnSeconds ?? 0,
                     intensity: pour.intensity ?? 0,
                     damage: pour.damage ?? 0,
+                    tint: pour.tint ?? FIRE_TINT_NORMAL,
                     fallStart: landAt - fallSec,
                     landAt,
                     announced: false,
@@ -903,6 +916,7 @@ export class BattleSim {
                     d.burnSeconds,
                     d.intensity,
                     shields,
+                    d.tint,
                 );
                 this.events.push({
                     kind: 'groundFire',
@@ -911,6 +925,7 @@ export class BattleSim {
                     z: d.z,
                     radius: d.radius,
                     oilCells,
+                    tint: d.tint,
                 });
                 if (d.damage > 0) {
                     this.applySpellDiscDamage(d.x, d.z, d.radius, d.damage);

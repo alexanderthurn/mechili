@@ -1822,15 +1822,67 @@ ${fontFaceCss()}
 .mechili-shop .shop-header {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 .mechili-shop .shop-header .unit-cap {
     font-size: 14px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
     color: ${u.phase};
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 .mechili-shop .shop-header .unit-cap::before { content: ''; opacity: 0; }
+.mechili-shop .shop-runes {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+.mechili-shop .shop-rune {
+    position: relative;
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    padding: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1.5px solid ${u.border};
+    background: rgba(12, 18, 10, 0.55);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+.mechili-shop .shop-rune:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-shop .shop-rune:active { transform: scale(0.94); }
+.mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-shop .shop-rune.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-shop .shop-rune .shop-rune-ico,
+.mechili-shop .shop-rune .shop-rune-ico.m-icon {
+    display: block;
+    width: 100%;
+    height: 100%;
+    font-size: 0;
+}
+.mechili-shop .shop-rune .cost {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    font-size: 9px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    text-align: center;
+    color: ${u.brassLight};
+    background: linear-gradient(180deg, transparent, rgba(8, 12, 6, 0.88) 35%);
+    padding: 6px 0 1px;
+    pointer-events: none;
+}
 .mechili-shop .shop-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -2438,6 +2490,49 @@ ${fontFaceCss()}
 }
 .forge-slot-preview[hidden] {
     display: none !important;
+}
+.forge-slot-preview.recipes {
+    flex-direction: column;
+    transform: none;
+    align-items: stretch;
+    gap: 0;
+    max-height: min(70vh, 440px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.94), rgba(22, 34, 19, 0.96));
+    border: 1.5px solid ${u.border};
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.forge-slot-preview.recipes .forge-recipes-block {
+    margin: 0;
+    padding: 0;
+}
+.forge-slot-preview.recipes .forge-tile-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.forge-slot-preview.recipes .forge-tile {
+    padding: 6px 8px;
+    column-gap: 4px;
+    row-gap: 2px;
+    background: ${u.panelBgDark};
+    border-color: ${u.border};
+    min-width: 168px;
+    max-width: 220px;
+}
+.forge-slot-preview.recipes .forge-tile .forge-spell {
+    width: 26px;
+    height: 26px;
+}
+.forge-slot-preview.recipes .forge-tile-ings .forge-ing {
+    width: 22px;
+    height: 22px;
+}
+.forge-slot-preview.recipes .forge-tile-name {
+    font-size: 11px;
 }
 .forge-slot-preview .inv-drag-spell {
     display: flex;

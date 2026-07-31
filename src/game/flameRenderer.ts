@@ -8,6 +8,7 @@ import {
     type Scene,
 } from 'three';
 import type { HazardField } from './fire';
+import { FIRE_TINT_DRAGON } from './fire';
 import { groundSupportAt } from './map';
 import type { FireVfxQuality } from './prefs';
 
@@ -53,6 +54,7 @@ export class FlameRenderer {
     private readonly mesh: InstancedMesh;
     private readonly material: ShaderMaterial;
     private readonly phases: InstancedBufferAttribute;
+    private readonly tints: InstancedBufferAttribute;
     private readonly dummy = new Object3D();
     private time = 0;
     private tier: FlameTier = TIER.medium;
@@ -61,7 +63,9 @@ export class FlameRenderer {
         // slightly larger base quad → softer silhouette when scaled up
         const geometry = new PlaneGeometry(1.25, 1.25, 1, 1).translate(0, 0.55, 0);
         this.phases = new InstancedBufferAttribute(new Float32Array(POOL_MAX), 1);
+        this.tints = new InstancedBufferAttribute(new Float32Array(POOL_MAX), 1);
         geometry.setAttribute('aPhase', this.phases);
+        geometry.setAttribute('aTint', this.tints);
 
         this.material = new ShaderMaterial({
             uniforms: { uTime: { value: 0 } },
@@ -71,11 +75,14 @@ export class FlameRenderer {
             fog: false,
             vertexShader: /* glsl */ `
                 attribute float aPhase;
+                attribute float aTint;
                 varying vec2 vUv;
                 varying float vPhase;
+                varying float vTint;
                 void main() {
                     vUv = uv;
                     vPhase = aPhase;
+                    vTint = aTint;
                     vec4 origin = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
                     float sx = length(vec3(instanceMatrix[0]));
                     float sy = length(vec3(instanceMatrix[1]));
@@ -92,6 +99,7 @@ export class FlameRenderer {
                 uniform float uTime;
                 varying vec2 vUv;
                 varying float vPhase;
+                varying float vTint;
                 float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
                 float fNoise(vec2 p) {
                     vec2 i = floor(p);
@@ -114,8 +122,13 @@ export class FlameRenderer {
                     float a = body * flick;
                     if (a < 0.025) discard;
                     float core = smoothstep(halfW * 0.9, 0.0, abs(cx)) * (1.0 - vUv.y * 0.5);
-                    vec3 col = mix(vec3(0.75, 0.12, 0.02), vec3(1.0, 0.5, 0.07), body);
-                    col = mix(col, vec3(1.0, 0.9, 0.55), core * core);
+                    vec3 orange = mix(vec3(0.75, 0.12, 0.02), vec3(1.0, 0.5, 0.07), body);
+                    orange = mix(orange, vec3(1.0, 0.9, 0.55), core * core);
+                    // dragon: orange flame with deep-blue tips (icea = full azure; see FIRE_TINT_DRAGON)
+                    vec3 azure = mix(vec3(0.12, 0.1, 0.45), vec3(1.0, 0.48, 0.1), body);
+                    azure = mix(azure, vec3(1.0, 0.88, 0.5), core * core);
+                    azure = mix(azure, vec3(0.15, 0.2, 0.65), (1.0 - body) * 0.55);
+                    vec3 col = mix(orange, azure, vTint);
                     gl_FragColor = vec4(col * 1.65, a);
                 }
             `,
@@ -167,10 +180,11 @@ export class FlameRenderer {
         const fillBoost = stride > 1 ? stride * 1.15 : 1;
         let i = 0;
         let n = 0;
-        field.forEachFireCell(now, (x, z, dps, until) => {
+        field.forEachFireCell(now, (x, z, dps, until, tint) => {
             if (n >= maxTongues) return;
             if (i++ % stride !== 0) return;
             const dying = Math.min(1, (until - now) / 1.2);
+            const tintF = tint === FIRE_TINT_DRAGON ? 1 : 0;
             for (let t = 0; t < tonguesPerCell && n < maxTongues; t++) {
                 const h =
                     Math.abs(Math.sin(x * 12.9898 + z * 78.233 + t * 19.19) * 43758.5453) % 1;
@@ -188,12 +202,14 @@ export class FlameRenderer {
                 this.dummy.updateMatrix();
                 this.mesh.setMatrixAt(n, this.dummy.matrix);
                 this.phases.setX(n, h * 10 + t);
+                this.tints.setX(n, tintF);
                 n++;
             }
         });
         this.mesh.count = n;
         this.mesh.instanceMatrix.needsUpdate = true;
         this.phases.needsUpdate = true;
+        this.tints.needsUpdate = true;
     }
 
     clear(): void {
@@ -211,9 +227,11 @@ export class FlameRenderer {
         this.dummy.updateMatrix();
         this.mesh.setMatrixAt(0, this.dummy.matrix);
         this.phases.setX(0, 0);
+        this.tints.setX(0, 0);
         this.mesh.count = 1;
         this.mesh.instanceMatrix.needsUpdate = true;
         this.phases.needsUpdate = true;
+        this.tints.needsUpdate = true;
     }
 
     dispose(): void {
