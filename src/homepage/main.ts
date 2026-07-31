@@ -410,20 +410,16 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward, draft one of ${DEFAULT_SETTINGS.roundCardOfferCount} offered ${DISPLAY.items.toLowerCase()} cards from the match pool. Forgeable battle spells come from the Stronghold, not cards.</p>
+    <p class="mh-sub">From round two onward, draft one of ${DEFAULT_SETTINGS.roundCardOfferCount} offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Forgeable battle spells come from the Stronghold, not cards.</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
-      ${ROUND_RUNE_CARDS.filter((c) => DEFAULT_SETTINGS.roundCardItems.includes(c.id))
-          .map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`)
-          .join('')}
+      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-round-cards-row">
-        ${ROUND_RUNE_CARDS.filter((c) => DEFAULT_SETTINGS.roundCardItems.includes(c.id))
-            .map(
-                (c, i) =>
-                    `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
-            )
-            .join('')}
+        ${ROUND_RUNE_CARDS.map(
+            (c, i) =>
+                `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
+        ).join('')}
       </div>
     </div>
   </section>

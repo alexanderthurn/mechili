@@ -91,6 +91,9 @@ function runeRoundCard(itemId: (typeof RUNE_ROUND_CARD_IDS)[number]): RoundCard 
 /** Rune cards in the between-round pool. */
 export const ROUND_RUNE_CARDS: RoundCard[] = RUNE_ROUND_CARD_IDS.map(runeRoundCard);
 
+/** All rune item ids in the between-round catalog (default match pool). */
+export const ROUND_RUNE_ITEM_IDS: string[] = [...RUNE_ROUND_CARD_IDS];
+
 /**
  * Unit-pack between-round cards (kept for later; not in the live offer).
  */

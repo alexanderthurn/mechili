@@ -1,5 +1,6 @@
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
+import { ROUND_RUNE_ITEM_IDS } from './cards';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -59,7 +60,8 @@ export interface GameSettings {
     roundCards: boolean | number[];
     /**
      * Item ids eligible for between-round rune offers (subset of the rune
-     * catalog). Host settings travel with the match setup message.
+     * catalog). Each offer draws {@link roundCardOfferCount} from this pool.
+     * Host settings travel with the match setup message.
      */
     roundCardItems: string[];
     /** How many cards each between-round offer shows (capped by the pool). */
@@ -329,8 +331,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
         recruitLevel2Cost: 100,
     },
     roundCards: true,
-    /** three basic runes for now — expand via settings / custom game later */
-    roundCardItems: ['addi', 'power', 'vigor'],
+    /** full rune catalog — each offer picks {@link roundCardOfferCount} at random */
+    roundCardItems: [...ROUND_RUNE_ITEM_IDS],
     roundCardOfferCount: 3,
 };
 
