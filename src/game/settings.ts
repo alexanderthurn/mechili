@@ -216,10 +216,12 @@ export interface BoostSettings {
     hpTiers: number[];
 }
 
-/** how many unit purchases a deployment phase allows */
+/** how many unit / base-rune purchases a deployment phase allows */
 export interface DeploySettings {
     /** each player's STARTING per-round buy limit (specials may raise it permanently later) */
     unitsPerRound: number;
+    /** shop price of a base rune (earth/fire/water/wind); shares the buy limit with units */
+    baseRuneCost: number;
     /** Command Tower: price of +1 buy for the running round only */
     extraSlotCost: number;
     /** Command Tower: +rangeBoost range for all ranged units this round only */
@@ -309,6 +311,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     },
     deploy: {
         unitsPerRound: 2,
+        baseRuneCost: 50,
         extraSlotCost: 50,
         rangedRangeBoostCost: 100,
         rangeBoost: 5,
@@ -609,7 +612,12 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
         {
             title: 'Deploy',
             rows: [
-                { label: 'Buys per round', value: `${settings.deploy.unitsPerRound}` },
+                { label: 'Buys per round', value: `${settings.deploy.unitsPerRound}`, note: 'shared by units and base runes' },
+                {
+                    label: 'Base rune',
+                    value: `${settings.deploy.baseRuneCost} supply`,
+                    note: 'shop — uses one buy slot',
+                },
                 {
                     label: 'Extra buy slot',
                     value: `${settings.deploy.extraSlotCost} supply`,

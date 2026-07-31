@@ -30,7 +30,9 @@ export class TechTree {
     }
 
     ownedFor(seat: SeatId, typeId: string): Set<string> {
-        const bySeat = this.owned[seat]!;
+        // horde packs use seat -1 (no tech); out-of-range seats are equally empty
+        const bySeat = this.owned[seat];
+        if (!bySeat) return new Set();
         let set = bySeat.get(typeId);
         if (!set) {
             set = new Set();
@@ -40,11 +42,13 @@ export class TechTree {
     }
 
     has(seat: SeatId, typeId: string, techId: string): boolean {
+        if (seat < 0 || seat >= this.owned.length) return false;
         return this.ownedFor(seat, typeId).has(techId);
     }
 
     /** the actual purchase (charging, price escalation) lives in the action dispatcher */
     add(seat: SeatId, typeId: string, techId: string): void {
+        if (seat < 0 || seat >= this.owned.length) return;
         this.ownedFor(seat, typeId).add(techId);
     }
 
@@ -73,6 +77,7 @@ export class TechTree {
 
     /** forgets an owned tech (action undo) — refunding is the caller's job */
     remove(seat: SeatId, typeId: string, techId: string): void {
+        if (seat < 0 || seat >= this.owned.length) return;
         this.ownedFor(seat, typeId).delete(techId);
     }
 

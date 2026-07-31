@@ -9,7 +9,8 @@
  * `misc/concepts/runes/README.md`. Atlas ids: `item-*`.
  *
  * Economy: four weak base runes (earth/fire/water/wind) are offered on round
- * cards; advanced runes are forged from them at the Stronghold.
+ * cards and always buyable in the unit shop (sharing the per-round buy limit);
+ * advanced runes are forged from them at the Stronghold.
  */
 
 /** Default item slots when a unit has no entry in {@link UNIT_ITEM_SLOTS}. */
@@ -47,7 +48,7 @@ export interface ItemDef {
     description: string;
 }
 
-/** Weak elemental runes — round-card pool; forge fuel for advanced runes + spells. */
+/** Weak elemental runes — round-card pool + always-on shop; forge fuel for advanced runes + spells. */
 export const BASE_RUNE_IDS = ['earth', 'fire', 'water', 'wind'] as const;
 export type BaseRuneId = (typeof BASE_RUNE_IDS)[number];
 

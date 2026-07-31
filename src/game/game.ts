@@ -1348,6 +1348,7 @@ export class Game {
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
+        this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
@@ -6257,6 +6258,16 @@ export class Game {
         });
     }
 
+    /** HUD: buy a base rune into the bag — shares the per-round purchase limit with units. */
+    private buyRune(itemId: string): boolean {
+        if (!this.playerCanAct) return false;
+        return this.dispatchPlayer({
+            kind: 'buyRune',
+            team: 'player',
+            itemId,
+        });
+    }
+
     /**
      * Ground point to seed shop auto-placement. Desktop: view center.
      * Compact chrome: center of the free band above the bottom sheet (~52vh).
@@ -7451,6 +7462,10 @@ export class Game {
             this.deployState.limit[this.humanSeat]! + this.deployState.extra[this.humanSeat]!,
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
         );
+        this.hud.setShopRuneCost(
+            this.settings.deploy.baseRuneCost,
+            this.economy.balance(this.humanSeat),
+        );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
         this.syncArmedRuneForgeGhost();
@@ -7885,7 +7900,7 @@ export class Game {
 
     /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks */
     private techSelection(u: Unit): SelectionInfo['techs'] {
-        if (u.type.structure || u.type.extra) return undefined;
+        if (u.type.structure || u.type.extra || u.team === 'horde' || u.seat < 0) return undefined;
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const selected = techsForUnit(u.type.id);
         const slotsN = techSlotLimit(u.type.id);

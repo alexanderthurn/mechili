@@ -8,7 +8,7 @@ import {
     type ForgePreviewView,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
-import { ITEMS } from '../game/items';
+import { BASE_RUNE_IDS, ITEMS } from '../game/items';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
@@ -266,6 +266,8 @@ export class Hud {
     /** the player sent a chat item (emote or text) */
     onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
+    /** shop: buy a always-available base rune (shares the unit buy limit) */
+    onBuyRune: ((itemId: string) => boolean) | null = null;
     onQuitToMenu: (() => void) | null = null;
     /** grant/revoke live deploy vision for a spectator (own seat). Left null
      *  by a spectating client itself — it has no seat to grant from, so the
@@ -339,6 +341,10 @@ export class Hud {
     private phoneLevelAllEl!: HTMLButtonElement;
     private readonly levelAllGlobalBtn: HTMLButtonElement;
     private readonly deploysEl: HTMLSpanElement;
+    private readonly shopRuneRow: HTMLDivElement;
+    private readonly shopRuneButtons: { el: HTMLButtonElement; itemId: string }[] = [];
+    private shopRuneCost = 50;
+    private shopRuneBalance = 0;
     private readonly inventoryEl: HTMLDivElement;
     private readonly enemyInventoryEl: HTMLDivElement;
     /** phone-size bottom tab bar; CSS hides it on larger screens */
@@ -642,11 +648,31 @@ export class Hud {
         shopHeader.className = 'shop-header';
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
-        this.deploysEl.title = 'Units bought this round / your limit';
+        this.deploysEl.title = 'Purchases this round / your limit (units + base runes)';
         // Render shop "gear" via the icon atlas (no unicode fallback).
         this.deploysEl.innerHTML =
             `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
-        shopHeader.append(this.deploysEl);
+        this.shopRuneRow = document.createElement('div');
+        this.shopRuneRow.className = 'shop-runes';
+        this.shopRuneRow.title = 'Base runes — always available; each buy uses one purchase slot';
+        for (const itemId of BASE_RUNE_IDS) {
+            const def = ITEMS[itemId]!;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'shop-rune';
+            btn.dataset.itemId = itemId;
+            btn.innerHTML =
+                `${iconHtml(def.icon, 'shop-rune-ico')}` +
+                `<span class="cost">${this.shopRuneCost}</span>`;
+            btn.title = `${def.name} — ${this.shopRuneCost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
+            btn.addEventListener('click', () => {
+                const lastSlot = this.deploysLeft <= 1;
+                if (this.onBuyRune?.(itemId) && lastSlot) this.setPhoneTab(null);
+            });
+            this.shopRuneButtons.push({ el: btn, itemId });
+            this.shopRuneRow.appendChild(btn);
+        }
+        shopHeader.append(this.deploysEl, this.shopRuneRow);
 
         const shopGrid = document.createElement('div');
         shopGrid.className = 'shop-grid';
@@ -1841,7 +1867,8 @@ export class Hud {
     }
 
         /** purchases used / allowed this round; buy buttons grey out at the limit.
-     *  `extrasBudgetLeft` is the separate supply cap for shields/rockets. */
+     *  `extrasBudgetLeft` is the separate supply cap for shields/rockets.
+     *  Unit buys and base-rune buys share the same counter. */
     setDeploys(used: number, limit: number, extrasBudgetLeft: number): void {
         this.deploysLeft = limit - used;
         this.extrasBudgetLeft = extrasBudgetLeft;
@@ -1849,7 +1876,32 @@ export class Hud {
         const labelEl = this.deploysEl.querySelector<HTMLSpanElement>('.unit-cap-label');
         if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
         this.deploysEl.title =
-            `Units bought this round / your limit · ◇ ${extrasBudgetLeft} left for shields & rockets`;
+            `Purchases this round / your limit (units + base runes) · ◇ ${extrasBudgetLeft} left for shields & rockets`;
+        this.refreshShopRuneAffordability();
+    }
+
+    /** supply price of each always-available base rune in the shop header */
+    setShopRuneCost(cost: number, balance: number): void {
+        this.shopRuneCost = cost;
+        this.shopRuneBalance = balance;
+        for (const { el, itemId } of this.shopRuneButtons) {
+            const def = ITEMS[itemId]!;
+            const costEl = el.querySelector('.cost');
+            if (costEl) costEl.textContent = String(cost);
+            el.title =
+                `${def.name} — ${cost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
+        }
+        this.refreshShopRuneAffordability();
+    }
+
+    private refreshShopRuneAffordability(): void {
+        const blocked = this.deploysLeft <= 0;
+        for (const { el } of this.shopRuneButtons) {
+            el.classList.toggle(
+                'unaffordable',
+                blocked || this.shopRuneCost > this.shopRuneBalance,
+            );
+        }
     }
 
     /** re-reads unit prices (they change while the recruit switch is active) */
