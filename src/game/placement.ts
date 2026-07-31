@@ -163,6 +163,13 @@ export class PlacementController {
     ownedTechIcons: ((unit: Unit) => string[]) | null = null;
     /** fires on every click that lands on a unit (used for item application) */
     onSelect: ((unit: Unit) => void) | null = null;
+    /**
+     * When set (armed inventory item), hover paints a valid-drop plate over
+     * packs this returns true for. Null / false = no drop highlight.
+     */
+    itemDropValid: ((unit: Unit) => boolean) | null = null;
+    /** true this frame while the item cursor is over a pack that can take it */
+    itemDropHovering = false;
     /** when set, left clicks are offered here first; return true to swallow */
     groundClickInterceptor: ((x: number, y: number) => boolean) | null = null;
     /** blocks normal placement interaction (tactic placement mode) */
@@ -1065,7 +1072,7 @@ export class PlacementController {
 
     /**
      * One camera-aligned status strip over each visible pack:
-     * `[item?] · tech · tech …` (item leftmost, plated; techs borderless).
+     * `[item?] · [item?] · tech · tech …` (items leftmost, plated; techs borderless).
      * The upgrade arrow sits above this strip when both are present.
      */
     private updateStatusBadges(): void {
@@ -1079,14 +1086,14 @@ export class PlacementController {
             const right = this.statusBadgeRight;
             const spacing = 2.3;
 
-            const placeStrip = (unit: Unit, world: Vector3, itemIconId: string | null) => {
+            const placeStrip = (unit: Unit, world: Vector3, itemIconIds: string[]) => {
                 const techs = this.ownedTechIcons?.(unit) ?? [];
-                const n = (itemIconId ? 1 : 0) + techs.length;
+                const n = itemIconIds.length + techs.length;
                 if (n === 0) return;
                 const y = this.statusStripY(unit, world);
                 const mid = (n - 1) / 2;
                 let slot = 0;
-                if (itemIconId) {
+                for (const itemIconId of itemIconIds) {
                     let sprite = this.itemBadges[itemUsed];
                     if (!sprite) {
                         sprite = new Sprite();
@@ -1130,7 +1137,7 @@ export class PlacementController {
 
             for (const unit of this.units) {
                 if (!this.enemyIntelVisible(unit)) continue;
-                placeStrip(unit, this.intelWorldOf(unit), this.intelItemIcon(unit));
+                placeStrip(unit, this.intelWorldOf(unit), this.intelItemIcons(unit));
             }
             if (this.intelFog) {
                 for (const [id, snap] of this.intelSnapshot) {
@@ -1138,9 +1145,10 @@ export class PlacementController {
                     if (this.units.some((u) => u.id === id)) continue;
                     const ghost = this.intelGhosts.get(id);
                     if (!ghost) continue;
-                    const item =
-                        snap.items.length > 0 ? itemIcon(snap.items[0]!) : null;
-                    placeStrip(ghost, snap.world, item);
+                    const itemIcons = snap.items
+                        .map((id) => itemIcon(id))
+                        .filter((id): id is string => id !== null);
+                    placeStrip(ghost, snap.world, itemIcons);
                 }
             }
         }
@@ -1162,9 +1170,9 @@ export class PlacementController {
 
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
     private statusStripCount(unit: Unit): number {
-        const item = this.intelItemIcon(unit) ? 1 : 0;
+        const items = this.intelItemIcons(unit).length;
         const techs = this.ownedTechIcons?.(unit)?.length ?? 0;
-        return item + techs;
+        return items + techs;
     }
 
     private itemBadgeMaterial(iconId: string): SpriteMaterial {
@@ -1406,17 +1414,17 @@ export class PlacementController {
         return unit.world;
     }
 
-    private intelItemIcon(unit: Unit): string | null {
-        if (!this.isFogged(unit)) {
-            return unit.items[0] ? itemIcon(unit.items[0]) : null;
-        }
-        if (!this.enemyIntelVisible(unit)) return null;
-        if (this.intelFog) {
-            const snap = this.intelSnapshot.get(unit.id);
-            if (!snap || snap.items.length === 0) return null;
-            return itemIcon(snap.items[0]!);
-        }
-        return unit.items[0] ? itemIcon(unit.items[0]) : null;
+    private intelItemIcons(unit: Unit): string[] {
+        const ids = (() => {
+            if (!this.isFogged(unit)) return unit.items;
+            if (!this.enemyIntelVisible(unit)) return [];
+            if (this.intelFog) {
+                const snap = this.intelSnapshot.get(unit.id);
+                return snap?.items ?? [];
+            }
+            return unit.items;
+        })();
+        return ids.map((id) => itemIcon(id)).filter((id): id is string => id !== null);
     }
 
     private memberPositionsAt(world: Vector3, unit: Unit): Vector3[] {
@@ -1797,6 +1805,7 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+        this.itemDropHovering = false;
 
         // an extra riding the cursor: ghost mesh + footprint plate + effect ring
         if (this.pendingType && this.pendingUnit && this.enabled) {
@@ -1848,6 +1857,30 @@ export class PlacementController {
             return;
         }
         this.showGroupPlates([], null, false, timeSeconds);
+        // armed inventory item: green footprint over a pack that can take the drop
+        if (this.itemDropValid && this.enabled && this.pointer) {
+            const over = this.pickUnitAt(this.pointer.x, this.pointer.y);
+            if (over && !over.destroyed && this.itemDropValid(over)) {
+                this.itemDropHovering = true;
+                this.targetPreview.clear();
+                const snap = this.isFogged(over) ? this.intelSnapshot.get(over.id) : undefined;
+                const cell = snap?.cell ?? over.cell;
+                const plateFp = snap
+                    ? this.footprintOf(over.type, snap.rotated)
+                    : this.footprintOf(over.type, over.rotated);
+                const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
+                this.placeFootprintPlate(
+                    this.hoverMesh,
+                    this.hoverMaterial,
+                    center,
+                    plateFp,
+                    VALID_COLOR,
+                    timeSeconds,
+                    true,
+                );
+                return;
+            }
+        }
         if (!sel || !this.enabled) {
             this.targetPreview.clear();
             return;

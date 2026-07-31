@@ -2334,6 +2334,11 @@ ${fontFaceCss()}
     color: ${u.text};
     pointer-events: none;
     z-index: 50;
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.inv-drag.drop-ready {
+    box-shadow: 0 0 0 3px #00ff66, 0 0 14px rgba(0, 255, 102, 0.85);
+    transform: scale(1.12);
 }
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
@@ -2350,8 +2355,22 @@ ${fontFaceCss()}
     overflow: hidden;
     cursor: help;
 }
-.mechili-panel .item-sq { transition: transform 0.12s ease, filter 0.12s ease; }
-.mechili-panel .item-sq:hover { transform: translateY(-1px); filter: brightness(1.12); }
+.mechili-panel .item-sq.empty {
+    background: ${u.techBuyBg};
+    border: 1.5px solid ${u.border};
+    cursor: default;
+}
+.mechili-panel .item-sq.empty.drop-target {
+    border-color: #00ff66;
+    box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 10px rgba(0, 255, 102, 0.45);
+    cursor: pointer;
+}
+.mechili-panel .item-sq.empty.drop-target:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 0 0 2px #00ff66, 0 0 14px rgba(0, 255, 102, 0.7);
+}
+.mechili-panel .item-sq:not(.empty) { transition: transform 0.12s ease, filter 0.12s ease; }
+.mechili-panel .item-sq:not(.empty):hover { transform: translateY(-1px); filter: brightness(1.12); }
 
 /* --- in-match chat ------------------------------------------------------ */
 .mechili-fightbar .fighter { position: relative; }

@@ -10,7 +10,7 @@ import {
     livingShieldDisks,
     type HazardPour,
 } from './fire';
-import { ITEMS } from './items';
+import { ITEMS, MAX_PACK_ITEMS } from './items';
 import {
     DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
@@ -844,7 +844,7 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
-                if (unit.items.length > 0) return false; // exactly ONE item per pack
+                if (unit.items.length >= MAX_PACK_ITEMS) return false;
                 if (!ITEMS[action.itemId]) return false;
                 const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);

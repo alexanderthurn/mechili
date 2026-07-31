@@ -1,8 +1,13 @@
 /**
- * Unit pack items: equipped onto one pack, affecting every mech in it.
+ * Unit pack items: equipped onto a pack, affecting every mech in it.
  * Applying is an action (undoable during the deployment it happened in);
  * once the deployment ends the item is fused to the pack for good.
+ * A pack holds up to {@link MAX_PACK_ITEMS} at once.
  */
+
+/** Max equipped items on one pack (inventory applies up to this). */
+export const MAX_PACK_ITEMS = 2;
+
 export interface ItemDef {
     id: string;
     name: string;

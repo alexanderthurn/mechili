@@ -8,6 +8,7 @@ import { UNIT_TYPES, type UnitType } from '../game/units';
 import { openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { THEME, hudStyles } from '../theme';
+import { MAX_PACK_ITEMS } from '../game/items';
 
 export type Phase = 'build' | 'battle';
 
@@ -93,6 +94,8 @@ export interface SelectionInfo {
     total: number;
     /** equipped pack items, as squares in the panel */
     items?: { icon: string; name: string; desc: string }[];
+    /** empty item slots accept an armed inventory item (own pack, build phase) */
+    itemDropReady?: boolean;
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -159,6 +162,8 @@ export class Hud {
     /** team modes only: gift supply to your ally, delivered at the start of next round */
     onSendSupply: ((amount: number) => void) | null = null;
     onArmItem: ((itemId: string, index: number) => void) | null = null;
+    /** drop the armed inventory item onto the selected pack (panel empty slots) */
+    onApplyArmedItem: (() => void) | null = null;
     onArmTactic: ((tacticId: string, index: number) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
     onResetPlacedTactic: ((tacticId: string, routeId: number) => void) | null = null;
@@ -422,7 +427,13 @@ export class Hud {
                 }
             }
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.action-tile');
-            if (!button) return;
+            if (!button) {
+                const emptySlot = (e.target as HTMLElement).closest<HTMLElement>(
+                    '.item-sq.empty.drop-target',
+                );
+                if (emptySlot) this.onApplyArmedItem?.();
+                return;
+            }
             // locked (unaffordable / not ready) and owned tiles stay hoverable
             // for their info frame, but do nothing on click
             if (button.classList.contains('locked') || button.classList.contains('owned')) return;
@@ -445,13 +456,21 @@ export class Hud {
         this.panel.addEventListener('pointerover', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
             const tile = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
-            if (tile) this.showActionInfo(tile);
+            if (tile) {
+                this.showActionInfo(tile);
+                if (tile.classList.contains('drop-target')) this.setPanelItemDropReady(true);
+            }
         });
         this.panel.addEventListener('pointerout', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
-            if (from && from !== to) this.hideActionInfo();
+            if (from && from !== to) {
+                this.hideActionInfo();
+                if (from.classList.contains('drop-target') && !to?.classList.contains('drop-target')) {
+                    this.setPanelItemDropReady(false);
+                }
+            }
         });
 
         // unequipped pack items (left edge sidebar): click to pick up, click a pack to place
@@ -1176,7 +1195,7 @@ export class Hud {
               items
                   .map(
                       (i, index) =>
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click one of your packs.">` +
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click a pack that has a free item slot (up to 2).">` +
                           `${iconHtml(i.icon)}</button>`,
                   )
                   .join('')
@@ -1232,11 +1251,35 @@ export class Hud {
             if (!picked) {
                 this.itemGhost.remove();
                 this.itemGhost = null;
+                this.worldItemDropReady = false;
+                this.panelItemDropReady = false;
             } else {
                 this.itemGhost.className = 'inv-drag m-icon';
                 applyIcon(this.itemGhost, picked.icon);
+                this.syncItemGhostDropReady();
             }
         }
+    }
+
+    /** ring the carried item ghost when the cursor is over a pack that can take it */
+    setItemGhostDropReady(ready: boolean): void {
+        this.worldItemDropReady = ready;
+        this.syncItemGhostDropReady();
+    }
+
+    private worldItemDropReady = false;
+    private panelItemDropReady = false;
+
+    private setPanelItemDropReady(ready: boolean): void {
+        this.panelItemDropReady = ready;
+        this.syncItemGhostDropReady();
+    }
+
+    private syncItemGhostDropReady(): void {
+        this.itemGhost?.classList.toggle(
+            'drop-ready',
+            this.worldItemDropReady || this.panelItemDropReady,
+        );
     }
 
     /** opponent items/tactics at phase-start intel (right sidebar, read-only) */
@@ -1563,6 +1606,7 @@ export class Hud {
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
         this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
+        this.setPanelItemDropReady(false);
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
 
         // leveling sits at the top-right of the frame (next to the name);
@@ -1714,14 +1758,26 @@ export class Hud {
         }
         const actions = this.renderActionTiles(tiles);
         const levelActions = this.renderActionTiles(levelTiles, 'level-actions');
-        const itemSquares = info.items?.length
-            ? `<div class="item-row">${info.items
-                  .map(
-                      (i) =>
-                          `<span class="item-sq m-icon" style="${iconCss(i.icon)}" data-ttitle="${escapeAttr(i.name)}" data-tdesc="${escapeAttr(i.desc ?? i.name)}" data-ticon="${escapeAttr(i.icon)}"></span>`,
-                  )
-                  .join('')}</div>`
-            : '';
+        // packs always show MAX_PACK_ITEMS slots (empty = dark circle); structures hide them
+        const itemSquares = info.structure
+            ? ''
+            : `<div class="item-row">${Array.from({ length: MAX_PACK_ITEMS }, (_, i) => {
+                  const item = info.items?.[i];
+                  if (!item) {
+                      const slot = i + 1;
+                      const drop = info.itemDropReady ? ' drop-target' : '';
+                      return (
+                          `<span class="item-sq empty${drop}" data-ttitle="Item slot ${slot}" data-tdesc="${
+                              info.itemDropReady
+                                  ? 'Drop your armed item here to equip it on this pack.'
+                                  : 'Empty — equip an item from your inventory onto this pack.'
+                          }"></span>`
+                      );
+                  }
+                  return (
+                      `<span class="item-sq m-icon" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(item.desc ?? item.name)}" data-ticon="${escapeAttr(item.icon)}"></span>`
+                  );
+              }).join('')}</div>`;
         // XP (or tower level) progress toward the next rank
         const xpBarPct = info.structure
             ? info.towerUpgrade

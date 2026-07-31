@@ -75,7 +75,7 @@ import { CloudFx } from './cloudFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
-import { ITEMS } from './items';
+import { ITEMS, MAX_PACK_ITEMS } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -1260,6 +1260,7 @@ export class Game {
             if (this.armedItem) {
                 if (this.applyItemTo(unit, this.armedItem)) {
                     this.armedItem = null;
+                    this.armedItemIndex = null;
                     // equipping is not selecting — leave the pack unselected
                     this.placement.deselect();
                 }
@@ -1268,6 +1269,7 @@ export class Game {
             // buildings act through their details — auto-open the sheet (phone-only visual)
             if (unit.type.structure) this.hud.openUnitDetails();
         };
+        this.placement.itemDropValid = (unit) => this.canDropArmedItemOn(unit);
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
         this.controls.onMiddleClick = () => {
             if (this.armedTactic) return;
@@ -1334,6 +1336,15 @@ export class Game {
             } else {
                 this.armedItem = itemId;
                 this.armedItemIndex = index;
+            }
+        };
+        this.hud.onApplyArmedItem = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || !this.armedItem) return;
+            if (this.applyItemTo(unit, this.armedItem)) {
+                this.armedItem = null;
+                this.armedItemIndex = null;
+                // keep the pack selected so a second item can fill the other slot
             }
         };
         this.hud.onArmTactic = (tacticId, index) => {
@@ -5670,9 +5681,18 @@ export class Game {
         return true;
     }
 
+    /** true while an inventory item is armed and this pack can still take it */
+    private canDropArmedItemOn(unit: Unit): boolean {
+        if (!this.armedItem || !this.playerCanAct) return false;
+        if (unit.seat !== this.humanSeat || unit.type.structure) return false;
+        if (unit.items.length >= MAX_PACK_ITEMS) return false;
+        return !!ITEMS[this.armedItem];
+    }
+
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
     private applyItemTo(unit: Unit, itemId: string): boolean {
         if (!this.playerCanAct || unit.seat !== this.humanSeat || unit.type.structure) return false;
+        if (unit.items.length >= MAX_PACK_ITEMS || !ITEMS[itemId]) return false;
         if (!this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
             return false;
         }
@@ -7022,6 +7042,7 @@ export class Game {
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
         );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
+        this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
         const enemyInv = this.enemyInventoryView();
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
@@ -7333,6 +7354,7 @@ export class Game {
                       desc: ITEMS[id]?.description ?? '',
                   }))
                 : undefined,
+            itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure
                 ? undefined
                 : { damageDealt: u.damageDealt, kills: u.kills },
@@ -7377,6 +7399,7 @@ export class Game {
                       desc: ITEMS[id]?.description ?? '',
                   }))
                 : undefined,
+            itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:

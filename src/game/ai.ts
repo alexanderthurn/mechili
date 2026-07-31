@@ -13,6 +13,7 @@ import {
 import type { TechTree } from './tech';
 import { UNIT_TYPES, unitTypeById, type Team } from './units';
 import type { SeatId } from './seats';
+import { MAX_PACK_ITEMS } from './items';
 
 /**
  * A side's decision maker. The built-in AI implements it; a future network
@@ -147,17 +148,25 @@ export class AiOpponent implements Opponent {
         const team = this.team;
         const bag = [...items[this.seat]!];
         if (bag.length === 0) return;
-        const packs = placement
-            .allUnits()
-            .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra && u.items.length === 0);
-        for (const unit of packs) {
-            if (bag.length === 0) break;
+        // fill emptier packs first so items spread across the army
+        while (bag.length > 0) {
+            const packs = placement
+                .allUnits()
+                .filter(
+                    (u) =>
+                        u.seat === this.seat &&
+                        !u.type.structure &&
+                        !u.type.extra &&
+                        u.items.length < MAX_PACK_ITEMS,
+                )
+                .sort((a, b) => a.items.length - b.items.length);
+            if (packs.length === 0) break;
+            const unit = packs[0]!;
             const i = Math.floor(rng() * bag.length);
             const itemId = bag.splice(i, 1)[0]!;
-            if (dispatch({ kind: 'applyItem', team, seat: this.seat, unitId: unit.id, itemId })) {
-                // inventory was mutated by dispatch; keep bag in sync
-            } else {
+            if (!dispatch({ kind: 'applyItem', team, seat: this.seat, unitId: unit.id, itemId })) {
                 bag.push(itemId);
+                break;
             }
         }
     }
