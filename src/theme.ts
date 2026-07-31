@@ -2378,6 +2378,11 @@ ${fontFaceCss()}
 }
 .mechili-panel .item-sq:not(.empty) { transition: transform 0.12s ease, filter 0.12s ease; }
 .mechili-panel .item-sq:not(.empty):hover { transform: translateY(-1px); filter: brightness(1.12); }
+.mechili-panel .item-sq.removable {
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.45);
+}
+.mechili-panel .item-sq.removable:active { cursor: grabbing; }
 
 /* --- in-match chat ------------------------------------------------------ */
 .mechili-fightbar .fighter { position: relative; }

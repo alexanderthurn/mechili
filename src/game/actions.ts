@@ -171,6 +171,15 @@ export interface ApplyItemAction {
     unitId: number;
     itemId: string;
 }
+/** returns a this-deploy rune from a pack to the actor's inventory (drag-off) */
+export interface RemoveItemAction {
+    kind: 'removeItem';
+    team: Team;
+    unitId: number;
+    itemId: string;
+    /** index into unit.items — required when duplicates share an id */
+    slot: number;
+}
 /** the between-round card pick; cardId null = skip (paid the skip reward). NOT undoable. */
 export interface RoundCardAction {
     kind: 'roundCard';
@@ -268,6 +277,7 @@ type ActionVariant =
     | SendSupplyAction
     | ChooseCardAction
     | ApplyItemAction
+    | RemoveItemAction
     | RoundCardAction
     | ForfeitSideAction
     | EndDeploymentAction
@@ -312,6 +322,10 @@ interface LogEntry extends LoggedAction {
     grantedTactics?: string[];
     /** the one-shot tactic charge this action consumed, if any (see consumeTacticCharge) */
     usedTactic?: string;
+    /** applyItem / removeItem: slot index on the pack */
+    itemSlot?: number;
+    /** removeItem: round the rune was originally applied (for undo re-attach) */
+    itemAppliedRound?: number;
     /** placeRallyRoute: the spawned route */
     rallyRoute?: RallyRoute;
     /** placeOilSpill / removeOilSpill */
@@ -854,6 +868,27 @@ export class ActionDispatcher {
                 if (held < 0) return false;
                 inventory.splice(held, 1);
                 unit.items.push(action.itemId);
+                unit.itemAppliedRound.push(entry.round);
+                entry.itemSlot = unit.items.length - 1;
+                return true;
+            }
+            case 'removeItem': {
+                const unit = placement.unitById(action.unitId);
+                if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
+                    return false;
+                }
+                const { slot, itemId } = action;
+                if (slot < 0 || slot >= unit.items.length || unit.items[slot] !== itemId) {
+                    return false;
+                }
+                // only the inserter's this-deploy applications — fused after lock-in
+                if (unit.itemAppliedRound[slot] !== entry.round) return false;
+                const appliedRound = unit.itemAppliedRound[slot]!;
+                unit.items.splice(slot, 1);
+                unit.itemAppliedRound.splice(slot, 1);
+                this.ctx.items[seat]!.push(itemId);
+                entry.itemSlot = slot;
+                entry.itemAppliedRound = appliedRound;
                 return true;
             }
             case 'roundCard': {
@@ -1207,9 +1242,26 @@ export class ActionDispatcher {
                 break;
             case 'applyItem': {
                 const unit = placement.unitById(action.unitId)!;
-                const worn = unit.items.lastIndexOf(action.itemId);
-                if (worn >= 0) unit.items.splice(worn, 1);
+                const worn =
+                    e.itemSlot !== undefined && unit.items[e.itemSlot] === action.itemId
+                        ? e.itemSlot
+                        : unit.items.lastIndexOf(action.itemId);
+                if (worn >= 0) {
+                    unit.items.splice(worn, 1);
+                    unit.itemAppliedRound.splice(worn, 1);
+                }
                 this.ctx.items[seat]!.push(action.itemId); // seat = actorSeat(action), its own pool
+                break;
+            }
+            case 'removeItem': {
+                const unit = placement.unitById(action.unitId)!;
+                const slot = e.itemSlot ?? action.slot;
+                const applied = e.itemAppliedRound ?? e.round;
+                unit.items.splice(slot, 0, action.itemId);
+                unit.itemAppliedRound.splice(slot, 0, applied);
+                const bag = this.ctx.items[seat]!;
+                const i = bag.lastIndexOf(action.itemId);
+                if (i >= 0) bag.splice(i, 1);
                 break;
             }
             case 'placeRallyRoute': {

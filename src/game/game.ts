@@ -1261,13 +1261,14 @@ export class Game {
             return selected.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
         };
         // an armed inventory item lands on the next own pack that gets clicked
-        this.placement.onSelect = (unit) => {
+        this.placement.onSelect = (unit, previous) => {
             if (this.armedItem) {
                 if (this.applyItemTo(unit, this.armedItem)) {
                     this.armedItem = null;
                     this.armedItemIndex = null;
-                    // equipping is not selecting — leave the pack unselected
-                    this.placement.deselect();
+                    // keep details only when this pack's panel was already open;
+                    // otherwise don't open the drop target (and close a wrong panel)
+                    if (previous && previous !== unit) this.placement.deselect();
                 }
                 return;
             }
@@ -1342,6 +1343,14 @@ export class Game {
                 this.armedItem = itemId;
                 this.armedItemIndex = index;
             }
+        };
+        this.hud.onCancelInventoryArm = () => {
+            this.armedItem = null;
+            this.armedItemIndex = null;
+            this.armedTactic = null;
+        };
+        this.hud.onRemoveItem = (unitId, itemId, slot) => {
+            this.removeItemFrom(unitId, itemId, slot);
         };
         this.hud.onApplyArmedItem = () => {
             const unit = this.placement.selectedUnit;
@@ -5831,7 +5840,11 @@ export class Game {
         this.placement.setPointerFromClient(clientX, clientY);
         const unit = this.placement.unitAtPoint(local.x, local.y);
         if (!unit || !this.canDropArmedItemOn(unit)) return false;
-        return this.applyItemTo(unit, this.armedItem);
+        const previouslySelected = this.placement.selectedUnit;
+        if (!this.applyItemTo(unit, this.armedItem)) return false;
+        // drop on another pack while details show a different one → close the panel
+        if (previouslySelected && previouslySelected !== unit) this.placement.deselect();
+        return true;
     }
 
     /** press-drag release — place the armed spell at the pointer (same as a map click) */
@@ -5857,6 +5870,20 @@ export class Game {
         }));
         this.particles.spawnFromEvents(bursts);
         return true;
+    }
+
+    /** returns a this-deploy rune from a pack to the bag (drag-off) */
+    private removeItemFrom(unitId: number, itemId: string, slot: number): boolean {
+        if (!this.playerCanAct) return false;
+        const unit = this.placement.unitById(unitId);
+        if (!unit || unit.seat !== this.humanSeat || unit.type.structure) return false;
+        return this.dispatchPlayer({
+            kind: 'removeItem',
+            team: 'player',
+            unitId,
+            itemId,
+            slot,
+        });
     }
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
@@ -7500,13 +7527,8 @@ export class Game {
             attackInterval: rs.attackInterval,
             splash: u.type.splashRadius,
             structure: !!u.type.structure,
-            items: u.items.length
-                ? u.items.map((id) => ({
-                      icon: ITEMS[id]?.icon ?? '?',
-                      name: ITEMS[id]?.name ?? id,
-                      desc: ITEMS[id]?.description ?? '',
-                  }))
-                : undefined,
+            unitId: u.id,
+            items: this.selectionItems(u, false),
             itemSlotCount:
                 u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
@@ -7528,7 +7550,7 @@ export class Game {
     private unitInfo(u: Unit): SelectionInfo {
         const rs = this.resolvedStats(u);
         const lv = this.levelInfo(u);
-        const itemIds = this.placement.intelOf(u)?.items ?? u.items;
+        const fogItems = this.placement.intelOf(u)?.items;
         const ownInteractive = u.team === 'player' && this.playerCanAct;
         return {
             name: u.type.name,
@@ -7547,13 +7569,8 @@ export class Game {
             xp: lv.xp,
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
-            items: itemIds.length
-                ? itemIds.map((id) => ({
-                      icon: ITEMS[id]?.icon ?? '?',
-                      name: ITEMS[id]?.name ?? id,
-                      desc: ITEMS[id]?.description ?? '',
-                  }))
-                : undefined,
+            unitId: u.id,
+            items: this.selectionItems(u, ownInteractive && !fogItems, fogItems),
             itemSlotCount:
                 u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
@@ -7577,6 +7594,27 @@ export class Game {
             ...this.commandTowerSelection(u),
             ...this.strongholdSelection(u),
         };
+    }
+
+    /** pack detail rune squares — removable only for this-deploy applications on own packs */
+    private selectionItems(
+        u: Unit,
+        allowRemove: boolean,
+        fogItems?: readonly string[],
+    ): SelectionInfo['items'] {
+        const itemIds = fogItems ?? u.items;
+        if (!itemIds.length) return undefined;
+        return itemIds.map((id, i) => ({
+            id,
+            icon: ITEMS[id]?.icon ?? '?',
+            name: ITEMS[id]?.name ?? id,
+            desc: ITEMS[id]?.description ?? '',
+            removable:
+                allowRemove &&
+                u.seat === this.humanSeat &&
+                !u.type.structure &&
+                u.itemAppliedRound[i] === this.round,
+        }));
     }
 
     /**

@@ -166,8 +166,9 @@ export class PlacementController {
      * type — empty when none; shown on every visible pack (including enemies)
      */
     ownedTechIcons: ((unit: Unit) => string[]) | null = null;
-    /** fires on every click that lands on a unit (used for item application) */
-    onSelect: ((unit: Unit) => void) | null = null;
+    /** fires on every click that lands on a unit (used for item application).
+     *  `previous` is the selection before this click (null if none). */
+    onSelect: ((unit: Unit, previous: Unit | null) => void) | null = null;
     /**
      * When set (armed inventory item), hover paints a valid-drop plate over
      * packs this returns true for. Null / false = no drop highlight.
@@ -1585,6 +1586,12 @@ export class PlacementController {
         const clicked = this.pickUnitAt(x, y, { skipExtras: carrying });
         // selecting: any own pack, or an enemy pack visible in intel
         if (clicked && !clicked.destroyed && (clicked.team === 'player' || this.enemyIntelVisible(clicked))) {
+            const previouslySelected = this.selectedUnit;
+            // armed rune drop: apply without selecting / picking up the pack
+            if (this.itemDropValid?.(clicked)) {
+                this.onSelect?.(clicked, previouslySelected);
+                return;
+            }
             if (clicked === this.selectedUnit && !this.formationActive) {
                 if (this.isMovable(clicked)) {
                     if (!this.carryingSelected) {
@@ -1608,7 +1615,7 @@ export class PlacementController {
                 this.rectFormation = false;
                 this.carryingSelected = false; // first click only selects
             }
-            this.onSelect?.(clicked);
+            this.onSelect?.(clicked, previouslySelected);
             return;
         }
         // empty ground: drop the carried formation there — all packs or none

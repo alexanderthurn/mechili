@@ -93,7 +93,16 @@ export interface SelectionInfo {
     alive: number;
     total: number;
     /** equipped pack items, as squares in the panel */
-    items?: { icon: string; name: string; desc: string }[];
+    items?: {
+        icon: string;
+        name: string;
+        desc: string;
+        id?: string;
+        /** this-deploy only — drag off to return to bag */
+        removable?: boolean;
+    }[];
+    /** live pack id — needed to unequip a rune from the details panel */
+    unitId?: number;
     /** empty item slots accept an armed inventory item (own pack, build phase) */
     itemDropReady?: boolean;
     /** how many item circles to show (per unit type; empty pads unused) */
@@ -179,6 +188,10 @@ export class Hud {
     onArmItem: ((itemId: string, index: number) => void) | null = null;
     /** drop the armed inventory item onto the selected pack (panel empty slots) */
     onApplyArmedItem: (() => void) | null = null;
+    /** clear armed rune/spell (e.g. when starting a pack unequip drag) */
+    onCancelInventoryArm: (() => void) | null = null;
+    /** drag a this-deploy rune off the pack details slot back into the bag */
+    onRemoveItem: ((unitId: number, itemId: string, slot: number) => void) | null = null;
     /** while dragging a rune/spell from the strip — keep world hover in sync */
     onInventoryDragMove: ((clientX: number, clientY: number) => void) | null = null;
     /**
@@ -301,6 +314,17 @@ export class Hud {
         startY: number;
         moved: boolean;
     } | null = null;
+    /** press-drag a this-deploy rune off a pack details slot */
+    private unequipDrag: {
+        pointerId: number;
+        startX: number;
+        startY: number;
+        moved: boolean;
+        unitId: number;
+        itemId: string;
+        slot: number;
+        icon: string;
+    } | null = null;
 
     private readonly onInvDragMove = (e: PointerEvent) => {
         if (!this.invDrag || e.pointerId !== this.invDrag.pointerId) return;
@@ -332,6 +356,42 @@ export class Hud {
         });
     };
 
+    private readonly onUnequipDragMove = (e: PointerEvent) => {
+        if (!this.unequipDrag || e.pointerId !== this.unequipDrag.pointerId) return;
+        if (
+            !this.unequipDrag.moved &&
+            Math.hypot(e.clientX - this.unequipDrag.startX, e.clientY - this.unequipDrag.startY) > 6
+        ) {
+            this.unequipDrag.moved = true;
+            this.ensureUnequipGhost(this.unequipDrag.icon, e.clientX, e.clientY);
+        }
+        if (this.itemGhost && this.unequipDrag.moved) {
+            this.itemGhost.style.left = `${e.clientX - 20}px`;
+            this.itemGhost.style.top = `${e.clientY - 20}px`;
+        }
+    };
+
+    private readonly onUnequipDragEnd = (e: PointerEvent) => {
+        if (!this.unequipDrag || e.pointerId !== this.unequipDrag.pointerId) return;
+        if (e.type === 'pointerup' && e.button !== 0) return;
+        const drag = this.unequipDrag;
+        this.clearUnequipDragListeners();
+        this.unequipDrag = null;
+        this.clearUnequipGhost();
+        // touch: short tap only peeks the tooltip — remove via drag-off
+        // desktop: click or drag-off removes (release on same slot after a drag cancels)
+        if (!drag.moved) {
+            if (e.pointerType === 'touch' || inputMode() === 'touch') return;
+        } else {
+            const under = this.elementUnderDrag(e.clientX, e.clientY);
+            const backOnSame =
+                under?.closest?.<HTMLElement>('.item-sq.removable')?.dataset.itemSlot ===
+                String(drag.slot);
+            if (backOnSame) return;
+        }
+        this.onRemoveItem?.(drag.unitId, drag.itemId, drag.slot);
+    };
+
     /** hit-test under the cursor, ignoring the floating rune/spell ghost */
     private elementUnderDrag(clientX: number, clientY: number): Element | null {
         const ghost = this.itemGhost;
@@ -346,6 +406,30 @@ export class Hud {
         window.removeEventListener('pointermove', this.onInvDragMove, true);
         window.removeEventListener('pointerup', this.onInvDragEnd, true);
         window.removeEventListener('pointercancel', this.onInvDragEnd, true);
+    }
+
+    private clearUnequipDragListeners(): void {
+        window.removeEventListener('pointermove', this.onUnequipDragMove, true);
+        window.removeEventListener('pointerup', this.onUnequipDragEnd, true);
+        window.removeEventListener('pointercancel', this.onUnequipDragEnd, true);
+    }
+
+    private ensureUnequipGhost(icon: string, clientX: number, clientY: number): void {
+        if (!this.itemGhost) {
+            this.itemGhost = document.createElement('div');
+            this.itemGhost.className = 'inv-drag m-icon';
+            document.body.appendChild(this.itemGhost);
+        }
+        this.itemGhost.className = 'inv-drag m-icon unequipping';
+        applyIcon(this.itemGhost, icon);
+        this.itemGhost.style.left = `${clientX - 20}px`;
+        this.itemGhost.style.top = `${clientY - 20}px`;
+    }
+
+    private clearUnequipGhost(): void {
+        if (!this.itemGhost?.classList.contains('unequipping')) return;
+        this.itemGhost.remove();
+        this.itemGhost = null;
     }
     private lastInventoryKey = '';
     private lastEnemyInventoryKey = '';
@@ -371,6 +455,9 @@ export class Hud {
     };
 
     private beginInvDrag(_btn: HTMLElement, e: PointerEvent): void {
+        this.clearUnequipDragListeners();
+        this.unequipDrag = null;
+        this.clearUnequipGhost();
         this.clearInvDragListeners();
         this.invDrag = {
             pointerId: e.pointerId,
@@ -383,6 +470,26 @@ export class Hud {
         window.addEventListener('pointerup', this.onInvDragEnd, true);
         window.addEventListener('pointercancel', this.onInvDragEnd, true);
         this.onInventoryDragMove?.(e.clientX, e.clientY);
+    }
+
+    private beginUnequipDrag(
+        e: PointerEvent,
+        info: { unitId: number; itemId: string; slot: number; icon: string },
+    ): void {
+        this.clearInvDragListeners();
+        this.invDrag = null;
+        this.onCancelInventoryArm?.();
+        this.clearUnequipDragListeners();
+        this.unequipDrag = {
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            moved: false,
+            ...info,
+        };
+        window.addEventListener('pointermove', this.onUnequipDragMove, true);
+        window.addEventListener('pointerup', this.onUnequipDragEnd, true);
+        window.addEventListener('pointercancel', this.onUnequipDragEnd, true);
     }
 
     constructor(
@@ -510,6 +617,20 @@ export class Hud {
         this.panel.className = 'mechili-panel';
         this.panel.style.display = 'none';
         const infoSel = '.action-tile, .item-sq';
+        this.panel.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            const rem = (e.target as HTMLElement).closest<HTMLElement>('.item-sq.removable');
+            if (!rem?.dataset.itemId || rem.dataset.itemSlot === undefined || !rem.dataset.unitId) {
+                return;
+            }
+            e.preventDefault();
+            this.beginUnequipDrag(e, {
+                unitId: Number(rem.dataset.unitId),
+                itemId: rem.dataset.itemId,
+                slot: Number(rem.dataset.itemSlot),
+                icon: rem.dataset.ticon ?? '',
+            });
+        });
         this.panel.addEventListener('click', (e) => {
             // touch has no hover: first tap peeks at the info, second tap acts
             if (inputMode() === 'touch') {
@@ -1876,8 +1997,20 @@ export class Hud {
                               }"></span>`
                           );
                       }
-                      return (
-                          `<span class="item-sq m-icon" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(item.desc ?? item.name)}" data-ticon="${escapeAttr(item.icon)}"></span>`
+                          const removeHint =
+                              inputMode() === 'touch'
+                                  ? `Drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`
+                                  : `Click or drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`;
+                          return (
+                          `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                              item.removable
+                                  ? `${item.desc ?? item.name}\n${removeHint}`
+                                  : (item.desc ?? item.name),
+                          )}" data-ticon="${escapeAttr(item.icon)}"${
+                              item.removable && info.unitId !== undefined && item.id
+                                  ? ` data-item-id="${escapeAttr(item.id)}" data-item-slot="${i}" data-unit-id="${info.unitId}"`
+                                  : ''
+                          }></span>`
                       );
                   }).join('')}</div>`;
         // XP (or tower level) progress toward the next rank
@@ -2866,6 +2999,8 @@ export class Hud {
         this.hideBattleReport();
         this.clearInvDragListeners();
         this.invDrag = null;
+        this.clearUnequipDragListeners();
+        this.unequipDrag = null;
         this.itemGhost?.remove();
         this.itemGhost = null;
         this.cinemaHint?.remove();

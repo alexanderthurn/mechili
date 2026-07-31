@@ -665,6 +665,11 @@ export class Unit {
     consumed = false;
     /** the pack's equipped items (up to that type's itemSlotLimit) — permanent once its deployment ended */
     readonly items: string[] = [];
+    /**
+     * Parallel to {@link items}: round each rune was applied. Removable only
+     * while `itemAppliedRound[i] === current deploy round` (drag-off / removeItem).
+     */
+    readonly itemAppliedRound: number[] = [];
     /** flank spawn already happened once for this pack */
     flankSpawnDone = false;
     /** battle-only summon (spawn spell): removed when the battle ends */
