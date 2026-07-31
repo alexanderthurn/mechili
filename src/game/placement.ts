@@ -172,6 +172,11 @@ export class PlacementController {
      */
     forgeStatusIcons: ((unit: Unit) => { runes: string[]; spellIcon: string | null } | null) | null =
         null;
+    /**
+     * Forge strip stays on during battle; cinema (Shift+C) turns this off so
+     * the oven icons leave the world shot.
+     */
+    forgeStatusVisible = true;
     /** fires on every click that lands on a unit (used for item application).
      *  `previous` is the selection before this click (null if none). */
     onSelect: ((unit: Unit, previous: Unit | null) => void) | null = null;
@@ -1157,8 +1162,8 @@ export class PlacementController {
         for (const unit of this.units) {
             if (!this.enemyIntelVisible(unit)) continue;
             const world = this.intelWorldOf(unit);
-            // forge stays visible in battle (oven is locked / cooking)
-            const forge = this.forgeStatusIcons?.(unit);
+            // forge stays visible in battle (oven is locked / cooking), unless cinema
+            const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
             if (forge) {
                 placeStrip(
                     unit,
@@ -1182,7 +1187,7 @@ export class PlacementController {
                 if (this.units.some((u) => u.id === id)) continue;
                 const ghost = this.intelGhosts.get(id);
                 if (!ghost) continue;
-                const forge = this.forgeStatusIcons?.(ghost);
+                const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(ghost) : null;
                 if (forge) {
                     placeStrip(
                         ghost,

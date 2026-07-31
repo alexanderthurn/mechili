@@ -1,5 +1,5 @@
 import { buildingAbilities } from '../game/buildingAbilities';
-import { START_CARDS, ROUND_CARDS, roundCardIcon, type RoundCard, type StartCard } from '../game/cards';
+import { START_CARDS, ROUND_CARDS, roundCardIcon, startCardForgeIcons, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { forgeRecipesForRuneCard } from '../game/forgeRecipes';
 import { ITEMS } from '../game/items';
@@ -110,12 +110,20 @@ function esc(s: string): string {
 }
 
 function startCardFace(c: StartCard): string {
+    const forge = startCardForgeIcons(c);
+    const forgeRow =
+        forge.length > 0
+            ? `<div class="c-forge-spells" title="${esc(
+                  `Forge: ${forge.map((f) => f.name).join(' · ')}`,
+              )}">${forge.map((f) => iconHtml(f.icon, 'c-forge-spell-ico')).join('')}</div>`
+            : '';
     return (
         `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
         `<div class="c-title">${esc(c.title)}</div>` +
         `<div class="c-units">${esc(c.unitsLabel)}</div>` +
         `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
-        `<div class="c-desc">${esc(c.description)}</div>`
+        `<div class="c-desc">${esc(c.description)}</div>` +
+        forgeRow
     );
 }
 
@@ -148,8 +156,9 @@ function roundCardFace(c: RoundCard): string {
                                     .join('')}</div>`
                               : '';
                       const kind = row.ready ? 'bake' : 'path';
+                      const locked = row.locked ? ' locked' : '';
                       return (
-                          `<div class="c-forge-spell ${kind}" title="${esc(row.spellName)}">` +
+                          `<div class="c-forge-spell ${kind}${locked}" title="${esc(row.spellName)}">` +
                           `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
                           under +
                           `</div>`
@@ -376,7 +385,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="specialists">
     <h2>Specialists</h2>
-    <p class="mh-sub">Before round one, each player picks a specialist. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.</p>
+    <p class="mh-sub">Before round one, each player picks a specialist. It sets your starting army, HP pool, a permanent speciality, and three Stronghold forge spells (weak / mid / strong). Teammates share the union of their forge spells.</p>
     <select class="mh-card-select" id="mh-specialists-select" aria-label="Choose a specialist">
       ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>

@@ -2663,6 +2663,30 @@ ${fontFaceCss()}
     box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 18px rgba(0, 255, 102, 0.4);
     animation: forge-pulse-ready 1.25s ease-in-out infinite;
 }
+.mechili-cards .c-forge-spell.path.locked .c-forge-spell-ico,
+.inv-drag .inv-drag-spell.path.locked .inv-drag-spell-ico,
+.forge-slot-preview .inv-drag-spell.path.locked .inv-drag-spell-ico {
+    opacity: 0.35;
+    filter: grayscale(0.85);
+}
+.forge-tile-locked {
+    opacity: 0.4;
+    filter: grayscale(0.7);
+}
+.mechili-cards .c-forge-spells {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    justify-content: center;
+    margin-top: 4px;
+}
+.mechili-cards .c-forge-spells .c-forge-spell-ico {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
 @keyframes forge-pulse-partial {
     0%, 100% { transform: translateY(0); box-shadow: 0 0 0 1px rgba(255, 208, 64, 0.25), 0 0 10px rgba(255, 208, 64, 0.22); }
     50% { transform: translateY(-1px); box-shadow: 0 0 0 2px rgba(255, 208, 64, 0.45), 0 0 18px rgba(255, 208, 64, 0.4); }

@@ -3,10 +3,28 @@
  * — a starting army (equal total value), a starting HP pool, a permanent
  * speciality, and possibly pack items. Between rounds, {@link ROUND_CARDS}
  * offer runes plus a few non-forgeable extras (rally, sell, Flanky).
+ *
+ * Each specialist also unlocks a small set of Stronghold forge spells
+ * ({@link StartCard.forgeSpells}); teammates share the union of those lists.
  */
 
 import { ITEMS } from './items';
-import { RALLY_ROUTE_ID, SELL_UNIT_ID, TACTICS } from './tactics';
+import {
+    ACID_ID,
+    BIG_METEOR_ID,
+    DRAGON_ID,
+    FIRE_SPILL_ID,
+    HAMMER_ID,
+    METEOR_SHOWER_ID,
+    OIL_SPILL_ID,
+    POISON_CLOUD_ID,
+    RALLY_ROUTE_ID,
+    SELL_UNIT_ID,
+    SPAWN_CROWS_ID,
+    SPAWN_DWARVES_ID,
+    STORM_ID,
+    TACTICS,
+} from './tactics';
 
 export type SpecialityId = 'air' | 'costControl' | 'elite' | 'archer' | 'addi' | 'flanky';
 
@@ -172,7 +190,22 @@ export interface StartCard {
     speciality: SpecialityId;
     /** pack items granted into the player's inventory */
     items?: string[];
+    /**
+     * Stronghold forge spells this specialist unlocks (tactic ids).
+     * Teammates share the union. V1: one single, one pair, one triple.
+     */
+    forgeSpells: string[];
     description: string;
+}
+
+/** atlas icons for a specialist's forge spell row */
+export function startCardForgeIcons(card: StartCard): { icon: string; name: string }[] {
+    const out: { icon: string; name: string }[] = [];
+    for (const id of card.forgeSpells) {
+        const t = TACTICS[id];
+        if (t) out.push({ icon: t.icon, name: t.name });
+    }
+    return out;
 }
 
 /** starter packs + the specialist's signature unit */
@@ -198,6 +231,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Crow Riders · 1× Dwarves',
         startingHp: 1800,
         speciality: 'air',
+        forgeSpells: [SPAWN_CROWS_ID, METEOR_SHOWER_ID, DRAGON_ID],
         description: 'Air units get +12% attack and HP.',
     },
     {
@@ -208,6 +242,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
         startingHp: 2400,
         speciality: 'costControl',
+        forgeSpells: [POISON_CLOUD_ID, STORM_ID, HAMMER_ID],
         description: 'All units −12% attack and HP, but +100 supply every round.',
     },
     {
@@ -218,8 +253,9 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '1× Ballista · 1× Dwarves',
         startingHp: 1700,
         speciality: 'elite',
+        forgeSpells: [FIRE_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
         description:
-            'Recruiting at level 2 is permanently on, free of the switch fee (units still pay their level premium). +100 supply in round 1.',
+            'Recruiting at level 2. +100 supply in round 1.',
     },
     {
         id: 'archer',
@@ -229,6 +265,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '3× Archers · 2× Dwarves',
         startingHp: 2000,
         speciality: 'archer',
+        forgeSpells: [ACID_ID, STORM_ID, DRAGON_ID],
         description: 'A free level-3 Archer arrives in round 2.',
     },
     {
@@ -240,6 +277,7 @@ export const START_CARDS: StartCard[] = [
         startingHp: 2000,
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
+        forgeSpells: [OIL_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
         description: '3× Valor rune: +15% attack and HP for one pack each.',
     },
     {
@@ -250,6 +288,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Dwarves · 2× Archers',
         startingHp: 2000,
         speciality: 'flanky',
-        description: 'First-time flank spawns take half the time (2.5s).',
+        forgeSpells: [SPAWN_DWARVES_ID, METEOR_SHOWER_ID, DRAGON_ID],
+        description: 'First-time flank spawns take half the time.',
     },
 ];

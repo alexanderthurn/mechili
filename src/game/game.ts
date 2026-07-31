@@ -36,6 +36,7 @@ import {
     forgeSeatCanInsert,
     forgeTeamCapacity,
     resolveForge,
+    unionForgeSpellPools,
     type ForgeSlot,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
@@ -732,6 +733,7 @@ export class Game {
      * Call with `true` again after any phase transition that might re-show deploy chrome.
      */
     private applyCinemaWorld(hide: boolean): void {
+        this.placement.forgeStatusVisible = !hide;
         if (hide) {
             this.placement.deselect();
             this.selectedActor = null;
@@ -5193,6 +5195,8 @@ export class Game {
     } {
         const runeId = c.items?.length === 1 ? c.items[0]! : null;
         const owned = runeId ? this.ownedRunesForCardPreview() : [];
+        const pool = this.teamForgePool('player');
+        const showLocked = this.settings.forgeShowLockedRecipes;
         return {
             id: c.id,
             title: c.title,
@@ -5200,7 +5204,9 @@ export class Game {
             cost: c.cost,
             affordable: this.economy.balance(this.humanSeat) >= c.cost,
             icon: roundCardIcon(c),
-            forgeRows: runeId ? forgeRecipesForRuneCard(runeId, owned) : undefined,
+            forgeRows: runeId
+                ? forgeRecipesForRuneCard(runeId, owned, pool, showLocked)
+                : undefined,
         };
     }
 
@@ -5995,7 +6001,8 @@ export class Game {
         if (this.round <= 1) return;
         for (const team of ['player', 'enemy'] as const) {
             const oven = this.forgeSlots[team]!;
-            const result = resolveForge(oven);
+            const pool = this.teamForgePool(team);
+            const result = resolveForge(oven, pool);
             if (result.tacticId) {
                 for (const seat of seatIdsOf(this.seats, team)) {
                     this.tacticInventory[seat]!.push(result.tacticId);
@@ -6008,6 +6015,15 @@ export class Game {
                 forgeTeamCapacity(seatIdsOf(this.seats, team).length),
             );
         }
+    }
+
+    /** union of forge spells unlocked by specialists on this side */
+    private teamForgePool(team: Team): string[] {
+        return unionForgeSpellPools(
+            ...seatIdsOf(this.seats, team).map(
+                (seat) => this.starterCardOfSeat(seat)?.forgeSpells,
+            ),
+        );
     }
 
     /** world strip over the Stronghold: forge runes + spell that will bake */
@@ -6031,7 +6047,7 @@ export class Game {
             if (icon) runes.push(icon);
         }
         if (runes.length === 0) return null;
-        const result = resolveForge(slots);
+        const result = resolveForge(slots, this.teamForgePool(team));
         const spellIcon = result.tacticId ? (TACTICS[result.tacticId]?.icon ?? null) : null;
         return { runes, spellIcon };
     }
@@ -6057,7 +6073,14 @@ export class Game {
         const oven = this.forgeSlots.player
             .filter((s): s is ForgeSlot => !!s)
             .map((s) => s.itemId);
-        this.hud.setItemGhostForgePreview(forgePreviewView(oven, this.armedItem));
+        this.hud.setItemGhostForgePreview(
+            forgePreviewView(
+                oven,
+                this.armedItem,
+                this.teamForgePool('player'),
+                this.settings.forgeShowLockedRecipes,
+            ),
+        );
     }
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
@@ -8036,25 +8059,30 @@ export class Game {
             : live;
         const slotCount = snapIds?.length ?? live.length;
         const ovenEmpty = !fogged && live.every((s) => s === null);
+        const pool = this.teamForgePool(team);
+        const showLocked = this.settings.forgeShowLockedRecipes;
         const suggestions =
             ovenEmpty && canBuy && !this.armedItem
-                ? forgeRecipesCraftableFromBag(this.itemInventory[this.humanSeat] ?? []).map(
-                      (r) => ({
-                          tacticId: r.tacticId,
-                          icon: r.spellIcon,
-                          name: r.spellName,
-                          desc: r.spellDesc,
-                          itemIds: r.ingredients,
-                      }),
-                  )
+                ? forgeRecipesCraftableFromBag(
+                      this.itemInventory[this.humanSeat] ?? [],
+                      pool,
+                  ).map((r) => ({
+                      tacticId: r.tacticId,
+                      icon: r.spellIcon,
+                      name: r.spellName,
+                      desc: r.spellDesc,
+                      itemIds: r.ingredients,
+                  }))
                 : [];
-        const bakeResult = resolveForge(hintSlots);
+        const bakeResult = resolveForge(hintSlots, pool);
         const bakeTactic = bakeResult.tacticId ? TACTICS[bakeResult.tacticId] : null;
         out.forge = {
             slotCount,
             dropReady: !fogged && this.canDropForgeOn(u),
-            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next'),
+            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
             suggestions,
+            spellPool: pool,
+            showLockedRecipes: showLocked,
             bake: bakeTactic
                 ? {
                       icon: bakeTactic.icon,

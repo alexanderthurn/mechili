@@ -1,9 +1,8 @@
 import type { Application } from 'pixi.js';
-import { SHOP_UNIT_IDS, unitUnlockCost, type StartCard } from '../game/cards';
+import { SHOP_UNIT_IDS, startCardForgeIcons, unitUnlockCost, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
-    forgeHowItWorksNote,
     forgePreviewView,
     forgeRecipeMatch,
     type ForgePreviewView,
@@ -137,6 +136,10 @@ export interface SelectionInfo {
         }[];
         /** spell that would bake from the current tray (if any) */
         bake?: { icon: string; name: string; desc: string };
+        /** tactic ids this side's specialists unlock */
+        spellPool?: string[];
+        /** show greyed non-pool recipes in help / previews */
+        showLockedRecipes?: boolean;
         /** parallel to slotCount; null = empty */
         slots: ({
             icon: string;
@@ -319,6 +322,8 @@ export class Hud {
     private forgeDetailViaHover = false;
     /** item ids currently in the selected Stronghold forge (for help highlighting) */
     private lastForgeOvenIds: string[] = [];
+    private lastForgeSpellPool: string[] = [];
+    private lastForgeShowLocked = false;
     private playerHpFill!: HTMLDivElement;
     private enemyHpFill!: HTMLDivElement;
     private playerHpVal!: HTMLSpanElement;
@@ -1607,7 +1612,7 @@ export class Hud {
     setItemGhostForgePreview(preview: ForgePreviewView | null): void {
         const key = preview
             ? `${preview.bakeIcon ?? ''}|${preview.paths
-                  .map((p) => `${p.spellIcon}:${p.missingIcons.join('+')}`)
+                  .map((p) => `${p.spellIcon}:${p.missingIcons.join('+')}:${p.locked ? 'L' : ''}`)
                   .join(';')}`
             : '';
         if (key === this.forgeGhostPreviewKey) return;
@@ -1635,8 +1640,9 @@ export class Hud {
             const missing = p.missingIcons
                 .map((ico) => iconHtml(ico, 'inv-drag-miss'))
                 .join('');
+            const locked = p.locked ? ' locked' : '';
             cols.push(
-                `<div class="inv-drag-spell path">` +
+                `<div class="inv-drag-spell path${locked}">` +
                     `${iconHtml(p.spellIcon, 'inv-drag-spell-ico')}` +
                     `<div class="inv-drag-missing">${missing}</div>` +
                     `</div>`,
@@ -1689,7 +1695,12 @@ export class Hud {
             this.hideForgeSlotHoverPreview();
             return;
         }
-        const view = forgePreviewView(this.lastForgeOvenIds);
+        const view = forgePreviewView(
+            this.lastForgeOvenIds,
+            null,
+            this.lastForgeSpellPool,
+            this.lastForgeShowLocked,
+        );
         if (!view.bakeIcon && view.paths.length === 0) {
             this.hideForgeSlotHoverPreview();
             return;
@@ -2056,12 +2067,16 @@ export class Hud {
             this.unitSheetAutoKey = null;
             if (this.phoneTab === 'unit') this.setPhoneTab(null);
             this.lastForgeOvenIds = [];
+            this.lastForgeSpellPool = [];
+            this.lastForgeShowLocked = false;
             this.hideForgeSlotHoverPreview();
             return;
         }
         this.lastForgeOvenIds = (info.forge?.slots ?? [])
             .map((s) => s?.id)
             .filter((id): id is string => !!id);
+        this.lastForgeSpellPool = info.forge?.spellPool ?? [];
+        this.lastForgeShowLocked = !!info.forge?.showLockedRecipes;
         this.panel.style.display = 'block';
         const key = JSON.stringify(info);
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
@@ -2302,7 +2317,9 @@ export class Hud {
                     `data-ticon="${escapeAttr(forge.bake.icon)}"></span>`
                   : '') +
               `</div>` +
-              `<div class="forge-hint">${escapeHtml(forge.hint)}</div>` +
+              (forge.hint
+                  ? `<div class="forge-hint">${escapeHtml(forge.hint)}</div>`
+                  : '') +
               `</div>`;
         // XP (or tower level) progress toward the next rank
         const xpBarPct = info.structure
@@ -2862,12 +2879,22 @@ export class Hud {
 
     /** the face of a specialist card (static data only — safe for innerHTML) */
     private startCardFace(c: StartCard): string {
+        const forge = startCardForgeIcons(c);
+        const forgeRow =
+            forge.length > 0
+                ? `<div class="c-forge-spells" title="${escapeAttr(
+                      `Forge: ${forge.map((f) => f.name).join(' · ')}`,
+                  )}">${forge
+                      .map((f) => iconHtml(f.icon, 'c-forge-spell-ico'))
+                      .join('')}</div>`
+                : '';
         return (
             `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
             `<div class="c-title">${c.title}</div>` +
             `<div class="c-units">${c.unitsLabel}</div>` +
             `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
-            `<div class="c-desc">${c.description}</div>`
+            `<div class="c-desc">${c.description}</div>` +
+            forgeRow
         );
     }
 
@@ -3093,9 +3120,10 @@ export class Hud {
         if (this.forgeDetailOverlay) this.forgeDetailOverlay.remove();
 
         const oven = this.lastForgeOvenIds;
-        const rows = forgeHelpRows();
+        const rows = forgeHelpRows(this.lastForgeSpellPool, this.lastForgeShowLocked);
         // ready / partial first so matches fill the top of the grid
         const ranked = [...rows].sort((a, b) => {
+            if (!!a.locked !== !!b.locked) return a.locked ? 1 : -1;
             const rank = (r: (typeof rows)[number]) => {
                 const m = forgeRecipeMatch(r.ingredients, oven);
                 return m === 'ready' ? 0 : m === 'partial' ? 1 : 2;
@@ -3105,19 +3133,20 @@ export class Hud {
         const tiles = ranked
             .map((r) => {
                 const match = forgeRecipeMatch(r.ingredients, oven);
-                const matchClass =
-                    match === 'ready'
-                        ? ' forge-tile-ready'
-                        : match === 'partial'
-                          ? ' forge-tile-partial'
-                          : '';
+                const matchClass = r.locked
+                    ? ' forge-tile-locked'
+                    : match === 'ready'
+                      ? ' forge-tile-ready'
+                      : match === 'partial'
+                        ? ' forge-tile-partial'
+                        : '';
                 const ings = r.ingredientIcons.map((ico) => iconHtml(ico, 'forge-ing')).join('');
                 return (
                     `<div class="forge-tile${matchClass}" title="${escapeAttr(r.spellDesc)}">` +
                     `<div class="forge-tile-ings">${ings}</div>` +
                     `<span class="forge-arrow">→</span>` +
                     `${iconHtml(r.spellIcon, 'forge-spell')}` +
-                    `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
+                    `<div class="forge-tile-name">${escapeHtml(r.spellName)}${r.locked ? ' (locked)' : ''}</div>` +
                     `</div>`
                 );
             })
@@ -3129,7 +3158,6 @@ export class Hud {
             `<div class="settings-panel forge-panel">` +
             `<button type="button" class="settings-close" aria-label="Close">&times;</button>` +
             `<div class="settings-panel-title">Forge recipes</div>` +
-            `<p class="forge-group-note">${escapeHtml(forgeHowItWorksNote())}</p>` +
             `<div class="forge-tile-grid">${tiles}</div></div>`;
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay || (e.target as HTMLElement).closest('.settings-close')) {
@@ -3171,6 +3199,7 @@ export class Hud {
                 spellName: string;
                 ready: boolean;
                 ingredients: { itemId: string; icon: string; owned: boolean }[];
+                locked?: boolean;
             }[];
         }[],
         skipReward: number,
@@ -3200,8 +3229,9 @@ export class Hud {
                                                     .join('')}</div>`
                                               : '';
                                       const kind = row.ready ? 'bake' : 'path';
+                                      const locked = row.locked ? ' locked' : '';
                                       return (
-                                          `<div class="c-forge-spell ${kind}" title="${escapeAttr(row.spellName)}">` +
+                                          `<div class="c-forge-spell ${kind}${locked}" title="${escapeAttr(row.spellName)}">` +
                                           `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
                                           under +
                                           `</div>`
