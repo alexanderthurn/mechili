@@ -1176,74 +1176,62 @@ export class PlacementController {
     }
 
     private itemBadgeMaterial(iconId: string): SpriteMaterial {
-        let material = this.itemBadgeMaterials.get(iconId);
+        // style tag busts the cache when the paint/depth recipe changes
+        const key = `${iconId}|solid`;
+        let material = this.itemBadgeMaterials.get(key);
         if (!material) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d')!;
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(32, 32, 30, 0, Math.PI * 2);
-            ctx.clip();
-            const ok = drawIcon(ctx, iconId, 0, 0, 64);
-            ctx.restore();
-            if (!ok) {
-                ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
-                ctx.beginPath();
-                ctx.arc(32, 32, 28, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            const texture = new CanvasTexture(canvas);
-            texture.colorSpace = SRGBColorSpace;
+            const texture = this.paintBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
-                depthWrite: false,
-                transparent: true,
+                // cut out the square corners; disc itself is opaque and depth-writing
+                transparent: false,
+                alphaTest: 0.5,
+                depthTest: true,
+                depthWrite: true,
             });
-            this.itemBadgeMaterials.set(iconId, material);
+            this.itemBadgeMaterials.set(key, material);
         }
-        // revive depth testing if an older always-on-top material is still cached
-        material.depthTest = true;
-        material.depthWrite = false;
         return material;
     }
 
-    /** atlas icon with a circular plate frame matching items — brass tint, depth-tested */
+    /** atlas icon on a solid circular plate — brass tint, depth-tested */
     private techBadgeMaterial(iconId: string): SpriteMaterial {
-        // style tag busts the cache when the paint/tint recipe changes
-        const key = `${iconId}|brass|framed`;
+        const key = `${iconId}|brass|solid`;
         let material = this.techBadgeMaterials.get(key);
         if (!material) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d')!;
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(32, 32, 30, 0, Math.PI * 2);
-            ctx.clip();
-            const ok = drawIcon(ctx, iconId, 0, 0, 64);
-            ctx.restore();
-            if (!ok) {
-                ctx.fillStyle = 'rgba(24, 36, 20, 0.9)';
-                ctx.beginPath();
-                ctx.arc(32, 32, 28, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            const texture = new CanvasTexture(canvas);
-            texture.colorSpace = SRGBColorSpace;
+            const texture = this.paintBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
-                depthWrite: false,
-                transparent: true,
+                transparent: false,
+                alphaTest: 0.5,
+                depthTest: true,
+                depthWrite: true,
                 color: THEME.ui.brassLight,
             });
-            if (ok) this.techBadgeMaterials.set(key, material);
+            this.techBadgeMaterials.set(key, material);
         }
-        material.depthTest = true;
-        material.depthWrite = false;
         return material;
+    }
+
+    /** opaque circular plate + atlas icon; corners stay transparent for alphaTest */
+    private paintBadgeTexture(iconId: string): CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        ctx.beginPath();
+        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.fillStyle = THEME.ui.techBuyBg;
+        ctx.fill();
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.clip();
+        drawIcon(ctx, iconId, 0, 0, 64);
+        ctx.restore();
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        return texture;
     }
 
     /**
