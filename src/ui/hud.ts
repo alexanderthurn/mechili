@@ -2485,7 +2485,7 @@ export class Hud {
         this.roundEl.textContent = waitingForPeer
             ? 'Waiting for opponent'
             : round === 0
-              ? 'Specialists'
+              ? DISPLAY.commanders
               : `Round ${round}`;
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -2909,7 +2909,7 @@ export class Hud {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose your specialist</div>` +
+            `<div class="cards-title">Choose your ${DISPLAY.commander.toLowerCase()}</div>` +
             (note ? `<div class="cards-note"></div>` : '') +
             `<div class="cards-row">` +
             cards

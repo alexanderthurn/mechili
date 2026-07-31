@@ -621,7 +621,7 @@ menu.innerHTML = `
         <div class="m-field-grid">
             <label class="m-field">Deployment (s)<input type="number" class="cg-build" min="5" max="600" step="5"></label>
             <label class="m-field">Battle (s)<input type="number" class="cg-battle" min="5" max="600" step="5"></label>
-            <label class="m-field">Specialist (s)<input type="number" class="cg-specialist" min="3" max="120" step="1"></label>
+            <label class="m-field">Commander (s)<input type="number" class="cg-specialist" min="3" max="120" step="1"></label>
             <label class="m-field">Round card (s)<input type="number" class="cg-card" min="3" max="120" step="1"></label>
         </div>
         <label class="m-field">Horde

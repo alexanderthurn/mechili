@@ -516,7 +516,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
             rows: [
                 { label: 'Deployment phase', value: fmtTimer(settings.buildTimeSeconds) },
                 { label: 'Battle phase', value: fmtTimer(settings.battleTimeSeconds) },
-                { label: 'Specialist pick', value: fmtTimer(settings.specialistTimeSeconds) },
+                { label: `${DISPLAY.commander} pick`, value: fmtTimer(settings.specialistTimeSeconds) },
                 { label: 'Round card pick', value: fmtTimer(settings.cardTimeSeconds) },
                 { label: 'Starting HP', value: `${settings.startingHp}` },
             ],

@@ -393,9 +393,9 @@ app.innerHTML = `
   </section>
 
   <section class="mh-section" id="specialists">
-    <h2>Specialists</h2>
-    <p class="mh-sub">Before round one, each player picks a specialist. It sets your starting army, HP pool, a permanent speciality, and three Stronghold forge spells (weak / mid / strong). Teammates share the union of their forge spells.</p>
-    <select class="mh-card-select" id="mh-specialists-select" aria-label="Choose a specialist">
+    <h2>${DISPLAY.commanders}</h2>
+    <p class="mh-sub">Before round one, each player picks a ${DISPLAY.commander.toLowerCase()}. It sets your starting army, HP pool, a permanent speciality, and three Stronghold forge ${DISPLAY.tactics.toLowerCase()} (weak / mid / strong). Teammates share the union of their forge ${DISPLAY.tactics.toLowerCase()}.</p>
+    <select class="mh-card-select" id="mh-specialists-select" aria-label="Choose a ${DISPLAY.commander.toLowerCase()}">
       ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>
     <div class="mechili-cards">

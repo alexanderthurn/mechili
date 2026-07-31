@@ -349,7 +349,7 @@ export const START_CARDS: StartCard[] = [
     },
     {
         id: 'archer',
-        title: 'Archer Specialist',
+        title: 'Archer Commander',
         portrait: 'spec-archer',
         units: ['archer', 'archer', 'archer', 'dwarf', 'dwarf'],
         unitsLabel: '3× Archers · 2× Dwarves',

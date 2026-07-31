@@ -24,7 +24,7 @@ for the desktop / Steam client.
 
 ## How it plays
 
-- **Specialists** — before round one, each player picks a specialist. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.
+- **Commanders** — before round one, each player picks a commander. It sets your starting army, HP pool, and a permanent speciality for the rest of the match.
 - **Deployment** — buy packs, level them with banked XP, buy talents and building upgrades, equip runes, place wards and fire bolts; position everything on your side of the grid (flanks unlock after round 1), hidden from the enemy until the fight starts.
 - **Round cards** — from round two onward there is a chance to draft from a random offer. Cards grant packs, runes, or spell charges.
 - **Battle** — fully automatic: units march, fight, and cast. Survivors damage the enemy commander by their remaining value; losing a command tower debuffs your army for a while. First to 0 HP loses.
@@ -38,7 +38,7 @@ Match rules (map, timers, economy, tower debuffs) live in one JSON-serializable 
 
 Default values from `src/game/settings.ts` (`DEFAULT_SETTINGS` / `DEFAULT_HORDE`) — the same numbers rendered live on [melodan.com/#settings](https://melodan.com/#settings). Everything here is tunable in code.
 
-**Timers & HP** — Deployment 90s · Battle 90s · Specialist pick 15s · Round card pick 15s · Starting HP 2000.
+**Timers & HP** — Deployment 90s · Battle 90s · Commander pick 15s · Round card pick 15s · Starting HP 2000.
 
 **Economy** — 200 supply round-1 income, +200/round growth (round N grants `startingSupply + (N-1) × growth`); talent cost escalation +200 per talent already owned of that unit type.
 

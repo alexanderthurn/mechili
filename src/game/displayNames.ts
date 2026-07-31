@@ -12,4 +12,7 @@ export const DISPLAY = {
     /** castable orders (`tactics.ts`) — strip, round cards, homepage */
     tactic: 'Spell',
     tactics: 'Spells',
+    /** pre-round-1 loadout pick (`cards.ts` StartCard) */
+    commander: 'Commander',
+    commanders: 'Commanders',
 } as const;
