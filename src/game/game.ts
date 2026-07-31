@@ -216,7 +216,7 @@ const CHEAT_TACTIC_GRANTS = [
     'dragonAttack',
 ] as const;
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
-const CHEAT_TACTIC_COPIES = 2;
+const CHEAT_TACTIC_COPIES = 1;
 
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
@@ -2152,7 +2152,7 @@ export class Game {
     /**
      * SP cheat (Shift+U): free-spawn every unit type on both sides during
      * deployment, bump HP sky-high, +10000 supply to both seats, +2 of each
-     * item and up to 2 of each test tactic for the human (resets uses so they
+     * item and 1 of each test spell for the human (resets uses so they
      * can be placed again), grant up to 3 new techs per press, then let the
      * AI re-spend. Ctrl+Shift+U also scrambles levels. Enemy moves stay
      * behind intel fog; newly granted enemy packs are snapshotted at land pose.
