@@ -1796,9 +1796,21 @@ export class PlacementController {
         return ground ? this.map.worldToCell(ground) : null;
     }
 
-    /** latest pointer position in canvas-local pixels (for tactic previews) */
+    /** latest pointer in canvas-local pixels (for tactic previews / drag hover) */
     get lastPointer(): { x: number; y: number } | null {
         return this.pointer;
+    }
+
+    /** update hover tracking from a client-space pointer (inventory strip drags) */
+    setPointerFromClient(clientX: number, clientY: number): void {
+        const rect = this.surface.getBoundingClientRect();
+        this.pointer = { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    /** canvas-local point from a client-space event */
+    clientToLocal(clientX: number, clientY: number): { x: number; y: number } {
+        const rect = this.surface.getBoundingClientRect();
+        return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
     /** all tiles under the footprint, or null when part of it is off the map */

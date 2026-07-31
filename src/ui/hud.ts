@@ -175,9 +175,24 @@ export class Hud {
     onBuyBoost: ((boost: 'attack' | 'hp') => void) | null = null;
     /** team modes only: gift supply to your ally, delivered at the start of next round */
     onSendSupply: ((amount: number) => void) | null = null;
+    /** pick up a pack item for placement onto a unit (press / drag) */
     onArmItem: ((itemId: string, index: number) => void) | null = null;
     /** drop the armed inventory item onto the selected pack (panel empty slots) */
     onApplyArmedItem: (() => void) | null = null;
+    /** while dragging a rune/spell from the strip — keep world hover in sync */
+    onInventoryDragMove: ((clientX: number, clientY: number) => void) | null = null;
+    /**
+     * End of a strip press-drag. `moved` is true when the pointer left the
+     * click-slop — then a miss cancels the arm; a short click stays armed.
+     */
+    onInventoryDragEnd:
+        | ((info: {
+              clientX: number;
+              clientY: number;
+              moved: boolean;
+              target: Element | null;
+          }) => void)
+        | null = null;
     onArmTactic: ((tacticId: string, index: number) => void) | null = null;
     onCancelTactic: (() => void) | null = null;
     onResetPlacedTactic: ((tacticId: string, routeId: number) => void) | null = null;
@@ -279,6 +294,59 @@ export class Hud {
     /** the tile whose info frame is open — touch taps that tile again to act */
     private actionInfoFor: HTMLElement | null = null;
     private itemGhost: HTMLDivElement | null = null;
+    /** press-drag from the left inventory strip (runes / spells) */
+    private invDrag: {
+        pointerId: number;
+        startX: number;
+        startY: number;
+        moved: boolean;
+    } | null = null;
+
+    private readonly onInvDragMove = (e: PointerEvent) => {
+        if (!this.invDrag || e.pointerId !== this.invDrag.pointerId) return;
+        if (
+            !this.invDrag.moved &&
+            Math.hypot(e.clientX - this.invDrag.startX, e.clientY - this.invDrag.startY) > 6
+        ) {
+            this.invDrag.moved = true;
+        }
+        this.onInventoryDragMove?.(e.clientX, e.clientY);
+        // panel empty slots light up while hovering during a press-drag
+        const under = this.elementUnderDrag(e.clientX, e.clientY);
+        this.setPanelItemDropReady(!!under?.closest?.('.item-sq.empty'));
+    };
+
+    private readonly onInvDragEnd = (e: PointerEvent) => {
+        if (!this.invDrag || e.pointerId !== this.invDrag.pointerId) return;
+        if (e.type === 'pointerup' && e.button !== 0) return;
+        const drag = this.invDrag;
+        this.clearInvDragListeners();
+        this.invDrag = null;
+        const target = this.elementUnderDrag(e.clientX, e.clientY);
+        this.setPanelItemDropReady(false);
+        this.onInventoryDragEnd?.({
+            clientX: e.clientX,
+            clientY: e.clientY,
+            moved: drag.moved,
+            target,
+        });
+    };
+
+    /** hit-test under the cursor, ignoring the floating rune/spell ghost */
+    private elementUnderDrag(clientX: number, clientY: number): Element | null {
+        const ghost = this.itemGhost;
+        const prev = ghost?.style.pointerEvents;
+        if (ghost) ghost.style.pointerEvents = 'none';
+        const el = document.elementFromPoint(clientX, clientY);
+        if (ghost) ghost.style.pointerEvents = prev || '';
+        return el;
+    }
+
+    private clearInvDragListeners(): void {
+        window.removeEventListener('pointermove', this.onInvDragMove, true);
+        window.removeEventListener('pointerup', this.onInvDragEnd, true);
+        window.removeEventListener('pointercancel', this.onInvDragEnd, true);
+    }
     private lastInventoryKey = '';
     private lastEnemyInventoryKey = '';
     /** player inventory strip folded flat (titles only) when it wraps past one column */
@@ -301,6 +369,21 @@ export class Hud {
         this.itemGhost.style.left = `${e.clientX - 20}px`;
         this.itemGhost.style.top = `${e.clientY - 20}px`;
     };
+
+    private beginInvDrag(_btn: HTMLElement, e: PointerEvent): void {
+        this.clearInvDragListeners();
+        this.invDrag = {
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            moved: false,
+        };
+        // window capture — survives inventory strip re-render when the item arms
+        window.addEventListener('pointermove', this.onInvDragMove, true);
+        window.addEventListener('pointerup', this.onInvDragEnd, true);
+        window.addEventListener('pointercancel', this.onInvDragEnd, true);
+        this.onInventoryDragMove?.(e.clientX, e.clientY);
+    }
 
     constructor(
         _app: Application,
@@ -487,19 +570,39 @@ export class Hud {
             }
         });
 
-        // unequipped pack items (left edge sidebar): click to pick up, click a pack to place
+        // unequipped pack items / spells (left edge): press to attach, release to drop
         this.inventoryEl = document.createElement('div');
         this.inventoryEl.className = 'mechili-sidebar left';
         this.inventoryEl.style.display = 'none';
-        this.inventoryEl.addEventListener('click', (e) => {
+        this.inventoryEl.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
             if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
-            const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-item]');
+            const itemBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+                '.inv-item[data-item]',
+            );
             if (itemBtn?.dataset.item) {
+                e.preventDefault();
+                this.beginInvDrag(itemBtn, e);
                 this.onArmItem?.(itemBtn.dataset.item, Number(itemBtn.dataset.index ?? -1));
-                this.setPhoneTab(null); // aiming happens on the field
+                this.setPhoneTab(null);
                 return;
             }
-            // touch: tapping a PLACED tactic frees it again (desktop right-clicks)
+            const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+                '.inv-item[data-tactic]:not(.placed)',
+            );
+            if (tacticBtn?.dataset.tactic) {
+                e.preventDefault();
+                this.beginInvDrag(tacticBtn, e);
+                this.onArmTactic?.(
+                    tacticBtn.dataset.tactic,
+                    Number(tacticBtn.dataset.index ?? -1),
+                );
+                this.setPhoneTab(null);
+            }
+        });
+        this.inventoryEl.addEventListener('click', (e) => {
+            // arming is pointerdown — only handle collapse + touch placed-reset here
+            if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
             if (inputMode() === 'touch') {
                 const placedBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
                     '.inv-item[data-tactic].placed',
@@ -509,15 +612,7 @@ export class Hud {
                         placedBtn.dataset.tactic,
                         Number(placedBtn.dataset.routeId),
                     );
-                    return;
                 }
-            }
-            const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-                '.inv-item[data-tactic]:not(.placed)',
-            );
-            if (tacticBtn?.dataset.tactic) {
-                this.onArmTactic?.(tacticBtn.dataset.tactic, Number(tacticBtn.dataset.index ?? -1));
-                this.setPhoneTab(null);
             }
         });
         this.inventoryEl.addEventListener('contextmenu', (e) => {
@@ -1209,7 +1304,7 @@ export class Hud {
               items
                   .map(
                       (i) =>
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}" title="${i.name}\nClick to pick up, then click a pack that has a free ${DISPLAY.item.toLowerCase()} slot (up to 2).">` +
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}" title="${i.name}\nPress and drag onto a pack (or click to pick up, then click a pack). Free ${DISPLAY.item.toLowerCase()} slot required.">` +
                           `${iconHtml(i.icon)}</button>`,
                   )
                   .join('')
@@ -2769,6 +2864,8 @@ export class Hud {
         this.hideCardOverlay();
         this.hideNotice();
         this.hideBattleReport();
+        this.clearInvDragListeners();
+        this.invDrag = null;
         this.itemGhost?.remove();
         this.itemGhost = null;
         this.cinemaHint?.remove();

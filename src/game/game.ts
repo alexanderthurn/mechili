@@ -1334,7 +1334,7 @@ export class Game {
         };
         this.hud.onArmItem = (itemId, index) => {
             if (!this.playerCanAct || this.armedTactic) return;
-            // click the armed slot again to disarm; another slot re-arms there
+            // press the armed slot again to disarm; another slot re-arms there
             if (this.armedItem === itemId && this.armedItemIndex === index) {
                 this.armedItem = null;
                 this.armedItemIndex = null;
@@ -1352,6 +1352,38 @@ export class Game {
                 // keep the pack selected so a second item can fill the other slot
             }
         };
+        this.hud.onInventoryDragMove = (clientX, clientY) => {
+            this.placement.setPointerFromClient(clientX, clientY);
+        };
+        this.hud.onInventoryDragEnd = ({ clientX, clientY, moved, target }) => {
+            if (!this.armedItem) {
+                if (this.armedTactic && moved) this.tryPlaceArmedTacticAtClient(clientX, clientY);
+                return;
+            }
+            // press-drag release: drop on details panel or 3D pack
+            if (moved) {
+                const overDetails =
+                    target?.closest?.('.item-sq.empty') || target?.closest?.('.mechili-panel');
+                if (overDetails) {
+                    const unit = this.placement.selectedUnit;
+                    if (unit && this.canDropArmedItemOn(unit) && this.applyItemTo(unit, this.armedItem)) {
+                        this.armedItem = null;
+                        this.armedItemIndex = null;
+                        return;
+                    }
+                }
+                if (this.tryDropArmedItemAtClient(clientX, clientY)) {
+                    this.armedItem = null;
+                    this.armedItemIndex = null;
+                    return;
+                }
+                // dragged onto nothing valid → cancel arm
+                this.armedItem = null;
+                this.armedItemIndex = null;
+                return;
+            }
+            // short click: stay armed for the existing click-to-place flow
+        };
         this.hud.onArmTactic = (tacticId, index) => {
             if (!this.playerCanAct) return;
             if (this.armedTactic === tacticId && this.armedTacticIndex === index) {
@@ -1359,6 +1391,7 @@ export class Game {
                 return;
             }
             this.armedItem = null;
+            this.armedItemIndex = null;
             this.placement.deselect();
             this.armedTactic = tacticId;
             this.armedTacticIndex = index;
@@ -5789,6 +5822,24 @@ export class Game {
         if (unit.seat !== this.humanSeat || unit.type.structure) return false;
         if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
         return !!ITEMS[this.armedItem];
+    }
+
+    /** press-drag release over the board — equip if the pack under the cursor is valid */
+    private tryDropArmedItemAtClient(clientX: number, clientY: number): boolean {
+        if (!this.armedItem || !this.playerCanAct) return false;
+        const local = this.placement.clientToLocal(clientX, clientY);
+        this.placement.setPointerFromClient(clientX, clientY);
+        const unit = this.placement.unitAtPoint(local.x, local.y);
+        if (!unit || !this.canDropArmedItemOn(unit)) return false;
+        return this.applyItemTo(unit, this.armedItem);
+    }
+
+    /** press-drag release — place the armed spell at the pointer (same as a map click) */
+    private tryPlaceArmedTacticAtClient(clientX: number, clientY: number): void {
+        if (!this.armedTactic || !this.playerCanAct) return;
+        const local = this.placement.clientToLocal(clientX, clientY);
+        this.placement.setPointerFromClient(clientX, clientY);
+        this.handleTacticGroundClick(local.x, local.y);
     }
 
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
