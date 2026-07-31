@@ -142,14 +142,18 @@ export function iconHtml(id: string, className = 'i', fallbackId = 'ui-unknown')
 export function applyIcon(el: HTMLElement, id: string, fallbackId = 'ui-unknown'): void {
     el.classList.add('m-icon');
     el.replaceChildren();
-    const css = iconCss(id, fallbackId);
-    for (const part of css.split(';')) {
-        const i = part.indexOf(':');
-        if (i < 0) continue;
-        const prop = part.slice(0, i).trim();
-        const val = part.slice(i + 1).trim();
-        if (prop && val) el.style.setProperty(prop, val);
-    }
+    // Set properties directly — do not split iconCss on ';'. Atlas paint URLs are
+    // data:image/webp;base64,... and a naive split truncates background-image.
+    const key = hasIcon(id) ? frameKey(id) : frameKey(fallbackId);
+    const f = atlas.frames[key];
+    if (!f) return;
+    const { x, y, w, h } = f.frame;
+    const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
+    const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
+    el.style.backgroundImage = `url(${atlasPaintUrl})`;
+    el.style.backgroundRepeat = 'no-repeat';
+    el.style.backgroundSize = `${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`;
+    el.style.backgroundPosition = `${posX}% ${posY}%`;
 }
 
 export function iconFrame(id: string): AtlasFrame['frame'] | null {
