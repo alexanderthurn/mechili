@@ -126,7 +126,7 @@ export const ROUND_CARDS: RoundCard[] = [
         title: 'Buyback Deal',
         cost: 25,
         tactics: ['sellUnit'],
-        description: 'One-shot tactic: sell one of your packs for a supply refund.',
+        description: 'One-shot spell: sell one of your packs for a supply refund.',
     },
     {
         id: 'spawnDwarves',

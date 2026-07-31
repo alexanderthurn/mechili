@@ -3550,7 +3550,7 @@ ${gamepadCursorStyles(u)}
         border-radius: 0;
     }
     .mechili-phonebar button { flex: 1; padding: 5px 4px; }
-    /* tabs share the bar with the actions: Shop/Tactics only while nothing
+    /* tabs share the bar with the actions: Shop/Spells only while nothing
        is selected; the Unit tab (and actions) take over on selection */
     .mechili-phonebar:not(.has-unit):not(.battle) .pb-shop { display: flex; }
     .mechili-phonebar:not(.has-unit):not(.battle).has-tactics .pb-tactics { display: flex; }

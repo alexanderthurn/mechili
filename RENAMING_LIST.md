@@ -12,6 +12,7 @@ Code still uses `item` / `tech` internally. Display strings live in `src/game/di
 | :--- | :--- | :--- |
 | Pack equippables (`items.ts`) | Items | **Runes** |
 | Unit research (`techCatalog.ts`) | Techs | **Talents** |
+| Castable orders (`tactics.ts`) | Tactics | **Spells** |
 
 ---
 

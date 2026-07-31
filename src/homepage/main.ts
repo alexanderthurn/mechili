@@ -121,7 +121,7 @@ function roundCardFace(c: RoundCard): string {
     const extras: string[] = [];
     if (c.unitsLabel) extras.push(c.unitsLabel);
     if (c.items?.length) extras.push(`${DISPLAY.items}: ${c.items.join(', ')}`);
-    if (c.tactics?.length) extras.push(`Tactics: ${c.tactics.join(', ')}`);
+    if (c.tactics?.length) extras.push(`${DISPLAY.tactics}: ${c.tactics.join(', ')}`);
     return (
         `<div class="c-title">${esc(c.title)}</div>` +
         (extras.length ? `<div class="c-units">${esc(extras.join(' · '))}</div>` : '') +
@@ -355,7 +355,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward there is a chance to draft from a random offer. Cards grant packs, ${DISPLAY.items.toLowerCase()}, or tactic charges.</p>
+    <p class="mh-sub">From round two onward there is a chance to draft from a random offer. Cards grant packs, ${DISPLAY.items.toLowerCase()}, or ${DISPLAY.tactic.toLowerCase()} charges.</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
       ${ROUND_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>
@@ -370,9 +370,9 @@ app.innerHTML = `
   </section>
 
   <section class="mh-section" id="tactics">
-    <h2>Tactics &amp; spells</h2>
-    <p class="mh-sub">These are the skills on your tactics strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle spells like the dragon’s fire breath. Some arrive as round cards; others come from buildings or specialities. Icons match what you see in-game.</p>
-    <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a tactic">
+    <h2>${DISPLAY.tactics}</h2>
+    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Some arrive as round cards; others come from buildings or specialities. Icons match what you see in-game.</p>
+    <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a ${DISPLAY.tactic.toLowerCase()}">
       ${ALL_TACTICS.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
     </select>
     <div class="mh-tactics" id="mh-tactics-grid">

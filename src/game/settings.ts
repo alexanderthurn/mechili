@@ -626,7 +626,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Ability cost',
                     value: `${settings.rallyRoute.abilityCost} supply, one-time`,
-                    note: 'Vanguard — grants one rally-route tactic charge',
+                    note: `Vanguard — grants one rally-route ${DISPLAY.tactic.toLowerCase()} charge`,
                 },
                 {
                     label: 'Boosts',

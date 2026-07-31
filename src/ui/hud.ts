@@ -602,14 +602,14 @@ export class Hud {
 
         this.fightBar.append(this.playerStackEl, this.topBar, this.enemyStackEl);
 
-        // one contextual bottom bar: sheet tabs (Shop/Tactics — phone only)
+        // one contextual bottom bar: sheet tabs (Shop/Spells — phone only)
         // while nothing is selected, unit actions once something is
         this.phoneBar = document.createElement('div');
         this.phoneBar.className = 'mechili-phonebar';
         const phoneTabs: ['shop' | 'unit' | 'tactics' | 'chat', string, string][] = [
             ['shop', 'ui-shop', 'Shop'],
             ['unit', 'ui-unit', 'Unit'],
-            ['tactics', 'ui-tactics', 'Tactics'],
+            ['tactics', 'ui-tactics', DISPLAY.tactics],
             ['chat', 'ui-chat', 'Chat'],
         ];
         for (const [tab, icon, label] of phoneTabs) {
@@ -1215,7 +1215,7 @@ export class Hud {
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? this.invSectionTitle('Tactics', tactics.length, total) +
+            ? this.invSectionTitle(DISPLAY.tactics, tactics.length, total) +
               tactics
                   .map((t) => {
                       const routeAttr = t.routeId !== undefined ? ` data-route-id="${t.routeId}"` : '';
@@ -1319,7 +1319,7 @@ export class Hud {
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? this.invSectionTitle('Enemy tactics', tactics.length, total) +
+            ? this.invSectionTitle(`Enemy ${DISPLAY.tactics.toLowerCase()}`, tactics.length, total) +
               tactics
                   .map(
                       (t) =>
@@ -1750,7 +1750,7 @@ export class Hud {
                 data: 'data-rallyroute="1"',
                 icon: 'tactic-rally',
                 title: 'Buy Rally Route',
-                desc: 'Add one rally-route charge to your tactics. Once per match.',
+                desc: `Add one rally-route charge to your ${DISPLAY.tactics.toLowerCase()}. Once per match.`,
                 cost: info.rallyRouteAbility.cost,
                 state: info.rallyRouteAbility.owned
                     ? 'owned'
