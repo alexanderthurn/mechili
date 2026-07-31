@@ -16,14 +16,12 @@ import {
     DRAGON_ID,
     FIRE_SPILL_ID,
     HAMMER_ID,
+    METEOR_SHOWER_ID,
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
-    RALLY_ROUTE_ID,
-    SELL_UNIT_ID,
     SPAWN_CROWS_ID,
     SPAWN_DWARVES_ID,
     STORM_ID,
-    METEOR_SHOWER_ID,
     TACTICS,
 } from './tactics';
 import { ITEMS } from './items';
@@ -95,8 +93,8 @@ function item(id: string): ForgeProduct {
 
 /**
  * Experimental table — unique ingredient multisets only.
- * Rune products + basic spells (rally/oil/sell) are always available;
- * other spells are specialist-gated.
+ * Rune products are always available; spells are specialist-gated.
+ * Rally / Buyback are not forgeable (Vanguard shop).
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
     // --- advanced runes (anyone) ---
@@ -107,10 +105,8 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     { ingredients: ['fire', 'fire', 'fire'], product: item('wrath'), priority: 1 }, // Berserk
     { ingredients: ['earth', 'earth', 'earth'], product: item('colossus'), priority: 1 }, // Mithril
 
-    // --- basic spells (1 base rune; always forgeable) ---
-    { ingredients: ['earth'], product: tactic(OIL_SPILL_ID), priority: 1 },
-    { ingredients: ['wind'], product: tactic(RALLY_ROUTE_ID), priority: 1 },
-    { ingredients: ['water'], product: tactic(SELL_UNIT_ID), priority: 1 },
+    // --- weak zone (2 different bases; specialist-gated) ---
+    { ingredients: ['earth', 'water'], product: tactic(OIL_SPILL_ID), priority: 1 },
 
     // --- summons (2 different base runes) ---
     { ingredients: ['earth', 'fire'], product: tactic(SPAWN_DWARVES_ID), priority: 1 },
@@ -128,13 +124,6 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     { ingredients: ['golden', 'fire'], product: tactic(METEOR_SHOWER_ID), priority: 1 }, // Sunstone + Fire
     { ingredients: ['fire', 'vigor'], product: tactic(BIG_METEOR_ID), priority: 1 }, // Fire + Giant Blood
 ];
-
-/** Basic spells anyone can forge (not specialist-gated). */
-const ALWAYS_FORGE_SPELLS = new Set<string>([
-    OIL_SPILL_ID,
-    RALLY_ROUTE_ID,
-    SELL_UNIT_ID,
-]);
 
 function ingredientKey(ingredients: readonly string[]): string {
     const m = countMultiset([...ingredients]);
@@ -203,10 +192,9 @@ export function isForgeSpellAllowed(tacticId: string, pool: ForgeSpellPool): boo
     return pool === 'all' || pool.includes(tacticId);
 }
 
-/** Rune products + basic spells are always allowed; other spells use the pool. */
+/** Rune products are always allowed; spells respect the specialist pool. */
 export function isForgeRecipeAllowed(recipe: ForgeRecipe, pool: ForgeSpellPool): boolean {
     if (recipe.product.kind === 'item') return true;
-    if (ALWAYS_FORGE_SPELLS.has(recipe.product.id)) return true;
     return isForgeSpellAllowed(recipe.product.id, pool);
 }
 

@@ -16,7 +16,7 @@ import {
     DRAGON_ID,
     FIRE_SPILL_ID,
     HAMMER_ID,
-    METEOR_SHOWER_ID,
+    OIL_SPILL_ID,
     POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
     SELL_UNIT_ID,
@@ -323,7 +323,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Crow Riders · 1× Dwarves',
         startingHp: 1800,
         speciality: 'air',
-        forgeSpells: [SPAWN_CROWS_ID, METEOR_SHOWER_ID, DRAGON_ID],
+        forgeSpells: [SPAWN_CROWS_ID, STORM_ID, DRAGON_ID],
         description: 'Air units get +12% attack and HP.',
     },
     {
@@ -334,7 +334,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
         startingHp: 2400,
         speciality: 'costControl',
-        forgeSpells: [POISON_CLOUD_ID, STORM_ID, HAMMER_ID],
+        forgeSpells: [OIL_SPILL_ID, FIRE_SPILL_ID, BIG_METEOR_ID],
         description: 'All units −12% attack and HP, but +100 supply every round.',
     },
     {
@@ -369,7 +369,7 @@ export const START_CARDS: StartCard[] = [
         startingHp: 2000,
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
-        forgeSpells: [SPAWN_DWARVES_ID, BIG_METEOR_ID, HAMMER_ID],
+        forgeSpells: [OIL_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
         description: '3× Valor rune: +15% attack and HP for one pack each.',
     },
     {
@@ -380,7 +380,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Dwarves · 2× Archers',
         startingHp: 2000,
         speciality: 'flanky',
-        forgeSpells: [SPAWN_DWARVES_ID, METEOR_SHOWER_ID, DRAGON_ID],
+        forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, DRAGON_ID],
         description: 'First-time flank spawns take half the time.',
     },
 ];
