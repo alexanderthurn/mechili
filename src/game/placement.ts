@@ -1077,7 +1077,8 @@ export class PlacementController {
 
     /**
      * One camera-aligned status strip over each visible pack:
-     * `[item?] · [item?] · tech · tech …` (items leftmost, plated; techs borderless).
+     * `[item?] · [item?] · tech · tech …` (items leftmost on circular plates;
+     * techs use the same atlas art as the details pane, no plate).
      * The upgrade arrow sits above this strip when both are present.
      */
     private updateStatusBadges(): void {
@@ -1192,7 +1193,7 @@ export class PlacementController {
         const key = `${iconId}|solid`;
         let material = this.itemBadgeMaterials.get(key);
         if (!material) {
-            const texture = this.paintBadgeTexture(iconId);
+            const texture = this.paintItemBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
                 // cut out the square corners; disc itself is opaque and depth-writing
@@ -1206,19 +1207,18 @@ export class PlacementController {
         return material;
     }
 
-    /** atlas icon on a solid circular plate — brass tint, depth-tested */
+    /** atlas icon as-is (same as details-pane tech tiles) — no plate, depth-tested */
     private techBadgeMaterial(iconId: string): SpriteMaterial {
-        const key = `${iconId}|brass|solid`;
+        const key = `${iconId}|atlas|flat`;
         let material = this.techBadgeMaterials.get(key);
         if (!material) {
-            const texture = this.paintBadgeTexture(iconId);
+            const texture = this.paintTechBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
                 transparent: false,
                 alphaTest: 0.5,
                 depthTest: true,
                 depthWrite: true,
-                color: THEME.ui.brassLight,
             });
             this.techBadgeMaterials.set(key, material);
         }
@@ -1226,7 +1226,7 @@ export class PlacementController {
     }
 
     /** opaque circular plate + atlas icon; corners stay transparent for alphaTest */
-    private paintBadgeTexture(iconId: string): CanvasTexture {
+    private paintItemBadgeTexture(iconId: string): CanvasTexture {
         const canvas = document.createElement('canvas');
         canvas.width = 64;
         canvas.height = 64;
@@ -1241,6 +1241,18 @@ export class PlacementController {
         ctx.clip();
         drawIcon(ctx, iconId, 0, 0, 64);
         ctx.restore();
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        return texture;
+    }
+
+    /** same atlas frame the HUD uses for tech action tiles — keep shading / cutouts */
+    private paintTechBadgeTexture(iconId: string): CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        drawIcon(ctx, iconId, 0, 0, 64);
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         return texture;
