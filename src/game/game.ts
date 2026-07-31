@@ -2151,7 +2151,7 @@ export class Game {
 
     /**
      * SP cheat (Shift+U): free-spawn every unit type on both sides during
-     * deployment, bump HP sky-high, +10000 supply to both seats, +2 of each
+     * deployment, bump HP sky-high, +10000 supply to both seats, +1 of each
      * item and 1 of each test spell for the human (resets uses so they
      * can be placed again), grant up to 3 new techs per press, then let the
      * AI re-spend. Ctrl+Shift+U also scrambles levels. Enemy moves stay
@@ -2166,7 +2166,7 @@ export class Game {
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.cheatGrantSupply(10_000);
         this.cheatGrantAllTactics();
-        this.cheatGrantAllItems(2);
+        this.cheatGrantAllItems(1);
         this.cheatGrantTechs(3);
         // sidebar intel: enemy bag unchanged by human-only item/tactic grants
         this.captureEnemyIntelSnapshot();
@@ -2427,7 +2427,7 @@ export class Game {
     }
 
     /** SP cheat (Shift+U): add `copies` of every pack item to the human seat. */
-    private cheatGrantAllItems(copies = 2): void {
+    private cheatGrantAllItems(copies = 1): void {
         const seat = this.humanSeat;
         for (const id of Object.keys(ITEMS)) {
             for (let i = 0; i < copies; i++) this.itemInventory[seat]!.push(id);
@@ -5148,10 +5148,19 @@ export class Game {
     }
 
     /** the left-side item strip: one square per item instance, hidden outside build.
-     *  Items are per-SEAT — this shows only MY OWN seat's pool, not my ally's. */
-    private inventoryView(): { id: string; icon: string; name: string; armed: boolean }[] {
+     *  Items are per-SEAT — this shows only MY OWN seat's pool, not my ally's.
+     *  Same ids are grouped (catalog order), like the spells strip. */
+    private inventoryView(): {
+        id: string;
+        icon: string;
+        name: string;
+        armed: boolean;
+        index: number;
+    }[] {
         if (!this.playerCanAct) return [];
-        return this.itemInventory[this.humanSeat]!.map((id, index) => {
+        const bag = this.itemInventory[this.humanSeat]!;
+        return this.sortedItemIndices(bag).map((index) => {
+            const id = bag[index]!;
             const item = ITEMS[id];
             return {
                 id,
@@ -5159,8 +5168,24 @@ export class Game {
                 name: item ? `${item.name} — ${item.description}` : id,
                 // duplicates share an id: highlight exactly the clicked slot
                 armed: this.armedItem === id && this.armedItemIndex === index,
+                index,
             };
         });
+    }
+
+    /** stable indices into `bag` grouped by {@link ITEMS} catalog order */
+    private sortedItemIndices(bag: readonly string[]): number[] {
+        const order = Object.keys(ITEMS);
+        const rank = (id: string) => {
+            const i = order.indexOf(id);
+            return i < 0 ? order.length : i;
+        };
+        return bag
+            .map((_, index) => index)
+            .sort((a, b) => {
+                const d = rank(bag[a]!) - rank(bag[b]!);
+                return d !== 0 ? d : a - b;
+            });
     }
 
     /** the left-side tactics strip: placed routes/oil + remaining slots */
@@ -5363,7 +5388,7 @@ export class Game {
             };
         };
         return {
-            items: items.map(mapItem),
+            items: this.sortedItemIndices(items).map((i) => mapItem(items[i]!)),
             tactics: tactics.map(mapTactic),
             sellAbility,
         };

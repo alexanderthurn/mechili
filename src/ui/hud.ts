@@ -1181,7 +1181,7 @@ export class Hud {
 
     /** the left-edge strip of unequipped items (one square each); empty list hides it */
     setInventory(
-        items: readonly { id: string; icon: string; name: string; armed: boolean }[],
+        items: readonly { id: string; icon: string; name: string; armed: boolean; index: number }[],
         tactics: readonly {
             id: string;
             icon: string;
@@ -1208,8 +1208,8 @@ export class Hud {
             ? this.invSectionTitle(DISPLAY.items, items.length, total) +
               items
                   .map(
-                      (i, index) =>
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${index}" title="${i.name}\nClick to pick up, then click a pack that has a free ${DISPLAY.item.toLowerCase()} slot (up to 2).">` +
+                      (i) =>
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}" title="${i.name}\nClick to pick up, then click a pack that has a free ${DISPLAY.item.toLowerCase()} slot (up to 2).">` +
                           `${iconHtml(i.icon)}</button>`,
                   )
                   .join('')
