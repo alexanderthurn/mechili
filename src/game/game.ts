@@ -2136,9 +2136,10 @@ export class Game {
     /**
      * SP cheat (U): free-spawn every unit type on both sides during
      * deployment (3 dwarf packs, 1 of each other type), bump HP sky-high,
-     * top up tactics, grant +5000 supply and one of each item to both sides,
-     * scramble levels, then let the AI re-spend — enemy moves stay behind
-     * intel fog; newly granted enemy packs are snapshotted at land pose.
+     * top up one of each tactic / +5000 supply / one of each item for the
+     * human seat only, scramble levels, then let the AI re-spend — enemy
+     * moves stay behind intel fog; newly granted enemy packs are snapshotted
+     * at land pose.
      */
     private cheatSpawnAllUnits(): void {
         if (this.phase !== 'build' || this.matchOver) return;
@@ -2150,7 +2151,7 @@ export class Game {
         this.cheatGrantSupply(5000);
         this.cheatGrantAllTactics();
         this.cheatGrantAllItems();
-        // sidebar intel: show the freshly granted bag without lifting pack fog
+        // sidebar intel: enemy bag unchanged by human-only grants above
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
@@ -2337,38 +2338,28 @@ export class Game {
     }
 
     /**
-     * SP cheat (U): top up every tactic's charge count so the whole strip is
-     * immediately usable with no cooldown wait — call again each round to
-     * keep testing a spell (e.g. dragon breath) back to back. NOT logged as
-     * an action, so it does not survive a reload/replay — press it again
-     * after one.
+     * SP cheat (U): add one charge of each test tactic to the human seat —
+     * press again to stack more. NOT logged as an action, so it does not
+     * survive a reload/replay — press it again after one.
      */
     private cheatGrantAllTactics(): void {
-        // comfortably above the highest cooldownRounds (3) so cooling charges
-        // never eat into the pool
-        const CHEAT_CHARGE_COUNT = 6;
-        for (let seat = 0; seat < this.seats.length; seat++) {
-            for (const id of CHEAT_TACTIC_GRANTS) {
-                const have = this.tacticInventory[seat]!.filter((t) => t === id).length;
-                for (let i = have; i < CHEAT_CHARGE_COUNT; i++) {
-                    this.tacticInventory[seat]!.push(id);
-                }
-            }
+        const seat = this.humanSeat;
+        for (const id of CHEAT_TACTIC_GRANTS) {
+            this.tacticInventory[seat]!.push(id);
         }
     }
 
-    /** SP cheat (U): +supply to every seat (same amount each press). */
+    /** SP cheat (U): +supply to the human seat only (same amount each press). */
     private cheatGrantSupply(amount = 5000): void {
-        for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
+        this.economy.credit(this.humanSeat, amount);
     }
 
-    /** SP cheat (U): ensure every seat's inventory has one of every pack item. */
+    /** SP cheat (U): ensure the human seat's inventory has one of every pack item. */
     private cheatGrantAllItems(): void {
-        for (let seat = 0; seat < this.seats.length; seat++) {
-            for (const id of Object.keys(ITEMS)) {
-                if (!this.itemInventory[seat]!.includes(id)) {
-                    this.itemInventory[seat]!.push(id);
-                }
+        const seat = this.humanSeat;
+        for (const id of Object.keys(ITEMS)) {
+            if (!this.itemInventory[seat]!.includes(id)) {
+                this.itemInventory[seat]!.push(id);
             }
         }
     }
