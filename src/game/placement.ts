@@ -18,6 +18,7 @@ import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
 import { itemIcon } from './items';
+import { getUnitVisualHeight } from './unitModels';
 import { CELL, cellKey, groundHeightAt, worldHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
 import {
@@ -57,6 +58,10 @@ const SELECT_COLOR = THEME.select;
 const SELECT_LIFT = 2.8;
 /** green tint for movable packs that are not currently selected */
 const MOVABLE_PLATE_OPACITY = 0.52;
+/** world size of status-strip item/tech sprites (full height; center sits mid-sprite) */
+const STATUS_BADGE_SIZE = 2.2;
+/** gap between mesh top and the bottom of the status badge */
+const STATUS_BADGE_CLEARANCE = 0.35;
 
 /**
  * The attack-range ring visual, shared by deployment selection and the
@@ -1100,7 +1105,7 @@ export class PlacementController {
                         this.scene.add(sprite);
                         this.itemBadges.push(sprite);
                     }
-                    sprite.scale.set(2.2, 2.2, 1);
+                    sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
                     sprite.material = this.itemBadgeMaterial(itemIconId);
                     sprite.renderOrder = 0;
                     const t = slot - mid;
@@ -1120,7 +1125,7 @@ export class PlacementController {
                         this.scene.add(sprite);
                         this.techBadges.push(sprite);
                     }
-                    sprite.scale.set(2.2, 2.2, 1);
+                    sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
                     sprite.material = this.techBadgeMaterial(iconId);
                     sprite.renderOrder = 0;
                     const t = slot - mid;
@@ -1158,14 +1163,21 @@ export class PlacementController {
 
     /**
      * World Y of the status strip (item + tech icons) just above a pack.
-     * Uses the same terrain + flight base as member meshes (`worldHeightAt` +
-     * `memberBaseY`), then a short lift past the scaled model top — large
-     * flyers (crow meshScale ~4) used to float icons far above the deploy hug.
+     * Uses terrain + flight base, then the cached real mesh height (local ×
+     * meshScale) so ground packs and flyers both clear the model top.
      */
     private statusStripY(unit: Unit, world: Vector3): number {
         const ground = worldHeightAt(world.x, world.z);
-        // meshScale ≈ world model height; sprite center sits a little above that
-        return ground + unit.memberBaseY() + unit.type.meshScale * 1.15 + 1.5;
+        const modelKey = unit.type.modelId ?? unit.type.id;
+        const meshTop = getUnitVisualHeight(modelKey) * unit.type.meshScale;
+        // sprite is centered; lift by half its size so the disc sits above the mesh
+        return (
+            ground +
+            unit.memberBaseY() +
+            meshTop +
+            STATUS_BADGE_SIZE * 0.5 +
+            STATUS_BADGE_CLEARANCE
+        );
     }
 
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
@@ -1263,11 +1275,13 @@ export class PlacementController {
                 }
                 const bob = Math.sin(timeSeconds * 3 + seed) * 0.2;
                 const hasStrip = this.statusStripCount(unit) > 0;
+                const modelKey = unit.type.modelId ?? unit.type.id;
+                const meshTop = getUnitVisualHeight(modelKey) * unit.type.meshScale;
                 const top = hasStrip
                     ? this.statusStripY(unit, world) + 2.4
                     : worldHeightAt(world.x, world.z) +
                       unit.memberBaseY() +
-                      unit.type.meshScale * 1.1 +
+                      meshTop +
                       0.8;
                 arrow.position.set(world.x, top + bob, world.z);
                 arrow.renderOrder = 0;

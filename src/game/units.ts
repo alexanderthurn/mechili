@@ -66,7 +66,7 @@ function makeWardRuneTexture(): CanvasTexture {
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { cloneUnitModel, hasUnitModel, loadUnitModels } from './unitModels';
+import { cloneUnitModel, hasUnitModel, loadUnitModels, seedUnitVisualHeight } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
@@ -1233,7 +1233,10 @@ export function preloadUnitVisuals(
             for (const type of [...UNIT_TYPES, COMMAND_TOWER, RESEARCH_CENTER, STRONGHOLD]) {
                 const probe = new Group();
                 type.build(new PartFactory(probe, 'player'));
-                heights[type.id] = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
+                const h = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
+                heights[type.id] = h;
+                // provisional — GLB load overwrites with measured post-normalize height
+                seedUnitVisualHeight(type.id, h);
             }
             await Promise.all([loadUnitModels(heights, onProgress), loadAnimatedModels(heights)]);
         } catch (e) {
