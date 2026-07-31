@@ -114,7 +114,20 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
     archer: ['barrel', 'ap', 'fireArrows'],
     crowRider: ['engines', 'stingers'],
-    ballista: ['armor', 'autoloader', 'golden', 'pitchBolts'],
+    // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
+    ballista: [
+        'armor',
+        'autoloader',
+        'golden',
+        'pitchBolts',
+        'barrel', // range
+        'ap', // damage
+        'fireArrows', // burn/ground fire on bolts
+        'carapace', // HP
+        'legs', // move speed
+        'stingers', // damage
+        'engines', // move speed
+    ],
 };
 
 /**
@@ -125,7 +138,7 @@ export const UNIT_TECH_SLOTS: Record<string, number> = {
     dwarf: 4,
     archer: 4,
     crowRider: 4,
-    ballista: 4,
+    ballista: 11, // match full allowlist — wraps in the details pane
 };
 
 /** How many tech slots this unit type shows / can select. */

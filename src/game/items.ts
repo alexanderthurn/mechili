@@ -19,7 +19,7 @@ export const UNIT_ITEM_SLOTS: Record<string, number> = {
     dwarf: 2,
     archer: 2,
     crowRider: 2,
-    ballista: 2,
+    ballista: 4, // UI stress-test: extra item circles
 };
 
 /** How many item slots this unit type has. */

@@ -614,9 +614,9 @@ export class Game {
             this.refreshCinemaHint();
             return;
         }
-        if (e.code === 'KeyU' && !this.net && !this.star) {
-            // single-player: one of every unit type on both sides + huge HP
-            this.cheatSpawnAllUnits();
+        if (e.code === 'KeyU' && e.shiftKey && !this.net && !this.star) {
+            // Shift+U = SP deploy cheat; Ctrl+Shift+U also scrambles pack levels
+            this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey });
             return;
         }
         if (e.code === 'KeyH' && !this.net && !this.star) {
@@ -2148,24 +2148,25 @@ export class Game {
     }
 
     /**
-     * SP cheat (U): free-spawn every unit type on both sides during
-     * deployment (3 dwarf packs, 1 of each other type), bump HP sky-high,
-     * top up one of each tactic / +5000 supply / one of each item for the
-     * human seat only, scramble levels, then let the AI re-spend — enemy
-     * moves stay behind intel fog; newly granted enemy packs are snapshotted
-     * at land pose.
+     * SP cheat (Shift+U): free-spawn every unit type on both sides during
+     * deployment, bump HP sky-high, +10000 supply to both seats, +2 of each
+     * item and one of each tactic for the human, grant up to 3 new techs per
+     * press, then let the AI re-spend. Ctrl+Shift+U also scrambles levels.
+     * Enemy moves stay behind intel fog; newly granted enemy packs are
+     * snapshotted at land pose.
      */
-    private cheatSpawnAllUnits(): void {
+    private cheatSpawnAllUnits(opts: { scrambleLevels?: boolean } = {}): void {
         if (this.phase !== 'build' || this.matchOver) return;
 
         const CHEAT_HP = 999_999;
         this.playerHp = CHEAT_HP;
         this.enemyHp = CHEAT_HP;
         this.hud.setHp(this.playerHp, this.enemyHp);
-        this.cheatGrantSupply(5000);
+        this.cheatGrantSupply(10_000);
         this.cheatGrantAllTactics();
-        this.cheatGrantAllItems();
-        // sidebar intel: enemy bag unchanged by human-only grants above
+        this.cheatGrantAllItems(2);
+        this.cheatGrantTechs(3);
+        // sidebar intel: enemy bag unchanged by human-only item/tactic grants
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
@@ -2186,28 +2187,29 @@ export class Game {
             }
         }
 
-        // scramble veterancy on every pack so level badges / panel LVL differ
-        const unitMax = this.settings.leveling.maxLevel;
-        const towerMax = this.settings.towers.upgrade.maxLevel;
-        for (const unit of this.placement.allUnits()) {
-            if (unit.type.structure && !unit.type.extra) {
-                unit.level = 1 + Math.floor(Math.random() * towerMax);
-            } else if (!unit.type.structure) {
-                unit.level = 1 + Math.floor(Math.random() * unitMax);
-                if (unit.level < unitMax) {
-                    const need = xpThresholdFor(
-                        unit.type,
-                        unit.level,
-                        this.economy,
-                        this.settings.leveling,
-                    );
-                    // some packs bank enough XP to show the upgrade arrow
-                    unit.xp = Math.random() < 0.45 ? need : Math.floor(Math.random() * need);
-                } else {
-                    unit.xp = 0;
+        if (opts.scrambleLevels) {
+            // Ctrl+Shift+U: scramble veterancy so level badges / panel LVL differ
+            const unitMax = this.settings.leveling.maxLevel;
+            const towerMax = this.settings.towers.upgrade.maxLevel;
+            for (const unit of this.placement.allUnits()) {
+                if (unit.type.structure && !unit.type.extra) {
+                    unit.level = 1 + Math.floor(Math.random() * towerMax);
+                } else if (!unit.type.structure) {
+                    unit.level = 1 + Math.floor(Math.random() * unitMax);
+                    if (unit.level < unitMax) {
+                        const need = xpThresholdFor(
+                            unit.type,
+                            unit.level,
+                            this.economy,
+                            this.settings.leveling,
+                        );
+                        unit.xp = Math.random() < 0.45 ? need : Math.floor(Math.random() * need);
+                    } else {
+                        unit.xp = 0;
+                    }
                 }
+                unit.refreshLevelBadge();
             }
-            unit.refreshLevelBadge();
         }
 
         // newly granted enemy packs: visible at land pose; later AI moves stay fogged
@@ -2220,6 +2222,9 @@ export class Game {
         // behind fog (existing packs stay at phase-start pose)
         this.opponent.rerunBuildActions?.();
         for (const e of this.extraAis) e.ai.rerunBuildActions?.();
+        console.info(
+            `[cheat] Shift+U${opts.scrambleLevels ? ' (Ctrl: levels)' : ''}: supply/items/techs/spawns`,
+        );
     }
 
     /** A new round: place freely, hidden from the opponent, until timer or button. */
@@ -2352,7 +2357,7 @@ export class Game {
     }
 
     /**
-     * SP cheat (U): add one charge of each test tactic to the human seat —
+     * SP cheat (Shift+U): add one charge of each test tactic to the human seat —
      * press again to stack more. NOT logged as an action, so it does not
      * survive a reload/replay — press it again after one.
      */
@@ -2363,17 +2368,33 @@ export class Game {
         }
     }
 
-    /** SP cheat (U): +supply to the human seat only (same amount each press). */
-    private cheatGrantSupply(amount = 5000): void {
-        this.economy.credit(this.humanSeat, amount);
+    /** SP cheat (Shift+U): +supply to every seat (same amount each press). */
+    private cheatGrantSupply(amount = 10_000): void {
+        for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
     }
 
-    /** SP cheat (U): ensure the human seat's inventory has one of every pack item. */
-    private cheatGrantAllItems(): void {
+    /** SP cheat (Shift+U): add `copies` of every pack item to the human seat. */
+    private cheatGrantAllItems(copies = 2): void {
         const seat = this.humanSeat;
         for (const id of Object.keys(ITEMS)) {
-            if (!this.itemInventory[seat]!.includes(id)) {
-                this.itemInventory[seat]!.push(id);
+            for (let i = 0; i < copies; i++) this.itemInventory[seat]!.push(id);
+        }
+    }
+
+    /**
+     * SP cheat (Shift+U): unlock up to `maxPerPress` unowned selected techs for
+     * the human seat (across unit types). Press again for the next batch.
+     */
+    private cheatGrantTechs(maxPerPress = 3): void {
+        const seat = this.humanSeat;
+        let granted = 0;
+        for (const type of UNIT_TYPES) {
+            if (type.structure || type.extra) continue;
+            for (const tech of techsForUnit(type.id)) {
+                if (granted >= maxPerPress) return;
+                if (this.techTree.has(seat, type.id, tech.id)) continue;
+                this.techTree.add(seat, type.id, tech.id);
+                granted++;
             }
         }
     }
