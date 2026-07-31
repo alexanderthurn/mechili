@@ -334,7 +334,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
         levelCostFactor: 0.5,
         recruitLevel2Cost: 100,
     },
-    roundCards: true,
+    roundCards: false,
     /** four free base runes — each offer shows all of them (shuffled) */
     roundCardItems: [...ROUND_RUNE_ITEM_IDS],
     roundCardOfferCount: 4,
