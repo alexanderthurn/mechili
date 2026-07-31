@@ -18,6 +18,8 @@ Code still uses `item` / `tech` internally. Display strings live in `src/game/di
 
 ## 1. Items / Runes (`src/game/items.ts`)
 
+Player-facing category: **Runes**. Icon craft (carved medallion + internal glow): see `misc/icons/STYLE.md` and `misc/concepts/runes/README.md`.
+
 | Internal ID | Current Name | Suggested Fantasy Name | Your Chosen Name |
 | :--- | :--- | :--- | :--- |
 | `addi` | Valor | Valor | |

@@ -3,7 +3,10 @@
  * Applying is an action (undoable during the deployment it happened in);
  * once the deployment ends the rune is fused to the pack for good.
  * Slot count is per unit type via {@link itemSlotLimit} (default 2).
+ *
  * Player-facing name: "Runes" (`displayNames.ts`).
+ * Icon craft (carved medallion + internal glow): `misc/icons/STYLE.md`,
+ * `misc/concepts/runes/README.md`. Atlas ids: `item-*`.
  */
 
 /** Default item slots when a unit has no entry in {@link UNIT_ITEM_SLOTS}. */
