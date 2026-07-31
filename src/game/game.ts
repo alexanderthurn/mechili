@@ -83,6 +83,7 @@ import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATI
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
+import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
 import { DragonFx } from './dragonFx';
@@ -261,6 +262,7 @@ export class Game {
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
+    private readonly forgeFx = new ForgeFx();
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
@@ -6015,11 +6017,13 @@ export class Game {
         );
     }
 
-    /** world strip over the Stronghold: forge runes + spell that will bake */
+    /** world strip over the Stronghold: predicted bake spell (deploy only; battle = sparks) */
     private forgeWorldBadges(
         unit: Unit,
     ): { runes: string[]; spellIcon: string | null } | null {
         if (unit.type !== STRONGHOLD) return null;
+        // battle: chimney sparks only — spell badge is deploy intel / loading UI
+        if (this.phase !== 'build') return null;
         const team: Team = unit.team === 'horde' ? 'player' : unit.team;
         const fogged = this.placement.isIntelFogged(unit);
         const snapIds =
@@ -6029,16 +6033,45 @@ export class Game {
         const slots: (ForgeSlot | null)[] = snapIds
             ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
             : this.forgeSlots[team]!;
-        const runes: string[] = [];
+        let filled = false;
         for (const s of slots) {
-            if (!s) continue;
-            const icon = ITEMS[s.itemId]?.icon;
-            if (icon) runes.push(icon);
+            if (s) {
+                filled = true;
+                break;
+            }
         }
-        if (runes.length === 0) return null;
+        if (!filled) return null;
         const result = resolveForge(slots, this.teamForgePool(team));
         const spellIcon = result.tacticId ? (TACTICS[result.tacticId]?.icon ?? null) : null;
-        return { runes, spellIcon };
+        if (!spellIcon) return null;
+        return { runes: [], spellIcon };
+    }
+
+    /**
+     * Chimney sparks while an oven holds runes (denser when a recipe will bake).
+     * Respects intel fog so enemy oven state isn't leaked.
+     */
+    private updateForgeFx(dt: number): void {
+        const targets: { unit: Unit; mode: ReturnType<typeof forgeGlowMode> }[] = [];
+        for (const unit of this.placement.allUnits()) {
+            if (unit.type !== STRONGHOLD || unit.destroyed) continue;
+            const team: Team = unit.team === 'horde' ? 'player' : unit.team;
+            const fogged = this.placement.isIntelFogged(unit);
+            const snapIds =
+                fogged && this.buildingIntelSnapshot
+                    ? this.buildingIntelSnapshot.forge[team]
+                    : null;
+            const oven: (ForgeSlot | null)[] = snapIds
+                ? snapIds.map((id) =>
+                      id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null,
+                  )
+                : this.forgeSlots[team]!;
+            targets.push({
+                unit,
+                mode: forgeGlowMode(oven, this.teamForgePool(team)),
+            });
+        }
+        this.forgeFx.update(dt, this.time, targets, this.scene);
     }
 
     /**
@@ -7330,6 +7363,7 @@ export class Game {
         }
         if (profile) cpu.begin();
         this.particles.update(gameDt);
+        this.updateForgeFx(gameDt);
 
         if (!this.introActive && !this.outroActive) {
             this.controls.update(dtSeconds);
