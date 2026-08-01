@@ -2046,7 +2046,15 @@ async function beginSteamNetGame(
     if (role === 'guest') {
         session.send({ type: 'hello', name: localName, avatar: localAvatar });
         setStatus('Receiving match setup…');
-        const msg = await session.once();
+        const msg = await Promise.race([
+            session.once(),
+            new Promise<NetMessage>((_, reject) =>
+                setTimeout(
+                    () => reject(new Error('Host did not start the match')),
+                    STEAM_HANDSHAKE_TIMEOUT_MS,
+                ),
+            ),
+        ]);
         if (msg.type !== 'setup' || msg.version !== GAME_VERSION) {
             setStatus('Version mismatch — both players need the same game version.');
             session.close();
@@ -2102,12 +2110,14 @@ function runSteamPending(
     applyMode?: (settings: GameSettings) => void,
 ): void {
     setMenuBusy(true);
+    if (role === 'host') setStatus('Waiting for an opponent…');
     p.then((session) => {
         setMenuBusy(false);
         void beginSteamNetGame(session, role, applyMode);
     }).catch((e: unknown) => {
         setMenuBusy(false);
         setStatus(`Could not connect: ${e instanceof Error ? e.message : e}`);
+        mainButtonsEl.style.display = '';
     });
 }
 
@@ -2755,13 +2765,20 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
     });
 }
 
-/** Steam star: join lobby + wait for admission; false = full/rejected (try next). */
+/** Steam lobby join + handshake; false = full / dead host / reject (try next). */
 async function tryAdmitSteamLobby(lobbyId: string): Promise<boolean> {
     try {
         const result = await joinSteamLobby(lobbyId);
         if (result.mode === '1v1') {
-            runSteamPending(Promise.resolve(result.session), 'guest', applyHordeMode);
-            return true;
+            // Await handshake so a stale lobby (no host answering) falls through
+            // to the next candidate / host path instead of hanging on "Receiving…".
+            try {
+                await beginSteamNetGame(result.session, 'guest', applyHordeMode);
+                return true;
+            } catch {
+                result.session.close();
+                return false;
+            }
         }
         const first = await Promise.race([
             result.session.once(),
@@ -2859,7 +2876,11 @@ async function listMatchCandidates(
         const rooms = await steamLobby.getLobbies();
         return rooms
             .filter((r) => {
+                // Only Melodan lobbies we tagged (skips abandoned / other junk).
+                if (r.data.game !== 'melodan') return false;
+                if (r.data.version && r.data.version !== String(GAME_VERSION)) return false;
                 if (modeFilter && r.data.mode && r.data.mode !== modeFilter) return false;
+                if (!r.data.mode) return false;
                 const limit = r.memberLimit ?? (r.data.mode === '2v2' ? 4 : 2);
                 return r.memberCount < limit;
             })

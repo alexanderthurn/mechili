@@ -58,8 +58,9 @@ export const STAR_RECONNECT_GRACE_MS = 60_000;
 
 /**
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
- * On localhost, `?branch=` or the Vite-baked git branch picks the feuerware
- * deploy; melodan/main/master use play.melodan.com.
+ * On localhost / Electron (`file://`), `?branch=` or the Vite-baked git branch
+ * picks the feuerware deploy; melodan/main/master use play.melodan.com.
+ * Packaged web hosts use a relative `./backend/` next to the page.
  */
 export function isLocalhost(): boolean {
     const h = location.hostname;
@@ -70,6 +71,17 @@ export function isLocalhost(): boolean {
     if (/^10\.\d+\.\d+\.\d+$/.test(h)) return true;
     if (/^192\.168\.\d+\.\d+$/.test(h)) return true;
     if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(h)) return true;
+    return false;
+}
+
+/** True when PHP cannot run next to the page (Vite/Electron file://). */
+function useRemotePhpBackend(): boolean {
+    if (isLocalhost()) return true;
+    if (typeof location !== 'undefined' && location.protocol === 'file:') return true;
+    // steam-electron-build preload sets this; avoid importing the native bridge here
+    if (typeof window !== 'undefined' && !!(window as Window & { electronWin?: unknown }).electronWin) {
+        return true;
+    }
     return false;
 }
 
@@ -115,7 +127,7 @@ function localhostBackendDir(): string {
 }
 
 export function matchUrl(): string {
-    if (isLocalhost()) {
+    if (useRemotePhpBackend()) {
         return new URL('matchmaking.php', localhostBackendDir()).href;
     }
 

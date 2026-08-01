@@ -217,7 +217,7 @@ export function hostSteamRoom(isPublic: boolean, onLobbyReady?: (lobbyId: string
         // tagged even for a private (invite-only) lobby: `onSteamJoinRequested`
         // (main.ts) needs this to tell a 1v1 invite from a 2v2 one, and
         // joining is the only way to read a lobby's data at all (see there)
-        await lobby.mergeFullData({ mode: '1v1' });
+        await lobby.mergeFullData({ mode: '1v1', game: 'melodan', version: String(GAME_VERSION) });
         onLobbyReady?.(room.id);
         if (cancelled) {
             void lobby.leave();
@@ -550,7 +550,7 @@ export async function hostSteamStarRoom(
     const room = await lobby.create(isPublic ? 'public' : 'private', initialRoster.length);
     if (!room) throw new Error('Could not open a Steam lobby — is Steam running?');
     // tagged even for a private (invite-only) lobby — see hostSteamRoom's note
-    await lobby.mergeFullData({ mode: '2v2' });
+    await lobby.mergeFullData({ mode: '2v2', game: 'melodan', version: String(GAME_VERSION) });
     return { hub: new SteamStarHub(room.id, room.owner, initialRoster), lobbyId: room.id };
 }
 
