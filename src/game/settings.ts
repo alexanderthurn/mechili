@@ -265,6 +265,36 @@ export interface EconomySettings {
     techCostEscalation: number;
 }
 
+/** Custom Game pace presets — edit this list to change the select options. */
+export interface CustomGamePacePreset {
+    id: string;
+    label: string;
+    buildSeconds: number;
+    battleSeconds: number;
+    specialistSeconds: number;
+    cardSeconds: number;
+}
+
+export const CUSTOM_GAME_PACE_PRESETS: readonly CustomGamePacePreset[] = [
+    { id: 'blitz', label: 'Blitz', buildSeconds: 30, battleSeconds: 90, specialistSeconds: 10, cardSeconds: 5 },
+    { id: 'quick', label: 'Quick', buildSeconds: 60, battleSeconds: 90, specialistSeconds: 10, cardSeconds: 10 },
+    { id: 'standard', label: 'Standard', buildSeconds: 90, battleSeconds: 90, specialistSeconds: 15, cardSeconds: 15 },
+    { id: 'relaxed', label: 'Relaxed', buildSeconds: 180, battleSeconds: 90, specialistSeconds: 180, cardSeconds: 180 },
+    { id: 'long', label: 'Long', buildSeconds: 9999, battleSeconds: 90, specialistSeconds: 9999, cardSeconds: 9999 },
+];
+
+export const DEFAULT_CUSTOM_GAME_PACE_ID = 'standard';
+
+export function customGamePaceById(id: string | undefined | null): CustomGamePacePreset {
+    const found = CUSTOM_GAME_PACE_PRESETS.find((p) => p.id === id);
+    return found ?? CUSTOM_GAME_PACE_PRESETS.find((p) => p.id === DEFAULT_CUSTOM_GAME_PACE_ID)!;
+}
+
+/** Select-option text: name plus the four timings from the preset. */
+export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
+    return `${p.label} — Deploy ${p.buildSeconds}s · Battle ${p.battleSeconds}s · ${DISPLAY.commander} ${p.specialistSeconds}s · Cards ${p.cardSeconds}s`;
+}
+
 export const DEFAULT_SETTINGS: GameSettings = {
     map: STANDARD_MAP,
     buildTimeSeconds: 90,

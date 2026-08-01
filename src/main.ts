@@ -48,7 +48,16 @@ import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { iconHtml } from './ui/iconAtlas';
-import { DEFAULT_HORDE, DEFAULT_SETTINGS, type GameSettings, type HordeFactor } from './game/settings';
+import {
+    CUSTOM_GAME_PACE_PRESETS,
+    DEFAULT_CUSTOM_GAME_PACE_ID,
+    DEFAULT_HORDE,
+    DEFAULT_SETTINGS,
+    customGamePaceById,
+    formatCustomGamePaceOption,
+    type GameSettings,
+    type HordeFactor,
+} from './game/settings';
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { THEME, applyUiFont, menuStyles } from './theme';
 
@@ -108,20 +117,15 @@ type CustomGameMode = '1v1' | '1v1ai' | '2v2' | '2v2ai';
 
 interface CustomGameConfig {
     mode: CustomGameMode;
-    buildSeconds: number;
-    battleSeconds: number;
-    specialistSeconds: number;
-    cardSeconds: number;
+    /** id into {@link CUSTOM_GAME_PACE_PRESETS} */
+    pace: string;
     horde: CustomHordeFactor;
     roundCards: boolean;
 }
 
 const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     mode: '1v1',
-    buildSeconds: DEFAULT_SETTINGS.buildTimeSeconds as number,
-    battleSeconds: DEFAULT_SETTINGS.battleTimeSeconds as number,
-    specialistSeconds: DEFAULT_SETTINGS.specialistTimeSeconds as number,
-    cardSeconds: DEFAULT_SETTINGS.cardTimeSeconds as number,
+    pace: DEFAULT_CUSTOM_GAME_PACE_ID,
     horde: 'off',
     roundCards: false,
 };
@@ -134,7 +138,30 @@ function loadCustomGameConfig(): CustomGameConfig {
     try {
         const raw = localStorage.getItem(CUSTOM_GAME_KEY);
         if (!raw) return { ...DEFAULT_CUSTOM_GAME };
-        return { ...DEFAULT_CUSTOM_GAME, ...(JSON.parse(raw) as Partial<CustomGameConfig>) };
+        const parsed = JSON.parse(raw) as Partial<CustomGameConfig> & {
+            buildSeconds?: number;
+            battleSeconds?: number;
+            specialistSeconds?: number;
+            cardSeconds?: number;
+        };
+        let pace = parsed.pace;
+        // migrate legacy free-form second fields → nearest / matching preset
+        if (!pace && typeof parsed.buildSeconds === 'number') {
+            pace = CUSTOM_GAME_PACE_PRESETS.find(
+                (p) =>
+                    p.buildSeconds === parsed.buildSeconds &&
+                    p.battleSeconds === parsed.battleSeconds &&
+                    p.specialistSeconds === parsed.specialistSeconds &&
+                    p.cardSeconds === parsed.cardSeconds,
+            )?.id;
+        }
+        return {
+            ...DEFAULT_CUSTOM_GAME,
+            mode: parsed.mode ?? DEFAULT_CUSTOM_GAME.mode,
+            pace: customGamePaceById(pace).id,
+            horde: parsed.horde ?? DEFAULT_CUSTOM_GAME.horde,
+            roundCards: parsed.roundCards ?? DEFAULT_CUSTOM_GAME.roundCards,
+        };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
     }
@@ -149,10 +176,11 @@ function saveCustomGameConfig(cfg: CustomGameConfig): void {
 }
 
 function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): void {
-    settings.buildTimeSeconds = cfg.buildSeconds;
-    settings.battleTimeSeconds = cfg.battleSeconds;
-    settings.specialistTimeSeconds = cfg.specialistSeconds;
-    settings.cardTimeSeconds = cfg.cardSeconds;
+    const pace = customGamePaceById(cfg.pace);
+    settings.buildTimeSeconds = pace.buildSeconds;
+    settings.battleTimeSeconds = pace.battleSeconds;
+    settings.specialistTimeSeconds = pace.specialistSeconds;
+    settings.cardTimeSeconds = pace.cardSeconds;
     settings.roundCards = cfg.roundCards;
     settings.horde = structuredClone(DEFAULT_HORDE);
     settings.horde.factor = cfg.horde as HordeFactor;
@@ -618,12 +646,9 @@ menu.innerHTML = `
                 ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">2vAI</span>
             </label>
         </div>
-        <div class="m-field-grid">
-            <label class="m-field">Deployment (s)<input type="number" class="cg-build" min="5" max="600" step="5"></label>
-            <label class="m-field">Battle (s)<input type="number" class="cg-battle" min="5" max="600" step="5"></label>
-            <label class="m-field">Commander (s)<input type="number" class="cg-specialist" min="3" max="120" step="1"></label>
-            <label class="m-field">Round card (s)<input type="number" class="cg-card" min="3" max="120" step="1"></label>
-        </div>
+        <label class="m-field">Pace
+            <select class="cg-pace"></select>
+        </label>
         <label class="m-field">Horde
             <select class="cg-horde">
                 <option value="off">Off</option>
@@ -853,12 +878,16 @@ const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
 const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
 const mmSimpleEl = menu.querySelector<HTMLDivElement>('.m-mm-simple')!;
 const customEl = menu.querySelector<HTMLDivElement>('.m-custom')!;
-const cgBuildEl = menu.querySelector<HTMLInputElement>('.cg-build')!;
-const cgBattleEl = menu.querySelector<HTMLInputElement>('.cg-battle')!;
-const cgSpecialistEl = menu.querySelector<HTMLInputElement>('.cg-specialist')!;
-const cgCardEl = menu.querySelector<HTMLInputElement>('.cg-card')!;
+const cgPaceEl = menu.querySelector<HTMLSelectElement>('.cg-pace')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLInputElement>('.cg-roundcards')!;
+
+for (const pace of CUSTOM_GAME_PACE_PRESETS) {
+    const opt = document.createElement('option');
+    opt.value = pace.id;
+    opt.textContent = formatCustomGamePaceOption(pace);
+    cgPaceEl.appendChild(opt);
+}
 
 function updateCgHostButtonLabel(): void {
     const modeInput = customEl.querySelector<HTMLInputElement>('input[name="cgmode"]:checked');
@@ -871,10 +900,7 @@ function updateCgHostButtonLabel(): void {
 function populateCustomGameForm(cfg: CustomGameConfig): void {
     const radio = customEl.querySelector<HTMLInputElement>(`input[name="cgmode"][value="${cfg.mode}"]`);
     if (radio) radio.checked = true;
-    cgBuildEl.value = String(cfg.buildSeconds);
-    cgBattleEl.value = String(cfg.battleSeconds);
-    cgSpecialistEl.value = String(cfg.specialistSeconds);
-    cgCardEl.value = String(cfg.cardSeconds);
+    cgPaceEl.value = customGamePaceById(cfg.pace).id;
     cgHordeEl.value = cfg.horde;
     cgRoundCardsEl.checked = cfg.roundCards;
     updateCgHostButtonLabel();
@@ -888,10 +914,7 @@ function readCustomGameForm(): CustomGameConfig {
     const modeInput = customEl.querySelector<HTMLInputElement>('input[name="cgmode"]:checked');
     return {
         mode: (modeInput?.value as CustomGameMode | undefined) ?? '1v1',
-        buildSeconds: Number(cgBuildEl.value) || DEFAULT_CUSTOM_GAME.buildSeconds,
-        battleSeconds: Number(cgBattleEl.value) || DEFAULT_CUSTOM_GAME.battleSeconds,
-        specialistSeconds: Number(cgSpecialistEl.value) || DEFAULT_CUSTOM_GAME.specialistSeconds,
-        cardSeconds: Number(cgCardEl.value) || DEFAULT_CUSTOM_GAME.cardSeconds,
+        pace: customGamePaceById(cgPaceEl.value).id,
         horde: (cgHordeEl.value as CustomHordeFactor) || 'off',
         roundCards: cgRoundCardsEl.checked,
     };
