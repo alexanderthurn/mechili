@@ -3967,6 +3967,16 @@ export class Game {
     /** leave the match — fly out to the menu, then main tears down the session */
     quitToMenu(): void {
         this.onStateCheckpoint = null;
+        // a live "Waiting…" countdown must not survive the player choosing
+        // to leave — otherwise tick()'s per-second re-render (see
+        // showSuspendNotice's own doc comment) pops the notice right back
+        // up on top of the menu-outro animation that's about to play,
+        // making the first "Give up" click look like it did nothing (a
+        // second click then short-circuits past the now-already-active
+        // outro straight to onReturnToMenu, which is what actually worked)
+        this.suspended = false;
+        this.suspendDeadline = null;
+        this.hud.hideNotice();
         this.net?.close();
         this.net = null;
         if (!this.disposed && !this.outroActive) {
