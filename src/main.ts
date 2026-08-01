@@ -2847,8 +2847,8 @@ function try2v2Match(horde: boolean, waitForJoined = 2): void {
     });
 }
 
-/** How many times to re-list open rooms before creating our own. */
-const QUICK_MATCH_LIST_ROUNDS = 3;
+/** Extra list passes only after join failures (full/stale) — not when empty. */
+const QUICK_MATCH_RETRY_ROUNDS = 2;
 
 type MatchCandidate =
     | { key: string; kind: 'peer'; name: string; peerServer?: PeerServerConfig | null }
@@ -2887,7 +2887,8 @@ async function listMatchCandidates(
             .map((r) => ({ key: r.id, kind: 'steam' as const, lobbyId: r.id }));
     }
     if (transport === 'lan') {
-        const rooms = await lanRoomsExcludingSelf(900);
+        // Short UDP window — empty → host immediately; room poll uses longer waits.
+        const rooms = await lanRoomsExcludingSelf(400);
         return rooms.map((r) => ({
             key: `${r.host}:${r.port}:${r.path}:${r.name}`,
             kind: 'peer' as const,
@@ -2955,9 +2956,8 @@ async function hostQuickMatch(
 
 /**
  * Shared Matchmaking for Steam / Web / LAN:
- * list open rooms → try join each → on full/fail try next → re-list a few
- * times → if still nothing, host a 1v1 Horde room (or opts override).
- * Never leaves the player on a one-shot "lobby full" error.
+ * list once → if empty, host immediately; if rooms exist, try join each;
+ * on full/fail re-list a couple times; never one-shot "lobby full" dead end.
  */
 async function runQuickMatchmaking(
     transport: MultiplayerTransport,
@@ -2974,14 +2974,19 @@ async function runQuickMatchmaking(
     setStatus(transportLookingStatus(transport));
     const tried = new Set<string>();
     try {
-        for (let round = 0; round < QUICK_MATCH_LIST_ROUNDS; round++) {
+        for (let round = 0; round <= QUICK_MATCH_RETRY_ROUNDS; round++) {
             if (cancelled) return;
             const candidates = (await listMatchCandidates(transport, opts.modeFilter)).filter(
                 (c) => !tried.has(c.key),
             );
+            // Nothing open → host now (Web/Steam/LAN). Don't burn empty re-scans.
+            if (candidates.length === 0) break;
+
+            let anyAttempt = false;
             for (const c of candidates) {
                 if (cancelled) return;
                 tried.add(c.key);
+                anyAttempt = true;
                 setStatus(
                     transport === 'lan'
                         ? `Found LAN room — connecting…`
@@ -2994,10 +2999,9 @@ async function runQuickMatchmaking(
                 if (joined) return;
                 setStatus(transportLookingStatus(transport));
             }
-            if (round < QUICK_MATCH_LIST_ROUNDS - 1) {
-                // Brief pause so a peer who clicked at the same moment can finish hosting.
-                await sleepMs(transport === 'lan' ? 500 : 700);
-            }
+            // Only pause/re-list when joins failed (full/stale), not when empty.
+            if (!anyAttempt || round >= QUICK_MATCH_RETRY_ROUNDS) break;
+            await sleepMs(400);
         }
         if (cancelled) return;
         await hostQuickMatch(transport, opts);
