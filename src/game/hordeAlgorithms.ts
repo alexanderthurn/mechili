@@ -1,26 +1,17 @@
 /**
  * Horde mode presets: match config stores only an id; each algorithm owns
- * which rounds spawn waves (and later bias / conditional pressure) plus the
- * English select-box blurb.
+ * schedule, budget, bias, and the English select-box blurb.
  */
 
 /** Last match round — finale wave when the preset is enabled. */
 export const HORDE_FINAL_ROUND = 10;
 
-/** Budget / bias knobs algorithms can read (shared defaults). */
-export interface HordeKnobs {
-    baseBudget: number;
-    budgetPerRound: number;
-    finaleBudgetMultiplier: number;
-    leaderShare: number;
-}
-
-export const DEFAULT_HORDE_KNOBS: HordeKnobs = {
-    baseBudget: 300,
-    budgetPerRound: 200,
-    finaleBudgetMultiplier: 4,
-    leaderShare: 0.65,
-};
+/** Shared wave economy (tweak here, not on GameSettings). */
+const BASE_BUDGET = 300;
+const BUDGET_PER_ROUND = 200;
+const FINALE_BUDGET_MULT = 4;
+/** Share of packs biased toward the HP leader's ring half. */
+const LEADER_SHARE = 0.65;
 
 /**
  * Optional runtime context for future conditional algorithms
@@ -41,13 +32,13 @@ export abstract class HordeAlgorithm {
     /** Whether this round materializes a wave. */
     abstract shouldSpawn(round: number, ctx?: HordeContext): boolean;
 
-    budget(round: number, knobs: HordeKnobs = DEFAULT_HORDE_KNOBS): number {
-        const base = knobs.baseBudget + knobs.budgetPerRound * (round - 1);
-        return round === HORDE_FINAL_ROUND ? base * knobs.finaleBudgetMultiplier : base;
+    budget(round: number): number {
+        const base = BASE_BUDGET + BUDGET_PER_ROUND * (round - 1);
+        return round === HORDE_FINAL_ROUND ? base * FINALE_BUDGET_MULT : base;
     }
 
-    leaderShare(knobs: HordeKnobs = DEFAULT_HORDE_KNOBS): number {
-        return knobs.leaderShare;
+    leaderShare(): number {
+        return LEADER_SHARE;
     }
 }
 

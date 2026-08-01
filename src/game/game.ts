@@ -2457,7 +2457,7 @@ export class Game {
             for (const e of this.extraAis) e.ai.onBuildPhase(this.round);
         }
 
-        // between-round cards (schedule is a match setting — see roundCards)
+        // between-round cards (schedule owned by roundCardPreset algorithm)
         if (shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
         // cinema mode: startBuildPhase re-shows grid / deploy chrome — put it back away
         this.enforceCinemaWorld();
@@ -5183,10 +5183,7 @@ export class Game {
         this.roundCardTaken.fill(false);
 
         const draw = (rng: () => number) =>
-            roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(this.round, rng, {
-                itemIds: this.settings.roundCardItems,
-                offerCount: this.settings.roundCardOfferCount,
-            });
+            roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(this.round, rng);
         const myOffer = draw(this.rngRoundCards[this.humanSeat]!);
         // the classic single opponent's own seat-scoped draw (vestigial no-op
         // on a star guest, since NetworkOpponent.onRoundCards does nothing —
@@ -5217,10 +5214,6 @@ export class Game {
                 roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(
                     this.round,
                     this.rngRoundCards[e.seat]!,
-                    {
-                        itemIds: this.settings.roundCardItems,
-                        offerCount: this.settings.roundCardOfferCount,
-                    },
                 ),
             );
         }
@@ -6818,7 +6811,7 @@ export class Game {
     }
 
     /**
-     * Horde mode (`settings.horde`): on active rounds (see `isHordeRoundActive`
+     * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`
      * — which rounds spawn a wave, and the last round always does, boosted),
      * materializes this round's neutral dwarf wave in a ring OUTSIDE the
      * playable board at BUILD-phase start, marching straight toward center

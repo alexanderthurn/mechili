@@ -1,23 +1,19 @@
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
-import { ROUND_RUNE_ITEM_IDS } from './cards';
-import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS } from './items';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './roundCardAlgorithms';
 import {
-    DEFAULT_HORDE_KNOBS,
     DEFAULT_HORDE_PRESET_ID,
     HORDE_ALGORITHMS,
     HORDE_FINAL_ROUND,
     hordeAlgorithmById,
-    type HordeKnobs,
 } from './hordeAlgorithms';
 
 export { HORDE_FINAL_ROUND, DEFAULT_HORDE_PRESET_ID, HORDE_ALGORITHMS, hordeAlgorithmById } from './hordeAlgorithms';
-export type { HordeKnobs, HordeContext, HordeAlgorithm } from './hordeAlgorithms';
+export type { HordeContext, HordeAlgorithm } from './hordeAlgorithms';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -31,6 +27,9 @@ export type RoundTimer = number | number[];
  * Everything that defines a match, as one plain JSON-serializable object —
  * so different game modes are just different settings, and multiplayer can
  * pass them around (lobby, server list, replay header).
+ *
+ * Catalog data (unit cost/hp, card pools, horde budgets) lives on the
+ * entity / algorithm — this object only picks modes and match-wide knobs.
  */
 export interface GameSettings {
     map: MapSize;
@@ -58,16 +57,10 @@ export interface GameSettings {
      */
     seed?: number;
     /**
-     * Horde algorithm id (see {@link HORDE_ALGORITHMS}). Owns which rounds
-     * spawn waves; Custom Game / setup store only this id.
+     * Horde algorithm id (see {@link HORDE_ALGORITHMS}).
+     * Owns rounds, budget, and leader bias.
      */
     hordePreset: string;
-    /**
-     * Horde budget / bias knobs (+ legacy {@link HordeSettings.factor} for
-     * older saves and `?hordeFactor=2,4,9` custom round lists).
-     * Unset is fine when {@link hordePreset} is `off`.
-     */
-    horde?: HordeSettings;
     /**
      * the match roster (seats on sides). Unset = classic 1v1 (two implicit
      * seats). Local modes only for now — never sent over the wire.
@@ -75,77 +68,30 @@ export interface GameSettings {
     seats?: SeatDef[];
     /**
      * Between-round card algorithm id (see {@link ROUND_CARD_ALGORITHMS}).
-     * Owns schedule + pool progression; Custom Game / setup store only this id.
+     * Owns schedule + pool progression.
      */
     roundCardPreset: string;
-    /**
-     * @deprecated Prefer {@link roundCardPreset}. Kept for older saves/replays /
-     * URL overrides; {@link normalizeGameSettings} maps it into a preset.
-     * - `false` — never
-     * - `true`  — every round ≥ 2
-     * - number[] — only those rounds, e.g. `[3, 6, 9]`
-     */
-    roundCards: boolean | number[];
-    /**
-     * Item ids eligible for between-round **rune** offers (default = four base
-     * runes). Unit/spell pools come from the algorithm. Each offer draws
-     * {@link roundCardOfferCount} from the active pool.
-     */
-    roundCardItems: string[];
-    /** How many cards each between-round offer shows (capped by the pool). */
-    roundCardOfferCount: number;
 }
 
-/**
- * @deprecated Prefer {@link GameSettings.hordePreset}. Kept for older
- * saves/replays / URL overrides; {@link normalizeGameSettings} maps named
- * factors into a preset. `number[]` still means an explicit custom round list.
- */
-export type HordeFactor = 'off' | 'low' | 'medium' | 'high' | 'ultra' | number[];
-
-export interface HordeSettings extends HordeKnobs {
-    /**
-     * @deprecated Prefer {@link GameSettings.hordePreset}. Named factors are
-     * migrated to presets; `number[]` remains a custom round-list override.
-     */
-    factor: HordeFactor;
-}
-
-/**
- * Whether horde mode is structurally active (camera widen, neutral-strip
- * lock, waves possible). Driven by {@link GameSettings.hordePreset}, or a
- * legacy custom round list on {@link HordeSettings.factor}.
- */
+/** Whether horde mode is structurally active (camera widen, waves possible). */
 export function hordeEnabled(settings: GameSettings): boolean {
-    if (Array.isArray(settings.horde?.factor)) return true;
     return hordeAlgorithmById(settings.hordePreset).enabled();
 }
 
 /** whether this round spawns a horde wave */
 export function isHordeRoundActive(settings: GameSettings, round: number): boolean {
-    const custom = settings.horde?.factor;
-    if (Array.isArray(custom)) {
-        return round === HORDE_FINAL_ROUND || custom.includes(round);
-    }
     return hordeAlgorithmById(settings.hordePreset).shouldSpawn(round);
 }
 
 /** this round's wave budget — caller should have checked {@link isHordeRoundActive} */
 export function hordeBudgetForRound(settings: GameSettings, round: number): number {
-    const knobs = settings.horde ?? DEFAULT_HORDE;
-    return hordeAlgorithmById(settings.hordePreset).budget(round, knobs);
+    return hordeAlgorithmById(settings.hordePreset).budget(round);
 }
 
 /** leader-hunt spawn share for the active preset */
 export function hordeLeaderShare(settings: GameSettings): number {
-    const knobs = settings.horde ?? DEFAULT_HORDE;
-    return hordeAlgorithmById(settings.hordePreset).leaderShare(knobs);
+    return hordeAlgorithmById(settings.hordePreset).leaderShare();
 }
-
-export const DEFAULT_HORDE: HordeSettings = {
-    factor: 'medium',
-    ...DEFAULT_HORDE_KNOBS,
-};
 
 export interface LevelingSettings {
     /**
@@ -250,8 +196,6 @@ export interface EconomySettings {
     startingSupply: number;
     /** how much the round income GROWS each round: round N grants startingSupply + (N-1) * growth */
     supplyGrowthPerRound: number;
-    /** cost per unit type id; a type missing here falls back to its built-in cost */
-    unitCosts: Record<string, number>;
     /** every owned tech of a unit type raises the price of its remaining techs by this */
     techCostEscalation: number;
 }
@@ -296,14 +240,6 @@ export const DEFAULT_SETTINGS: GameSettings = {
     economy: {
         startingSupply: 200,
         supplyGrowthPerRound: 200,
-        unitCosts: {
-            dwarf: 100,
-            archer: 100,
-            crowRider: 200,
-            ballista: 400,
-            shield: 100,
-            rocket: 50,
-        },
         techCostEscalation: 200,
     },
     towers: {
@@ -357,10 +293,6 @@ export const DEFAULT_SETTINGS: GameSettings = {
     },
     hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
-    roundCards: false,
-    /** four free base runes — each offer shows all of them (shuffled) */
-    roundCardItems: [...ROUND_RUNE_ITEM_IDS],
-    roundCardOfferCount: 4,
 };
 
 /** resolve a constant or per-round timer for the given round (round 1 → index 0) */
@@ -376,16 +308,31 @@ export function shouldOfferRoundCards(settings: GameSettings, round: number): bo
     return roundCardAlgorithmById(settings.roundCardPreset).shouldOffer(round);
 }
 
+/** Older saves/replays/URL knobs that normalize maps into presets. */
+type LegacyGameSettings = GameSettings & {
+    roundCards?: boolean | number[];
+    roundCardItems?: string[];
+    roundCardOfferCount?: number;
+    horde?: { factor?: string | number[] };
+};
+
 /** fills in settings added after older saves/replays were recorded */
 export function normalizeGameSettings(settings: GameSettings): GameSettings {
+    const legacy = settings as LegacyGameSettings;
     const towers = settings.towers ?? DEFAULT_SETTINGS.towers;
+    const {
+        roundCards: _rc,
+        roundCardItems: _ri,
+        roundCardOfferCount: _ro,
+        horde: _h,
+        ...rest
+    } = legacy;
     return {
         ...DEFAULT_SETTINGS,
-        ...settings,
+        ...rest,
         economy: {
             ...DEFAULT_SETTINGS.economy,
             ...settings.economy,
-            unitCosts: { ...DEFAULT_SETTINGS.economy.unitCosts, ...settings.economy.unitCosts },
         },
         towers: {
             ...DEFAULT_SETTINGS.towers,
@@ -405,98 +352,33 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
-        ...normalizeRoundCardOffer(settings),
-        ...normalizeHordePreset(settings),
+        roundCardPreset: resolveRoundCardPreset(legacy),
+        hordePreset: resolveHordePreset(legacy),
     };
 }
 
-/** Map legacy `horde.factor` into {@link GameSettings.hordePreset}. */
-function normalizeHordePreset(settings: GameSettings): {
-    hordePreset: string;
-    horde?: HordeSettings;
-} {
-    const horde = settings.horde
-        ? { ...DEFAULT_HORDE, ...settings.horde }
-        : undefined;
-
+function resolveHordePreset(settings: LegacyGameSettings): string {
     const known = HORDE_ALGORITHMS.find((a) => a.id === settings.hordePreset);
-    if (known) {
-        return {
-            hordePreset: known.id,
-            horde:
-                known.id === 'off'
-                    ? horde
-                    : { ...(horde ?? DEFAULT_HORDE), factor: known.id as HordeFactor },
-        };
-    }
-
-    const factor = horde?.factor;
-    if (typeof factor === 'string' && HORDE_ALGORITHMS.some((a) => a.id === factor)) {
-        return {
-            hordePreset: factor,
-            horde: { ...(horde ?? DEFAULT_HORDE), factor: factor as HordeFactor },
-        };
-    }
-    if (Array.isArray(factor) && factor.length > 0) {
-        // custom round list — keep factor; preset stays off in the select sense
-        // but hordeEnabled treats the array as on
-        return { hordePreset: DEFAULT_HORDE_PRESET_ID, horde };
-    }
-
-    return { hordePreset: DEFAULT_HORDE_PRESET_ID, horde };
+    if (known) return known.id;
+    const factor = settings.horde?.factor;
+    if (typeof factor === 'string' && HORDE_ALGORITHMS.some((a) => a.id === factor)) return factor;
+    // custom round lists → closest named preset (high covers sparse mid-game lists)
+    if (Array.isArray(factor) && factor.length > 0) return 'high';
+    return DEFAULT_HORDE_PRESET_ID;
 }
 
-/**
- * Live offer defaults + migrate older matches / legacy `roundCards` schedule
- * into {@link GameSettings.roundCardPreset}.
- */
-function normalizeRoundCardOffer(settings: GameSettings): {
-    roundCardPreset: string;
-    roundCardItems: string[];
-    roundCardOfferCount: number;
-} {
-    const items = settings.roundCardItems?.length
-        ? [...settings.roundCardItems]
-        : [...DEFAULT_SETTINGS.roundCardItems];
-    const count =
-        typeof settings.roundCardOfferCount === 'number' && settings.roundCardOfferCount > 0
-            ? settings.roundCardOfferCount
-            : DEFAULT_SETTINGS.roundCardOfferCount;
-
-    const advanced = new Set<string>(ADVANCED_RUNE_IDS);
-    const onlyAdvanced = items.length > 0 && items.every((id) => advanced.has(id));
-    const missingBase = BASE_RUNE_IDS.some((id) => !items.includes(id));
-    const runePool =
-        onlyAdvanced || missingBase || count !== BASE_RUNE_IDS.length
-            ? [...ROUND_RUNE_ITEM_IDS]
-            : items;
-    const offerCount =
-        onlyAdvanced || missingBase || count !== BASE_RUNE_IDS.length
-            ? BASE_RUNE_IDS.length
-            : count;
-
+function resolveRoundCardPreset(settings: LegacyGameSettings): string {
     const known = ROUND_CARD_ALGORITHMS.find((a) => a.id === settings.roundCardPreset);
-    let preset: string;
-    if (known) {
-        preset = known.id;
-    } else {
-        const schedule = settings.roundCards;
-        if (schedule === true) preset = 'runes-every';
-        else if (Array.isArray(schedule) && schedule.length > 0) {
-            const evenSpare = [2, 4, 6, 8, 10];
-            const matchesSpare =
-                schedule.length === evenSpare.length && evenSpare.every((r) => schedule.includes(r));
-            preset = matchesSpare ? 'runes-spare' : 'runes-every';
-        } else {
-            preset = DEFAULT_ROUND_CARD_PRESET_ID;
-        }
+    if (known) return known.id;
+    const schedule = settings.roundCards;
+    if (schedule === true) return 'runes-every';
+    if (Array.isArray(schedule) && schedule.length > 0) {
+        const evenSpare = [2, 4, 6, 8, 10];
+        const matchesSpare =
+            schedule.length === evenSpare.length && evenSpare.every((r) => schedule.includes(r));
+        return matchesSpare ? 'runes-spare' : 'runes-every';
     }
-
-    return {
-        roundCardPreset: preset,
-        roundCardItems: runePool,
-        roundCardOfferCount: offerCount,
-    };
+    return DEFAULT_ROUND_CARD_PRESET_ID;
 }
 
 /**
@@ -519,7 +401,7 @@ export class Economy {
     }
 
     costOf(type: UnitType): number {
-        return this.settings.unitCosts[type.id] ?? type.cost;
+        return type.cost;
     }
 
     /** a tech's current price: base + escalation per tech already owned for the type */
@@ -582,15 +464,10 @@ function fmtTimer(t: RoundTimer): string {
 /**
  * Human-readable reference tables for a GameSettings object — the single
  * source both the homepage's "Match settings" section and the in-game
- * settings panel (click the supply counter) render from, so there's exactly
- * one place turning raw settings numbers into labeled rows. Describes the
- * SETTINGS PASSED IN, not just the defaults — the horde group in particular
- * reflects whatever factor is actually active for this match (including a
- * custom round list or `?hordeFactor=` override), not a hardcoded "Medium".
+ * settings panel (click the supply counter) render from.
  */
 export function describeGameSettings(settings: GameSettings): SettingGroup[] {
     const pct = (n: number) => `${Math.round(n * 100)}%`;
-    const horde = settings.horde;
     const hordeRows: SettingRow[] = [];
     if (!hordeEnabled(settings)) {
         hordeRows.push({ label: 'Status', value: 'Off' });
@@ -599,31 +476,11 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
         for (let r = 1; r <= HORDE_FINAL_ROUND; r++) {
             if (isHordeRoundActive(settings, r)) activeRounds.push(r);
         }
-        const custom = Array.isArray(horde?.factor);
-        hordeRows.push(
-            {
-                label: 'Preset',
-                value: custom
-                    ? 'Custom'
-                    : hordeAlgorithmById(settings.hordePreset).describe(),
-                note: `waves on round ${activeRounds.join(', ')}`,
-            },
-            { label: 'Round 1 wave value', value: `${(horde ?? DEFAULT_HORDE).baseBudget} supply` },
-            {
-                label: 'Growth per active round',
-                value: `+${(horde ?? DEFAULT_HORDE).budgetPerRound} supply`,
-            },
-            {
-                label: 'Final round multiplier',
-                value: `${(horde ?? DEFAULT_HORDE).finaleBudgetMultiplier}×`,
-                note: `round ${HORDE_FINAL_ROUND} always fires, boosted, when horde is on`,
-            },
-            {
-                label: 'Leader bias',
-                value: pct(hordeLeaderShare(settings)),
-                note: 'share of the wave aimed at whoever is currently ahead on HP',
-            },
-        );
+        hordeRows.push({
+            label: 'Preset',
+            value: hordeAlgorithmById(settings.hordePreset).describe(),
+            note: `waves on round ${activeRounds.join(', ')}`,
+        });
     }
 
     return [
@@ -659,16 +516,6 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Preset',
                     value: roundCardAlgorithmById(settings.roundCardPreset).describe(),
-                },
-                {
-                    label: 'Offer size',
-                    value: `${settings.roundCardOfferCount}`,
-                    note: 'cards shown each offer',
-                },
-                {
-                    label: 'Rune pool',
-                    value: settings.roundCardItems.join(', '),
-                    note: 'item ids used when the preset draws runes',
                 },
             ],
         },

@@ -51,7 +51,6 @@ import { iconHtml } from './ui/iconAtlas';
 import {
     CUSTOM_GAME_PACE_PRESETS,
     DEFAULT_CUSTOM_GAME_PACE_ID,
-    DEFAULT_HORDE,
     DEFAULT_HORDE_PRESET_ID,
     DEFAULT_SETTINGS,
     HORDE_ALGORITHMS,
@@ -59,7 +58,6 @@ import {
     formatCustomGamePaceOption,
     hordeAlgorithmById,
     type GameSettings,
-    type HordeFactor,
 } from './game/settings';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
@@ -73,27 +71,14 @@ import { THEME, applyUiFont, menuStyles } from './theme';
 // PvPvE: a neutral dwarf horde spawns from the forest ring outside the
 // normal board and marches in, hostile to both players. The normal map's
 // own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
-// mode specifically) — no more widened center belt. Horde is always on;
-// `?hordeFactor=` / `?hordePreset=` is the lever, including `off`.
-// Accepts a preset id or an explicit round list (`?hordeFactor=2,4,9`).
+// mode specifically). `?hordePreset=` / `?hordeFactor=` selects an algorithm id.
 function applyHordeMode(settings: GameSettings): void {
-    settings.horde = structuredClone(DEFAULT_HORDE);
     settings.hordePreset = 'medium';
     const params = new URLSearchParams(location.search);
     const presetParam = params.get('hordePreset') ?? params.get('hordeFactor');
     if (!presetParam) return;
     if (HORDE_ALGORITHMS.some((a) => a.id === presetParam)) {
         settings.hordePreset = presetParam;
-        settings.horde.factor = presetParam as HordeFactor;
-        return;
-    }
-    const rounds = presetParam
-        .split(',')
-        .map((s) => Number(s.trim()))
-        .filter((n) => Number.isFinite(n) && n > 0);
-    if (rounds.length > 0) {
-        settings.horde.factor = rounds;
-        settings.hordePreset = DEFAULT_HORDE_PRESET_ID;
     }
 }
 
@@ -195,11 +180,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.specialistTimeSeconds = pace.specialistSeconds;
     settings.cardTimeSeconds = pace.cardSeconds;
     settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
-    settings.roundCards = false;
-    const hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
-    settings.hordePreset = hordePreset;
-    settings.horde = structuredClone(DEFAULT_HORDE);
-    settings.horde.factor = hordePreset as HordeFactor;
+    settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
 }
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20&nocards
@@ -239,24 +220,17 @@ function settingsFromUrl(): GameSettings {
     // between-round cards: ?nocards | ?roundCardPreset=full | legacy ?roundCards=
     if (params.has('nocards') || params.get('roundCards') === 'off' || params.get('roundCardPreset') === 'off') {
         settings.roundCardPreset = 'off';
-        settings.roundCards = false;
     } else {
         const presetRaw = params.get('roundCardPreset');
         if (presetRaw) {
             settings.roundCardPreset = roundCardAlgorithmById(presetRaw).id;
-            settings.roundCards = false;
+        } else if (params.get('roundCards') === 'true' || params.get('roundCards') === '1') {
+            settings.roundCardPreset = 'runes-every';
         } else {
             const raw = params.get('roundCards');
-            if (raw) {
-                const rounds = raw
-                    .split(',')
-                    .map((s) => Number(s.trim()))
-                    .filter((n) => Number.isFinite(n) && n > 0);
-                if (rounds.length > 0) {
-                    settings.roundCards = rounds;
-                    // invalid id → normalizeGameSettings maps the legacy array
-                    settings.roundCardPreset = '';
-                }
+            if (raw && raw.includes(',')) {
+                // legacy sparse list → spare if even rounds, else every
+                settings.roundCardPreset = 'runes-spare';
             }
         }
     }

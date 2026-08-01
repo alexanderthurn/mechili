@@ -2,7 +2,7 @@ import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { forgeIngredientIcons } from '../game/forgeRecipes';
-import { DEFAULT_HORDE, DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
+import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { TACTICS, formatTacticStats } from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
 import {
@@ -221,7 +221,6 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
 const SETTINGS_GROUPS: SettingGroup[] = describeGameSettings({
     ...DEFAULT_SETTINGS,
     hordePreset: 'medium',
-    horde: DEFAULT_HORDE,
 });
 
 function settingsGroupHtml(g: SettingGroup): string {
@@ -351,7 +350,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward, draft one of ${DEFAULT_SETTINGS.roundCardOfferCount} offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Forgeable battle spells come from the Stronghold, not cards.</p>
+    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Forgeable battle spells come from the Stronghold, not cards.</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
       ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>
