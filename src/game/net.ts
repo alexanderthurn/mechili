@@ -1698,8 +1698,16 @@ function openPeer(id?: string, signal?: AbortSignal): Promise<Peer> {
             return;
         }
         const cfg = peerServerConfig;
+        // LAN PeerServer: no cloud STUN/TURN — PeerJS defaults hit
+        // *.turn.peerjs.com and spam errors (and fail) when offline.
         const opts = cfg
-            ? { host: cfg.host, port: cfg.port, path: cfg.path, secure: cfg.secure ?? false }
+            ? {
+                  host: cfg.host,
+                  port: cfg.port,
+                  path: cfg.path,
+                  secure: cfg.secure ?? false,
+                  config: { iceServers: [] as RTCIceServer[] },
+              }
             : undefined;
         const peer = id ? (opts ? new Peer(id, opts) : new Peer(id)) : opts ? new Peer(opts) : new Peer();
         const onAbort = () => {

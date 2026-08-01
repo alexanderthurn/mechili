@@ -1051,7 +1051,7 @@ let started = false;
 let pending: { cancel: () => void } | null = null;
 /** true after 3D assets finish loading — match starts wait for this */
 let bootReady = false;
-let roomPoll: ReturnType<typeof setInterval> | null = null;
+let roomPoll: ReturnType<typeof setTimeout> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
 let activeGame: Game | null = null;
 let stopSinglePlayerPersist: (() => void) | null = null;
@@ -1262,22 +1262,33 @@ function setMenuBusy(busy: boolean): void {
  * username. Two Electron windows share Steam/localStorage name, so filtering
  * by name hid the other instance's LAN lobby.
  */
-async function lanRoomsExcludingSelf(): Promise<Awaited<ReturnType<typeof lan.listRooms>>> {
+async function lanRoomsExcludingSelf(timeoutMs = 2000): Promise<Awaited<ReturnType<typeof lan.listRooms>>> {
     const [rooms, self] = await Promise.all([
-        lan.listRooms({ timeoutMs: 2000 }),
+        lan.listRooms({ timeoutMs }),
         lan.getHostInfo(),
     ]);
     if (!self) return rooms;
     return rooms.filter((r) => !(r.peerId === self.peerId && r.port === self.port));
 }
 
+/** Next room-list poll delay — LAN empty scans are cheap UDP; PHP stays slow. */
+function roomPollDelayMs(transport: string | null, foundRooms: boolean): number {
+    if (transport === 'lan') return foundRooms ? 2500 : 1000;
+    if (transport === 'steam') return 8000;
+    return 5000; // matchmaking / online PHP
+}
+
 async function refreshRoomList(): Promise<void> {
+    let transport: string | null = null;
+    let foundRooms = false;
     try {
-        const transport = await resolveMultiplayerTransport();
+        transport = await resolveMultiplayerTransport();
         const mine = getPlayerName();
 
         if (transport === 'lan') {
-            const others = await lanRoomsExcludingSelf();
+            // Short UDP wait so 1s empty polling stays snappy
+            const others = await lanRoomsExcludingSelf(900);
+            foundRooms = others.length > 0;
             if (others.length === 0) {
                 roomListEl.className = 'm-room-list empty';
                 roomListEl.textContent = 'No open LAN games';
@@ -1313,6 +1324,7 @@ async function refreshRoomList(): Promise<void> {
 
         const rooms = await fetchLobbyRooms();
         const others = rooms.filter((r) => r.name.toLowerCase() !== mine.toLowerCase());
+        foundRooms = others.length > 0;
         if (others.length === 0) {
             roomListEl.className = 'm-room-list empty';
             roomListEl.textContent = 'No open games';
@@ -1358,19 +1370,30 @@ async function refreshRoomList(): Promise<void> {
     } catch {
         roomListEl.className = 'm-room-list empty';
         roomListEl.textContent = 'Could not load rooms';
+    } finally {
+        scheduleLayoutTitle();
+        if (roomPollActive) {
+            roomPoll = setTimeout(() => {
+                void refreshRoomList();
+            }, roomPollDelayMs(transport, foundRooms));
+        }
     }
-    scheduleLayoutTitle();
 }
+
+let roomPollActive = false;
 
 function startRoomPoll(): void {
     stopRoomPoll();
+    roomPollActive = true;
     void refreshRoomList();
-    roomPoll = setInterval(() => void refreshRoomList(), 5000);
 }
 
 function stopRoomPoll(): void {
-    if (roomPoll) clearInterval(roomPoll);
-    roomPoll = null;
+    roomPollActive = false;
+    if (roomPoll) {
+        clearTimeout(roomPoll);
+        roomPoll = null;
+    }
 }
 
 function clearMatchResumeData(): void {
@@ -2597,8 +2620,8 @@ function tryLanMatchmaking(): void {
         try {
             // Two passes: same-PC discovery can miss the first query if the
             // host advertise socket just came up.
-            let rooms = await lanRoomsExcludingSelf();
-            if (!rooms.length) rooms = await lanRoomsExcludingSelf();
+            let rooms = await lanRoomsExcludingSelf(2000);
+            if (!rooms.length) rooms = await lanRoomsExcludingSelf(2000);
             const open = rooms[0];
             if (open) {
                 setStatus(`Found LAN room "${open.name}" — connecting…`);
@@ -2777,6 +2800,10 @@ menu.addEventListener('click', (e) => {
     if (refreshBtn && !started) {
         e.preventDefault();
         refreshBtn.disabled = true;
+        if (roomPoll) {
+            clearTimeout(roomPoll);
+            roomPoll = null;
+        }
         void refreshRoomList().finally(() => {
             refreshBtn.disabled = false;
         });
@@ -2976,8 +3003,8 @@ menu.addEventListener('click', (e) => {
                 if (transport === 'lan') {
                     setStatus(transportLookingStatus('lan'));
                     try {
-                        let rooms = await lanRoomsExcludingSelf();
-                        if (!rooms.length) rooms = await lanRoomsExcludingSelf();
+                        let rooms = await lanRoomsExcludingSelf(2000);
+                        if (!rooms.length) rooms = await lanRoomsExcludingSelf(2000);
                         const open = rooms[0];
                         if (open) {
                             setStatus(`Found LAN room "${open.name}" — connecting…`);
