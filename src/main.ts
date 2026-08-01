@@ -2729,22 +2729,32 @@ function tryMatchmaking(): void {
 function tryLanMatchmaking(): void {
     setStatus(transportLookingStatus('lan'));
     void (async () => {
-        try {
-            // Two passes: same-PC discovery can miss the first query if the
-            // host advertise socket just came up.
-            let rooms = await lanRoomsExcludingSelf(2000);
-            if (!rooms.length) rooms = await lanRoomsExcludingSelf(2000);
+        const joinIfOpen = async (
+            rooms: Awaited<ReturnType<typeof lanRoomsExcludingSelf>>,
+        ): Promise<boolean> => {
             const open = rooms[0];
-            if (open) {
-                setStatus(`Found LAN room "${open.name}" — connecting…`);
-                beginStarJoin(open.name, {
-                    host: open.host,
-                    port: open.port,
-                    path: open.path,
-                    secure: false,
-                });
-                return;
-            }
+            if (!open) return false;
+            setStatus(`Found LAN room "${open.name}" — connecting…`);
+            beginStarJoin(open.name, {
+                host: open.host,
+                port: open.port,
+                path: open.path,
+                secure: false,
+            });
+            return true;
+        };
+
+        try {
+            // Immediate first listen (as soon as Matchmaking is pressed).
+            if (await joinIfOpen(await lanRoomsExcludingSelf(400))) return;
+
+            // Keep listening while waiting — catches a peer who pressed a moment later.
+            if (await joinIfOpen(await lanRoomsExcludingSelf(1500))) return;
+            if (await joinIfOpen(await lanRoomsExcludingSelf(2000))) return;
+
+            // Last look in the final ms before we become the host ourselves.
+            if (await joinIfOpen(await lanRoomsExcludingSelf(800))) return;
+
             await beginStarHost(true, 2, null, initial1v1Roster, '1v1', false, 'lan');
         } catch (e) {
             setMenuBusy(false);
