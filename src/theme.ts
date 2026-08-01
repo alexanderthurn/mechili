@@ -851,27 +851,65 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
-/* Electron only — stacked directly above the username pill, same corner */
-.mechili-exit-btn {
+/* Top-right menu chrome: door (Electron quit) + settings gear */
+.mechili-corner-actions {
     position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
     right: calc(16px + env(safe-area-inset-right));
-    bottom: calc(60px + env(safe-area-inset-bottom));
-    padding: 8px 14px;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.border};
-    border-radius: 10px;
-    color: ${u.text};
-    font-size: 13px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    cursor: pointer;
-    user-select: none;
     z-index: 30;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-    transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
-.mechili-exit-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-exit-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+.mechili-exit-btn,
+.mechili-settings-btn {
+    background: none;
+    border: none;
+    color: ${u.text};
+    padding: 0;
+    width: 44px;
+    height: 44px;
+    font-size: 0;
+    line-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+.mechili-exit-btn .m-icon {
+    width: 34px;
+    height: 34px;
+    display: block;
+}
+.mechili-settings-btn .m-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 0;
+}
+.mechili-exit-btn:hover { color: ${u.brassLight}; transform: translateX(2px); }
+.mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
+.mechili-exit-btn:focus-visible,
+.mechili-settings-btn:focus-visible {
+    outline: none;
+    color: ${u.brassLight};
+}
+@media (pointer: coarse) {
+    .mechili-exit-btn,
+    .mechili-settings-btn {
+        width: 32px;
+        height: 32px;
+    }
+    .mechili-exit-btn .m-icon {
+        width: 24px;
+        height: 24px;
+    }
+    .mechili-settings-btn .m-icon {
+        width: 32px;
+        height: 32px;
+    }
+}
 
 /* watch-mode-only jump/speed controls — top-right, deliberately NOT
    top-center: the round/phase/timer readout (.mechili-topbar) already lives
@@ -914,45 +952,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     cursor: pointer;
 }
 .mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
-
-/* big gear, top-right of the main menu */
-.mechili-settings-btn {
-    position: absolute;
-    top: calc(10px + env(safe-area-inset-top));
-    right: calc(16px + env(safe-area-inset-right));
-    background: none;
-    border: none;
-    color: ${u.text};
-    padding: 0;
-    width: 44px;
-    height: 44px;
-    font-size: 0;
-    line-height: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 30;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-    transition: transform 0.25s, color 0.2s;
-}
-.mechili-settings-btn .m-icon {
-    width: 44px;
-    height: 44px;
-    font-size: 0;
-}
-.mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
-.mechili-settings-btn:focus-visible { outline: none; color: ${u.brassLight}; transform: rotate(45deg); }
-@media (pointer: coarse) {
-    .mechili-settings-btn {
-        width: 32px;
-        height: 32px;
-    }
-    .mechili-settings-btn .m-icon {
-        width: 32px;
-        height: 32px;
-    }
-}
 
 /* suggest chip, top-left of the main menu (same feel as username) */
 .mechili-suggest-btn {

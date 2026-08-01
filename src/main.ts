@@ -741,28 +741,28 @@ usernameTextEl.className = 'u-name';
 usernameEl.append(usernameAvatarEl, usernameTextEl);
 wrapper.appendChild(usernameEl);
 
-// big gear in the top-right corner of the main menu
+// Top-right menu chrome: door (Electron quit) + settings gear.
+const cornerActionsEl = document.createElement('div');
+cornerActionsEl.className = 'mechili-corner-actions';
+cornerActionsEl.style.display = 'none';
+
+const exitDesktopEl = document.createElement('button');
+exitDesktopEl.className = 'mechili-exit-btn';
+exitDesktopEl.type = 'button';
+exitDesktopEl.innerHTML = iconHtml('ui-room', 'm-ico');
+exitDesktopEl.title = 'Exit to Desktop';
+exitDesktopEl.setAttribute('aria-label', 'Exit to Desktop');
+exitDesktopEl.addEventListener('click', () => void win.close());
+
 const settingsCornerEl = document.createElement('button');
 settingsCornerEl.className = 'mechili-settings-btn';
 settingsCornerEl.type = 'button';
 settingsCornerEl.innerHTML = iconHtml('ui-settings', 'm-ico');
 settingsCornerEl.title = 'Settings';
-settingsCornerEl.style.display = 'none';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
-wrapper.appendChild(settingsCornerEl);
 
-// Electron only — a browser tab has its own close affordance, but a
-// borderless/fullscreen Electron window doesn't; stacked just above the
-// username pill. Visibility is gated on isElectron() inside
-// setMenuChromeVisible, not just here, since it must also hide during play.
-const exitDesktopEl = document.createElement('button');
-exitDesktopEl.className = 'mechili-exit-btn';
-exitDesktopEl.type = 'button';
-exitDesktopEl.innerHTML = `${iconHtml('ui-room', 'btn-ico')}Exit to Desktop`;
-exitDesktopEl.title = 'Quit the game';
-exitDesktopEl.style.display = 'none';
-exitDesktopEl.addEventListener('click', () => void win.close());
-wrapper.appendChild(exitDesktopEl);
+cornerActionsEl.append(settingsCornerEl, exitDesktopEl);
+wrapper.appendChild(cornerActionsEl);
 
 // suggest chip, top-left (same language as username button)
 const suggestCornerEl = document.createElement('button');
@@ -805,9 +805,11 @@ function setMenuChromeVisible(visible: boolean): void {
     menu.style.display = display;
     usernameEl.style.display = display;
     versionEl.style.display = display;
-    settingsCornerEl.style.display = display;
     suggestCornerEl.style.display = display;
+    cornerActionsEl.style.display = display;
+    // Door only in Electron; settings always when chrome is up.
     exitDesktopEl.style.display = visible && isElectron() ? '' : 'none';
+    settingsCornerEl.style.display = display;
     applyGlobalChatVisibility();
     if (visible) {
         ensureMenuGamepadCursor();
@@ -1524,9 +1526,8 @@ function finishReturnToMenu(): void {
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
     wrapper.appendChild(versionEl);
-    wrapper.appendChild(settingsCornerEl);
+    wrapper.appendChild(cornerActionsEl);
     wrapper.appendChild(suggestCornerEl);
-    wrapper.appendChild(exitDesktopEl);
     wrapper.appendChild(gchatEl);
     startGlobalChatPoll();
     refreshUsernameLabel();
@@ -1593,9 +1594,8 @@ function startGame(
     menu.remove();
     usernameEl.remove();
     versionEl.remove();
-    settingsCornerEl.remove();
+    cornerActionsEl.remove();
     suggestCornerEl.remove();
-    exitDesktopEl.remove();
     gchatEl.remove();
 
     if (net) {
@@ -2914,6 +2914,13 @@ window.addEventListener('keydown', (e) => {
     if (closeMenuSubPanelOnEscape()) {
         e.preventDefault();
         e.stopPropagation();
+        return;
+    }
+    // Root main menu: Escape quits the Electron app (browser tabs keep Escape no-op).
+    if (isElectron()) {
+        e.preventDefault();
+        e.stopPropagation();
+        void win.close();
     }
 });
 
