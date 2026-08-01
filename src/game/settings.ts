@@ -7,6 +7,17 @@ import {
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './roundCardAlgorithms';
+import {
+    DEFAULT_HORDE_KNOBS,
+    DEFAULT_HORDE_PRESET_ID,
+    HORDE_ALGORITHMS,
+    HORDE_FINAL_ROUND,
+    hordeAlgorithmById,
+    type HordeKnobs,
+} from './hordeAlgorithms';
+
+export { HORDE_FINAL_ROUND, DEFAULT_HORDE_PRESET_ID, HORDE_ALGORITHMS, hordeAlgorithmById } from './hordeAlgorithms';
+export type { HordeKnobs, HordeContext, HordeAlgorithm } from './hordeAlgorithms';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -47,9 +58,14 @@ export interface GameSettings {
      */
     seed?: number;
     /**
-     * horde PvPvE mode: a neutral dwarf horde spawns from a ring in the
-     * surrounding forest and marches inward, hostile to both players.
-     * Unset, or `factor: 'off'`, both mean off — see {@link hordeEnabled}.
+     * Horde algorithm id (see {@link HORDE_ALGORITHMS}). Owns which rounds
+     * spawn waves; Custom Game / setup store only this id.
+     */
+    hordePreset: string;
+    /**
+     * Horde budget / bias knobs (+ legacy {@link HordeSettings.factor} for
+     * older saves and `?hordeFactor=2,4,9` custom round lists).
+     * Unset is fine when {@link hordePreset} is `off`.
      */
     horde?: HordeSettings;
     /**
@@ -81,90 +97,54 @@ export interface GameSettings {
 }
 
 /**
- * Which rounds spawn a horde wave, shaped exactly like {@link GameSettings.roundCards}
- * (`boolean | number[]`) rather than a hand-built per-level table:
- * - `'off'` — horde mode disabled entirely (no waves at all, not even the finale).
- * - `'low' | 'medium' | 'high'` — shorthand for a canonical round list (see
- *   `HORDE_FACTOR_PRESET_ROUNDS`).
- * - `'ultra'` — every round gets a wave.
- * - `number[]` — an explicit round list, bypassing presets entirely (like
- *   `roundCards: [3, 6, 9]` today).
- * The final round (`HORDE_FINAL_ROUND`) always spawns a wave whenever the
- * factor isn't `'off'`, regardless of which preset/array is chosen — see
- * `isHordeRoundActive`.
+ * @deprecated Prefer {@link GameSettings.hordePreset}. Kept for older
+ * saves/replays / URL overrides; {@link normalizeGameSettings} maps named
+ * factors into a preset. `number[]` still means an explicit custom round list.
  */
 export type HordeFactor = 'off' | 'low' | 'medium' | 'high' | 'ultra' | number[];
 
-export interface HordeSettings {
-    /** which rounds spawn a wave — see {@link HordeFactor} */
+export interface HordeSettings extends HordeKnobs {
+    /**
+     * @deprecated Prefer {@link GameSettings.hordePreset}. Named factors are
+     * migrated to presets; `number[]` remains a custom round-list override.
+     */
     factor: HordeFactor;
-    /** supply value of round 1's wave (spent entirely on dwarf packs) */
-    baseBudget: number;
-    /** extra supply value added to the wave each active round after the first */
-    budgetPerRound: number;
-    /**
-     * flat multiplier applied to the final round's budget on top of the
-     * normal growth formula — deliberately just "bigger" for now; the one
-     * lever to make the finale feel overwhelming without a separate
-     * special-cased mechanic.
-     */
-    finaleBudgetMultiplier: number;
-    /**
-     * share of the wave that hunts the match-HP leader (spawns biased to the
-     * leader's half of the spawn ring); the rest spawns near the weaker
-     * player's half. On equal HP the wave has no bias.
-     */
-    leaderShare: number;
 }
-
-/** the last round of the match — the horde's wave here always fires,
- *  boosted by `finaleBudgetMultiplier`, regardless of `factor` */
-export const HORDE_FINAL_ROUND = 10;
-
-const HORDE_FACTOR_PRESET_ROUNDS: Record<'low' | 'medium' | 'high', number[]> = {
-    low: [HORDE_FINAL_ROUND],
-    medium: [5, HORDE_FINAL_ROUND],
-    high: [3, 5, 7, HORDE_FINAL_ROUND],
-};
 
 /**
- * Whether horde mode is structurally active at all (any round ever spawns a
- * wave) — `undefined` (settings built without horde at all, e.g. replays
- * older than this feature) and an explicit `factor: 'off'` (the one on/off
- * lever, `?hordeFactor=off`) both count as "not active" here, so anything
- * gated on horde mode being on — not just whether a wave spawns this round,
- * but things like the neutral-strip lock and the wider horde-mode camera
- * bounds too — treats them identically.
+ * Whether horde mode is structurally active (camera widen, neutral-strip
+ * lock, waves possible). Driven by {@link GameSettings.hordePreset}, or a
+ * legacy custom round list on {@link HordeSettings.factor}.
  */
-export function hordeEnabled(horde: HordeSettings | undefined): horde is HordeSettings {
-    return !!horde && horde.factor !== 'off';
+export function hordeEnabled(settings: GameSettings): boolean {
+    if (Array.isArray(settings.horde?.factor)) return true;
+    return hordeAlgorithmById(settings.hordePreset).enabled();
 }
 
-/** whether this round spawns a horde wave — mirrors `shouldOfferRoundCards`'s shape */
-export function isHordeRoundActive(horde: HordeSettings | undefined, round: number): boolean {
-    if (!hordeEnabled(horde)) return false;
-    if (round === HORDE_FINAL_ROUND) return true;
-    const { factor } = horde;
-    if (factor === 'off') return false; // narrows the preset-lookup below; hordeEnabled already excluded this
-    if (factor === 'ultra') return true;
-    if (Array.isArray(factor)) return factor.includes(round);
-    return HORDE_FACTOR_PRESET_ROUNDS[factor].includes(round);
+/** whether this round spawns a horde wave */
+export function isHordeRoundActive(settings: GameSettings, round: number): boolean {
+    const custom = settings.horde?.factor;
+    if (Array.isArray(custom)) {
+        return round === HORDE_FINAL_ROUND || custom.includes(round);
+    }
+    return hordeAlgorithmById(settings.hordePreset).shouldSpawn(round);
 }
 
-/** this round's wave budget — existing linear growth, times the finale
- *  multiplier on the last round. Caller is expected to have already
- *  checked `isHordeRoundActive`. */
-export function hordeBudgetForRound(horde: HordeSettings, round: number): number {
-    const base = horde.baseBudget + horde.budgetPerRound * (round - 1);
-    return round === HORDE_FINAL_ROUND ? base * horde.finaleBudgetMultiplier : base;
+/** this round's wave budget — caller should have checked {@link isHordeRoundActive} */
+export function hordeBudgetForRound(settings: GameSettings, round: number): number {
+    const knobs = settings.horde ?? DEFAULT_HORDE;
+    return hordeAlgorithmById(settings.hordePreset).budget(round, knobs);
+}
+
+/** leader-hunt spawn share for the active preset */
+export function hordeLeaderShare(settings: GameSettings): number {
+    const knobs = settings.horde ?? DEFAULT_HORDE;
+    return hordeAlgorithmById(settings.hordePreset).leaderShare(knobs);
 }
 
 export const DEFAULT_HORDE: HordeSettings = {
     factor: 'medium',
-    baseBudget: 300,
-    budgetPerRound: 200,
-    finaleBudgetMultiplier: 4,
-    leaderShare: 0.65,
+    ...DEFAULT_HORDE_KNOBS,
 };
 
 export interface LevelingSettings {
@@ -375,6 +355,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
         levelCostFactor: 0.5,
         recruitLevel2Cost: 100,
     },
+    hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
     roundCards: false,
     /** four free base runes — each offer shows all of them (shuffled) */
@@ -425,7 +406,44 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
         ...normalizeRoundCardOffer(settings),
+        ...normalizeHordePreset(settings),
     };
+}
+
+/** Map legacy `horde.factor` into {@link GameSettings.hordePreset}. */
+function normalizeHordePreset(settings: GameSettings): {
+    hordePreset: string;
+    horde?: HordeSettings;
+} {
+    const horde = settings.horde
+        ? { ...DEFAULT_HORDE, ...settings.horde }
+        : undefined;
+
+    const known = HORDE_ALGORITHMS.find((a) => a.id === settings.hordePreset);
+    if (known) {
+        return {
+            hordePreset: known.id,
+            horde:
+                known.id === 'off'
+                    ? horde
+                    : { ...(horde ?? DEFAULT_HORDE), factor: known.id as HordeFactor },
+        };
+    }
+
+    const factor = horde?.factor;
+    if (typeof factor === 'string' && HORDE_ALGORITHMS.some((a) => a.id === factor)) {
+        return {
+            hordePreset: factor,
+            horde: { ...(horde ?? DEFAULT_HORDE), factor: factor as HordeFactor },
+        };
+    }
+    if (Array.isArray(factor) && factor.length > 0) {
+        // custom round list — keep factor; preset stays off in the select sense
+        // but hordeEnabled treats the array as on
+        return { hordePreset: DEFAULT_HORDE_PRESET_ID, horde };
+    }
+
+    return { hordePreset: DEFAULT_HORDE_PRESET_ID, horde };
 }
 
 /**
@@ -574,29 +592,35 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
     const pct = (n: number) => `${Math.round(n * 100)}%`;
     const horde = settings.horde;
     const hordeRows: SettingRow[] = [];
-    if (!hordeEnabled(horde)) {
+    if (!hordeEnabled(settings)) {
         hordeRows.push({ label: 'Status', value: 'Off' });
     } else {
         const activeRounds: number[] = [];
         for (let r = 1; r <= HORDE_FINAL_ROUND; r++) {
-            if (isHordeRoundActive(horde, r)) activeRounds.push(r);
+            if (isHordeRoundActive(settings, r)) activeRounds.push(r);
         }
+        const custom = Array.isArray(horde?.factor);
         hordeRows.push(
             {
-                label: 'Active rounds',
-                value: Array.isArray(horde.factor) ? 'Custom' : horde.factor,
+                label: 'Preset',
+                value: custom
+                    ? 'Custom'
+                    : hordeAlgorithmById(settings.hordePreset).describe(),
                 note: `waves on round ${activeRounds.join(', ')}`,
             },
-            { label: 'Round 1 wave value', value: `${horde.baseBudget} supply` },
-            { label: 'Growth per active round', value: `+${horde.budgetPerRound} supply` },
+            { label: 'Round 1 wave value', value: `${(horde ?? DEFAULT_HORDE).baseBudget} supply` },
+            {
+                label: 'Growth per active round',
+                value: `+${(horde ?? DEFAULT_HORDE).budgetPerRound} supply`,
+            },
             {
                 label: 'Final round multiplier',
-                value: `${horde.finaleBudgetMultiplier}×`,
-                note: `round ${HORDE_FINAL_ROUND} always fires, boosted, no matter the level`,
+                value: `${(horde ?? DEFAULT_HORDE).finaleBudgetMultiplier}×`,
+                note: `round ${HORDE_FINAL_ROUND} always fires, boosted, when horde is on`,
             },
             {
                 label: 'Leader bias',
-                value: pct(horde.leaderShare),
+                value: pct(hordeLeaderShare(settings)),
                 note: 'share of the wave aimed at whoever is currently ahead on HP',
             },
         );

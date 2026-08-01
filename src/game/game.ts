@@ -124,6 +124,7 @@ import {
     Economy,
     hordeBudgetForRound,
     hordeEnabled,
+    hordeLeaderShare,
     isHordeRoundActive,
     normalizeGameSettings,
     secondsForRound,
@@ -1042,7 +1043,7 @@ export class Game {
         // keep the camera target well inside the field so the view never leaves the map —
         // horde mode widens this so the player can pan out far enough to see the wave
         // approaching through the forest ring (see spawnHordeWave)
-        const hordeReach = hordeEnabled(this.settings.horde) ? HORDE_RING_NEAR + HORDE_RING_SPAN : 0;
+        const hordeReach = hordeEnabled(this.settings) ? HORDE_RING_NEAR + HORDE_RING_SPAN : 0;
         this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);
         this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
         // open centered on the player's own zone (where the starting army
@@ -2365,7 +2366,7 @@ export class Game {
         // flanks and the neutral strip open up after the first round — but in
         // horde mode the widened strip is the horde's belt and never opens
         const unlocked = this.round >= 2;
-        const neutralOpen = unlocked && !hordeEnabled(this.settings.horde);
+        const neutralOpen = unlocked && !hordeEnabled(this.settings);
         if (unlocked !== this.map.flanksUnlocked || neutralOpen !== this.map.neutralUnlocked) {
             this.map.flanksUnlocked = unlocked;
             this.map.neutralUnlocked = neutralOpen;
@@ -6831,12 +6832,11 @@ export class Game {
      * generalized from a strip position to a ring half.
      */
     private spawnHordeWave(): void {
-        const horde = this.settings.horde;
-        if (!horde || !isHordeRoundActive(horde, this.round)) return;
+        if (!isHordeRoundActive(this.settings, this.round)) return;
         // HORDE_DWARF: same model/stats/headcount as the buildable dwarf pack,
         // just spread into a mob instead of a drilled rectangle (see units.ts)
         const type = HORDE_DWARF;
-        const budget = hordeBudgetForRound(horde, this.round);
+        const budget = hordeBudgetForRound(this.settings, this.round);
         const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
         const leader: Team | null =
@@ -6847,10 +6847,11 @@ export class Game {
         const ownSign = this.map.ownAtFar ? -1 : 1;
         const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
+        const leaderShare = hordeLeaderShare(this.settings);
         for (let i = 0; i < packs; i++) {
             let zSign = 0;
             if (leader !== null) {
-                const target = rng() < horde.leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
+                const target = rng() < leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
                 zSign = target === 'player' ? ownSign : -ownSign;
             }
             const spot = this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
