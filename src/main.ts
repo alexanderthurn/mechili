@@ -1022,19 +1022,15 @@ function hostCustomGame(): void {
         return;
     }
     void (async () => {
-        let transport = await resolveMultiplayerTransport();
-        // Custom Game hosts over PeerJS (star). Steam custom isn't wired — remap.
-        if (transport === 'steam') {
-            if (await lan.isAvailable()) transport = navigator.onLine ? 'matchmaking' : 'lan';
-            else if (navigator.onLine) transport = 'matchmaking';
-            else {
-                setStatus('Custom Game needs Matchmaking or LAN. Change Settings → Multiplayer.');
-                mainButtonsEl.style.display = '';
-                return;
-            }
-        }
+        const transport = await resolveMultiplayerTransport();
         if (!transport) {
             setStatus(transportUnavailableMessage());
+            mainButtonsEl.style.display = '';
+            return;
+        }
+        // Custom Game is PeerJS (star) only — Steam uses Matchmaking / Invite instead.
+        if (transport === 'steam') {
+            setStatus('Custom Game is Web/LAN only. Set Connection to Web or LAN, or use Matchmaking for Steam.');
             mainButtonsEl.style.display = '';
             return;
         }

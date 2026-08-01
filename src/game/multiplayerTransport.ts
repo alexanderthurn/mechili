@@ -1,6 +1,6 @@
 /**
  * Multiplayer discovery preference — one transport at a time (no dual race).
- * Settings: Auto | Steam | Matchmaking | LAN.
+ * Settings: Steam | Web | LAN. No Auto, no silent fallback between modes.
  */
 
 import { isElectron, lan, steam } from 'steam-electron-build/native';
@@ -31,27 +31,18 @@ export async function lanReady(): Promise<boolean> {
 }
 
 /**
- * Resolve the player's pref into a concrete transport, or null if impossible.
- *
- * Auto: offline + LAN → LAN; Steam ready + online → Steam; online → Matchmaking;
- * else LAN if available.
+ * Resolve the player's pref into that transport, or null if it is unavailable.
+ * Never switches to a different mode.
  */
 export async function resolveMultiplayerTransport(
     pref: MultiplayerTransportPref = prefs().multiplayerTransport,
 ): Promise<MultiplayerTransport | null> {
-    const onSteam = await steamReady();
-    const onLan = await lanReady();
-    const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
-
-    if (pref === 'steam') return onSteam ? 'steam' : null;
-    if (pref === 'matchmaking') return online ? 'matchmaking' : null;
-    if (pref === 'lan') return onLan ? 'lan' : null;
-
-    // auto
-    if (!online && onLan) return 'lan';
-    if (onSteam && online) return 'steam';
-    if (online) return 'matchmaking';
-    if (onLan) return 'lan';
+    if (pref === 'steam') return (await steamReady()) ? 'steam' : null;
+    if (pref === 'matchmaking') {
+        const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        return online ? 'matchmaking' : null;
+    }
+    if (pref === 'lan') return (await lanReady()) ? 'lan' : null;
     return null;
 }
 
@@ -82,7 +73,7 @@ export function transportUnavailableMessage(
 ): string {
     switch (pref) {
         case 'steam':
-            return 'Steam multiplayer needs the Steam client. Pick Matchmaking or LAN in Settings, or start Steam and relaunch.';
+            return 'Steam multiplayer needs the Steam client. Pick Web or LAN in Settings, or start Steam and relaunch.';
         case 'matchmaking':
             return 'Online Matchmaking needs an internet connection.';
         case 'lan':
@@ -90,7 +81,7 @@ export function transportUnavailableMessage(
                 ? 'LAN is unavailable (enable steamElectronBuild.lan and restart).'
                 : 'LAN multiplayer is only available in the Steam/Electron app.';
         default:
-            return 'No multiplayer path available. Check your connection, Steam, or Settings → Multiplayer.';
+            return 'No multiplayer path available. Check Settings → Multiplayer.';
     }
 }
 

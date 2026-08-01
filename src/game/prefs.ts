@@ -81,10 +81,9 @@ export interface Prefs {
     uiFont: UiFontId;
     /**
      * How Matchmaking / Custom host finds opponents.
-     * - auto: Steam if ready+online, else online Matchmaking, else LAN
-     * - steam / matchmaking / lan: force that path (fails clearly if unavailable)
+     * steam / matchmaking / lan — only that path (fails clearly if unavailable).
      */
-    multiplayerTransport: 'auto' | 'steam' | 'matchmaking' | 'lan';
+    multiplayerTransport: 'steam' | 'matchmaking' | 'lan';
     /**
      * One-shot flag: a touch-first device was dropped to the low preset once
      * (phones crash on desktop-grade settings). Never downgrades again, so
@@ -181,7 +180,7 @@ const DEFAULTS: Prefs = {
     antialias: true,
     controlScheme: 'auto',
     uiFont: 'exo2',
-    multiplayerTransport: 'auto',
+    multiplayerTransport: 'matchmaking',
     mobileTuned: false,
 };
 
@@ -259,8 +258,11 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     if (p.uiFont !== 'cinzel' && p.uiFont !== 'exo2' && p.uiFont !== 'marcellus') {
         p.uiFont = DEFAULTS.uiFont;
     }
+    // Former 'auto' pref → concrete Web path (no silent transport picking).
+    if ((p.multiplayerTransport as string) === 'auto') {
+        p.multiplayerTransport = 'matchmaking';
+    }
     if (
-        p.multiplayerTransport !== 'auto' &&
         p.multiplayerTransport !== 'steam' &&
         p.multiplayerTransport !== 'matchmaking' &&
         p.multiplayerTransport !== 'lan'

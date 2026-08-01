@@ -165,13 +165,12 @@ export async function claimName(input: {
 }
 
 /**
- * Persist avatar to PHP only for open-track online PeerJS (matchmaking / auto).
+ * Persist avatar to PHP only for open-track online PeerJS (Web / matchmaking).
  * Skip LAN (local-only) and Steam transport prefs.
  */
 export function shouldPersistAvatarToPhp(): boolean {
     if (!isOpenBuild()) return false;
-    const t = prefs().multiplayerTransport;
-    return t !== 'lan' && t !== 'steam';
+    return prefs().multiplayerTransport === 'matchmaking';
 }
 
 /** Upload or clear the open-track profile avatar (best-effort). */

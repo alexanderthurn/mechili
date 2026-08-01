@@ -40,7 +40,6 @@ export function openSettings(parent: HTMLElement): void {
         `<section class="s-section">` +
         `<div class="s-section-head">Multiplayer</div>` +
         `<label class="s-row">Connection <select class="s-mp">` +
-        `<option value="auto">Auto</option>` +
         `<option value="steam">Steam</option>` +
         `<option value="matchmaking">Web</option>` +
         `<option value="lan">LAN</option>` +
@@ -111,7 +110,6 @@ export function openSettings(parent: HTMLElement): void {
     const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset')];
 
     const mpHints: Record<Prefs['multiplayerTransport'], string> = {
-        auto: 'Steam when available, else Web, else LAN (Electron).',
         steam: 'Steam lobbies only. Needs Steam running at launch.',
         matchmaking: 'Online rooms via PeerJS + server list. Needs internet.',
         lan: 'Local network only (Electron). No internet required.',
