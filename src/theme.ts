@@ -532,6 +532,42 @@ ${fontFaceCss()}
 .mechili-gchat .g-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
 .mechili-gchat .g-input:focus-visible { outline: none; border-color: ${u.hover}; }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
+.mechili-menu .m-rooms {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.mechili-menu .m-rooms-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 2px;
+}
+.mechili-menu .m-rooms-label {
+    color: ${u.textMuted};
+    font-size: 12px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+.mechili-menu .m-rooms-refresh {
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.textMuted};
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.12s ease, color 0.12s ease;
+}
+.mechili-menu .m-rooms-refresh:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-menu .m-rooms-refresh:focus-visible { outline: none; border-color: ${u.brassLight}; }
+.mechili-menu .m-rooms-refresh:disabled { opacity: 0.5; cursor: default; }
 .mechili-menu .m-room-list {
     width: 100%;
     box-sizing: border-box;

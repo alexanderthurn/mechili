@@ -38,6 +38,16 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><input type="checkbox" class="s-global" /> Show global chat (menu)</label>` +
         `</section>` +
         `<section class="s-section">` +
+        `<div class="s-section-head">Multiplayer</div>` +
+        `<label class="s-row">Connection <select class="s-mp">` +
+        `<option value="auto">Auto</option>` +
+        `<option value="steam">Steam</option>` +
+        `<option value="matchmaking">Matchmaking (online)</option>` +
+        `<option value="lan">LAN</option>` +
+        `</select></label>` +
+        `<div class="s-hint s-mp-hint"></div>` +
+        `</section>` +
+        `<section class="s-section">` +
         `<div class="s-section-head">Graphics</div>` +
         `<div class="s-presets">` +
         (['low', 'medium', 'high', 'ultra'] as const)
@@ -87,6 +97,8 @@ export function openSettings(parent: HTMLElement): void {
 
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     const global = overlay.querySelector<HTMLInputElement>('.s-global')!;
+    const mpSel = overlay.querySelector<HTMLSelectElement>('.s-mp')!;
+    const mpHint = overlay.querySelector<HTMLElement>('.s-mp-hint')!;
     const fontSel = overlay.querySelector<HTMLSelectElement>('.s-font')!;
     const fontHint = overlay.querySelector<HTMLElement>('.s-font-hint')!;
     const scenery = overlay.querySelector<HTMLSelectElement>('.s-scenery')!;
@@ -98,10 +110,19 @@ export function openSettings(parent: HTMLElement): void {
     const aa = overlay.querySelector<HTMLInputElement>('.s-aa')!;
     const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset')];
 
+    const mpHints: Record<Prefs['multiplayerTransport'], string> = {
+        auto: 'Steam when available, else online Matchmaking, else LAN (Electron).',
+        steam: 'Steam lobbies only. Needs Steam running at launch.',
+        matchmaking: 'Online rooms via PeerJS + server list. Needs internet.',
+        lan: 'Local network only (Electron). No internet required.',
+    };
+
     const syncFromPrefs = (): void => {
         const p = prefs();
         combat.checked = p.combatChat;
         global.checked = p.globalChat;
+        mpSel.value = p.multiplayerTransport;
+        mpHint.textContent = mpHints[p.multiplayerTransport];
         fontSel.value = p.uiFont;
         fontHint.textContent = UI_FONTS[p.uiFont]?.hint ?? '';
         scenery.value = p.scenery;
@@ -124,6 +145,10 @@ export function openSettings(parent: HTMLElement): void {
 
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
     global.addEventListener('change', () => updatePrefs({ globalChat: global.checked }));
+    mpSel.addEventListener('change', () => {
+        updatePrefs({ multiplayerTransport: mpSel.value as Prefs['multiplayerTransport'] });
+        syncFromPrefs();
+    });
     fontSel.addEventListener('change', () => {
         const uiFont = fontSel.value as UiFontId;
         updatePrefs({ uiFont });

@@ -80,6 +80,12 @@ export interface Prefs {
     /** UI typeface — Cinzel / Exo 2 / Marcellus (live-switched via --font-ui). */
     uiFont: UiFontId;
     /**
+     * How Matchmaking / Custom host finds opponents.
+     * - auto: Steam if ready+online, else online Matchmaking, else LAN
+     * - steam / matchmaking / lan: force that path (fails clearly if unavailable)
+     */
+    multiplayerTransport: 'auto' | 'steam' | 'matchmaking' | 'lan';
+    /**
      * One-shot flag: a touch-first device was dropped to the low preset once
      * (phones crash on desktop-grade settings). Never downgrades again, so
      * the user's own choices stick.
@@ -175,6 +181,7 @@ const DEFAULTS: Prefs = {
     antialias: true,
     controlScheme: 'auto',
     uiFont: 'exo2',
+    multiplayerTransport: 'auto',
     mobileTuned: false,
 };
 
@@ -251,6 +258,14 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     }
     if (p.uiFont !== 'cinzel' && p.uiFont !== 'exo2' && p.uiFont !== 'marcellus') {
         p.uiFont = DEFAULTS.uiFont;
+    }
+    if (
+        p.multiplayerTransport !== 'auto' &&
+        p.multiplayerTransport !== 'steam' &&
+        p.multiplayerTransport !== 'matchmaking' &&
+        p.multiplayerTransport !== 'lan'
+    ) {
+        p.multiplayerTransport = DEFAULTS.multiplayerTransport;
     }
     return p;
 }

@@ -23,12 +23,13 @@ import {
     saveStarResumeMarker,
     branchSiteUrl,
     type NetMessage,
+    type PeerServerConfig,
     type Session,
     type SinglePlayerSave,
     type SpectatorSession,
     type StarRole,
 } from './game/net';
-import { isElectron, lobby as steamLobby, steam, win } from 'steam-electron-build/native';
+import { isElectron, lan, lobby as steamLobby, steam, win } from 'steam-electron-build/native';
 import {
     hostOrJoinSteamStar,
     hostSteamRoom,
@@ -40,6 +41,12 @@ import {
     type SteamSession,
     type SteamStarHub,
 } from './game/net-steam';
+import {
+    resolveMultiplayerTransport,
+    steamReady,
+    transportLookingStatus,
+    transportUnavailableMessage,
+} from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
 import { bootGameAssets } from './game/bootAssets';
@@ -330,17 +337,6 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
-/** True when Steamworks initialized at app launch (not merely Electron preload). */
-async function steamReady(): Promise<boolean> {
-    if (!steam.isAvailable()) return false;
-    try {
-        const id = await steam.getSteamId();
-        return !!id && id !== '0';
-    } catch {
-        return false;
-    }
-}
-
 /** Menu label: semver · branch · Steam|PeerJS · Online|Offline (transport fixed at launch). */
 async function refreshVersionLabel(): Promise<void> {
     const onSteam = await steamReady();
@@ -625,7 +621,13 @@ menu.innerHTML = `
         <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">Single Player</span></button>
         <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">Matchmaking</span></button>
         <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label">Custom Game</span></button>
-        <div class="m-room-list empty">No open games</div>
+        <div class="m-rooms">
+            <div class="m-rooms-head">
+                <span class="m-rooms-label">Open games</span>
+                <button type="button" class="m-rooms-refresh" title="Refresh room list" aria-label="Refresh room list">↻</button>
+            </div>
+            <div class="m-room-list empty">No open games</div>
+        </div>
     </div>
     <div class="m-spmode" style="display:none">
         <div class="m-spmode-title">Single Player</div>
@@ -907,6 +909,9 @@ document.addEventListener('pointerdown', (e) => {
 // ticking but refreshGlobalChat skips fetching while hidden or in-game
 applyGlobalChatVisibility();
 onPrefsChange(applyGlobalChatVisibility);
+onPrefsChange(() => {
+    if (roomPoll) void refreshRoomList();
+});
 startGlobalChatPoll();
 
 const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
@@ -1002,11 +1007,41 @@ function hostCustomGame(): void {
         startGame(settings);
         return;
     }
-    if (cfg.mode === '1v1') {
-        void beginStarHost(false, 2, cfg, initial1v1Roster, '1v1');
-        return;
-    }
-    void beginStarHost(false, cfg.mode === '2v2' ? 4 : 2, cfg);
+    void (async () => {
+        let transport = await resolveMultiplayerTransport();
+        // Custom Game hosts over PeerJS (star). Steam custom isn't wired — remap.
+        if (transport === 'steam') {
+            if (await lan.isAvailable()) transport = navigator.onLine ? 'matchmaking' : 'lan';
+            else if (navigator.onLine) transport = 'matchmaking';
+            else {
+                setStatus('Custom Game needs Matchmaking or LAN. Change Settings → Multiplayer.');
+                mainButtonsEl.style.display = '';
+                return;
+            }
+        }
+        if (!transport) {
+            setStatus(transportUnavailableMessage());
+            mainButtonsEl.style.display = '';
+            return;
+        }
+        const discovery = transport === 'lan' ? 'lan' : 'matchmaking';
+        setStatus(
+            discovery === 'lan' ? 'Opening LAN room…' : 'Opening room…',
+        );
+        if (cfg.mode === '1v1') {
+            await beginStarHost(false, 2, cfg, initial1v1Roster, '1v1', true, discovery);
+            return;
+        }
+        await beginStarHost(
+            false,
+            cfg.mode === '2v2' ? 4 : 2,
+            cfg,
+            initialStarRoster,
+            '2v2',
+            true,
+            discovery,
+        );
+    })();
 }
 
 let started = false;
@@ -1222,14 +1257,66 @@ function setMenuBusy(busy: boolean): void {
     });
 }
 
+/**
+ * Drop only the room THIS process is hosting — not every room with our
+ * username. Two Electron windows share Steam/localStorage name, so filtering
+ * by name hid the other instance's LAN lobby.
+ */
+async function lanRoomsExcludingSelf(): Promise<Awaited<ReturnType<typeof lan.listRooms>>> {
+    const [rooms, self] = await Promise.all([
+        lan.listRooms({ timeoutMs: 2000 }),
+        lan.getHostInfo(),
+    ]);
+    if (!self) return rooms;
+    return rooms.filter((r) => !(r.peerId === self.peerId && r.port === self.port));
+}
+
 async function refreshRoomList(): Promise<void> {
     try {
-        const rooms = await fetchLobbyRooms();
+        const transport = await resolveMultiplayerTransport();
         const mine = getPlayerName();
+
+        if (transport === 'lan') {
+            const others = await lanRoomsExcludingSelf();
+            if (others.length === 0) {
+                roomListEl.className = 'm-room-list empty';
+                roomListEl.textContent = 'No open LAN games';
+                scheduleLayoutTitle();
+                return;
+            }
+            roomListEl.className = 'm-room-list';
+            roomListEl.replaceChildren(
+                ...others.map((r) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'm-room';
+                    button.dataset.room = r.name;
+                    button.dataset.roomMode = '1v1';
+                    button.dataset.roomKind = 'lobby';
+                    button.dataset.lanHost = r.host;
+                    button.dataset.lanPort = String(r.port);
+                    button.dataset.lanPath = r.path;
+                    button.textContent = `${r.name} (LAN)`;
+                    return button;
+                }),
+            );
+            scheduleLayoutTitle();
+            return;
+        }
+
+        if (transport === 'steam') {
+            roomListEl.className = 'm-room-list empty';
+            roomListEl.textContent = 'Steam: use Matchmaking → Invite / Play';
+            scheduleLayoutTitle();
+            return;
+        }
+
+        const rooms = await fetchLobbyRooms();
         const others = rooms.filter((r) => r.name.toLowerCase() !== mine.toLowerCase());
         if (others.length === 0) {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.innerHTML = 'No open games';
+            roomListEl.textContent = 'No open games';
+            scheduleLayoutTitle();
             return;
         }
         roomListEl.className = 'm-room-list';
@@ -1270,7 +1357,7 @@ async function refreshRoomList(): Promise<void> {
         );
     } catch {
         roomListEl.className = 'm-room-list empty';
-        roomListEl.innerHTML = 'Could not load rooms';
+        roomListEl.textContent = 'Could not load rooms';
     }
     scheduleLayoutTitle();
 }
@@ -1975,15 +2062,24 @@ async function beginStarHost(
     buildRoster: (hostName: string) => CanonicalSeatDef[] = initialStarRoster,
     mode: '1v1' | '2v2' = '2v2',
     offerAiStart = true,
+    discovery: 'matchmaking' | 'lan' = 'matchmaking',
 ): Promise<void> {
     starHordeFlag = horde;
     starCustomConfig = customConfig;
     setMenuBusy(true);
-    setStatus(mode === '1v1' ? 'Opening room…' : 'Opening 2v2 room…');
+    setStatus(
+        discovery === 'lan'
+            ? mode === '1v1'
+                ? 'Opening LAN room…'
+                : 'Opening LAN 2v2 room…'
+            : mode === '1v1'
+              ? 'Opening room…'
+              : 'Opening 2v2 room…',
+    );
     const hostName = getPlayerName();
     let hosted: Awaited<ReturnType<typeof hostStarRoom>>;
     try {
-        hosted = await hostStarRoom(buildRoster(hostName), setStatus, mode);
+        hosted = await hostStarRoom(buildRoster(hostName), setStatus, mode, discovery);
     } catch (e) {
         setMenuBusy(false);
         setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
@@ -2120,8 +2216,8 @@ function startStarMatch(): void {
 }
 
 /** join a 2v2 room by the host's room name — waits for the host to Start */
-function beginStarJoin(hostName: string): void {
-    runStarPending(joinStarRoom(hostName, setStatus));
+function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): void {
+    runStarPending(joinStarRoom(hostName, setStatus, peerServer));
 }
 
 function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
@@ -2463,8 +2559,11 @@ function try2v2Match(horde: boolean, waitForJoined = 2): void {
  * quick match if none is found, so a client tab needs no param at all to
  * join a `?test2v2=` host's room.
  */
+/**
+ * Online PeerJS matchmaking (PHP room list + cloud PeerJS).
+ */
 function tryMatchmaking(): void {
-    setStatus('Looking for a match…');
+    setStatus(transportLookingStatus('matchmaking'));
     void fetchLobbyRooms().then((rooms) => {
         const mine = getPlayerName().toLowerCase();
         // any OPEN room (not a spectate-only entry for an already-running
@@ -2475,7 +2574,7 @@ function tryMatchmaking(): void {
         // that field is a display label only, not a protocol distinction.
         const open = rooms.find((r) => r.kind === 'lobby' && r.name.toLowerCase() !== mine);
         if (open) {
-            beginStarJoin(open.name);
+            beginStarJoin(open.name, null);
         } else {
             // nothing open — host a discoverable room (not the old
             // anonymous quickMatch queue, which never showed up in the
@@ -2486,9 +2585,58 @@ function tryMatchmaking(): void {
             // `applyHordeMode` hook this replaces. offerAiStart=false: open
             // matchmaking should only end in a real opponent or a cancel —
             // Single Player already covers vs-AI.
-            void beginStarHost(true, 2, null, initial1v1Roster, '1v1', false);
+            void beginStarHost(true, 2, null, initial1v1Roster, '1v1', false, 'matchmaking');
         }
     });
+}
+
+/** Electron LAN: UDP room list + local PeerServer (no internet). */
+function tryLanMatchmaking(): void {
+    setStatus(transportLookingStatus('lan'));
+    void (async () => {
+        try {
+            // Two passes: same-PC discovery can miss the first query if the
+            // host advertise socket just came up.
+            let rooms = await lanRoomsExcludingSelf();
+            if (!rooms.length) rooms = await lanRoomsExcludingSelf();
+            const open = rooms[0];
+            if (open) {
+                setStatus(`Found LAN room "${open.name}" — connecting…`);
+                beginStarJoin(open.name, {
+                    host: open.host,
+                    port: open.port,
+                    path: open.path,
+                    secure: false,
+                });
+                return;
+            }
+            await beginStarHost(true, 2, null, initial1v1Roster, '1v1', false, 'lan');
+        } catch (e) {
+            setMenuBusy(false);
+            setStatus(`LAN failed: ${e instanceof Error ? e.message : e}`);
+            mainButtonsEl.style.display = '';
+        }
+    })();
+}
+
+/** Pick transport from Settings and start Matchmaking (simple 1v1 Horde path). */
+async function startMatchmakingForTransport(): Promise<void> {
+    const transport = await resolveMultiplayerTransport();
+    if (!transport) {
+        setStatus(transportUnavailableMessage());
+        mainButtonsEl.style.display = '';
+        return;
+    }
+    if (transport === 'steam') {
+        // Steam still uses the Invite/Play picker (1v1 Horde) for now.
+        showMatchmakingPicker();
+        return;
+    }
+    if (transport === 'lan') {
+        tryLanMatchmaking();
+        return;
+    }
+    tryMatchmaking();
 }
 
 /**
@@ -2625,6 +2773,16 @@ window.addEventListener('keydown', (e) => {
 });
 
 menu.addEventListener('click', (e) => {
+    const refreshBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-rooms-refresh');
+    if (refreshBtn && !started) {
+        e.preventDefault();
+        refreshBtn.disabled = true;
+        void refreshRoomList().finally(() => {
+            refreshBtn.disabled = false;
+        });
+        return;
+    }
+
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
         if (!bootReady) {
@@ -2635,7 +2793,14 @@ menu.addEventListener('click', (e) => {
         // every room is star-hosted now (1v1 is just a 2-seat star room),
         // including 'resume' rows — always beginStarJoin regardless of
         // roomMode, which is a display label only.
-        else beginStarJoin(roomBtn.dataset.room);
+        else if (roomBtn.dataset.lanHost && roomBtn.dataset.lanPort && roomBtn.dataset.lanPath) {
+            beginStarJoin(roomBtn.dataset.room, {
+                host: roomBtn.dataset.lanHost,
+                port: Number(roomBtn.dataset.lanPort),
+                path: roomBtn.dataset.lanPath,
+                secure: false,
+            });
+        } else beginStarJoin(roomBtn.dataset.room, null);
         return;
     }
 
@@ -2712,24 +2877,7 @@ menu.addEventListener('click', (e) => {
                 try2v2Match(true, test2v2);
                 break;
             }
-            if (steam.isAvailable()) {
-                // unchanged for Steam: quickSteamMatch's "host" branch
-                // creates a real public Steam lobby the instant it starts
-                // waiting, and safely abandoning that lobby if the player
-                // changes their mind first needs its own pass before the
-                // probe-first shortcut below is safe to extend there too.
-                // Mode/Horde choice is forced+hidden in the HTML for now
-                // (1v1 Horde only) — Invite/Play still work as before.
-                showMatchmakingPicker();
-                break;
-            }
-            // simplified to 1v1 Horde only for now — always committed (no
-            // picker to fall back to, there's nothing left to choose). Still
-            // checks for an open 2v2 room first (see tryMatchmaking's doc
-            // comment) so a `?test2v2=` host's other tabs need no param of
-            // their own at all — clicking plain Matchmaking already finds
-            // whatever's open.
-            tryMatchmaking();
+            void startMatchmakingForTransport();
             break;
         }
         case 'mms-2v2':
@@ -2759,26 +2907,44 @@ menu.addEventListener('click', (e) => {
             const horde = mmHordeEl.checked;
             mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
             mmInviteEl.disabled = true;
-            if (steam.isAvailable()) {
-                // Steam's own overlay invite picker replaces the copy-paste
-                // link — no room code to show, just open it once the lobby exists
-                mmInviteEl.textContent = 'Waiting for your friend…';
-                mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
-                mmLinkEl.style.display = '';
-                if (team === '2v2') void beginSteamStarHost(horde);
-                else {
-                    const hosted = hostSteamRoom(false, () => steamLobby.openInviteDialog());
-                    runSteamPending(hosted.session, 'host', horde ? applyHordeMode : undefined);
+            void (async () => {
+                const transport = await resolveMultiplayerTransport();
+                if (transport === 'steam') {
+                    mmInviteEl.textContent = 'Waiting for your friend…';
+                    mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
+                    mmLinkEl.style.display = '';
+                    setStatus(transportLookingStatus('steam'));
+                    if (team === '2v2') void beginSteamStarHost(horde);
+                    else {
+                        const hosted = hostSteamRoom(false, () => steamLobby.openInviteDialog());
+                        runSteamPending(hosted.session, 'host', horde ? applyHordeMode : undefined);
+                    }
+                    return;
                 }
-                break;
-            }
-            mmInviteEl.textContent = 'Waiting for your friend…';
-            const hostName = getPlayerName();
-            const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(hostName)}`;
-            mmLinkEl.textContent = `Send this to your friend: ${link}`;
-            mmLinkEl.style.display = '';
-            if (team === '2v2') void beginStarHost(horde);
-            else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false);
+                if (transport === 'lan') {
+                    mmInviteEl.textContent = 'Waiting for a LAN player…';
+                    mmLinkEl.textContent = 'Your room is advertised on the local network. Friends: Settings → Multiplayer → LAN, then Matchmaking.';
+                    mmLinkEl.style.display = '';
+                    setStatus(transportLookingStatus('lan'));
+                    if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'lan');
+                    else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'lan');
+                    return;
+                }
+                if (transport !== 'matchmaking') {
+                    setStatus(transportUnavailableMessage());
+                    mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
+                    mmInviteEl.disabled = false;
+                    return;
+                }
+                mmInviteEl.textContent = 'Waiting for your friend…';
+                const hostName = getPlayerName();
+                const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(hostName)}`;
+                mmLinkEl.textContent = `Send this to your friend: ${link}`;
+                mmLinkEl.style.display = '';
+                setStatus(transportLookingStatus('matchmaking'));
+                if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'matchmaking');
+                else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'matchmaking');
+            })();
             break;
         }
         case 'mm-play': {
@@ -2786,33 +2952,71 @@ menu.addEventListener('click', (e) => {
             const horde = mmHordeEl.checked;
             mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = true));
             mmInviteEl.disabled = true;
-            if (steam.isAvailable()) {
-                setStatus('Looking for an open Steam lobby…');
-                if (team === '2v2') {
-                    void hostOrJoinSteamStar(initialStarRoster(getPlayerName())).then((result) => {
-                        if (result.role === 'guest') {
-                            runSteamStarPending(Promise.resolve(result.session));
-                        } else {
-                            starHordeFlag = horde;
-                            steamStarHosting = { hub: result.hub, lobbyId: result.lobbyId };
-                            wireSteamStarHub(result.hub);
-                        }
-                    });
-                } else {
-                    void quickSteamMatch().then(({ session, role }) =>
-                        runSteamPending(Promise.resolve(session), role, horde ? applyHordeMode : undefined),
-                    );
+            void (async () => {
+                const transport = await resolveMultiplayerTransport();
+                if (transport === 'steam') {
+                    setStatus(transportLookingStatus('steam'));
+                    if (team === '2v2') {
+                        void hostOrJoinSteamStar(initialStarRoster(getPlayerName())).then((result) => {
+                            if (result.role === 'guest') {
+                                runSteamStarPending(Promise.resolve(result.session));
+                            } else {
+                                starHordeFlag = horde;
+                                steamStarHosting = { hub: result.hub, lobbyId: result.lobbyId };
+                                wireSteamStarHub(result.hub);
+                            }
+                        });
+                    } else {
+                        void quickSteamMatch().then(({ session, role }) =>
+                            runSteamPending(Promise.resolve(session), role, horde ? applyHordeMode : undefined),
+                        );
+                    }
+                    return;
                 }
-                break;
-            }
-            setStatus(team === '2v2' ? 'Looking for an open 2v2 room…' : 'Looking for an open room…');
-            void fetchLobbyRooms().then((rooms) => {
-                const mine = getPlayerName().toLowerCase();
-                const open = rooms.find((r) => r.mode === team && r.name.toLowerCase() !== mine);
-                if (open) beginStarJoin(open.name);
-                else if (team === '2v2') void beginStarHost(horde);
-                else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false);
-            });
+                if (transport === 'lan') {
+                    setStatus(transportLookingStatus('lan'));
+                    try {
+                        let rooms = await lanRoomsExcludingSelf();
+                        if (!rooms.length) rooms = await lanRoomsExcludingSelf();
+                        const open = rooms[0];
+                        if (open) {
+                            setStatus(`Found LAN room "${open.name}" — connecting…`);
+                            beginStarJoin(open.name, {
+                                host: open.host,
+                                port: open.port,
+                                path: open.path,
+                                secure: false,
+                            });
+                            return;
+                        }
+                        if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'lan');
+                        else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'lan');
+                    } catch (e) {
+                        setStatus(`LAN failed: ${e instanceof Error ? e.message : e}`);
+                        mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
+                        mmInviteEl.disabled = false;
+                    }
+                    return;
+                }
+                if (transport !== 'matchmaking') {
+                    setStatus(transportUnavailableMessage());
+                    mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
+                    mmInviteEl.disabled = false;
+                    return;
+                }
+                setStatus(
+                    team === '2v2'
+                        ? `${transportLookingStatus('matchmaking')} (2v2)`
+                        : transportLookingStatus('matchmaking'),
+                );
+                void fetchLobbyRooms().then((rooms) => {
+                    const mine = getPlayerName().toLowerCase();
+                    const open = rooms.find((r) => r.mode === team && r.name.toLowerCase() !== mine);
+                    if (open) beginStarJoin(open.name, null);
+                    else if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'matchmaking');
+                    else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'matchmaking');
+                });
+            })();
             break;
         }
         case 'custom': {

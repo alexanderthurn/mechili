@@ -1,4 +1,5 @@
 import Peer, { type DataConnection } from 'peerjs';
+import { lan } from 'steam-electron-build/native';
 import type { Action, LoggedAction } from './actions';
 import type { Opponent } from './ai';
 import type { DebugEvent } from './debugLog';
@@ -7,6 +8,25 @@ import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings } from './settings';
 import type { Team } from './units';
+
+/** PeerJS signaling target — null means the public PeerJS cloud. */
+export interface PeerServerConfig {
+    host: string;
+    port: number;
+    path: string;
+    secure?: boolean;
+}
+
+let peerServerConfig: PeerServerConfig | null = null;
+
+/** Point PeerJS at a LAN PeerServer (or null to use the cloud). */
+export function setPeerServerConfig(cfg: PeerServerConfig | null): void {
+    peerServerConfig = cfg;
+}
+
+export function getPeerServerConfig(): PeerServerConfig | null {
+    return peerServerConfig;
+}
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -1183,14 +1203,52 @@ export type StarRole =
  * lobby exactly like `hostLobby`, and returns the `StarHub` for the caller
  * to drive the join/seat-assignment/start flow (kept in main.ts, alongside
  * the seat-picker UI — connection plumbing only lives here).
+ *
+ * `discovery: 'lan'` uses Electron's local PeerServer + UDP announce (no PHP).
+ * `discovery: 'matchmaking'` (default) uses the PeerJS cloud + matchmaking.php.
  */
 export async function hostStarRoom(
     initialRoster: CanonicalSeatDef[],
     onStatus: (status: string) => void,
     mode: '1v1' | '2v2' = '2v2',
+    discovery: 'matchmaking' | 'lan' = 'matchmaking',
 ): Promise<{ hub: StarHub; roomId: string; cleanup: () => void }> {
     const name = getPlayerName();
     const roomId = peerRoomId(name);
+
+    if (discovery === 'lan') {
+        onStatus('Opening LAN room…');
+        if (!(await lan.isAvailable())) {
+            throw new Error('LAN is not available in this build');
+        }
+        const room = await lan.startHost({ name, peerId: roomId });
+        if (!room) throw new Error('Could not start LAN host');
+        // Host talks to the local PeerServer; guests use the advertised LAN IP.
+        setPeerServerConfig({
+            host: '127.0.0.1',
+            port: room.port,
+            path: room.path,
+            secure: false,
+        });
+        let hub: StarHub;
+        try {
+            hub = await StarHub.open(initialRoster, roomId);
+        } catch {
+            await lan.stopHost();
+            setPeerServerConfig(null);
+            throw new Error(`Name "${name}" is already hosting — pick another username`);
+        }
+        return {
+            hub,
+            roomId,
+            cleanup: () => {
+                void lan.stopHost();
+                setPeerServerConfig(null);
+            },
+        };
+    }
+
+    setPeerServerConfig(null);
     onStatus('Opening room…');
     let hub: StarHub;
     try {
@@ -1215,7 +1273,12 @@ export async function hostStarRoom(
 }
 
 /** Join a 2v2+ star room by the host's username (room code) — same lookup as `joinLobby`. */
-export function joinStarRoom(hostName: string, onStatus: (status: string) => void): SessionPending<StarGuestSession> {
+export function joinStarRoom(
+    hostName: string,
+    onStatus: (status: string) => void,
+    /** When set, dial this PeerServer instead of the cloud (LAN join). */
+    peerServer?: PeerServerConfig | null,
+): SessionPending<StarGuestSession> {
     let peer: Peer | null = null;
     const localName = getPlayerName();
     const code = roomCodeFromName(hostName);
@@ -1223,6 +1286,8 @@ export function joinStarRoom(hostName: string, onStatus: (status: string) => voi
         return { session: Promise.reject(new Error('Invalid room name')), cancel: () => undefined };
     }
     const session = (async () => {
+        if (peerServer) setPeerServerConfig(peerServer);
+        else if (peerServer === null) setPeerServerConfig(null);
         onStatus(`Joining "${hostName.trim()}"…`);
         peer = await openPeer();
         const conn = await new Promise<DataConnection>((resolve, reject) => {
@@ -1632,7 +1697,11 @@ function openPeer(id?: string, signal?: AbortSignal): Promise<Peer> {
             reject(new DOMException('Aborted', 'AbortError'));
             return;
         }
-        const peer = id ? new Peer(id) : new Peer();
+        const cfg = peerServerConfig;
+        const opts = cfg
+            ? { host: cfg.host, port: cfg.port, path: cfg.path, secure: cfg.secure ?? false }
+            : undefined;
+        const peer = id ? (opts ? new Peer(id, opts) : new Peer(id)) : opts ? new Peer(opts) : new Peer();
         const onAbort = () => {
             peer.destroy();
             reject(new DOMException('Aborted', 'AbortError'));
