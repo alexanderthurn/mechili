@@ -398,22 +398,20 @@ export type NetMessage =
     | { type: 'ping' }
     | { type: 'pong' };
 
-const LIVENESS_PING_MS = 4_000;
-// Generous on purpose: Chrome's (and other browsers' similar) "intensive
-// timer throttling" clamps EVERY timer, regardless of its own configured
-// delay, to at most once per minute once a tab has been continuously
-// backgrounded for 5+ minutes — and a spectator (or a player who alt-tabs
-// mid-match) leaving a tab backgrounded that long is a realistic, expected
-// scenario for this game, not a corner case (see tick()'s trueGameDt fix
-// for the exact same class of "long background" concern). A tighter
-// timeout here would risk treating a perfectly healthy, merely-throttled
-// peer as dead. Detection delay and the existing reconnect-grace countdown
-// (30s classic / 90s star) are sequential, not overlapping, so a larger
-// value here only pushes out the worst-case time-to-notice — it doesn't
-// break either grace window, and is still a categorical improvement over
-// the original bug (WebRTC's own close/error timing for a non-orderly
-// drop is inconsistent and can be much slower, or never fire at all).
-const LIVENESS_TIMEOUT_MS = 75_000;
+const LIVENESS_PING_MS = 2_000;
+// Declaring a connection "dead" here is cheap to get wrong: it only marks
+// the seat's conn null and starts the ordinary STAR_RECONNECT_GRACE_MS
+// (60s) reconnect window (see StarHub.dropSeat) — the exact same,
+// fully-recoverable path a real close/error takes. A false positive (a
+// merely-throttled or briefly-hiccuping peer that's still actually there)
+// just self-heals once its next ping gets through and it reclaims the
+// seat; nothing is lost or destroyed by guessing wrong. That's what makes
+// a short timeout safe to use here, unlike a true "give up" deadline.
+// Chrome's (and similar browsers') "intensive timer throttling" only
+// clamps a hidden tab's timers to once/minute after 5+ continuously
+// backgrounded minutes — well past this timeout, so a spectator or
+// player briefly alt-tabbing mid-match won't trip it.
+const LIVENESS_TIMEOUT_MS = 10_000;
 
 /**
  * Shared app-level connection-liveness watchdog — ping every
