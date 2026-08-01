@@ -46,10 +46,11 @@ import {
     steamReady,
     transportLookingStatus,
     transportUnavailableMessage,
+    type MultiplayerTransport,
 } from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, isProfileLockedOut, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
-import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl } from './game/avatar';
+import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, wireAvatar } from './game/avatar';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -73,7 +74,7 @@ import {
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
-import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
+import { duoSeats, localizeRoster, canonicalClassicSeats, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { THEME, applyUiFont, menuStyles } from './theme';
 
 // the only mode right now (Single Player / Matchmaking both force this) —
@@ -620,14 +621,14 @@ menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-main">
         <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">Single Player</span></button>
-        <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">Matchmaking</span></button>
-        <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label">Custom Game</span></button>
+        <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">Matchmaking (WEB)</span></button>
+        <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label">Custom Game (WEB)</span></button>
         <div class="m-rooms">
             <div class="m-rooms-head">
-                <span class="m-rooms-label">Open games</span>
+                <span class="m-rooms-label">Open Web Games</span>
                 <button type="button" class="m-rooms-refresh" title="Refresh room list" aria-label="Refresh room list">↻</button>
             </div>
-            <div class="m-room-list empty">No open games</div>
+            <div class="m-room-list empty">No open Web Games</div>
         </div>
     </div>
     <div class="m-spmode" style="display:none">
@@ -923,6 +924,9 @@ onPrefsChange(() => {
 startGlobalChatPoll();
 
 const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
+const roomsLabelEl = menu.querySelector<HTMLSpanElement>('.m-rooms-label')!;
+const matchmakingLabelEl = menu.querySelector<HTMLSpanElement>('.m-btn[data-mode="matchmaking"] .m-label')!;
+const customGameLabelEl = menu.querySelector<HTMLSpanElement>('.m-btn[data-mode="custom"] .m-label')!;
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
@@ -1112,21 +1116,24 @@ async function refreshOpenProfile(): Promise<void> {
 
 function showNameEditor(): void {
     if (started || pending) return;
+    const steamLocked = steam.isAvailable();
     const overlay = document.createElement('div');
     overlay.className = 'mechili-name-edit';
     const currentAvatar = getAvatarDataUrl();
-    const syncHint = shouldPersistAvatarToPhp()
-        ? 'Avatar is saved on this device and to your online profile (184×184).'
-        : 'Avatar is saved on this device (184×184). Shown in lobbies on this client.';
+    const syncHint = steamLocked
+        ? 'Name comes from Steam. Avatar is custom for Melodan (184×184) and sent to peers when you join.'
+        : shouldPersistAvatarToPhp()
+          ? 'Avatar is saved on this device and to your online profile (184×184).'
+          : 'Avatar is saved on this device (184×184). Shown to peers when you join.';
     overlay.innerHTML =
         `<div class="box">` +
-        `<div class="title">Username</div>` +
+        `<div class="title">${steamLocked ? 'Avatar' : 'Username'}</div>` +
         `<div class="avatar-row">` +
         `<img class="avatar-preview" alt="" hidden />` +
         `<label class="avatar-pick">Upload image<input class="avatar-file" type="file" accept="image/*" hidden /></label>` +
         `<button type="button" data-act="clear-avatar">Clear</button>` +
         `</div>` +
-        `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" />` +
+        `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" ${steamLocked ? 'readonly' : ''} />` +
         `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
         `<div class="actions">` +
@@ -1143,7 +1150,7 @@ function showNameEditor(): void {
     }
     const errorEl = overlay.querySelector<HTMLDivElement>('.error')!;
     const actions = overlay.querySelector<HTMLDivElement>('.actions')!;
-    nameInput.select();
+    if (!steamLocked) nameInput.select();
 
     let pendingAvatar: string | null | undefined = undefined; // undefined = unchanged
 
@@ -1173,7 +1180,7 @@ function showNameEditor(): void {
         actions.querySelectorAll('button').forEach((b) => {
             b.disabled = busy;
         });
-        nameInput.disabled = busy;
+        if (!steamLocked) nameInput.disabled = busy;
         fileInput.disabled = busy;
     };
 
@@ -1194,7 +1201,7 @@ function showNameEditor(): void {
     });
 
     const save = async () => {
-        const next = validatePlayerName(nameInput.value);
+        const next = steamLocked ? getPlayerName() : validatePlayerName(nameInput.value);
         if (!next) {
             nameInput.style.borderColor = '#e83828';
             setError('Name must be 2–16 letters, numbers, _ or -.');
@@ -1204,14 +1211,16 @@ function showNameEditor(): void {
         setError('');
         setBusy(true);
 
-        setPlayerName(next);
+        if (!steamLocked) setPlayerName(next);
         if (pendingAvatar !== undefined) setAvatarDataUrl(pendingAvatar);
         refreshUsernameLabel();
-        const result = await claimName({ name: next });
-        if (pendingAvatar !== undefined && shouldPersistAvatarToPhp()) {
-            await uploadAvatar({ name: next, avatar: pendingAvatar });
-        } else if (result.ok) {
-            void refreshOpenProfile();
+        if (!steamLocked) {
+            const result = await claimName({ name: next });
+            if (pendingAvatar !== undefined && shouldPersistAvatarToPhp()) {
+                await uploadAvatar({ name: next, avatar: pendingAvatar });
+            } else if (result.ok) {
+                void refreshOpenProfile();
+            }
         }
         setBusy(false);
         close();
@@ -1265,10 +1274,9 @@ if (steam.isAvailable()) {
 }
 refreshUsernameLabel();
 void refreshOpenProfile();
-// under Steam the name is seeded from your Steam identity (above) — the
-// web/LAN rename dialog has no password; Steam identity stays the lock.
+// under Steam the display name stays locked to Steam identity; avatar is still editable.
 usernameEl.addEventListener('click', () => {
-    if (!steam.isAvailable()) showNameEditor();
+    showNameEditor();
 });
 
 function setStatus(text: string): void {
@@ -1307,11 +1315,33 @@ function roomPollDelayMs(transport: string | null, foundRooms: boolean): number 
     return 5000; // matchmaking / online PHP
 }
 
+/** Room-list wording: LAN / Steam / Web (PeerJS matchmaking). */
+function roomListScopeLabel(
+    transport: Awaited<ReturnType<typeof resolveMultiplayerTransport>>,
+): 'LAN' | 'Steam' | 'Web' {
+    if (transport === 'lan') return 'LAN';
+    if (transport === 'steam') return 'Steam';
+    if (transport === 'matchmaking') return 'Web';
+    const pref = prefs().multiplayerTransport;
+    if (pref === 'lan') return 'LAN';
+    if (pref === 'steam') return 'Steam';
+    return 'Web';
+}
+
+function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Web'): void {
+    roomsLabelEl.textContent = `Open ${scope} Games`;
+    const tag = scope === 'Web' ? 'WEB' : scope === 'Steam' ? 'STEAM' : 'LAN';
+    matchmakingLabelEl.textContent = `Matchmaking (${tag})`;
+    customGameLabelEl.textContent = `Custom Game (${tag})`;
+}
+
 async function refreshRoomList(): Promise<void> {
-    let transport: string | null = null;
+    let transport: MultiplayerTransport | null = null;
     let foundRooms = false;
     try {
         transport = await resolveMultiplayerTransport();
+        const scope = roomListScopeLabel(transport);
+        setRoomsListHeading(scope);
         const mine = getPlayerName();
 
         if (transport === 'lan') {
@@ -1320,7 +1350,7 @@ async function refreshRoomList(): Promise<void> {
             foundRooms = others.length > 0;
             if (others.length === 0) {
                 roomListEl.className = 'm-room-list empty';
-                roomListEl.textContent = 'No open LAN games';
+                roomListEl.textContent = `No open ${scope} Games`;
                 scheduleLayoutTitle();
                 return;
             }
@@ -1346,7 +1376,14 @@ async function refreshRoomList(): Promise<void> {
 
         if (transport === 'steam') {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.textContent = 'Steam: use Matchmaking → Invite / Play';
+            roomListEl.textContent = `No open ${scope} Games`;
+            scheduleLayoutTitle();
+            return;
+        }
+
+        if (transport === null) {
+            roomListEl.className = 'm-room-list empty';
+            roomListEl.textContent = `No open ${scope} Games`;
             scheduleLayoutTitle();
             return;
         }
@@ -1356,7 +1393,7 @@ async function refreshRoomList(): Promise<void> {
         foundRooms = others.length > 0;
         if (others.length === 0) {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.textContent = 'No open games';
+            roomListEl.textContent = `No open ${scope} Games`;
             scheduleLayoutTitle();
             return;
         }
@@ -1397,6 +1434,8 @@ async function refreshRoomList(): Promise<void> {
             }),
         );
     } catch {
+        const scope = roomListScopeLabel(transport);
+        setRoomsListHeading(scope);
         roomListEl.className = 'm-room-list empty';
         roomListEl.textContent = 'Could not load rooms';
     } finally {
@@ -1993,8 +2032,9 @@ async function beginSteamNetGame(
     applyMode?: (settings: GameSettings) => void,
 ): Promise<void> {
     const localName = getPlayerName();
+    const localAvatar = getAvatarDataUrl();
     if (role === 'guest') {
-        session.send({ type: 'hello', name: localName });
+        session.send({ type: 'hello', name: localName, avatar: localAvatar });
         setStatus('Receiving match setup…');
         const msg = await session.once();
         if (msg.type !== 'setup' || msg.version !== GAME_VERSION) {
@@ -2004,6 +2044,15 @@ async function beginSteamNetGame(
         }
         const settings = msg.settings;
         settings.seed = msg.seed;
+        settings.seats = localizeRoster(
+            canonicalClassicSeats(
+                msg.hostName,
+                localName,
+                wireAvatar(msg.hostAvatar),
+                wireAvatar(msg.guestAvatar) ?? localAvatar,
+            ),
+            'b',
+        );
         startGame(settings, session, 'b', { local: localName, opponent: msg.hostName });
         return;
     }
@@ -2015,11 +2064,25 @@ async function beginSteamNetGame(
     ]);
     if (helloMsg.type !== 'hello') throw new Error('Unexpected handshake');
     const guestName = helloMsg.name;
+    const guestAvatar = wireAvatar(helloMsg.avatar);
     const settings = settingsFromUrl();
     applyMode?.(settings);
     delete settings.seats;
     settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-    session.send({ type: 'setup', version: GAME_VERSION, seed: settings.seed, settings, hostName: localName, guestName });
+    settings.seats = localizeRoster(
+        canonicalClassicSeats(localName, guestName, localAvatar, guestAvatar),
+        'a',
+    );
+    session.send({
+        type: 'setup',
+        version: GAME_VERSION,
+        seed: settings.seed,
+        settings: { ...settings, seats: undefined },
+        hostName: localName,
+        guestName,
+        hostAvatar: localAvatar,
+        guestAvatar,
+    });
     startGame(settings, session, 'a', { local: localName, opponent: guestName });
 }
 
@@ -2042,8 +2105,9 @@ function runSteamPending(
 
 /** host is always seat 0, side 'a'; the other 3 slots start open for joiners */
 function initialStarRoster(hostName: string): CanonicalSeatDef[] {
+    const avatar = getAvatarDataUrl() || undefined;
     return [
-        { side: 'a', controller: 'human', name: hostName },
+        { side: 'a', controller: 'human', name: hostName, avatar },
         { side: 'a', controller: 'human', name: 'Waiting…' },
         { side: 'b', controller: 'human', name: 'Waiting…' },
         { side: 'b', controller: 'human', name: 'Waiting…' },
@@ -2052,10 +2116,19 @@ function initialStarRoster(hostName: string): CanonicalSeatDef[] {
 /** 1v1 is just a 2-seat star room — one seat per side, no AI-fill slots
  *  besides the guest's own (see beginStarHost's roster param). */
 function initial1v1Roster(hostName: string): CanonicalSeatDef[] {
+    const avatar = getAvatarDataUrl() || undefined;
     return [
-        { side: 'a', controller: 'human', name: hostName },
+        { side: 'a', controller: 'human', name: hostName, avatar },
         { side: 'b', controller: 'human', name: 'Waiting…' },
     ];
+}
+
+/** Drop untrusted avatar payloads from wire/roster copies. */
+function rosterWithWiredAvatars(roster: CanonicalSeatDef[]): CanonicalSeatDef[] {
+    return roster.map((s) => {
+        const avatar = wireAvatar(s.avatar);
+        return avatar ? { ...s, avatar } : { ...s, avatar: undefined };
+    });
 }
 /** fallback name for a still-empty seat when the host clicks Start —
  *  derived from side (host's own side = 'Ally', the other = 'Foe'), so
@@ -2183,7 +2256,7 @@ async function beginStarHost(
         }
     };
     hub.onRosterChange = refresh;
-    hub.listen((name, version, conn) => {
+    hub.listen((name, version, conn, avatar) => {
         if (version !== GAME_VERSION) {
             conn.send({
                 type: 'starRejected',
@@ -2198,7 +2271,12 @@ async function beginStarHost(
             conn.close();
             return null;
         }
-        hub.setRosterEntry(seat, { side: hub.sideOf(seat), controller: 'human', name });
+        hub.setRosterEntry(seat, {
+            side: hub.sideOf(seat),
+            controller: 'human',
+            name,
+            avatar: wireAvatar(avatar) || undefined,
+        });
         return seat;
     });
     refresh();
@@ -2212,7 +2290,7 @@ function startStarMatch(): void {
     const currentRoster = hub.currentRoster();
     const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai', name: starAiName(i, currentRoster) };
+            return { side: s.side, controller: 'ai' as const, name: starAiName(i, currentRoster) };
         }
         return s;
     });
@@ -2328,7 +2406,7 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                     const yourSide = msg.roster[msg.seat]?.side ?? 'a';
                     const settings = msg.settings;
                     settings.seed = msg.seed;
-                    settings.seats = localizeRoster(msg.roster, yourSide);
+                    settings.seats = localizeRoster(rosterWithWiredAvatars(msg.roster), yourSide);
                     const myName = msg.roster[msg.seat]?.name ?? getPlayerName();
                     startGame(
                         settings,
@@ -2352,7 +2430,7 @@ function runStarPending(p: ReturnType<typeof joinStarRoom>): void {
                 }
                 const settings = msg.settings;
                 settings.seed = msg.seed;
-                settings.seats = localizeRoster(msg.roster, msg.yourSide);
+                settings.seats = localizeRoster(rosterWithWiredAvatars(msg.roster), msg.yourSide);
                 const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
                 startGame(
                     settings,
@@ -2408,13 +2486,18 @@ function wireSteamStarHub(hub: SteamStarHub): void {
         setStatus('Steam lobby open — invite a friend from the overlay, or click Start to play vs AI now instead.');
     };
     hub.onRosterChange = refresh;
-    hub.listen((name, version, _steamId64) => {
+    hub.listen((name, version, _steamId64, avatar) => {
         if (version !== GAME_VERSION) {
             return { reject: 'Version mismatch — both players need the same game version.' };
         }
         const seat = hub.nextOpenSeat();
         if (seat === null) return { reject: 'Room is full.' };
-        hub.setRosterEntry(seat, { side: hub.sideOf(seat), controller: 'human', name });
+        hub.setRosterEntry(seat, {
+            side: hub.sideOf(seat),
+            controller: 'human',
+            name,
+            avatar: wireAvatar(avatar) || undefined,
+        });
         return seat;
     });
     refresh();
@@ -2448,7 +2531,7 @@ function startSteamStarMatch(): void {
     const currentRoster = hub.currentRoster();
     const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai', name: starAiName(i, currentRoster) };
+            return { side: s.side, controller: 'ai' as const, name: starAiName(i, currentRoster) };
         }
         return s;
     });
@@ -2524,7 +2607,7 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
             }
             const settings = msg.settings;
             settings.seed = msg.seed;
-            settings.seats = localizeRoster(msg.roster, msg.yourSide);
+            settings.seats = localizeRoster(rosterWithWiredAvatars(msg.roster), msg.yourSide);
             const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
             startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
                 role: 'guest',

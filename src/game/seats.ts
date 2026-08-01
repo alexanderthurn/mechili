@@ -30,6 +30,8 @@ export interface SeatDef {
     side: SideId;
     controller: 'human' | 'ai';
     name: string;
+    /** optional player face (data URL) — shown in the fight-bar portrait */
+    avatar?: string | null;
 }
 
 /** the implicit 1v1 roster — classic behavior, seat 0 = the local player */
@@ -50,10 +52,15 @@ export function classicSeats(localName: string, opponentName: string): SeatDef[]
  * `side`, so each independently reconstructs the identical canonical roster
  * without needing a wire message for it.
  */
-export function canonicalClassicSeats(hostName: string, guestName: string): CanonicalSeatDef[] {
+export function canonicalClassicSeats(
+    hostName: string,
+    guestName: string,
+    hostAvatar?: string | null,
+    guestAvatar?: string | null,
+): CanonicalSeatDef[] {
     return [
-        { side: 'a', controller: 'human', name: hostName },
-        { side: 'b', controller: 'human', name: guestName },
+        { side: 'a', controller: 'human', name: hostName, avatar: hostAvatar || undefined },
+        { side: 'b', controller: 'human', name: guestName, avatar: guestAvatar || undefined },
     ];
 }
 
@@ -110,6 +117,8 @@ export interface CanonicalSeatDef {
     side: 'a' | 'b';
     controller: 'human' | 'ai';
     name: string;
+    /** optional custom player face (data URL); omitted for AI / unset */
+    avatar?: string | null;
 }
 
 /**
@@ -129,6 +138,7 @@ export function localizeRoster(canonical: readonly CanonicalSeatDef[], mySide: '
         side: c.side === 'a' ? 0 : 1,
         controller: c.controller,
         name: c.name,
+        avatar: c.avatar || undefined,
     }));
 }
 

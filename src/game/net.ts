@@ -5,6 +5,7 @@ import type { Opponent } from './ai';
 import type { DebugEvent } from './debugLog';
 import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
+import { getAvatarDataUrl } from './avatar';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings } from './settings';
 import type { Team } from './units';
@@ -195,8 +196,17 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
  * change.
  */
 export type NetMessage =
-    | { type: 'hello'; name: string }
-    | { type: 'setup'; version: number; seed: number; settings: GameSettings; hostName: string; guestName: string }
+    | { type: 'hello'; name: string; avatar?: string | null }
+    | {
+          type: 'setup';
+          version: number;
+          seed: number;
+          settings: GameSettings;
+          hostName: string;
+          guestName: string;
+          hostAvatar?: string | null;
+          guestAvatar?: string | null;
+      }
     /** `side` (wire-level 'a'/'b') is who picked — the two real players never
      *  need it (each just knows "mine" vs "the peer's"), but a spectator
      *  watching both sides can't tell the two picks apart without it; see
@@ -307,7 +317,7 @@ export type NetMessage =
     // ---- star topology (2v2+, N seats): host-relayed, own message family so
     // the classic 2-seat path above stays completely untouched ------------
     /** guest's opening handshake on connecting to a star (2v2+) room */
-    | { type: 'starJoin'; name: string; version: number }
+    | { type: 'starJoin'; name: string; version: number; avatar?: string | null }
     /** host's per-recipient match setup: canonical roster + which seat is theirs.
      *  `settings.seats` is unset here — the LOCAL roster is derived per client
      *  via `localizeRoster(roster, yourSide)`, never sent pre-relabeled. */
@@ -766,7 +776,7 @@ export class StarHub implements HostHub {
      * reclaim its (still-reserved, see dropSeat) slot after a drop — that
      * path never calls `onJoin` at all, since it isn't a new join.
      */
-    listen(onJoin: (name: string, version: number, conn: DataConnection) => SeatId | null): void {
+    listen(onJoin: (name: string, version: number, conn: DataConnection, avatar?: string | null) => SeatId | null): void {
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
                 const onData = (data: unknown) => {
@@ -806,7 +816,7 @@ export class StarHub implements HostHub {
                         }
                         return;
                     }
-                    const seat = onJoin(msg.name, msg.version, conn);
+                    const seat = onJoin(msg.name, msg.version, conn, msg.avatar);
                     if (seat === null) return; // onJoin already sent starRejected + closed
                     this.bySeat.set(seat, { conn, buffer: [], liveness: null });
                     this.wireSeatConn(seat, conn);
@@ -1305,7 +1315,7 @@ export function joinStarRoom(
                 reject(e);
             });
         });
-        conn.send({ type: 'starJoin', name: localName, version: GAME_VERSION });
+        conn.send({ type: 'starJoin', name: localName, version: GAME_VERSION, avatar: getAvatarDataUrl() });
         return new StarGuestSession(peer, conn);
     })();
     return { session, cancel: () => peer?.destroy() };

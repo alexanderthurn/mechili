@@ -3808,6 +3808,13 @@ ${fontFaceCss()}
     width: 100%;
     height: 100%;
 }
+.mechili-fightbar .portrait .fighter-portrait-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+}
 .mechili-fightbar .fighter.player .portrait { color: ${pc}; }
 .mechili-fightbar .fighter.enemy .portrait { color: ${ec}; }
 .mechili-fightbar .fighter-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }

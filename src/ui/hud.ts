@@ -29,6 +29,8 @@ type CommanderChip = {
     portraitEl: HTMLDivElement;
     name: string;
     card: StartCard | null;
+    /** custom player face — preferred over specialist atlas icon when set */
+    avatar: string | null;
 };
 
 /** Compact / phone chrome — MUST match the size media query in theme.ts */
@@ -1333,7 +1335,13 @@ export class Hud {
 
     /** one combined team card per side — built once at match start */
     setCommanders(
-        entries: { seat: number; team: 'player' | 'enemy'; name: string; primary: boolean }[],
+        entries: {
+            seat: number;
+            team: 'player' | 'enemy';
+            name: string;
+            primary: boolean;
+            avatar?: string | null;
+        }[],
         humanSeat: number,
         maxHp: number,
     ): void {
@@ -1393,9 +1401,9 @@ export class Hud {
 
     private buildTeamCard(
         team: 'player' | 'enemy',
-        featuredEntry: { seat: number; name: string },
-        secondaryEntries: { seat: number; name: string }[],
-        allEntries: { seat: number; name: string }[],
+        featuredEntry: { seat: number; name: string; avatar?: string | null },
+        secondaryEntries: { seat: number; name: string; avatar?: string | null }[],
+        allEntries: { seat: number; name: string; avatar?: string | null }[],
     ): { cardEl: HTMLDivElement; hpFill: HTMLDivElement; hpVal: HTMLSpanElement; specEl: HTMLSpanElement } {
         const cardEl = document.createElement('div');
         cardEl.className = `fighter ${team}`;
@@ -1409,9 +1417,8 @@ export class Hud {
         // 1. Featured main portrait (44px)
         const mainPortrait = document.createElement('div');
         mainPortrait.className = 'portrait main';
-        mainPortrait.textContent = '◆';
         mainPortrait.dataset.seat = String(featuredEntry.seat);
-
+        const mainAvatar = featuredEntry.avatar || null;
         this.commanderChips.push({
             seat: featuredEntry.seat,
             team,
@@ -1419,7 +1426,9 @@ export class Hud {
             portraitEl: mainPortrait,
             name: featuredEntry.name,
             card: null,
+            avatar: mainAvatar,
         });
+        this.applyPortrait(mainPortrait, mainAvatar, null);
 
         portraitGroup.appendChild(mainPortrait);
 
@@ -1430,8 +1439,8 @@ export class Hud {
             for (const sec of secondaryEntries) {
                 const subPortrait = document.createElement('div');
                 subPortrait.className = 'portrait sub';
-                subPortrait.textContent = '◆';
                 subPortrait.dataset.seat = String(sec.seat);
+                const secAvatar = sec.avatar || null;
 
                 this.commanderChips.push({
                     seat: sec.seat,
@@ -1440,7 +1449,9 @@ export class Hud {
                     portraitEl: subPortrait,
                     name: sec.name,
                     card: null,
+                    avatar: secAvatar,
                 });
+                this.applyPortrait(subPortrait, secAvatar, null);
 
                 subStack.appendChild(subPortrait);
             }
@@ -1468,6 +1479,29 @@ export class Hud {
 
         cardEl.append(portraitGroup, info);
         return { cardEl, hpFill, hpVal, specEl };
+    }
+
+    /** Player avatar wins over specialist atlas icon when both exist. */
+    private applyPortrait(
+        el: HTMLElement,
+        avatar: string | null | undefined,
+        card: StartCard | null,
+    ): void {
+        el.replaceChildren();
+        if (avatar) {
+            const img = document.createElement('img');
+            img.className = 'fighter-portrait-img';
+            img.alt = '';
+            img.draggable = false;
+            img.src = avatar;
+            el.appendChild(img);
+            return;
+        }
+        if (card?.portrait) {
+            el.innerHTML = iconHtml(card.portrait, 'fighter-portrait-ico');
+            return;
+        }
+        el.textContent = '◆';
     }
 
     /** @deprecated use setCommanders — kept for any external callers */
@@ -2980,11 +3014,7 @@ export class Hud {
             if (!chip) continue;
             chip.card = card;
             chip.cardEl.classList.toggle('has-spec', card !== null);
-            if (card?.portrait) {
-                chip.portraitEl.innerHTML = iconHtml(card.portrait, 'fighter-portrait-ico');
-            } else {
-                chip.portraitEl.textContent = '◆';
-            }
+            this.applyPortrait(chip.portraitEl, chip.avatar, card);
         }
         this.updateTeamSpecTitles();
         if (this.specDetailSeat !== null) {

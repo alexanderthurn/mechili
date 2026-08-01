@@ -182,6 +182,7 @@ import {
     type SeatId,
     type SideId,
 } from './seats';
+import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
@@ -927,7 +928,8 @@ export class Game {
         // relabels it to THIS client's own "player = mine" view, same as
         // star mode. Solo/AI play (`side` defaults to 'a') gets the exact
         // same seat 0/1 split as before, just also side-tagged.
-        this.seats =
+        const humanSeat = star?.mySeat ?? (side === 'a' ? 0 : 1);
+        const baseSeats =
             settings.seats ??
             localizeRoster(
                 canonicalClassicSeats(
@@ -936,7 +938,12 @@ export class Game {
                 ),
                 side,
             );
-        this.humanSeat = star?.mySeat ?? (side === 'a' ? 0 : 1);
+        // Local custom face: fill in if the wire/roster didn't already carry one.
+        const localAvatar = getAvatarDataUrl();
+        this.seats = baseSeats.map((s, i) =>
+            i === humanSeat && !s.avatar && localAvatar ? { ...s, avatar: localAvatar } : s,
+        );
+        this.humanSeat = humanSeat;
         this.economy = new Economy(settings.economy, this.seats.length);
         this.recruitLevel = this.seats.map(() => 1);
         this.creditUsed = this.seats.map(() => false);
@@ -7784,7 +7791,13 @@ export class Game {
      *  one-time setup and refreshCommanders' live update. `(AI)` only ever
      *  applies to a real networked match (this.star) — single-player's own
      *  AI opponent is already presented as such, nothing new to flag there. */
-    private commanderEntries(): { seat: SeatId; team: Team; name: string; primary: boolean }[] {
+    private commanderEntries(): {
+        seat: SeatId;
+        team: Team;
+        name: string;
+        primary: boolean;
+        avatar?: string | null;
+    }[] {
         return this.seats.map((def, seat) => ({
             seat,
             team: def.team,
@@ -7793,6 +7806,7 @@ export class Game {
                     ? `${this.ownerName(def.team, seat)} (AI)`
                     : this.ownerName(def.team, seat),
             primary: seat === primarySeatOf(this.seats, def.team),
+            avatar: def.avatar || null,
         }));
     }
 

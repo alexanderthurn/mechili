@@ -5,7 +5,7 @@
 
 export const AVATAR_SIZE = 184;
 /** Soft cap so localStorage stays healthy (184² webp/jpeg is usually fine). */
-const MAX_DATA_URL_CHARS = 200_000;
+export const MAX_AVATAR_DATA_URL_CHARS = 200_000;
 const STORAGE_KEY = 'mechili-avatar';
 
 export function getAvatarDataUrl(): string | null {
@@ -18,13 +18,22 @@ export function getAvatarDataUrl(): string | null {
     return null;
 }
 
+/** Accept a peer/handshake avatar only if it looks like our stored data URLs. */
+export function wireAvatar(raw: unknown): string | null {
+    if (typeof raw !== 'string') return null;
+    if (!raw.startsWith('data:image/')) return null;
+    if (raw.length > MAX_AVATAR_DATA_URL_CHARS) return null;
+    if (!/^data:image\/(webp|jpeg|jpg|png);base64,/i.test(raw)) return null;
+    return raw;
+}
+
 export function setAvatarDataUrl(dataUrl: string | null): void {
     try {
         if (!dataUrl) {
             localStorage.removeItem(STORAGE_KEY);
             return;
         }
-        if (dataUrl.length > MAX_DATA_URL_CHARS) return;
+        if (dataUrl.length > MAX_AVATAR_DATA_URL_CHARS) return;
         localStorage.setItem(STORAGE_KEY, dataUrl);
     } catch {
         /* quota / private browsing */
@@ -45,10 +54,10 @@ export async function resizeImageFileToAvatar(file: Blob): Promise<string | null
         const h = bitmap.height * scale;
         ctx.drawImage(bitmap, (AVATAR_SIZE - w) / 2, (AVATAR_SIZE - h) / 2, w, h);
         let out = canvas.toDataURL('image/webp', 0.82);
-        if (!out.startsWith('data:image/webp') || out.length > MAX_DATA_URL_CHARS) {
+        if (!out.startsWith('data:image/webp') || out.length > MAX_AVATAR_DATA_URL_CHARS) {
             out = canvas.toDataURL('image/jpeg', 0.85);
         }
-        if (out.length > MAX_DATA_URL_CHARS) return null;
+        if (out.length > MAX_AVATAR_DATA_URL_CHARS) return null;
         return out;
     } finally {
         bitmap.close();
