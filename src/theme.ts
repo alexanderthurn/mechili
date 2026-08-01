@@ -817,7 +817,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     position: absolute;
     right: calc(16px + env(safe-area-inset-right));
     bottom: calc(14px + env(safe-area-inset-bottom));
-    padding: 8px 14px;
+    padding: 6px 12px 6px 8px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
     border-radius: 10px;
@@ -829,7 +829,20 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     user-select: none;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
     transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
+.mechili-username .u-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 7px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid ${u.border};
+}
+.mechili-username .u-avatar[hidden] { display: none; }
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 /* narrow screens: the centered chat would collide with the username pill —
    stack the chat above it */
@@ -964,6 +977,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-suggest-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-suggest-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
 
+.mechili-username.has-avatar::before { display: none; }
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
 .mechili-version {
     position: absolute;
@@ -1248,6 +1262,33 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     color: #e87868;
 }
 .mechili-name-edit .hint { font-size: 12px; color: ${u.textMuted}; }
+.mechili-name-edit .avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.mechili-name-edit .avatar-preview {
+    width: 72px;
+    height: 72px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 1.5px solid ${u.border};
+    background: rgba(0, 0, 0, 0.35);
+}
+.mechili-name-edit .avatar-preview[hidden] { display: none; }
+.mechili-name-edit .avatar-pick {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1.5px solid ${u.border};
+    border-radius: 8px;
+    cursor: pointer;
+    color: ${u.text};
+    font-size: 13px;
+    font-weight: bold;
+}
+.mechili-name-edit .avatar-pick:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-name-edit .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .mechili-name-edit button {
     padding: 8px 14px;

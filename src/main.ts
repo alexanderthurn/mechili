@@ -48,7 +48,8 @@ import {
     transportUnavailableMessage,
 } from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
-import { getCachedProfile, isProfileLockedOut, probeName, claimName, syncOpenProfile } from './game/account';
+import { getCachedProfile, isProfileLockedOut, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
+import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl } from './game/avatar';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -730,6 +731,13 @@ usernameEl.className = 'mechili-username';
 usernameEl.type = 'button';
 usernameEl.style.zIndex = '30';
 usernameEl.style.display = 'none';
+const usernameAvatarEl = document.createElement('img');
+usernameAvatarEl.className = 'u-avatar';
+usernameAvatarEl.alt = '';
+usernameAvatarEl.hidden = true;
+const usernameTextEl = document.createElement('span');
+usernameTextEl.className = 'u-name';
+usernameEl.append(usernameAvatarEl, usernameTextEl);
 wrapper.appendChild(usernameEl);
 
 // big gear in the top-right corner of the main menu
@@ -1073,14 +1081,32 @@ function refreshUsernameLabel(): void {
     const name = getPlayerName();
     const profile = getCachedProfile();
     if (isProfileLockedOut()) {
-        usernameEl.textContent = `${name} · 🔒`;
-        return;
+        usernameTextEl.textContent = `${name} · 🔒`;
+    } else {
+        usernameTextEl.textContent = profile ? `${name} · ${profile.mmr}` : name;
     }
-    usernameEl.textContent = profile ? `${name} · ${profile.mmr}` : name;
+    const avatar = getAvatarDataUrl();
+    if (avatar) {
+        usernameAvatarEl.src = avatar;
+        usernameAvatarEl.hidden = false;
+        usernameEl.classList.add('has-avatar');
+    } else {
+        usernameAvatarEl.removeAttribute('src');
+        usernameAvatarEl.hidden = true;
+        usernameEl.classList.remove('has-avatar');
+    }
 }
 
 async function refreshOpenProfile(): Promise<void> {
-    await syncOpenProfile(getPlayerName());
+    const profile = await syncOpenProfile(getPlayerName());
+    // Restore avatar from PHP when online PeerJS (not LAN / Steam transport).
+    if (shouldPersistAvatarToPhp() && !steam.isAvailable() && profile && 'avatar' in profile) {
+        if (typeof profile.avatar === 'string' && profile.avatar.startsWith('data:image/')) {
+            setAvatarDataUrl(profile.avatar);
+        } else if (profile.avatar === null && profile.hasAvatar === false) {
+            // Server explicitly has no avatar — keep local (may not have synced yet).
+        }
+    }
     refreshUsernameLabel();
 }
 
@@ -1088,13 +1114,20 @@ function showNameEditor(): void {
     if (started || pending) return;
     const overlay = document.createElement('div');
     overlay.className = 'mechili-name-edit';
+    const currentAvatar = getAvatarDataUrl();
+    const syncHint = shouldPersistAvatarToPhp()
+        ? 'Avatar is saved on this device and to your online profile (184×184).'
+        : 'Avatar is saved on this device (184×184). Shown in lobbies on this client.';
     overlay.innerHTML =
         `<div class="box">` +
         `<div class="title">Username</div>` +
+        `<div class="avatar-row">` +
+        `<img class="avatar-preview" alt="" hidden />` +
+        `<label class="avatar-pick">Upload image<input class="avatar-file" type="file" accept="image/*" hidden /></label>` +
+        `<button type="button" data-act="clear-avatar">Clear</button>` +
+        `</div>` +
         `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" />` +
-        `<label class="field">Password` +
-        `<input class="pw-input" type="password" maxlength="64" autocomplete="current-password" /></label>` +
-        `<div class="hint">Password is optional if not yet set, no recovery</div>` +
+        `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
         `<div class="actions">` +
         `<button type="button" data-act="cancel">Cancel</button>` +
@@ -1102,14 +1135,31 @@ function showNameEditor(): void {
         `</div></div>`;
 
     const nameInput = overlay.querySelector<HTMLInputElement>('.name-input')!;
-    const pwInput = overlay.querySelector<HTMLInputElement>('.pw-input')!;
+    const fileInput = overlay.querySelector<HTMLInputElement>('.avatar-file')!;
+    const previewEl = overlay.querySelector<HTMLImageElement>('.avatar-preview')!;
+    if (currentAvatar) {
+        previewEl.src = currentAvatar;
+        previewEl.hidden = false;
+    }
     const errorEl = overlay.querySelector<HTMLDivElement>('.error')!;
     const actions = overlay.querySelector<HTMLDivElement>('.actions')!;
     nameInput.select();
 
+    let pendingAvatar: string | null | undefined = undefined; // undefined = unchanged
+
     const setError = (msg: string) => {
         errorEl.hidden = !msg;
         errorEl.textContent = msg;
+    };
+
+    const showPreview = (url: string | null) => {
+        if (url) {
+            previewEl.src = url;
+            previewEl.hidden = false;
+        } else {
+            previewEl.removeAttribute('src');
+            previewEl.hidden = true;
+        }
     };
 
     let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
@@ -1124,8 +1174,24 @@ function showNameEditor(): void {
             b.disabled = busy;
         });
         nameInput.disabled = busy;
-        pwInput.disabled = busy;
+        fileInput.disabled = busy;
     };
+
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files?.[0];
+        fileInput.value = '';
+        if (!file) return;
+        void (async () => {
+            setError('');
+            const dataUrl = await resizeImageFileToAvatar(file);
+            if (!dataUrl) {
+                setError('Could not use that image — try a smaller PNG or JPEG.');
+                return;
+            }
+            pendingAvatar = dataUrl;
+            showPreview(dataUrl);
+        })();
+    });
 
     const save = async () => {
         const next = validatePlayerName(nameInput.value);
@@ -1138,59 +1204,17 @@ function showNameEditor(): void {
         setError('');
         setBusy(true);
 
-        const pw = pwInput.value;
-        const probe = await probeName(next);
-
-        if (!probe) {
-            // offline — switch locally
-            setPlayerName(next);
-            refreshUsernameLabel();
+        setPlayerName(next);
+        if (pendingAvatar !== undefined) setAvatarDataUrl(pendingAvatar);
+        refreshUsernameLabel();
+        const result = await claimName({ name: next });
+        if (pendingAvatar !== undefined && shouldPersistAvatarToPhp()) {
+            await uploadAvatar({ name: next, avatar: pendingAvatar });
+        } else if (result.ok) {
             void refreshOpenProfile();
-            close();
-            return;
         }
-
-        if (probe.exists && probe.hasPassword) {
-            if (pw.length < 4) {
-                setBusy(false);
-                setError('This name is locked — enter the password.');
-                pwInput.focus();
-                return;
-            }
-            const result = await claimName({ name: next, password: pw });
-            setBusy(false);
-            if (result.ok) {
-                setPlayerName(next);
-                refreshUsernameLabel();
-                close();
-                return;
-            }
-            if (result.wrongPassword) {
-                setError('Wrong password.');
-                return;
-            }
-            setError(result.hint ?? result.error ?? 'Could not unlock name.');
-            return;
-        }
-
-        // new or unprotected — optional setPassword
-        if (pw !== '' && pw.length < 4) {
-            setBusy(false);
-            setError('Password must be at least 4 characters.');
-            return;
-        }
-        const result = await claimName({
-            name: next,
-            ...(pw ? { setPassword: pw } : {}),
-        });
         setBusy(false);
-        if (result.ok) {
-            setPlayerName(next);
-            refreshUsernameLabel();
-            close();
-            return;
-        }
-        setError(result.hint ?? result.error ?? 'Could not claim name.');
+        close();
     };
 
     overlay.addEventListener('click', (e) => {
@@ -1199,23 +1223,24 @@ function showNameEditor(): void {
             close();
             return;
         }
+        if (act === 'clear-avatar') {
+            pendingAvatar = null;
+            showPreview(null);
+            return;
+        }
         if (act === 'save') void save();
     });
 
     onKeyDown = (e) => {
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-            close();
-        }
+        if (e.key !== 'Escape' && e.key !== 'Enter') return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape') close();
         if (e.key === 'Enter') void save();
     };
     window.addEventListener('keydown', onKeyDown);
 
-    // locked-out: focus password
-    if (isProfileLockedOut()) pwInput.focus();
-    else nameInput.focus();
-
+    nameInput.focus();
     wrapper.appendChild(overlay);
 }
 
@@ -1231,13 +1256,17 @@ function showNameEditor(): void {
 if (steam.isAvailable()) {
     const steamName = await steam.getUserName();
     if (steamName) setPlayerName(steamName);
+    try {
+        const avatar = await steam.getAvatarDataUrl();
+        if (avatar) setAvatarDataUrl(avatar);
+    } catch {
+        /* keep cached local avatar if Steam fetch fails (offline) */
+    }
 }
 refreshUsernameLabel();
 void refreshOpenProfile();
 // under Steam the name is seeded from your Steam identity (above) — the
-// web version's login/rename/password editor doesn't apply yet, so the
-// corner button is inert for now rather than opening it (revisit once
-// there's an actual Steam-side account/identity story)
+// web/LAN rename dialog has no password; Steam identity stays the lock.
 usernameEl.addEventListener('click', () => {
     if (!steam.isAvailable()) showNameEditor();
 });

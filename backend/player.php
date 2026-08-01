@@ -21,6 +21,8 @@
  *       Elo for mp; if local name is protected, token required.
  *   GET  ?action=ladder&limit=
  *   GET  ?action=get&name=
+ *   POST ?action=avatar  { name, token?, avatar }
+ *       Set/clear profile avatar (data URL). { ok, player } — player includes avatar.
  */
 
 const PLAYERS_DIR = __DIR__ . '/players';
@@ -34,6 +36,8 @@ const MAX_LADDER = 100;
 const MIN_PASSWORD = 4;
 const MAX_PASSWORD = 64;
 const SESSION_TTL = 90 * 24 * 3600;
+/** Soft cap matching Melodan client (184² webp/jpeg data URL). */
+const MAX_AVATAR_CHARS = 200000;
 const TRACK = 'open';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -63,11 +67,13 @@ try {
         if ($name === null) respond(['error' => 'bad name'], 400);
         $player = readPlayer(nameKey($name));
         if ($player === null) respond(['error' => 'not found'], 404);
-        respond(['player' => publicPlayer($player)]);
+        respond(['player' => publicPlayer($player, true)]);
     } elseif ($action === 'result') {
         handleResult();
     } elseif ($action === 'ladder') {
         handleLadder();
+    } elseif ($action === 'avatar') {
+        handleAvatar();
     } else {
         respond(['error' => 'bad action'], 400);
     }
@@ -138,8 +144,12 @@ function playerHasPassword(array $p): bool {
     return !empty($p['passwordHash']) && is_string($p['passwordHash']);
 }
 
-function publicPlayer(array $p): array {
-    return [
+/**
+ * @param bool $withAvatar Include full data-URL avatar (hello / claim / get / avatar).
+ *                         Ladder and match results stay slim.
+ */
+function publicPlayer(array $p, bool $withAvatar = false): array {
+    $out = [
         'track' => $p['track'] ?? TRACK,
         'id' => $p['id'] ?? ('open:' . ($p['nameKey'] ?? '')),
         'name' => $p['name'] ?? '',
@@ -151,7 +161,24 @@ function publicPlayer(array $p): array {
         'games' => (int)($p['games'] ?? 0),
         'mpGames' => (int)($p['mpGames'] ?? 0),
         'hasPassword' => playerHasPassword($p),
+        'hasAvatar' => !empty($p['avatar']) && is_string($p['avatar']),
     ];
+    if ($withAvatar) {
+        $out['avatar'] = $out['hasAvatar'] ? $p['avatar'] : null;
+    }
+    return $out;
+}
+
+/** @return string|null Valid data URL, empty string to clear, or null if invalid. */
+function readAvatarPayload($raw): ?string {
+    if ($raw === null) return '';
+    if (!is_string($raw)) return null;
+    if ($raw === '') return '';
+    if (strlen($raw) > MAX_AVATAR_CHARS) return null;
+    if (!preg_match('#^data:image/(webp|jpeg|jpg|png);base64,[A-Za-z0-9+/=\s]+$#', $raw)) {
+        return null;
+    }
+    return $raw;
 }
 
 function readPassword(?string $raw): ?string {
@@ -250,7 +277,7 @@ function handleHello(): void {
         $player = defaultPlayer($name);
         savePlayer($player);
         $newToken = issueSession($key);
-        respond(['ok' => true, 'created' => true, 'player' => publicPlayer($player), 'token' => $newToken]);
+        respond(['ok' => true, 'created' => true, 'player' => publicPlayer($player, true), 'token' => $newToken]);
     }
 
     if (playerHasPassword($player)) {
@@ -263,7 +290,7 @@ function handleHello(): void {
             $player['updatedAt'] = time();
             savePlayer($player);
         }
-        respond(['ok' => true, 'player' => publicPlayer($player), 'token' => $token]);
+        respond(['ok' => true, 'player' => publicPlayer($player, true), 'token' => $token]);
     }
 
     if (($player['name'] ?? '') !== $name) {
@@ -272,7 +299,7 @@ function handleHello(): void {
         savePlayer($player);
     }
     $newToken = $token !== '' && validateSession($token, $key) ? $token : issueSession($key);
-    respond(['ok' => true, 'player' => publicPlayer($player), 'token' => $newToken]);
+    respond(['ok' => true, 'player' => publicPlayer($player, true), 'token' => $newToken]);
 }
 
 function handleClaim(): void {
@@ -321,7 +348,7 @@ function handleClaim(): void {
         flock($fp, LOCK_UN);
         fclose($fp);
         $tok = issueSession($key);
-        respond(['ok' => true, 'created' => true, 'player' => publicPlayer($player), 'token' => $tok]);
+        respond(['ok' => true, 'created' => true, 'player' => publicPlayer($player, true), 'token' => $tok]);
     }
 
     // existing profile
@@ -332,7 +359,7 @@ function handleClaim(): void {
             writeLocked($fp, $player);
             flock($fp, LOCK_UN);
             fclose($fp);
-            respond(['ok' => true, 'player' => publicPlayer($player), 'token' => $tokenIn]);
+            respond(['ok' => true, 'player' => publicPlayer($player, true), 'token' => $tokenIn]);
         }
         if ($password === null || $password === '') {
             flock($fp, LOCK_UN);
@@ -350,7 +377,7 @@ function handleClaim(): void {
         flock($fp, LOCK_UN);
         fclose($fp);
         $tok = issueSession($key);
-        respond(['ok' => true, 'player' => publicPlayer($player), 'token' => $tok]);
+        respond(['ok' => true, 'player' => publicPlayer($player, true), 'token' => $tok]);
     }
 
     // unprotected existing — optional setPassword
@@ -366,7 +393,68 @@ function handleClaim(): void {
     respond([
         'ok' => true,
         'created' => false,
-        'player' => publicPlayer($player),
+        'player' => publicPlayer($player, true),
+        'token' => $tok,
+    ]);
+}
+
+function handleAvatar(): void {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        respond(['error' => 'POST required'], 405);
+    }
+    $raw = file_get_contents('php://input');
+    $data = $raw ? json_decode($raw, true) : null;
+    if (!is_array($data)) respond(['error' => 'bad json'], 400);
+
+    $name = displayName((string)($data['name'] ?? ''));
+    if ($name === null) respond(['error' => 'bad name'], 400);
+
+    $avatar = readAvatarPayload($data['avatar'] ?? null);
+    if ($avatar === null) {
+        respond(['error' => 'bad avatar', 'hint' => 'Use a webp/jpeg/png data URL under ' . MAX_AVATAR_CHARS . ' chars'], 400);
+    }
+
+    $tokenIn = isset($data['token']) && is_string($data['token']) ? $data['token'] : '';
+    $key = nameKey($name);
+    $path = playerPath($key);
+    $fp = fopen($path, 'c+');
+    if (!$fp || !flock($fp, LOCK_EX)) {
+        if ($fp) fclose($fp);
+        respond(['ok' => false, 'error' => 'lock failed'], 200);
+    }
+
+    $fileRaw = stream_get_contents($fp);
+    $player = $fileRaw ? json_decode($fileRaw, true) : null;
+    if (!is_array($player)) {
+        $player = defaultPlayer($name);
+    }
+
+    if (playerHasPassword($player) && !validateSession($tokenIn, $key)) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        respond(['ok' => false, 'needsPassword' => true]);
+    }
+
+    if ($avatar === '') {
+        unset($player['avatar']);
+    } else {
+        $player['avatar'] = $avatar;
+    }
+    $player['name'] = $name;
+    $player['updatedAt'] = time();
+    writeLocked($fp, $player);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+
+    $tok = null;
+    if ($tokenIn !== '' && validateSession($tokenIn, $key)) {
+        $tok = $tokenIn;
+    } elseif (!playerHasPassword($player)) {
+        $tok = issueSession($key);
+    }
+    respond([
+        'ok' => true,
+        'player' => publicPlayer($player, true),
         'token' => $tok,
     ]);
 }

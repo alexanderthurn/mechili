@@ -7,6 +7,7 @@
 import { BUILD_CHANNEL, isOpenBuild } from './channel';
 import { playerUrl } from './net';
 import { roomCodeFromName } from './player';
+import { prefs } from './prefs';
 
 export interface PlayerProfile {
     track: string;
@@ -20,6 +21,9 @@ export interface PlayerProfile {
     games: number;
     mpGames: number;
     hasPassword?: boolean;
+    hasAvatar?: boolean;
+    /** Present on hello / claim / get / avatar responses only */
+    avatar?: string | null;
 }
 
 export type ProbeResult = { exists: boolean; hasPassword: boolean; name?: string };
@@ -157,6 +161,57 @@ export async function claimName(input: {
         wrongPassword: !!fail.wrongPassword,
         error: fail.error,
         hint: fail.hint,
+    };
+}
+
+/**
+ * Persist avatar to PHP only for open-track online PeerJS (matchmaking / auto).
+ * Skip LAN (local-only) and Steam transport prefs.
+ */
+export function shouldPersistAvatarToPhp(): boolean {
+    if (!isOpenBuild()) return false;
+    const t = prefs().multiplayerTransport;
+    return t !== 'lan' && t !== 'steam';
+}
+
+/** Upload or clear the open-track profile avatar (best-effort). */
+export async function uploadAvatar(input: {
+    name: string;
+    avatar: string | null;
+}): Promise<{ ok: boolean; player?: PlayerProfile; error?: string }> {
+    if (!shouldPersistAvatarToPhp()) {
+        return { ok: false, error: 'skipped' };
+    }
+    const body: Record<string, string | null> = {
+        name: input.name,
+        avatar: input.avatar,
+    };
+    const token = getSessionTokenFor(input.name);
+    if (token) body.token = token;
+
+    const data = (await fetchJson(`${playerUrl()}?action=avatar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    })) as {
+        ok?: boolean;
+        player?: PlayerProfile;
+        token?: string | null;
+        needsPassword?: boolean;
+        error?: string;
+        hint?: string;
+    } | null;
+
+    if (!data) return { ok: false, error: 'unreachable' };
+    if (data.ok === true && data.player) {
+        cached = data.player;
+        lockedOut = false;
+        if (data.token) saveAuth(input.name, data.token);
+        return { ok: true, player: data.player };
+    }
+    return {
+        ok: false,
+        error: data.needsPassword ? 'needsPassword' : (data.error ?? 'failed'),
     };
 }
 
