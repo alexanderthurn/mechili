@@ -148,13 +148,13 @@ FTP deploy excludes `backend/players/`.
    `targets` (can-attack matrix), `collisionRadius` + `colliders` (bullet
    hit spheres), talents, and a `build(parts)` mesh function. Flags:
    `flying` (altitude), `structure`, `extra` (+`shield`/`rocket`),
-   `projectileSpeed`/`homing`/`splashRadius`.
-2. Price in `DEFAULT_SETTINGS.economy.unitCosts` (falls back to `cost`).
-3. If shop-buyable: add to `SHOP_UNIT_IDS` + `UNIT_UNLOCK_COST` in
+   `projectileSpeed`/`homing`/`splashRadius`. Price lives on the type
+   (`cost`) next to hp/damage — not in GameSettings.
+2. If shop-buyable: add to `SHOP_UNIT_IDS` + `UNIT_UNLOCK_COST` in
    `cards.ts`; consider starter cards / `SPECIALITY_UNLOCK`.
-4. Nothing else — sim, placement, HUD, icons (`unitIcons.ts` renders
+3. Nothing else — sim, placement, HUD, icons (`unitIcons.ts` renders
    thumbnails from the same builders) all read the type definition.
-5. Bump `GAME_VERSION`.
+4. Bump `GAME_VERSION`.
 
 Runes (`items.ts`), talents (`techCatalog.ts` / `tech.ts`), and cards (`cards.ts`) are pure
 data — multipliers resolve in `TechTree.statsFor` → `Game.resolvedStats` →

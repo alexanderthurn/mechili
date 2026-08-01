@@ -9,6 +9,9 @@ import {
     type RoundCardDrawPool,
 } from './cards';
 
+/** How many choices each offer shows (capped by pool size). */
+const DEFAULT_OFFER_COUNT = 4;
+
 export abstract class RoundCardAlgorithm {
     abstract readonly id: string;
     /** Full select-option text (name + what the player gets). */
@@ -17,15 +20,14 @@ export abstract class RoundCardAlgorithm {
     /** Pool used when {@link shouldOffer} is true for this round. */
     abstract poolForRound(round: number): RoundCardDrawPool;
 
-    drawOffer(
-        round: number,
-        rng: () => number,
-        opts?: { itemIds?: readonly string[]; offerCount?: number },
-    ): RoundCard[] {
+    offerCount(): number {
+        return DEFAULT_OFFER_COUNT;
+    }
+
+    drawOffer(round: number, rng: () => number): RoundCard[] {
         if (!this.shouldOffer(round)) return [];
         return drawRoundCardOffer(rng, {
-            itemIds: opts?.itemIds,
-            offerCount: opts?.offerCount,
+            offerCount: this.offerCount(),
             pool: this.poolForRound(round),
         });
     }

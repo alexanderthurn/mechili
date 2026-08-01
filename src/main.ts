@@ -51,12 +51,13 @@ import { iconHtml } from './ui/iconAtlas';
 import {
     CUSTOM_GAME_PACE_PRESETS,
     DEFAULT_CUSTOM_GAME_PACE_ID,
-    DEFAULT_HORDE,
+    DEFAULT_HORDE_PRESET_ID,
     DEFAULT_SETTINGS,
+    HORDE_ALGORITHMS,
     customGamePaceById,
     formatCustomGamePaceOption,
+    hordeAlgorithmById,
     type GameSettings,
-    type HordeFactor,
 } from './game/settings';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
@@ -70,29 +71,14 @@ import { THEME, applyUiFont, menuStyles } from './theme';
 // PvPvE: a neutral dwarf horde spawns from the forest ring outside the
 // normal board and marches in, hostile to both players. The normal map's
 // own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
-// mode specifically) — no more widened center belt. Horde is always on;
-// `?hordeFactor=` is the one lever, including `off` (see hordeEnabled) —
-// no separate opt-out param, to keep this down to a single URL knob.
-// Accepts a preset (low/medium/high/ultra/off) or an explicit round list
-// (`?hordeFactor=2,4,9`) without an in-menu picker yet.
+// mode specifically). `?hordePreset=` / `?hordeFactor=` selects an algorithm id.
 function applyHordeMode(settings: GameSettings): void {
-    settings.horde = structuredClone(DEFAULT_HORDE);
-    const factorParam = new URLSearchParams(location.search).get('hordeFactor');
-    if (!factorParam) return;
-    if (
-        factorParam === 'off' ||
-        factorParam === 'low' ||
-        factorParam === 'medium' ||
-        factorParam === 'high' ||
-        factorParam === 'ultra'
-    ) {
-        settings.horde.factor = factorParam;
-    } else {
-        const rounds = factorParam
-            .split(',')
-            .map((s) => Number(s.trim()))
-            .filter((n) => Number.isFinite(n) && n > 0);
-        if (rounds.length > 0) settings.horde.factor = rounds;
+    settings.hordePreset = 'medium';
+    const params = new URLSearchParams(location.search);
+    const presetParam = params.get('hordePreset') ?? params.get('hordeFactor');
+    if (!presetParam) return;
+    if (HORDE_ALGORITHMS.some((a) => a.id === presetParam)) {
+        settings.hordePreset = presetParam;
     }
 }
 
@@ -112,8 +98,6 @@ function applyDuoMode(settings: GameSettings): void {
 
 // ---- Custom Game screen: config, persistence, and the actual hosting -----
 
-type CustomHordeFactor = 'off' | 'low' | 'medium' | 'high' | 'ultra';
-
 /** `2v2` waits for all 4 real seats before auto-starting; `2v2ai` starts
  *  the moment one guest joins, AI-filling the rest (see beginStarHost's
  *  waitForJoined param) — same underlying mechanism, just a different
@@ -124,7 +108,8 @@ interface CustomGameConfig {
     mode: CustomGameMode;
     /** id into {@link CUSTOM_GAME_PACE_PRESETS} */
     pace: string;
-    horde: CustomHordeFactor;
+    /** id into {@link HORDE_ALGORITHMS} */
+    hordePreset: string;
     /** id into {@link ROUND_CARD_ALGORITHMS} */
     roundCardPreset: string;
 }
@@ -132,7 +117,7 @@ interface CustomGameConfig {
 const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     mode: '1v1',
     pace: DEFAULT_CUSTOM_GAME_PACE_ID,
-    horde: 'off',
+    hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
 };
 
@@ -150,6 +135,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             specialistSeconds?: number;
             cardSeconds?: number;
             roundCards?: boolean;
+            horde?: string;
         };
         let pace = parsed.pace;
         // migrate legacy free-form second fields → nearest / matching preset
@@ -166,11 +152,12 @@ function loadCustomGameConfig(): CustomGameConfig {
         if (!roundCardPreset && typeof parsed.roundCards === 'boolean') {
             roundCardPreset = parsed.roundCards ? 'runes-every' : 'off';
         }
+        let hordePreset = parsed.hordePreset ?? parsed.horde;
         return {
             ...DEFAULT_CUSTOM_GAME,
             mode: parsed.mode ?? DEFAULT_CUSTOM_GAME.mode,
             pace: customGamePaceById(pace).id,
-            horde: parsed.horde ?? DEFAULT_CUSTOM_GAME.horde,
+            hordePreset: hordeAlgorithmById(hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
         };
     } catch {
@@ -193,9 +180,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.specialistTimeSeconds = pace.specialistSeconds;
     settings.cardTimeSeconds = pace.cardSeconds;
     settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
-    settings.roundCards = false;
-    settings.horde = structuredClone(DEFAULT_HORDE);
-    settings.horde.factor = cfg.horde as HordeFactor;
+    settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
 }
 
 // dev override: tweak match settings from the URL, e.g. ?hp=100&build=20&nocards
@@ -235,24 +220,17 @@ function settingsFromUrl(): GameSettings {
     // between-round cards: ?nocards | ?roundCardPreset=full | legacy ?roundCards=
     if (params.has('nocards') || params.get('roundCards') === 'off' || params.get('roundCardPreset') === 'off') {
         settings.roundCardPreset = 'off';
-        settings.roundCards = false;
     } else {
         const presetRaw = params.get('roundCardPreset');
         if (presetRaw) {
             settings.roundCardPreset = roundCardAlgorithmById(presetRaw).id;
-            settings.roundCards = false;
+        } else if (params.get('roundCards') === 'true' || params.get('roundCards') === '1') {
+            settings.roundCardPreset = 'runes-every';
         } else {
             const raw = params.get('roundCards');
-            if (raw) {
-                const rounds = raw
-                    .split(',')
-                    .map((s) => Number(s.trim()))
-                    .filter((n) => Number.isFinite(n) && n > 0);
-                if (rounds.length > 0) {
-                    settings.roundCards = rounds;
-                    // invalid id → normalizeGameSettings maps the legacy array
-                    settings.roundCardPreset = '';
-                }
+            if (raw && raw.includes(',')) {
+                // legacy sparse list → spare if even rounds, else every
+                settings.roundCardPreset = 'runes-spare';
             }
         }
     }
@@ -673,13 +651,7 @@ menu.innerHTML = `
             <select class="cg-pace"></select>
         </label>
         <label class="m-field">Horde
-            <select class="cg-horde">
-                <option value="off">Off</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="ultra">Ultra</option>
-            </select>
+            <select class="cg-horde"></select>
         </label>
         <label class="m-field">Round cards
             <select class="cg-roundcards"></select>
@@ -914,6 +886,13 @@ for (const pace of CUSTOM_GAME_PACE_PRESETS) {
     cgPaceEl.appendChild(opt);
 }
 
+for (const algo of HORDE_ALGORITHMS) {
+    const opt = document.createElement('option');
+    opt.value = algo.id;
+    opt.textContent = algo.describe();
+    cgHordeEl.appendChild(opt);
+}
+
 for (const algo of ROUND_CARD_ALGORITHMS) {
     const opt = document.createElement('option');
     opt.value = algo.id;
@@ -933,7 +912,7 @@ function populateCustomGameForm(cfg: CustomGameConfig): void {
     const radio = customEl.querySelector<HTMLInputElement>(`input[name="cgmode"][value="${cfg.mode}"]`);
     if (radio) radio.checked = true;
     cgPaceEl.value = customGamePaceById(cfg.pace).id;
-    cgHordeEl.value = cfg.horde;
+    cgHordeEl.value = hordeAlgorithmById(cfg.hordePreset).id;
     cgRoundCardsEl.value = roundCardAlgorithmById(cfg.roundCardPreset).id;
     updateCgHostButtonLabel();
 }
@@ -947,7 +926,7 @@ function readCustomGameForm(): CustomGameConfig {
     return {
         mode: (modeInput?.value as CustomGameMode | undefined) ?? '1v1',
         pace: customGamePaceById(cgPaceEl.value).id,
-        horde: (cgHordeEl.value as CustomHordeFactor) || 'off',
+        hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
     };
 }
