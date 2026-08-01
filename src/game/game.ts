@@ -72,12 +72,12 @@ import {
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
-    drawRoundCardOffer,
     roundOfferTitle,
     type RoundCard,
     type SpecialityId,
     type StartCard,
 } from './cards';
+import { roundCardAlgorithmById } from './roundCardAlgorithms';
 import { assignTeamColors, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
@@ -5140,7 +5140,7 @@ export class Game {
         this.roundCardTaken.fill(false);
 
         const draw = (rng: () => number) =>
-            drawRoundCardOffer(rng, {
+            roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(this.round, rng, {
                 itemIds: this.settings.roundCardItems,
                 offerCount: this.settings.roundCardOfferCount,
             });
@@ -5171,10 +5171,14 @@ export class Game {
     private triggerExtraRoundCards(): void {
         for (const e of this.extraAis) {
             e.ai.onRoundCards(
-                drawRoundCardOffer(this.rngRoundCards[e.seat]!, {
-                    itemIds: this.settings.roundCardItems,
-                    offerCount: this.settings.roundCardOfferCount,
-                }),
+                roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(
+                    this.round,
+                    this.rngRoundCards[e.seat]!,
+                    {
+                        itemIds: this.settings.roundCardItems,
+                        offerCount: this.settings.roundCardOfferCount,
+                    },
+                ),
             );
         }
     }

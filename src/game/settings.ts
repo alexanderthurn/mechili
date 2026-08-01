@@ -2,6 +2,11 @@ import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
 import { ROUND_RUNE_ITEM_IDS } from './cards';
 import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS } from './items';
+import {
+    DEFAULT_ROUND_CARD_PRESET_ID,
+    ROUND_CARD_ALGORITHMS,
+    roundCardAlgorithmById,
+} from './roundCardAlgorithms';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
@@ -53,16 +58,22 @@ export interface GameSettings {
      */
     seats?: SeatDef[];
     /**
-     * Between-round card offers (not the round-0 specialist pick).
+     * Between-round card algorithm id (see {@link ROUND_CARD_ALGORITHMS}).
+     * Owns schedule + pool progression; Custom Game / setup store only this id.
+     */
+    roundCardPreset: string;
+    /**
+     * @deprecated Prefer {@link roundCardPreset}. Kept for older saves/replays /
+     * URL overrides; {@link normalizeGameSettings} maps it into a preset.
      * - `false` — never
      * - `true`  — every round ≥ 2
      * - number[] — only those rounds, e.g. `[3, 6, 9]`
      */
     roundCards: boolean | number[];
     /**
-     * Item ids eligible for between-round rune offers (default = four base
-     * runes). Each offer draws {@link roundCardOfferCount} from this pool.
-     * Host settings travel with the match setup message.
+     * Item ids eligible for between-round **rune** offers (default = four base
+     * runes). Unit/spell pools come from the algorithm. Each offer draws
+     * {@link roundCardOfferCount} from the active pool.
      */
     roundCardItems: string[];
     /** How many cards each between-round offer shows (capped by the pool). */
@@ -364,6 +375,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
         levelCostFactor: 0.5,
         recruitLevel2Cost: 100,
     },
+    roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
     roundCards: false,
     /** four free base runes — each offer shows all of them (shuffled) */
     roundCardItems: [...ROUND_RUNE_ITEM_IDS],
@@ -380,10 +392,7 @@ export function secondsForRound(timer: RoundTimer, round: number): number {
 
 /** whether this build-phase round should open a between-round card offer */
 export function shouldOfferRoundCards(settings: GameSettings, round: number): boolean {
-    const schedule = settings.roundCards;
-    if (schedule === false) return false;
-    if (Array.isArray(schedule)) return schedule.includes(round);
-    return round >= 2;
+    return roundCardAlgorithmById(settings.roundCardPreset).shouldOffer(round);
 }
 
 /** fills in settings added after older saves/replays were recorded */
@@ -420,10 +429,11 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
 }
 
 /**
- * Live offer is the four free base runes (for now). Migrate older matches that
- * still carried "draw 3 from the advanced pool".
+ * Live offer defaults + migrate older matches / legacy `roundCards` schedule
+ * into {@link GameSettings.roundCardPreset}.
  */
 function normalizeRoundCardOffer(settings: GameSettings): {
+    roundCardPreset: string;
     roundCardItems: string[];
     roundCardOfferCount: number;
 } {
@@ -438,13 +448,37 @@ function normalizeRoundCardOffer(settings: GameSettings): {
     const advanced = new Set<string>(ADVANCED_RUNE_IDS);
     const onlyAdvanced = items.length > 0 && items.every((id) => advanced.has(id));
     const missingBase = BASE_RUNE_IDS.some((id) => !items.includes(id));
-    if (onlyAdvanced || missingBase || count !== BASE_RUNE_IDS.length) {
-        return {
-            roundCardItems: [...ROUND_RUNE_ITEM_IDS],
-            roundCardOfferCount: BASE_RUNE_IDS.length,
-        };
+    const runePool =
+        onlyAdvanced || missingBase || count !== BASE_RUNE_IDS.length
+            ? [...ROUND_RUNE_ITEM_IDS]
+            : items;
+    const offerCount =
+        onlyAdvanced || missingBase || count !== BASE_RUNE_IDS.length
+            ? BASE_RUNE_IDS.length
+            : count;
+
+    const known = ROUND_CARD_ALGORITHMS.find((a) => a.id === settings.roundCardPreset);
+    let preset: string;
+    if (known) {
+        preset = known.id;
+    } else {
+        const schedule = settings.roundCards;
+        if (schedule === true) preset = 'runes-every';
+        else if (Array.isArray(schedule) && schedule.length > 0) {
+            const evenSpare = [2, 4, 6, 8, 10];
+            const matchesSpare =
+                schedule.length === evenSpare.length && evenSpare.every((r) => schedule.includes(r));
+            preset = matchesSpare ? 'runes-spare' : 'runes-every';
+        } else {
+            preset = DEFAULT_ROUND_CARD_PRESET_ID;
+        }
     }
-    return { roundCardItems: items, roundCardOfferCount: count };
+
+    return {
+        roundCardPreset: preset,
+        roundCardItems: runePool,
+        roundCardOfferCount: offerCount,
+    };
 }
 
 /**
@@ -599,12 +633,8 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
             title: 'Round cards',
             rows: [
                 {
-                    label: 'Schedule',
-                    value:
-                        settings.roundCards === false ? 'Off' : settings.roundCards === true ? 'On' : 'Custom',
-                    note: Array.isArray(settings.roundCards)
-                        ? `rounds ${settings.roundCards.join(', ')}`
-                        : 'from round 2 onward when on',
+                    label: 'Preset',
+                    value: roundCardAlgorithmById(settings.roundCardPreset).describe(),
                 },
                 {
                     label: 'Offer size',
@@ -614,7 +644,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Rune pool',
                     value: settings.roundCardItems.join(', '),
-                    note: 'item ids eligible for between-round offers',
+                    note: 'item ids used when the preset draws runes',
                 },
             ],
         },

@@ -162,7 +162,7 @@ export const ROUND_EXTRA_CARDS: RoundCard[] = [
 
 /**
  * Full between-round catalog (lookup by id). Live offers use
- * {@link drawRoundCardOffer} — runes only for now.
+ * {@link drawRoundCardOffer} via {@link RoundCardAlgorithm} presets.
  */
 export const ROUND_CARDS: RoundCard[] = [
     ...ROUND_RUNE_CARDS,
@@ -178,26 +178,37 @@ function shuffleInPlace<T>(deck: T[], rng: () => number): void {
     }
 }
 
+/** Which catalog slice a between-round offer draws from. */
+export type RoundCardDrawPool = 'runes' | 'units' | 'spells';
+
+function cardsForDrawPool(
+    pool: RoundCardDrawPool,
+    itemIds?: readonly string[],
+): RoundCard[] {
+    if (pool === 'units') return [...ROUND_UNIT_CARDS];
+    if (pool === 'spells') return [...ROUND_EXTRA_CARDS];
+    const allowed = itemIds?.length ? new Set(itemIds) : new Set(ROUND_RUNE_ITEM_IDS);
+    return ROUND_RUNE_CARDS.filter((c) => allowed.has(c.id));
+}
+
 /**
- * Between-round offer: shuffle the configured rune pool and take up to
- * `offerCount` (unit packs / Rally / Buyback / Flanky stay in the catalog
- * but are not drawn).
+ * Between-round offer: shuffle the configured pool and take up to `offerCount`.
+ * Default pool is runes (filtered by `itemIds` / base runes).
  */
 export function drawRoundCardOffer(
     rng: () => number,
-    opts?: { itemIds?: readonly string[]; offerCount?: number },
+    opts?: {
+        itemIds?: readonly string[];
+        offerCount?: number;
+        pool?: RoundCardDrawPool;
+    },
 ): RoundCard[] {
-    const allowed = opts?.itemIds?.length
-        ? new Set(opts.itemIds)
-        : null;
-    const pool = allowed
-        ? ROUND_RUNE_CARDS.filter((c) => allowed.has(c.id))
-        : [...ROUND_RUNE_CARDS];
-    if (pool.length === 0) return [];
-    const runes = [...pool];
-    shuffleInPlace(runes, rng);
-    const n = Math.max(1, opts?.offerCount ?? runes.length);
-    return runes.slice(0, Math.min(n, runes.length));
+    const deck = cardsForDrawPool(opts?.pool ?? 'runes', opts?.itemIds);
+    if (deck.length === 0) return [];
+    const shuffled = [...deck];
+    shuffleInPlace(shuffled, rng);
+    const n = Math.max(1, opts?.offerCount ?? shuffled.length);
+    return shuffled.slice(0, Math.min(n, shuffled.length));
 }
 
 /** Classify a round card for offer-title wording. */
