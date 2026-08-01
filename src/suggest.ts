@@ -1,7 +1,7 @@
 /**
  * Community Suggest — posts to backend/suggest.php (file store + daily mail ping).
  */
-import { isLocalhost } from './game/net';
+import { suggestUrl } from './game/net';
 import { prefs } from './game/prefs';
 
 export const SUGGEST_CATEGORIES = [
@@ -19,21 +19,8 @@ export type SuggestSource = 'homepage' | 'game menu';
 
 const DISCORD_URL = 'https://discord.melodan.com';
 
-/** Same host resolution as matchUrl() in net.ts — kept local so homepage does not pull PeerJS. */
 function suggestEndpoint(): string {
-    const params = new URLSearchParams(location.search);
-    const override = params.get('suggest');
-    if (override) return override;
-
-    if (isLocalhost()) {
-        const branch = params.get('branch');
-        if (branch) {
-            return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/backend/suggest.php`;
-        }
-        return 'https://play.melodan.com/backend/suggest.php';
-    }
-
-    return new URL('./backend/suggest.php', location.href).href;
+    return suggestUrl();
 }
 
 export interface ClientSpecsOptions {

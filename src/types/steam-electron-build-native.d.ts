@@ -10,6 +10,8 @@ declare module 'steam-electron-build/native' {
         isAvailable(): boolean;
         getUserName(): Promise<string>;
         getSteamId(): Promise<string>;
+        /** Steam beta branch, or null when on the default/public branch */
+        getCurrentBetaName(): Promise<string | null>;
         unlockAchievement(id: string): Promise<void>;
         getUnlockedAchievements(ids: string[]): Promise<string[]>;
         getStat(name: string): Promise<number>;

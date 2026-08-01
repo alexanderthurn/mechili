@@ -37,7 +37,8 @@ export const STAR_RECONNECT_GRACE_MS = 60_000;
 
 /**
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
- * Override per deployment with ?match=<url>.
+ * On localhost, `?branch=` or the Vite-baked git branch picks the feuerware
+ * deploy; melodan/main/master use play.melodan.com.
  */
 export function isLocalhost(): boolean {
     const h = location.hostname;
@@ -56,17 +57,45 @@ export function isMelodanPlayHost(): boolean {
     return isLocalhost() || location.hostname === 'play.melodan.com';
 }
 
-export function matchUrl(): string {
-    const params = new URLSearchParams(location.search);
-    const override = params.get('match');
-    if (override) return override;
+/**
+ * Branches that use production play.melodan.com when developing on localhost.
+ * Everything else (including `melodan`) hits feuerware.com/2025/mechili/<branch>/.
+ */
+const PLAY_HOST_DEV_BRANCHES = new Set(['main', 'master']);
 
+/**
+ * Dev backend branch: `?branch=` wins, else the git branch baked in by Vite.
+ * Returns null when we should use play.melodan.com.
+ */
+export function resolvedDevBranch(): string | null {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = params.get('branch')?.trim();
+    if (fromUrl) return fromUrl;
+    const fromGit = typeof __GIT_BRANCH__ === 'string' ? __GIT_BRANCH__.trim() : '';
+    if (!fromGit || PLAY_HOST_DEV_BRANCHES.has(fromGit)) return null;
+    return fromGit;
+}
+
+/**
+ * Site / deploy URL for a branch name (git or Steam beta).
+ * `main`/`master` → melodan.com; other branches (incl. `melodan`) → feuerware preview.
+ */
+export function branchSiteUrl(branch?: string | null): string {
+    const b = (branch?.trim() || resolvedDevBranch() || '').trim();
+    if (!b || PLAY_HOST_DEV_BRANCHES.has(b)) return 'https://melodan.com/';
+    return `https://feuerware.com/2025/mechili/${encodeURIComponent(b)}/`;
+}
+
+/** Base URL for PHP endpoints under /backend/ (trailing slash). */
+function localhostBackendDir(): string {
+    const branch = resolvedDevBranch();
+    if (!branch) return 'https://play.melodan.com/backend/';
+    return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/backend/`;
+}
+
+export function matchUrl(): string {
     if (isLocalhost()) {
-        const branch = params.get('branch');
-        if (branch) {
-            return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/backend/matchmaking.php`;
-        }
-        return 'https://play.melodan.com/backend/matchmaking.php';
+        return new URL('matchmaking.php', localhostBackendDir()).href;
     }
 
     return new URL('./backend/matchmaking.php', location.href).href;

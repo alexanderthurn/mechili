@@ -21,6 +21,7 @@ import {
     postGlobalChat,
     saveSinglePlayer,
     saveStarResumeMarker,
+    branchSiteUrl,
     type NetMessage,
     type Session,
     type SinglePlayerSave,
@@ -321,15 +322,40 @@ const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
 versionEl.className = 'mechili-version';
 versionEl.style.zIndex = '30';
 versionEl.style.display = 'none';
-versionEl.textContent = `v${__APP_VERSION__} · ${GAME_VERSION}`;
+versionEl.textContent = `v${__APP_VERSION__}`;
 if (versionEl instanceof HTMLAnchorElement) {
-    versionEl.href = 'https://melodan.com/';
     versionEl.target = '_blank';
     versionEl.rel = 'noopener noreferrer';
-    versionEl.title = 'melodan.com';
     versionEl.classList.add('link');
 }
 wrapper.appendChild(versionEl);
+
+/** Menu label: app semver + git/Steam branch (not GAME_VERSION / netcode). */
+async function refreshVersionLabel(): Promise<void> {
+    let branch = '';
+    if (steam.isAvailable()) {
+        try {
+            branch = (await steam.getCurrentBetaName())?.trim() ?? '';
+        } catch {
+            /* Steam not ready */
+        }
+    }
+    if (!branch) {
+        const fromUrl = new URLSearchParams(location.search).get('branch')?.trim();
+        branch = fromUrl || (typeof __GIT_BRANCH__ === 'string' ? __GIT_BRANCH__.trim() : '');
+    }
+    versionEl.textContent = branch ? `v${__APP_VERSION__} · ${branch}` : `v${__APP_VERSION__}`;
+    if (versionEl instanceof HTMLAnchorElement) {
+        const href = branchSiteUrl(branch);
+        versionEl.href = href;
+        try {
+            versionEl.title = new URL(href).hostname;
+        } catch {
+            versionEl.title = href;
+        }
+    }
+}
+void refreshVersionLabel();
 
 const feuerwareLogoUrl = new URL('../assets/marketing/feuerware_melodan.webp', import.meta.url).href;
 const feuerwareEl = document.createElement('img');
