@@ -330,21 +330,38 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
-/** Menu label: app semver + git/Steam branch (not GAME_VERSION / netcode). */
+/** True when Steamworks initialized at app launch (not merely Electron preload). */
+async function steamReady(): Promise<boolean> {
+    if (!steam.isAvailable()) return false;
+    try {
+        const id = await steam.getSteamId();
+        return !!id && id !== '0';
+    } catch {
+        return false;
+    }
+}
+
+/** Menu label: semver · branch · Steam|PeerJS · Online|Offline (transport fixed at launch). */
 async function refreshVersionLabel(): Promise<void> {
+    const onSteam = await steamReady();
     let branch = '';
-    if (steam.isAvailable()) {
+    if (onSteam) {
         try {
             branch = (await steam.getCurrentBetaName())?.trim() ?? '';
         } catch {
-            /* Steam not ready */
+            /* ignore */
         }
     }
     if (!branch) {
         const fromUrl = new URLSearchParams(location.search).get('branch')?.trim();
         branch = fromUrl || (typeof __GIT_BRANCH__ === 'string' ? __GIT_BRANCH__.trim() : '');
     }
-    versionEl.textContent = branch ? `v${__APP_VERSION__} · ${branch}` : `v${__APP_VERSION__}`;
+    const transport = onSteam ? 'Steam' : 'PeerJS';
+    const net = navigator.onLine ? 'Online' : 'Offline';
+    const parts = [`v${__APP_VERSION__}`];
+    if (branch) parts.push(branch);
+    parts.push(transport, net);
+    versionEl.textContent = parts.join(' · ');
     if (versionEl instanceof HTMLAnchorElement) {
         const href = branchSiteUrl(branch);
         versionEl.href = href;
@@ -355,7 +372,10 @@ async function refreshVersionLabel(): Promise<void> {
         }
     }
 }
+
 void refreshVersionLabel();
+window.addEventListener('online', () => void refreshVersionLabel());
+window.addEventListener('offline', () => void refreshVersionLabel());
 
 const feuerwareLogoUrl = new URL('../assets/marketing/feuerware_melodan.webp', import.meta.url).href;
 const feuerwareEl = document.createElement('img');

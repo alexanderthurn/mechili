@@ -58,6 +58,39 @@ declare module 'steam-electron-build/native' {
         onData(cb: (packet: { steamId64: string; data: unknown }) => void): void;
     };
 
+    /** LAN PeerServer + UDP discovery (opt-in: steamElectronBuild.lan === true) */
+    export interface LanRoom {
+        name: string;
+        peerId: string;
+        host: string;
+        port: number;
+        path: string;
+        maxPlayers: number | null;
+        data: Record<string, unknown>;
+    }
+
+    export const lan: {
+        /** true when Electron AND steamElectronBuild.lan === true */
+        isAvailable(): Promise<boolean>;
+        startHost(options?: {
+            name?: string;
+            peerId?: string;
+            port?: number;
+            path?: string;
+            maxPlayers?: number | null;
+            data?: Record<string, unknown>;
+        }): Promise<LanRoom | null>;
+        stopHost(): Promise<void>;
+        updateHost(patch?: {
+            name?: string;
+            peerId?: string;
+            maxPlayers?: number | null;
+            data?: Record<string, unknown>;
+        }): Promise<LanRoom | null>;
+        listRooms(options?: { timeoutMs?: number }): Promise<LanRoom[]>;
+        getHostInfo(): Promise<LanRoom | null>;
+    };
+
     export const win: {
         setFullscreen(flag: boolean): Promise<void>;
         isFullscreen(): Promise<boolean>;
