@@ -3599,10 +3599,23 @@ export class Game {
      * but never told anyone else.
      */
     private resumeIfAllClear(): void {
-        if (this.pendingStarSeats.size !== 0 || !this.suspended || this.matchOver) {
+        if (this.matchOver) {
+            // the match ended synchronously inside this same call chain
+            // (resolveSeatGone -> starForfeit -> dispatch -> onForfeit ->
+            // finishMatch, all before this trailing call runs) — nothing
+            // left to wait for or resume, just make sure the "Waiting…"
+            // notice can't outlive the match. Found live: a grace-window
+            // forfeit left a frozen "X disconnected — waiting 0:00" notice
+            // sitting on top of the main menu after the match ended.
+            this.suspended = false;
+            this.suspendDeadline = null;
+            this.hud.hideNotice();
+            return;
+        }
+        if (this.pendingStarSeats.size !== 0 || !this.suspended) {
             // still waiting on at least one more seat — drop the resolved
             // one's name out of the notice instead of leaving it listed
-            if (this.suspended && !this.matchOver) this.refreshStarSuspendNotice();
+            if (this.suspended) this.refreshStarSuspendNotice();
             return;
         }
         this.suspended = false;
@@ -4923,6 +4936,12 @@ export class Game {
                 this.handleSeatQuit(fromSeat);
             } else if (!isHost) {
                 this.matchOver = true;
+                // see finishMatch's own doc comment — a still-live
+                // suspend countdown must not survive past match-end, or
+                // the very next tick's re-render stomps the notice we're
+                // about to show below right back to the stale countdown
+                this.suspended = false;
+                this.suspendDeadline = null;
                 // the host unilaterally ending the match skips finishMatch()
                 // entirely (nobody hit 0 HP) — without this, a host that
                 // quits right as it's about to lose leaves ZERO independent
@@ -6976,6 +6995,14 @@ export class Game {
     /** someone hit 0 HP — freeze the game and show the result */
     private finishMatch(): void {
         this.matchOver = true;
+        // whatever ended the match, a "Waiting…"/reconnect notice must
+        // never survive it — otherwise it can be left mounted (and, on
+        // the next tick's countdown re-render, re-shown) after the game
+        // is torn down. See resumeIfAllClear's own matchOver branch for
+        // the specific sequencing bug this was found from.
+        this.suspended = false;
+        this.suspendDeadline = null;
+        this.hud.hideNotice();
         // watching mode never touches these in the first place (see
         // constructor/main.ts) — clearing them here would wipe out the
         // player's real, unrelated saved game/resume marker
@@ -7471,8 +7498,12 @@ export class Game {
             );
         this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn);
         // live countdown on the "Waiting…" seat-drop notice — re-render
-        // only when the displayed second actually changes, not every frame
-        if (this.suspendDeadline !== null) {
+        // only when the displayed second actually changes, not every frame.
+        // matchOver-gated too: finishMatch/resumeIfAllClear already null
+        // this out on every known match-end path, but this is the one
+        // per-frame spot that would otherwise re-summon a stale notice on
+        // the very next tick if some future path ever misses that.
+        if (this.suspendDeadline !== null && !this.matchOver) {
             const remainingS = Math.max(0, Math.ceil((this.suspendDeadline - performance.now()) / 1000));
             if (remainingS !== this.lastSuspendNoticeSecond) {
                 this.lastSuspendNoticeSecond = remainingS;
