@@ -30,7 +30,7 @@ import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCos
 import {
     emptyForgeSlots,
     forgeHintText,
-    forgePreviewView,
+    forgeIngredientIcons,
     forgeProductInfo,
     forgeRecipesCraftableFromBag,
     forgeSeatCanInsert,
@@ -5562,7 +5562,7 @@ export class Game {
     }
 
     private enemyInventoryView(): {
-        items: { icon: string; name: string }[];
+        items: { id: string; icon: string; name: string }[];
         tactics: { icon: string; name: string }[];
         sellAbility: boolean;
     } {
@@ -5578,6 +5578,7 @@ export class Game {
         const mapItem = (id: string) => {
             const item = ITEMS[id];
             return {
+                id,
                 icon: item?.icon ?? '?',
                 name: item ? `${item.name} — ${item.description}` : id,
             };
@@ -5594,6 +5595,18 @@ export class Game {
             tactics: tactics.map(mapTactic),
             sellAbility,
         };
+    }
+
+    /** enemy forge tray ids visible to the local player (live or intel) */
+    private enemyForgeOvenView(): string[] {
+        if (this.phase !== 'build') return [];
+        if (this.deployReady.player) {
+            return (this.forgeSlots.enemy ?? [])
+                .filter((s): s is ForgeSlot => !!s)
+                .map((s) => s.itemId);
+        }
+        const snap = this.buildingIntelSnapshot?.forge.enemy ?? [];
+        return snap.filter((id): id is string => !!id);
     }
 
     private resetPlacedRallyRoute(routeId: number): void {
@@ -6181,8 +6194,8 @@ export class Game {
     }
 
     /**
-     * While dragging a rune over the forge, decorate the cursor ghost with the
-     * spell that would bake now + smaller icons for recipes still reachable.
+     * While dragging a rune over the forge, show the same recipe grid as shop /
+     * bag / forge-slot hover (spells using this rune sorted first).
      */
     private syncArmedRuneForgeGhost(): void {
         if (!this.armedItem || !ITEMS[this.armedItem]) {
@@ -6198,16 +6211,7 @@ export class Game {
             this.hud.setItemGhostForgePreview(null);
             return;
         }
-        const oven = this.forgeSlots.player
-            .filter((s): s is ForgeSlot => !!s)
-            .map((s) => s.itemId);
-        this.hud.setItemGhostForgePreview(
-            forgePreviewView(
-                oven,
-                this.armedItem,
-                this.teamForgePool('player'),
-            ),
-        );
+        this.hud.setItemGhostForgePreview(this.armedItem);
     }
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
@@ -7613,6 +7617,7 @@ export class Game {
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
         });
+        this.hud.setEnemyForgeOven(this.enemyForgeOvenView());
         this.hud.setRoundCardPicks(
             this.roundCardPicksView('player'),
             this.enemyActionIntelVisible() ? this.roundCardPicksView('enemy') : [],
@@ -8329,6 +8334,10 @@ export class Game {
                       icon: bakeInfo.icon,
                       name: bakeInfo.name,
                       desc: bakeInfo.desc,
+                      ingredientIcons:
+                          bakeResult.product?.kind === 'tactic'
+                              ? forgeIngredientIcons(bakeResult.product.id)
+                              : [],
                   }
                 : undefined,
             slots: Array.from({ length: slotCount }, (_, i) => {

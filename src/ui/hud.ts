@@ -3,9 +3,8 @@ import { SHOP_UNIT_IDS, unitUnlockCost, type RoundCard, type StartCard } from '.
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
-    forgePreviewView,
+    forgeIngredientIcons,
     forgeRecipeMatch,
-    type ForgePreviewView,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
 import { BASE_RUNE_IDS, ITEMS } from '../game/items';
@@ -142,7 +141,12 @@ export interface SelectionInfo {
             itemIds: string[];
         }[];
         /** spell that would bake from the current tray (if any) */
-        bake?: { icon: string; name: string; desc: string };
+        bake?: {
+            icon: string;
+            name: string;
+            desc: string;
+            ingredientIcons?: string[];
+        };
         /** tactic ids this side's specialists unlock */
         spellPool?: string[];
         /** parallel to slotCount; null = empty */
@@ -332,6 +336,10 @@ export class Hud {
     /** bag rune/item ids (human) — with oven, drives owned-ingredient marks */
     private lastBagItemIds: string[] = [];
     private lastForgeOvenKey = '';
+    /** enemy bag + forge (intel / live) for opponent specialist recipe panel */
+    private lastEnemyBagItemIds: string[] = [];
+    private lastEnemyForgeOvenIds: string[] = [];
+    private lastEnemyForgeKey = '';
     private playerHpFill!: HTMLDivElement;
     private enemyHpFill!: HTMLDivElement;
     private playerHpVal!: HTMLSpanElement;
@@ -520,6 +528,9 @@ export class Hud {
         if (!this.itemGhost) return;
         this.itemGhost.style.left = `${e.clientX - 20}px`;
         this.itemGhost.style.top = `${e.clientY - 20}px`;
+        if (this.forgeSlotPreviewAnchor === this.itemGhost) {
+            this.positionForgeSlotHoverPreview();
+        }
     };
 
     private beginInvDrag(_btn: HTMLElement, e: PointerEvent): void {
@@ -796,7 +807,9 @@ export class Hud {
             if ((e as PointerEvent).pointerType === 'touch') return;
             const tile = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             if (tile) {
-                this.showActionInfo(tile);
+                // forge-bake / spell tips use commander-style floating tip
+                if (!tile.dataset.spellTip) this.showActionInfo(tile);
+                else this.hideActionInfo();
                 if (tile.classList.contains('drop-target')) this.setPanelItemDropReady(true);
             }
         });
@@ -805,12 +818,13 @@ export class Hud {
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) {
-                this.hideActionInfo();
+                if (!from.dataset.spellTip) this.hideActionInfo();
                 if (from.classList.contains('drop-target') && !to?.classList.contains('drop-target')) {
                     this.setPanelItemDropReady(false);
                 }
             }
         });
+        this.bindCardSpellTips(this.panel);
 
         // unequipped pack items / spells (left edge): press to attach, release to drop
         this.inventoryEl = document.createElement('div');
@@ -1655,9 +1669,7 @@ export class Hud {
             this.itemGhost = document.createElement('div');
             this.itemGhost.className = 'inv-drag';
             this.itemGhost.style.left = '-100px';
-            this.itemGhost.innerHTML =
-                `<span class="inv-drag-rune m-icon"></span>` +
-                `<div class="inv-drag-spells" hidden></div>`;
+            this.itemGhost.innerHTML = `<span class="inv-drag-rune m-icon"></span>`;
             document.body.appendChild(this.itemGhost);
         }
         if (this.itemGhost) {
@@ -1666,22 +1678,17 @@ export class Hud {
                 this.itemGhost = null;
                 this.worldItemDropReady = false;
                 this.panelItemDropReady = false;
-                this.forgeGhostPreview = null;
-                this.forgeGhostPreviewKey = '';
+                this.setItemGhostForgePreview(null);
             } else {
                 this.itemGhost.classList.add('inv-drag');
                 this.itemGhost.classList.remove('unequipping');
                 const rune = this.itemGhost.querySelector<HTMLElement>('.inv-drag-rune');
                 if (rune) applyIcon(rune, picked.icon);
                 else {
-                    // legacy / unequip may have flattened the ghost — rebuild
-                    this.itemGhost.innerHTML =
-                        `<span class="inv-drag-rune m-icon"></span>` +
-                        `<div class="inv-drag-spells" hidden></div>`;
+                    this.itemGhost.innerHTML = `<span class="inv-drag-rune m-icon"></span>`;
                     applyIcon(this.itemGhost.querySelector<HTMLElement>('.inv-drag-rune')!, picked.icon);
                 }
                 this.syncItemGhostDropReady();
-                this.paintForgeGhostPreview();
             }
         }
     }
@@ -1698,124 +1705,49 @@ export class Hud {
     }
 
     /**
-     * While dragging a rune over the forge: bake spell + path spells to the
-     * ghost's right, each path showing tiny missing-rune icons underneath.
+     * While dragging a rune over the forge: show the same recipe grid as shop /
+     * bag / empty-forge hover (highlights spells using this rune).
      */
-    setItemGhostForgePreview(preview: ForgePreviewView | null): void {
-        const key = preview
-            ? `${preview.bakeIcon ?? ''}|${preview.paths
-                  .map((p) => `${p.spellIcon}:${p.missingIcons.join('+')}`)
-                  .join(';')}`
-            : '';
-        if (key === this.forgeGhostPreviewKey) return;
-        this.forgeGhostPreviewKey = key;
-        this.forgeGhostPreview = preview;
-        this.paintForgeGhostPreview();
-    }
-
-    private forgeGhostPreview: ForgePreviewView | null = null;
-    private forgeGhostPreviewKey = '';
-    /** oven bake/paths floating next to a hovered forge slot (not the ?) */
-    private forgeSlotPreviewEl: HTMLDivElement | null = null;
-    private forgeSlotPreviewAnchor: HTMLElement | null = null;
-    /** rune id used for green spell highlighting while recipes hover is open */
-    private forgeRecipesHoverRuneId: string | null = null;
-
-    private forgeSpellColsHtml(preview: ForgePreviewView): string {
-        const cols: string[] = [];
-        if (preview.bakeIcon) {
-            cols.push(
-                `<div class="inv-drag-spell bake">` +
-                    `${iconHtml(preview.bakeIcon, 'inv-drag-spell-ico')}` +
-                    `</div>`,
-            );
-        }
-        for (const p of preview.paths) {
-            const missing = p.missingIcons
-                .map((ico) => iconHtml(ico, 'inv-drag-miss'))
-                .join('');
-            cols.push(
-                `<div class="inv-drag-spell path">` +
-                    `${iconHtml(p.spellIcon, 'inv-drag-spell-ico')}` +
-                    `<div class="inv-drag-missing">${missing}</div>` +
-                    `</div>`,
-            );
-        }
-        return cols.join('');
-    }
-
-    private paintForgeGhostPreview(): void {
-        const ghost = this.itemGhost;
-        if (!ghost || ghost.classList.contains('unequipping')) return;
-        let spells = ghost.querySelector<HTMLElement>('.inv-drag-spells');
-        if (!spells) {
-            spells = document.createElement('div');
-            spells.className = 'inv-drag-spells';
-            ghost.appendChild(spells);
-        }
-        const preview = this.forgeGhostPreview;
-        const hasSpells =
-            !!preview && (!!preview.bakeIcon || preview.paths.length > 0);
-        ghost.classList.toggle('forge-preview', hasSpells);
-        if (!hasSpells || !preview) {
-            spells.hidden = true;
-            spells.replaceChildren();
-            // drag no longer owns the preview — restore slot hover if any
-            if (this.actionInfoFor) this.syncForgeSlotHoverPreview(this.actionInfoFor);
+    setItemGhostForgePreview(highlightRuneId: string | null): void {
+        if (!highlightRuneId || !this.itemGhost) {
+            if (this.forgeSlotPreviewAnchor === this.itemGhost) {
+                this.hideForgeSlotHoverPreview();
+            }
             return;
         }
-        spells.hidden = false;
-        spells.innerHTML = this.forgeSpellColsHtml(preview);
-        this.hideForgeSlotHoverPreview();
+        this.showForgeRecipesHover(this.itemGhost, highlightRuneId);
     }
+
+    private forgeSlotPreviewEl: HTMLDivElement | null = null;
+    private forgeSlotPreviewAnchor: HTMLElement | null = null;
+    /** rune id used while recipes hover is open (shop / bag / drag) */
+    private forgeRecipesHoverRuneId: string | null = null;
 
     private isForgePreviewSlot(el: HTMLElement): boolean {
         return (
             el.classList.contains('item-sq') &&
             !el.classList.contains('forge-suggest') &&
+            !el.classList.contains('forge-bake') &&
             !!el.closest('.forge-row')
         );
     }
 
-    /** bake + paths beside a hovered forge rune; recipe tiles beside an empty slot */
+    /** recipe grid beside empty / filled forge runes (not forge-bake — that uses spell tip) */
     private syncForgeSlotHoverPreview(anchor: HTMLElement | null): void {
-        if (
-            !anchor ||
-            !this.isForgePreviewSlot(anchor) ||
-            this.itemGhost?.classList.contains('forge-preview')
-        ) {
+        // drag-over forge owns the recipe popup
+        if (this.itemGhost && this.forgeSlotPreviewAnchor === this.itemGhost) return;
+
+        if (!anchor || !this.isForgePreviewSlot(anchor)) {
             this.hideForgeSlotHoverPreview();
             return;
         }
 
-        // empty oven: all unlocked recipes, oven match highlighting
-        if (anchor.classList.contains('empty')) {
+        if (anchor.classList.contains('empty') || anchor.dataset.itemId) {
             this.showForgeRecipesHover(anchor);
             return;
         }
 
-        // filled forge rune: same oven-based view as empty (this rune is already
-        // counted in the oven — don't switch to "contains this rune" colors)
-        if (anchor.dataset.itemId) {
-            this.showForgeRecipesHover(anchor);
-            return;
-        }
-
-        const view = forgePreviewView(
-            this.lastForgeOvenIds,
-            null,
-            this.lastForgeSpellPool,
-        );
-        if (!view.bakeIcon && view.paths.length === 0) {
-            this.hideForgeSlotHoverPreview();
-            return;
-        }
-        const el = this.ensureForgeSlotPreviewEl();
-        this.forgeSlotPreviewAnchor = anchor;
-        el.classList.remove('recipes');
-        el.innerHTML = this.forgeSpellColsHtml(view);
-        el.hidden = false;
-        this.positionForgeSlotHoverPreview();
+        this.hideForgeSlotHoverPreview();
     }
 
     /**
@@ -1829,6 +1761,7 @@ export class Hud {
     ): void {
         const recipes = this.forgeRecipesBlockHtml(
             this.lastForgeSpellPool,
+            this.lastBagItemIds,
             this.lastForgeOvenIds,
             highlightRuneId,
         );
@@ -1938,13 +1871,14 @@ export class Hud {
 
     /** opponent items/tactics at phase-start intel (right sidebar, read-only) */
     setEnemyInventory(
-        items: readonly { icon: string; name: string }[],
+        items: readonly { id?: string; icon: string; name: string }[],
         tactics: readonly { icon: string; name: string }[] = [],
         options: { sellAbility?: boolean } = {},
     ): void {
         const key = JSON.stringify({ items, tactics, options });
         if (key === this.lastEnemyInventoryKey) return;
         this.lastEnemyInventoryKey = key;
+        this.lastEnemyBagItemIds = items.map((i) => i.id).filter((id): id is string => !!id);
         const visible = items.length > 0 || tactics.length > 0 || !!options.sellAbility;
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
         const total = items.length + tactics.length + (options.sellAbility ? 1 : 0);
@@ -1976,6 +1910,24 @@ export class Hud {
         this.enemyInventoryEl.innerHTML = itemHtml + tacticHtml + abilityHtml;
         this.enemyInventoryEl.classList.toggle('folded', this.enemyInventoryCollapsed);
         this.scheduleSidebarCollapseUi(this.enemyInventoryEl, 'enemy');
+        this.refreshEnemySpecialistDetail();
+    }
+
+    /** enemy forge oven ids (live or intel snapshot) for opponent recipe panel */
+    setEnemyForgeOven(ovenItemIds: readonly string[]): void {
+        const key = ovenItemIds.join('\0');
+        if (key === this.lastEnemyForgeKey) return;
+        this.lastEnemyForgeKey = key;
+        this.lastEnemyForgeOvenIds = [...ovenItemIds];
+        this.refreshEnemySpecialistDetail();
+    }
+
+    private refreshEnemySpecialistDetail(): void {
+        if (this.specDetailSeat === null) return;
+        const chip = this.commanderChips.find((c) => c.seat === this.specDetailSeat);
+        if (chip?.team === 'enemy') {
+            this.showSpecialistDetail(this.specDetailSeat, this.specDetailViaHover);
+        }
     }
 
     private invSectionTitle(label: string, count: number, total: number): string {
@@ -2534,9 +2486,11 @@ export class Hud {
               (forge.bake
                   ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
                     `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
+                    `data-spell-tip="1" ` +
                     `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
                     `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
-                    `data-ticon="${escapeAttr(forge.bake.icon)}"></span>`
+                    `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                    `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
                   : '') +
               `</div>` +
               (forge.hint
@@ -3189,7 +3143,8 @@ export class Hud {
         const teamChips = this.commanderChips.filter((c) => c.team === team);
 
         const picks = team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
-        const oven = team === 'player' ? this.lastForgeOvenIds : [];
+        const bagIds = team === 'player' ? this.lastBagItemIds : this.lastEnemyBagItemIds;
+        const forgeIds = team === 'player' ? this.lastForgeOvenIds : this.lastEnemyForgeOvenIds;
         const hasContent =
             teamChips.some((c) => c.card !== null) ||
             picks.length > 0 ||
@@ -3206,7 +3161,7 @@ export class Hud {
             .map((chip) => {
                 const card = chip.card;
                 const forgeHtml = card
-                    ? this.forgeRecipesBlockHtml(card.forgeSpells, oven)
+                    ? this.forgeRecipesBlockHtml(card.forgeSpells, bagIds, forgeIds)
                     : '';
                 const specHtml = card
                     ? `<div class="spec-card-row">` +
@@ -3253,18 +3208,19 @@ export class Hud {
         this.mount(overlay);
     }
 
-    /** forge recipe list for a specialist (desktop: beside the card) */
+    /** forge recipe list — bagIds/forgeIds are that side's runes for ownership marks */
     private forgeRecipesBlockHtml(
         pool: readonly string[],
-        oven: readonly string[],
+        bagIds: readonly string[],
+        forgeIds: readonly string[],
         highlightRuneId: string | null = null,
     ): string {
         const rows = forgeHelpRows(pool);
         if (rows.length === 0) return '';
-        const bagCounts = this.countIds(this.lastBagItemIds);
-        const forgeCounts = this.countIds(this.lastForgeOvenIds);
-        // green wobble = every ingredient in bag + forge; brown = some but not all
-        const availableIds = [...this.lastBagItemIds, ...this.lastForgeOvenIds];
+        const bagCounts = this.countIds(bagIds);
+        const forgeCounts = this.countIds(forgeIds);
+        // green wobble = every ingredient in bag + forge
+        const availableIds = [...bagIds, ...forgeIds];
         const ranked = [...rows].sort((a, b) => {
             if (highlightRuneId) {
                 const aHit = a.ingredients.includes(highlightRuneId) ? 0 : 1;
