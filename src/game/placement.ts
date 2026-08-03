@@ -58,6 +58,8 @@ const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
 /** how far packs lift off the ground while being moved (carried) */
 const SELECT_LIFT = 2.8;
+/** scratch for visibleMemberWorldPositions (non-fogged view center) */
+const _blobCenter = new Vector3();
 /** green tint for movable packs that are not currently selected */
 const MOVABLE_PLATE_OPACITY = 0.52;
 /** world size of status-strip item/tech sprites (full height; center sits mid-sprite) */
@@ -516,10 +518,15 @@ export class PlacementController {
     /**
      * Member ground positions as currently shown on screen.
      * Empty when the pack is hidden by intel fog; fogged enemies use snapshot poses.
+     * Own/ally packs use the live view center so carried / formation-drag
+     * ghosts keep their blob discs under the mesh (unit.world only updates on drop).
      */
     visibleMemberWorldPositions(unit: Unit): Vector3[] {
         if (unit.destroyed || unit.consumed || !this.enemyIntelVisible(unit)) return [];
-        return this.memberPositionsAt(this.intelWorldOf(unit), unit);
+        const world = this.isFogged(unit)
+            ? this.intelWorldOf(unit)
+            : _blobCenter.set(unit.view.position.x, 0, unit.view.position.z);
+        return this.memberPositionsAt(world, unit);
     }
 
     /**
