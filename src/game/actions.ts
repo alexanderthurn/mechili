@@ -397,13 +397,15 @@ export interface ActionContext {
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
      */
-    /** per-SEAT buy limits (limit permanent; extra/used/extrasSpent reset per round) */
+    /** per-SEAT buy limits (limit + runesBought permanent; extra/used/extrasSpent reset per round) */
     deployState: {
         limit: number[];
         extra: number[];
         used: number[];
         /** supply spent on board extras this round (own budget, resets per round) */
         extrasSpent: number[];
+        /** shop base-rune buys this match (drives escalating rune price; not reset per round) */
+        runesBought: number[];
     };
     /** per-SEAT tier (0 = none) of each permanent army boost (own Command Tower) */
     boostState: Record<'attack' | 'hp', number[]>;
@@ -673,12 +675,14 @@ export class ActionDispatcher {
                 if (!ITEMS[action.itemId]) return false;
                 const deploy = this.ctx.deployState;
                 if (deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!) return false;
-                const cost = this.ctx.deploySettings.baseRuneCost;
+                const ds = this.ctx.deploySettings;
+                const cost = ds.baseRuneCost + (deploy.runesBought[seat] ?? 0) * ds.runeCostStep;
                 if (!economy.spend(seat, cost)) return false;
                 this.ctx.items[seat]!.push(action.itemId);
                 entry.paid = cost;
                 entry.grantedItems = [action.itemId];
                 deploy.used[seat] = (deploy.used[seat] ?? 0) + 1;
+                deploy.runesBought[seat] = (deploy.runesBought[seat] ?? 0) + 1;
                 return true;
             }
             case 'move': {
@@ -1278,6 +1282,10 @@ export class ActionDispatcher {
                 if (i >= 0) bag.splice(i, 1);
                 economy.credit(seat, e.paid!);
                 this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
+                this.ctx.deployState.runesBought[seat] = Math.max(
+                    0,
+                    (this.ctx.deployState.runesBought[seat] ?? 0) - 1,
+                );
                 break;
             }
             case 'move':

@@ -658,7 +658,8 @@ export class Hud {
             `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
         this.shopRuneRow = document.createElement('div');
         this.shopRuneRow.className = 'shop-runes';
-        this.shopRuneRow.title = 'Base runes — always available; each buy uses one purchase slot';
+        this.shopRuneRow.title =
+            'Base runes — always available; each buy uses one purchase slot; price rises after each purchase';
         for (const itemId of BASE_RUNE_IDS) {
             const def = ITEMS[itemId]!;
             const btn = document.createElement('button');

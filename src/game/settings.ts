@@ -159,6 +159,8 @@ export interface DeploySettings {
     unitsPerRound: number;
     /** shop price of a base rune (earth/fire/water/wind); shares the buy limit with units */
     baseRuneCost: number;
+    /** each shop rune purchase raises the next one's price by this much (per seat, match-long) */
+    runeCostStep: number;
     /** Command Tower: price of +1 buy for the running round only */
     extraSlotCost: number;
     /** Command Tower: +rangeBoost range for all ranged units this round only */
@@ -269,6 +271,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     deploy: {
         unitsPerRound: 2,
         baseRuneCost: 50,
+        runeCostStep: 50,
         extraSlotCost: 50,
         rangedRangeBoostCost: 100,
         rangeBoost: 5,
@@ -547,7 +550,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Base rune',
                     value: `${settings.deploy.baseRuneCost} supply`,
-                    note: 'shop — uses one buy slot',
+                    note: `shop — +${settings.deploy.runeCostStep} per purchase; uses one buy slot`,
                 },
                 {
                     label: 'Extra buy slot',

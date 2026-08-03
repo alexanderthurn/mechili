@@ -451,12 +451,14 @@ export class Game {
     private readonly sellState: { owned: boolean[]; used: number[] };
     /** per-SEAT: one-time rally-route purchase (permanent flag) */
     private readonly rallyRouteOwned: boolean[];
-    /** per-SEAT buy limits: `limit` is permanent (specials may raise it), rest resets per round */
+    /** per-SEAT buy limits: `limit` + `runesBought` are permanent; rest resets per round */
     private readonly deployState: {
         limit: number[];
         extra: number[];
         used: number[];
         extrasSpent: number[];
+        /** shop base-rune buys this match (escalating price) */
+        runesBought: number[];
     };
     /** per-SEAT permanent army-wide boost tiers (0 = none) */
     private readonly boostState: Record<'attack' | 'hp', number[]>;
@@ -1138,6 +1140,7 @@ export class Game {
             extra: this.seats.map(() => 0),
             used: this.seats.map(() => 0),
             extrasSpent: this.seats.map(() => 0),
+            runesBought: this.seats.map(() => 0),
         };
         this.sellState = { owned: this.seats.map(() => false), used: this.seats.map(() => 0) };
         this.rallyRouteOwned = this.seats.map(() => false);
@@ -7592,7 +7595,8 @@ export class Game {
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
         );
         this.hud.setShopRuneCost(
-            this.settings.deploy.baseRuneCost,
+            this.settings.deploy.baseRuneCost +
+                this.deployState.runesBought[this.humanSeat]! * this.settings.deploy.runeCostStep,
             this.economy.balance(this.humanSeat),
         );
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
