@@ -1715,36 +1715,31 @@ export class PlacementController {
             if (done) this.cancelPlacing();
             return;
         }
-        // while carrying, a click on an extra's tiles means "drop here", not "select it"
+        // while carrying, a click on another pack/building means "drop here",
+        // not "select it" (extras were already skipped for the same reason)
         const carrying =
             this.formationActive ||
             (this.selectedUnit !== null &&
                 this.carryingSelected &&
                 this.isMovable(this.selectedUnit));
         const clicked = this.pickUnitAt(x, y, { skipExtras: carrying });
-        // selecting: any own pack, or an enemy pack visible in intel
-        if (clicked && !clicked.destroyed && (clicked.team === 'player' || this.enemyIntelVisible(clicked))) {
+        // selecting: any own pack, or an enemy pack visible in intel —
+        // suppressed entirely while carrying / formation-dragging
+        if (
+            !carrying &&
+            clicked &&
+            !clicked.destroyed &&
+            (clicked.team === 'player' || this.enemyIntelVisible(clicked))
+        ) {
             const previouslySelected = this.selectedUnit;
             // armed rune drop: apply without selecting / picking up the pack
             if (this.itemDropValid?.(clicked)) {
                 this.onSelect?.(clicked, previouslySelected);
                 return;
             }
-            if (clicked === this.selectedUnit && !this.formationActive) {
+            if (clicked === this.selectedUnit) {
                 if (this.isMovable(clicked)) {
-                    if (!this.carryingSelected) {
-                        this.carryingSelected = true; // second click picks it up
-                    } else {
-                        // carrying and clicked its own tiles: drop it right here
-                        const anchor = this.centeredAnchor(clicked.type, clicked.rotated, cell);
-                        const done = this.dispatch?.({
-                            kind: 'move',
-                            team: 'player',
-                            unitId: clicked.id,
-                            anchor,
-                        });
-                        if (done) this.carryingSelected = false; // dropped, still selected
-                    }
+                    this.carryingSelected = true; // second click picks it up
                 }
             } else {
                 this.restoreSelectedView();
