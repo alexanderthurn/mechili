@@ -104,12 +104,13 @@ export const TECHS: Record<string, TechDef> = {
             oil: { radius: 10 },
         },
     },
+    /** Catalog-only for now — assign via {@link UNIT_TECH_ALLOWLIST} when a unit should use it. */
     wideBlast: {
         id: 'wideBlast',
         name: 'Wide Blast',
         cost: 250,
         mods: { splashRadius: 3 },
-        description: 'Triples orb splash radius.',
+        description: 'Triples splash radius (grants splash to units without it).',
     },
     skyBind: {
         id: 'skyBind',
@@ -140,14 +141,13 @@ export const TECHS: Record<string, TechDef> = {
  * Order matters — auto-select takes the first {@link techSlotLimit} ids.
  */
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
-    dwarf: ['legs', 'carapace', 'skyLift'],
-    archer: ['barrel', 'ap', 'fireArrows', 'skyLift'],
-    wizard: ['wideBlast', 'skyBind', 'skyLift'],
-    crowRider: ['engines', 'stingers', 'skyLift'],
+    dwarf: ['legs', 'carapace'],
+    archer: ['barrel', 'ap', 'fireArrows'],
+    wizard: ['skyBind', 'skyLift'],
+    crowRider: ['engines', 'stingers'],
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
         'skyBind',
-        'skyLift',
         'armor',
         'autoloader',
         'golden',
@@ -167,11 +167,11 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
  * Omit a type to use {@link DEFAULT_UNIT_TECH_SLOTS}. Strong units can go higher.
  */
 export const UNIT_TECH_SLOTS: Record<string, number> = {
-    dwarf: 3,
-    archer: 4,
-    wizard: 3,
-    crowRider: 3,
-    ballista: 13, // match full allowlist — wraps in the details pane
+    dwarf: 2,
+    archer: 3,
+    wizard: 2,
+    crowRider: 2,
+    ballista: 12, // match full allowlist — wraps in the details pane
 };
 
 /** How many tech slots this unit type shows / can select. */

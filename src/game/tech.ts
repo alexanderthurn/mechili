@@ -107,7 +107,12 @@ export class TechTree {
             stats.range *= tech.mods.range ?? 1;
             stats.speed *= tech.mods.speed ?? 1;
             stats.attackInterval *= tech.mods.attackInterval ?? 1;
-            stats.splashRadius *= tech.mods.splashRadius ?? 1;
+            const splashMod = tech.mods.splashRadius ?? 1;
+            if (splashMod !== 1) {
+                // units with no splash get a baseline equal to the mod (e.g. Wide Blast → radius 3)
+                if (stats.splashRadius <= 0) stats.splashRadius = splashMod;
+                else stats.splashRadius *= splashMod;
+            }
         }
         return stats;
     }
