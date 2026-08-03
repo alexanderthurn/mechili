@@ -12,10 +12,10 @@ import { DISPLAY } from './displayNames';
 import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS } from './items';
 import {
     ACID_ID,
-    BIG_METEOR_ID,
     DRAGON_ID,
     FIRE_SPILL_ID,
     HAMMER_ID,
+    METEOR_SHOWER_ID,
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
@@ -287,7 +287,7 @@ export interface StartCard {
     items?: string[];
     /**
      * Stronghold forge spells this specialist unlocks (tactic ids).
-     * Teammates share the union. V1: one single, one pair, one triple.
+     * Teammates share the union. One 1-rune, one 2-rune, one 3-rune spell.
      */
     forgeSpells: string[];
     description: string;
@@ -335,7 +335,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Crow Riders · 1× Dwarves',
         startingHp: 1800,
         speciality: 'air',
-        forgeSpells: [SPAWN_CROWS_ID, STORM_ID, DRAGON_ID],
+        forgeSpells: [FIRE_SPILL_ID, SPAWN_CROWS_ID, DRAGON_ID],
         description: 'Air units get +12% attack and HP.',
     },
     {
@@ -346,7 +346,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
         startingHp: 2400,
         speciality: 'costControl',
-        forgeSpells: [OIL_SPILL_ID, FIRE_SPILL_ID, BIG_METEOR_ID],
+        forgeSpells: [OIL_SPILL_ID, POISON_CLOUD_ID, DRAGON_ID],
         description: 'All units −12% attack and HP, but +100 supply every round.',
     },
     {
@@ -357,7 +357,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '1× Ballista · 1× Dwarves',
         startingHp: 1700,
         speciality: 'elite',
-        forgeSpells: [FIRE_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
+        forgeSpells: [FIRE_SPILL_ID, SPAWN_CROWS_ID, HAMMER_ID],
         description:
             'Recruiting at level 2. +100 supply in round 1.',
     },
@@ -369,7 +369,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '3× Archers · 2× Dwarves',
         startingHp: 2000,
         speciality: 'archer',
-        forgeSpells: [ACID_ID, STORM_ID, DRAGON_ID],
+        forgeSpells: [FIRE_SPILL_ID, STORM_ID, METEOR_SHOWER_ID],
         description: 'A free level-3 Archer arrives in round 2.',
     },
     {
@@ -381,7 +381,7 @@ export const START_CARDS: StartCard[] = [
         startingHp: 2000,
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
-        forgeSpells: [OIL_SPILL_ID, BIG_METEOR_ID, HAMMER_ID],
+        forgeSpells: [OIL_SPILL_ID, ACID_ID, HAMMER_ID],
         description: '3× Valor rune: +15% attack and HP for one pack each.',
     },
     {
@@ -392,7 +392,7 @@ export const START_CARDS: StartCard[] = [
         unitsLabel: '2× Dwarves · 2× Archers',
         startingHp: 2000,
         speciality: 'flanky',
-        forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, DRAGON_ID],
+        forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, METEOR_SHOWER_ID],
         description: 'First-time flank spawns take half the time.',
     },
 ];

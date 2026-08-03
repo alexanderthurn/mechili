@@ -8,6 +8,7 @@
  * whole table — never the same oven → two different products.
  *
  * Fuel is the four base runes (earth / fire / water / wind).
+ * Spell recipes are base-only for now; advanced-rune crafts can be re-added later.
  */
 import type { SeatId } from './seats';
 import {
@@ -87,42 +88,30 @@ export function emptyForgeSlots(capacity = FORGE_SLOTS_PER_PLAYER): (ForgeSlot |
 function tactic(id: string): ForgeProduct {
     return { kind: 'tactic', id };
 }
-function item(id: string): ForgeProduct {
-    return { kind: 'item', id };
-}
 
 /**
- * Experimental table — unique ingredient multisets only.
+ * Spell / rune recipe table — unique ingredient multisets only.
  * Rune products are always available; spells are specialist-gated.
  * Rally / Buyback are not forgeable (Vanguard shop).
+ * (No advanced-rune rows right now — add them back when wanted.)
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
-    // --- advanced runes (anyone) ---
-    { ingredients: ['earth', 'earth'], product: item('addi'), priority: 1 }, // Valor
-    { ingredients: ['fire', 'fire'], product: item('power'), priority: 1 }, // Carnage
-    { ingredients: ['water', 'water'], product: item('vigor'), priority: 1 }, // Giant Blood
-    { ingredients: ['wind', 'wind'], product: item('golden'), priority: 1 }, // Sunstone
-    { ingredients: ['fire', 'fire', 'fire'], product: item('wrath'), priority: 1 }, // Berserk
-    { ingredients: ['earth', 'earth', 'earth'], product: item('colossus'), priority: 1 }, // Mithril
+    // --- 1 rune ---
+    { ingredients: ['earth'], product: tactic(SPAWN_DWARVES_ID), priority: 1 },
+    { ingredients: ['fire'], product: tactic(FIRE_SPILL_ID), priority: 1 },
+    { ingredients: ['water'], product: tactic(OIL_SPILL_ID), priority: 1 },
 
-    // --- weak zone (2 different bases; specialist-gated) ---
-    { ingredients: ['earth', 'water'], product: tactic(OIL_SPILL_ID), priority: 1 },
-
-    // --- summons (2 different base runes) ---
-    { ingredients: ['earth', 'fire'], product: tactic(SPAWN_DWARVES_ID), priority: 1 },
+    // --- 2 runes ---
+    { ingredients: ['earth', 'fire'], product: tactic(BIG_METEOR_ID), priority: 1 },
+    { ingredients: ['earth', 'water'], product: tactic(POISON_CLOUD_ID), priority: 1 },
+    { ingredients: ['fire', 'water'], product: tactic(ACID_ID), priority: 1 },
+    { ingredients: ['earth', 'wind'], product: tactic(STORM_ID), priority: 1 },
     { ingredients: ['water', 'wind'], product: tactic(SPAWN_CROWS_ID), priority: 1 },
 
-    // --- zone spells (3 different base runes) ---
-    { ingredients: ['earth', 'fire', 'water'], product: tactic(ACID_ID), priority: 1 },
-    { ingredients: ['earth', 'fire', 'wind'], product: tactic(FIRE_SPILL_ID), priority: 1 },
-    { ingredients: ['earth', 'water', 'wind'], product: tactic(STORM_ID), priority: 1 },
-    { ingredients: ['fire', 'water', 'wind'], product: tactic(POISON_CLOUD_ID), priority: 1 },
-
-    // --- elite spells (advanced rune + base / advanced) ---
-    { ingredients: ['wrath', 'wind'], product: tactic(DRAGON_ID), priority: 1 }, // Berserk + Wind
-    { ingredients: ['addi', 'earth'], product: tactic(HAMMER_ID), priority: 1 }, // Valor + Earth
-    { ingredients: ['golden', 'fire'], product: tactic(METEOR_SHOWER_ID), priority: 1 }, // Sunstone + Fire
-    { ingredients: ['fire', 'vigor'], product: tactic(BIG_METEOR_ID), priority: 1 }, // Fire + Giant Blood
+    // --- 3 runes ---
+    { ingredients: ['earth', 'fire', 'water'], product: tactic(HAMMER_ID), priority: 1 },
+    { ingredients: ['earth', 'water', 'wind'], product: tactic(METEOR_SHOWER_ID), priority: 1 },
+    { ingredients: ['fire', 'water', 'wind'], product: tactic(DRAGON_ID), priority: 1 },
 ];
 
 function ingredientKey(ingredients: readonly string[]): string {
