@@ -1,7 +1,7 @@
 /**
  * Stronghold forge: shared oven per side. Each player may fill up to
- * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6). Multiset recipes → one
- * product next deploy (best / largest match); unused runes refund.
+ * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6). Exact multiset recipes → one
+ * product next deploy; if nothing matches, every rune is refunded.
  *
  * Products are either a spell (specialist-gated) or an advanced rune
  * (available to everyone). Ingredient multisets must be unique across the
@@ -174,6 +174,15 @@ function recipeFits(need: Map<string, number>, have: Map<string, number>): boole
     return true;
 }
 
+/** true when `have` and `need` are the same multiset (exact recipe match). */
+function recipeExact(need: Map<string, number>, have: Map<string, number>): boolean {
+    if (need.size !== have.size) return false;
+    for (const [id, n] of need) {
+        if ((have.get(id) ?? 0) !== n) return false;
+    }
+    return true;
+}
+
 /** Specialist / team forge unlock list, or `'all'` (debug / unlimited). */
 export type ForgeSpellPool = readonly string[] | 'all';
 
@@ -215,7 +224,8 @@ function sortedRecipes(pool: ForgeSpellPool = 'all'): ForgeRecipe[] {
 }
 
 /**
- * Pick at most one recipe that is a multiset-subset of the oven; leftovers refund.
+ * Pick at most one recipe whose ingredients exactly match the oven.
+ * No subset crafts — extras or missing pieces → no product, all runes refunded.
  * Spell recipes outside `pool` are skipped; rune recipes always compete.
  */
 export function resolveForge(
@@ -235,7 +245,7 @@ export function resolveForge(
     let matched: ForgeRecipe | null = null;
     for (const recipe of sortedRecipes(pool)) {
         const need = countMultiset(recipe.ingredients);
-        if (recipeFits(need, have)) {
+        if (recipeExact(need, have)) {
             matched = recipe;
             break;
         }
@@ -249,19 +259,11 @@ export function resolveForge(
         };
     }
 
-    const needLeft = countMultiset(matched.ingredients);
-    const consumed: ForgeResolveResult['consumed'] = [];
-    const refunds: ForgeResolveResult['refunds'] = [];
-    for (const f of filled) {
-        const left = needLeft.get(f.itemId) ?? 0;
-        if (left > 0) {
-            needLeft.set(f.itemId, left - 1);
-            consumed.push(f);
-        } else {
-            refunds.push({ itemId: f.itemId, seat: f.seat });
-        }
-    }
-    return { product: matched.product, consumed, refunds };
+    return {
+        product: matched.product,
+        consumed: filled,
+        refunds: [],
+    };
 }
 
 /** true when every count in `have` is ≤ the corresponding count in `need` */
