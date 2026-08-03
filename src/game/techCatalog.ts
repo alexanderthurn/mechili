@@ -116,7 +116,7 @@ export const TECHS: Record<string, TechDef> = {
         name: 'Sky Bind',
         cost: 400,
         mods: {},
-        description: 'Convert ray can lock onto flying units.',
+        description: 'Can attack ground and air units.',
     },
 };
 
@@ -125,12 +125,13 @@ export const TECHS: Record<string, TechDef> = {
  * Order matters — auto-select takes the first {@link techSlotLimit} ids.
  */
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
-    dwarf: ['legs', 'carapace'],
-    archer: ['barrel', 'ap', 'fireArrows'],
+    dwarf: ['legs', 'carapace', 'skyBind'],
+    archer: ['barrel', 'ap', 'fireArrows', 'skyBind'],
     wizard: ['wideBlast', 'skyBind'],
-    crowRider: ['engines', 'stingers'],
+    crowRider: ['engines', 'stingers', 'skyBind'],
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
+        'skyBind',
         'armor',
         'autoloader',
         'golden',
@@ -154,7 +155,7 @@ export const UNIT_TECH_SLOTS: Record<string, number> = {
     archer: 4,
     wizard: 2,
     crowRider: 4,
-    ballista: 11, // match full allowlist — wraps in the details pane
+    ballista: 12, // match full allowlist — wraps in the details pane
 };
 
 /** How many tech slots this unit type shows / can select. */

@@ -202,11 +202,10 @@ export interface UnitType {
      */
     splashRadius?: number;
     /**
-     * Conversion ray weapon. Channel fills progress toward the victim's current
-     * HP at a rate of the caster's effective attack (resolved damage × level ×
-     * tower attack debuff) per second; at full, that mech flips allegiance for
-     * the rest of the battle (Actor-only). `recover` is idle seconds after a
-     * successful convert before channeling again.
+     * Conversion ray — the Wizard's only attack. Progress fills at effective
+     * attack (resolved damage × level × tower attack debuff) per second toward
+     * the victim's current HP; at full, allegiance flips for the rest of the
+     * battle. `recover` is idle seconds after a successful convert.
      */
     convertRay?: { range: number; recover?: number };
     /**
@@ -578,13 +577,10 @@ export const UNIT_TYPES: UnitType[] = [
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
         burn: { takenMult: 1.15 },
-        targets: { ground: true, air: true },
+        // convert is the only attack — ground by default; Sky Bind unlocks air
+        targets: { ground: true, air: false },
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
-        // primary orb weapon deactivated for now — convert ray only
-        // projectileSpeed: 85,
-        // projectileStyle: 'orb',
-        // splashRadius: 4,
         convertRay: { range: 80, recover: 1.25 },
         hp: 160,
         // attack = convert intensity (HP of progress per second)
@@ -624,7 +620,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
-        targets: { ground: true, air: false }, // bolts can't elevate
+        targets: { ground: true, air: true }, // Sky Bind baked in — bolts can elevate
         collisionRadius: 2.8,
         colliders: [{ y: 0.9, r: 1.1 }],
         projectileSpeed: 50,

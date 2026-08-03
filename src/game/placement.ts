@@ -27,6 +27,7 @@ import {
 } from './targetPreviewVisuals';
 import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
+import { effectiveTargets } from './tech';
 import { drawIcon } from '../ui/iconAtlas';
 
 /** horde unit ids start here — far above anything the parity counters reach */
@@ -259,6 +260,8 @@ export class PlacementController {
     private readonly disposers: (() => void)[] = [];
     /** animated arrows: selected pack → packs its mechs would open on */
     private readonly targetPreview: TargetPreviewVisuals;
+    /** optional — when set, Sky Bind etc. affect target-preview layers */
+    hasTech: ((seat: SeatId, typeId: string, techId: string) => boolean) | null = null;
 
     constructor(
         private readonly rig: CameraRig,
@@ -2048,8 +2051,13 @@ export class PlacementController {
         fromCenter: { x: number; z: number },
         timeSeconds: number,
     ): void {
-        const wantAir = sel.type.targets.air;
-        const wantGround = sel.type.targets.ground;
+        const layer = effectiveTargets(
+            sel.type,
+            sel.seat,
+            this.hasTech ?? (() => false),
+        );
+        const wantAir = layer.air;
+        const wantGround = layer.ground;
         if (!wantAir && !wantGround) {
             this.targetPreview.clear();
             return;

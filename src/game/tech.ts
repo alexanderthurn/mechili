@@ -14,6 +14,18 @@ export interface ResolvedStats {
 }
 
 /**
+ * Attack layers after Sky Bind — owning that tech always enables both ground and air.
+ */
+export function effectiveTargets(
+    type: Pick<UnitType, 'id' | 'targets'>,
+    seat: SeatId,
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+): { ground: boolean; air: boolean } {
+    if (seat >= 0 && hasTech(seat, type.id, 'skyBind')) return { ground: true, air: true };
+    return type.targets;
+}
+
+/**
  * Which techs each SEAT owns, per unit type — per-seat, never shared, same
  * as items/economy/buildings: a bought tech applies only to the buyer's own
  * packs of that type (current and future), not a teammate's. This also

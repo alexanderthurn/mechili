@@ -27,6 +27,7 @@ import {
     type RallyRoute,
 } from './tactics';
 import type { ResolvedStats } from './tech';
+import { effectiveTargets } from './tech';
 import {
     DEPLOY_AIR_Y,
     resolveDeathWear,
@@ -2126,7 +2127,11 @@ export class BattleSim {
         z: number,
         radius: number,
     ): void {
-        const targets = p.source.type.targets;
+        const targets = effectiveTargets(
+            p.source.type,
+            p.source.seat,
+            this.config.hasTech,
+        );
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
@@ -2327,11 +2332,7 @@ export class BattleSim {
             }
 
             const team = actorTeam(caster);
-            const canConvertAir = this.config.hasTech(
-                actorSeat(caster),
-                caster.unit.type.id,
-                'skyBind',
-            );
+            const targets = effectiveTargets(caster.unit.type, actorSeat(caster), this.config.hasTech);
             let target = caster.convertTarget;
             const stillOk =
                 target &&
@@ -2339,7 +2340,7 @@ export class BattleSim {
                 actorTeam(target) !== team &&
                 !target.unit.type.structure &&
                 !target.unit.type.extra &&
-                (target.altitude <= 0 || canConvertAir);
+                (target.altitude > 0 ? targets.air : targets.ground);
 
             if (stillOk && target) {
                 const reach = ray.range + caster.radius + target.radius;
@@ -2357,7 +2358,7 @@ export class BattleSim {
             }
 
             if (!target) {
-                target = this.closestConvertTarget(caster, ray.range, canConvertAir);
+                target = this.closestConvertTarget(caster, ray.range, targets);
                 caster.convertTarget = target;
                 if (target) target.convertProgress = 0;
             }
@@ -2382,21 +2383,16 @@ export class BattleSim {
     private closestConvertTarget(
         from: Actor,
         range: number,
-        canConvertAir: boolean,
+        targets: { ground: boolean; air: boolean },
     ): Actor | null {
         const team = actorTeam(from);
-        const wantGround = from.unit.type.targets.ground;
         let best: Actor | null = null;
         let bestD = Infinity;
         const reach = range + from.radius;
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === team) continue;
             if (a.unit.type.structure || a.unit.type.extra) continue;
-            if (a.altitude > 0) {
-                if (!canConvertAir) continue;
-            } else if (!wantGround) {
-                continue;
-            }
+            if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
             // already converted this battle — leave alone
             if (a.allegiance !== null) continue;
             const dx = a.x - from.x;
@@ -2463,8 +2459,9 @@ export class BattleSim {
      * at step start) so cost stays near O(k) instead of O(n) per mech.
      */
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
-        const wantAir = anyLayer || from.unit.type.targets.air;
-        const wantGround = anyLayer || from.unit.type.targets.ground;
+        const layer = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
+        const wantAir = anyLayer || layer.air;
+        const wantGround = anyLayer || layer.ground;
         if (!wantAir && !wantGround) return null;
 
         const cacheOk = (cached: Actor): boolean =>

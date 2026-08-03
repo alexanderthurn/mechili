@@ -153,7 +153,7 @@ import {
     type RallyRoute,
     type SpellStamp,
 } from './tactics';
-import { TechTree } from './tech';
+import { TechTree, effectiveTargets } from './tech';
 import { techSlotLimit, techsForUnit } from './techCatalog';
 import {
     COMMAND_TOWER,
@@ -1083,6 +1083,7 @@ export class Game {
         this.inputDisposers.push(onInputModeChange(syncEdgeScroll));
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
+        this.placement.hasTech = (seat, typeId, techId) => this.techTree.has(seat, typeId, techId);
         // spectator watching a LIVE match (not a replay, which has no
         // "vision" concept — it's a neutral post-hoc view of everything):
         // neither side is "mine", so both are fogged symmetrically from the
@@ -7873,6 +7874,11 @@ export class Game {
             name: u.type.name,
             team,
             owner: this.ownerName(team, seat),
+            hits: targetsLabel(
+                effectiveTargets(u.type, seat, (s, typeId, techId) =>
+                    this.techTree.has(s, typeId, techId),
+                ),
+            ),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,
@@ -7910,6 +7916,11 @@ export class Game {
             name: u.type.name,
             team: u.team,
             owner: this.ownerName(u.team, u.seat),
+            hits: targetsLabel(
+                effectiveTargets(u.type, u.seat, (s, typeId, techId) =>
+                    this.techTree.has(s, typeId, techId),
+                ),
+            ),
             hp: rs.hp * lv.statMult,
             maxHp: rs.hp * lv.statMult,
             damage: rs.damage * lv.statMult,
@@ -8300,6 +8311,14 @@ interface BuildingIntelSeat {
     boostHp: number;
     sellOwned: boolean;
     rallyOwned: boolean;
+}
+
+/** Short label for the details-pane "Hits" row. */
+function targetsLabel(targets: { ground: boolean; air: boolean }): string {
+    if (targets.ground && targets.air) return 'Ground & air';
+    if (targets.ground) return 'Ground';
+    if (targets.air) return 'Air';
+    return 'None';
 }
 
 /** yaw so local +Z points from (ax,az) toward (bx,bz); 0 if the points coincide */

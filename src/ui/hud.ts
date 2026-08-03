@@ -92,6 +92,8 @@ export interface SelectionInfo {
     team: 'player' | 'enemy' | 'horde';
     /** display name of the owning player (e.g. "mangoo", "AI") */
     owner: string;
+    /** what layers this unit can attack — shown as the first stat row */
+    hits: string;
     hp: number;
     maxHp: number;
     damage: number;
@@ -2448,6 +2450,7 @@ export class Hud {
             `</div>` +
             itemSquares +
             forgeSquares +
+            row('Hits', info.hits) +
             row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
             row('Level', levelLabel) +
