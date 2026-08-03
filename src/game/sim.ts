@@ -26,8 +26,7 @@ import {
     RALLY_ROUTE_STUCK_SEC,
     type RallyRoute,
 } from './tactics';
-import type { ResolvedStats } from './tech';
-import { effectiveTargets } from './tech';
+import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
 import {
     DEPLOY_AIR_Y,
     resolveDeathWear,
@@ -492,8 +491,8 @@ export class BattleSim {
                     radius: unit.type.collisionRadius,
                     index: 0,
                     hurtTimer: 0,
-                    altitude: unit.type.flying ?? 0,
-                    footY: unit.type.flying ?? 0,
+                    altitude: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    footY: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
                     rocketTarget: null,
                     goldenUntil: 0,
                     spawnUntil: 0,

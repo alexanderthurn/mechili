@@ -747,6 +747,11 @@ export class Unit {
     readonly members: { mesh: Group; phase: number; home: Vector3 }[] = [];
     /** 0 on the ground in deployment, animates to 1 at full combat altitude */
     flightLift = 0;
+    /**
+     * Flight altitude from Sky Lift / Earthbound. `null` = use {@link UnitType.flying}.
+     * Refresh via the match when those techs change.
+     */
+    techFlying: number | null = null;
     inDeployment = true;
 
     constructor(
@@ -829,13 +834,20 @@ export class Unit {
         this.applyLevelLook(this.level);
     }
 
+    /** Effective combat flight altitude (tech override or type default). */
+    flightCeiling(): number {
+        if (this.techFlying !== null) return this.techFlying;
+        return this.type.flying ?? 0;
+    }
+
     /** current hover base for idle bob (deployment keeps flyers near the ground) */
     memberBaseY(): number {
-        if (!this.type.flying) return GROUND_UNIT_Y;
+        const flying = this.flightCeiling();
+        if (!flying) return GROUND_UNIT_Y;
         // rockets use absolute combat altitude (see seatMembers) — this is
         // only consulted for crow-rider-style flyers
-        if (this.type.rocket) return this.type.flying;
-        return DEPLOY_AIR_Y + (this.type.flying - DEPLOY_AIR_Y) * this.flightLift;
+        if (this.type.rocket) return flying;
+        return DEPLOY_AIR_Y + (flying - DEPLOY_AIR_Y) * this.flightLift;
     }
 
     /**
@@ -845,7 +857,7 @@ export class Unit {
      * Defaults to the current view xz so drag previews follow the hills.
      */
     seatMembers(originX = this.view.position.x, originZ = this.view.position.z): void {
-        const rocketAlt = this.type.rocket ? this.type.flying : undefined;
+        const rocketAlt = this.type.rocket ? this.flightCeiling() : undefined;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
             if (rocketAlt != null) {
@@ -870,7 +882,7 @@ export class Unit {
 
     /** ramps flyers up (battle) or down (deployment) — ~0.6s full climb */
     tickFlight(dtSeconds: number): void {
-        if (!this.type.flying) return;
+        if (!this.flightCeiling()) return;
         // Fire Bolt never climbs/descends with the flock — always combat height
         if (this.type.rocket) {
             this.flightLift = 1;

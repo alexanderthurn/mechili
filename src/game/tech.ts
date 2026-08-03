@@ -25,6 +25,27 @@ export function effectiveTargets(
     return type.targets;
 }
 
+/** Combat altitude granted by Sky Lift when the unit isn't already a flyer. */
+export const SKY_LIFT_ALTITUDE = 18;
+
+/**
+ * Flight altitude after Sky Lift / Earthbound.
+ * Earthbound wins if both are owned. Structures and board extras are unchanged.
+ */
+export function effectiveFlying(
+    type: Pick<UnitType, 'id' | 'flying' | 'structure' | 'extra'>,
+    seat: SeatId,
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+): number {
+    if (type.structure || type.extra) return type.flying ?? 0;
+    if (seat >= 0 && hasTech(seat, type.id, 'earthbound')) return 0;
+    const base = type.flying ?? 0;
+    if (seat >= 0 && hasTech(seat, type.id, 'skyLift')) {
+        return base > 0 ? base : SKY_LIFT_ALTITUDE;
+    }
+    return base;
+}
+
 /**
  * Which techs each SEAT owns, per unit type — per-seat, never shared, same
  * as items/economy/buildings: a bought tech applies only to the buyer's own

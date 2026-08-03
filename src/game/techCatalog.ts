@@ -118,6 +118,21 @@ export const TECHS: Record<string, TechDef> = {
         mods: {},
         description: 'Can attack ground and air units.',
     },
+    skyLift: {
+        id: 'skyLift',
+        name: 'Sky Lift',
+        cost: 350,
+        mods: {},
+        description: 'Lifts this unit into the air (combat flyer).',
+    },
+    /** Catalog-only for now — assign via {@link UNIT_TECH_ALLOWLIST} when a unit should use it. */
+    earthbound: {
+        id: 'earthbound',
+        name: 'Earthbound',
+        cost: 300,
+        mods: {},
+        description: 'Keeps this unit on the ground (overrides Sky Lift / natural flight).',
+    },
 };
 
 /**
@@ -125,13 +140,14 @@ export const TECHS: Record<string, TechDef> = {
  * Order matters — auto-select takes the first {@link techSlotLimit} ids.
  */
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
-    dwarf: ['legs', 'carapace', 'skyBind'],
-    archer: ['barrel', 'ap', 'fireArrows', 'skyBind'],
-    wizard: ['wideBlast', 'skyBind'],
-    crowRider: ['engines', 'stingers', 'skyBind'],
+    dwarf: ['legs', 'carapace', 'skyLift'],
+    archer: ['barrel', 'ap', 'fireArrows', 'skyLift'],
+    wizard: ['wideBlast', 'skyBind', 'skyLift'],
+    crowRider: ['engines', 'stingers', 'skyLift'],
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
         'skyBind',
+        'skyLift',
         'armor',
         'autoloader',
         'golden',
@@ -151,11 +167,11 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
  * Omit a type to use {@link DEFAULT_UNIT_TECH_SLOTS}. Strong units can go higher.
  */
 export const UNIT_TECH_SLOTS: Record<string, number> = {
-    dwarf: 4,
+    dwarf: 3,
     archer: 4,
-    wizard: 2,
-    crowRider: 4,
-    ballista: 12, // match full allowlist — wraps in the details pane
+    wizard: 3,
+    crowRider: 3,
+    ballista: 13, // match full allowlist — wraps in the details pane
 };
 
 /** How many tech slots this unit type shows / can select. */

@@ -2,6 +2,7 @@ import {
     AdditiveBlending,
     Color,
     CylinderGeometry,
+    DoubleSide,
     DynamicDrawUsage,
     Group,
     InstancedMesh,
@@ -78,6 +79,7 @@ export class ConversionFx {
             opacity: 1,
             depthWrite: false,
             depthTest: false,
+            side: DoubleSide,
             blending: AdditiveBlending,
             fog: false,
             toneMapped: false, // keep lightning bright under ACES
@@ -89,6 +91,7 @@ export class ConversionFx {
             opacity: 0.7,
             depthWrite: false,
             depthTest: false,
+            side: DoubleSide,
             blending: AdditiveBlending,
             fog: false,
             toneMapped: false,

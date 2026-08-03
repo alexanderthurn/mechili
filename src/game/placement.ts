@@ -27,7 +27,7 @@ import {
 } from './targetPreviewVisuals';
 import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
-import { effectiveTargets } from './tech';
+import { effectiveTargets, effectiveFlying } from './tech';
 import { drawIcon } from '../ui/iconAtlas';
 
 /** horde unit ids start here — far above anything the parity counters reach */
@@ -2142,7 +2142,8 @@ export class PlacementController {
                 world = u.world;
             }
 
-            const isAir = (u.type.flying ?? 0) > 0;
+            const isAir =
+                effectiveFlying(u.type, u.seat, this.hasTech ?? (() => false)) > 0;
             for (const m of u.members) {
                 out.push({
                     packId: u.id,
@@ -2163,7 +2164,8 @@ export class PlacementController {
                 const ghost = this.intelGhosts.get(id);
                 if (!ghost || ghost.type.extra) continue;
                 const world = snap.world;
-                const isAir = (ghost.type.flying ?? 0) > 0;
+                const isAir =
+                    effectiveFlying(ghost.type, ghost.seat, this.hasTech ?? (() => false)) > 0;
                 for (const m of ghost.members) {
                     out.push({
                         packId: id,

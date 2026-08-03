@@ -153,7 +153,7 @@ import {
     type RallyRoute,
     type SpellStamp,
 } from './tactics';
-import { TechTree, effectiveTargets } from './tech';
+import { TechTree, effectiveTargets, effectiveFlying } from './tech';
 import { techSlotLimit, techsForUnit } from './techCatalog';
 import {
     COMMAND_TOWER,
@@ -2360,6 +2360,7 @@ export class Game {
         this.placement.enabled = true;
         this.placement.hiddenPlacements = true;
         this.placement.currentRound = this.round; // earlier deployments are locked now
+        this.refreshFlightAlts();
         this.selectedActor = null;
         this.hpBars.clear();
         this.rallyRoutes.length = 0;
@@ -2613,6 +2614,7 @@ export class Game {
         // for a star guest assigned to seat 1/2/3
         const stamped: Action = action.seat === this.humanSeat ? action : { ...action, seat: this.humanSeat };
         if (!this.dispatcher.dispatch(stamped)) return false;
+        if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
         // classic 1v1's starter pick (round 0) goes out via a dedicated
         // 'starter' message instead — this gate stays as-is for it. Star
         // mode never buffers locally (see sendStarBuildMessage), so its
@@ -2626,6 +2628,23 @@ export class Game {
             });
         }
         return true;
+    }
+
+    /** Apply Sky Lift / Earthbound to pack hover altitude during deployment. */
+    private refreshFlightAlts(): void {
+        const has = (seat: SeatId, typeId: string, techId: string) =>
+            this.techTree.has(seat, typeId, techId);
+        for (const u of this.placement.allUnits()) {
+            if (u.team === 'horde') {
+                u.techFlying = null;
+                continue;
+            }
+            const alt = effectiveFlying(u.type, u.seat, has);
+            u.techFlying = alt;
+            if (alt <= 0) u.flightLift = 0;
+            else if (u.type.rocket) u.flightLift = 1;
+            u.seatMembers();
+        }
     }
 
     /** our canonical seat on the wire for spectator vision (`'a'` host, `'b'` guest) */
@@ -2717,6 +2736,7 @@ export class Game {
         return {
             dispatch: (action: Action) => {
                 const ok = this.dispatcher.dispatch(action);
+                if (ok && (action.kind === 'buyTech' || action.kind === 'buy')) this.refreshFlightAlts();
                 // star host: an AI seat's actions bypass dispatchPlayer
                 // entirely, so relay them here instead — same fog-filtered
                 // path as any human seat's traffic
@@ -5296,7 +5316,7 @@ export class Game {
         if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
         if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
         const spec = this.speciality[unit.seat];
-        if (spec === 'air' && type.flying) {
+        if (spec === 'air' && effectiveFlying(type, unit.seat, (s, t, id) => this.techTree.has(s, t, id)) > 0) {
             stats.damage *= 1 + AIR_BONUS;
             stats.hp *= 1 + AIR_BONUS;
         }
@@ -6365,6 +6385,7 @@ export class Game {
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
         this.syncTacticVisuals();
+        this.refreshFlightAlts();
     }
 
     private unlockUnit(typeId: string): void {
@@ -6679,6 +6700,7 @@ export class Game {
             intensity: number;
         }[] = [];
         // dragon breath is a progressive fire pour (hazardPours), not a one-shot ignite
+        this.refreshFlightAlts();
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
