@@ -1794,10 +1794,10 @@ export class Hud {
             return;
         }
 
-        // filled forge rune: same recipe grid, green border on spells that use it
-        const runeId = anchor.dataset.itemId;
-        if (runeId) {
-            this.showForgeRecipesHover(anchor, runeId);
+        // filled forge rune: same oven-based view as empty (this rune is already
+        // counted in the oven — don't switch to "contains this rune" colors)
+        if (anchor.dataset.itemId) {
+            this.showForgeRecipesHover(anchor);
             return;
         }
 
@@ -1820,8 +1820,8 @@ export class Hud {
 
     /**
      * Full unlocked-spell recipe grid.
-     * @param highlightRuneId when set (shop / bag / forge rune hover), spells
-     *   that use that rune get a green border instead of oven-match colors.
+     * @param highlightRuneId when set (shop / bag hover only), spells that use
+     *   that rune get ready pulse; otherwise tiles use oven ready/partial.
      */
     private showForgeRecipesHover(
         anchor: HTMLElement,
@@ -3261,45 +3261,42 @@ export class Hud {
     ): string {
         const rows = forgeHelpRows(pool);
         if (rows.length === 0) return '';
-        const available = this.availableRuneCounts();
+        const bagCounts = this.countIds(this.lastBagItemIds);
+        const forgeCounts = this.countIds(this.lastForgeOvenIds);
+        // green wobble = every ingredient in bag + forge; brown = some but not all
+        const availableIds = [...this.lastBagItemIds, ...this.lastForgeOvenIds];
         const ranked = [...rows].sort((a, b) => {
             if (highlightRuneId) {
                 const aHit = a.ingredients.includes(highlightRuneId) ? 0 : 1;
                 const bHit = b.ingredients.includes(highlightRuneId) ? 0 : 1;
                 if (aHit !== bHit) return aHit - bHit;
-                return a.ingredients.length - b.ingredients.length;
             }
             const rank = (r: (typeof rows)[number]) => {
-                const m = forgeRecipeMatch(r.ingredients, oven);
+                const m = forgeRecipeMatch(r.ingredients, availableIds);
                 return m === 'ready' ? 0 : m === 'partial' ? 1 : 2;
             };
-            return rank(a) - rank(b);
+            const byMatch = rank(a) - rank(b);
+            if (byMatch !== 0) return byMatch;
+            return a.ingredients.length - b.ingredients.length;
         });
         const tiles = ranked
             .map((r) => {
-                let matchClass = '';
-                if (highlightRuneId) {
-                    if (r.ingredients.includes(highlightRuneId)) {
-                        matchClass = ' forge-tile-ready';
-                    }
-                } else {
-                    const match = forgeRecipeMatch(r.ingredients, oven);
-                    matchClass =
-                        match === 'ready'
-                            ? ' forge-tile-ready'
-                            : match === 'partial'
-                              ? ' forge-tile-partial'
-                              : '';
-                }
-                const markOwned = matchClass.includes('forge-tile-ready');
-                const left = markOwned ? new Map(available) : null;
+                const match = forgeRecipeMatch(r.ingredients, availableIds);
+                // green wobble only when craftable; no brown partial tile effect
+                const matchClass = match === 'ready' ? ' forge-tile-ready' : '';
+                const markOwned = match === 'ready' || match === 'partial';
+                const bagLeft = markOwned ? new Map(bagCounts) : null;
+                const forgeLeft = markOwned ? new Map(forgeCounts) : null;
                 const ings = r.ingredients
                     .map((id, i) => {
                         const ico = r.ingredientIcons[i] ?? ITEMS[id]?.icon ?? '?';
                         let cls = 'forge-ing';
-                        if (left && (left.get(id) ?? 0) > 0) {
+                        if (forgeLeft && (forgeLeft.get(id) ?? 0) > 0) {
+                            cls += ' in-forge';
+                            forgeLeft.set(id, (forgeLeft.get(id) ?? 0) - 1);
+                        } else if (bagLeft && (bagLeft.get(id) ?? 0) > 0) {
                             cls += ' owned';
-                            left.set(id, (left.get(id) ?? 0) - 1);
+                            bagLeft.set(id, (bagLeft.get(id) ?? 0) - 1);
                         }
                         return iconHtml(ico, cls);
                     })
@@ -3322,11 +3319,10 @@ export class Hud {
         return `<div class="forge-recipes-block"><div class="forge-tile-grid">${tiles}</div></div>`;
     }
 
-    /** bag + forge oven multiset for owned-ingredient circles */
-    private availableRuneCounts(): Map<string, number> {
+    /** multiset counts for bag / forge ingredient marks */
+    private countIds(ids: readonly string[]): Map<string, number> {
         const m = new Map<string, number>();
-        for (const id of this.lastBagItemIds) m.set(id, (m.get(id) ?? 0) + 1);
-        for (const id of this.lastForgeOvenIds) m.set(id, (m.get(id) ?? 0) + 1);
+        for (const id of ids) m.set(id, (m.get(id) ?? 0) + 1);
         return m;
     }
 

@@ -8301,7 +8301,8 @@ export class Game {
         const ovenEmpty = !fogged && live.every((s) => s === null);
         const pool = this.teamForgePool(team);
         const suggestions =
-            ovenEmpty && canBuy && !this.armedItem
+            // TEMP: one-click forge-fill shortcuts disabled
+            false && ovenEmpty && canBuy && !this.armedItem
                 ? forgeRecipesCraftableFromBag(
                       this.itemInventory[this.humanSeat] ?? [],
                       pool,

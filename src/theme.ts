@@ -2871,6 +2871,10 @@ ${fontFaceCss()}
     border: 2.5px solid rgb(0, 220, 90);
     box-shadow: none;
 }
+.forge-tile-ings .forge-ing.in-forge {
+    border: 2.5px solid rgb(255, 168, 40);
+    box-shadow: none;
+}
 .forge-tile-name {
     grid-column: 1 / -1;
     grid-row: 2;
