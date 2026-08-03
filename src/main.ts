@@ -2423,6 +2423,12 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         pending = null;
         setMenuBusy(false);
         if (msg.type === 'starRejected' || msg.type === 'starRejoinRejected') {
+            // a stale StarResumeMarker for this same match would otherwise
+            // keep silently re-firing this exact rejected starJoin on every
+            // future page load (see the auto-reconnect block near the
+            // bottom of this file) — most commonly a version mismatch after
+            // a bundle update, which no amount of retrying ever resolves
+            clearStarResumeMarker();
             setStatus(msg.reason);
             session.close();
             mainButtonsEl.style.display = '';
@@ -2430,6 +2436,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         }
         if (msg.type === 'starResumeState') {
             if (msg.version !== GAME_VERSION) {
+                clearStarResumeMarker();
                 setStatus('Version mismatch — both players need the same game version.');
                 session.close();
                 return;
@@ -2455,6 +2462,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             return;
         }
         if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+            clearStarResumeMarker();
             setStatus('Version mismatch — both players need the same game version.');
             session.close();
             return;
