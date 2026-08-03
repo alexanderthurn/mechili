@@ -110,8 +110,8 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
 
     // --- 3 runes ---
     { ingredients: ['earth', 'fire', 'water'], product: tactic(HAMMER_ID), priority: 1 },
-    { ingredients: ['earth', 'water', 'wind'], product: tactic(METEOR_SHOWER_ID), priority: 1 },
-    { ingredients: ['fire', 'water', 'wind'], product: tactic(DRAGON_ID), priority: 1 },
+    { ingredients: ['earth', 'fire', 'wind'], product: tactic(METEOR_SHOWER_ID), priority: 1 },
+    { ingredients: ['fire', 'fire', 'wind'], product: tactic(DRAGON_ID), priority: 1 },
 ];
 
 function ingredientKey(ingredients: readonly string[]): string {
