@@ -155,6 +155,7 @@ import {
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
 import { techSlotLimit, techsForUnit } from './techCatalog';
+import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
     HORDE_DWARF,
@@ -7726,7 +7727,10 @@ export class Game {
         }
     }
 
-    /** the living mech whose on-screen position is closest to the click */
+    /**
+     * Living mech under the click: 3D collider / structure-mesh ray first,
+     * then a soft screen-distance fallback so tiny mechs stay easy to tap.
+     */
     private pickActor(e: PointerEvent): Actor | null {
         if (!this.sim) return null;
         const rect = this.pixiApp.canvas.getBoundingClientRect();
@@ -7734,22 +7738,52 @@ export class Game {
         const sy = e.clientY - rect.top;
         const w = rect.width;
         const h = rect.height;
-        let best: Actor | null = null;
-        let bestD = Infinity;
+
+        const raycaster = this.rig.setPickRay(sx, sy, w, h);
+        const ray = raycaster.ray;
+        let bestRay: Actor | null = null;
+        let bestRayT = Infinity;
+        let bestScreen: Actor | null = null;
+        let bestScreenD = Infinity;
+
         for (const a of this.sim.actors) {
             if (!a.alive) continue;
             const t = a.unit.type;
+
+            forEachPickSphere(t, a.rx, a.footY, a.rz, (cx, cy, cz, r) => {
+                const hitT = raySphereT(ray, cx, cy, cz, r);
+                if (hitT !== null && hitT < bestRayT) {
+                    bestRayT = hitT;
+                    bestRay = a;
+                }
+            });
+
+            // towers keep real meshes — catch antenna / overhang the spheres miss
+            if (t.structure && a.mesh && !a.mesh.userData.instanced) {
+                const meshT = rayMeshT(raycaster, a.mesh);
+                if (meshT !== null && meshT < bestRayT) {
+                    bestRayT = meshT;
+                    bestRay = a;
+                }
+            }
+
             const groundY = a.altitude > 0 ? 0 : groundHeightAt(a.rx, a.rz);
-            const screen = this.rig.worldToScreen(a.rx, groundY + a.altitude + t.meshScale * 0.55, a.rz, w, h);
+            const screen = this.rig.worldToScreen(
+                a.rx,
+                groundY + a.altitude + t.meshScale * 0.55,
+                a.rz,
+                w,
+                h,
+            );
             if (!screen) continue;
             const d = Math.hypot(screen.x - sx, screen.y - sy);
-            const pickRadius = Math.max(20, t.meshScale * 16);
-            if (d < pickRadius && d < bestD) {
-                bestD = d;
-                best = a;
+            const pickRadius = Math.max(28, t.meshScale * 22);
+            if (d < pickRadius && d < bestScreenD) {
+                bestScreenD = d;
+                bestScreen = a;
             }
         }
-        return best;
+        return bestRay ?? bestScreen;
     }
 
     /** the range ring follows the selected battle mech, tinted by its team */

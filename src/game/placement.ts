@@ -28,6 +28,7 @@ import {
 import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
+import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import { drawIcon } from '../ui/iconAtlas';
 
 /** horde unit ids start here — far above anything the parity counters reach */
@@ -1566,11 +1567,25 @@ export class PlacementController {
     }
 
     /**
-     * Resolve the pack under a screen point. During intel fog, enemy packs
-     * (and sold ghosts) are hit-tested at their visible snapshot pose, not
-     * the live occupied grid — otherwise AI moves make them unclickable.
+     * Resolve the pack under a screen point. Combines footprint (ground cell)
+     * with 3D collider / structure-mesh ray hits so tall towers stay easy to
+     * click even when the cursor isn't over their tiles.
+     * During intel fog, enemy packs (and sold ghosts) are hit-tested at their
+     * visible snapshot pose, not the live occupied grid.
      */
     private pickUnitAt(x: number, y: number, opts?: { skipExtras?: boolean }): Unit | undefined {
+        const footprint = this.pickUnitByFootprint(x, y, opts);
+        const mesh = this.pickUnitByVolume(x, y, opts);
+        // prefer the volume the player is looking at when the two disagree
+        return mesh ?? footprint;
+    }
+
+    /** Ground-cell / occupancy pick (existing placement feel). */
+    private pickUnitByFootprint(
+        x: number,
+        y: number,
+        opts?: { skipExtras?: boolean },
+    ): Unit | undefined {
         const cell = this.cellAt(x, y);
         if (!cell) return undefined;
 
@@ -1584,6 +1599,73 @@ export class PlacementController {
         // live fogged cell may be a hidden post-move position — ignore
         if (this.isFogged(unit)) return undefined;
         return unit;
+    }
+
+    /**
+     * 3D pick: collider spheres per mech + real mesh raycast for structures
+     * (towers). Instanced proxies are empty — spheres cover those.
+     */
+    private pickUnitByVolume(
+        x: number,
+        y: number,
+        opts?: { skipExtras?: boolean },
+    ): Unit | undefined {
+        const rect = this.surface.getBoundingClientRect();
+        const raycaster = this.rig.setPickRay(x, y, rect.width, rect.height);
+        const ray = raycaster.ray;
+
+        let best: Unit | undefined;
+        let bestT = Infinity;
+
+        const consider = (unit: Unit): void => {
+            if (unit.destroyed) return;
+            if (opts?.skipExtras && unit.type.extra) return;
+            // selectable: own packs, or enemy packs visible in intel
+            if (unit.team !== 'player' && !this.enemyIntelVisible(unit)) return;
+
+            const origin = this.intelWorldOf(unit);
+            for (const m of unit.members) {
+                if (m.mesh.userData.dead) continue;
+                const mx = origin.x + m.home.x;
+                const mz = origin.z + m.home.z;
+                // member Y is stored as absolute world height (see seatMembers)
+                const my = m.mesh.position.y;
+                forEachPickSphere(unit.type, mx, my, mz, (sx, sy, sz, r) => {
+                    const t = raySphereT(ray, sx, sy, sz, r);
+                    if (t !== null && t < bestT) {
+                        bestT = t;
+                        best = unit;
+                    }
+                });
+            }
+
+            // towers / GLB structures: also test the real mesh so antennae etc. count
+            const proxy = unit.members[0]?.mesh;
+            if (unit.type.structure && proxy && !proxy.userData.instanced) {
+                const t = rayMeshT(raycaster, unit.view);
+                if (t !== null && t < bestT) {
+                    bestT = t;
+                    best = unit;
+                }
+            }
+        };
+
+        for (const unit of this.units) {
+            if (this.isFogged(unit)) continue; // use ghost / snapshot path below
+            consider(unit);
+        }
+        if (this.intelFog) {
+            for (const [id, snap] of this.intelSnapshot) {
+                if (!this.isFoggedSnapshot(snap)) continue;
+                const live = this.units.find((u) => u.id === id);
+                if (live && !live.destroyed) consider(live);
+                else {
+                    const ghost = this.intelGhosts.get(id);
+                    if (ghost && !ghost.destroyed) consider(ghost);
+                }
+            }
+        }
+        return best;
     }
 
     /** fogged pack or sold ghost whose snapshot footprint covers `cell` */
