@@ -247,7 +247,7 @@ export interface Projectile {
     /** the pack that fired it (kill XP goes there) */
     source: Unit;
     /** render style copied from the shooter — visual only */
-    style: 'bolt' | 'arrow' | 'largeArrow' | 'stone';
+    style: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
     /** gravity (world units/s²) for lobbed shots — absent = straight flight */
     gravity?: number;
     /** homing shots chase this actor and hit nothing else */
@@ -2027,7 +2027,7 @@ export class BattleSim {
                 continue; // bullet absorbed
             }
 
-            const splash = p.source.type.splashRadius ?? 0;
+            const splash = this.resolved.get(p.source)?.splashRadius ?? p.source.type.splashRadius ?? 0;
             if (hit) {
                 const ix = p.x + sx * hitT;
                 const iy = p.y + sy * hitT;

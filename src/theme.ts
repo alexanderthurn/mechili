@@ -44,6 +44,8 @@ export const THEME = {
     deathSmall: 0xff2028,
     levelup: 0xc4b896,
     projectile: 0xffe878,
+    /** wizard magic orb — cool cyan, distinct from the yellow energy bolt */
+    projectileOrb: 0x5ce8ff,
 
     // HP bars (pixi hex)
     hpHigh: 0x78c848,

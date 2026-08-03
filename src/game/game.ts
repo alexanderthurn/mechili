@@ -5280,6 +5280,7 @@ export class Game {
                 range: type.range,
                 speed: type.speed,
                 attackInterval: type.attackInterval,
+                splashRadius: type.splashRadius ?? 0,
             };
         }
         const stats = this.techTree.statsFor(unit.seat, type);
@@ -7847,7 +7848,7 @@ export class Game {
             range: Math.round(rs.range),
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
-            splash: u.type.splashRadius,
+            splash: rs.splashRadius || undefined,
             structure: !!u.type.structure,
             unitId: u.id,
             items: this.selectionItems(u, false),
@@ -7884,7 +7885,7 @@ export class Game {
             range: Math.round(rs.range),
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
-            splash: u.type.splashRadius,
+            splash: rs.splashRadius || undefined,
             alive: u.members.length,
             total: u.members.length,
             level: lv.level,

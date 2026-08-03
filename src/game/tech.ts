@@ -9,6 +9,8 @@ export interface ResolvedStats {
     range: number;
     speed: number;
     attackInterval: number;
+    /** projectile splash radius (0 = single-target); tech can multiply the type base */
+    splashRadius: number;
 }
 
 /**
@@ -59,6 +61,7 @@ export class TechTree {
             range: type.range,
             speed: type.speed,
             attackInterval: type.attackInterval,
+            splashRadius: type.splashRadius ?? 0,
         };
         // horde units carry seat -1 (no economy, no tech) — never look them up
         const owned = seat >= 0 ? this.ownedFor(seat, type.id) : null;
@@ -71,6 +74,7 @@ export class TechTree {
             stats.range *= tech.mods.range ?? 1;
             stats.speed *= tech.mods.speed ?? 1;
             stats.attackInterval *= tech.mods.attackInterval ?? 1;
+            stats.splashRadius *= tech.mods.splashRadius ?? 1;
         }
         return stats;
     }

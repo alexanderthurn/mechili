@@ -92,7 +92,14 @@ export interface TechDef {
     name: string;
     cost: number;
     /** multipliers applied to the base stats (attackInterval < 1 = faster) */
-    mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
+    mods: Partial<{
+        hp: number;
+        damage: number;
+        range: number;
+        speed: number;
+        attackInterval: number;
+        splashRadius: number;
+    }>;
     /** optional fire / oil on hit — applied when this tech is owned */
     fire?: import('./fire').FireProfile;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
@@ -111,7 +118,7 @@ export function techDescription(tech: TechDef): string {
     if (tech.description) return tech.description;
     const parts: string[] = [];
     const pct = (mult: number) => `${mult >= 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;
-    const { hp, damage, range, speed, attackInterval } = tech.mods;
+    const { hp, damage, range, speed, attackInterval, splashRadius } = tech.mods;
     if (hp !== undefined && hp !== 1) parts.push(`${pct(hp)} HP`);
     if (damage !== undefined && damage !== 1) parts.push(`${pct(damage)} damage`);
     if (range !== undefined && range !== 1) parts.push(`${pct(range)} range`);
@@ -119,6 +126,9 @@ export function techDescription(tech: TechDef): string {
     // a lower attack interval means faster firing (rate = 1 / interval)
     if (attackInterval !== undefined && attackInterval !== 1) {
         parts.push(`${pct(1 / attackInterval)} attack speed`);
+    }
+    if (splashRadius !== undefined && splashRadius !== 1) {
+        parts.push(`${splashRadius}× splash radius`);
     }
     return parts.length ? parts.join(', ') : tech.name;
 }
@@ -171,9 +181,9 @@ export interface UnitType {
     /**
      * visual for the flying shot — does not affect sim hit radius.
      * `bolt` = energy bead (default); `arrow` / `largeArrow` = fletched shafts;
-     * `stone` = hurled rock (catapult).
+     * `stone` = hurled rock (catapult); `orb` = wizard magic orb.
      */
-    projectileStyle?: 'bolt' | 'arrow' | 'largeArrow' | 'stone';
+    projectileStyle?: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
     /**
      * spawn height above the unit's altitude (world units). When set, overrides
      * the default collider-mid muzzle for that shot.
@@ -382,6 +392,16 @@ function buildArcher(parts: PartFactory): void {
     parts.box(0.18, 0.18, 0.3, 0, 1.25, -1.95, 'accent'); // bow tip
 }
 
+function buildWizard(parts: PartFactory): void {
+    for (const side of [-1, 1]) {
+        parts.cylinder(0.1, 0.14, 1.05, side * 0.28, 0.52, 0.08, 'dark'); // legs
+    }
+    parts.box(0.85, 1.0, 0.7, 0, 1.35, 0, 'hull'); // robe torso
+    parts.sphere(0.28, 0, 2.05, -0.05, 'accent'); // hooded head
+    parts.cylinder(0.05, 0.05, 2.4, 0.55, 1.4, -0.15, 'dark'); // staff
+    parts.sphere(0.2, 0.55, 2.7, -0.15, 'accent'); // staff orb
+}
+
 function buildBallista(parts: PartFactory): void {
     for (const side of [-1, 1]) {
         parts.box(0.6, 0.55, 2.6, side * 1.35, 0.35, 0, 'dark'); // wheels
@@ -541,6 +561,27 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.4,
         speed: 3.5,
         build: buildArcher,
+    },
+    {
+        id: 'wizard',
+        name: 'Wizard',
+        cost: 300,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 2.2,
+        burn: { takenMult: 1.15 },
+        targets: { ground: true, air: true },
+        collisionRadius: 1.0,
+        colliders: [{ y: 1.1, r: 0.75 }],
+        projectileSpeed: 85,
+        projectileStyle: 'orb',
+        splashRadius: 4,
+        hp: 160,
+        damage: 90,
+        range: 55,
+        attackInterval: 1.6,
+        speed: 3.2,
+        build: buildWizard,
     },
     {
         id: 'crowRider',

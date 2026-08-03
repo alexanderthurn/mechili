@@ -104,6 +104,13 @@ export const TECHS: Record<string, TechDef> = {
             oil: { radius: 10 },
         },
     },
+    wideBlast: {
+        id: 'wideBlast',
+        name: 'Wide Blast',
+        cost: 250,
+        mods: { splashRadius: 3 },
+        description: 'Triples orb splash radius.',
+    },
 };
 
 /**
@@ -113,6 +120,7 @@ export const TECHS: Record<string, TechDef> = {
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
     archer: ['barrel', 'ap', 'fireArrows'],
+    wizard: ['wideBlast'],
     crowRider: ['engines', 'stingers'],
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
@@ -137,6 +145,7 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
 export const UNIT_TECH_SLOTS: Record<string, number> = {
     dwarf: 4,
     archer: 4,
+    wizard: 1,
     crowRider: 4,
     ballista: 11, // match full allowlist — wraps in the details pane
 };
