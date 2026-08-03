@@ -398,6 +398,19 @@ export class Game {
      *  announcement/pendingSyncSeats.add — see verifyStarSyncBarrier. */
     private starChecksCompared = false;
     private starBattleEndChecksCompared = false;
+    /** star host only: the seats a barrier is actually waiting on, FROZEN at
+     *  the moment its collection started (`[0, ...connectedSeats()]` taken
+     *  once, not recomputed live) — filtered against CURRENT connectedSeats()
+     *  on every check so a seat dropping mid-collection still correctly
+     *  shrinks it, but a DIFFERENT seat joining/reclaiming mid-collection
+     *  can never grow it. Without this, a seat that reclaims while a barrier
+     *  is already mid-flight would get pulled into `expected` immediately
+     *  (its connection is live the instant the join is accepted, well before
+     *  it's replayed/hydrated far enough to ever submit a hash for the round
+     *  already in progress) and stall the barrier forever waiting for a hash
+     *  that round can never receive. */
+    private starChecksExpectedSeats: SeatId[] = [];
+    private starBattleEndChecksExpectedSeats: SeatId[] = [];
     /** star host only: seats currently dropped (mid-grace-window) or reconnected-
      *  but-not-yet-confirmed-ready — the host stays `suspended` while this is
      *  non-empty, same as classic 1v1 stays suspended until the one peer is
@@ -2884,24 +2897,29 @@ export class Game {
     /**
      * Star host only: the shared sync-barrier comparator, used by BOTH
      * checkpoints (battle-start via `starChecks`, battle-end via
-     * `starBattleEndChecks`). Waits for every currently-connected seat
-     * (`[0, ...connectedSeats()]`, same set `resumeIfAllClear`'s callers
-     * already reason about) to report into `hashes`, then either fast-paths
-     * via `resumeIfAllClear()` if this round's comparison already ran once
-     * (a recheck — e.g. triggered by a seat dropping mid-collection,
-     * shrinking the expected set — must never redo the comparison itself),
-     * or does the one-time compare: all-match just calls
-     * `resumeIfAllClear()`; a mismatch batches every disagreeing seat's
-     * name into ONE low-key `announceSystem` line (not one per seat — stay
-     * low-key), adds each to `pendingSyncSeats`, and unicasts each a fresh
-     * `starResumeState` via the existing `starSeatReconnected` (already
-     * UI-agnostic — safe to reuse verbatim for a reason other than a real
-     * disconnect). Returns the (possibly now-true) "already compared" flag
-     * for the caller to persist.
+     * `starBattleEndChecks`). Waits for every seat in `expectedSnapshot`
+     * (frozen at collection start — see the field's own doc comment —
+     * filtered against CURRENT `connectedSeats()` so a drop still correctly
+     * shrinks it) to report into `hashes`, then either fast-paths via
+     * `resumeIfAllClear()` if this round's comparison already ran once
+     * (a recheck — e.g. triggered by a seat dropping mid-collection — must
+     * never redo the comparison itself), or does the one-time compare:
+     * all-match just calls `resumeIfAllClear()`; a mismatch batches every
+     * disagreeing seat's name into ONE low-key `announceSystem` line (not
+     * one per seat — stay low-key), adds each to `pendingSyncSeats`, and
+     * unicasts each a fresh `starResumeState` via the existing
+     * `starSeatReconnected` (already UI-agnostic — safe to reuse verbatim
+     * for a reason other than a real disconnect). Returns the (possibly
+     * now-true) "already compared" flag for the caller to persist.
      */
-    private verifyStarSyncBarrier(hashes: ReadonlyMap<SeatId, number>, alreadyCompared: boolean): boolean {
+    private verifyStarSyncBarrier(
+        hashes: ReadonlyMap<SeatId, number>,
+        expectedSnapshot: readonly SeatId[],
+        alreadyCompared: boolean,
+    ): boolean {
         if (!this.star || this.star.role !== 'host') return alreadyCompared;
-        const expected = [0, ...this.star.hub.connectedSeats()];
+        const connected = new Set(this.star.hub.connectedSeats());
+        const expected = expectedSnapshot.filter((s) => s === 0 || connected.has(s));
         if (!expected.every((s) => hashes.has(s))) return alreadyCompared; // still waiting on someone
         if (alreadyCompared) {
             this.resumeIfAllClear();
@@ -2933,19 +2951,25 @@ export class Game {
     /**
      * Star host only: re-run whichever sync-barrier comparison(s) are
      * currently outstanding — needed because a seat dropping mid-collection
-     * shrinks `connectedSeats()`, and nothing else would notice that the
-     * barrier is now waiting on a hash that will never arrive (see
+     * shrinks its frozen `expectedSnapshot` (via the current-connectedSeats
+     * filter inside `verifyStarSyncBarrier`), and nothing else would notice
+     * that the barrier is now waiting on a hash that will never arrive (see
      * `verifyStarSyncBarrier`'s own doc comment on this stall risk). Safe to
      * call unconditionally, even with no barrier active: a checkpoint that
-     * isn't currently collecting has an empty hash map, which fails the
-     * "did every connected seat report" gate immediately (seat 0 — the
-     * host — is always in `expected` but never in an empty map) and no-ops.
+     * isn't currently collecting has an empty snapshot/hash map, which fails
+     * the "did every expected seat report" gate immediately (seat 0 stays in
+     * `expected` even then, but is never in an empty hash map) and no-ops.
      */
     private recheckStarSyncBarriers(): void {
         if (!this.star || this.star.role !== 'host') return;
-        this.starChecksCompared = this.verifyStarSyncBarrier(this.starChecks, this.starChecksCompared);
+        this.starChecksCompared = this.verifyStarSyncBarrier(
+            this.starChecks,
+            this.starChecksExpectedSeats,
+            this.starChecksCompared,
+        );
         this.starBattleEndChecksCompared = this.verifyStarSyncBarrier(
             this.starBattleEndChecks,
+            this.starBattleEndChecksExpectedSeats,
             this.starBattleEndChecksCompared,
         );
     }
@@ -5064,7 +5088,11 @@ export class Game {
         } else if (msg.type === 'starCheck') {
             if (isHost && msg.round === this.round) {
                 this.starChecks.set(msg.seat, msg.hash);
-                this.starChecksCompared = this.verifyStarSyncBarrier(this.starChecks, this.starChecksCompared);
+                this.starChecksCompared = this.verifyStarSyncBarrier(
+                    this.starChecks,
+                    this.starChecksExpectedSeats,
+                    this.starChecksCompared,
+                );
             }
         } else if (msg.type === 'starSync') {
             // host already applied this locally at the point it broadcast
@@ -7024,7 +7052,15 @@ export class Game {
                 this.starChecks.clear();
                 this.starChecks.set(this.humanSeat, hash);
                 this.starChecksCompared = false;
-                this.starChecksCompared = this.verifyStarSyncBarrier(this.starChecks, this.starChecksCompared);
+                // freeze who this collection is waiting on — see the field's
+                // own doc comment on why a LATER join/reclaim must never
+                // retroactively grow this
+                this.starChecksExpectedSeats = [0, ...this.star.hub.connectedSeats()];
+                this.starChecksCompared = this.verifyStarSyncBarrier(
+                    this.starChecks,
+                    this.starChecksExpectedSeats,
+                    this.starChecksCompared,
+                );
             }
         }
         this.enforceCinemaWorld();
@@ -7211,6 +7247,15 @@ export class Game {
                 this.star.session.send({ type: 'battleEnd', round: this.round, seat: this.humanSeat, hash });
             } else {
                 this.starBattleEndChecks.set(this.humanSeat, hash);
+                // freeze who this round's battle-end collection is waiting
+                // on, taken exactly when the HOST's OWN battle ends (not any
+                // earlier, e.g. round start — a seat that legitimately joins
+                // mid-round, before this point, still correctly belongs in
+                // this round's expected set; the field's own doc comment
+                // covers why a join AFTER this point must not). Safe to
+                // (re)assign unconditionally: this branch runs exactly once
+                // per round, on the host, whenever its own battle ends.
+                this.starBattleEndChecksExpectedSeats = [0, ...this.star.hub.connectedSeats()];
                 this.markStarBattleReady(this.humanSeat);
             }
             return;
@@ -7302,6 +7347,7 @@ export class Game {
         if (!allReady || this.hydrating) return;
         this.starBattleEndChecksCompared = this.verifyStarSyncBarrier(
             this.starBattleEndChecks,
+            this.starBattleEndChecksExpectedSeats,
             this.starBattleEndChecksCompared,
         );
     }
