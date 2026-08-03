@@ -381,13 +381,41 @@ export class Game {
     private lastSpectateBlockLog = '';
     /** star host only: which (human) seats have finished watching this round's battle */
     private readonly starBattleReadySeats = new Set<SeatId>();
-    /** star host only: this round's battle-start hash per seat (diagnostic desync check) */
+    /** star host only: this round's battle-start hash per seat (sync-barrier check) */
     private readonly starChecks = new Map<SeatId, number>();
+    /** star host only: this round's battle-END hash per seat — a SEPARATE
+     *  tally from `starChecks` (which is battle-start only), for the
+     *  battle-end/pre-match-end sync-barrier checkpoint (see
+     *  endBattlePhase/markStarBattleReady/verifyStarSyncBarrier). */
+    private readonly starBattleEndChecks = new Map<SeatId, number>();
+    /** star host only: has this round's battle-start / battle-end hash
+     *  tally already been compared once? A recheck (e.g. triggered by a
+     *  seat dropping mid-collection, shrinking the expected set) must only
+     *  ever re-run resumeIfAllClear(), never redo the comparison/
+     *  announcement/pendingSyncSeats.add — see verifyStarSyncBarrier. */
+    private starChecksCompared = false;
+    private starBattleEndChecksCompared = false;
     /** star host only: seats currently dropped (mid-grace-window) or reconnected-
      *  but-not-yet-confirmed-ready — the host stays `suspended` while this is
      *  non-empty, same as classic 1v1 stays suspended until the one peer is
      *  both back AND ready (see beginStarSeatSuspend/starSeatReady) */
     private readonly pendingStarSeats = new Set<SeatId>();
+    /** star host only: seats being resynced because a sync-barrier hash
+     *  comparison found them disagreeing (see verifyStarSyncBarrier) — kept
+     *  SEPARATE from `pendingStarSeats` (real disconnects): different
+     *  chat-announcement wording ("resyncing", never "reconnected"), and a
+     *  seat can legitimately be in both sets at once (a real drop happening
+     *  while a barrier-triggered resync for it is already in flight). */
+    private readonly pendingSyncSeats = new Set<SeatId>();
+    /** star host only: continuation to run once every pending seat (both
+     *  `pendingStarSeats` and `pendingSyncSeats`) has cleared — set by a
+     *  sync-barrier checkpoint that has follow-up work gated on "everyone
+     *  agrees" (currently only the battle-end checkpoint, which must defer
+     *  finishMatch()/announceBattleEnd() until resolved); null for the
+     *  battle-start checkpoint, which has nothing further to do once
+     *  unsuspended — simulation just resumes ticking on its own. Run and
+     *  cleared inside resumeIfAllClear(). */
+    private afterSyncResolved: (() => void) | null = null;
     /** wall-clock deadline (performance.now()) the current star seat-drop
      *  suspend resolves by, one way or another: either the seat reconnects,
      *  or the grace window elapses and the host auto-resolves (forfeit-win
@@ -2401,6 +2429,14 @@ export class Game {
         this.battleReady.player = false;
         this.battleReady.enemy = false;
         this.starBattleReadySeats.clear();
+        // reset here, not inside endBattlePhase's own host branch: a fast
+        // guest can report its battleEnd (and hash) before the HOST's own
+        // battle even finishes, so clearing starBattleEndChecks there would
+        // race and wipe out an already-stashed hash that will never be
+        // resent — this is the one point guaranteed to run before ANYONE
+        // could possibly report for the round about to start.
+        this.starBattleEndChecks.clear();
+        this.starBattleEndChecksCompared = false;
         this.unlockUsedThisRound.fill(false);
         this.hud.refreshCosts();
         this.refreshShopHud();
@@ -2812,31 +2848,73 @@ export class Game {
      * since a drop already pauses the whole match via wireStar's
      * onSeatDropped.
      */
-    private verifyStarChecks(): void {
-        if (!this.star || this.star.role !== 'host') return;
+    /**
+     * Star host only: the shared sync-barrier comparator, used by BOTH
+     * checkpoints (battle-start via `starChecks`, battle-end via
+     * `starBattleEndChecks`). Waits for every currently-connected seat
+     * (`[0, ...connectedSeats()]`, same set `resumeIfAllClear`'s callers
+     * already reason about) to report into `hashes`, then either fast-paths
+     * via `resumeIfAllClear()` if this round's comparison already ran once
+     * (a recheck — e.g. triggered by a seat dropping mid-collection,
+     * shrinking the expected set — must never redo the comparison itself),
+     * or does the one-time compare: all-match just calls
+     * `resumeIfAllClear()`; a mismatch batches every disagreeing seat's
+     * name into ONE low-key `announceSystem` line (not one per seat — stay
+     * low-key), adds each to `pendingSyncSeats`, and unicasts each a fresh
+     * `starResumeState` via the existing `starSeatReconnected` (already
+     * UI-agnostic — safe to reuse verbatim for a reason other than a real
+     * disconnect). Returns the (possibly now-true) "already compared" flag
+     * for the caller to persist.
+     */
+    private verifyStarSyncBarrier(hashes: ReadonlyMap<SeatId, number>, alreadyCompared: boolean): boolean {
+        if (!this.star || this.star.role !== 'host') return alreadyCompared;
         const expected = [0, ...this.star.hub.connectedSeats()];
-        if (!expected.every((s) => this.starChecks.has(s))) return; // still waiting on someone
-        const mine = this.starChecks.get(0)!;
-        const mismatched = expected.filter((s) => this.starChecks.get(s) !== mine);
+        if (!expected.every((s) => hashes.has(s))) return alreadyCompared; // still waiting on someone
+        if (alreadyCompared) {
+            this.resumeIfAllClear();
+            return true;
+        }
+        const mine = hashes.get(0)!;
+        const mismatched = expected.filter((s) => hashes.get(s) !== mine);
         if (mismatched.length > 0) {
             console.warn(
                 `[mechili] star desync at round ${this.round}: seat(s) ${mismatched.join(', ')} ` +
-                    `disagree with the host's battle-start state hash`,
+                    `disagree with the host's own state hash`,
             );
-            // console-only was invisible outside an open devtools tab — this
-            // makes it part of the same aggregated per-client debug timeline
-            // (DebugDumpButton) already used to diagnose every other netcode
-            // issue this session.
             this.debugLog.log('star.desyncDetected', {
                 round: this.round,
                 mismatched,
-                hashes: Object.fromEntries(this.starChecks),
+                hashes: Object.fromEntries(hashes),
             });
+            const names = mismatched.map((s) => this.seats[s]?.name).filter((n): n is string => !!n);
+            if (names.length > 0) this.announceSystem(`Resyncing ${names.join(', ')}…`, names.join(', '));
             for (const seat of mismatched) {
-                this.beginStarSeatSuspend(seat);
+                this.pendingSyncSeats.add(seat);
                 this.starSeatReconnected(seat);
             }
         }
+        this.resumeIfAllClear();
+        return true;
+    }
+
+    /**
+     * Star host only: re-run whichever sync-barrier comparison(s) are
+     * currently outstanding — needed because a seat dropping mid-collection
+     * shrinks `connectedSeats()`, and nothing else would notice that the
+     * barrier is now waiting on a hash that will never arrive (see
+     * `verifyStarSyncBarrier`'s own doc comment on this stall risk). Safe to
+     * call unconditionally, even with no barrier active: a checkpoint that
+     * isn't currently collecting has an empty hash map, which fails the
+     * "did every connected seat report" gate immediately (seat 0 — the
+     * host — is always in `expected` but never in an empty map) and no-ops.
+     */
+    private recheckStarSyncBarriers(): void {
+        if (!this.star || this.star.role !== 'host') return;
+        this.starChecksCompared = this.verifyStarSyncBarrier(this.starChecks, this.starChecksCompared);
+        this.starBattleEndChecksCompared = this.verifyStarSyncBarrier(
+            this.starBattleEndChecks,
+            this.starBattleEndChecksCompared,
+        );
     }
 
     /**
@@ -3031,7 +3109,17 @@ export class Game {
         const connected = hub ? new Set(hub.connectedSeats()) : null;
         return this.seats
             .map((def, seat) => ({ def, seat }))
-            .filter(({ def }) => def.controller === 'human')
+            .filter(
+                ({ def, seat }) =>
+                    def.controller === 'human' ||
+                    // a seat AI took over after its original player dropped —
+                    // still worth listing (as disconnected) so that player can
+                    // find their way back via the room list's existing Resume
+                    // UI, same as a seat mid-grace-window already does. A
+                    // seat that started AI-controlled (2v2ai bot fill) is
+                    // never reclaimable, so it's correctly excluded here.
+                    !!hub?.isReclaimable(seat),
+            )
             .map(({ def, seat }) => ({
                 name: def.name,
                 // canonical 'a'/'b' — hub.sideOf is the authoritative source
@@ -3041,6 +3129,7 @@ export class Game {
                 // seat 0 (the host) is never in StarHub's own bySeat map —
                 // it's this client, always connected by definition
                 connected: seat === 0 || !connected || connected.has(seat),
+                aiControlled: !!hub?.isReclaimable(seat),
             }));
     }
 
@@ -3284,6 +3373,7 @@ export class Game {
                 this.beginStarSeatSuspend(seat);
             };
             star.hub.onSeatReconnected = (seat) => this.starSeatReconnected(seat);
+            star.hub.onSeatReclaimedFromAi = (seat) => this.reclaimSeatFromAi(seat);
             star.hub.onSeatDropped = (seat) => {
                 // the grace window elapsed with nobody reclaiming this seat
                 // — resolve it exactly like a voluntary quit (AI takeover,
@@ -3430,7 +3520,16 @@ export class Game {
      *  give-up state onSeatDropped uses once the window elapses. */
     private beginStarSeatSuspend(seat: SeatId): void {
         if (this.matchOver || !this.star || this.star.role !== 'host') return;
-        const wasSuspended = this.suspended;
+        // gate on pendingStarSeats itself, NOT this.suspended — a sync
+        // barrier (see verifyStarSyncBarrier) can already have this.suspended
+        // true with pendingStarSeats empty; a genuine drop happening then
+        // must still broadcast the real "X disconnected" pause (with its
+        // deadline/notice), since every other client is currently silently
+        // barrier-paused and has no idea a real disconnect just happened.
+        // Getting this backwards (keying on this.suspended) would silently
+        // skip the broadcast and leave every other client frozen with zero
+        // explanation for up to the full reconnect grace window.
+        const wasPendingEmpty = this.pendingStarSeats.size === 0;
         // only once per drop, not on every liveness-watchdog re-trigger
         // while it's already pending
         if (!this.pendingStarSeats.has(seat)) {
@@ -3439,7 +3538,7 @@ export class Game {
         }
         this.pendingStarSeats.add(seat);
         this.pendingDropNames = this.computePendingDropNames();
-        if (!wasSuspended) {
+        if (wasPendingEmpty) {
             this.suspended = true;
             this.suspendDeadline = performance.now() + STAR_RECONNECT_GRACE_MS;
             this.lastSuspendNoticeSecond = -1;
@@ -3467,6 +3566,11 @@ export class Game {
         // not up to HEARTBEAT_MS late — someone deciding "resume vs.
         // spectate" from the menu is trusting this to be current
         this.spectateRegistration?.refreshNow();
+        // a seat dropping mid-collection shrinks connectedSeats(), which can
+        // be exactly the seat a sync barrier is still waiting on — recheck
+        // so the barrier doesn't stall forever waiting for a hash that will
+        // never arrive (see recheckStarSyncBarriers' own doc comment)
+        this.recheckStarSyncBarriers();
     }
 
     /**
@@ -3596,15 +3700,22 @@ export class Game {
 
     /**
      * Star host only: broadcasts + applies the "everyone may resume" edge
-     * once `pendingStarSeats` is empty — shared by `starSeatReady` (a seat
-     * reconnected) and `resolveSeatGone` (the grace window elapsed instead,
-     * resolved via AI takeover or forfeit) so neither path can silently
-     * skip telling every OTHER connected seat to resume too. Found live:
-     * after `resolveSeatGone`'s AI-takeover, the host kept going but other
-     * connected guests stayed stuck on the "Waiting…" notice forever
-     * (countdown frozen at 0:00), since only `starSeatReady` used to
-     * broadcast this — `resolveSeatGone` cleared its OWN `suspended` flag
-     * but never told anyone else.
+     * once BOTH `pendingStarSeats` (real disconnects) and `pendingSyncSeats`
+     * (sync-barrier resyncs, see verifyStarSyncBarrier) are empty — shared
+     * by `starSeatReady` (a seat reconnected), `resolveSeatGone` (the grace
+     * window elapsed instead, resolved via AI takeover or forfeit), and
+     * `verifyStarSyncBarrier`'s own resync path, so none of them can
+     * silently skip telling every OTHER connected seat to resume too.
+     * Found live: after `resolveSeatGone`'s AI-takeover, the host kept
+     * going but other connected guests stayed stuck on the "Waiting…"
+     * notice forever (countdown frozen at 0:00), since only
+     * `starSeatReady` used to broadcast this — `resolveSeatGone` cleared
+     * its OWN `suspended` flag but never told anyone else. This is also
+     * the single place that runs `afterSyncResolved` (a sync-barrier
+     * checkpoint's deferred follow-up, e.g. finishMatch()/
+     * announceBattleEnd()), so the real-disconnect path and the
+     * sync-barrier path can never race each other to decide "we may
+     * proceed" independently.
      */
     private resumeIfAllClear(): void {
         if (this.matchOver) {
@@ -3617,12 +3728,15 @@ export class Game {
             // sitting on top of the main menu after the match ended.
             this.suspended = false;
             this.suspendDeadline = null;
+            this.afterSyncResolved = null;
             this.hud.hideNotice();
             return;
         }
-        if (this.pendingStarSeats.size !== 0 || !this.suspended) {
+        if (this.pendingStarSeats.size !== 0 || this.pendingSyncSeats.size !== 0 || !this.suspended) {
             // still waiting on at least one more seat — drop the resolved
             // one's name out of the notice instead of leaving it listed
+            // (the notice only ever reflects pendingStarSeats — a pure
+            // sync-barrier resync never shows one, see verifyStarSyncBarrier)
             if (this.suspended) this.refreshStarSuspendNotice();
             return;
         }
@@ -3644,6 +3758,9 @@ export class Game {
                 names: [],
             });
         }
+        const cont = this.afterSyncResolved;
+        this.afterSyncResolved = null;
+        cont?.();
     }
 
     /**
@@ -3703,6 +3820,10 @@ export class Game {
         // resume to every other connected seat (see resumeIfAllClear's own
         // doc comment on the bug this closes)
         this.resumeIfAllClear();
+        // same stall-avoidance recheck as beginStarSeatSuspend — this seat
+        // leaving connectedSeats() (quit) or losing its grace window can
+        // also be exactly what a sync barrier was still waiting on
+        this.recheckStarSyncBarriers();
     }
 
     /**
@@ -3733,6 +3854,10 @@ export class Game {
                 controller: 'ai',
                 name: def.name,
             });
+            // lets the ORIGINAL player find their way back later via the
+            // room list's existing Resume UI + a name-matched rejoin — see
+            // reclaimSeatFromAi/StarHub.markReclaimable's own doc comments.
+            this.star.hub.markReclaimable(seat);
         }
         const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
         const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
@@ -3771,6 +3896,37 @@ export class Game {
             // remaining humans.
             this.markStarBattleReady(seat);
         }
+    }
+
+    /**
+     * Star host only: undoes takeOverSeatWithAi — the seat's ORIGINAL
+     * human player just reclaimed it (StarHub matched their rejoin by name
+     * against `markReclaimable`, then wired their connection and flipped
+     * its roster entry back to human before calling this). Stops the
+     * AiOpponent acting for this seat and flips Game's own local seat
+     * record back to human; the per-seat economy/army/tech state needs no
+     * changes at all — it was never AI-vs-human-specific to begin with, so
+     * the reclaiming player simply takes the wheel from wherever the AI
+     * left off. No phase restriction: the full catch-up snapshot
+     * (starSeatReconnected, reused verbatim below) already carries whatever
+     * a reconnecting client needs regardless of build or battle phase.
+     */
+    private reclaimSeatFromAi(seat: SeatId): void {
+        const def = this.seats[seat];
+        if (!def || def.controller !== 'ai') return;
+        this.seats[seat] = { ...def, controller: 'human' };
+        const idx = this.extraAis.findIndex((e) => e.seat === seat);
+        if (idx >= 0) this.extraAis.splice(idx, 1);
+        // same chat pattern takeOverSeatWithAi uses (not announceSystem) —
+        // sent before refreshCommanders() so the bubble still attaches
+        // correctly to this seat's own chip
+        const announcement: ChatItem = { kind: 'text', text: `${def.name} has taken back their seat.` };
+        this.hud.addChat(def.name, announcement, 'remote');
+        this.broadcast({ type: 'chat', item: announcement, from: { name: def.name, role: 'player' } });
+        this.broadcastRoster();
+        this.refreshCommanders();
+        this.spectateRegistration?.refreshNow();
+        this.starSeatReconnected(seat);
     }
 
     /**
@@ -4849,16 +5005,33 @@ export class Game {
             }
         } else if (msg.type === 'battleEnd') {
             if (isHost && fromSeat !== undefined && msg.round === this.round) {
+                if (msg.hash !== undefined) this.starBattleEndChecks.set(fromSeat, msg.hash);
                 this.markStarBattleReady(fromSeat);
             }
         } else if (msg.type === 'starNextRound') {
-            if (!isHost && msg.round === this.round) this.startBuildPhase();
+            // the host only ever sends this from finishOrContinueAfterBattle,
+            // AFTER its own sync barrier confirmed everyone agrees — so this
+            // guest's own HP is now guaranteed correct too. Run the SAME
+            // decision locally (finishMatch() vs. proceed) rather than
+            // jumping straight to startBuildPhase(): this message doubles as
+            // both outcomes' "go" signal (see finishOrContinueAfterBattle's
+            // own doc comment on why the host doesn't precompute a verdict).
+            // Clears suspended/the notice itself: the generic starSync
+            // resume broadcast deliberately no-ops for "sim already null"
+            // (see its own doc comment) so THIS is what actually unsuspends
+            // for the battle-end checkpoint.
+            if (!isHost && msg.round === this.round) {
+                this.suspended = false;
+                this.suspendDeadline = null;
+                this.hud.hideNotice();
+                this.finishOrContinueAfterBattle();
+            }
         } else if (msg.type === 'starBattleStart') {
             if (!isHost && msg.round === this.round && this.phase === 'build') this.startBattlePhase();
         } else if (msg.type === 'starCheck') {
             if (isHost && msg.round === this.round) {
                 this.starChecks.set(msg.seat, msg.hash);
-                this.verifyStarChecks();
+                this.starChecksCompared = this.verifyStarSyncBarrier(this.starChecks, this.starChecksCompared);
             }
         } else if (msg.type === 'starSync') {
             // host already applied this locally at the point it broadcast
@@ -4870,10 +5043,28 @@ export class Game {
             if (!isHost && msg.round === this.round && msg.phase === this.phase) {
                 if (msg.suspended) {
                     this.suspended = true;
-                    this.suspendDeadline = performance.now() + STAR_RECONNECT_GRACE_MS;
-                    this.lastSuspendNoticeSecond = -1;
-                    this.pendingDropNames = msg.names;
-                    this.showSuspendNotice();
+                    // silent (sync-barrier checkpoint): every participant
+                    // self-suspends symmetrically, nothing to explain — flip
+                    // the flag only, no countdown/modal (see NetMessage's
+                    // 'starSync' doc comment on `silent`)
+                    if (!msg.silent) {
+                        this.suspendDeadline = performance.now() + STAR_RECONNECT_GRACE_MS;
+                        this.lastSuspendNoticeSecond = -1;
+                        this.pendingDropNames = msg.names;
+                        this.showSuspendNotice();
+                    }
+                } else if (msg.phase === 'battle' && !this.sim) {
+                    // the battle-end sync-barrier checkpoint (see
+                    // endBattlePhase) also resumes through this same
+                    // message, but by then every participant's own battle
+                    // has ALREADY ended locally (sim already torn down) —
+                    // nothing to reconcile here. Deliberately leave
+                    // suspended/the notice untouched rather than clearing
+                    // them now: that would let a stray tick() run against a
+                    // null sim if it happens to land before the real "go"
+                    // signal for this checkpoint (the separate
+                    // 'starNextRound' message, handled by
+                    // finishOrContinueAfterBattle) arrives.
                 } else {
                     // reconcile to the exact target rather than just
                     // resuming wherever we happen to be — a seat that was
@@ -4940,9 +5131,19 @@ export class Game {
             const side = star.hub.sideOf(fromSeat);
             this.spectatorHub.setSeatLive(msg.spectatorName, side, msg.grant);
         } else if (msg.type === 'ready') {
-            // host only: a reconnected seat finished applying its
-            // starResumeState catch-up — see starSeatReady's doc comment
-            if (isHost && fromSeat !== undefined) this.starSeatReady(fromSeat);
+            // host only: a seat finished applying its starResumeState
+            // catch-up. Two INDEPENDENT checks, not else-if: a seat can be
+            // in both pendingStarSeats (real reconnect) AND pendingSyncSeats
+            // (a sync-barrier resync) at once — e.g. a genuine drop
+            // happening while a barrier-triggered resync for it was already
+            // in flight — and each needs its own resolution/announcement.
+            if (isHost && fromSeat !== undefined) {
+                if (this.pendingStarSeats.has(fromSeat)) this.starSeatReady(fromSeat);
+                if (this.pendingSyncSeats.has(fromSeat)) {
+                    this.pendingSyncSeats.delete(fromSeat);
+                    this.resumeIfAllClear();
+                }
+            }
         } else if (msg.type === 'quit') {
             // host: a guest explicitly quit (see voluntaryQuit) — decide
             // AI-takeover vs. forfeit (handleSeatQuit). Guest: this can only
@@ -6765,17 +6966,29 @@ export class Game {
             this.net.send({ type: 'check', round: this.round, hash });
             this.verifyCheck(this.round);
         }
-        // star mode: every client's hash goes to the host for N-way
-        // comparison. Diagnostic only (console warning) — no auto-resync,
-        // matching the documented lack of a reconnect/resume story here.
+        // star mode: the deploy-end/battle-start sync-barrier checkpoint.
+        // Every client just built this.sim from the identical replicated
+        // deployment log, so this hash IS the pre-simulation state — the
+        // exact thing that needs to agree before anyone's battle actually
+        // starts ticking. Self-suspend FIRST, before the comparator call:
+        // the host's own fast path (e.g. sole connected human) can resolve
+        // synchronously inside verifyStarSyncBarrier, and setting suspended
+        // after that call would clobber an unsuspend that already happened.
+        // No pause broadcast needed here — every participant reaches this
+        // point and self-suspends on its own initiative (triggered locally
+        // by constructing this.sim), so there's nothing to tell anyone;
+        // only the eventual resume (resumeIfAllClear's existing broadcast)
+        // needs to travel.
         if (this.star && !this.hydrating) {
             const hash = this.stateHash();
+            this.suspended = true;
             if (this.star.role === 'guest') {
                 this.star.session.send({ type: 'starCheck', round: this.round, seat: this.humanSeat, hash });
             } else {
                 this.starChecks.clear();
                 this.starChecks.set(this.humanSeat, hash);
-                this.verifyStarChecks();
+                this.starChecksCompared = false;
+                this.starChecksCompared = this.verifyStarSyncBarrier(this.starChecks, this.starChecksCompared);
             }
         }
         this.enforceCinemaWorld();
@@ -6919,10 +7132,15 @@ export class Game {
 
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
     private endBattlePhase(): void {
+        let hash: number | undefined;
         if (this.sim) {
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
+            // capture the battle-end sync-barrier fingerprint BEFORE the sim
+            // (and its actors) are torn down below — stateHash() reads
+            // this.sim.actors, so this MUST run before `this.sim = null`.
+            if (this.star && !this.hydrating) hash = this.stateHash();
         }
         this.sim = null;
         this.selectedActor = null;
@@ -6937,6 +7155,51 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
         this.spellVisuals.clear(); // active zone markers are battle-only
+        if (hash !== undefined && this.star) {
+            // Star mode's battle-end / pre-match-end sync barrier: gates
+            // BOTH of what used to run immediately below (finishMatch(), or
+            // the round cleanup + announceBattleEnd()) behind every
+            // connected seat's hash agreeing first — resyncing whoever
+            // doesn't, so a divergence gets caught (and corrected) right
+            // here instead of an entire extra build phase playing out on
+            // top of it, or a winner being shown before everyone actually
+            // agrees who won. No pause broadcast needed to get here: every
+            // participant reaches this exact point on its own initiative
+            // (its own battle just finished) and self-suspends the same
+            // way — see startBattlePhase's matching checkpoint.
+            this.battleReady.player = true; // drives "waiting for opponent" HUD text for this whole gap — same flag announceBattleEnd already set here
+            this.suspended = true;
+            this.afterSyncResolved = () => this.finishOrContinueAfterBattle();
+            if (this.star.role === 'guest') {
+                this.star.session.send({ type: 'battleEnd', round: this.round, seat: this.humanSeat, hash });
+            } else {
+                this.starBattleEndChecks.set(this.humanSeat, hash);
+                this.markStarBattleReady(this.humanSeat);
+            }
+            return;
+        }
+        this.finishOrContinueAfterBattle();
+    }
+
+    /**
+     * The actual battle-end decision — finishMatch() vs. cleanup-and-
+     * continue — deferred behind the sync barrier for star mode (see
+     * endBattlePhase), but otherwise identical to this function's original
+     * inline body from before the barrier existed: runs immediately for
+     * classic 1v1, single-player/AI, and hydrating/replay (none of which
+     * take the barrier branch above at all).
+     */
+    private finishOrContinueAfterBattle(): void {
+        if (this.star && this.star.role === 'host' && !this.hydrating) {
+            // every OTHER connected seat is still waiting on this exact
+            // decision — tell them to run it too, now that the barrier
+            // confirms everyone agrees. Reused for BOTH outcomes (continue
+            // or match-over): each client (host included) independently
+            // decides finishMatch() vs. proceed from its own now-guaranteed-
+            // correct HP, rather than the host trying to precompute and
+            // announce a verdict of its own.
+            this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
+        }
         if (this.playerHp <= 0 || this.enemyHp <= 0) {
             this.finishMatch();
             return;
@@ -6948,30 +7211,24 @@ export class Game {
             else unit.resetFormation();
         }
         this.placement.refaceAll();
+        if (this.star && !this.hydrating) {
+            // star's own readiness/hash reporting already happened above
+            // (endBattlePhase/markStarBattleReady) — this continuation is
+            // the "go" signal itself, nothing left to announce
+            this.startBuildPhase();
+            return;
+        }
         this.announceBattleEnd();
     }
 
     /** local battle sim finished — tell the peer, then wait for theirs too
      *  before starting the next build phase (fast-forward speed is per-client,
-     *  so the two sides don't necessarily finish watching at the same time) */
+     *  so the two sides don't necessarily finish watching at the same time).
+     *  Classic 1v1 / single-player / hydrating fallthrough only — star mode's
+     *  own ready+hash reporting happens earlier, in endBattlePhase, since the
+     *  sync-barrier check needs the hash before the sim is torn down. */
     private announceBattleEnd(): void {
         this.battleReady.player = true;
-        // Star mode's own ack/wait gate is a LIVE mechanism (a guest's
-        // battleEnd send, or the host's markStarBattleReady tally) — during
-        // replay/hydrate there's no live peer to ack with, so taking this
-        // branch while hydrating would just wait forever for a message
-        // that's never coming (confirmed live: a reconnecting star guest
-        // got stuck at 'battle' indefinitely after its own hydrate finished
-        // simulating the historical battle). maybeStartNextRound below
-        // already has the right hydrating/no-net fallthrough classic 1v1
-        // always used — just needs to actually be reached for star too.
-        if (this.star && !this.hydrating) {
-            this.markStarBattleReady(this.humanSeat);
-            if (this.star.role === 'guest') {
-                this.star.session.send({ type: 'battleEnd', round: this.round, seat: this.humanSeat });
-            }
-            return; // star's own gate (markStarBattleReady) decides when to advance
-        }
         if (this.net && !this.hydrating) {
             this.broadcast({ type: 'battleEnd', round: this.round });
         }
@@ -6992,9 +7249,12 @@ export class Game {
     /**
      * Star host only: track a seat's "done watching" signal; once every
      * HUMAN seat (AI seats never watch, always vacuously ready) has checked
-     * in, broadcast the go-ahead and start the next round locally. Mirrors
-     * `maybeStartStarBattle`'s host-arbiter pattern — no per-client ack
-     * round-trip needed, PeerJS delivery order does the rest.
+     * in AND its hash has landed in `starBattleEndChecks`, run the shared
+     * sync-barrier comparison — which, once it resolves (immediately if
+     * everyone already agrees, or after resyncing whoever doesn't), broadcasts
+     * the go-ahead and starts the next round via `resumeIfAllClear`'s
+     * `afterSyncResolved` continuation (see endBattlePhase/
+     * finishOrContinueAfterBattle), not directly here.
      */
     private markStarBattleReady(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host') return;
@@ -7003,8 +7263,10 @@ export class Game {
             (def, i) => def.controller !== 'human' || this.starBattleReadySeats.has(i),
         );
         if (!allReady || this.hydrating) return;
-        this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
-        this.startBuildPhase();
+        this.starBattleEndChecksCompared = this.verifyStarSyncBarrier(
+            this.starBattleEndChecks,
+            this.starBattleEndChecksCompared,
+        );
     }
 
     /** someone hit 0 HP — freeze the game and show the result */

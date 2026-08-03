@@ -349,9 +349,10 @@ export class SteamStarHub implements HostHub {
     onSeatDropped: ((seat: SeatId) => void) | null = null;
     // Steam star matches have no reconnect story yet (still v1 scope, same
     // as before) — a drop goes straight to onSeatDropped like it always
-    // has; these two are here only to satisfy HostHub and are never fired.
+    // has; these three are here only to satisfy HostHub and are never fired.
     onSeatSuspended: ((seat: SeatId) => void) | null = null;
     onSeatReconnected: ((seat: SeatId) => void) | null = null;
+    onSeatReclaimedFromAi: ((seat: SeatId) => void) | null = null;
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
 
@@ -379,6 +380,13 @@ export class SteamStarHub implements HostHub {
 
     setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void {
         this.roster = this.roster.map((s, i) => (i === seat ? entry : s));
+    }
+
+    // no reconnect story yet (see class doc comment) — nothing to mark
+    // reclaimable, this just satisfies HostHub
+    markReclaimable(): void {}
+    isReclaimable(): boolean {
+        return false;
     }
 
     sideOf(seat: SeatId): 'a' | 'b' {

@@ -19,3 +19,6 @@ misc/**
 !misc/icons/
 !misc/icons/src/
 !misc/icons/src/**
+
+# Claude Code local settings (personal, not shared)
+.claude/settings.local.json

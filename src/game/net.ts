@@ -48,7 +48,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 20; // v20: 'starSync' now carries the dropped seat(s)' names, for a non-host's own "waiting" notice
+export const GAME_VERSION = 21; // v21: 'battleEnd' carries a state hash; 'starSync' carries an optional 'silent' flag for the new sync-barrier checkpoints
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -143,6 +143,14 @@ export interface RoomRosterEntry {
     name: string;
     side: 'a' | 'b';
     connected: boolean;
+    /** this seat was handed to AI control after its original player
+     *  dropped (see Game.takeOverSeatWithAi/markReclaimable) — still shown
+     *  with `connected: false` so a name-matched client can offer "resume"
+     *  the same way it already does for a seat mid-grace-window, distinct
+     *  from a seat that's simply between connections right now. Omitted
+     *  (or false) for a normal seat, INCLUDING a genuinely bot-filled
+     *  2v2ai seat that was never human — only a real takeover sets this. */
+    aiControlled?: boolean;
 }
 
 export interface LobbyRoom {
@@ -284,8 +292,12 @@ export type NetMessage =
     /** local battle sim finished — the peer may still be watching theirs
      *  (fast-forward speed is per-client); the next build phase waits for both */
     /** `seat` unused by classic 1v1 (implicitly "the opponent"); star mode's
-     *  host needs it to attribute + aggregate across N watchers */
-    | { type: 'battleEnd'; round: number; seat?: SeatId }
+     *  host needs it to attribute + aggregate across N watchers. `hash` (star
+     *  mode only) is this seat's own post-battle stateHash(), riding along
+     *  with the existing ack — this is the battle-end sync-barrier
+     *  checkpoint's fingerprint, captured before the sim is torn down; see
+     *  Game.endBattlePhase/verifyStarSyncBarrier. */
+    | { type: 'battleEnd'; round: number; seat?: SeatId; hash?: number }
     /** post-reconnect: "I've finished rebuilding and am about to resume my
      *  clock" — a reloading peer's asset load takes real seconds, so a
      *  survivor that resumed instantly would otherwise burn that time for
@@ -380,7 +392,14 @@ export type NetMessage =
      * (dropped, not yet reconnected) seat's name, so a non-host recipient
      * can show the same "<name> disconnected — waiting <time>" notice the
      * host shows, instead of a generic message with no idea who dropped —
-     * always sent (empty array on `suspended:false`, unused there). */
+     * always sent (empty array on `suspended:false`, unused there).
+     * `silent`: true for the sync-barrier checkpoints (see
+     * Game.verifyStarSyncBarrier) — every participant self-suspends
+     * symmetrically there, so there is nothing to explain; the receiver
+     * must NOT call showSuspendNotice()/touch pendingDropNames/
+     * suspendDeadline for a silent message, only flip `suspended` itself.
+     * Absent or false means today's real-disconnect behavior (the modal
+     * "X disconnected" notice). */
     | {
           type: 'starSync';
           suspended: boolean;
@@ -388,6 +407,7 @@ export type NetMessage =
           phase: 'build' | 'battle';
           target: number;
           names: string[];
+          silent?: boolean;
       }
     /**
      * Guest → host only: this guest's own per-seat `seq` tracking
@@ -685,6 +705,12 @@ export interface HostHub {
     onSeatSuspended: ((seat: SeatId) => void) | null;
     /** a previously-suspended seat successfully reclaimed its connection */
     onSeatReconnected: ((seat: SeatId) => void) | null;
+    /** a seat that had been permanently handed to AI control (its grace
+     *  window fully elapsed, or it explicitly quit) was just reclaimed by
+     *  its ORIGINAL human player rejoining under the same name — see
+     *  markReclaimable/StarHub's own doc comment on why this is a
+     *  separate, later path than onSeatReconnected's in-grace-window case. */
+    onSeatReclaimedFromAi: ((seat: SeatId) => void) | null;
     broadcast(msg: NetMessage, exclude?: SeatId): void;
     send(seat: SeatId, msg: NetMessage): void;
     relayBuild(
@@ -701,6 +727,17 @@ export interface HostHub {
      *  AI-fill at match start): nextOpenSeat() reads this hub's roster, not
      *  Game's local seat state, to decide what's available to a new joiner. */
     setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void;
+    /** marks a seat as eligible for its ORIGINAL human player (name-matched)
+     *  to reclaim from AI control later in the match — call once, right
+     *  after handing a seat to AI (see Game.takeOverSeatWithAi). Never set
+     *  for a seat that started AI-controlled (2v2ai bot fills): only a real
+     *  takeover from a departed human makes a seat reclaimable, so a
+     *  stranger's name can never coincidentally "reclaim" a bot. */
+    markReclaimable(seat: SeatId): void;
+    /** is this seat currently marked reclaimable (see markReclaimable)? —
+     *  used by Game.backendRosterSnapshot() to surface it in the room list
+     *  as resumable, the same way a mid-grace-window drop already is. */
+    isReclaimable(seat: SeatId): boolean;
     close(): void;
 }
 
@@ -733,6 +770,13 @@ export class StarHub implements HostHub {
         }
     >();
     private readonly reconnectTimers = new Map<SeatId, ReturnType<typeof setTimeout>>();
+    /** seats handed to AI control (see Game.takeOverSeatWithAi) whose
+     *  ORIGINAL human player may still reclaim them later, by rejoining
+     *  under the same name — see markReclaimable/findReclaimableSeatByName.
+     *  Deliberately separate from `bySeat`'s conn:null grace-window
+     *  reservation: this has no deadline and survives long after that
+     *  window (and the seat's `bySeat` entry) is gone. */
+    private readonly reclaimableSeats = new Set<SeatId>();
     private roster: CanonicalSeatDef[];
 
     /** fired whenever a guest joins/leaves before match start (lobby display) */
@@ -746,6 +790,9 @@ export class StarHub implements HostHub {
     onSeatSuspended: ((seat: SeatId) => void) | null = null;
     /** a previously-suspended seat successfully reclaimed its connection */
     onSeatReconnected: ((seat: SeatId) => void) | null = null;
+    /** a seat that had been fully handed to AI control was just reclaimed
+     *  by its original human player rejoining under the same name */
+    onSeatReclaimedFromAi: ((seat: SeatId) => void) | null = null;
 
     private constructor(
         private readonly peer: Peer,
@@ -828,6 +875,35 @@ export class StarHub implements HostHub {
                         }
                         return;
                     }
+                    // checked AFTER the grace-window case above — genuinely
+                    // mutually exclusive, not just in the common case: a
+                    // seat leaves `bySeat` entirely once it's handed to AI
+                    // (see dropSeat's own reclaimableSeats check, which
+                    // proactively clears a stale bySeat entry instead of
+                    // starting a pointless second grace window for a seat
+                    // that's already been resolved — found via the voluntary
+                    // -quit path, where takeOverSeatWithAi/markReclaimable
+                    // run WHILE the seat's connection is still technically
+                    // open for a moment). Name-matched only, same integrity
+                    // guarantee as the grace-window path above — never falls
+                    // through to nextOpenSeat()/onJoin, so a stranger can
+                    // never claim an AI-controlled seat.
+                    const reclaimableSeat = this.findReclaimableSeatByName(msg.name);
+                    if (reclaimableSeat !== null) {
+                        if (msg.version !== GAME_VERSION) {
+                            conn.send({ type: 'starRejoinRejected', reason: 'Version mismatch.' });
+                            conn.close();
+                            return;
+                        }
+                        this.reclaimableSeats.delete(reclaimableSeat);
+                        this.bySeat.set(reclaimableSeat, { conn, buffer: [], liveness: null });
+                        this.wireSeatConn(reclaimableSeat, conn);
+                        const entry = this.roster[reclaimableSeat];
+                        if (entry) this.setRosterEntry(reclaimableSeat, { ...entry, controller: 'human' });
+                        this.onSeatReclaimedFromAi?.(reclaimableSeat);
+                        this.onRosterChange?.();
+                        return;
+                    }
                     const seat = onJoin(msg.name, msg.version, conn, msg.avatar);
                     if (seat === null) return; // onJoin already sent starRejected + closed
                     this.bySeat.set(seat, { conn, buffer: [], liveness: null });
@@ -907,6 +983,26 @@ export class StarHub implements HostHub {
         return null;
     }
 
+    markReclaimable(seat: SeatId): void {
+        this.reclaimableSeats.add(seat);
+    }
+
+    isReclaimable(seat: SeatId): boolean {
+        return this.reclaimableSeats.has(seat);
+    }
+
+    /** a seat handed to AI control (see markReclaimable) whose roster name
+     *  matches — the AI-takeover counterpart of findDroppedSeatByName,
+     *  checked separately (and AFTER) since it has no grace-window deadline
+     *  and the seat is no longer in `bySeat` at all by the time this can
+     *  match. */
+    private findReclaimableSeatByName(name: string): SeatId | null {
+        for (const seat of this.reclaimableSeats) {
+            if (this.roster[seat]?.name === name) return seat;
+        }
+        return null;
+    }
+
     /**
      * A seat's connection just closed/errored. Doesn't free the seat
      * immediately — keeps it reserved (conn: null) for STAR_RECONNECT_GRACE_MS,
@@ -918,6 +1014,22 @@ export class StarHub implements HostHub {
     private dropSeat(seat: SeatId): void {
         const viewer = this.bySeat.get(seat);
         if (!viewer || viewer.conn === null) return;
+        if (this.reclaimableSeats.has(seat)) {
+            // this seat was already fully resolved to AI control BEFORE this
+            // connection's close/error event fired — a voluntary quit
+            // (handleSeatQuit) runs takeOverSeatWithAi/markReclaimable
+            // synchronously, while the connection is still technically open
+            // for a moment. Starting a fresh grace-window reservation here
+            // would leave a stale bySeat entry that findDroppedSeatByName
+            // could match AHEAD of the (correct) AI-reclaim path on a later
+            // rejoin — silently reconnecting the old connection without
+            // ever reversing the takeover. Just clear it and let
+            // reclaimableSeats stay the sole source of truth for this seat.
+            viewer.liveness?.stop();
+            this.bySeat.delete(seat);
+            this.onRosterChange?.();
+            return;
+        }
         viewer.conn = null;
         viewer.liveness?.stop();
         viewer.liveness = null;
