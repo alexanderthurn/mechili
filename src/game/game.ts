@@ -2959,6 +2959,12 @@ export class Game {
      * isn't currently collecting has an empty snapshot/hash map, which fails
      * the "did every expected seat report" gate immediately (seat 0 stays in
      * `expected` even then, but is never in an empty hash map) and no-ops.
+     * Also safe against a STALE already-resolved checkpoint from the
+     * previous round (both `*Compared` flags and their snapshots only reset
+     * at the start of the NEXT collection, not right after resolving) — that
+     * just re-triggers `resumeIfAllClear()`'s own no-op guard
+     * (`pendingStarSeats`/`pendingSyncSeats` empty and not `suspended`), it
+     * can't spuriously resume anything.
      */
     private recheckStarSyncBarriers(): void {
         if (!this.star || this.star.role !== 'host') return;
