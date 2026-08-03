@@ -15,6 +15,7 @@ import {
     Points,
     PointsMaterial,
     Quaternion,
+    ShaderMaterial,
     SphereGeometry,
     Vector3,
     type Scene,
@@ -26,6 +27,8 @@ import { THEME } from '../theme';
 const MAX_PROJECTILES = 512;
 const MAX_PARTICLES = 2048;
 const GRAVITY = -14;
+/** wizard orb visual scale vs unit sphere (sim hit radius unchanged) */
+const ORB_SCALE = 2.4;
 
 type ProjectileStyle = Projectile['style'];
 
@@ -41,6 +44,60 @@ function makeArrowGeometry(scale: number): BufferGeometry {
     fletch.rotateX(-Math.PI / 2);
     fletch.translate(0, 0, -0.72 * scale);
     return mergeGeometries([shaft, tip, fletch])!;
+}
+
+/** pulsing additive magic orb — hot core + cyan rim (visual only) */
+function makeOrbMaterial(): ShaderMaterial {
+    return new ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uCore: { value: new Color(0xffffff) },
+            uMid: { value: new Color(0xa8f7ff) },
+            uGlow: { value: new Color(THEME.projectileOrb) },
+        },
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        fog: false,
+        vertexShader: /* glsl */ `
+            varying vec3 vNormal;
+            varying vec3 vView;
+            varying float vPulse;
+            uniform float uTime;
+            void main() {
+                float pulse = 1.0 + 0.12 * sin(uTime * 8.0 + position.x * 4.0);
+                vPulse = pulse;
+                vec3 pos = position * pulse;
+                #ifdef USE_INSTANCING
+                mat4 im = instanceMatrix;
+                #else
+                mat4 im = mat4(1.0);
+                #endif
+                vec4 world = im * vec4(pos, 1.0);
+                vec4 mv = modelViewMatrix * world;
+                vNormal = normalize(normalMatrix * mat3(im) * normal);
+                vView = normalize(-mv.xyz);
+                gl_Position = projectionMatrix * mv;
+            }
+        `,
+        fragmentShader: /* glsl */ `
+            varying vec3 vNormal;
+            varying vec3 vView;
+            varying float vPulse;
+            uniform vec3 uCore;
+            uniform vec3 uMid;
+            uniform vec3 uGlow;
+            uniform float uTime;
+            void main() {
+                float fresnel = pow(1.0 - max(dot(normalize(vNormal), normalize(vView)), 0.0), 2.2);
+                float swirl = 0.5 + 0.5 * sin(uTime * 6.0 + fresnel * 9.0);
+                vec3 col = mix(uCore, uMid, fresnel * 0.65 + swirl * 0.2);
+                col = mix(col, uGlow, fresnel);
+                float alpha = 0.35 + fresnel * 0.75 + 0.1 * swirl;
+                gl_FragColor = vec4(col * (1.1 + 0.25 * vPulse), alpha);
+            }
+        `,
+    });
 }
 
 /**
@@ -279,16 +336,20 @@ class ParticlePool {
 /** Draws the sim's bullets as instanced meshes — one pool per visual style. */
 export class ProjectileRenderer {
     private readonly pools: Record<ProjectileStyle, InstancedMesh>;
+    private readonly orbMaterial: ShaderMaterial;
     private readonly matrix = new Matrix4();
     private readonly pos = new Vector3();
     private readonly dir = new Vector3();
     private readonly quat = new Quaternion();
     private readonly fwd = new Vector3(0, 0, 1);
     private readonly one = new Vector3(1, 1, 1);
+    private readonly orbScale = new Vector3(ORB_SCALE, ORB_SCALE, ORB_SCALE);
+    private readonly t0 = performance.now();
 
     constructor(scene: Scene) {
         const wood = new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
         const rock = new MeshLambertMaterial({ color: THEME.scenery.rock, flatShading: true });
+        this.orbMaterial = makeOrbMaterial();
         this.pools = {
             bolt: new InstancedMesh(
                 new SphereGeometry(0.28, 6, 5),
@@ -300,6 +361,8 @@ export class ProjectileRenderer {
             largeArrow: new InstancedMesh(makeArrowGeometry(5.5), wood, MAX_PROJECTILES),
             // reserved for catapult
             stone: new InstancedMesh(new IcosahedronGeometry(0.84, 0), rock, MAX_PROJECTILES),
+            // wizard magic orb — large additive shader sphere
+            orb: new InstancedMesh(new IcosahedronGeometry(0.85, 2), this.orbMaterial, MAX_PROJECTILES),
         };
         for (const mesh of Object.values(this.pools)) {
             mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -311,11 +374,13 @@ export class ProjectileRenderer {
 
     /** `alpha` interpolates between the last two sim steps for smooth flight */
     update(projectiles: readonly Projectile[], alpha = 1): void {
+        this.orbMaterial.uniforms.uTime!.value = (performance.now() - this.t0) * 0.001;
         const counts: Record<ProjectileStyle, number> = {
             bolt: 0,
             arrow: 0,
             largeArrow: 0,
             stone: 0,
+            orb: 0,
         };
         const n = Math.min(projectiles.length, MAX_PROJECTILES);
         for (let i = 0; i < n; i++) {
@@ -329,7 +394,8 @@ export class ProjectileRenderer {
             if (this.dir.lengthSq() < 1e-8) this.dir.set(0, 0, -1);
             else this.dir.normalize();
             this.quat.setFromUnitVectors(this.fwd, this.dir);
-            this.matrix.compose(this.pos, this.quat, this.one);
+            const scale = p.style === 'orb' ? this.orbScale : this.one;
+            this.matrix.compose(this.pos, this.quat, scale);
             const style = p.style;
             this.pools[style].setMatrixAt(counts[style]++, this.matrix);
         }

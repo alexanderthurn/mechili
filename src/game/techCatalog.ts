@@ -104,6 +104,40 @@ export const TECHS: Record<string, TechDef> = {
             oil: { radius: 10 },
         },
     },
+    /** Catalog-only for now — assign via {@link UNIT_TECH_ALLOWLIST} when a unit should use it. */
+    wideBlast: {
+        id: 'wideBlast',
+        name: 'Wide Blast',
+        cost: 250,
+        mods: { splashRadius: 3 },
+        icon: 'tech-wide-blast',
+        description: 'Triples splash radius (grants splash to units without it).',
+    },
+    skyBind: {
+        id: 'skyBind',
+        name: 'Sky Bind',
+        cost: 400,
+        mods: {},
+        icon: 'tech-sky-bind',
+        description: 'Can attack ground and air units.',
+    },
+    skyLift: {
+        id: 'skyLift',
+        name: 'Sky Lift',
+        cost: 350,
+        mods: {},
+        icon: 'tech-sky-lift',
+        description: 'Lifts this unit into the air (combat flyer).',
+    },
+    /** Catalog-only for now — assign via {@link UNIT_TECH_ALLOWLIST} when a unit should use it. */
+    earthbound: {
+        id: 'earthbound',
+        name: 'Earthbound',
+        cost: 300,
+        mods: {},
+        icon: 'tech-earthbound',
+        description: 'Keeps this unit on the ground (overrides Sky Lift / natural flight).',
+    },
 };
 
 /**
@@ -113,9 +147,11 @@ export const TECHS: Record<string, TechDef> = {
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
     archer: ['barrel', 'ap', 'fireArrows'],
+    wizard: ['skyBind', 'skyLift'],
     crowRider: ['engines', 'stingers'],
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
+        'skyBind',
         'armor',
         'autoloader',
         'golden',
@@ -135,10 +171,11 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
  * Omit a type to use {@link DEFAULT_UNIT_TECH_SLOTS}. Strong units can go higher.
  */
 export const UNIT_TECH_SLOTS: Record<string, number> = {
-    dwarf: 4,
-    archer: 4,
-    crowRider: 4,
-    ballista: 11, // match full allowlist — wraps in the details pane
+    dwarf: 2,
+    archer: 3,
+    wizard: 2,
+    crowRider: 2,
+    ballista: 12, // match full allowlist — wraps in the details pane
 };
 
 /** How many tech slots this unit type shows / can select. */

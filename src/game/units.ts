@@ -92,7 +92,14 @@ export interface TechDef {
     name: string;
     cost: number;
     /** multipliers applied to the base stats (attackInterval < 1 = faster) */
-    mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
+    mods: Partial<{
+        hp: number;
+        damage: number;
+        range: number;
+        speed: number;
+        attackInterval: number;
+        splashRadius: number;
+    }>;
     /** optional fire / oil on hit — applied when this tech is owned */
     fire?: import('./fire').FireProfile;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
@@ -111,7 +118,7 @@ export function techDescription(tech: TechDef): string {
     if (tech.description) return tech.description;
     const parts: string[] = [];
     const pct = (mult: number) => `${mult >= 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;
-    const { hp, damage, range, speed, attackInterval } = tech.mods;
+    const { hp, damage, range, speed, attackInterval, splashRadius } = tech.mods;
     if (hp !== undefined && hp !== 1) parts.push(`${pct(hp)} HP`);
     if (damage !== undefined && damage !== 1) parts.push(`${pct(damage)} damage`);
     if (range !== undefined && range !== 1) parts.push(`${pct(range)} range`);
@@ -119,6 +126,9 @@ export function techDescription(tech: TechDef): string {
     // a lower attack interval means faster firing (rate = 1 / interval)
     if (attackInterval !== undefined && attackInterval !== 1) {
         parts.push(`${pct(1 / attackInterval)} attack speed`);
+    }
+    if (splashRadius !== undefined && splashRadius !== 1) {
+        parts.push(`${splashRadius}× splash radius`);
     }
     return parts.length ? parts.join(', ') : tech.name;
 }
@@ -171,9 +181,9 @@ export interface UnitType {
     /**
      * visual for the flying shot — does not affect sim hit radius.
      * `bolt` = energy bead (default); `arrow` / `largeArrow` = fletched shafts;
-     * `stone` = hurled rock (catapult).
+     * `stone` = hurled rock (catapult); `orb` = wizard magic orb.
      */
-    projectileStyle?: 'bolt' | 'arrow' | 'largeArrow' | 'stone';
+    projectileStyle?: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
     /**
      * spawn height above the unit's altitude (world units). When set, overrides
      * the default collider-mid muzzle for that shot.
@@ -191,6 +201,13 @@ export interface UnitType {
      * range (world units), not just what it hit. Absent = single target.
      */
     splashRadius?: number;
+    /**
+     * Conversion ray — the Wizard's only attack. Progress fills at effective
+     * attack (resolved damage × level × tower attack debuff) per second toward
+     * the victim's current HP; at full, allegiance flips for the rest of the
+     * battle. `recover` is idle seconds after a successful convert.
+     */
+    convertRay?: { range: number; recover?: number };
     /**
      * Ground wear strength when walking/standing (1 ≈ typical infantry).
      * Omit = derive from cost + bulk via {@link sandStampWeight}.
@@ -382,6 +399,16 @@ function buildArcher(parts: PartFactory): void {
     parts.box(0.18, 0.18, 0.3, 0, 1.25, -1.95, 'accent'); // bow tip
 }
 
+function buildWizard(parts: PartFactory): void {
+    for (const side of [-1, 1]) {
+        parts.cylinder(0.1, 0.14, 1.05, side * 0.28, 0.52, 0.08, 'dark'); // legs
+    }
+    parts.box(0.85, 1.0, 0.7, 0, 1.35, 0, 'hull'); // robe torso
+    parts.sphere(0.28, 0, 2.05, -0.05, 'accent'); // hooded head
+    parts.cylinder(0.05, 0.05, 2.4, 0.55, 1.4, -0.15, 'dark'); // staff
+    parts.sphere(0.2, 0.55, 2.7, -0.15, 'accent'); // staff orb
+}
+
 function buildBallista(parts: PartFactory): void {
     for (const side of [-1, 1]) {
         parts.box(0.6, 0.55, 2.6, side * 1.35, 0.35, 0, 'dark'); // wheels
@@ -543,6 +570,27 @@ export const UNIT_TYPES: UnitType[] = [
         build: buildArcher,
     },
     {
+        id: 'wizard',
+        name: 'Wizard',
+        cost: 100,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 2.2,
+        burn: { takenMult: 1.15 },
+        // convert is the only attack — ground by default; Sky Bind unlocks air
+        targets: { ground: true, air: false },
+        collisionRadius: 1.0,
+        colliders: [{ y: 1.1, r: 0.75 }],
+        convertRay: { range: 80, recover: 1.25 },
+        hp: 160,
+        // attack = convert intensity (HP of progress per second)
+        damage: 45,
+        range: 80,
+        attackInterval: 1.6,
+        speed: 3.2,
+        build: buildWizard,
+    },
+    {
         id: 'crowRider',
         name: 'Crow Rider',
         cost: 200,
@@ -572,7 +620,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
-        targets: { ground: true, air: false }, // bolts can't elevate
+        targets: { ground: true, air: true }, // Sky Bind baked in — bolts can elevate
         collisionRadius: 2.8,
         colliders: [{ y: 0.9, r: 1.1 }],
         projectileSpeed: 50,
@@ -699,6 +747,11 @@ export class Unit {
     readonly members: { mesh: Group; phase: number; home: Vector3 }[] = [];
     /** 0 on the ground in deployment, animates to 1 at full combat altitude */
     flightLift = 0;
+    /**
+     * Flight altitude from Sky Lift / Earthbound. `null` = use {@link UnitType.flying}.
+     * Refresh via the match when those techs change.
+     */
+    techFlying: number | null = null;
     inDeployment = true;
 
     constructor(
@@ -781,13 +834,20 @@ export class Unit {
         this.applyLevelLook(this.level);
     }
 
+    /** Effective combat flight altitude (tech override or type default). */
+    flightCeiling(): number {
+        if (this.techFlying !== null) return this.techFlying;
+        return this.type.flying ?? 0;
+    }
+
     /** current hover base for idle bob (deployment keeps flyers near the ground) */
     memberBaseY(): number {
-        if (!this.type.flying) return GROUND_UNIT_Y;
+        const flying = this.flightCeiling();
+        if (!flying) return GROUND_UNIT_Y;
         // rockets use absolute combat altitude (see seatMembers) — this is
         // only consulted for crow-rider-style flyers
-        if (this.type.rocket) return this.type.flying;
-        return DEPLOY_AIR_Y + (this.type.flying - DEPLOY_AIR_Y) * this.flightLift;
+        if (this.type.rocket) return flying;
+        return DEPLOY_AIR_Y + (flying - DEPLOY_AIR_Y) * this.flightLift;
     }
 
     /**
@@ -797,7 +857,7 @@ export class Unit {
      * Defaults to the current view xz so drag previews follow the hills.
      */
     seatMembers(originX = this.view.position.x, originZ = this.view.position.z): void {
-        const rocketAlt = this.type.rocket ? this.type.flying : undefined;
+        const rocketAlt = this.type.rocket ? this.flightCeiling() : undefined;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
             if (rocketAlt != null) {
@@ -822,7 +882,7 @@ export class Unit {
 
     /** ramps flyers up (battle) or down (deployment) — ~0.6s full climb */
     tickFlight(dtSeconds: number): void {
-        if (!this.type.flying) return;
+        if (!this.flightCeiling()) return;
         // Fire Bolt never climbs/descends with the flock — always combat height
         if (this.type.rocket) {
             this.flightLift = 1;

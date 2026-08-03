@@ -250,7 +250,7 @@ export function roundCardIcon(c: RoundCard): string | null {
 }
 
 /** buyable army types in the deployment shop (not board extras) */
-export const SHOP_UNIT_IDS = ['dwarf', 'archer', 'crowRider', 'ballista'] as const;
+export const SHOP_UNIT_IDS = ['dwarf', 'archer', 'crowRider', 'ballista', 'wizard'] as const;
 export type ShopUnitId = (typeof SHOP_UNIT_IDS)[number];
 
 /** once-per-round unlock fee by unit type */
@@ -259,6 +259,7 @@ export const UNIT_UNLOCK_COST: Record<ShopUnitId, number> = {
     archer: 0,
     crowRider: 50,
     ballista: 200,
+    wizard: 100,
 };
 
 /** the signature unit a specialist can buy even if it is not in the starter army */

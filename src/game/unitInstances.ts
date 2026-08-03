@@ -109,6 +109,19 @@ export class UnitInstanceRenderer {
         for (const m of unit.members) this.unregister(m.mesh);
     }
 
+/**
+     * Move an instanced mech into another team's pool (battle convert).
+     * No-op when already on that team or not instanced.
+     */
+    ensureTeam(proxy: Group, team: BattleTeam): void {
+        const meta = this.ownerPool.get(proxy);
+        if (!meta || meta.team === team) return;
+        this.removeFromPool(proxy, meta);
+        this.moveTo(proxy, meta.typeId, team, meta.life, meta.level);
+        const next = this.ownerPool.get(proxy);
+        if (next) this.writeMatrix(proxy, this.pools.get(next.key)!, next.index);
+    }
+
     /**
      * Battle tint via per-instance color (multiplies the level-tinted material).
      * Golden / debuff / spawning override; `normal` restores white multiply.

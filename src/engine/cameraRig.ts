@@ -202,11 +202,25 @@ export class CameraRig {
 
     /** Intersects the pick ray through a screen point with the y=0 ground plane. */
     screenToGround(screenX: number, screenY: number, viewW: number, viewH: number): Vector3 | null {
+        this.setPickRay(screenX, screenY, viewW, viewH);
+        const hit = this.raycaster.ray.intersectPlane(this.groundPlane, this.hit);
+        return hit ? hit.clone() : null;
+    }
+
+    /**
+     * Aim the internal raycaster at a canvas pixel. Callers may read
+     * {@link raycaster}.ray / run `intersectObject` for 3D picks.
+     */
+    setPickRay(screenX: number, screenY: number, viewW: number, viewH: number): Raycaster {
         this.ndc.set((screenX / viewW) * 2 - 1, 1 - (screenY / viewH) * 2);
         this.camera.updateMatrixWorld();
         this.raycaster.setFromCamera(this.ndc, this.camera);
-        const hit = this.raycaster.ray.intersectPlane(this.groundPlane, this.hit);
-        return hit ? hit.clone() : null;
+        return this.raycaster;
+    }
+
+    /** The raycaster last configured by {@link setPickRay} / {@link screenToGround}. */
+    get pickRaycaster(): Raycaster {
+        return this.raycaster;
     }
 
     /** Projects a world point to canvas pixel coordinates (null when behind the camera). */

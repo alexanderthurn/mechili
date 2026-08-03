@@ -9,6 +9,41 @@ export interface ResolvedStats {
     range: number;
     speed: number;
     attackInterval: number;
+    /** projectile splash radius (0 = single-target); tech can multiply the type base */
+    splashRadius: number;
+}
+
+/**
+ * Attack layers after Sky Bind — owning that tech always enables both ground and air.
+ */
+export function effectiveTargets(
+    type: Pick<UnitType, 'id' | 'targets'>,
+    seat: SeatId,
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+): { ground: boolean; air: boolean } {
+    if (seat >= 0 && hasTech(seat, type.id, 'skyBind')) return { ground: true, air: true };
+    return type.targets;
+}
+
+/** Combat altitude granted by Sky Lift when the unit isn't already a flyer. */
+export const SKY_LIFT_ALTITUDE = 18;
+
+/**
+ * Flight altitude after Sky Lift / Earthbound.
+ * Earthbound wins if both are owned. Structures and board extras are unchanged.
+ */
+export function effectiveFlying(
+    type: Pick<UnitType, 'id' | 'flying' | 'structure' | 'extra'>,
+    seat: SeatId,
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+): number {
+    if (type.structure || type.extra) return type.flying ?? 0;
+    if (seat >= 0 && hasTech(seat, type.id, 'earthbound')) return 0;
+    const base = type.flying ?? 0;
+    if (seat >= 0 && hasTech(seat, type.id, 'skyLift')) {
+        return base > 0 ? base : SKY_LIFT_ALTITUDE;
+    }
+    return base;
 }
 
 /**
@@ -59,6 +94,7 @@ export class TechTree {
             range: type.range,
             speed: type.speed,
             attackInterval: type.attackInterval,
+            splashRadius: type.splashRadius ?? 0,
         };
         // horde units carry seat -1 (no economy, no tech) — never look them up
         const owned = seat >= 0 ? this.ownedFor(seat, type.id) : null;
@@ -71,6 +107,12 @@ export class TechTree {
             stats.range *= tech.mods.range ?? 1;
             stats.speed *= tech.mods.speed ?? 1;
             stats.attackInterval *= tech.mods.attackInterval ?? 1;
+            const splashMod = tech.mods.splashRadius ?? 1;
+            if (splashMod !== 1) {
+                // units with no splash get a baseline equal to the mod (e.g. Wide Blast → radius 3)
+                if (stats.splashRadius <= 0) stats.splashRadius = splashMod;
+                else stats.splashRadius *= splashMod;
+            }
         }
         return stats;
     }

@@ -87,6 +87,7 @@ import { FireFx } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
+import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
@@ -131,7 +132,7 @@ import {
     shouldOfferRoundCards,
     type GameSettings,
 } from './settings';
-import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
+import { BattleSim, BATTLE_START_FREEZE, actorSeat, actorTeam, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
     BIG_METEOR_ID,
     DRAGON_APPROACH_SEC,
@@ -152,8 +153,9 @@ import {
     type RallyRoute,
     type SpellStamp,
 } from './tactics';
-import { TechTree } from './tech';
+import { TechTree, effectiveTargets, effectiveFlying } from './tech';
 import { techSlotLimit, techsForUnit } from './techCatalog';
+import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
     HORDE_DWARF,
@@ -270,6 +272,7 @@ export class Game {
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
     private readonly dragonFx: DragonFx;
+    private readonly conversionFx: ConversionFx;
     private readonly oilDripFx: OilDripFx;
     private readonly oilVisuals: OilVisuals;
     private readonly oilField: HazardField;
@@ -711,6 +714,12 @@ export class Game {
             return;
         }
 
+        // R: rotate selected pack (same as middle-click / touch Rotate)
+        if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            if (!this.armedTactic) this.placement.rotateSelected();
+            return;
+        }
+
         if (e.code !== 'Escape') return;
         if (this.introActive || this.outroActive) return;
         if (this.hud.isUiHidden) {
@@ -1066,6 +1075,7 @@ export class Game {
         this.meteorFx = new MeteorFx(this.scene);
         this.cloudFx = new CloudFx(this.scene);
         this.dragonFx = new DragonFx(this.scene);
+        this.conversionFx = new ConversionFx(this.scene);
         this.oilDripFx = new OilDripFx(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
@@ -1108,6 +1118,7 @@ export class Game {
         this.inputDisposers.push(onInputModeChange(syncEdgeScroll));
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
+        this.placement.hasTech = (seat, typeId, techId) => this.techTree.has(seat, typeId, techId);
         // spectator watching a LIVE match (not a replay, which has no
         // "vision" concept — it's a neutral post-hoc view of everything):
         // neither side is "mine", so both are fogged symmetrically from the
@@ -1164,6 +1175,7 @@ export class Game {
         this.unlockUsedThisRound = this.seats.map(() => false);
         this.placement.roster = this.seats;
         this.hpBars.roster = this.seats;
+        this.conversionFx.roster = this.seats;
         this.dispatcher = new ActionDispatcher({
             placement: this.placement,
             economy: this.economy,
@@ -2176,6 +2188,7 @@ export class Game {
         this.meteorFx.dispose();
         this.cloudFx.dispose();
         this.dragonFx.dispose();
+        this.conversionFx.dispose();
         this.oilDripFx.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
@@ -2382,6 +2395,7 @@ export class Game {
         this.placement.enabled = true;
         this.placement.hiddenPlacements = true;
         this.placement.currentRound = this.round; // earlier deployments are locked now
+        this.refreshFlightAlts();
         this.selectedActor = null;
         this.hpBars.clear();
         this.rallyRoutes.length = 0;
@@ -2643,6 +2657,7 @@ export class Game {
         // for a star guest assigned to seat 1/2/3
         const stamped: Action = action.seat === this.humanSeat ? action : { ...action, seat: this.humanSeat };
         if (!this.dispatcher.dispatch(stamped)) return false;
+        if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
         // classic 1v1's starter pick (round 0) goes out via a dedicated
         // 'starter' message instead — this gate stays as-is for it. Star
         // mode never buffers locally (see sendStarBuildMessage), so its
@@ -2656,6 +2671,23 @@ export class Game {
             });
         }
         return true;
+    }
+
+    /** Apply Sky Lift / Earthbound to pack hover altitude during deployment. */
+    private refreshFlightAlts(): void {
+        const has = (seat: SeatId, typeId: string, techId: string) =>
+            this.techTree.has(seat, typeId, techId);
+        for (const u of this.placement.allUnits()) {
+            if (u.team === 'horde') {
+                u.techFlying = null;
+                continue;
+            }
+            const alt = effectiveFlying(u.type, u.seat, has);
+            u.techFlying = alt;
+            if (alt <= 0) u.flightLift = 0;
+            else if (u.type.rocket) u.flightLift = 1;
+            u.seatMembers();
+        }
     }
 
     /** our canonical seat on the wire for spectator vision (`'a'` host, `'b'` guest) */
@@ -2747,6 +2779,7 @@ export class Game {
         return {
             dispatch: (action: Action) => {
                 const ok = this.dispatcher.dispatch(action);
+                if (ok && (action.kind === 'buyTech' || action.kind === 'buy')) this.refreshFlightAlts();
                 // star host: an AI seat's actions bypass dispatchPlayer
                 // entirely, so relay them here instead — same fog-filtered
                 // path as any human seat's traffic
@@ -5481,6 +5514,7 @@ export class Game {
                 range: type.range,
                 speed: type.speed,
                 attackInterval: type.attackInterval,
+                splashRadius: type.splashRadius ?? 0,
             };
         }
         const stats = this.techTree.statsFor(unit.seat, type);
@@ -5490,7 +5524,7 @@ export class Game {
         if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
         if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
         const spec = this.speciality[unit.seat];
-        if (spec === 'air' && type.flying) {
+        if (spec === 'air' && effectiveFlying(type, unit.seat, (s, t, id) => this.techTree.has(s, t, id)) > 0) {
             stats.damage *= 1 + AIR_BONUS;
             stats.hp *= 1 + AIR_BONUS;
         }
@@ -6559,6 +6593,7 @@ export class Game {
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
         this.syncTacticVisuals();
+        this.refreshFlightAlts();
     }
 
     private unlockUnit(typeId: string): void {
@@ -6873,6 +6908,7 @@ export class Game {
             intensity: number;
         }[] = [];
         // dragon breath is a progressive fire pour (hazardPours), not a one-shot ignite
+        this.refreshFlightAlts();
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
@@ -7150,6 +7186,7 @@ export class Game {
         this.meteorFx.clear();
         this.cloudFx.clear();
         this.dragonFx.clear();
+        this.conversionFx.clear();
         this.oilDripFx.clear();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
@@ -7492,18 +7529,29 @@ export class Game {
         let playerSurvived = false;
         let enemySurvived = false;
         let hordeValue = 0;
-        for (const [unit, s] of sim.unitSurvivors()) {
-            const value = Math.round(this.economy.costOf(unit.type) * (s.alive / s.total));
-            if (unit.team === 'player') {
-                damageToEnemy += value;
-                if (s.alive > 0) playerSurvived = true;
-            } else if (unit.team === 'enemy') {
-                damageToPlayer += value;
-                if (s.alive > 0) enemySurvived = true;
-            } else {
+        // score per mech by battle allegiance (converted mechs count for their new side)
+        for (const a of sim.actors) {
+            if (a.unit.type.structure) continue;
+            const headcount = Math.max(1, a.unit.members.length);
+            const value = this.economy.costOf(a.unit.type) / headcount;
+            const team = actorTeam(a);
+            if (team === 'player') {
+                if (a.alive) {
+                    damageToEnemy += value;
+                    playerSurvived = true;
+                }
+            } else if (team === 'enemy') {
+                if (a.alive) {
+                    damageToPlayer += value;
+                    enemySurvived = true;
+                }
+            } else if (a.alive) {
                 hordeValue += value;
             }
         }
+        damageToPlayer = Math.round(damageToPlayer);
+        damageToEnemy = Math.round(damageToEnemy);
+        hordeValue = Math.round(hordeValue);
         // a wiped side had nothing left to stop the horde either
         if (!playerSurvived) damageToPlayer += hordeValue;
         if (!enemySurvived) damageToEnemy += hordeValue;
@@ -7678,6 +7726,17 @@ export class Game {
                         this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed);
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at);
+                    } else if (ev.kind === 'convert') {
+                        // flash + move instanced mesh into the new team's pool
+                        this.particles.burst(ev.x, ev.y, ev.z, {
+                            count: 22,
+                            color: ev.team === 'player' ? THEME.player : teamColors.enemy.hex,
+                            speed: 8,
+                            life: 0.55,
+                            up: 5,
+                        });
+                        const converted = this.sim.actors.find((a) => a.index === ev.index);
+                        if (converted) this.unitInstances.ensureTeam(converted.mesh, ev.team);
                     }
                 }
                 this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed, [], false);
@@ -7697,6 +7756,7 @@ export class Game {
                 this.meteorFx.update(this.sim.elapsed, battleShields);
                 this.cloudFx.update(this.sim.elapsed);
                 this.dragonFx.update(this.sim.elapsed);
+                this.conversionFx.update(this.sim.actors);
                 this.oilDripFx.update(this.sim.elapsed);
                 // acid/poison/storm/meteor-shower zones + hammer charge rings
                 this.spellVisuals.syncBattleMarkers(
@@ -7935,7 +7995,10 @@ export class Game {
         }
     }
 
-    /** the living mech whose on-screen position is closest to the click */
+    /**
+     * Living mech under the click: 3D collider / structure-mesh ray first,
+     * then a soft screen-distance fallback so tiny mechs stay easy to tap.
+     */
     private pickActor(e: PointerEvent): Actor | null {
         if (!this.sim) return null;
         const rect = this.pixiApp.canvas.getBoundingClientRect();
@@ -7943,22 +8006,52 @@ export class Game {
         const sy = e.clientY - rect.top;
         const w = rect.width;
         const h = rect.height;
-        let best: Actor | null = null;
-        let bestD = Infinity;
+
+        const raycaster = this.rig.setPickRay(sx, sy, w, h);
+        const ray = raycaster.ray;
+        let bestRay: Actor | null = null;
+        let bestRayT = Infinity;
+        let bestScreen: Actor | null = null;
+        let bestScreenD = Infinity;
+
         for (const a of this.sim.actors) {
             if (!a.alive) continue;
             const t = a.unit.type;
+
+            forEachPickSphere(t, a.rx, a.footY, a.rz, (cx, cy, cz, r) => {
+                const hitT = raySphereT(ray, cx, cy, cz, r);
+                if (hitT !== null && hitT < bestRayT) {
+                    bestRayT = hitT;
+                    bestRay = a;
+                }
+            });
+
+            // towers keep real meshes — catch antenna / overhang the spheres miss
+            if (t.structure && a.mesh && !a.mesh.userData.instanced) {
+                const meshT = rayMeshT(raycaster, a.mesh);
+                if (meshT !== null && meshT < bestRayT) {
+                    bestRayT = meshT;
+                    bestRay = a;
+                }
+            }
+
             const groundY = a.altitude > 0 ? 0 : groundHeightAt(a.rx, a.rz);
-            const screen = this.rig.worldToScreen(a.rx, groundY + a.altitude + t.meshScale * 0.55, a.rz, w, h);
+            const screen = this.rig.worldToScreen(
+                a.rx,
+                groundY + a.altitude + t.meshScale * 0.55,
+                a.rz,
+                w,
+                h,
+            );
             if (!screen) continue;
             const d = Math.hypot(screen.x - sx, screen.y - sy);
-            const pickRadius = Math.max(20, t.meshScale * 16);
-            if (d < pickRadius && d < bestD) {
-                bestD = d;
-                best = a;
+            const pickRadius = Math.max(28, t.meshScale * 22);
+            if (d < pickRadius && d < bestScreenD) {
+                bestScreenD = d;
+                bestScreen = a;
             }
         }
-        return best;
+        return bestRay ?? bestScreen;
     }
 
     /** the range ring follows the selected battle mech, tinted by its team */
@@ -7970,7 +8063,7 @@ export class Game {
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
         placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
-        material.color.setHex(a.unit.team === 'player' ? THEME.valid : teamColors.enemy.hex);
+        material.color.setHex(actorTeam(a) === 'player' ? THEME.valid : teamColors.enemy.hex);
     }
 
     private updateSelectionUi(): void {
@@ -8099,17 +8192,24 @@ export class Game {
         const u = a.unit;
         const rs = this.resolvedStats(u);
         const lv = this.levelInfo(u);
+        const team = actorTeam(a);
+        const seat = actorSeat(a);
         return {
             name: u.type.name,
-            team: u.team,
-            owner: this.ownerName(u.team, u.seat),
+            team,
+            owner: this.ownerName(team, seat),
+            hits: targetsLabel(
+                effectiveTargets(u.type, seat, (s, typeId, techId) =>
+                    this.techTree.has(s, typeId, techId),
+                ),
+            ),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,
             range: Math.round(rs.range),
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
-            splash: u.type.splashRadius,
+            splash: rs.splashRadius || undefined,
             structure: !!u.type.structure,
             unitId: u.id,
             items: this.selectionItems(u, false),
@@ -8140,13 +8240,18 @@ export class Game {
             name: u.type.name,
             team: u.team,
             owner: this.ownerName(u.team, u.seat),
+            hits: targetsLabel(
+                effectiveTargets(u.type, u.seat, (s, typeId, techId) =>
+                    this.techTree.has(s, typeId, techId),
+                ),
+            ),
             hp: rs.hp * lv.statMult,
             maxHp: rs.hp * lv.statMult,
             damage: rs.damage * lv.statMult,
             range: Math.round(rs.range),
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
-            splash: u.type.splashRadius,
+            splash: rs.splashRadius || undefined,
             alive: u.members.length,
             total: u.members.length,
             level: lv.level,
@@ -8530,6 +8635,14 @@ interface BuildingIntelSeat {
     boostHp: number;
     sellOwned: boolean;
     rallyOwned: boolean;
+}
+
+/** Short label for the details-pane "Hits" row. */
+function targetsLabel(targets: { ground: boolean; air: boolean }): string {
+    if (targets.ground && targets.air) return 'Ground & air';
+    if (targets.ground) return 'Ground';
+    if (targets.air) return 'Air';
+    return 'None';
 }
 
 /** yaw so local +Z points from (ax,az) toward (bx,bz); 0 if the points coincide */

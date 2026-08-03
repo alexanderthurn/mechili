@@ -44,6 +44,8 @@ export const THEME = {
     deathSmall: 0xff2028,
     levelup: 0xc4b896,
     projectile: 0xffe878,
+    /** wizard magic orb — cool cyan, distinct from the yellow energy bolt */
+    projectileOrb: 0x5ce8ff,
 
     // HP bars (pixi hex)
     hpHigh: 0x78c848,
@@ -3641,6 +3643,7 @@ ${fontFaceCss()}
 }
 .mechili-topbar .top-controls {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 8px;
@@ -4003,7 +4006,12 @@ ${fontFaceCss()}
 .mechili-topbar .speed { transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
 .mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
-.mechili-topbar.battle .speed { display: inline-block; }
+/* sit below End Deployment's deploy-phase hitbox so a phase swap can't
+ * land a speed click on "End Deployment" (or the reverse) */
+.mechili-topbar.battle .speed {
+    display: inline-block;
+    margin-top: 44px;
+}
 /* the settings panel (or a card overlay) is up — no speeding through the
  * battle you can't see behind it; !important since .battle .speed's own
  * display:inline-block would otherwise win when both classes are present */
@@ -4313,6 +4321,7 @@ ${gamepadCursorStyles(u)}
         min-height: 38px;
         white-space: nowrap;
     }
+    .mechili-topbar.battle .speed { margin-top: 40px; }
     .mechili-topbar .end-deploy {
         padding: 5px 12px;
         font-size: 11px;
