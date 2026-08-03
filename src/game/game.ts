@@ -87,6 +87,7 @@ import { FireFx } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
+import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
@@ -131,7 +132,7 @@ import {
     shouldOfferRoundCards,
     type GameSettings,
 } from './settings';
-import { BattleSim, BATTLE_START_FREEZE, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
+import { BattleSim, BATTLE_START_FREEZE, actorSeat, actorTeam, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
     BIG_METEOR_ID,
     DRAGON_APPROACH_SEC,
@@ -270,6 +271,7 @@ export class Game {
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
     private readonly dragonFx: DragonFx;
+    private readonly conversionFx: ConversionFx;
     private readonly oilDripFx: OilDripFx;
     private readonly oilVisuals: OilVisuals;
     private readonly oilField: HazardField;
@@ -1038,6 +1040,7 @@ export class Game {
         this.meteorFx = new MeteorFx(this.scene);
         this.cloudFx = new CloudFx(this.scene);
         this.dragonFx = new DragonFx(this.scene);
+        this.conversionFx = new ConversionFx(this.scene);
         this.oilDripFx = new OilDripFx(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
@@ -1136,6 +1139,7 @@ export class Game {
         this.unlockUsedThisRound = this.seats.map(() => false);
         this.placement.roster = this.seats;
         this.hpBars.roster = this.seats;
+        this.conversionFx.roster = this.seats;
         this.dispatcher = new ActionDispatcher({
             placement: this.placement,
             economy: this.economy,
@@ -2148,6 +2152,7 @@ export class Game {
         this.meteorFx.dispose();
         this.cloudFx.dispose();
         this.dragonFx.dispose();
+        this.conversionFx.dispose();
         this.oilDripFx.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
@@ -6933,6 +6938,7 @@ export class Game {
         this.meteorFx.clear();
         this.cloudFx.clear();
         this.dragonFx.clear();
+        this.conversionFx.clear();
         this.oilDripFx.clear();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
@@ -7231,18 +7237,29 @@ export class Game {
         let playerSurvived = false;
         let enemySurvived = false;
         let hordeValue = 0;
-        for (const [unit, s] of sim.unitSurvivors()) {
-            const value = Math.round(this.economy.costOf(unit.type) * (s.alive / s.total));
-            if (unit.team === 'player') {
-                damageToEnemy += value;
-                if (s.alive > 0) playerSurvived = true;
-            } else if (unit.team === 'enemy') {
-                damageToPlayer += value;
-                if (s.alive > 0) enemySurvived = true;
-            } else {
+        // score per mech by battle allegiance (converted mechs count for their new side)
+        for (const a of sim.actors) {
+            if (a.unit.type.structure) continue;
+            const headcount = Math.max(1, a.unit.members.length);
+            const value = this.economy.costOf(a.unit.type) / headcount;
+            const team = actorTeam(a);
+            if (team === 'player') {
+                if (a.alive) {
+                    damageToEnemy += value;
+                    playerSurvived = true;
+                }
+            } else if (team === 'enemy') {
+                if (a.alive) {
+                    damageToPlayer += value;
+                    enemySurvived = true;
+                }
+            } else if (a.alive) {
                 hordeValue += value;
             }
         }
+        damageToPlayer = Math.round(damageToPlayer);
+        damageToEnemy = Math.round(damageToEnemy);
+        hordeValue = Math.round(hordeValue);
         // a wiped side had nothing left to stop the horde either
         if (!playerSurvived) damageToPlayer += hordeValue;
         if (!enemySurvived) damageToEnemy += hordeValue;
@@ -7417,6 +7434,17 @@ export class Game {
                         this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed);
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at);
+                    } else if (ev.kind === 'convert') {
+                        // flash + move instanced mesh into the new team's pool
+                        this.particles.burst(ev.x, ev.y, ev.z, {
+                            count: 22,
+                            color: ev.team === 'player' ? THEME.player : teamColors.enemy.hex,
+                            speed: 8,
+                            life: 0.55,
+                            up: 5,
+                        });
+                        const converted = this.sim.actors.find((a) => a.index === ev.index);
+                        if (converted) this.unitInstances.ensureTeam(converted.mesh, ev.team);
                     }
                 }
                 this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed, [], false);
@@ -7436,6 +7464,7 @@ export class Game {
                 this.meteorFx.update(this.sim.elapsed, battleShields);
                 this.cloudFx.update(this.sim.elapsed);
                 this.dragonFx.update(this.sim.elapsed);
+                this.conversionFx.update(this.sim.actors);
                 this.oilDripFx.update(this.sim.elapsed);
                 // acid/poison/storm/meteor-shower zones + hammer charge rings
                 this.spellVisuals.syncBattleMarkers(
@@ -7709,7 +7738,7 @@ export class Game {
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
         placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
-        material.color.setHex(a.unit.team === 'player' ? THEME.valid : teamColors.enemy.hex);
+        material.color.setHex(actorTeam(a) === 'player' ? THEME.valid : teamColors.enemy.hex);
     }
 
     private updateSelectionUi(): void {
@@ -7838,10 +7867,12 @@ export class Game {
         const u = a.unit;
         const rs = this.resolvedStats(u);
         const lv = this.levelInfo(u);
+        const team = actorTeam(a);
+        const seat = actorSeat(a);
         return {
             name: u.type.name,
-            team: u.team,
-            owner: this.ownerName(u.team, u.seat),
+            team,
+            owner: this.ownerName(team, seat),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,

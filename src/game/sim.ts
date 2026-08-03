@@ -221,10 +221,35 @@ export interface Actor {
     appearAt: number;
     /** false while a summon is still dormant (not alive, hidden, untargetable) */
     appeared: boolean;
+    /**
+     * Battle-only allegiance override (wizard convert). Null = use {@link Unit.team}.
+     * Cleared when the BattleSim is discarded — deploy ownership stays unchanged.
+     */
+    allegiance: BattleTeam | null;
+    /** seat that owns this mech while {@link allegiance} is set */
+    allegianceSeat: number;
+    /** sticky convert-ray victim (wizard second weapon) */
+    convertTarget: Actor | null;
+    /** accumulated convert progress (0..hp); flips when ≥ current hp */
+    convertProgress: number;
+    /** who is currently channeling a convert ray onto this mech (for the UI bar) */
+    convertBy: Actor | null;
+    /** seconds left before this caster may start another convert channel */
+    convertCooldown: number;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
     prevCooldown?: number;
+}
+
+/** Combat team for targeting / scoring — honors mid-battle converts. */
+export function actorTeam(a: Actor): BattleTeam {
+    return a.allegiance ?? a.unit.team;
+}
+
+/** Combat seat while converted, else deploy seat. */
+export function actorSeat(a: Actor): number {
+    return a.allegiance !== null ? a.allegianceSeat : a.unit.seat;
 }
 
 /** how long a hit keeps the HP bar visible */
@@ -279,7 +304,9 @@ export type SimEvent =
     /** oil/acid drip cue — blob falls until `at`, then that disc stamps on the ground */
     | { kind: 'hazardDrip'; hazard: 'oil' | 'acid' | 'fire'; x: number; z: number; at: number }
     /** storm lightning bolt cue (render-only) */
-    | { kind: 'spellLightning'; x: number; z: number };
+    | { kind: 'spellLightning'; x: number; z: number }
+    /** wizard convert finished — flash + mesh recolor hook */
+    | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
@@ -482,6 +509,12 @@ export class BattleSim {
                     corrodedUntil: 0,
                     appearAt: 0,
                     appeared: true,
+                    allegiance: null,
+                    allegianceSeat: unit.seat,
+                    convertTarget: null,
+                    convertProgress: 0,
+                    convertBy: null,
+                    convertCooldown: 0,
                 });
             }
         }
@@ -1236,7 +1269,7 @@ export class BattleSim {
         // are still on their way in
         return this.actors.some(
             (a) =>
-                a.unit.team === team &&
+                actorTeam(a) === team &&
                 !a.unit.type.structure &&
                 (a.alive || (a.appearAt > 0 && !a.appeared)),
         );
@@ -1306,7 +1339,7 @@ export class BattleSim {
             if (!f.alive || f.unit.type.id !== 'ballista') continue;
             if (!this.config.hasTech(f.unit.seat, 'ballista', 'golden')) continue;
             for (const a of this.actors) {
-                if (!a.alive || a.unit.team !== f.unit.team || a.unit.type.structure) continue;
+                if (!a.alive || actorTeam(a) !== actorTeam(f) || a.unit.type.structure) continue;
                 const dx = a.x - f.x;
                 const dz = a.z - f.z;
                 if (dx * dx + dz * dz <= r2) a.goldenUntil = Math.max(a.goldenUntil, expires);
@@ -1568,7 +1601,7 @@ export class BattleSim {
             if (onPath && a.pathDestX !== null && a.pathDestZ !== null) {
                 const destX = a.pathDestX;
                 const destZ = a.pathDestZ;
-                const isMelee = !a.unit.type.projectileSpeed;
+                const isMelee = !a.unit.type.projectileSpeed && !a.unit.type.convertRay;
 
                 if (target) {
                     const tdx = target.x - a.x;
@@ -1582,20 +1615,24 @@ export class BattleSim {
                                 a.cooldown += stats.attackInterval;
                                 const damage =
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                                const dealt = damage * this.damageTakenMult(target);
-                                this.applyDamage(a.unit, target, dealt);
-                                this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                                if (damage > 0) {
+                                    const dealt = damage * this.damageTakenMult(target);
+                                    this.applyDamage(a.unit, target, dealt);
+                                    this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                                }
                             }
                             a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
                             continue;
                         }
-                        // ranged on a rally route: fire while marching
-                        if (canAttack) a.cooldown -= dt;
-                        if (canAttack && a.cooldown <= 0) {
-                            a.cooldown += stats.attackInterval;
-                            const damage =
-                                stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                            this.fire(a, target, damage, a.unit.type.projectileSpeed!);
+                        // ranged / convert-ray on a rally route: fire while marching
+                        if (a.unit.type.projectileSpeed) {
+                            if (canAttack) a.cooldown -= dt;
+                            if (canAttack && a.cooldown <= 0) {
+                                a.cooldown += stats.attackInterval;
+                                const damage =
+                                    stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                                this.fire(a, target, damage, a.unit.type.projectileSpeed);
+                            }
                         }
                     }
                 }
@@ -1618,18 +1655,26 @@ export class BattleSim {
 
             if (dist <= reach) {
                 // in range: stand and fire (still gets jostled by the crowd)
-                if (canAttack) a.cooldown -= dt;
-                if (canAttack && a.cooldown <= 0) {
-                    a.cooldown += stats.attackInterval;
-                    const damage =
-                        stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                    if (a.unit.type.projectileSpeed) {
+                if (a.unit.type.projectileSpeed) {
+                    if (canAttack) a.cooldown -= dt;
+                    if (canAttack && a.cooldown <= 0) {
+                        a.cooldown += stats.attackInterval;
+                        const damage =
+                            stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                         this.fire(a, target, damage, a.unit.type.projectileSpeed);
-                    } else {
-                        // melee: instant hit
-                        const dealt = damage * this.damageTakenMult(target);
-                        this.applyDamage(a.unit, target, dealt);
-                        this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                    }
+                } else if (!a.unit.type.convertRay) {
+                    // melee: instant hit (convert-only units skip — ray is their weapon)
+                    if (canAttack) a.cooldown -= dt;
+                    if (canAttack && a.cooldown <= 0) {
+                        a.cooldown += stats.attackInterval;
+                        const damage =
+                            stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                        if (damage > 0) {
+                            const dealt = damage * this.damageTakenMult(target);
+                            this.applyDamage(a.unit, target, dealt);
+                            this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                        }
                     }
                 }
                 a.mesh.rotation.y = Math.atan2(-dx, -dz);
@@ -1639,6 +1684,10 @@ export class BattleSim {
             this.steerToward(a, dx / dist, dz / dist, dist, dt, stats, d, target, bigs, reach * 0.95);
         }
         add('ai');
+
+        mark();
+        this.stepConversionRays(dt);
+        add('convert');
 
         mark();
         this.resolveOverlaps();
@@ -1806,7 +1855,7 @@ export class BattleSim {
     }
 
     private detonateRocket(a: Actor, spec: { damage: number; splash: number }): void {
-        this.explode({ damage: spec.damage, team: a.unit.team, source: a.unit }, a.x, a.z, spec.splash);
+        this.explode({ damage: spec.damage, team: actorTeam(a), source: a.unit }, a.x, a.z, spec.splash);
         this.events.push({
             kind: 'explosion',
             x: a.x,
@@ -1833,7 +1882,7 @@ export class BattleSim {
         let best: { shield: Actor; t: number } | null = null;
         for (const s of this.actors) {
             const spec = s.unit.type.shield;
-            if (!spec || !s.alive || s.unit.team === p.team) continue;
+            if (!spec || !s.alive || actorTeam(s) === p.team) continue;
             const cx = p.x - s.x;
             const cz = p.z - s.z;
             const r2 = spec.radius * spec.radius;
@@ -1941,7 +1990,7 @@ export class BattleSim {
             vy,
             vz,
             damage,
-            team: a.unit.team,
+            team: actorTeam(a),
             source: a.unit,
             style: at.projectileStyle ?? 'bolt',
             gravity,
@@ -1990,7 +2039,7 @@ export class BattleSim {
                 ? [p.target]
                 : this.actorsNearSegment(p.x, p.z, nx, nz, reach, p.team);
             for (const a of candidates) {
-                if (!a.alive || a.unit.team === p.team) continue;
+                if (!a.alive || actorTeam(a) === p.team) continue;
                 const bx = a.x - p.x;
                 const bz = a.z - p.z;
                 if (bx * bx + bz * bz > reach * reach) continue;
@@ -2079,7 +2128,7 @@ export class BattleSim {
     ): void {
         const targets = p.source.type.targets;
         for (const a of this.actors) {
-            if (!a.alive || a.unit.team === p.team) continue;
+            if (!a.alive || actorTeam(a) === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
             if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
@@ -2245,13 +2294,161 @@ export class BattleSim {
                 const bucket = this.targetHash.get((cx + 2048) * 4096 + (cz + 2048));
                 if (!bucket) continue;
                 for (const a of bucket) {
-                    if (!a.alive || a.unit.team === team) continue;
+                    if (!a.alive || actorTeam(a) === team) continue;
                     result.push(a);
                 }
             }
         }
         result.sort((p, q) => p.index - q.index);
         return result;
+    }
+
+    /**
+     * Wizard convert ray: progress fills at the caster's effective attack
+     * (same stack as orb damage — resolved damage × level × tower attack debuff).
+     */
+    private stepConversionRays(dt: number): void {
+        // clear stale convertBy links (channelers re-assert each step)
+        for (const a of this.actors) a.convertBy = null;
+
+        const d = this.config.towers.debuffPerLostTower;
+        for (const caster of this.actors) {
+            const ray = caster.unit.type.convertRay;
+            if (!ray || !caster.alive || caster.unit.type.structure) continue;
+            if (this.isSpawning(caster) || caster.unit.marchIn) continue;
+
+            if (caster.convertCooldown > 0) {
+                caster.convertCooldown = Math.max(0, caster.convertCooldown - dt);
+                if (caster.convertTarget) {
+                    caster.convertTarget.convertProgress = 0;
+                    caster.convertTarget = null;
+                }
+                continue;
+            }
+
+            const team = actorTeam(caster);
+            const canConvertAir = this.config.hasTech(
+                actorSeat(caster),
+                caster.unit.type.id,
+                'skyBind',
+            );
+            let target = caster.convertTarget;
+            const stillOk =
+                target &&
+                target.alive &&
+                actorTeam(target) !== team &&
+                !target.unit.type.structure &&
+                !target.unit.type.extra &&
+                (target.altitude <= 0 || canConvertAir);
+
+            if (stillOk && target) {
+                const reach = ray.range + caster.radius + target.radius;
+                const dx = target.x - caster.x;
+                const dz = target.z - caster.z;
+                if (dx * dx + dz * dz > reach * reach) {
+                    target.convertProgress = 0;
+                    caster.convertTarget = null;
+                    target = null;
+                }
+            } else {
+                if (target) target.convertProgress = 0;
+                caster.convertTarget = null;
+                target = null;
+            }
+
+            if (!target) {
+                target = this.closestConvertTarget(caster, ray.range, canConvertAir);
+                caster.convertTarget = target;
+                if (target) target.convertProgress = 0;
+            }
+            if (!target) continue;
+
+            const stats = this.resolved.get(caster.unit)!;
+            // same modifiers as a normal attack roll
+            const intensity =
+                stats.damage * this.levelMult(caster.unit) * this.debuff(caster, d.attackMult);
+
+            target.convertBy = caster;
+            target.convertProgress += intensity * dt;
+            // keep the convert bar visible
+            target.hurtTimer = Math.max(target.hurtTimer, 0.4);
+
+            if (target.convertProgress + 1e-9 >= target.hp) {
+                this.convertActor(caster, target);
+            }
+        }
+    }
+
+    private closestConvertTarget(
+        from: Actor,
+        range: number,
+        canConvertAir: boolean,
+    ): Actor | null {
+        const team = actorTeam(from);
+        const wantGround = from.unit.type.targets.ground;
+        let best: Actor | null = null;
+        let bestD = Infinity;
+        const reach = range + from.radius;
+        for (const a of this.actors) {
+            if (!a.alive || actorTeam(a) === team) continue;
+            if (a.unit.type.structure || a.unit.type.extra) continue;
+            if (a.altitude > 0) {
+                if (!canConvertAir) continue;
+            } else if (!wantGround) {
+                continue;
+            }
+            // already converted this battle — leave alone
+            if (a.allegiance !== null) continue;
+            const dx = a.x - from.x;
+            const dz = a.z - from.z;
+            const d = dx * dx + dz * dz;
+            const maxR = reach + a.radius;
+            if (d > maxR * maxR) continue;
+            if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
+                bestD = d;
+                best = a;
+            }
+        }
+        return best;
+    }
+
+    private convertActor(caster: Actor, target: Actor): void {
+        const team = actorTeam(caster);
+        const seat = actorSeat(caster);
+        target.allegiance = team;
+        target.allegianceSeat = seat;
+        target.convertProgress = 0;
+        target.convertBy = null;
+        target.convertTarget = null;
+        // brief pause before the next channel
+        const recover = caster.unit.type.convertRay?.recover ?? 1.25;
+        caster.convertCooldown = recover;
+        // drop anyone channeling this victim / this caster's lock
+        if (caster.convertTarget === target) caster.convertTarget = null;
+        for (const a of this.actors) {
+            if (a.convertTarget === target) {
+                a.convertTarget = null;
+            }
+            // converted mechs stop converting for their old side
+            if (a === target) {
+                a.convertTarget = null;
+            }
+        }
+        // clear attack stickies that now see a teammate
+        for (const a of this.actors) {
+            if (a.cachedEnemy === target && actorTeam(a) === team) a.cachedEnemy = null;
+            if (target.cachedEnemy && actorTeam(target.cachedEnemy) === team) {
+                target.cachedEnemy = null;
+            }
+        }
+        this.events.push({
+            kind: 'convert',
+            index: target.index,
+            x: target.x,
+            y: target.footY + 1.2,
+            z: target.z,
+            team,
+        });
     }
 
     /**
@@ -2272,7 +2469,7 @@ export class BattleSim {
 
         const cacheOk = (cached: Actor): boolean =>
             cached.alive &&
-            cached.unit.team !== from.unit.team &&
+            actorTeam(cached) !== actorTeam(from) &&
             !cached.unit.type.extra &&
             (cached.altitude > 0 ? wantAir : wantGround);
 
@@ -2297,14 +2494,14 @@ export class BattleSim {
             }
         }
 
-        const team = from.unit.team;
+        const team = actorTeam(from);
         let best: Actor | null = null;
         let bestD = Infinity;
         const cx = Math.floor(from.x / HASH_CELL);
         const cz = Math.floor(from.z / HASH_CELL);
 
         const consider = (a: Actor): void => {
-            if (!a.alive || a.unit.team === team) return;
+            if (!a.alive || actorTeam(a) === team) return;
             if (a.altitude > 0 ? !wantAir : !wantGround) return;
             const ddx = a.x - from.x;
             const ddz = a.z - from.z;

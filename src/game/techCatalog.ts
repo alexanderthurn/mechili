@@ -111,6 +111,13 @@ export const TECHS: Record<string, TechDef> = {
         mods: { splashRadius: 3 },
         description: 'Triples orb splash radius.',
     },
+    skyBind: {
+        id: 'skyBind',
+        name: 'Sky Bind',
+        cost: 400,
+        mods: {},
+        description: 'Convert ray can lock onto flying units.',
+    },
 };
 
 /**
@@ -120,7 +127,7 @@ export const TECHS: Record<string, TechDef> = {
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
     archer: ['barrel', 'ap', 'fireArrows'],
-    wizard: ['wideBlast'],
+    wizard: ['wideBlast', 'skyBind'],
     crowRider: ['engines', 'stingers'],
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
@@ -145,7 +152,7 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
 export const UNIT_TECH_SLOTS: Record<string, number> = {
     dwarf: 4,
     archer: 4,
-    wizard: 1,
+    wizard: 2,
     crowRider: 4,
     ballista: 11, // match full allowlist — wraps in the details pane
 };

@@ -202,6 +202,14 @@ export interface UnitType {
      */
     splashRadius?: number;
     /**
+     * Conversion ray weapon. Channel fills progress toward the victim's current
+     * HP at a rate of the caster's effective attack (resolved damage × level ×
+     * tower attack debuff) per second; at full, that mech flips allegiance for
+     * the rest of the battle (Actor-only). `recover` is idle seconds after a
+     * successful convert before channeling again.
+     */
+    convertRay?: { range: number; recover?: number };
+    /**
      * Ground wear strength when walking/standing (1 ≈ typical infantry).
      * Omit = derive from cost + bulk via {@link sandStampWeight}.
      */
@@ -565,7 +573,7 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'wizard',
         name: 'Wizard',
-        cost: 300,
+        cost: 100,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
@@ -573,12 +581,15 @@ export const UNIT_TYPES: UnitType[] = [
         targets: { ground: true, air: true },
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
-        projectileSpeed: 85,
-        projectileStyle: 'orb',
-        splashRadius: 4,
+        // primary orb weapon deactivated for now — convert ray only
+        // projectileSpeed: 85,
+        // projectileStyle: 'orb',
+        // splashRadius: 4,
+        convertRay: { range: 80, recover: 1.25 },
         hp: 160,
-        damage: 90,
-        range: 55,
+        // attack = convert intensity (HP of progress per second)
+        damage: 45,
+        range: 80,
         attackInterval: 1.6,
         speed: 3.2,
         build: buildWizard,
