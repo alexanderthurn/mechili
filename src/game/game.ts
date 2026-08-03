@@ -3420,6 +3420,7 @@ export class Game {
         if (star.role === 'guest') {
             this.wireStarGuestSession(star.session);
         } else {
+            star.hub.onDebugEvent = (category, data) => this.debugLog.log(category, data);
             star.hub.onMessage = (seat, msg) => this.onStarMessage(msg, seat);
             star.hub.onSeatSuspended = (seat) => {
                 // a seat that just explicitly quit (handleSeatQuit already

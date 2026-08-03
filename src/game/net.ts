@@ -711,6 +711,9 @@ export interface HostHub {
      *  markReclaimable/StarHub's own doc comment on why this is a
      *  separate, later path than onSeatReconnected's in-grace-window case. */
     onSeatReclaimedFromAi: ((seat: SeatId) => void) | null;
+    /** dev-only (`?debug`): reclaim/drop/rejoin decisions, routed to the
+     *  owning Game's DebugLog — see StarHub's own doc comment */
+    onDebugEvent: ((category: string, data?: unknown) => void) | null;
     broadcast(msg: NetMessage, exclude?: SeatId): void;
     send(seat: SeatId, msg: NetMessage): void;
     relayBuild(
@@ -793,6 +796,11 @@ export class StarHub implements HostHub {
     /** a seat that had been fully handed to AI control was just reclaimed
      *  by its original human player rejoining under the same name */
     onSeatReclaimedFromAi: ((seat: SeatId) => void) | null = null;
+    /** dev-only (`?debug`): routes reclaim/drop/rejoin decisions through the
+     *  owning Game's DebugLog, same pattern as SpectatorHub's constructor-
+     *  injected one — set post-construction here since Game doesn't exist
+     *  yet when StarHub.open() runs (see wireStar) */
+    onDebugEvent: ((category: string, data?: unknown) => void) | null = null;
 
     private constructor(
         private readonly peer: Peer,
@@ -842,7 +850,14 @@ export class StarHub implements HostHub {
                     const msg = data as NetMessage;
                     if (msg.type === 'starRejoin') {
                         conn.off('data', onData);
-                        if (msg.version !== GAME_VERSION || !this.reclaimSeat(msg.seat, conn)) {
+                        const accepted = msg.version === GAME_VERSION && this.reclaimSeat(msg.seat, conn);
+                        this.onDebugEvent?.('star.rejoinAttempt', {
+                            seat: msg.seat,
+                            theirVersion: msg.version,
+                            ourVersion: GAME_VERSION,
+                            accepted,
+                        });
+                        if (!accepted) {
                             conn.send({
                                 type: 'starRejoinRejected',
                                 reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
@@ -866,7 +881,15 @@ export class StarHub implements HostHub {
                     // starRejoin.
                     const droppedSeat = this.findDroppedSeatByName(msg.name);
                     if (droppedSeat !== null) {
-                        if (msg.version !== GAME_VERSION || !this.reclaimSeat(droppedSeat, conn)) {
+                        const accepted = msg.version === GAME_VERSION && this.reclaimSeat(droppedSeat, conn);
+                        this.onDebugEvent?.('star.nameMatchedRejoinAttempt', {
+                            name: msg.name,
+                            seat: droppedSeat,
+                            theirVersion: msg.version,
+                            ourVersion: GAME_VERSION,
+                            accepted,
+                        });
+                        if (!accepted) {
                             conn.send({
                                 type: 'starRejoinRejected',
                                 reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
@@ -891,6 +914,13 @@ export class StarHub implements HostHub {
                     const reclaimableSeat = this.findReclaimableSeatByName(msg.name);
                     if (reclaimableSeat !== null) {
                         if (msg.version !== GAME_VERSION) {
+                            this.onDebugEvent?.('star.aiReclaimAttempt', {
+                                name: msg.name,
+                                seat: reclaimableSeat,
+                                theirVersion: msg.version,
+                                ourVersion: GAME_VERSION,
+                                accepted: false,
+                            });
                             conn.send({ type: 'starRejoinRejected', reason: 'Version mismatch.' });
                             conn.close();
                             return;
@@ -900,6 +930,13 @@ export class StarHub implements HostHub {
                         this.wireSeatConn(reclaimableSeat, conn);
                         const entry = this.roster[reclaimableSeat];
                         if (entry) this.setRosterEntry(reclaimableSeat, { ...entry, controller: 'human' });
+                        this.onDebugEvent?.('star.aiReclaimAttempt', {
+                            name: msg.name,
+                            seat: reclaimableSeat,
+                            theirVersion: msg.version,
+                            ourVersion: GAME_VERSION,
+                            accepted: true,
+                        });
                         this.onSeatReclaimedFromAi?.(reclaimableSeat);
                         this.onRosterChange?.();
                         return;
@@ -1014,6 +1051,7 @@ export class StarHub implements HostHub {
     private dropSeat(seat: SeatId): void {
         const viewer = this.bySeat.get(seat);
         if (!viewer || viewer.conn === null) return;
+        this.onDebugEvent?.('star.dropSeat', { seat, alreadyReclaimable: this.reclaimableSeats.has(seat) });
         if (this.reclaimableSeats.has(seat)) {
             // this seat was already fully resolved to AI control BEFORE this
             // connection's close/error event fired — a voluntary quit
@@ -1042,7 +1080,11 @@ export class StarHub implements HostHub {
         this.onRosterChange?.();
         const timer = setTimeout(() => {
             this.reconnectTimers.delete(seat);
-            if (this.bySeat.get(seat)?.conn !== null) return; // reclaimed in the meantime
+            if (this.bySeat.get(seat)?.conn !== null) {
+                this.onDebugEvent?.('star.graceWindowElapsed', { seat, reclaimedInMeantime: true });
+                return;
+            }
+            this.onDebugEvent?.('star.graceWindowElapsed', { seat, reclaimedInMeantime: false });
             this.bySeat.delete(seat);
             this.onSeatDropped?.(seat);
             this.onRosterChange?.();

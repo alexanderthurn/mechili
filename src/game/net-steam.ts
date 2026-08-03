@@ -353,6 +353,7 @@ export class SteamStarHub implements HostHub {
     onSeatSuspended: ((seat: SeatId) => void) | null = null;
     onSeatReconnected: ((seat: SeatId) => void) | null = null;
     onSeatReclaimedFromAi: ((seat: SeatId) => void) | null = null;
+    onDebugEvent: ((category: string, data?: unknown) => void) | null = null;
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
 
