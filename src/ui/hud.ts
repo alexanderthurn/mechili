@@ -329,6 +329,9 @@ export class Hud {
     /** item ids currently in the selected Stronghold forge (for slot hover preview) */
     private lastForgeOvenIds: string[] = [];
     private lastForgeSpellPool: string[] = [];
+    /** bag rune/item ids (human) — with oven, drives owned-ingredient marks */
+    private lastBagItemIds: string[] = [];
+    private lastForgeOvenKey = '';
     private playerHpFill!: HTMLDivElement;
     private enemyHpFill!: HTMLDivElement;
     private playerHpVal!: HTMLSpanElement;
@@ -671,8 +674,26 @@ export class Hud {
                 `<span class="cost">${this.shopRuneCost}</span>`;
             btn.title = `${def.name} — ${this.shopRuneCost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
             btn.addEventListener('click', () => {
+                if (btn.classList.contains('unaffordable')) return;
                 const lastSlot = this.deploysLeft <= 1;
                 if (this.onBuyRune?.(itemId) && lastSlot) this.setPhoneTab(null);
+            });
+            btn.addEventListener('pointerenter', (e) => {
+                if (e.pointerType === 'touch') return;
+                this.showForgeRecipesHover(btn, itemId);
+            });
+            btn.addEventListener('pointerleave', (e) => {
+                if (e.pointerType === 'touch') return;
+                const to = e.relatedTarget as Node | null;
+                if (
+                    this.forgeSlotPreviewEl &&
+                    !this.forgeSlotPreviewEl.hidden &&
+                    to &&
+                    this.forgeSlotPreviewEl.contains(to)
+                ) {
+                    return;
+                }
+                if (this.forgeSlotPreviewAnchor === btn) this.hideForgeSlotHoverPreview();
             });
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
@@ -844,6 +865,31 @@ export class Hud {
             if (routeId && tacticBtn.dataset.tactic) {
                 this.onResetPlacedTactic?.(tacticBtn.dataset.tactic, Number(routeId));
             } else this.onCancelTactic?.();
+        });
+        // bag runes: same unlocked-spell recipe grid as empty forge / shop runes
+        this.inventoryEl.addEventListener('pointerover', (e) => {
+            if ((e as PointerEvent).pointerType === 'touch') return;
+            const btn = (e.target as HTMLElement).closest<HTMLElement>('.inv-item[data-item]');
+            if (btn) this.showForgeRecipesHover(btn, btn.dataset.item ?? null);
+        });
+        this.inventoryEl.addEventListener('pointerout', (e) => {
+            if ((e as PointerEvent).pointerType === 'touch') return;
+            const from = (e.target as HTMLElement).closest<HTMLElement>('.inv-item[data-item]');
+            const to = (e.relatedTarget as HTMLElement | null)?.closest?.(
+                '.inv-item[data-item]',
+            );
+            if (from && from !== to && this.forgeSlotPreviewAnchor === from) {
+                const related = e.relatedTarget as Node | null;
+                if (
+                    this.forgeSlotPreviewEl &&
+                    !this.forgeSlotPreviewEl.hidden &&
+                    related &&
+                    this.forgeSlotPreviewEl.contains(related)
+                ) {
+                    return;
+                }
+                this.hideForgeSlotHoverPreview();
+            }
         });
 
         // opponent items not yet placed (right edge; frozen to phase-start intel)
@@ -1547,6 +1593,8 @@ export class Hud {
         const key = JSON.stringify({ items, tactics });
         if (key === this.lastInventoryKey) return;
         this.lastInventoryKey = key;
+        this.lastBagItemIds = items.map((i) => i.id);
+        this.refreshForgeRecipesHover();
         const visible = items.length > 0 || tactics.length > 0;
         this.inventoryEl.style.display = visible ? '' : 'none';
         this.phoneBar.classList.toggle('has-tactics', visible);
@@ -1670,6 +1718,8 @@ export class Hud {
     /** oven bake/paths floating next to a hovered forge slot (not the ?) */
     private forgeSlotPreviewEl: HTMLDivElement | null = null;
     private forgeSlotPreviewAnchor: HTMLElement | null = null;
+    /** rune id used for green spell highlighting while recipes hover is open */
+    private forgeRecipesHoverRuneId: string | null = null;
 
     private forgeSpellColsHtml(preview: ForgePreviewView): string {
         const cols: string[] = [];
@@ -1737,28 +1787,17 @@ export class Hud {
             this.hideForgeSlotHoverPreview();
             return;
         }
-        if (!this.forgeSlotPreviewEl) {
-            this.forgeSlotPreviewEl = document.createElement('div');
-            this.forgeSlotPreviewEl.className = 'forge-slot-preview';
-            this.forgeSlotPreviewEl.setAttribute('aria-hidden', 'true');
-            document.body.appendChild(this.forgeSlotPreviewEl);
-        }
-        this.forgeSlotPreviewAnchor = anchor;
 
-        // empty oven circles: show the same recipe tiles as specialist detail
+        // empty oven: all unlocked recipes, oven match highlighting
         if (anchor.classList.contains('empty')) {
-            const recipes = this.forgeRecipesBlockHtml(
-                this.lastForgeSpellPool,
-                this.lastForgeOvenIds,
-            );
-            if (!recipes) {
-                this.hideForgeSlotHoverPreview();
-                return;
-            }
-            this.forgeSlotPreviewEl.classList.add('recipes');
-            this.forgeSlotPreviewEl.innerHTML = recipes;
-            this.forgeSlotPreviewEl.hidden = false;
-            this.positionForgeSlotHoverPreview();
+            this.showForgeRecipesHover(anchor);
+            return;
+        }
+
+        // filled forge rune: same recipe grid, green border on spells that use it
+        const runeId = anchor.dataset.itemId;
+        if (runeId) {
+            this.showForgeRecipesHover(anchor, runeId);
             return;
         }
 
@@ -1771,10 +1810,68 @@ export class Hud {
             this.hideForgeSlotHoverPreview();
             return;
         }
-        this.forgeSlotPreviewEl.classList.remove('recipes');
-        this.forgeSlotPreviewEl.innerHTML = this.forgeSpellColsHtml(view);
-        this.forgeSlotPreviewEl.hidden = false;
+        const el = this.ensureForgeSlotPreviewEl();
+        this.forgeSlotPreviewAnchor = anchor;
+        el.classList.remove('recipes');
+        el.innerHTML = this.forgeSpellColsHtml(view);
+        el.hidden = false;
         this.positionForgeSlotHoverPreview();
+    }
+
+    /**
+     * Full unlocked-spell recipe grid.
+     * @param highlightRuneId when set (shop / bag / forge rune hover), spells
+     *   that use that rune get a green border instead of oven-match colors.
+     */
+    private showForgeRecipesHover(
+        anchor: HTMLElement,
+        highlightRuneId: string | null = null,
+    ): void {
+        const recipes = this.forgeRecipesBlockHtml(
+            this.lastForgeSpellPool,
+            this.lastForgeOvenIds,
+            highlightRuneId,
+        );
+        if (!recipes) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        const el = this.ensureForgeSlotPreviewEl();
+        this.forgeSlotPreviewAnchor = anchor;
+        this.forgeRecipesHoverRuneId = highlightRuneId;
+        el.classList.add('recipes');
+        el.innerHTML = recipes;
+        el.hidden = false;
+        this.bindCardSpellTips(el);
+        this.positionForgeSlotHoverPreview();
+    }
+
+    /** rebuild open recipe hover after bag / oven changes (e.g. shop buy while hovering) */
+    private refreshForgeRecipesHover(): void {
+        const anchor = this.forgeSlotPreviewAnchor;
+        const el = this.forgeSlotPreviewEl;
+        if (!anchor || !el || el.hidden || !el.classList.contains('recipes')) return;
+        if (!anchor.isConnected) {
+            this.hideForgeSlotHoverPreview();
+            return;
+        }
+        this.showForgeRecipesHover(anchor, this.forgeRecipesHoverRuneId);
+    }
+
+    private ensureForgeSlotPreviewEl(): HTMLDivElement {
+        if (!this.forgeSlotPreviewEl) {
+            this.forgeSlotPreviewEl = document.createElement('div');
+            this.forgeSlotPreviewEl.className = 'forge-slot-preview';
+            this.forgeSlotPreviewEl.setAttribute('aria-hidden', 'true');
+            this.forgeSlotPreviewEl.addEventListener('pointerleave', (e) => {
+                if (e.pointerType === 'touch') return;
+                const to = e.relatedTarget as Node | null;
+                if (this.forgeSlotPreviewAnchor?.contains(to)) return;
+                this.hideForgeSlotHoverPreview();
+            });
+            document.body.appendChild(this.forgeSlotPreviewEl);
+        }
+        return this.forgeSlotPreviewEl;
     }
 
     private positionForgeSlotHoverPreview(): void {
@@ -1810,11 +1907,18 @@ export class Hud {
 
     private hideForgeSlotHoverPreview(): void {
         this.forgeSlotPreviewAnchor = null;
+        this.forgeRecipesHoverRuneId = null;
         if (this.forgeSlotPreviewEl) {
             this.forgeSlotPreviewEl.hidden = true;
             this.forgeSlotPreviewEl.classList.remove('recipes');
             this.forgeSlotPreviewEl.replaceChildren();
         }
+    }
+
+    /** drop forge hover only when its anchor lived in the selection panel */
+    private hidePanelForgeHoverPreview(): void {
+        const anchor = this.forgeSlotPreviewAnchor;
+        if (anchor && this.panel.contains(anchor)) this.hideForgeSlotHoverPreview();
     }
 
     private worldItemDropReady = false;
@@ -2168,6 +2272,20 @@ export class Hud {
         this.showCardOverlay(overlay);
     }
 
+    /**
+     * Unlocked forge spells + current oven contents — keeps shop-rune / empty-slot
+     * recipe hover correct even when Stronghold is not selected.
+     */
+    setForgeRecipeContext(pool: readonly string[], ovenItemIds: readonly string[]): void {
+        this.lastForgeSpellPool = [...pool];
+        this.lastForgeOvenIds = [...ovenItemIds];
+        const ovenKey = ovenItemIds.join('\0');
+        if (ovenKey !== this.lastForgeOvenKey) {
+            this.lastForgeOvenKey = ovenKey;
+            this.refreshForgeRecipesHover();
+        }
+    }
+
     setSelection(info: SelectionInfo | null): void {
         this.phoneBar.classList.toggle('has-unit', !!info);
         if (!info) {
@@ -2175,21 +2293,19 @@ export class Hud {
             this.lastPanelKey = '';
             this.unitSheetAutoKey = null;
             if (this.phoneTab === 'unit') this.setPhoneTab(null);
-            this.lastForgeOvenIds = [];
-            this.lastForgeSpellPool = [];
-            this.hideForgeSlotHoverPreview();
+            // only clear forge hover tied to the details panel — shop / bag
+            // recipe hover must survive Stronghold being deselected every frame
+            this.hidePanelForgeHoverPreview();
             return;
         }
-        this.lastForgeOvenIds = (info.forge?.slots ?? [])
-            .map((s) => s?.id)
-            .filter((id): id is string => !!id);
-        this.lastForgeSpellPool = info.forge?.spellPool ?? [];
+        // oven/pool come from setForgeRecipeContext each tick — do not clear
+        // them when a non-Stronghold unit is selected
         this.panel.style.display = 'block';
         const key = JSON.stringify(info);
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
         this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
-        this.hideForgeSlotHoverPreview();
+        this.hidePanelForgeHoverPreview();
         this.setPanelItemDropReady(false);
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
 
@@ -2408,9 +2524,9 @@ export class Hud {
                           item.removable
                               ? `${item.desc}\n${removeHint}`
                               : item.desc,
-                      )}" data-ticon="${escapeAttr(item.icon)}"${
+                      )}" data-ticon="${escapeAttr(item.icon)}" data-item-id="${escapeAttr(item.id)}"${
                           item.removable
-                              ? ` data-forge="1" data-item-id="${escapeAttr(item.id)}" data-item-slot="${i}"`
+                              ? ` data-forge="1" data-item-slot="${i}"`
                               : ''
                       }></span>`
                   );
@@ -3138,10 +3254,21 @@ export class Hud {
     }
 
     /** forge recipe list for a specialist (desktop: beside the card) */
-    private forgeRecipesBlockHtml(pool: readonly string[], oven: readonly string[]): string {
+    private forgeRecipesBlockHtml(
+        pool: readonly string[],
+        oven: readonly string[],
+        highlightRuneId: string | null = null,
+    ): string {
         const rows = forgeHelpRows(pool);
         if (rows.length === 0) return '';
+        const available = this.availableRuneCounts();
         const ranked = [...rows].sort((a, b) => {
+            if (highlightRuneId) {
+                const aHit = a.ingredients.includes(highlightRuneId) ? 0 : 1;
+                const bHit = b.ingredients.includes(highlightRuneId) ? 0 : 1;
+                if (aHit !== bHit) return aHit - bHit;
+                return a.ingredients.length - b.ingredients.length;
+            }
             const rank = (r: (typeof rows)[number]) => {
                 const m = forgeRecipeMatch(r.ingredients, oven);
                 return m === 'ready' ? 0 : m === 'partial' ? 1 : 2;
@@ -3150,14 +3277,33 @@ export class Hud {
         });
         const tiles = ranked
             .map((r) => {
-                const match = forgeRecipeMatch(r.ingredients, oven);
-                const matchClass =
-                    match === 'ready'
-                        ? ' forge-tile-ready'
-                        : match === 'partial'
-                          ? ' forge-tile-partial'
-                          : '';
-                const ings = r.ingredientIcons.map((ico) => iconHtml(ico, 'forge-ing')).join('');
+                let matchClass = '';
+                if (highlightRuneId) {
+                    if (r.ingredients.includes(highlightRuneId)) {
+                        matchClass = ' forge-tile-ready';
+                    }
+                } else {
+                    const match = forgeRecipeMatch(r.ingredients, oven);
+                    matchClass =
+                        match === 'ready'
+                            ? ' forge-tile-ready'
+                            : match === 'partial'
+                              ? ' forge-tile-partial'
+                              : '';
+                }
+                const markOwned = matchClass.includes('forge-tile-ready');
+                const left = markOwned ? new Map(available) : null;
+                const ings = r.ingredients
+                    .map((id, i) => {
+                        const ico = r.ingredientIcons[i] ?? ITEMS[id]?.icon ?? '?';
+                        let cls = 'forge-ing';
+                        if (left && (left.get(id) ?? 0) > 0) {
+                            cls += ' owned';
+                            left.set(id, (left.get(id) ?? 0) - 1);
+                        }
+                        return iconHtml(ico, cls);
+                    })
+                    .join('');
                 return (
                     `<div class="forge-tile${matchClass}" data-spell-tip="1" ` +
                     `data-ttitle="${escapeAttr(r.spellName)}" ` +
@@ -3174,6 +3320,14 @@ export class Hud {
             })
             .join('');
         return `<div class="forge-recipes-block"><div class="forge-tile-grid">${tiles}</div></div>`;
+    }
+
+    /** bag + forge oven multiset for owned-ingredient circles */
+    private availableRuneCounts(): Map<string, number> {
+        const m = new Map<string, number>();
+        for (const id of this.lastBagItemIds) m.set(id, (m.get(id) ?? 0) + 1);
+        for (const id of this.lastForgeOvenIds) m.set(id, (m.get(id) ?? 0) + 1);
+        return m;
     }
 
     /** dismiss the specialist detail popup (hover-out or click) */

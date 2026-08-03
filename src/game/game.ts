@@ -7599,6 +7599,13 @@ export class Game {
                 this.deployState.runesBought[this.humanSeat]! * this.settings.deploy.runeCostStep,
             this.economy.balance(this.humanSeat),
         );
+        {
+            const oven = this.forgeSlots.player ?? [];
+            this.hud.setForgeRecipeContext(
+                this.teamForgePool('player'),
+                oven.filter((s): s is ForgeSlot => !!s).map((s) => s.itemId),
+            );
+        }
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
         this.syncArmedRuneForgeGhost();

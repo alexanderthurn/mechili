@@ -1938,7 +1938,8 @@ ${fontFaceCss()}
 .mechili-shop .shop-rune:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 .mechili-shop .shop-rune:active { transform: scale(0.94); }
 .mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
-.mechili-shop .shop-rune.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-shop .shop-rune.unaffordable { opacity: 0.35; }
+.mechili-shop .shop-rune.unaffordable:hover { border-color: ${u.hover}; transform: none; }
 .mechili-shop .shop-rune .shop-rune-ico,
 .mechili-shop .shop-rune .shop-rune-ico.m-icon {
     display: block;
@@ -2582,6 +2583,8 @@ ${fontFaceCss()}
     background: linear-gradient(180deg, rgba(38, 54, 32, 0.94), rgba(22, 34, 19, 0.96));
     border: 1.5px solid ${u.border};
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    z-index: 80;
+    pointer-events: none;
 }
 .forge-slot-preview.recipes .forge-recipes-block {
     margin: 0;
@@ -2861,6 +2864,12 @@ ${fontFaceCss()}
     width: 26px;
     height: 26px;
     flex: 0 0 auto;
+    box-sizing: border-box;
+    border-radius: 50%;
+}
+.forge-tile-ings .forge-ing.owned {
+    border: 2.5px solid rgb(0, 220, 90);
+    box-shadow: none;
 }
 .forge-tile-name {
     grid-column: 1 / -1;
