@@ -3974,6 +3974,10 @@ export class Game {
         this.seats[seat] = { ...def, controller: 'human' };
         const idx = this.extraAis.findIndex((e) => e.seat === seat);
         if (idx >= 0) this.extraAis.splice(idx, 1);
+        // this seat is live again — clear the voluntary-quit marker so a
+        // genuine future drop is treated as a real disconnect (grace
+        // window + notice), not silently ignored as an already-handled quit
+        this.quitSeats.delete(seat);
         // same chat pattern takeOverSeatWithAi uses (not announceSystem) —
         // sent before refreshCommanders() so the bubble still attaches
         // correctly to this seat's own chip
