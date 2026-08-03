@@ -686,6 +686,12 @@ export class Game {
             return;
         }
 
+        // R: rotate selected pack (same as middle-click / touch Rotate)
+        if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            if (!this.armedTactic) this.placement.rotateSelected();
+            return;
+        }
+
         if (e.code !== 'Escape') return;
         if (this.introActive || this.outroActive) return;
         if (this.hud.isUiHidden) {

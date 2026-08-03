@@ -69,6 +69,7 @@ Your army and buildings: dwarves, archers, crow riders, ballistae, ward stones, 
 | Left click | buy / select / place |
 | Right click · drag | deselect · pan |
 | Middle click · drag | rotate pack · orbit camera |
+| R | rotate selected pack |
 | Wheel | zoom to cursor |
 | WASD / edges | pan · Q/E rotate · Home reset |
 
