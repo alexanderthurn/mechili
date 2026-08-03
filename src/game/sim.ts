@@ -236,6 +236,16 @@ export interface Actor {
     convertBy: Actor | null;
     /** seconds left before this caster may start another convert channel */
     convertCooldown: number;
+    /**
+     * Render tip of an active convert beam (world). When a ward blocks the
+     * line of sight this sits on the dome skin; otherwise on the victim.
+     * Valid only while {@link convertRayActive}.
+     */
+    convertRayTipX: number;
+    convertRayTipY: number;
+    convertRayTipZ: number;
+    /** true this sim step while the convert beam is on (incl. shield-blocked) */
+    convertRayActive: boolean;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
@@ -515,6 +525,10 @@ export class BattleSim {
                     convertProgress: 0,
                     convertBy: null,
                     convertCooldown: 0,
+                    convertRayTipX: 0,
+                    convertRayTipY: 0,
+                    convertRayTipZ: 0,
+                    convertRayActive: false,
                 });
             }
         }
@@ -1869,6 +1883,62 @@ export class BattleSim {
     }
 
     /**
+     * Earliest enemy-ward hit on a world segment from (ox,oy,oz) along (sx,sy,sz).
+     * Same rules as projectiles: outgoing shots from inside a dome pass;
+     * wall / roof entry from outside is absorbed.
+     */
+    private enemyShieldHitOnSegment(
+        ox: number,
+        oy: number,
+        oz: number,
+        sx: number,
+        sy: number,
+        sz: number,
+        team: BattleTeam,
+    ): { shield: Actor; t: number; x: number; y: number; z: number } | null {
+        let best: { shield: Actor; t: number } | null = null;
+        for (const s of this.actors) {
+            const spec = s.unit.type.shield;
+            if (!spec || !s.alive || actorTeam(s) === team) continue;
+            const cx = ox - s.x;
+            const cz = oz - s.z;
+            const r2 = spec.radius * spec.radius;
+            const startInside2d = cx * cx + cz * cz <= r2;
+            if (startInside2d && oy <= spec.height) continue; // fired from inside: outgoing passes
+            if (!startInside2d) {
+                const a2 = sx * sx + sz * sz;
+                if (a2 >= 1e-9) {
+                    const b = 2 * (cx * sx + cz * sz);
+                    const c = cx * cx + cz * cz - r2;
+                    const disc = b * b - 4 * a2 * c;
+                    if (disc >= 0) {
+                        const t = (-b - Math.sqrt(disc)) / (2 * a2);
+                        if (t >= 0 && t <= 1 && oy + sy * t <= spec.height && (!best || t < best.t)) {
+                            best = { shield: s, t };
+                        }
+                    }
+                }
+            }
+            if (oy > spec.height && sy < 0) {
+                const t = (spec.height - oy) / sy;
+                if (t >= 0 && t <= 1) {
+                    const qx = ox + sx * t - s.x;
+                    const qz = oz + sz * t - s.z;
+                    if (qx * qx + qz * qz <= r2 && (!best || t < best.t)) best = { shield: s, t };
+                }
+            }
+        }
+        if (!best) return null;
+        return {
+            shield: best.shield,
+            t: best.t,
+            x: ox + sx * best.t,
+            y: oy + sy * best.t,
+            z: oz + sz * best.t,
+        };
+    }
+
+    /**
      * Shield extras: a projectile crossing an enemy dome's boundary from the
      * OUTSIDE below its height is absorbed into the dome's damage pool.
      * Returns the earliest crossing on this step's flight segment.
@@ -1879,41 +1949,8 @@ export class BattleSim {
         sy: number,
         sz: number,
     ): { shield: Actor; t: number } | null {
-        let best: { shield: Actor; t: number } | null = null;
-        for (const s of this.actors) {
-            const spec = s.unit.type.shield;
-            if (!spec || !s.alive || actorTeam(s) === p.team) continue;
-            const cx = p.x - s.x;
-            const cz = p.z - s.z;
-            const r2 = spec.radius * spec.radius;
-            const startInside2d = cx * cx + cz * cz <= r2;
-            if (startInside2d && p.y <= spec.height) continue; // fired from inside: outgoing shots pass
-            // wall entry: first intersection of the 2D segment with the circle
-            if (!startInside2d) {
-                const a2 = sx * sx + sz * sz;
-                if (a2 >= 1e-9) {
-                    const b = 2 * (cx * sx + cz * sz);
-                    const c = cx * cx + cz * cz - r2;
-                    const disc = b * b - 4 * a2 * c;
-                    if (disc >= 0) {
-                        const t = (-b - Math.sqrt(disc)) / (2 * a2);
-                        if (t >= 0 && t <= 1 && p.y + sy * t <= spec.height && (!best || t < best.t)) {
-                            best = { shield: s, t };
-                        }
-                    }
-                }
-            }
-            // roof entry: descending through the dome top from above (air fire)
-            if (p.y > spec.height && sy < 0) {
-                const t = (spec.height - p.y) / sy;
-                if (t >= 0 && t <= 1) {
-                    const qx = p.x + sx * t - s.x;
-                    const qz = p.z + sz * t - s.z;
-                    if (qx * qx + qz * qz <= r2 && (!best || t < best.t)) best = { shield: s, t };
-                }
-            }
-        }
-        return best;
+        const hit = this.enemyShieldHitOnSegment(p.x, p.y, p.z, sx, sy, sz, p.team);
+        return hit ? { shield: hit.shield, t: hit.t } : null;
     }
 
     private breakShield(s: Actor): void {
@@ -2310,10 +2347,14 @@ export class BattleSim {
     /**
      * Wizard convert ray: progress fills at the caster's effective attack
      * (same stack as orb damage — resolved damage × level × tower attack debuff).
+     * Enemy ward domes absorb the beam (damage the shield; no convert through).
      */
     private stepConversionRays(dt: number): void {
-        // clear stale convertBy links (channelers re-assert each step)
-        for (const a of this.actors) a.convertBy = null;
+        // clear stale convertBy / beam tips (channelers re-assert each step)
+        for (const a of this.actors) {
+            a.convertBy = null;
+            a.convertRayActive = false;
+        }
 
         const d = this.config.towers.debuffPerLostTower;
         for (const caster of this.actors) {
@@ -2368,6 +2409,29 @@ export class BattleSim {
             const intensity =
                 stats.damage * this.levelMult(caster.unit) * this.debuff(caster, d.attackMult);
 
+            const fromY = caster.footY + Math.max(1.6, caster.unit.type.meshScale * 1.15);
+            const toY = target.footY + Math.max(1.0, target.unit.type.meshScale * 0.9);
+            const sx = target.x - caster.x;
+            const sy = toY - fromY;
+            const sz = target.z - caster.z;
+            const block = this.enemyShieldHitOnSegment(caster.x, fromY, caster.z, sx, sy, sz, team);
+
+            caster.convertRayActive = true;
+            if (block) {
+                // beam stops on the dome — chew the absorb pool instead of converting
+                if (target.convertProgress > 0) target.convertProgress = 0;
+                caster.convertRayTipX = block.x;
+                caster.convertRayTipY = block.y;
+                caster.convertRayTipZ = block.z;
+                block.shield.hp -= intensity * dt;
+                block.shield.hurtTimer = HURT_BAR_SECONDS;
+                if (block.shield.hp <= 0) this.breakShield(block.shield);
+                continue;
+            }
+
+            caster.convertRayTipX = target.x;
+            caster.convertRayTipY = toY;
+            caster.convertRayTipZ = target.z;
             target.convertBy = caster;
             target.convertProgress += intensity * dt;
             // keep the convert bar visible

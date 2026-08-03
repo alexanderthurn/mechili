@@ -114,8 +114,9 @@ export class ConversionFx {
     }
 
     /**
-     * Draw a beam from every living caster that has an active convertTarget.
-     * Uses interpolated rx/rz so the ray sticks to meshes.
+     * Draw a beam from every living caster with an active convert ray.
+     * Tip comes from the sim (`convertRayTip*`) so ward blocks clip the beam.
+     * Uses interpolated rx/rz for the caster origin so the ray sticks to meshes.
      */
     update(actors: readonly Actor[]): void {
         const t = (performance.now() - this.t0) * 0.001;
@@ -129,14 +130,22 @@ export class ConversionFx {
         let n = 0;
         for (const caster of actors) {
             if (n >= MAX_RAYS) break;
-            const target = caster.convertTarget;
-            if (!caster.alive || !target?.alive || target.convertBy !== caster) continue;
-            if (!caster.unit.type.convertRay) continue;
+            if (!caster.alive || !caster.convertRayActive || !caster.unit.type.convertRay) continue;
 
             const fromY = caster.footY + Math.max(1.6, caster.unit.type.meshScale * 1.15);
-            const toY = target.footY + Math.max(1.0, target.unit.type.meshScale * 0.9);
             _pos.set(caster.rx, fromY, caster.rz);
-            _dir.set(target.rx - caster.rx, toY - fromY, target.rz - caster.rz);
+            const victim = caster.convertTarget;
+            // unblocked: stick tip to the victim mesh; blocked: sim tip on the ward skin
+            if (victim?.alive && victim.convertBy === caster) {
+                const toY = victim.footY + Math.max(1.0, victim.unit.type.meshScale * 0.9);
+                _dir.set(victim.rx - caster.rx, toY - fromY, victim.rz - caster.rz);
+            } else {
+                _dir.set(
+                    caster.convertRayTipX - caster.rx,
+                    caster.convertRayTipY - fromY,
+                    caster.convertRayTipZ - caster.rz,
+                );
+            }
             const len = Math.max(_dir.length(), 0.35);
             _dir.multiplyScalar(1 / len);
             _quat.setFromUnitVectors(_up, _dir);

@@ -110,6 +110,7 @@ export const TECHS: Record<string, TechDef> = {
         name: 'Wide Blast',
         cost: 250,
         mods: { splashRadius: 3 },
+        icon: 'tech-wide-blast',
         description: 'Triples splash radius (grants splash to units without it).',
     },
     skyBind: {
@@ -117,6 +118,7 @@ export const TECHS: Record<string, TechDef> = {
         name: 'Sky Bind',
         cost: 400,
         mods: {},
+        icon: 'tech-sky-bind',
         description: 'Can attack ground and air units.',
     },
     skyLift: {
@@ -124,6 +126,7 @@ export const TECHS: Record<string, TechDef> = {
         name: 'Sky Lift',
         cost: 350,
         mods: {},
+        icon: 'tech-sky-lift',
         description: 'Lifts this unit into the air (combat flyer).',
     },
     /** Catalog-only for now — assign via {@link UNIT_TECH_ALLOWLIST} when a unit should use it. */
@@ -132,6 +135,7 @@ export const TECHS: Record<string, TechDef> = {
         name: 'Earthbound',
         cost: 300,
         mods: {},
+        icon: 'tech-earthbound',
         description: 'Keeps this unit on the ground (overrides Sky Lift / natural flight).',
     },
 };
