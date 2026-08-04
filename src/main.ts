@@ -2342,15 +2342,21 @@ async function beginStarHost(
         // preview instead of just a static "waiting for the host" — see
         // runStarPending's 'starRoster' handling
         hub.broadcast({ type: 'starRoster', roster });
-        // auto-start once `waitForJoined` have joined — no manual "click
-        // Start" step; the Start button (when shown) is only for "give up
-        // waiting, go vs AI now" while the room hasn't reached that yet
-        if (joined >= waitForJoined) {
+        // auto-start once `waitForJoined` have joined — EXCEPT for a Custom
+        // Game room (customConfig set), which always waits for the host's
+        // own explicit Start click instead. Matchmaking/quick-match rooms
+        // (customConfig null) keep the original no-manual-step behavior —
+        // that queue is specifically "get into a match fast," where a
+        // Custom Game host wants a last look at who joined (and the chance
+        // to kick someone) before committing.
+        if (joined >= waitForJoined && !customConfig) {
             setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Starting…`);
             startStarMatch();
             return;
         }
-        if (offerAiStart) {
+        if (joined >= waitForJoined) {
+            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Ready — click Start.`);
+        } else if (offerAiStart) {
             const modeLabel = mode === '1v1' ? '1vs1' : '2vs2';
             const remaining = waitForJoined - joined;
             const namesPart = joined > 1 ? `${connectedNames} - ` : '';
@@ -2681,12 +2687,17 @@ function wireSteamStarHub(
             .join(', ');
         renderRosterTable(roster, hub.connectedSeats(), waitForJoined);
         hub.broadcast({ type: 'starRoster', roster });
-        if (joined >= waitForJoined) {
+        // same Custom-Game-never-auto-starts rule as beginStarHost's refresh
+        // — starCustomConfig is set by beginSteamStarHost right before this
+        // hub was wired, so it's already correct by the time this runs
+        if (joined >= waitForJoined && !starCustomConfig) {
             setStatus(`Steam lobby — ${joined}/${roster.length} joined: ${names}. Starting…`);
             startSteamStarMatch();
             return;
         }
-        if (offerAiStart) {
+        if (joined >= waitForJoined) {
+            setStatus(`Steam lobby — ${joined}/${roster.length} joined: ${names}. Ready — click Start.`);
+        } else if (offerAiStart) {
             const modeLabel = mode === '1v1' ? '1vs1' : '2vs2';
             const remaining = waitForJoined - joined;
             const namesPart = joined > 1 ? `${connectedNames} - ` : '';
