@@ -413,19 +413,16 @@ app.innerHTML = `
         <img src="${esc(feuerwareLogoUrl)}" alt="Feuerware" width="307" height="307" />
       </a>
       <p class="mh-about-lead">
-        MELODAN is made by Feuerware. A small team of germans who love to code and make games.
+        MELODAN is made by Alexander Thurn (Feuerware). He is located in Bonn, Germany.
       </p>
       <p>
         This game is inspired by <a href="https://www.playmechabellum.com/" rel="noopener noreferrer" target="_blank">Mechabellum</a>
-        thank you for the spark. MELODAN is an independent fantasy take; please support the original and buy Mechabelum. Thank you!
+        the best game in the genre. MELODAN is an independent fantasy take; please support the original and buy Mechabelum. Thank you!
       </p>
       <p>
         The game is <a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">open source on GitHub</a>
         (GPL-3.0). Copyright stays with Alexander Thurn / Feuerware. Feel free to fork it privately, invent new units, and open pull requests.
-        For something bigger <span class="mh-sep">⬢</span> a new setting, a commercial spin-off, a full rebrand
-        <span class="mh-sep">⬢</span>
-        feel free to ask me at <a href="mailto:alex@feuerware.com">alex@feuerware.com</a>.
-        Want to chip in? See <a href="#suggest">Contribute</a>.
+        For something bigger, a non- or commercial spin-off, a full rebrand etc. feel free to write me: <a href="mailto:alex@feuerware.com">alex@feuerware.com</a>.
       </p>
     </div>
   </section>
