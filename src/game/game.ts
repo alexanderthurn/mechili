@@ -3985,6 +3985,15 @@ export class Game {
         // genuine future drop is treated as a real disconnect (grace
         // window + notice), not silently ignored as an already-handled quit
         this.quitSeats.delete(seat);
+        // Send the reconnecting seat its resume snapshot FIRST, before any
+        // broadcast reaches its (already-wired) connection — confirmed live
+        // this order matters: the reclaiming client's join-handshake handler
+        // only recognizes a small set of message types before it's fully
+        // constructed a Game object, and misreads anything else (e.g. the
+        // chat announcement below, sent to every connected seat including
+        // this one) as a fatal protocol error, closing the connection
+        // instants after accepting it.
+        this.starSeatReconnected(seat);
         // same chat pattern takeOverSeatWithAi uses (not announceSystem) —
         // sent before refreshCommanders() so the bubble still attaches
         // correctly to this seat's own chip
@@ -3994,7 +4003,6 @@ export class Game {
         this.broadcastRoster();
         this.refreshCommanders();
         this.spectateRegistration?.refreshNow();
-        this.starSeatReconnected(seat);
     }
 
     /**

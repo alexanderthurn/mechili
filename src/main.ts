@@ -2420,6 +2420,26 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             setStatus(`Connected — waiting for the host to start… (${names})`);
             return;
         }
+        // Anything besides the handshake message types below is only ever
+        // meaningful once a Game object exists to receive it — a broadcast
+        // (chat, etc.) that reaches this connection before its own join
+        // handshake finishes is not a protocol error, just an ordering
+        // artifact of being one of several recipients on the host's send
+        // list. Checked BEFORE clearing pending/busy state below, so a
+        // stray early broadcast doesn't prematurely flip the UI out of its
+        // "connecting…" state while still genuinely waiting on the real
+        // handshake message. Confirmed live: reclaimSeatFromAi's chat
+        // announcement raced ahead of its own starResumeState and got
+        // misread here as a version mismatch, closing a connection the
+        // host had just accepted.
+        if (
+            msg.type !== 'starRejected' &&
+            msg.type !== 'starRejoinRejected' &&
+            msg.type !== 'starResumeState' &&
+            msg.type !== 'starSetup'
+        ) {
+            return;
+        }
         pending = null;
         setMenuBusy(false);
         if (msg.type === 'starRejected' || msg.type === 'starRejoinRejected') {
@@ -2461,7 +2481,8 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             );
             return;
         }
-        if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
+        // only 'starSetup' can reach here (see the guard above)
+        if (msg.version !== GAME_VERSION) {
             clearStarResumeMarker();
             setStatus('Version mismatch — both players need the same game version.');
             session.close();
