@@ -7915,7 +7915,7 @@ export class Game {
             seatIdsOf(this.seats, 'player').some(
                 (seat) => seat !== this.humanSeat && this.seatReady[seat],
             );
-        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn);
+        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn, this.watching);
         // live countdown on the "Waiting…" seat-drop notice — re-render
         // only when the displayed second actually changes, not every frame.
         // matchOver-gated too: finishMatch/resumeIfAllClear already null
