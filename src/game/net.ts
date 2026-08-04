@@ -48,7 +48,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 22; // v22: 'starRoster' carries waitForJoined; new 'lobbySettings'/'lobbyReady' lobby messages; CanonicalSeatDef gains an optional 'ready' flag
+export const GAME_VERSION = 23; // v23: 'starResumeState'/'spectateAccepted' merged into one 'matchCatchUp' message (Phase C, TEAM_MODES_PLAN.md §3c)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -331,19 +331,10 @@ export type NetMessage =
     /** spectator's opening handshake, sent immediately on connecting to the
      *  host's dedicated broadcast Peer (never the player link) */
     | { type: 'spectate'; name: string; version: number }
-    /** host's reply: everything needed to catch up to the CURRENT visible
-     *  state for this spectator's vision policy */
-    | {
-          type: 'spectateAccepted';
-          version: number;
-          seed: number;
-          settings: GameSettings;
-          actions: LoggedAction[];
-          battleElapsed: number | null;
-          phaseRemaining: number;
-          roster: RosterEntry[];
-          vision: SpectatorVision;
-      }
+    /** host's reply admitting a spectator: everything needed to catch up to
+     *  the CURRENT visible state for this spectator's vision policy — see
+     *  the unified `matchCatchUp` message below (Phase C,
+     *  TEAM_MODES_PLAN.md §3c), which this is now just one `viewer` case of. */
     | { type: 'spectateRejected'; reason: string }
     /** full roster snapshot, broadcast to players + spectators whenever a
      *  spectator joins or leaves */
@@ -446,7 +437,7 @@ export type NetMessage =
      * a message from some seat was skipped or dropped in transit despite
      * the connection staying up. Treated exactly like that guest needing
      * to reconnect (see Game.beginStarSeatSuspend/starSeatReconnected):
-     * pause the whole match, resend the full state via `starResumeState`,
+     * pause the whole match, resend the full state via `matchCatchUp`,
      * resume once the guest confirms with `ready` — the same recovery
      * path already used for a real drop, not a second mechanism. The
      * host is always the source of truth here: this only fires for a
@@ -467,29 +458,42 @@ export type NetMessage =
      */
     | { type: 'starRejoin'; seat: SeatId; version: number }
     /**
-     * Host's answer to a valid reclaim (starRejoin, OR a starJoin whose name
-     * matched a currently-dropped seat — see StarHub.findDroppedSeatByName):
-     * the full state to hydrate from, vision-filtered by isRevealable for
-     * the RECLAIMING seat's own side (same predicate StarHub.relayBuild
-     * already uses) — shaped like classic 1v1's 'state' message.
+     * Phase C (TEAM_MODES_PLAN.md §3c): the ONE catch-up payload for any
+     * viewer of this match — a reconnecting/resyncing seat OR a freshly-
+     * admitted spectator. Previously two near-identical messages
+     * (`starResumeState` for a seat, `spectateAccepted` for a spectator)
+     * that happened to carry the exact same envelope (seed/settings/
+     * roster/actions/battleElapsed/phaseRemaining) with only the
+     * viewer-identifying field differing; `viewer` now carries that one
+     * real difference explicitly instead of via the message's own type tag.
+     * `actions` is vision-filtered by `isRevealable` for the viewer's own
+     * policy (same predicate `StarHub.relayBuild`/`SpectatorHub.relayBuild`
+     * already use) — shaped like classic 1v1's old 'state' message.
      *
-     * `seat`/`seed`/`settings`/`roster` are only load-bearing for a COLD
-     * reconnect (the reclaiming client's own Game object is gone — thrown
-     * back to the main menu, not an in-session redial) — that client has
-     * nothing else to construct a fresh Game instance from. An in-session
-     * redial's Game object already has all of these from its own
-     * construction and simply ignores the repeats.
+     * `roster` uses `Game.canonicalRosterSnapshot()` — derived directly
+     * from `this.seats` (mode-agnostic: works for a classic 1v1 host OR a
+     * star host, unlike the old `spectateAccepted`'s `buildRoster()` and
+     * `starResumeState`'s star-only `hub.currentRoster()`, which this
+     * replaces both of). A spectator's OWN "who else is spectating" view
+     * still comes from the separate, ongoing `'roster'` broadcast — this
+     * field is only ever the match's actual seat/side assignments.
+     *
+     * `seed`/`settings`/`roster` are only load-bearing for a COLD
+     * reconnect or a fresh spectator join (no local Game object yet to
+     * construct from); an in-session redial/resync's Game object already
+     * has all of these from its own construction and simply ignores the
+     * repeats.
      */
     | {
-          type: 'starResumeState';
+          type: 'matchCatchUp';
           version: number;
-          seat: SeatId;
           seed: number;
           settings: GameSettings;
           roster: CanonicalSeatDef[];
           actions: LoggedAction[];
           battleElapsed: number | null;
           phaseRemaining: number;
+          viewer: { kind: 'seat'; seat: SeatId } | { kind: 'spectator'; vision: SpectatorVision };
       }
     /** host declines a starRejoin (seat not actually pending, version
      *  mismatch, or the seat was already reclaimed by a race winner) */
@@ -1200,7 +1204,7 @@ export class StarHub implements HostHub {
         viewer.liveness?.stop();
         viewer.liveness = null;
         // the live-relay buffer is moot now — a successful reclaim gets a
-        // fresh, authoritative starResumeState instead (see Game's
+        // fresh, authoritative matchCatchUp instead (see Game's
         // onSeatReconnected), so stale buffered entries would only risk
         // double-delivery once StarHub.relayBuild resumes flushing to them
         viewer.buffer.length = 0;
@@ -1251,7 +1255,7 @@ export class StarHub implements HostHub {
         const fromSide = this.sideOf(fromSeat);
         for (const [seat, viewer] of this.bySeat) {
             // never echo back to the sender; a currently-disconnected
-            // recipient gets fully caught up via starResumeState on
+            // recipient gets fully caught up via matchCatchUp on
             // reconnect instead — nothing useful to buffer for them here
             if (seat === fromSeat || !viewer.conn) continue;
             const policy = seatVisionPolicy(this.sideOf(seat));
@@ -1730,8 +1734,9 @@ export class SpectatorHub {
      * Wires the persistent connection acceptor — unlike `awaitConnection`,
      * this never detaches, since any number of spectators may join over the
      * match's lifetime. `onJoin` decides whether to accept (e.g. version
-     * check) and, if so, is responsible for replying with `spectateAccepted`
-     * (or `spectateRejected` + closing the connection).
+     * check) and, if so, is responsible for replying with `matchCatchUp`
+     * (viewer `{kind:'spectator'}`) (or `spectateRejected` + closing the
+     * connection).
      */
     listen(onJoin: (name: string, version: number, conn: DataConnection) => void): void {
         this.peer.on('connection', (conn) => {
@@ -1753,7 +1758,7 @@ export class SpectatorHub {
         });
     }
 
-    /** call once `onJoin` has accepted a spectator (sent `spectateAccepted`) */
+    /** call once `onJoin` has accepted a spectator (sent `matchCatchUp`) */
     admit(name: string, conn: DataConnection, vision: SpectatorVision = { mode: 'battle' }): void {
         // same app-level liveness watchdog as player connections (see
         // watchLiveness's doc comment) — a spectator's hard browser-close
@@ -2209,7 +2214,10 @@ export interface SpectateResult {
     actions: LoggedAction[];
     battleElapsed: number | null;
     phaseRemaining: number;
-    roster: RosterEntry[];
+    /** the match's actual seat/side roster (see `matchCatchUp`'s doc
+     *  comment) — NOT the social "who's watching" list, which is the
+     *  separate, ongoing `'roster'` broadcast (`RosterEntry[]`). */
+    roster: CanonicalSeatDef[];
     vision: SpectatorVision;
 }
 
@@ -2265,7 +2273,9 @@ export async function joinAsSpectator(
             conn.on('data', onData);
         });
         if (msg.type === 'spectateRejected') throw new Error(msg.reason);
-        if (msg.type !== 'spectateAccepted') throw new Error('Unexpected reply from host');
+        if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
+            throw new Error('Unexpected reply from host');
+        }
         if (msg.version !== GAME_VERSION) throw new Error('Version mismatch');
         return {
             session: new SpectatorSession(peer, conn),
@@ -2275,7 +2285,7 @@ export async function joinAsSpectator(
             battleElapsed: msg.battleElapsed,
             phaseRemaining: msg.phaseRemaining,
             roster: msg.roster,
-            vision: msg.vision,
+            vision: msg.viewer.vision,
         };
     } catch (e) {
         peer.destroy();

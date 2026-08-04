@@ -2658,12 +2658,20 @@ export class Hud {
         remainingSeconds: number,
         waitingForPeer = false,
         allyLockedIn = false,
+        // a spectator is ALWAYS `waitingForPeer` (nothing here is ever
+        // theirs to act on, so the whole build UI hides the same way a
+        // locked-in player's does) but that's not an actual "waiting on
+        // someone" state worth announcing — they should just see the real
+        // round/phase like anyone else watching. Only suppress the round
+        // label for a genuine player-side wait.
+        watching = false,
     ): void {
-        this.roundEl.textContent = waitingForPeer
-            ? 'Waiting for opponent'
-            : round === 0
-              ? DISPLAY.commanders
-              : `Round ${round}`;
+        this.roundEl.textContent =
+            waitingForPeer && !watching
+                ? 'Waiting for opponent'
+                : round === 0
+                  ? DISPLAY.commanders
+                  : `Round ${round}`;
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle');

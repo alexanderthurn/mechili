@@ -48,6 +48,7 @@ import {
     NetworkOpponent,
     registerSpectateEndpoint,
     seatVisionPolicy,
+    spectatorVisionPolicy,
     SpectatorHub,
     STAR_RECONNECT_GRACE_MS,
     type GuestSession,
@@ -59,6 +60,7 @@ import {
     type SpectatorSession,
     type SpectatorVision,
     type StarRole,
+    type VisionPolicy,
 } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode, type MatchResult } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
@@ -180,6 +182,7 @@ import {
     seatLane,
     sideCount,
     sideIdsOf,
+    type CanonicalSeatDef,
     type SeatDef,
     type SeatId,
     type SideId,
@@ -1711,8 +1714,8 @@ export class Game {
         if ((this.net && this.side === 'a') || this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
         if (resume && this.star?.role === 'guest' && !resume.local) {
-            // cold reconnect via the main menu (see runStarPending's
-            // 'starResumeState' handling) — the host holds this seat
+            // cold reconnect via the main menu (see the guest session's
+            // 'matchCatchUp' handling) — the host holds this seat
             // suspended until it hears OUR 'ready', same fairness
             // handshake an in-session redial already sends via
             // beginStarGuestReconnect. hydrate() above already ran to
@@ -2910,7 +2913,7 @@ export class Game {
      * all-match just calls `resumeIfAllClear()`; a mismatch batches every
      * disagreeing seat's name into ONE low-key `announceSystem` line (not
      * one per seat — stay low-key), adds each to `pendingSyncSeats`, and
-     * unicasts each a fresh `starResumeState` via the existing
+     * unicasts each a fresh `matchCatchUp` via the existing
      * `starSeatReconnected` (already UI-agnostic — safe to reuse verbatim
      * for a reason other than a real disconnect). Returns the (possibly
      * now-true) "already compared" flag for the caller to persist.
@@ -3342,11 +3345,10 @@ export class Game {
                     })),
                 });
                 conn.send({
-                    type: 'spectateAccepted',
+                    type: 'matchCatchUp',
                     version: GAME_VERSION,
                     ...resume,
-                    roster: this.buildRoster(),
-                    vision,
+                    viewer: { kind: 'spectator', vision },
                 });
                 hub.admit(name, conn, vision);
                 // backfill whatever the snapshot just excluded (already
@@ -3498,7 +3500,7 @@ export class Game {
                     fresh.close();
                     return;
                 }
-                if (reply.type === 'starResumeState') {
+                if (reply.type === 'matchCatchUp' && reply.viewer.kind === 'seat') {
                     this.applyStarResumeState(reply);
                     // the old session's own peer-error listener would
                     // otherwise never be removed (see StarGuestSession's
@@ -3525,7 +3527,7 @@ export class Game {
     }
 
     /**
-     * Star guest only: applies a starResumeState catch-up onto this
+     * Star guest only: applies a matchCatchUp catch-up onto this
      * ALREADY-LIVE Game object — never reconstructed, unlike classic 1v1's
      * page-reload resume. dispatch() is NOT safe to re-run from index 0
      * here (no idempotency guard — a re-applied buy would double-spend,
@@ -3535,7 +3537,7 @@ export class Game {
      * input while `suspended` (see beginStarGuestReconnect) — nothing could
      * have been added locally in the meantime.
      */
-    private applyStarResumeState(msg: Extract<NetMessage, { type: 'starResumeState' }>): void {
+    private applyStarResumeState(msg: Extract<NetMessage, { type: 'matchCatchUp' }>): void {
         const log = msg.actions.map((e) => {
             const team = this.seats[e.action.seat!]?.team;
             return team ? { ...e, action: { ...e.action, team } } : e;
@@ -3672,7 +3674,7 @@ export class Game {
      * Star guest only: our own seq tracking noticed a gap in what the
      * host relayed — pause locally (same shape as a real disconnect) and
      * ask the host to treat us exactly like a reconnecting seat (see
-     * NetMessage's 'starResyncRequest' doc comment): full starResumeState
+     * NetMessage's 'starResyncRequest' doc comment): full matchCatchUp
      * resend, resume once we confirm with 'ready'. The `suspended` guard
      * avoids piling up duplicate requests if more gaps are noticed while
      * one resync is already in flight.
@@ -3740,18 +3742,18 @@ export class Game {
     private starSeatReconnected(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host') return;
         this.star.hub.send(seat, {
-            type: 'starResumeState',
+            type: 'matchCatchUp',
             version: GAME_VERSION,
-            // seat/seed/settings/roster: only load-bearing for a COLD
-            // reconnect (see the message's own doc comment) — cheap to
-            // always include, an in-session redial just ignores the repeats
-            seat,
+            // seed/settings/roster: only load-bearing for a COLD reconnect
+            // (see the message's own doc comment) — cheap to always
+            // include, an in-session redial just ignores the repeats
             seed: this.seed,
             settings: this.settings,
-            roster: this.star.hub.currentRoster(),
+            roster: this.canonicalRosterSnapshot(),
             actions: this.actionsForSeatResume(seat),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
+            viewer: { kind: 'seat', seat },
         });
         this.spectateRegistration?.refreshNow();
     }
@@ -3913,7 +3915,7 @@ export class Game {
         // connection eventually ages out of bySeat (its reconnect grace
         // window elapsing), nextOpenSeat() would hand the seat to literally
         // any stranger who happens to send starJoin — who'd then receive
-        // the full starResumeState (this match's entire seed/settings/
+        // the full matchCatchUp (this match's entire seed/settings/
         // action log) as if they were the original player.
         if (this.star?.role === 'host') {
             this.star.hub.setRosterEntry(seat, {
@@ -4344,6 +4346,7 @@ export class Game {
     private exportResumeForSpectator(vision: SpectatorVision): {
         seed: number;
         settings: GameSettings;
+        roster: CanonicalSeatDef[];
         actions: LoggedAction[];
         battleElapsed: number | null;
         phaseRemaining: number;
@@ -4351,10 +4354,38 @@ export class Game {
         return {
             seed: this.seed,
             settings: this.settings,
+            roster: this.canonicalRosterSnapshot(),
             actions: this.actionsForSpectatorResume(vision),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
         };
+    }
+
+    /**
+     * Phase C (TEAM_MODES_PLAN.md §3c): the one mode-agnostic canonical
+     * roster snapshot, replacing both `starResumeState`'s star-only
+     * `this.star.hub.currentRoster()` and `spectateAccepted`'s
+     * `buildRoster()` (which mixed in spectator entries this payload never
+     * needed — the ongoing `'roster'` broadcast already covers that). Built
+     * straight from `this.seats`, which every mode already keeps live-
+     * accurate for exactly this data (name/controller/avatar — see
+     * takeOverSeatWithAi/reclaimSeatFromAi, both of which update
+     * `this.seats` and the hub's own roster together) — so this needs no
+     * `this.star`/hub reach-in and works identically for a classic 1v1 host
+     * or a star host of any seat count.
+     */
+    private canonicalRosterSnapshot(): CanonicalSeatDef[] {
+        return this.seats.map((s, seat) => ({
+            side: s.side === 0 ? 'a' : 'b',
+            controller: s.controller,
+            // our OWN seat's name always comes from the live playerNames.local,
+            // not the possibly-stale `s.name` baked in at construction — same
+            // idiom buildRoster()/opponentDisplayName() already use everywhere
+            // else a seat's display name is read (a mid-match name edit
+            // updates playerNames.local but nothing resyncs `this.seats`)
+            name: seat === this.humanSeat ? this.playerNames.local : s.name,
+            avatar: s.avatar,
+        }));
     }
 
     /**
@@ -4368,25 +4399,47 @@ export class Game {
     }
 
     /**
-     * Star host only: the resume payload for a reconnecting seat — reuses
-     * the SAME `isRevealable` predicate `StarHub.relayBuild` already uses
-     * (a seat-vision policy), rather than `actionsForPeerResume`'s classic-
-     * 1v1-specific `team !== 'player'` check, which only ever makes sense
-     * for exactly 2 parties. Same "only this round is still in question"
-     * shape as `actionsForPeerResume`: round 0 and any already-completed
-     * round are always included unconditionally.
+     * Phase C (TEAM_MODES_PLAN.md §3c): the one `isRevealable` reveal check
+     * shared by every catch-up path below — a reconnecting/resyncing seat
+     * (`actionsForSeatResume`) and a freshly-joined spectator
+     * (`actionsForSpectatorResume`/`excludedActionsForSpectatorResume`)
+     * used to each hand-roll their own filter (a seat-count-agnostic
+     * `hub.sideOf`/`starSideLocked` version for seats, a hand-rolled
+     * `livePlayer`/`liveEnemy`/"both locked" version for spectators) that
+     * happened to compute the same thing two different ways. `e.action.team`
+     * is reliable as the from-side tag in OUR OWN log regardless of mode
+     * (host's own entries are always 'player', the guest's/other side's
+     * always 'enemy' — see hydrate's `swapTeams:false` doc comment, and the
+     * matching note at this function's `startSpectatorHub` call site), and
+     * `deployReady.player`/`.enemy` is exactly the side-locked aggregate
+     * `starSideLocked` also derives from (`seatReady`'s own doc comment:
+     * "aggregated into deployReady per side") — so this single mode-
+     * agnostic predicate is correct for a star OR classic 1v1 host, with no
+     * `this.star`/`hub` reach-in needed at all. Verified equivalent to the
+     * three prior implementations branch-by-branch before landing this,
+     * including the seat viewer's per-side (not both-sides) lock asymmetry
+     * `isRevealable` itself documents.
+     */
+    private revealableToViewer(policy: VisionPolicy): (e: LoggedAction) => boolean {
+        return (e) => {
+            if (e.round !== this.round) return true;
+            const fromSide: 'a' | 'b' = e.action.team === 'player' ? 'a' : 'b';
+            return isRevealable(policy, fromSide, (side) =>
+                side === 'a' ? this.deployReady.player : this.deployReady.enemy,
+            );
+        };
+    }
+
+    /**
+     * Star host only: the resume payload for a reconnecting seat — round 0
+     * and any already-completed round are always included unconditionally
+     * (see {@link revealableToViewer}), same shape as `actionsForPeerResume`.
      */
     private actionsForSeatResume(seat: SeatId): LoggedAction[] {
         if (!this.star || this.star.role !== 'host') return [];
-        const hub = this.star.hub;
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return all;
-        const policy = seatVisionPolicy(hub.sideOf(seat));
-        return all.filter((e) => {
-            if (e.round !== this.round) return true;
-            const fromSide = hub.sideOf(e.action.seat!);
-            return isRevealable(policy, fromSide, (side) => this.starSideLocked(side));
-        });
+        return all.filter(this.revealableToViewer(seatVisionPolicy(this.star.hub.sideOf(seat))));
     }
 
     /**
@@ -4396,18 +4449,7 @@ export class Game {
     private actionsForSpectatorResume(vision: SpectatorVision): LoggedAction[] {
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return all;
-        if (this.deployReady.player && this.deployReady.enemy) return all;
-        if (vision.mode === 'battle') {
-            return all.filter((e) => e.round !== this.round);
-        }
-        const livePlayer = vision.seats.includes('a'); // host seat = player in host log
-        const liveEnemy = vision.seats.includes('b');
-        return all.filter((e) => {
-            if (e.round !== this.round) return true;
-            if (e.action.team === 'player') return livePlayer;
-            if (e.action.team === 'enemy') return liveEnemy;
-            return false;
-        });
+        return all.filter(this.revealableToViewer(spectatorVisionPolicy(vision)));
     }
 
     /**
@@ -4427,18 +4469,8 @@ export class Game {
     private excludedActionsForSpectatorResume(vision: SpectatorVision): LoggedAction[] {
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return [];
-        if (this.deployReady.player && this.deployReady.enemy) return [];
-        if (vision.mode === 'battle') {
-            return all.filter((e) => e.round === this.round);
-        }
-        const livePlayer = vision.seats.includes('a');
-        const liveEnemy = vision.seats.includes('b');
-        return all.filter((e) => {
-            if (e.round !== this.round) return false;
-            if (e.action.team === 'player') return !livePlayer;
-            if (e.action.team === 'enemy') return !liveEnemy;
-            return true;
-        });
+        const revealable = this.revealableToViewer(spectatorVisionPolicy(vision));
+        return all.filter((e) => !revealable(e));
     }
 
     /**
@@ -5110,7 +5142,7 @@ export class Game {
             // host already applied this locally at the point it broadcast
             // it; every OTHER connected seat (ally, opponent, or the
             // reconnecting seat itself once it's back) reconciles here.
-            // Round/phase mismatch means our own catch-up (starResumeState
+            // Round/phase mismatch means our own catch-up (matchCatchUp
             // for a reconnecting seat) hasn't reached this point yet, or a
             // stale/out-of-order message — either way, nothing to do.
             if (!isHost && msg.round === this.round && msg.phase === this.phase) {
@@ -5164,7 +5196,7 @@ export class Game {
                 this.beginStarSeatSuspend(fromSeat);
                 this.starSeatReconnected(fromSeat);
             }
-        } else if (msg.type === 'starResumeState') {
+        } else if (msg.type === 'matchCatchUp' && msg.viewer.kind === 'seat') {
             // only reached here for a LIVE resync (seq gap or hash
             // mismatch) with the connection never actually dropping — a
             // real cold/in-session reconnect instead consumes this via its
@@ -5204,7 +5236,7 @@ export class Game {
             const side = star.hub.sideOf(fromSeat);
             this.spectatorHub.setSeatLive(msg.spectatorName, side, msg.grant);
         } else if (msg.type === 'ready') {
-            // host only: a seat finished applying its starResumeState
+            // host only: a seat finished applying its matchCatchUp
             // catch-up. Two INDEPENDENT checks, not else-if: a seat can be
             // in both pendingStarSeats (real reconnect) AND pendingSyncSeats
             // (a sync-barrier resync) at once — e.g. a genuine drop
@@ -7895,7 +7927,7 @@ export class Game {
             seatIdsOf(this.seats, 'player').some(
                 (seat) => seat !== this.humanSeat && this.seatReady[seat],
             );
-        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn);
+        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn, this.watching);
         // live countdown on the "Waiting…" seat-drop notice — re-render
         // only when the displayed second actually changes, not every frame.
         // matchOver-gated too: finishMatch/resumeIfAllClear already null
