@@ -1315,8 +1315,23 @@ function clearRosterTable(): void {
  * filled one. Built to directly address the "I saw a Start button and
  * assumed someone had joined" confusion: the seat count and names are
  * front and center instead of buried in a status sentence.
+ *
+ * `waitForJoined` (total participants, host included, before auto-start —
+ * see beginStarHost's own doc comment) also tells us which still-open
+ * seats can NEVER be claimed by a human this game: nextOpenSeat() always
+ * fills seats in ascending index order, so once `waitForJoined - 1` more
+ * humans have joined, every seat after that point is guaranteed to be
+ * AI-filled at start — e.g. 2v2ai's waitForJoined=2 only ever waits for
+ * one more human (your ally), so both opponent seats are certain AI from
+ * the moment hosting begins, not just "waiting." Renders those as a
+ * distinct "AI" box instead of the misleading "Waiting…" a real host hit
+ * live (2v2ai's opponent side can never actually be joined).
  */
-function renderRosterTable(roster: CanonicalSeatDef[], connectedSeats: readonly SeatId[]): void {
+function renderRosterTable(
+    roster: CanonicalSeatDef[],
+    connectedSeats: readonly SeatId[],
+    waitForJoined: number,
+): void {
     rosterTableEl.innerHTML = '';
     rosterTableEl.style.display = '';
     const mySide = roster[0]?.side;
@@ -1331,6 +1346,8 @@ function renderRosterTable(roster: CanonicalSeatDef[], connectedSeats: readonly 
     // your side first, always — sides beyond 'a'/'b' would sort arbitrarily
     // otherwise, and "you" belongs on the left regardless of side order
     const sides = [...bySide.keys()].sort((a, b) => (a === mySide ? -1 : b === mySide ? 1 : 0));
+    const guaranteedAiFrom = waitForJoined - 1; // join-rank (0-based, excludes host) beyond which a seat can't be human
+    let openRank = 0;
     for (const side of sides) {
         const col = document.createElement('div');
         col.className = `m-roster-col ${side === mySide ? 'm-roster-col-you' : 'm-roster-col-foe'}`;
@@ -1340,9 +1357,15 @@ function renderRosterTable(roster: CanonicalSeatDef[], connectedSeats: readonly 
         col.appendChild(header);
         for (const seat of bySide.get(side)!) {
             const filled = seat === 0 || connectedSeats.includes(seat);
+            const rank = seat === 0 ? -1 : openRank++;
+            const guaranteedAi = !filled && rank >= guaranteedAiFrom;
             const cell = document.createElement('div');
-            cell.className = `m-roster-seat ${filled ? 'filled' : 'empty'}${seat === 0 ? ' you' : ''}`;
-            cell.textContent = filled ? `${roster[seat]!.name}${seat === 0 ? ' (you)' : ''}` : 'Waiting…';
+            cell.className = `m-roster-seat ${filled ? 'filled' : guaranteedAi ? 'ai' : 'empty'}${seat === 0 ? ' you' : ''}`;
+            cell.textContent = filled
+                ? `${roster[seat]!.name}${seat === 0 ? ' (you)' : ''}`
+                : guaranteedAi
+                  ? 'AI'
+                  : 'Waiting…';
             col.appendChild(cell);
         }
         cols.appendChild(col);
@@ -2314,7 +2337,7 @@ async function beginStarHost(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
-        renderRosterTable(roster, hub.connectedSeats());
+        renderRosterTable(roster, hub.connectedSeats(), waitForJoined);
         // let every currently-connected guest see the same live roster
         // preview instead of just a static "waiting for the host" — see
         // runStarPending's 'starRoster' handling
@@ -2656,7 +2679,7 @@ function wireSteamStarHub(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
-        renderRosterTable(roster, hub.connectedSeats());
+        renderRosterTable(roster, hub.connectedSeats(), waitForJoined);
         hub.broadcast({ type: 'starRoster', roster });
         if (joined >= waitForJoined) {
             setStatus(`Steam lobby — ${joined}/${roster.length} joined: ${names}. Starting…`);

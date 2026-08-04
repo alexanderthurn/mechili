@@ -839,6 +839,7 @@ ${fontFaceCss()}
 .mechili-menu .m-roster-seat.filled.you { border-color: ${u.brassLight}; color: ${u.brassLight}; }
 .mechili-menu .m-roster-seat.filled:not(.you) { border-color: ${u.hpBar}; }
 .mechili-menu .m-roster-seat.empty { border-style: dashed; color: ${u.textMuted}; font-weight: normal; }
+.mechili-menu .m-roster-seat.ai { border-color: ${u.speedBg}; color: ${u.textMuted}; font-style: italic; }
 button.m-seat-invite {
     cursor: pointer;
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
