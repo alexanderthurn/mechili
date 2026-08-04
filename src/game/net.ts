@@ -993,8 +993,21 @@ export class StarHub implements HostHub {
             if (msg.type === 'pong') return;
             this.onMessage?.(seat, msg);
         });
-        conn.on('close', () => this.dropSeat(seat));
-        conn.on('error', () => this.dropSeat(seat));
+        // Guard against a STALE event from a superseded connection: the
+        // previous connection for this seat (e.g. an abruptly-closed tab)
+        // can fire its own late 'close'/'error' well after the app already
+        // gave up on it via the liveness watchdog — WebRTC's own ICE
+        // teardown has no fixed deadline and can take far longer than our
+        // 10s ping timeout. Without this check, that delayed event would
+        // tear down a BRAND NEW connection wired in the meantime for the
+        // same seat (confirmed live: a successful reclaim's fresh
+        // connection dropped 5ms after being accepted, from exactly this).
+        conn.on('close', () => {
+            if (this.bySeat.get(seat)?.conn === conn) this.dropSeat(seat);
+        });
+        conn.on('error', () => {
+            if (this.bySeat.get(seat)?.conn === conn) this.dropSeat(seat);
+        });
         if (viewer) {
             viewer.liveness = watchLiveness(
                 () => conn.send({ type: 'ping' }),
