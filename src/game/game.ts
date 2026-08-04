@@ -3926,12 +3926,7 @@ export class Game {
         const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
         const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
         this.extraAis.push({ ai, rng, team: def.team, seat });
-        // announce it through the same chat channel everyone already
-        // watches — sent BEFORE refreshCommanders() so the bubble still
-        // attaches to this seat's own (pre-"(AI)") chip
-        const announcement: ChatItem = { kind: 'text', text: `${def.name} disconnected — AI has taken over.` };
-        this.hud.addChat(def.name, announcement, 'remote');
-        this.broadcast({ type: 'chat', item: announcement, from: { name: def.name, role: 'player' } });
+        this.announceSystem(`${def.name} disconnected — AI has taken over.`, def.name);
         this.broadcastRoster();
         this.refreshCommanders();
         // this round's build may already be in progress with nobody left
@@ -3994,12 +3989,7 @@ export class Game {
         // this one) as a fatal protocol error, closing the connection
         // instants after accepting it.
         this.starSeatReconnected(seat);
-        // same chat pattern takeOverSeatWithAi uses (not announceSystem) —
-        // sent before refreshCommanders() so the bubble still attaches
-        // correctly to this seat's own chip
-        const announcement: ChatItem = { kind: 'text', text: `${def.name} has taken back their seat.` };
-        this.hud.addChat(def.name, announcement, 'remote');
-        this.broadcast({ type: 'chat', item: announcement, from: { name: def.name, role: 'player' } });
+        this.announceSystem(`${def.name} has taken back their seat.`, def.name);
         this.broadcastRoster();
         this.refreshCommanders();
         this.spectateRegistration?.refreshNow();
