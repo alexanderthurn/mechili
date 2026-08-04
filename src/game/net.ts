@@ -1587,11 +1587,25 @@ export async function hostStarRoom(
     // regardless of `mode`, see joinStarRoom's callers in main.ts).
     await lobbyRegister(hub.peerId, name, mode);
     const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, mode), HEARTBEAT_MS);
+    // Without this, closing the tab/browser (rather than clicking Cancel,
+    // which runs cleanup() below) never calls lobbyLeave at all — the
+    // heartbeat just stops, and the room only disappears from the list
+    // once the backend's own 15s TTL lapses (confirmed live: a host
+    // closing mid-lobby left the room listed for a while afterward). A
+    // plain fetch() isn't reliable once the page is actually unloading;
+    // sendBeacon is built for exactly this. No body needed — the backend
+    // reads action/peer from the URL's own query string regardless of
+    // sendBeacon always using POST.
+    const onPageHide = () => {
+        navigator.sendBeacon(`${matchUrl()}?action=leave&peer=${encodeURIComponent(hub.peerId)}`);
+    };
+    window.addEventListener('pagehide', onPageHide);
     return {
         hub,
         roomId,
         cleanup: () => {
             clearInterval(heartbeat);
+            window.removeEventListener('pagehide', onPageHide);
             void lobbyLeave(hub.peerId);
         },
     };
