@@ -1408,6 +1408,29 @@ export type StarRole =
  * `discovery: 'lan'` uses Electron's local PeerServer + UDP announce (no PHP).
  * `discovery: 'matchmaking'` (default) uses the PeerJS cloud + matchmaking.php.
  */
+/**
+ * Turns a raw StarHub.open() failure into an accurate message instead of
+ * blindly assuming every failure is a name collision — it can also be a
+ * generic network/permission error, and blaming the username then is
+ * actively misleading. For the one case that IS a real id collision
+ * ('unavailable-id'), the honest framing is "still marked open," not "pick
+ * another username": overwhelmingly this is the player's OWN previous
+ * hosting attempt (e.g. clicking Cancel) whose peer id the broker hasn't
+ * released yet, not a coincidental second person with the same name — and
+ * "pick another username" is not even an option the room-code-based join
+ * flow supports changing later.
+ */
+function describeHostOpenFailure(name: string, e: unknown): Error {
+    const type = (e as { type?: string } | undefined)?.type;
+    if (type === 'unavailable-id') {
+        return new Error(
+            `A room for "${name}" is still marked open from a previous session — reload the page to release it, then try again.`,
+        );
+    }
+    const detail = e instanceof Error ? e.message : String(e);
+    return new Error(`Could not open a room for "${name}": ${detail}`);
+}
+
 export async function hostStarRoom(
     initialRoster: CanonicalSeatDef[],
     onStatus: (status: string) => void,
@@ -1434,10 +1457,10 @@ export async function hostStarRoom(
         let hub: StarHub;
         try {
             hub = await StarHub.open(initialRoster, roomId);
-        } catch {
+        } catch (e) {
             await lan.stopHost();
             setPeerServerConfig(null);
-            throw new Error(`Name "${name}" is already hosting — pick another username`);
+            throw describeHostOpenFailure(name, e);
         }
         return {
             hub,
@@ -1454,8 +1477,8 @@ export async function hostStarRoom(
     let hub: StarHub;
     try {
         hub = await StarHub.open(initialRoster, roomId);
-    } catch {
-        throw new Error(`Name "${name}" is already hosting — pick another username`);
+    } catch (e) {
+        throw describeHostOpenFailure(name, e);
     }
     // reuses the SAME room-code registration as 1v1 custom rooms — `mode`
     // is purely a display label for the room list now (every room is
