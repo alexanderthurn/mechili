@@ -1089,7 +1089,7 @@ export class Scenery {
     // weather-driven cover: soft snow line descending from the peaks
     // (full white at meadow level — matches the board wash).
     float snowLine = mix(220.0, -15.0, uSnowCover);
-    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * (1.0 - vBeach);
+    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
     // alpine stays bright; weather frost on meadow/board is softer (matches map.ts)
     float snowF = max(alpineSnow, weatherSnow * 0.82);
     float rockF = 0.0;`;
@@ -1152,7 +1152,7 @@ export class Scenery {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v10${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v11${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
