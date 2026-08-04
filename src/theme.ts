@@ -324,31 +324,30 @@ ${fontFaceCss()}
     user-select: none;
     z-index: 30;
 }
-/* Custom Game screen: wider, near-fullscreen, scrollable — the settings
-   form (mode + 4 timers + horde + roundcards) doesn't fit the normal
-   compact button-list width, and the logo (hidden separately via
-   title.visible) would just eat vertical space it needs instead. */
-.mechili-menu.m-wide {
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: min(720px, 94vw);
-    max-height: min(92vh, calc(100dvh - 120px));
-    overflow-y: auto;
+/* Exclusive submenu screens — only .is-active is shown (see showMenuView).
+   :not(.is-active) beats later .m-main/.m-custom display:flex rules. */
+.mechili-menu .m-view:not(.is-active) { display: none; }
+.mechili-menu .m-view.is-active {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
 }
 /* short viewports: keep the button stack readable above bottom chrome */
 @media (max-height: 720px) {
-    .mechili-menu:not(.m-wide) {
+    .mechili-menu {
         gap: 8px;
         padding: 14px 16px 16px;
         max-height: min(86vh, calc(100dvh - 168px));
     }
-    .mechili-menu:not(.m-wide) .m-btn {
+    .mechili-menu .m-btn {
         padding: 11px 14px;
         font-size: 15px;
     }
-    .mechili-menu:not(.m-wide) .m-primary { font-size: 16px; }
-    .mechili-menu:not(.m-wide) .m-main { gap: 8px; }
-    .mechili-menu:not(.m-wide) .m-room-list {
+    .mechili-menu .m-primary { font-size: 16px; }
+    .mechili-menu .m-main { gap: 8px; }
+    .mechili-menu .m-room-list {
         max-height: min(120px, 22vh);
         min-height: 48px;
     }
@@ -439,7 +438,7 @@ ${fontFaceCss()}
     font-size: 13px;
     letter-spacing: 1px;
 }
-.mechili-menu .m-custom { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.mechili-menu .m-custom { flex-direction: column; align-items: center; gap: 10px; }
 .mechili-menu .m-join { display: flex; gap: 8px; }
 .mechili-menu .m-input {
     width: 130px;
@@ -613,18 +612,10 @@ ${fontFaceCss()}
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
 .mechili-menu .m-main {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
     gap: 12px;
-    width: 100%;
 }
 .mechili-menu .m-spmode {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
     gap: 14px;
-    width: 100%;
 }
 .mechili-menu .m-spmode-title {
     font-size: 20px;
@@ -747,7 +738,7 @@ ${fontFaceCss()}
 }
 /* Custom Game screen: mode toggle reuses m-toggle-row/card above; these are
    just the timer/horde/roundcards form rows */
-.mechili-menu .m-custom { display: flex; flex-direction: column; align-items: stretch; gap: 14px; width: 100%; }
+.mechili-menu .m-custom { align-items: stretch; gap: 14px; }
 .mechili-menu .m-field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 14px; width: 100%; }
 .mechili-menu .m-field {
     display: flex;
@@ -806,17 +797,35 @@ ${fontFaceCss()}
     width: 100%;
     max-width: 380px;
 }
-.mechili-menu .m-roster-cols { display: flex; gap: 10px; width: 100%; }
-.mechili-menu .m-roster-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mechili-menu .m-roster-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+    align-items: center;
+}
+.mechili-menu .m-roster-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .mechili-menu .m-roster-col-header {
-    font-size: 11px;
-    font-weight: bold;
-    letter-spacing: 1px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
     text-align: center;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
-.mechili-menu .m-roster-col-you .m-roster-col-header { color: ${u.player}; }
-.mechili-menu .m-roster-col-foe .m-roster-col-header { color: ${u.enemy}; }
+/* Canonical team colors (side a = blue, side b = red) — lightened for dark panel. */
+.mechili-menu .m-roster-col-a .m-roster-col-header { color: #8ec8f8; }
+.mechili-menu .m-roster-col-b .m-roster-col-header { color: #ff8a7a; }
+.mechili-menu .m-roster-vs {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: lowercase;
+    color: ${u.brassLight};
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    padding: 0 2px;
+    user-select: none;
+}
 .mechili-menu .m-roster-seat {
     box-sizing: border-box;
     padding: 8px 8px 8px 10px;
@@ -872,6 +881,7 @@ ${fontFaceCss()}
     border: none;
     padding: 2px 0;
     width: auto;
+    align-self: flex-start;
     font-size: 12px;
     font-weight: bold;
     letter-spacing: 0.3px;
@@ -881,19 +891,60 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-lobby-settings-toggle:hover { color: ${u.brassLight}; }
 .mechili-menu .m-lobby-settings {
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 10px;
     width: 100%;
-    max-width: 380px;
     padding: 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
     border-radius: 10px;
+    box-sizing: border-box;
+}
+.mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: flex; }
+.mechili-menu .m-session-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+}
+.mechili-menu .m-session-primary {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    min-width: 0;
 }
 .mechili-menu .m-lobby-settings select:disabled {
-    opacity: 0.7;
-    cursor: default;
+    opacity: 0.85;
+    pointer-events: none;
+    cursor: inherit;
+}
+.mechili-menu .m-lobby-settings.m-readonly .m-field {
+    cursor: help;
+}
+.mechili-menu .m-lobby-settings.m-readonly .m-field:hover select:disabled,
+.mechili-menu .m-lobby-settings.m-readonly .m-field:active select:disabled {
+    border-color: ${u.brassLight};
+}
+.m-lobby-setting-tip {
+    position: fixed;
+    z-index: 80;
+    max-width: min(320px, calc(100vw - 24px));
+    padding: 10px 12px;
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    border: 1.5px solid ${u.brass};
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    color: ${u.text};
+    font-size: 13px;
+    line-height: 1.45;
+    pointer-events: none;
+    user-select: none;
+}
+.m-lobby-setting-tip.sticky {
+    pointer-events: auto;
 }
 .mechili-menu .m-lobby-ready-row {
     display: flex;
@@ -905,6 +956,21 @@ ${fontFaceCss()}
     text-transform: none;
     color: ${u.text};
     cursor: pointer;
+}
+/* Desktop lobby: when advanced settings are open, widen and park them beside the roster */
+@media (min-width: 720px) {
+    .mechili-menu:has(.m-session.is-active.m-has-lobby-settings.m-lobby-settings-open) {
+        width: min(640px, 92vw);
+    }
+    .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-session-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(200px, 0.9fr);
+        gap: 14px 16px;
+        align-items: start;
+    }
+    .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-lobby-settings {
+        max-width: none;
+    }
 }
 .mechili-menu .m-lobby-ready-check { width: 18px; height: 18px; accent-color: ${u.brass}; cursor: pointer; }
 button.m-seat-invite {
@@ -1425,19 +1491,36 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     z-index: 70;
+    padding: 16px;
+    box-sizing: border-box;
 }
 .mechili-settings .box {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     padding: 18px 20px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
     border-radius: 12px;
-    min-width: 320px;
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(88vh, calc(100dvh - 32px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     color: ${u.text};
+    box-sizing: border-box;
 }
 .mechili-settings .s-title { font-size: 15px; font-weight: bold; letter-spacing: 2px; }
+.mechili-settings .s-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.mechili-settings .s-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
 .mechili-settings .s-section {
     display: flex;
     flex-direction: column;
@@ -1484,16 +1567,20 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-settings .s-row {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 9px;
     font-size: 13.5px;
     cursor: pointer;
     user-select: none;
 }
+.mechili-settings .s-row select {
+    margin-left: auto;
+    min-width: 110px;
+}
 .mechili-settings .s-row input { width: 16px; height: 16px; accent-color: ${u.brass}; }
 .mechili-settings .s-hint {
     font-size: 12px;
     color: ${u.textMuted};
-    white-space: nowrap;
 }
 .mechili-settings .actions { display: flex; justify-content: flex-end; }
 .mechili-settings button {
@@ -1510,6 +1597,20 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-settings button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-settings button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
 .mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.hover}; outline-offset: 1px; }
+/* Desktop: use horizontal space — general left, graphics right */
+@media (min-width: 720px) {
+    .mechili-settings .box {
+        width: min(720px, calc(100vw - 48px));
+        padding: 22px 24px;
+    }
+    .mechili-settings .s-title { font-size: 17px; }
+    .mechili-settings .s-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+        gap: 8px 28px;
+        align-items: start;
+    }
+}
 
 /* Community Suggest — shared by game menu / pause / homepage */
 .mechili-suggest {
