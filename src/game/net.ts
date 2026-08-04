@@ -983,6 +983,8 @@ export class StarHub implements HostHub {
     private wireSeatConn(seat: SeatId, conn: DataConnection): void {
         const viewer = this.bySeat.get(seat);
         viewer?.liveness?.stop(); // replacing a reclaimed connection's own prior watchdog
+        const connTag = `${conn.peer}/${conn.connectionId ?? '?'}`;
+        this.onDebugEvent?.('star.seatConnWired', { seat, connTag });
         conn.on('data', (d) => {
             const msg = d as NetMessage;
             this.bySeat.get(seat)?.liveness?.markSeen();
@@ -1003,10 +1005,20 @@ export class StarHub implements HostHub {
         // same seat (confirmed live: a successful reclaim's fresh
         // connection dropped 5ms after being accepted, from exactly this).
         conn.on('close', () => {
-            if (this.bySeat.get(seat)?.conn === conn) this.dropSeat(seat);
+            const isCurrent = this.bySeat.get(seat)?.conn === conn;
+            this.onDebugEvent?.('star.seatConnClose', { seat, connTag, isCurrent });
+            if (isCurrent) this.dropSeat(seat);
         });
-        conn.on('error', () => {
-            if (this.bySeat.get(seat)?.conn === conn) this.dropSeat(seat);
+        conn.on('error', (err) => {
+            const isCurrent = this.bySeat.get(seat)?.conn === conn;
+            this.onDebugEvent?.('star.seatConnError', {
+                seat,
+                connTag,
+                isCurrent,
+                type: (err as { type?: string }).type,
+                message: err instanceof Error ? err.message : String(err),
+            });
+            if (isCurrent) this.dropSeat(seat);
         });
         if (viewer) {
             viewer.liveness = watchLiveness(
