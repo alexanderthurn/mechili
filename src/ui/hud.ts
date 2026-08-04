@@ -355,8 +355,8 @@ export class Hud {
     private enemyHpFill!: HTMLDivElement;
     private playerHpVal!: HTMLSpanElement;
     private enemyHpVal!: HTMLSpanElement;
-    private playerMaxHp = 1000;
-    private enemyMaxHp = 1000;
+    private playerMaxHp = 0;
+    private enemyMaxHp = 0;
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
     /** phone: always-visible undo + supply strip (top right, below the enemy card) */
@@ -1408,7 +1408,10 @@ export class Hud {
         setTimeout(() => line.remove(), 7000);
     }
 
-    /** one combined team card per side — built once at match start */
+    /** one combined team card per side — built once at match start.
+     *  HP bar max is not seeded here: setHp grows each side to its own
+     *  peak (first pick → full; 2v2 second pick raises peak to the sum).
+     *  Peaks are preserved across rebuilds (refreshCommanders). */
     setCommanders(
         entries: {
             seat: number;
@@ -1418,11 +1421,8 @@ export class Hud {
             avatar?: string | null;
         }[],
         humanSeat: number,
-        maxHp: number,
     ): void {
         this.humanSeat = humanSeat;
-        this.playerMaxHp = maxHp;
-        this.enemyMaxHp = maxHp;
         this.commanderChips = [];
         this.playerStackEl.replaceChildren();
         this.enemyStackEl.replaceChildren();
@@ -1580,14 +1580,13 @@ export class Hud {
     }
 
     /** @deprecated use setCommanders — kept for any external callers */
-    setPlayers(local: string, opponent: string, maxHp: number): void {
+    setPlayers(local: string, opponent: string): void {
         this.setCommanders(
             [
                 { seat: 0, team: 'player', name: local, primary: true },
                 { seat: 1, team: 'enemy', name: opponent, primary: true },
             ],
             0,
-            maxHp,
         );
     }
 
@@ -2778,8 +2777,11 @@ export class Hud {
     setHp(player: number, enemy: number): void {
         if (player > this.playerMaxHp) this.playerMaxHp = player;
         if (enemy > this.enemyMaxHp) this.enemyMaxHp = enemy;
-        const p = Math.max(0, Math.min(1, player / this.playerMaxHp));
-        const e = Math.max(0, Math.min(1, enemy / this.enemyMaxHp));
+        // 0/0 before any pick: empty fill (not NaN). After a grant, peak equals
+        // current so the bar reads full — including mid-pick in 2v2 when only
+        // one teammate has chosen yet.
+        const p = this.playerMaxHp > 0 ? Math.max(0, Math.min(1, player / this.playerMaxHp)) : 0;
+        const e = this.enemyMaxHp > 0 ? Math.max(0, Math.min(1, enemy / this.enemyMaxHp)) : 0;
         this.playerHpFill.style.transform = `scaleX(${p})`;
         this.enemyHpFill.style.transform = `scaleX(${e})`;
         this.playerHpVal.textContent = String(Math.max(0, Math.round(player)));

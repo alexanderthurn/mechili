@@ -1020,15 +1020,14 @@ export class Game {
         this.forgeSlots.enemy = emptyForgeSlots(
             forgeTeamCapacity(seatIdsOf(this.seats, 'enemy').length),
         );
-        // starts at 0, not settings.startingHp: each seat's own card ADDS its
-        // own startingHp in chooseCard (additive, so it's safe regardless of
-        // which seat's pick a client applies first) — settings.startingHp is
-        // only ever a pre-pick placeholder for the HUD's initial bar max
-        // (see setPlayers below), never the real baseline. Explicitly sized
-        // to the roster's real side count (not just "however far the
-        // playerHp/enemyHp setters happen to have written") so the
-        // enemyHp getter's "sum every other side" loop sees every side
-        // from the start, even ones nothing has assigned to yet.
+        // starts at 0: each seat's own card ADDS its own startingHp in
+        // chooseCard (additive, so it's safe regardless of which seat's
+        // pick a client applies first). Explicitly sized to the roster's
+        // real side count (not just "however far the playerHp/enemyHp
+        // setters happen to have written") so the enemyHp getter's "sum
+        // every other side" loop sees every side from the start, even
+        // ones nothing has assigned to yet. HUD bar max grows to each
+        // side's own peak via setHp (no shared GameSettings placeholder).
         this.hp = new Array(sideCount(this.seats)).fill(0);
         // Prefer the boot-warmed GL context so flame/projectile programs survive;
         // fall back to a fresh renderer after return-to-menu (new canvas).
@@ -1248,6 +1247,7 @@ export class Game {
                     else this.enemyHp = hp;
                 },
             },
+            commanderHpFactor: settings.commanderHpFactor,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -1432,7 +1432,7 @@ export class Game {
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
-        this.hud.setCommanders(this.commanderEntries(), this.humanSeat, settings.startingHp);
+        this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
                 this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
@@ -8294,7 +8294,9 @@ export class Game {
      *  (repro: host saw no change at all when a quitting client's seat got
      *  handed to AI — same stale name, no visible cue anything happened). */
     private refreshCommanders(): void {
-        this.hud.setCommanders(this.commanderEntries(), this.humanSeat, this.settings.startingHp);
+        this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
+        // new fill nodes — re-apply current HP against preserved per-side peaks
+        this.hud.setHp(this.playerHp, this.enemyHp);
     }
 
     /** veterancy display values for a pack (enemy uses phase-start intel while fogged) */

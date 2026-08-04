@@ -63,14 +63,19 @@ import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { iconHtml } from './ui/iconAtlas';
 import {
+    COMMANDER_HP_FACTOR_OPTIONS,
     CUSTOM_GAME_PACE_PRESETS,
+    DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
     DEFAULT_SETTINGS,
     HORDE_ALGORITHMS,
+    commanderHpFactorOption,
     customGamePaceById,
+    formatCommanderHpFactorOption,
     formatCustomGamePaceOption,
     hordeAlgorithmById,
+    resolveCommanderHpFactor,
     type GameSettings,
 } from './game/settings';
 import {
@@ -120,6 +125,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     pace: DEFAULT_CUSTOM_GAME_PACE_ID,
     hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
+    commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
 };
 
 const CUSTOM_GAME_KEY = 'mechili-custom-game';
@@ -160,6 +166,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             pace: customGamePaceById(pace).id,
             hordePreset: hordeAlgorithmById(hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
+            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
         };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
@@ -182,17 +189,15 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.cardTimeSeconds = pace.cardSeconds;
     settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
     settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
+    settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
 }
 
-// dev override: tweak match settings from the URL, e.g. ?hp=100&build=20&nocards
+// dev override: tweak match settings from the URL, e.g. ?build=20&nocards
 function settingsFromUrl(): GameSettings {
     const params = new URLSearchParams(location.search);
     const settings = structuredClone(DEFAULT_SETTINGS);
-    // NOTE: no longer shortens real matches for testing — actual match HP is
-    // additive per seat from a zero baseline (chooseCard), so this only
-    // affects the pre-pick placeholder shown before any card is chosen
-    const hp = Number(params.get('hp'));
-    if (hp > 0) settings.startingHp = hp;
+    const hpFactor = Number(params.get('commanderHpFactor') ?? params.get('hpFactor'));
+    if (hpFactor > 0) settings.commanderHpFactor = hpFactor;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
     // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
@@ -720,6 +725,9 @@ menu.innerHTML = `
                 <label class="m-field">Round cards
                     <select class="cg-roundcards"></select>
                 </label>
+                <label class="m-field">HP
+                    <select class="cg-commander-hp"></select>
+                </label>
             </div>
         </div>
     </div>
@@ -953,6 +961,7 @@ const sessionEl = menu.querySelector<HTMLDivElement>('.m-session')!;
 const cgPaceEl = menu.querySelector<HTMLSelectElement>('.cg-pace')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
+const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
@@ -1088,11 +1097,20 @@ for (const algo of ROUND_CARD_ALGORITHMS) {
 }
 wireSelectShortLabels(cgRoundCardsEl);
 
+for (const optHp of COMMANDER_HP_FACTOR_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = String(optHp.factor);
+    fillSelectOption(opt, optHp.label, formatCommanderHpFactorOption(optHp));
+    cgCommanderHpEl.appendChild(opt);
+}
+wireSelectShortLabels(cgCommanderHpEl);
+
 function isNonDefaultLobbySettings(cfg: CustomGameConfig): boolean {
     return (
         cfg.pace !== DEFAULT_CUSTOM_GAME_PACE_ID ||
         cfg.hordePreset !== DEFAULT_HORDE_PRESET_ID ||
-        cfg.roundCardPreset !== DEFAULT_ROUND_CARD_PRESET_ID
+        cfg.roundCardPreset !== DEFAULT_ROUND_CARD_PRESET_ID ||
+        cfg.commanderHpFactor !== DEFAULT_COMMANDER_HP_FACTOR
     );
 }
 
@@ -1105,9 +1123,10 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgPaceEl.value = customGamePaceById(cfg.pace).id;
     cgHordeEl.value = hordeAlgorithmById(cfg.hordePreset).id;
     cgRoundCardsEl.value = roundCardAlgorithmById(cfg.roundCardPreset).id;
+    cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl]) {
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
         syncSelectOptionLabels(sel, false);
     }
 }
@@ -1169,7 +1188,7 @@ function showLobbySettingTip(anchor: HTMLElement, text: string, sticky: boolean)
  *  tap — disabled <select>s don't receive pointer events, so the parent
  *  .m-field owns the interaction. */
 function wireLobbySettingTips(): void {
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl]) {
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
         const field = sel.closest<HTMLElement>('.m-field');
         if (!field) continue;
         field.addEventListener('pointerenter', (e) => {
@@ -1200,11 +1219,15 @@ function wireLobbySettingTips(): void {
 }
 wireLobbySettingTips();
 
-function readLobbySettingsForm(): Pick<CustomGameConfig, 'pace' | 'hordePreset' | 'roundCardPreset'> {
+function readLobbySettingsForm(): Pick<
+    CustomGameConfig,
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor'
+> {
     return {
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
+        commanderHpFactor: commanderHpFactorOption(Number(cgCommanderHpEl.value)),
     };
 }
 
@@ -1535,11 +1558,13 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
     const onChange = () => {
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, readLobbySettingsForm());
+        saveCustomGameConfig(activeLobbyHost.config);
         activeLobbyHost.onChange();
     };
     cgPaceEl.addEventListener('change', onChange);
     cgHordeEl.addEventListener('change', onChange);
     cgRoundCardsEl.addEventListener('change', onChange);
+    cgCommanderHpEl.addEventListener('change', onChange);
 })();
 
 /** host-side only: show + populate the editable lobby-settings panel for
@@ -1560,6 +1585,7 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
     cgPaceEl.disabled = false;
     cgHordeEl.disabled = false;
     cgRoundCardsEl.disabled = false;
+    cgCommanderHpEl.disabled = false;
     populateLobbySettingsForm(config);
 }
 
@@ -1580,6 +1606,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgPaceEl.disabled = true;
     cgHordeEl.disabled = true;
     cgRoundCardsEl.disabled = true;
+    cgCommanderHpEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }

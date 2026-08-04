@@ -893,8 +893,8 @@ ${fontFaceCss()}
 .mechili-menu .m-lobby-settings-toggle:hover { color: ${u.brassLight}; }
 .mechili-menu .m-lobby-settings {
     display: none;
-    flex-direction: column;
-    gap: 10px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
     width: 100%;
     padding: 12px;
     background: ${u.panelBgDark};
@@ -902,7 +902,8 @@ ${fontFaceCss()}
     border-radius: 10px;
     box-sizing: border-box;
 }
-.mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: flex; }
+.mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: grid; }
+.mechili-menu .m-lobby-settings .m-field { min-width: 0; }
 .mechili-menu .m-session-layout {
     display: flex;
     flex-direction: column;
@@ -975,6 +976,19 @@ ${fontFaceCss()}
     }
     .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-lobby-settings {
         max-width: none;
+    }
+}
+/* Narrow / single-column lobby: use more horizontal room so advanced
+   settings (2-col selects) and the main button stack aren't tiny. */
+@media (max-width: 719px) {
+    .mechili-menu {
+        width: min(92vw, 420px);
+    }
+    .mechili-menu:has(.m-session.is-active) {
+        width: min(94vw, 460px);
+    }
+    .mechili-menu:has(.m-session.is-active.m-has-lobby-settings.m-lobby-settings-open) {
+        width: min(96vw, 520px);
     }
 }
 .mechili-menu .m-lobby-ready-check { width: 18px; height: 18px; accent-color: ${u.brass}; cursor: pointer; }

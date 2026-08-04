@@ -221,6 +221,8 @@ export interface CustomGameConfig {
     hordePreset: string;
     /** id into ROUND_CARD_ALGORITHMS */
     roundCardPreset: string;
+    /** multiplies each commander card’s starting HP (both teams); see GameSettings.commanderHpFactor */
+    commanderHpFactor: number;
 }
 
 /**

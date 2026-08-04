@@ -467,6 +467,11 @@ export interface ActionContext {
     unlockUsedThisRound: boolean[];
     /** player HP pools (cards set the starting value) */
     hp: { get: (team: Team) => number; set: (team: Team, hp: number) => void };
+    /**
+     * Multiplier on each commander card’s startingHp (both teams). Comes
+     * from GameSettings.commanderHpFactor — applied at chooseCard time.
+     */
+    commanderHpFactor: number;
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -877,7 +882,8 @@ export class ActionDispatcher {
                 // regardless of which seat's pick a client happens to apply
                 // first. Speciality/flankSpawnMult are plain per-seat
                 // overwrites of THIS SEAT's own slot, so they can never
-                // race with a teammate's slot either.
+                // race with a teammate's slot either. commanderHpFactor
+                // scales both teams the same (Custom Game / GameSettings).
                 if (this.ctx.starterPicked[seat]) return false;
                 const card = START_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
@@ -887,7 +893,8 @@ export class ActionDispatcher {
                     this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
-                this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + card.startingHp);
+                const grantedHp = Math.round(card.startingHp * this.ctx.commanderHpFactor);
+                this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + grantedHp);
                 // shop unlocks are per-SEAT (your own card decides your own
                 // buyable roster — no sharing, per-seat like items), so unlike
                 // speciality/HP above this is unconditional, not primary-only
