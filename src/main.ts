@@ -2632,6 +2632,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         setMenuBusy(false);
         setStatus('Host closed the room.');
         mainButtonsEl.style.display = '';
+        clearRosterTable();
         clearLobbySettings();
     };
     // this client's OWN seat number, once known — needed both for
@@ -2686,6 +2687,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             setStatus(msg.reason);
             session.close();
             mainButtonsEl.style.display = '';
+            clearRosterTable();
             clearLobbySettings();
             return;
         }
@@ -2694,6 +2696,8 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
                 clearStarResumeMarker();
                 setStatus('Version mismatch — both players need the same game version.');
                 session.close();
+                mainButtonsEl.style.display = '';
+                clearRosterTable();
                 clearLobbySettings();
                 return;
             }
@@ -2724,6 +2728,8 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             clearStarResumeMarker();
             setStatus('Version mismatch — both players need the same game version.');
             session.close();
+            mainButtonsEl.style.display = '';
+            clearRosterTable();
             clearLobbySettings();
             return;
         }
@@ -3009,6 +3015,7 @@ function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessag
         setMenuBusy(false);
         setStatus('Host closed the room.');
         mainButtonsEl.style.display = '';
+        clearRosterTable();
         clearLobbySettings();
     };
     let mySeat: SeatId | null = null;
@@ -3032,12 +3039,15 @@ function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessag
             setStatus(msg.reason);
             session.close();
             mainButtonsEl.style.display = '';
+            clearRosterTable();
             clearLobbySettings();
             return;
         }
         if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
             setStatus('Version mismatch — both players need the same game version.');
             session.close();
+            mainButtonsEl.style.display = '';
+            clearRosterTable();
             clearLobbySettings();
             return;
         }
