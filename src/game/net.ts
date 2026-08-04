@@ -48,7 +48,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 21; // v21: 'battleEnd' carries a state hash; 'starSync' carries an optional 'silent' flag for the new sync-barrier checkpoints
+export const GAME_VERSION = 22; // v22: 'starRoster' carries waitForJoined; new 'lobbySettings'/'lobbyReady' lobby messages; CanonicalSeatDef gains an optional 'ready' flag
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -208,6 +208,21 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
     ).catch(() => undefined);
 }
 
+/** Custom Game lobby config — pure data, shared between the host's
+ *  editable form and every guest's read-only preview (see the
+ *  'lobbySettings' NetMessage below). Lives here rather than in main.ts
+ *  since it now travels over the wire. */
+export type CustomGameMode = '1v1' | '1v1ai' | '2v2' | '2v2ai';
+export interface CustomGameConfig {
+    mode: CustomGameMode;
+    /** id into CUSTOM_GAME_PACE_PRESETS */
+    pace: string;
+    /** id into HORDE_ALGORITHMS */
+    hordePreset: string;
+    /** id into ROUND_CARD_ALGORITHMS */
+    roundCardPreset: string;
+}
+
 /**
  * Everything that crosses the wire. Build-phase `action`/`undo` now send
  * immediately in every mode (trust-world tradeoff, deferred encryption
@@ -354,9 +369,25 @@ export type NetMessage =
           yourSeat: SeatId;
           yourSide: 'a' | 'b';
       }
-    /** lobby membership, broadcast whenever a seat's controller/name changes
-     *  (a friend joins, an empty seat gets AI-filled at start) */
-    | { type: 'starRoster'; roster: CanonicalSeatDef[] }
+    /** lobby membership, broadcast whenever a seat's controller/name/ready
+     *  state changes (a friend joins, an empty seat gets AI-filled at
+     *  start, someone (un)readies). `waitForJoined` rides along so a
+     *  guest's own roster table can render the same "AI" vs "Waiting…"
+     *  prediction the host's does (see renderRosterTable's
+     *  guaranteedAiFrom) — it's otherwise host-local UI state. */
+    | { type: 'starRoster'; roster: CanonicalSeatDef[]; waitForJoined: number }
+    /** Custom Game lobby only: host → every guest whenever the pace/horde/
+     *  round-card config changes, so the waiting room can show a live,
+     *  read-only preview before the match actually starts (the config
+     *  itself is only ever APPLIED host-side, at Start — this is display
+     *  only). Never sent for a plain matchmaking room (no config to show). */
+    | { type: 'lobbySettings'; config: CustomGameConfig }
+    /** Custom Game lobby only: guest → host, toggled by the guest's own
+     *  "I'm ready" checkbox. The host is the sole source of truth for
+     *  readiness (stored on the guest's own roster entry, see
+     *  CanonicalSeatDef.ready) — re-broadcasts as part of the next
+     *  starRoster, same as any other roster change. */
+    | { type: 'lobbyReady'; ready: boolean }
     /** host declines a join (room full, version mismatch) */
     | { type: 'starRejected'; reason: string }
     /** host → each guest once every seat has locked in for the round and the

@@ -861,6 +861,39 @@ ${fontFaceCss()}
     transition: border-color 0.12s ease, background 0.12s ease;
 }
 .mechili-menu .m-roster-kick:hover { border-color: ${u.hover}; background: ${u.undoHover}; }
+.mechili-menu .m-roster-ready {
+    flex: none;
+    color: ${u.hpBar};
+    font-weight: bold;
+    font-size: 13px;
+}
+.mechili-menu .m-lobby-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 380px;
+    padding: 12px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 10px;
+}
+.mechili-menu .m-lobby-settings select:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+.mechili-menu .m-lobby-ready-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    text-transform: none;
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-menu .m-lobby-ready-check { width: 18px; height: 18px; accent-color: ${u.brass}; cursor: pointer; }
 button.m-seat-invite {
     cursor: pointer;
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
