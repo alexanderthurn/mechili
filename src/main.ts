@@ -2609,7 +2609,7 @@ function startStarMatch(): void {
     // never-filled seat would look "open" to the lobby's join-acceptor (it
     // stays wired for the whole match — see StarHub.listen()) forever,
     // letting a brand-new stranger claim it mid-match and receive the full
-    // starResumeState as if they'd been playing since round 0.
+    // matchCatchUp as if they'd been playing since round 0.
     finalRoster.forEach((entry, seat) => hub.setRosterEntry(seat, entry));
     const settings = settingsFromUrl();
     delete settings.seats; // canonical roster travels separately, localized per recipient
@@ -2735,13 +2735,13 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         // stray early broadcast doesn't prematurely flip the UI out of its
         // "connecting…" state while still genuinely waiting on the real
         // handshake message. Confirmed live: reclaimSeatFromAi's chat
-        // announcement raced ahead of its own starResumeState and got
+        // announcement raced ahead of its own matchCatchUp and got
         // misread here as a version mismatch, closing a connection the
         // host had just accepted.
         if (
             msg.type !== 'starRejected' &&
             msg.type !== 'starRejoinRejected' &&
-            msg.type !== 'starResumeState' &&
+            msg.type !== 'matchCatchUp' &&
             msg.type !== 'starSetup'
         ) {
             return;
@@ -2762,7 +2762,12 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             clearLobbySettings();
             return;
         }
-        if (msg.type === 'starResumeState') {
+        if (msg.type === 'matchCatchUp') {
+            // a guest connection only ever receives the {kind:'seat'}
+            // flavor (the {kind:'spectator'} flavor goes over the separate
+            // SpectatorHub connection, see joinAsSpectator) — defensive
+            // only, should never actually fire
+            if (msg.viewer.kind !== 'seat') return;
             if (msg.version !== GAME_VERSION) {
                 clearStarResumeMarker();
                 setStatus('Version mismatch — both players need the same game version.', 5000);
@@ -2772,25 +2777,26 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
                 clearLobbySettings();
                 return;
             }
-            const yourSide = msg.roster[msg.seat]?.side ?? 'a';
+            const mySeat = msg.viewer.seat;
+            const yourSide = msg.roster[mySeat]?.side ?? 'a';
             const settings = msg.settings;
             settings.seed = msg.seed;
             settings.seats = localizeRoster(rosterWithWiredAvatars(msg.roster), yourSide);
-            const myName = msg.roster[msg.seat]?.name ?? getPlayerName();
+            const myName = msg.roster[mySeat]?.name ?? getPlayerName();
             clearRosterTable();
             clearLobbySettings();
             startGame(
                 settings,
                 null,
                 yourSide,
-                { local: myName, opponent: opponentDisplayName(msg.roster, msg.seat) },
+                { local: myName, opponent: opponentDisplayName(msg.roster, mySeat) },
                 {
                     actions: msg.actions,
                     battleElapsed: msg.battleElapsed,
                     phaseRemaining: msg.phaseRemaining,
                     local: false,
                 },
-                { role: 'guest', session, mySeat: msg.seat },
+                { role: 'guest', session, mySeat },
             );
             return;
         }
@@ -3451,10 +3457,12 @@ function startSpectateGame(hostName: string): void {
             const result = await joinAsSpectator(peerId, getPlayerName());
             setMenuBusy(false);
             setStatus('');
-            const players = result.roster.filter((r) => r.role === 'player');
+            // result.roster is the match's actual seat roster now (see
+            // matchCatchUp's doc comment) — every entry is inherently a
+            // player, already in seat order, no role filter needed
             const names = {
-                local: players[0]?.name ?? 'Player',
-                opponent: players[1]?.name ?? 'Opponent',
+                local: result.roster[0]?.name ?? 'Player',
+                opponent: result.roster[1]?.name ?? 'Opponent',
             };
             const settings = result.settings;
             settings.seed = result.seed;

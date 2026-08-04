@@ -29,7 +29,7 @@ import type { CanonicalSeatDef, SeatId } from './seats';
  * back on its own — a brief drop never tears down the underlying session,
  * so once real connectivity returns, packets simply resume without any
  * application-level "I'm back" step. That means the grace window itself
- * can be much simpler here than PeerJS's redial+`starResumeState` dance:
+ * can be much simpler here than PeerJS's redial+`matchCatchUp` dance:
  * there is nothing to reconstruct, since nothing was ever destroyed. A
  * silence that outlasts the watchdog's timeout is instead treated as
  * genuinely, permanently gone — same terminal "give up" treatment as
