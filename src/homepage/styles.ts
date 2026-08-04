@@ -85,14 +85,41 @@ html, body {
     font-size: 1.05rem;
 }
 
-.mh-play {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
-    gap: 12px;
-    justify-content: center;
+.mh-play,
+.mh-hero-ctas {
+    display: flex;
+    flex-direction: column;
     align-items: stretch;
-    width: 100%;
+    gap: 12px;
+    width: max-content;
+    max-width: 92vw;
     margin-top: 8px;
+}
+
+.mh-hero-ctas .mh-play-btn.steam,
+.mh-hero-ctas .mh-trailer-btn {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 0;
+    padding: 14px 28px;
+    border-radius: 14px;
+    border-width: 2px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    box-sizing: border-box;
+}
+.mh-hero-ctas .mh-play-btn.steam .mh-play-title {
+    font-size: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    gap: 10px;
+    min-height: 0;
+    line-height: 1;
 }
 
 .mh-play-btn {
@@ -138,13 +165,21 @@ html, body {
     line-height: 1.2;
     min-height: 1.4em;
 }
-.mh-play-btn.steam .mh-play-title { color: ${u.brassLight}; }
-.mh-steam-logo {
-    width: 7.5rem;
-    height: auto;
-    aspect-ratio: 256 / 77;
-    object-fit: contain;
+.mh-play-btn.steam .mh-play-title { color: #fff; }
+.mh-steam-cta-icon-wrap {
+    width: 1.35em;
+    height: 1.35em;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #111;
+}
+.mh-steam-cta-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     display: block;
+    transform: scale(1.18);
 }
 .mh-play-note {
     font-size: 12px;
@@ -204,23 +239,17 @@ html, body {
 }
 .mh-sticky-btn:first-child { border-left: none; }
 .mh-sticky-btn:hover { filter: brightness(1.08); }
-.mh-sticky-btn.primary {
-    background: linear-gradient(180deg, ${u.alliedBtnHover}, ${u.alliedBtnBg});
-}
 .mh-sticky-btn.discord {
     background: linear-gradient(180deg, #5865f2, #404eed);
     color: #f0f1ff;
 }
 .mh-sticky-btn.steam {
     background: linear-gradient(180deg, #2a4a2e, #1a3020);
-    color: ${u.brassLight};
+    color: #fff;
 }
 .mh-sticky-btn.icon-only {
     padding: 8px 14px;
     min-width: 3.2rem;
-}
-.mh-sticky-btn.steam.icon-only {
-    padding: 4px 12px;
 }
 .mh-sticky-icon {
     display: block;
@@ -234,8 +263,9 @@ html, body {
     height: 1.3rem;
 }
 .mh-sticky-steam {
-    width: 3.6rem;
-    height: 3.6rem;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
 }
 @media (min-width: 720px) {
     .mh-sticky-btn {
@@ -247,9 +277,6 @@ html, body {
         padding: 8px 16px;
         min-width: 3.6rem;
     }
-    .mh-sticky-btn.steam.icon-only {
-        padding: 4px 14px;
-    }
     .mh-sticky-icon {
         width: 2.05rem;
         height: 2.05rem;
@@ -259,8 +286,8 @@ html, body {
         height: 1.45rem;
     }
     .mh-sticky-steam {
-        width: 4rem;
-        height: 4rem;
+        width: 1.45rem;
+        height: 1.45rem;
     }
 }
 
@@ -1130,6 +1157,9 @@ html, body {
     align-items: center;
     gap: 12px;
     margin: 8px 0 4px;
+}
+.mh-together-cta .mh-suggest-btn {
+    text-decoration: none;
 }
 .mh-together-cta .mh-trailer-btn {
     margin-top: 6px;

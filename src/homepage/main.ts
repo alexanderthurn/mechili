@@ -27,7 +27,7 @@ import { homepageStyles } from './styles';
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
 const menuBgUrl = new URL('../../assets/ui/menu-bg.webp', import.meta.url).href;
 const feuerwareLogoUrl = new URL('../../assets/marketing/feuerware.webp', import.meta.url).href;
-const steamLogoUrl = new URL('../../assets/marketing/steam-logo.png', import.meta.url).href;
+const steamLogoSmallUrl = new URL('../../assets/marketing/steam-logo-small.png', import.meta.url).href;
 
 const STEAM_URL = 'https://steam.melodan.com';
 const DISCORD_URL = 'https://discord.melodan.com';
@@ -263,23 +263,21 @@ app.innerHTML = `
   </div>
   <p class="mh-tagline">FANTASY AUTO·BATTLER</p>
   <p class="mh-lead">Deploy armies in secret and watch the round play out. Your enemy does the same. Adapt, repeat until one of you runs out of HP.</p>
-  <div class="mh-play">
-    <a class="mh-play-btn primary" href="${PLAY_URL}">
-      <span class="mh-play-title">Play in Browser</span>
-      <span class="mh-play-note">Free to play · Single & Multiplayer</span>
-    </a>
+  <div class="mh-play mh-hero-ctas">
     ${steamLink(
         'mh-play-btn steam',
         `<span class="mh-play-title">
-        <img class="mh-steam-logo" src="${esc(steamLogoUrl)}" alt="Steam" width="256" height="77" />
-      </span>
-      <span class="mh-play-note">Ranked Multiplayer · Play with Friends</span>`,
+        <span class="mh-steam-cta-icon-wrap" aria-hidden="true">
+          <img class="mh-steam-cta-icon" src="${esc(steamLogoSmallUrl)}" alt="" width="84" height="84" />
+        </span>
+        Wishlist now
+      </span>`,
     )}
+    <a class="mh-trailer-btn" href="${esc(TRAILER_URL)}" rel="noopener noreferrer" target="_blank">
+      ${YOUTUBE_ICON_SVG}
+      <span>Watch Trailer</span>
+    </a>
   </div>
-  <a class="mh-trailer-btn" href="${esc(TRAILER_URL)}" rel="noopener noreferrer" target="_blank">
-    ${YOUTUBE_ICON_SVG}
-    <span>Watch Trailer</span>
-  </a>
 </header>
 
 <main class="mh-wrap">
@@ -387,6 +385,7 @@ app.innerHTML = `
     <h2>Contribute</h2>
     <p class="mh-sub">Melodan is developed by a single person, me. I am passionate about this game, but i can not make an AAA title and keep everything perfect, balanced and so on. The idea is to have an open game where anybody can contribute. <br /><br />Let&rsquo;s make this together. Balance, bugs, features, art ideas <span class="mh-sep">⬢</span> send a short note and I will read it. If you want to do more, welcome!</p>
     <div class="mh-together-cta">
+      <a class="mh-suggest-btn" href="${PLAY_URL}">Test in Browser</a>
       <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Send feedback</button>
       <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} Discord</a>
       <a class="mh-trailer-btn" href="${esc(DEVLOG_URL)}" rel="noopener noreferrer" target="_blank">
@@ -449,9 +448,9 @@ app.innerHTML = `
       <path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1A105.25 105.25 0 0 0 126.6 80.22c2.64-27.38-4.51-51.14-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53 48.84 65.69 42.45 65.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53 91.08 65.69 84.69 65.69Z"/>
     </svg>
   </a>
-  <a class="mh-sticky-btn primary" href="${PLAY_URL}">Play in Browser</a>
-  <a class="mh-sticky-btn steam icon-only mh-steam-link" href="${esc(STEAM_URL)}" rel="noopener noreferrer" target="_blank" aria-label="Steam" title="Steam">
-    <img class="mh-sticky-icon mh-sticky-steam" src="${esc(steamLogoUrl)}" alt="" width="84" height="84" />
+  <a class="mh-sticky-btn steam mh-steam-link" href="${esc(STEAM_URL)}" rel="noopener noreferrer" target="_blank" aria-label="Wishlist now" title="Wishlist now">
+    <img class="mh-sticky-icon mh-sticky-steam" src="${esc(steamLogoSmallUrl)}" alt="" width="84" height="84" />
+    Wishlist now
   </a>
 </aside>
 
