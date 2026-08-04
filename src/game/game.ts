@@ -48,6 +48,7 @@ import {
     NetworkOpponent,
     registerSpectateEndpoint,
     seatVisionPolicy,
+    spectatorVisionPolicy,
     SpectatorHub,
     STAR_RECONNECT_GRACE_MS,
     type GuestSession,
@@ -59,6 +60,7 @@ import {
     type SpectatorSession,
     type SpectatorVision,
     type StarRole,
+    type VisionPolicy,
 } from './net';
 import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode, type MatchResult } from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
@@ -4365,25 +4367,47 @@ export class Game {
     }
 
     /**
-     * Star host only: the resume payload for a reconnecting seat — reuses
-     * the SAME `isRevealable` predicate `StarHub.relayBuild` already uses
-     * (a seat-vision policy), rather than `actionsForPeerResume`'s classic-
-     * 1v1-specific `team !== 'player'` check, which only ever makes sense
-     * for exactly 2 parties. Same "only this round is still in question"
-     * shape as `actionsForPeerResume`: round 0 and any already-completed
-     * round are always included unconditionally.
+     * Phase C (TEAM_MODES_PLAN.md §3c): the one `isRevealable` reveal check
+     * shared by every catch-up path below — a reconnecting/resyncing seat
+     * (`actionsForSeatResume`) and a freshly-joined spectator
+     * (`actionsForSpectatorResume`/`excludedActionsForSpectatorResume`)
+     * used to each hand-roll their own filter (a seat-count-agnostic
+     * `hub.sideOf`/`starSideLocked` version for seats, a hand-rolled
+     * `livePlayer`/`liveEnemy`/"both locked" version for spectators) that
+     * happened to compute the same thing two different ways. `e.action.team`
+     * is reliable as the from-side tag in OUR OWN log regardless of mode
+     * (host's own entries are always 'player', the guest's/other side's
+     * always 'enemy' — see hydrate's `swapTeams:false` doc comment, and the
+     * matching note at this function's `startSpectatorHub` call site), and
+     * `deployReady.player`/`.enemy` is exactly the side-locked aggregate
+     * `starSideLocked` also derives from (`seatReady`'s own doc comment:
+     * "aggregated into deployReady per side") — so this single mode-
+     * agnostic predicate is correct for a star OR classic 1v1 host, with no
+     * `this.star`/`hub` reach-in needed at all. Verified equivalent to the
+     * three prior implementations branch-by-branch before landing this,
+     * including the seat viewer's per-side (not both-sides) lock asymmetry
+     * `isRevealable` itself documents.
+     */
+    private revealableToViewer(policy: VisionPolicy): (e: LoggedAction) => boolean {
+        return (e) => {
+            if (e.round !== this.round) return true;
+            const fromSide: 'a' | 'b' = e.action.team === 'player' ? 'a' : 'b';
+            return isRevealable(policy, fromSide, (side) =>
+                side === 'a' ? this.deployReady.player : this.deployReady.enemy,
+            );
+        };
+    }
+
+    /**
+     * Star host only: the resume payload for a reconnecting seat — round 0
+     * and any already-completed round are always included unconditionally
+     * (see {@link revealableToViewer}), same shape as `actionsForPeerResume`.
      */
     private actionsForSeatResume(seat: SeatId): LoggedAction[] {
         if (!this.star || this.star.role !== 'host') return [];
-        const hub = this.star.hub;
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return all;
-        const policy = seatVisionPolicy(hub.sideOf(seat));
-        return all.filter((e) => {
-            if (e.round !== this.round) return true;
-            const fromSide = hub.sideOf(e.action.seat!);
-            return isRevealable(policy, fromSide, (side) => this.starSideLocked(side));
-        });
+        return all.filter(this.revealableToViewer(seatVisionPolicy(this.star.hub.sideOf(seat))));
     }
 
     /**
@@ -4393,18 +4417,7 @@ export class Game {
     private actionsForSpectatorResume(vision: SpectatorVision): LoggedAction[] {
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return all;
-        if (this.deployReady.player && this.deployReady.enemy) return all;
-        if (vision.mode === 'battle') {
-            return all.filter((e) => e.round !== this.round);
-        }
-        const livePlayer = vision.seats.includes('a'); // host seat = player in host log
-        const liveEnemy = vision.seats.includes('b');
-        return all.filter((e) => {
-            if (e.round !== this.round) return true;
-            if (e.action.team === 'player') return livePlayer;
-            if (e.action.team === 'enemy') return liveEnemy;
-            return false;
-        });
+        return all.filter(this.revealableToViewer(spectatorVisionPolicy(vision)));
     }
 
     /**
@@ -4424,18 +4437,8 @@ export class Game {
     private excludedActionsForSpectatorResume(vision: SpectatorVision): LoggedAction[] {
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return [];
-        if (this.deployReady.player && this.deployReady.enemy) return [];
-        if (vision.mode === 'battle') {
-            return all.filter((e) => e.round === this.round);
-        }
-        const livePlayer = vision.seats.includes('a');
-        const liveEnemy = vision.seats.includes('b');
-        return all.filter((e) => {
-            if (e.round !== this.round) return false;
-            if (e.action.team === 'player') return !livePlayer;
-            if (e.action.team === 'enemy') return !liveEnemy;
-            return true;
-        });
+        const revealable = this.revealableToViewer(spectatorVisionPolicy(vision));
+        return all.filter((e) => !revealable(e));
     }
 
     /**
