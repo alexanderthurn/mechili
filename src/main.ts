@@ -1497,6 +1497,21 @@ function renderRosterTable(
     rosterTableEl.appendChild(cols);
 }
 
+/**
+ * Every long-running connect/host/join/spectate operation calls this at
+ * its start (busy=true) and its final resolution (busy=false — either a
+ * rejection back to the idle menu, or the match/spectate view about to
+ * take over the whole screen). Folding the top-level menu buttons'
+ * visibility in here — not just disabling them — is what actually keeps
+ * the main menu and a connecting/lobby screen from ever being visible at
+ * once: every one of these call sites already needs setMenuBusy(true)
+ * regardless, so this makes "hide the main menu" automatic instead of a
+ * second call each site has to separately remember (found live: a guest
+ * mid-join/mid-lobby could still see the main menu buttons showing
+ * through, stacked on top of the roster table — beginStarJoin never hid
+ * them at all, and while the lobby table is up, busy never got set back
+ * to false to trigger any OTHER "show it again" cleanup path either).
+ */
 function setMenuBusy(busy: boolean): void {
     menu.querySelectorAll<HTMLButtonElement>('.m-btn:not(.m-cancel)').forEach((b) => {
         b.disabled = busy;
@@ -1504,6 +1519,7 @@ function setMenuBusy(busy: boolean): void {
     roomListEl.querySelectorAll<HTMLButtonElement>('.m-room').forEach((b) => {
         b.disabled = busy;
     });
+    mainButtonsEl.style.display = busy ? 'none' : '';
 }
 
 /**
@@ -2600,6 +2616,7 @@ function startStarMatch(): void {
     // list alongside the real kind=spectate entry the running match
     // registers separately (repro: "mangoo" AND "mangoo (2v2)" AND "Watch
     // mangoo (2v2)" all listed for the same host at once).
+    hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
     starHosting?.cleanup();
     starHosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
@@ -3014,6 +3031,7 @@ function startSteamStarMatch(): void {
             mySeat: 0,
         },
     );
+    hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
     steamStarHosting = null; // ownership passes to the running Game now
     starCustomConfig = null;
 }

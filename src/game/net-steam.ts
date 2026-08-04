@@ -365,6 +365,16 @@ export class SteamStarHub implements HostHub {
     private readonly pending = new Set<string>();
     private roster: CanonicalSeatDef[];
     private accepting = false;
+    /** true until leaveLobby() is called — see dropSeat's own doc comment. */
+    private inLobby = true;
+
+    /** call once ownership of this hub passes to the running Game (see
+     *  main.ts's startSteamStarMatch) — from here on, a drop no longer
+     *  resets the roster entry (Game's own AI-fill logic owns that once
+     *  the match has started). */
+    leaveLobby(): void {
+        this.inLobby = false;
+    }
 
     constructor(
         readonly lobbyId: string,
@@ -495,11 +505,22 @@ export class SteamStarHub implements HostHub {
      * signal reports a genuine departure). Idempotent via the `bySeat.has`
      * guard: the watchdog and the lobby-scan secondary path in `listen()`
      * can both try to drop the same seat.
+     *
+     * Pre-match (`inLobby`), this ALSO resets the roster entry back to an
+     * open "Waiting…" slot instead of leaving the departed player's stale
+     * name in place — onSeatDropped is never wired up until Game's own
+     * wireStar() runs at match start, so nothing else would ever do this
+     * for a lobby-phase drop (found live: host still showed a guest in
+     * the roster table after that guest clicked Cancel).
      */
     private dropSeat(seat: SeatId): void {
         if (!this.bySeat.has(seat)) return;
         this.bySeat.get(seat)!.channel.dispose();
         this.bySeat.delete(seat);
+        if (this.inLobby) {
+            const entry = this.roster[seat];
+            if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
+        }
         this.onRosterChange?.();
         this.onSeatDropped?.(seat);
     }

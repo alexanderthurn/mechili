@@ -812,6 +812,17 @@ export class StarHub implements HostHub {
      *  window (and the seat's `bySeat` entry) is gone. */
     private readonly reclaimableSeats = new Set<SeatId>();
     private roster: CanonicalSeatDef[];
+    /** true until leaveLobby() is called — see dropSeat's own doc comment
+     *  on why a lobby-phase drop skips the reconnect grace window. */
+    private inLobby = true;
+
+    /** call once ownership of this hub passes to the running Game (see
+     *  main.ts's startStarMatch/startSteamStarMatch) — from here on, a
+     *  drop gets the normal reconnect-grace-window treatment instead of
+     *  an immediate reset. */
+    leaveLobby(): void {
+        this.inLobby = false;
+    }
 
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
@@ -1017,6 +1028,16 @@ export class StarHub implements HostHub {
      */
     kickSeat(seat: SeatId): void {
         if (seat === 0) return; // the host can't kick themselves
+        this.resetSeatToOpen(seat, 'Kicked by the host.');
+    }
+
+    /** shared by kickSeat and dropSeat's lobby-phase branch: closes
+     *  whatever connection this seat still has (if `rejectReason` is set,
+     *  tells it why first — omitted for a drop that's already gone, there's
+     *  nothing left to tell), forgets the seat entirely (no grace-window
+     *  reservation), and resets its roster entry back to an open
+     *  "Waiting…" slot so nextOpenSeat() offers it to the next comer. */
+    private resetSeatToOpen(seat: SeatId, rejectReason?: string): void {
         const viewer = this.bySeat.get(seat);
         if (!viewer) return;
         const timer = this.reconnectTimers.get(seat);
@@ -1025,9 +1046,11 @@ export class StarHub implements HostHub {
             this.reconnectTimers.delete(seat);
         }
         viewer.liveness?.stop();
-        if (viewer.conn) {
-            viewer.conn.send({ type: 'starRejected', reason: 'Kicked by the host.' });
+        if (viewer.conn && rejectReason) {
+            viewer.conn.send({ type: 'starRejected', reason: rejectReason });
             viewer.conn.close();
+        } else {
+            viewer.conn?.close();
         }
         this.bySeat.delete(seat);
         const entry = this.roster[seat];
@@ -1133,11 +1156,26 @@ export class StarHub implements HostHub {
      * an already-handled drop (e.g. both 'close' and 'error' firing for
      * the same connection) or a seat that already reclaimed itself is a
      * safe no-op (viewer.conn !== null check below).
+     *
+     * That grace window only applies once a real match is running,
+     * though (see `inLobby`/`leaveLobby`) — during the lobby, a drop
+     * (whether a deliberate Cancel or a genuine connection loss) resets
+     * the seat immediately instead. There's no match progress to protect
+     * yet, and critically, nothing would ever RESOLVE a lobby-phase grace
+     * window on its own: onSeatSuspended/onSeatDropped aren't wired up
+     * until Game's own wireStar() runs at match start, so without this
+     * branch a cancelled lobby guest's seat stayed "filled" with their
+     * stale name forever (found live: host still showed a guest in the
+     * roster table after that guest clicked Cancel).
      */
     private dropSeat(seat: SeatId): void {
         const viewer = this.bySeat.get(seat);
         if (!viewer || viewer.conn === null) return;
-        this.onDebugEvent?.('star.dropSeat', { seat, alreadyReclaimable: this.reclaimableSeats.has(seat) });
+        this.onDebugEvent?.('star.dropSeat', {
+            seat,
+            alreadyReclaimable: this.reclaimableSeats.has(seat),
+            inLobby: this.inLobby,
+        });
         if (this.reclaimableSeats.has(seat)) {
             // this seat was already fully resolved to AI control BEFORE this
             // connection's close/error event fired — a voluntary quit
@@ -1152,6 +1190,10 @@ export class StarHub implements HostHub {
             viewer.liveness?.stop();
             this.bySeat.delete(seat);
             this.onRosterChange?.();
+            return;
+        }
+        if (this.inLobby) {
+            this.resetSeatToOpen(seat);
             return;
         }
         viewer.conn = null;
