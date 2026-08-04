@@ -4372,10 +4372,15 @@ export class Game {
      * or a star host of any seat count.
      */
     private canonicalRosterSnapshot(): CanonicalSeatDef[] {
-        return this.seats.map((s) => ({
+        return this.seats.map((s, seat) => ({
             side: s.side === 0 ? 'a' : 'b',
             controller: s.controller,
-            name: s.name,
+            // our OWN seat's name always comes from the live playerNames.local,
+            // not the possibly-stale `s.name` baked in at construction — same
+            // idiom buildRoster()/opponentDisplayName() already use everywhere
+            // else a seat's display name is read (a mid-match name edit
+            // updates playerNames.local but nothing resyncs `this.seats`)
+            name: seat === this.humanSeat ? this.playerNames.local : s.name,
             avatar: s.avatar,
         }));
     }
