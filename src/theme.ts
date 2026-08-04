@@ -795,12 +795,12 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 6px;
     width: 100%;
-    max-width: 380px;
+    max-width: none;
 }
 .mechili-menu .m-roster-cols {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    gap: 8px;
+    gap: 10px;
     width: 100%;
     align-items: center;
 }
@@ -828,8 +828,9 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-roster-seat {
     box-sizing: border-box;
-    padding: 8px 8px 8px 10px;
-    min-height: 34px;
+    padding: 8px 10px;
+    min-height: 36px;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -837,7 +838,7 @@ ${fontFaceCss()}
     text-align: center;
     font-size: 13px;
     font-weight: bold;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
     border-radius: 8px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
@@ -957,15 +958,19 @@ ${fontFaceCss()}
     color: ${u.text};
     cursor: pointer;
 }
-/* Desktop lobby: when advanced settings are open, widen and park them beside the roster */
+/* Desktop lobby: give name seats more room; widen further when advanced
+   settings sit beside the roster */
 @media (min-width: 720px) {
+    .mechili-menu:has(.m-session.is-active) {
+        width: min(440px, 92vw);
+    }
     .mechili-menu:has(.m-session.is-active.m-has-lobby-settings.m-lobby-settings-open) {
-        width: min(640px, 92vw);
+        width: min(760px, 94vw);
     }
     .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-session-layout {
         display: grid;
-        grid-template-columns: minmax(0, 1.1fr) minmax(200px, 0.9fr);
-        gap: 14px 16px;
+        grid-template-columns: minmax(260px, 1.2fr) minmax(200px, 0.85fr);
+        gap: 14px 18px;
         align-items: start;
     }
     .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-lobby-settings {

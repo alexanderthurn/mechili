@@ -1183,6 +1183,7 @@ function wireLobbySettingTips(): void {
         const t = e.target as Node;
         if (lobbySettingTipEl.contains(t)) return;
         if ((e.target as HTMLElement | null)?.closest?.('.m-lobby-settings .m-field')) return;
+        if ((e.target as HTMLElement | null)?.closest?.('.m-roster-seat')) return;
         hideLobbySettingTip();
     });
 }
@@ -1507,6 +1508,7 @@ function setStatus(text: string, autoDismissMs?: number): void {
 /** hides the host-waiting-room seat table (see renderRosterTable) — call
  *  whenever hosting stops, whether cancelled or a match actually starts */
 function clearRosterTable(): void {
+    hideLobbySettingTip();
     rosterTableEl.style.display = 'none';
     rosterTableEl.innerHTML = '';
 }
@@ -1684,11 +1686,30 @@ function renderRosterTable(
             cell.className = `m-roster-seat ${filled ? 'filled' : guaranteedAi ? 'ai' : 'empty'}${seat === mySeat ? ' you' : ''}`;
             const label = document.createElement('span');
             label.className = 'm-roster-seat-name';
-            label.textContent = filled
+            const displayName = filled
                 ? `${roster[seat]!.name}${seat === mySeat ? ' (you)' : ''}`
                 : guaranteedAi
                   ? 'AI'
                   : OPEN_SEAT_NAME;
+            label.textContent = displayName;
+            if (filled) {
+                // Truncated seats still expose the full name on hover / tap.
+                cell.addEventListener('pointerenter', (e) => {
+                    if (e.pointerType === 'touch') return;
+                    if (label.scrollWidth <= label.clientWidth + 1) return;
+                    showLobbySettingTip(cell, displayName, false);
+                });
+                cell.addEventListener('pointerleave', () => {
+                    if (!lobbySettingTipSticky) hideLobbySettingTip();
+                });
+                cell.addEventListener('click', (e) => {
+                    if ((e.target as HTMLElement).closest('.m-roster-kick')) return;
+                    if (label.scrollWidth <= label.clientWidth + 1) return;
+                    e.stopPropagation();
+                    if (lobbySettingTipSticky && lobbySettingTipAnchor === cell) hideLobbySettingTip();
+                    else showLobbySettingTip(cell, displayName, true);
+                });
+            }
             cell.appendChild(label);
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
