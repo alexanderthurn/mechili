@@ -2395,8 +2395,24 @@ function cancelStarHost(): void {
     // without closing it left the peer id registered with the PeerJS
     // broker indefinitely, so hosting again under the same username failed
     // with "already hosting" until the whole tab was reloaded.
-    starHosting?.hub.close();
-    starHosting?.cleanup();
+    //
+    // cleanup() (sends ?action=leave, the externally-visible "room is gone"
+    // signal) runs FIRST and in its own try — previously hub.close() ran
+    // first and unguarded, so if peer.destroy() ever threw (e.g. a
+    // connection mid-negotiation), the whole function aborted right there
+    // and lobbyLeave() never fired; the room then only vanished once the
+    // backend's own 15s TTL lapsed (live-observed: host clicked Cancel,
+    // guest still saw the room in the list for ~10s, even after reload).
+    try {
+        starHosting?.cleanup();
+    } catch (e) {
+        console.error('cancelStarHost: cleanup() failed', e);
+    }
+    try {
+        starHosting?.hub.close();
+    } catch (e) {
+        console.error('cancelStarHost: hub.close() failed', e);
+    }
     starHosting = null;
     startStarBtn.style.display = 'none';
     clearRosterTable();
