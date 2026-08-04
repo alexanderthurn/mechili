@@ -13,6 +13,11 @@ import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
  * from the in-game top bar. Options apply immediately and persist.
  * Desktop: two columns (general | graphics). Narrow: single stacked column.
  */
+/** dismiss the shared settings overlay if open (menu or in-match). */
+export function closeSettings(): void {
+    document.querySelector('.mechili-settings')?.remove();
+}
+
 export function openSettings(parent: HTMLElement): void {
     if (document.querySelector('.mechili-settings')) return; // already open
 

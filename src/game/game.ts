@@ -854,7 +854,7 @@ export class Game {
     constructor(
         private readonly pixiApp: Application,
         threeCanvas: HTMLCanvasElement,
-        wrapper: HTMLElement,
+        wrapper: HTMLElement, // #match-ui-root — HUD mount + resize size source
         settingsInput: GameSettings = DEFAULT_SETTINGS,
         /** the peer connection in multiplayer, null against the AI (swappable on reconnect) */
         private net: Session | null = null,
@@ -4212,6 +4212,7 @@ export class Game {
         this.suspended = false;
         this.suspendDeadline = null;
         this.hud.hideNotice();
+        this.hud.hideReconnectWait();
         this.net?.close();
         this.net = null;
         if (!this.disposed && !this.outroActive) {

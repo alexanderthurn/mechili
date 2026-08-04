@@ -13,7 +13,7 @@ import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, type UnitType } from '../game/units';
-import { openSettings } from './settings';
+import { closeSettings, openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
@@ -40,6 +40,17 @@ const PHONE_MQ =
 
 export function isCompactChrome(): boolean {
     return PHONE_MQ?.matches ?? false;
+}
+
+/** Shared permanent HUD stylesheet — refreshed per match for team colors, never removed. */
+let sharedHudStyle: HTMLStyleElement | null = null;
+
+function ensureHudStyleSheet(): void {
+    if (!sharedHudStyle) {
+        sharedHudStyle = document.createElement('style');
+        document.head.appendChild(sharedHudStyle);
+    }
+    sharedHudStyle.textContent = hudStyles();
 }
 
 /** escapes a string for safe use inside a double-quoted HTML attribute */
@@ -523,7 +534,6 @@ export class Hud {
     private uiHidden = false;
     private cinemaHint: HTMLDivElement | null = null;
     private readonly overlayParent: HTMLElement;
-    private readonly hudStyle: HTMLStyleElement;
     private readonly onItemGhostMove = (e: PointerEvent) => {
         if (!this.itemGhost) return;
         this.itemGhost.style.left = `${e.clientX - 20}px`;
@@ -586,9 +596,9 @@ export class Hud {
         this.overlayParent = overlayParent;
         this.costOf = costOf;
 
-        const style = document.createElement('style');        style.textContent = hudStyles();
-        document.head.appendChild(style);
-        this.hudStyle = style;
+        // Permanent shared sheet (also seeded from menu boot) — refresh team
+        // colors for this match, never tear down so orphans stay laid out.
+        ensureHudStyleSheet();
 
         const shopUnits = UNIT_TYPES.filter((t) => !t.extra);
         const extraTypes = UNIT_TYPES.filter((t) => t.extra);
@@ -2733,7 +2743,7 @@ export class Hud {
 
     /** post-battle damage report; replaces the previous one, dismissible */
     showBattleReport(round: number, rows: { name: string; team: string; damage: number }[]): void {
-        this.report?.remove();
+        this.hideBattleReport();
         const el = document.createElement('div');
         el.className = 'mechili-report';
         el.innerHTML =
@@ -2745,7 +2755,7 @@ export class Hud {
                 )
                 .join('');
         el.querySelector('.r-close')!.addEventListener('click', () => {
-            el.remove();
+            this.unmount(el);
             if (this.report === el) this.report = null;
         });
         this.report = el;
@@ -2753,7 +2763,7 @@ export class Hud {
     }
 
     hideBattleReport(): void {
-        this.report?.remove();
+        if (this.report) this.unmount(this.report);
         this.report = null;
     }
 
@@ -2783,7 +2793,7 @@ export class Hud {
     }
 
     hidePauseMenu(): void {
-        this.pauseMenu?.remove();
+        if (this.pauseMenu) this.unmount(this.pauseMenu);
         this.pauseMenu = null;
         this.syncOverlayOpen();
     }
@@ -2799,9 +2809,7 @@ export class Hud {
     }
 
     private removeCardOverlayElement(el: HTMLElement): void {
-        const rootIdx = this.mountedRoots.indexOf(el);
-        if (rootIdx >= 0) this.mountedRoots.splice(rootIdx, 1);
-        el.remove();
+        this.unmount(el);
     }
 
     /** specialist pick — collapse to own card, wobble, fly to commander frame */
@@ -2936,17 +2944,22 @@ export class Hud {
         );
     }
 
-    /** dismiss game-over, pause, notices, and card pickers before the menu outro */
+    /** dismiss game-over, pause, notices, reconnect, and card pickers before the menu outro */
     hideMatchOverlays(): void {
         this.hidePauseMenu();
         this.hideCardOverlay();
         this.hideNotice();
+        this.hideReconnectWait();
         this.hideBattleReport();
+        this.hideSpecialistDetail();
+        this.hideSettingsDetail();
+        this.hideForgeSlotHoverPreview();
+        document.querySelector('.mechili-touchtip')?.remove();
+        closeSettings();
         for (let i = this.mountedRoots.length - 1; i >= 0; i--) {
             const el = this.mountedRoots[i]!;
             if (!el.classList.contains('mechili-gameover')) continue;
-            el.remove();
-            this.mountedRoots.splice(i, 1);
+            this.unmount(el);
         }
         this.syncOverlayOpen();
     }
@@ -2981,7 +2994,9 @@ export class Hud {
         if (!this.cardOverlay) return;
         this.cardIntroFading = false;
         this.cardOverlay.style.opacity = '';
-        this.cardOverlay.style.pointerEvents = '';
+        // keep auto — match-ui-root is pointer-events:none, so '' alone is not enough
+        // on some engines once an inline none was set during the fade-in
+        this.cardOverlay.style.pointerEvents = 'auto';
     }
 
     private showPauseMenu(): void {
@@ -3160,7 +3175,7 @@ export class Hud {
         if (!hasContent) return;
 
         // avoid stacking duplicate overlays
-        if (this.specDetailOverlay) this.specDetailOverlay.remove();
+        if (this.specDetailOverlay) this.unmount(this.specDetailOverlay);
 
         const overlay = document.createElement('div');
         overlay.className = `mechili-cards detail${viaHover ? ' peek' : ''}`;
@@ -3293,7 +3308,7 @@ export class Hud {
     /** dismiss the specialist detail popup (hover-out or click) */
     private hideSpecialistDetail(): void {
         if (this.specDetailOverlay) {
-            this.specDetailOverlay.remove();
+            this.unmount(this.specDetailOverlay);
             this.specDetailOverlay = null;
         }
         this.specDetailSeat = null;
@@ -3320,7 +3335,7 @@ export class Hud {
 
     /** a dismissible popup listing this match's settings (click the supply counter) */
     private showSettingsDetail(): void {
-        if (this.settingsDetailOverlay) this.settingsDetailOverlay.remove();
+        if (this.settingsDetailOverlay) this.unmount(this.settingsDetailOverlay);
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards detail settings-detail';
         overlay.innerHTML =
@@ -3357,7 +3372,7 @@ export class Hud {
     /** dismiss the match-settings popup */
     private hideSettingsDetail(): void {
         if (this.settingsDetailOverlay) {
-            this.settingsDetailOverlay.remove();
+            this.unmount(this.settingsDetailOverlay);
             this.settingsDetailOverlay = null;
         }
         this.syncOverlayOpen();
@@ -3428,7 +3443,7 @@ export class Hud {
     }
 
     hideNotice(): void {
-        this.notice?.remove();
+        if (this.notice) this.unmount(this.notice);
         this.notice = null;
     }
 
@@ -3437,7 +3452,7 @@ export class Hud {
     /** connection lost: blocking notice with a live countdown to forfeit */
     showReconnectWait(onGiveUp: () => void): void {
         this.hideNotice();
-        this.reconnectWait?.remove();
+        this.hideReconnectWait();
         const el = document.createElement('div');
         el.className = 'mechili-cards';
         el.innerHTML =
@@ -3459,7 +3474,7 @@ export class Hud {
     }
 
     hideReconnectWait(): void {
-        this.reconnectWait?.remove();
+        if (this.reconnectWait) this.unmount(this.reconnectWait);
         this.reconnectWait = null;
     }
 
@@ -3531,10 +3546,19 @@ export class Hud {
         for (const type of ['pointerdown', 'pointerup', 'pointermove', 'click', 'wheel']) {
             el.addEventListener(type, (e) => e.stopPropagation());
         }
+        // match-ui-root uses pointer-events:none so an empty root never blocks the menu
+        el.style.pointerEvents = 'auto';
         this.mountedRoots.push(el);
         if (this.uiHidden) el.classList.add('mechili-cinema-hide');
         if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
         this.overlayParent.appendChild(el);
+    }
+
+    /** remove from DOM and drop from mountedRoots (idempotent) */
+    private unmount(el: HTMLElement): void {
+        const idx = this.mountedRoots.indexOf(el);
+        if (idx >= 0) this.mountedRoots.splice(idx, 1);
+        el.remove();
     }
 
     get isUiHidden(): boolean {
@@ -3592,11 +3616,7 @@ export class Hud {
 
     /** removes every HUD element from the page */
     destroy(): void {
-        this.hidePauseMenu();
-        this.hideCardOverlay();
-        this.hideSettingsDetail();
-        this.hideNotice();
-        this.hideBattleReport();
+        this.hideMatchOverlays();
         this.clearInvDragListeners();
         this.invDrag = null;
         this.clearUnequipDragListeners();
@@ -3605,12 +3625,15 @@ export class Hud {
         this.itemGhost = null;
         this.cinemaHint?.remove();
         this.cinemaHint = null;
+        this.forgeSlotPreviewEl?.remove();
+        this.forgeSlotPreviewEl = null;
+        this.forgeSlotPreviewAnchor = null;
         this.cardSpellTips.destroy();
         for (const el of this.mountedRoots) {
             el.remove();
         }
         this.mountedRoots.length = 0;
         window.removeEventListener('pointermove', this.onItemGhostMove, true);
-        this.hudStyle.remove();
+        // HUD stylesheet stays permanent (see ensureHudStyleSheet)
     }
 }

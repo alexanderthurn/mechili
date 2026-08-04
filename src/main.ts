@@ -300,6 +300,16 @@ function createThreeCanvas(): HTMLCanvasElement {
 let threeCanvas = createThreeCanvas();
 wrapper.appendChild(threeCanvas);
 
+/** Match-only HUD/overlays — wiped on return-to-menu so leftovers can't survive.
+ *  Must sit above the 3D/Pixi canvases (appended later) or those steal all clicks.
+ *  pointer-events:none on the root so an empty shell never blocks the menu;
+ *  Hud.mount sets auto on each child. z-index below menu chrome (30). */
+const matchUiRoot = document.createElement('div');
+matchUiRoot.id = 'match-ui-root';
+matchUiRoot.style.cssText =
+    'position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:10;';
+wrapper.appendChild(matchUiRoot);
+
 function replaceThreeCanvas(): void {
     discardPrewarmedRenderer();
     threeCanvas.remove();
@@ -312,6 +322,7 @@ function replaceThreeCanvas(): void {
 document.body.appendChild(wrapper);
 
 // Loading chrome first — Feuerware + bar show before Pixi / Melodan logo finish.
+// Match HUD CSS is owned by Hud (permanent shared sheet — never torn down).
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
@@ -1938,6 +1949,13 @@ function finishReturnToMenu(): void {
     clearMatchResumeData();
     activeGame?.destroy();
     activeGame = null;
+    // Belt-and-suspenders: Hud.destroy should already clear this, but any
+    // orphan (reconnect cards, settings, pause leftovers) must not outlive
+    // the match — wipe the dedicated match root before the menu returns.
+    matchUiRoot.replaceChildren();
+    document.querySelector('.mechili-settings')?.remove();
+    document.querySelector('.mechili-touchtip')?.remove();
+    document.querySelector('.forge-slot-preview')?.remove();
     replayControlsPanel?.remove();
     replayControlsPanel = null;
     currentReplayRecord = null;
@@ -2070,7 +2088,7 @@ function startGame(
         const game = new Game(
             app,
             threeCanvas,
-            wrapper,
+            matchUiRoot,
             settings,
             net,
             side,
