@@ -687,6 +687,12 @@ menu.innerHTML = `
         <button class="m-btn m-small" data-mode="cg-back">Back</button>
     </div>
     <div class="m-status" style="display:none"></div>
+    <div class="m-roster-table" style="display:none"></div>
+    <label class="m-lobby-ready-row" style="display:none">
+        <input type="checkbox" class="m-lobby-ready-check">
+        I'm ready
+    </label>
+    <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
     <div class="m-lobby-settings" style="display:none">
         <label class="m-field">Pace
             <select class="cg-pace"></select>
@@ -697,12 +703,7 @@ menu.innerHTML = `
         <label class="m-field">Round cards
             <select class="cg-roundcards"></select>
         </label>
-        <label class="m-lobby-ready-row" style="display:none">
-            <input type="checkbox" class="m-lobby-ready-check">
-            I'm ready
-        </label>
     </div>
-    <div class="m-roster-table" style="display:none"></div>
     <button class="m-btn m-small" data-mode="startstar" style="display:none">Start Match</button>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
@@ -935,8 +936,22 @@ const cgPaceEl = menu.querySelector<HTMLSelectElement>('.cg-pace')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
+const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
+/** collapsed by default every time a lobby is (re)entered — see
+ *  clearLobbySettings(). Persists across refresh() calls within the
+ *  same lobby so re-rendering the roster doesn't fight the user's own
+ *  expand/collapse click. */
+let lobbySettingsExpanded = false;
+lobbySettingsToggleEl.addEventListener('click', () => {
+    lobbySettingsExpanded = !lobbySettingsExpanded;
+    applyLobbySettingsExpanded();
+});
+function applyLobbySettingsExpanded(): void {
+    lobbySettingsEl.style.display = lobbySettingsExpanded ? '' : 'none';
+    lobbySettingsToggleEl.textContent = lobbySettingsExpanded ? 'Advanced settings ▾' : 'Advanced settings ▸';
+}
 
 for (const pace of CUSTOM_GAME_PACE_PRESETS) {
     const opt = document.createElement('option');
@@ -1318,7 +1333,8 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
  *  already goes through. Idempotent — safe to call on every refresh(). */
 function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () => void): void {
     activeLobbyHost = { config, onChange: onSettingsChanged };
-    lobbySettingsEl.style.display = '';
+    lobbySettingsToggleEl.style.display = '';
+    applyLobbySettingsExpanded();
     // the host doesn't ready up — clicking Start IS their commitment
     lobbyReadyRowEl.style.display = 'none';
     cgPaceEl.disabled = false;
@@ -1335,7 +1351,8 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
  *  without this client doing anything. */
 function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boolean) => void): void {
     activeLobbyHost = null;
-    lobbySettingsEl.style.display = '';
+    lobbySettingsToggleEl.style.display = '';
+    applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = '';
     cgPaceEl.disabled = true;
     cgHordeEl.disabled = true;
@@ -1346,10 +1363,13 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
 
 /** hides/resets the lobby-settings panel — call alongside clearRosterTable
  *  wherever hosting/joining a lobby ends (cancelled, match actually
- *  starts, connection lost). */
+ *  starts, connection lost). Collapses the "Advanced settings" toggle
+ *  back to its default closed state for the NEXT lobby too. */
 function clearLobbySettings(): void {
     activeLobbyHost = null;
-    lobbySettingsEl.style.display = 'none';
+    lobbySettingsToggleEl.style.display = 'none';
+    lobbySettingsExpanded = false;
+    applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = 'none';
     lobbyReadyCheckEl.checked = false;
     lobbyReadyCheckEl.onchange = null;

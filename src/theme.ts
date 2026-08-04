@@ -867,6 +867,19 @@ ${fontFaceCss()}
     font-weight: bold;
     font-size: 13px;
 }
+.mechili-menu .m-lobby-settings-toggle {
+    background: none;
+    border: none;
+    padding: 2px 0;
+    width: auto;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    color: ${u.textMuted};
+    cursor: pointer;
+    transition: color 0.12s ease;
+}
+.mechili-menu .m-lobby-settings-toggle:hover { color: ${u.brassLight}; }
 .mechili-menu .m-lobby-settings {
     display: flex;
     flex-direction: column;
