@@ -52,17 +52,12 @@ export const GROUND_UNIT_Y = -0.08;
 
 /**
  * Footprint / wear dirt (`dirt-albedo-hq` on high/ultra, sand otherwise).
- * Shows under unit stamps + sparse base patches at match start.
+ * Live stamps only — no match-start mud under bases.
  *
- * - basePatchArea: lower divisor → more random dirt patches (try 12000–40000)
- * - basePatchAlpha: how strong those starting patches look (0.2–0.8)
  * - stampStrength: multiplies every footprint stamp (0.5–2)
  * - stampRadius: multiplies footprint size (0.7–1.5)
  */
 export const WEAR_BLEND = {
-    // denser start patches (~2× prior 22000); leave headroom for footprints
-    basePatchArea: 11000,
-    basePatchAlpha: 0.55,
     stampStrength: 1,
     stampRadius: 1,
 } as const;

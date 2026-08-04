@@ -903,18 +903,15 @@ export class PlacementController {
         return unit;
     }
 
-    /** Soft sand under base buildings only (packs leave no courtyard wear). */
+    /** Soft rounded pad under base buildings (matches footprint; packs leave none). */
     private stampSandUnder(unit: Unit): void {
         const t = unit.type;
         if (!t.structure || t.extra || t.flying) return;
         const fp = this.footprintOf(t, unit.rotated);
         const w = this.map.sandStampWeight(t);
-        this.map.stampSand(
-            unit.world.x,
-            unit.world.z,
-            this.map.packSandRadius(fp.cols, fp.rows) * Math.sqrt(w),
-            0.22 * w,
-        );
+        const scale =
+            t.id === 'stronghold' ? 1.55 : t.id === 'command-tower' || t.id === 'research-center' ? 1.35 : 1;
+        this.map.stampSandFootprint(unit.world.x, unit.world.z, fp.cols, fp.rows, 0.2 * w, scale);
     }
 
     /** Re-stamp every ground pack (after clearing sand wear at round start). */

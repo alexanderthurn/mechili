@@ -424,70 +424,15 @@ export class BattleMap {
         return tex;
     }
 
-    /** faint loose sand patches (R) — denser near base courtyards, still room for footprints */
+    /** Match-start mud disabled — wear is footprints / combat only. */
     private paintBaseSand(
         ctx: CanvasRenderingContext2D,
         w: number,
         h: number,
-        seed: number,
+        _seed: number,
     ): void {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, w, h);
-        const rng = mulberry32(seed ^ 0x5eed);
-        const pxPerUnit = w / this.width;
-        const worldToPx = (x: number, z: number) => ({
-            cx: ((x + this.halfW) / this.width) * w,
-            cy: ((z + this.halfH) / this.height) * h,
-        });
-
-        const paintCluster = (cx: number, cy: number, rBase: number, alpha: number, blobs: number) => {
-            for (let b = 0; b < blobs; b++) {
-                const r = rBase * (0.55 + rng() * 0.9);
-                this.drawWearBlob(
-                    ctx,
-                    cx + (rng() - 0.5) * r * 1.5,
-                    cy + (rng() - 0.5) * r * 1.5,
-                    r,
-                    alpha * (0.78 + rng() * 0.55),
-                    'r',
-                );
-            }
-        };
-
-        // scattered meadow wear
-        const patches = Math.round((this.width * this.height) / WEAR_BLEND.basePatchArea);
-        for (let i = 0; i < patches; i++) {
-            const cx = w * (0.08 + rng() * 0.84);
-            const cy = h * (0.08 + rng() * 0.84);
-            paintCluster(
-                cx,
-                cy,
-                (2.5 + rng() * 5) * pxPerUnit,
-                WEAR_BLEND.basePatchAlpha,
-                2 + Math.floor(rng() * 3),
-            );
-        }
-
-        // lived-in rings around both armies' base buildings (houses look "used")
-        for (const a of this.baseAnchors()) {
-            const { cx, cy } = worldToPx(a.x, a.z);
-            const ringR = a.r * pxPerUnit;
-            // soft courtyard disk
-            paintCluster(cx, cy, ringR * 0.85, WEAR_BLEND.basePatchAlpha * 0.7, 4);
-            // a few irregular blotches around the ring edge
-            const blotches = 5 + Math.floor(rng() * 4);
-            for (let i = 0; i < blotches; i++) {
-                const ang = rng() * Math.PI * 2;
-                const dist = ringR * (0.45 + rng() * 0.85);
-                paintCluster(
-                    cx + Math.cos(ang) * dist,
-                    cy + Math.sin(ang) * dist,
-                    (1.8 + rng() * 3.2) * pxPerUnit,
-                    WEAR_BLEND.basePatchAlpha * 0.85,
-                    2 + Math.floor(rng() * 2),
-                );
-            }
-        }
     }
 
     /**
@@ -515,6 +460,56 @@ export class BattleMap {
         ctx.fill();
     }
 
+    /** Soft irregular courtyard pad (organic blotches, not a clean shape). */
+    private drawWearRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        halfW: number,
+        halfH: number,
+        alpha: number,
+        channel: 'r' | 'g' | 'b',
+        seed = 1,
+    ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        // Deterministic jitter from pad center so restamps match
+        let s = (Math.imul(Math.floor(x * 17 + y * 31 + seed), 0x9e3779b1) >>> 0) || 1;
+        const rnd = () => {
+            s ^= s << 13;
+            s ^= s >>> 17;
+            s ^= s << 5;
+            return (s >>> 0) / 4294967296;
+        };
+
+        // Soft core — slightly stretched, not a perfect disc
+        const coreR = Math.hypot(halfW, halfH) * (0.72 + rnd() * 0.12);
+        this.drawWearBlob(ctx, x + (rnd() - 0.5) * halfW * 0.2, y + (rnd() - 0.5) * halfH * 0.2, coreR, a * 0.55, channel);
+
+        // Irregular blotches around / inside the footprint
+        const blobs = 7 + Math.floor(rnd() * 5);
+        for (let i = 0; i < blobs; i++) {
+            const ang = rnd() * Math.PI * 2;
+            const dist = rnd() * Math.max(halfW, halfH) * 0.95;
+            const bx = x + Math.cos(ang) * dist * (0.55 + rnd() * 0.7);
+            const by = y + Math.sin(ang) * dist * (0.55 + rnd() * 0.7);
+            // Keep mostly inside a soft ellipse of the footprint
+            const nx = (bx - x) / Math.max(halfW, 1);
+            const ny = (by - y) / Math.max(halfH, 1);
+            if (nx * nx + ny * ny > 1.35) continue;
+            const br = Math.min(halfW, halfH) * (0.28 + rnd() * 0.55);
+            this.drawWearBlob(ctx, bx, by, br, a * (0.35 + rnd() * 0.5), channel);
+        }
+
+        // A few edge nicks so the silhouette isn't a clean oval
+        const nicks = 3 + Math.floor(rnd() * 3);
+        for (let i = 0; i < nicks; i++) {
+            const ang = rnd() * Math.PI * 2;
+            const bx = x + Math.cos(ang) * halfW * (0.85 + rnd() * 0.35);
+            const by = y + Math.sin(ang) * halfH * (0.85 + rnd() * 0.35);
+            this.drawWearBlob(ctx, bx, by, Math.min(halfW, halfH) * (0.18 + rnd() * 0.28), a * 0.3, channel);
+        }
+    }
+
     private stampWearChannel(
         x: number,
         z: number,
@@ -537,6 +532,34 @@ export class BattleMap {
         const s =
             (this.groundEffects === 'medium' ? strength * 0.55 : strength) * WEAR_BLEND.stampStrength;
         this.stampWearChannel(x, z, radius * WEAR_BLEND.stampRadius, s, 'r');
+    }
+
+    /**
+     * Soft rounded courtyard wear under a structure footprint (cols × rows).
+     * Prefer this over {@link stampSand} for buildings.
+     * @param scale — pad size vs footprint (Stronghold uses >1).
+     */
+    stampSandFootprint(
+        x: number,
+        z: number,
+        cols: number,
+        rows: number,
+        strength = 0.14,
+        scale = 1,
+    ): void {
+        if (!this.wearEnabled()) return;
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const s =
+            (this.groundEffects === 'medium' ? strength * 0.55 : strength) * WEAR_BLEND.stampStrength;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const halfWu = (cols * CELL * 0.46 * scale) * WEAR_BLEND.stampRadius;
+        const halfHu = (rows * CELL * 0.46 * scale) * WEAR_BLEND.stampRadius;
+        const hx = Math.max(1, halfWu * (this.sandW / this.width));
+        const hy = Math.max(1, halfHu * (this.sandH / this.height));
+        this.drawWearRect(ctx, cx, cy, hx, hy, s, 'r');
+        this.sandDirty = true;
     }
 
     /** Stamp blood under a hit/kill (G) — tight stain, short soft edge. */
