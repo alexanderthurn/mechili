@@ -40,6 +40,7 @@ import {
     type UnitType,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
+import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import type { CpuTimings } from '../ui/debug';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
@@ -2425,12 +2426,12 @@ export class BattleSim {
             const intensity =
                 stats.damage * this.levelMult(caster.unit) * this.debuff(caster, d.attackMult);
 
-            const fromY = caster.footY + Math.max(1.6, caster.unit.type.meshScale * 1.15);
+            const from = this.convertRayOrigin(caster);
             const toY = target.footY + Math.max(1.0, target.unit.type.meshScale * 0.9);
-            const sx = target.x - caster.x;
-            const sy = toY - fromY;
-            const sz = target.z - caster.z;
-            const block = this.enemyShieldHitOnSegment(caster.x, fromY, caster.z, sx, sy, sz, team);
+            const sx = target.x - from.x;
+            const sy = toY - from.y;
+            const sz = target.z - from.z;
+            const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
 
             caster.convertRayActive = true;
             if (block) {
@@ -2457,6 +2458,24 @@ export class BattleSim {
                 this.convertActor(caster, target);
             }
         }
+    }
+
+    /**
+     * Convert-ray muzzle: GLB `AttackNode` when present, else chest-height fallback.
+     * Uses sim xz + mesh yaw so the beam tracks facing.
+     */
+    private convertRayOrigin(caster: Actor): { x: number; y: number; z: number } {
+        const t = caster.unit.type;
+        const modelKey = t.modelId ?? t.id;
+        const local = getUnitAttackNodeLocal(modelKey);
+        if (local) {
+            return attackNodeWorld(local, caster.x, caster.footY, caster.z, caster.mesh.rotation.y, t.meshScale);
+        }
+        return {
+            x: caster.x,
+            y: caster.footY + Math.max(1.6, t.meshScale * 1.15),
+            z: caster.z,
+        };
     }
 
     private closestConvertTarget(

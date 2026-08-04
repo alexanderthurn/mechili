@@ -80,9 +80,44 @@ const instanceAssets = new Map<string, InstanceAsset>();
  */
 const visualHeights = new Map<string, number>();
 
+/**
+ * Optional muzzle / ray origins from GLB empties named `AttackNode`, in
+ * normalized model space (feet at y=0, rest forward −Z, before meshScale).
+ */
+const attackNodes = new Map<string, { x: number; y: number; z: number }>();
+
 /** Local mesh height for badges / arrows (× meshScale → world). Falls back to 1. */
 export function getUnitVisualHeight(id: string): number {
     return visualHeights.get(id) ?? 1;
+}
+
+/** Rest-local AttackNode offset, or null if the GLB has none. */
+export function getUnitAttackNodeLocal(id: string): { x: number; y: number; z: number } | null {
+    return attackNodes.get(id) ?? null;
+}
+
+/**
+ * Transform a rest-local AttackNode into world space.
+ * `yaw` is {@link Object3D.rotation.y} (rest forward −Z → yaw 0).
+ */
+export function attackNodeWorld(
+    local: { x: number; y: number; z: number },
+    originX: number,
+    footY: number,
+    originZ: number,
+    yaw: number,
+    meshScale: number,
+): { x: number; y: number; z: number } {
+    const c = Math.cos(yaw);
+    const s = Math.sin(yaw);
+    const lx = local.x * meshScale;
+    const ly = local.y * meshScale;
+    const lz = local.z * meshScale;
+    return {
+        x: originX + lx * c + lz * s,
+        y: footY + ly,
+        z: originZ - lx * s + lz * c,
+    };
 }
 
 /** Record a provisional or measured local height (GLB load overwrites with bbox). */
@@ -297,6 +332,16 @@ export async function loadUnitModels(
             // measure after normalize+offset — real top relative to member origin
             const box = new Box3().setFromObject(root);
             visualHeights.set(id, Math.max(box.max.y, 0.05));
+            root.updateMatrixWorld(true);
+            const attack = root.getObjectByName('AttackNode');
+            if (attack) {
+                const p = new Vector3();
+                attack.getWorldPosition(p);
+                attackNodes.set(id, { x: p.x, y: p.y, z: p.z });
+                console.info(
+                    `[unitModels] AttackNode '${id}' @ (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
+                );
+            }
             templates.set(id, root);
             instanceAssets.set(id, bakeInstanceAsset(root));
             console.info(
