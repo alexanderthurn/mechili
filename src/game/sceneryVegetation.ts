@@ -61,7 +61,7 @@ export const BILLBOARD_BRIGHTNESS = 1.55;
  * (white-green canopy belt) than unlit billboards. Dial this down so the
  * near/far seam matches. Try 0.65–0.85.
  */
-export const TRIPO_FOLIAGE_GAIN = 0.45;
+export const TRIPO_FOLIAGE_GAIN = 0.5;
 
 const SPECS: Record<
     VegetationKind,

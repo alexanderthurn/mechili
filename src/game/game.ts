@@ -1069,13 +1069,16 @@ export class Game {
         sun.position.set(120, 160, 80);
         // a bit stronger than the Three default (1) so packs/towers read clearly on the grass
         sun.shadow.intensity = 1.55;
-        // frustum reaches past the field so the tree ring casts onto its edges
-        sun.shadow.camera.left = -this.map.halfW - 40;
-        sun.shadow.camera.right = this.map.halfW + 40;
-        sun.shadow.camera.top = this.map.halfH + 40;
-        sun.shadow.camera.bottom = -this.map.halfH - 40;
+        // Large square frustum past the near forest. A board-tight box (±half+40)
+        // reads as a rotating "cube shadow" when the sun lerps during season/time.
+        const shadowExtent = Math.max(this.map.halfW, this.map.halfH) + 280;
+        sun.shadow.camera.left = -shadowExtent;
+        sun.shadow.camera.right = shadowExtent;
+        sun.shadow.camera.top = shadowExtent;
+        sun.shadow.camera.bottom = -shadowExtent;
         sun.shadow.camera.near = 10;
-        sun.shadow.camera.far = 500;
+        sun.shadow.camera.far = 720;
+        sun.shadow.camera.updateProjectionMatrix();
         this.scene.add(sun);
 
         this.sun = sun;
