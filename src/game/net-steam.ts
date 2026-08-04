@@ -349,9 +349,11 @@ export class SteamStarHub implements HostHub {
     onSeatDropped: ((seat: SeatId) => void) | null = null;
     // Steam star matches have no reconnect story yet (still v1 scope, same
     // as before) — a drop goes straight to onSeatDropped like it always
-    // has; these two are here only to satisfy HostHub and are never fired.
+    // has; these three are here only to satisfy HostHub and are never fired.
     onSeatSuspended: ((seat: SeatId) => void) | null = null;
     onSeatReconnected: ((seat: SeatId) => void) | null = null;
+    onSeatReclaimedFromAi: ((seat: SeatId) => void) | null = null;
+    onDebugEvent: ((category: string, data?: unknown) => void) | null = null;
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
 
@@ -363,6 +365,16 @@ export class SteamStarHub implements HostHub {
     private readonly pending = new Set<string>();
     private roster: CanonicalSeatDef[];
     private accepting = false;
+    /** true until leaveLobby() is called — see dropSeat's own doc comment. */
+    private inLobby = true;
+
+    /** call once ownership of this hub passes to the running Game (see
+     *  main.ts's startSteamStarMatch) — from here on, a drop no longer
+     *  resets the roster entry (Game's own AI-fill logic owns that once
+     *  the match has started). */
+    leaveLobby(): void {
+        this.inLobby = false;
+    }
 
     constructor(
         readonly lobbyId: string,
@@ -379,6 +391,13 @@ export class SteamStarHub implements HostHub {
 
     setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void {
         this.roster = this.roster.map((s, i) => (i === seat ? entry : s));
+    }
+
+    // no reconnect story yet (see class doc comment) — nothing to mark
+    // reclaimable, this just satisfies HostHub
+    markReclaimable(): void {}
+    isReclaimable(): boolean {
+        return false;
     }
 
     sideOf(seat: SeatId): 'a' | 'b' {
@@ -486,13 +505,45 @@ export class SteamStarHub implements HostHub {
      * signal reports a genuine departure). Idempotent via the `bySeat.has`
      * guard: the watchdog and the lobby-scan secondary path in `listen()`
      * can both try to drop the same seat.
+     *
+     * Pre-match (`inLobby`), this ALSO resets the roster entry back to an
+     * open "Waiting…" slot instead of leaving the departed player's stale
+     * name in place — onSeatDropped is never wired up until Game's own
+     * wireStar() runs at match start, so nothing else would ever do this
+     * for a lobby-phase drop (found live: host still showed a guest in
+     * the roster table after that guest clicked Cancel).
      */
     private dropSeat(seat: SeatId): void {
         if (!this.bySeat.has(seat)) return;
         this.bySeat.get(seat)!.channel.dispose();
         this.bySeat.delete(seat);
+        if (this.inLobby) {
+            const entry = this.roster[seat];
+            if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
+        }
         this.onRosterChange?.();
         this.onSeatDropped?.(seat);
+    }
+
+    /**
+     * Host explicitly removes a still-joined seat before the match has
+     * started — a lobby-only concept, distinct from dropSeat's "gone for
+     * good" (which still fires onSeatDropped, a signal meaningless here
+     * since Game doesn't exist yet). Resets the roster entry straight
+     * back to an open "Waiting…" slot so nextOpenSeat() offers it again
+     * immediately, and to keep the lobby roster table from showing the
+     * kicked player's stale name.
+     */
+    kickSeat(seat: SeatId): void {
+        if (seat === 0) return; // the host can't kick themselves
+        const viewer = this.bySeat.get(seat);
+        if (!viewer) return;
+        viewer.channel.send({ type: 'starRejected', reason: 'Kicked by the host.' });
+        viewer.channel.dispose();
+        this.bySeat.delete(seat);
+        const entry = this.roster[seat];
+        if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
+        this.onRosterChange?.();
     }
 
     send(seat: SeatId, msg: NetMessage): void {

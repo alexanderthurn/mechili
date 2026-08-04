@@ -48,7 +48,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 20; // v20: 'starSync' now carries the dropped seat(s)' names, for a non-host's own "waiting" notice
+export const GAME_VERSION = 22; // v22: 'starRoster' carries waitForJoined; new 'lobbySettings'/'lobbyReady' lobby messages; CanonicalSeatDef gains an optional 'ready' flag
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -143,6 +143,14 @@ export interface RoomRosterEntry {
     name: string;
     side: 'a' | 'b';
     connected: boolean;
+    /** this seat was handed to AI control after its original player
+     *  dropped (see Game.takeOverSeatWithAi/markReclaimable) — still shown
+     *  with `connected: false` so a name-matched client can offer "resume"
+     *  the same way it already does for a seat mid-grace-window, distinct
+     *  from a seat that's simply between connections right now. Omitted
+     *  (or false) for a normal seat, INCLUDING a genuinely bot-filled
+     *  2v2ai seat that was never human — only a real takeover sets this. */
+    aiControlled?: boolean;
 }
 
 export interface LobbyRoom {
@@ -198,6 +206,21 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
     await fetch(
         `${chatUrl()}?action=post&name=${encodeURIComponent(name)}&text=${encodeURIComponent(text)}`,
     ).catch(() => undefined);
+}
+
+/** Custom Game lobby config — pure data, shared between the host's
+ *  editable form and every guest's read-only preview (see the
+ *  'lobbySettings' NetMessage below). Lives here rather than in main.ts
+ *  since it now travels over the wire. */
+export type CustomGameMode = '1v1' | '1v1ai' | '2v2' | '2v2ai';
+export interface CustomGameConfig {
+    mode: CustomGameMode;
+    /** id into CUSTOM_GAME_PACE_PRESETS */
+    pace: string;
+    /** id into HORDE_ALGORITHMS */
+    hordePreset: string;
+    /** id into ROUND_CARD_ALGORITHMS */
+    roundCardPreset: string;
 }
 
 /**
@@ -284,8 +307,12 @@ export type NetMessage =
     /** local battle sim finished — the peer may still be watching theirs
      *  (fast-forward speed is per-client); the next build phase waits for both */
     /** `seat` unused by classic 1v1 (implicitly "the opponent"); star mode's
-     *  host needs it to attribute + aggregate across N watchers */
-    | { type: 'battleEnd'; round: number; seat?: SeatId }
+     *  host needs it to attribute + aggregate across N watchers. `hash` (star
+     *  mode only) is this seat's own post-battle stateHash(), riding along
+     *  with the existing ack — this is the battle-end sync-barrier
+     *  checkpoint's fingerprint, captured before the sim is torn down; see
+     *  Game.endBattlePhase/verifyStarSyncBarrier. */
+    | { type: 'battleEnd'; round: number; seat?: SeatId; hash?: number }
     /** post-reconnect: "I've finished rebuilding and am about to resume my
      *  clock" — a reloading peer's asset load takes real seconds, so a
      *  survivor that resumed instantly would otherwise burn that time for
@@ -342,9 +369,25 @@ export type NetMessage =
           yourSeat: SeatId;
           yourSide: 'a' | 'b';
       }
-    /** lobby membership, broadcast whenever a seat's controller/name changes
-     *  (a friend joins, an empty seat gets AI-filled at start) */
-    | { type: 'starRoster'; roster: CanonicalSeatDef[] }
+    /** lobby membership, broadcast whenever a seat's controller/name/ready
+     *  state changes (a friend joins, an empty seat gets AI-filled at
+     *  start, someone (un)readies). `waitForJoined` rides along so a
+     *  guest's own roster table can render the same "AI" vs "Waiting…"
+     *  prediction the host's does (see renderRosterTable's
+     *  guaranteedAiFrom) — it's otherwise host-local UI state. */
+    | { type: 'starRoster'; roster: CanonicalSeatDef[]; waitForJoined: number }
+    /** Custom Game lobby only: host → every guest whenever the pace/horde/
+     *  round-card config changes, so the waiting room can show a live,
+     *  read-only preview before the match actually starts (the config
+     *  itself is only ever APPLIED host-side, at Start — this is display
+     *  only). Never sent for a plain matchmaking room (no config to show). */
+    | { type: 'lobbySettings'; config: CustomGameConfig }
+    /** Custom Game lobby only: guest → host, toggled by the guest's own
+     *  "I'm ready" checkbox. The host is the sole source of truth for
+     *  readiness (stored on the guest's own roster entry, see
+     *  CanonicalSeatDef.ready) — re-broadcasts as part of the next
+     *  starRoster, same as any other roster change. */
+    | { type: 'lobbyReady'; ready: boolean }
     /** host declines a join (room full, version mismatch) */
     | { type: 'starRejected'; reason: string }
     /** host → each guest once every seat has locked in for the round and the
@@ -380,7 +423,14 @@ export type NetMessage =
      * (dropped, not yet reconnected) seat's name, so a non-host recipient
      * can show the same "<name> disconnected — waiting <time>" notice the
      * host shows, instead of a generic message with no idea who dropped —
-     * always sent (empty array on `suspended:false`, unused there). */
+     * always sent (empty array on `suspended:false`, unused there).
+     * `silent`: true for the sync-barrier checkpoints (see
+     * Game.verifyStarSyncBarrier) — every participant self-suspends
+     * symmetrically there, so there is nothing to explain; the receiver
+     * must NOT call showSuspendNotice()/touch pendingDropNames/
+     * suspendDeadline for a silent message, only flip `suspended` itself.
+     * Absent or false means today's real-disconnect behavior (the modal
+     * "X disconnected" notice). */
     | {
           type: 'starSync';
           suspended: boolean;
@@ -388,6 +438,7 @@ export type NetMessage =
           phase: 'build' | 'battle';
           target: number;
           names: string[];
+          silent?: boolean;
       }
     /**
      * Guest → host only: this guest's own per-seat `seq` tracking
@@ -685,6 +736,15 @@ export interface HostHub {
     onSeatSuspended: ((seat: SeatId) => void) | null;
     /** a previously-suspended seat successfully reclaimed its connection */
     onSeatReconnected: ((seat: SeatId) => void) | null;
+    /** a seat that had been permanently handed to AI control (its grace
+     *  window fully elapsed, or it explicitly quit) was just reclaimed by
+     *  its ORIGINAL human player rejoining under the same name — see
+     *  markReclaimable/StarHub's own doc comment on why this is a
+     *  separate, later path than onSeatReconnected's in-grace-window case. */
+    onSeatReclaimedFromAi: ((seat: SeatId) => void) | null;
+    /** dev-only (`?debug`): reclaim/drop/rejoin decisions, routed to the
+     *  owning Game's DebugLog — see StarHub's own doc comment */
+    onDebugEvent: ((category: string, data?: unknown) => void) | null;
     broadcast(msg: NetMessage, exclude?: SeatId): void;
     send(seat: SeatId, msg: NetMessage): void;
     relayBuild(
@@ -701,6 +761,17 @@ export interface HostHub {
      *  AI-fill at match start): nextOpenSeat() reads this hub's roster, not
      *  Game's local seat state, to decide what's available to a new joiner. */
     setRosterEntry(seat: SeatId, entry: CanonicalSeatDef): void;
+    /** marks a seat as eligible for its ORIGINAL human player (name-matched)
+     *  to reclaim from AI control later in the match — call once, right
+     *  after handing a seat to AI (see Game.takeOverSeatWithAi). Never set
+     *  for a seat that started AI-controlled (2v2ai bot fills): only a real
+     *  takeover from a departed human makes a seat reclaimable, so a
+     *  stranger's name can never coincidentally "reclaim" a bot. */
+    markReclaimable(seat: SeatId): void;
+    /** is this seat currently marked reclaimable (see markReclaimable)? —
+     *  used by Game.backendRosterSnapshot() to surface it in the room list
+     *  as resumable, the same way a mid-grace-window drop already is. */
+    isReclaimable(seat: SeatId): boolean;
     close(): void;
 }
 
@@ -733,7 +804,25 @@ export class StarHub implements HostHub {
         }
     >();
     private readonly reconnectTimers = new Map<SeatId, ReturnType<typeof setTimeout>>();
+    /** seats handed to AI control (see Game.takeOverSeatWithAi) whose
+     *  ORIGINAL human player may still reclaim them later, by rejoining
+     *  under the same name — see markReclaimable/findReclaimableSeatByName.
+     *  Deliberately separate from `bySeat`'s conn:null grace-window
+     *  reservation: this has no deadline and survives long after that
+     *  window (and the seat's `bySeat` entry) is gone. */
+    private readonly reclaimableSeats = new Set<SeatId>();
     private roster: CanonicalSeatDef[];
+    /** true until leaveLobby() is called — see dropSeat's own doc comment
+     *  on why a lobby-phase drop skips the reconnect grace window. */
+    private inLobby = true;
+
+    /** call once ownership of this hub passes to the running Game (see
+     *  main.ts's startStarMatch/startSteamStarMatch) — from here on, a
+     *  drop gets the normal reconnect-grace-window treatment instead of
+     *  an immediate reset. */
+    leaveLobby(): void {
+        this.inLobby = false;
+    }
 
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
@@ -746,6 +835,14 @@ export class StarHub implements HostHub {
     onSeatSuspended: ((seat: SeatId) => void) | null = null;
     /** a previously-suspended seat successfully reclaimed its connection */
     onSeatReconnected: ((seat: SeatId) => void) | null = null;
+    /** a seat that had been fully handed to AI control was just reclaimed
+     *  by its original human player rejoining under the same name */
+    onSeatReclaimedFromAi: ((seat: SeatId) => void) | null = null;
+    /** dev-only (`?debug`): routes reclaim/drop/rejoin decisions through the
+     *  owning Game's DebugLog, same pattern as SpectatorHub's constructor-
+     *  injected one — set post-construction here since Game doesn't exist
+     *  yet when StarHub.open() runs (see wireStar) */
+    onDebugEvent: ((category: string, data?: unknown) => void) | null = null;
 
     private constructor(
         private readonly peer: Peer,
@@ -795,7 +892,14 @@ export class StarHub implements HostHub {
                     const msg = data as NetMessage;
                     if (msg.type === 'starRejoin') {
                         conn.off('data', onData);
-                        if (msg.version !== GAME_VERSION || !this.reclaimSeat(msg.seat, conn)) {
+                        const accepted = msg.version === GAME_VERSION && this.reclaimSeat(msg.seat, conn);
+                        this.onDebugEvent?.('star.rejoinAttempt', {
+                            seat: msg.seat,
+                            theirVersion: msg.version,
+                            ourVersion: GAME_VERSION,
+                            accepted,
+                        });
+                        if (!accepted) {
                             conn.send({
                                 type: 'starRejoinRejected',
                                 reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
@@ -819,13 +923,64 @@ export class StarHub implements HostHub {
                     // starRejoin.
                     const droppedSeat = this.findDroppedSeatByName(msg.name);
                     if (droppedSeat !== null) {
-                        if (msg.version !== GAME_VERSION || !this.reclaimSeat(droppedSeat, conn)) {
+                        const accepted = msg.version === GAME_VERSION && this.reclaimSeat(droppedSeat, conn);
+                        this.onDebugEvent?.('star.nameMatchedRejoinAttempt', {
+                            name: msg.name,
+                            seat: droppedSeat,
+                            theirVersion: msg.version,
+                            ourVersion: GAME_VERSION,
+                            accepted,
+                        });
+                        if (!accepted) {
                             conn.send({
                                 type: 'starRejoinRejected',
                                 reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
                             });
                             conn.close();
                         }
+                        return;
+                    }
+                    // checked AFTER the grace-window case above — genuinely
+                    // mutually exclusive, not just in the common case: a
+                    // seat leaves `bySeat` entirely once it's handed to AI
+                    // (see dropSeat's own reclaimableSeats check, which
+                    // proactively clears a stale bySeat entry instead of
+                    // starting a pointless second grace window for a seat
+                    // that's already been resolved — found via the voluntary
+                    // -quit path, where takeOverSeatWithAi/markReclaimable
+                    // run WHILE the seat's connection is still technically
+                    // open for a moment). Name-matched only, same integrity
+                    // guarantee as the grace-window path above — never falls
+                    // through to nextOpenSeat()/onJoin, so a stranger can
+                    // never claim an AI-controlled seat.
+                    const reclaimableSeat = this.findReclaimableSeatByName(msg.name);
+                    if (reclaimableSeat !== null) {
+                        if (msg.version !== GAME_VERSION) {
+                            this.onDebugEvent?.('star.aiReclaimAttempt', {
+                                name: msg.name,
+                                seat: reclaimableSeat,
+                                theirVersion: msg.version,
+                                ourVersion: GAME_VERSION,
+                                accepted: false,
+                            });
+                            conn.send({ type: 'starRejoinRejected', reason: 'Version mismatch.' });
+                            conn.close();
+                            return;
+                        }
+                        this.reclaimableSeats.delete(reclaimableSeat);
+                        this.bySeat.set(reclaimableSeat, { conn, buffer: [], liveness: null });
+                        this.wireSeatConn(reclaimableSeat, conn);
+                        const entry = this.roster[reclaimableSeat];
+                        if (entry) this.setRosterEntry(reclaimableSeat, { ...entry, controller: 'human' });
+                        this.onDebugEvent?.('star.aiReclaimAttempt', {
+                            name: msg.name,
+                            seat: reclaimableSeat,
+                            theirVersion: msg.version,
+                            ourVersion: GAME_VERSION,
+                            accepted: true,
+                        });
+                        this.onSeatReclaimedFromAi?.(reclaimableSeat);
+                        this.onRosterChange?.();
                         return;
                     }
                     const seat = onJoin(msg.name, msg.version, conn, msg.avatar);
@@ -861,6 +1016,48 @@ export class StarHub implements HostHub {
         return true;
     }
 
+    /**
+     * Host explicitly removes a still-joined seat before the match has
+     * started — a lobby-only concept, distinct from a genuine disconnect:
+     * no grace window, no reconnect offer, the seat's roster entry resets
+     * straight back to an open "Waiting…" slot so nextOpenSeat() can
+     * offer it to the next comer immediately. Only meaningful pre-match
+     * (before Game exists to take over onSeatSuspended/onSeatDropped) —
+     * the lobby UI is the only caller and never exposes this once a match
+     * is running.
+     */
+    kickSeat(seat: SeatId): void {
+        if (seat === 0) return; // the host can't kick themselves
+        this.resetSeatToOpen(seat, 'Kicked by the host.');
+    }
+
+    /** shared by kickSeat and dropSeat's lobby-phase branch: closes
+     *  whatever connection this seat still has (if `rejectReason` is set,
+     *  tells it why first — omitted for a drop that's already gone, there's
+     *  nothing left to tell), forgets the seat entirely (no grace-window
+     *  reservation), and resets its roster entry back to an open
+     *  "Waiting…" slot so nextOpenSeat() offers it to the next comer. */
+    private resetSeatToOpen(seat: SeatId, rejectReason?: string): void {
+        const viewer = this.bySeat.get(seat);
+        if (!viewer) return;
+        const timer = this.reconnectTimers.get(seat);
+        if (timer !== undefined) {
+            clearTimeout(timer);
+            this.reconnectTimers.delete(seat);
+        }
+        viewer.liveness?.stop();
+        if (viewer.conn && rejectReason) {
+            viewer.conn.send({ type: 'starRejected', reason: rejectReason });
+            viewer.conn.close();
+        } else {
+            viewer.conn?.close();
+        }
+        this.bySeat.delete(seat);
+        const entry = this.roster[seat];
+        if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
+        this.onRosterChange?.();
+    }
+
     /** shared per-seat connection wiring — used for both a fresh join and a
      *  successful reclaim. Intercepts ping/pong (see watchLiveness) before
      *  anything reaches `onMessage`, and starts this seat's own liveness
@@ -870,6 +1067,8 @@ export class StarHub implements HostHub {
     private wireSeatConn(seat: SeatId, conn: DataConnection): void {
         const viewer = this.bySeat.get(seat);
         viewer?.liveness?.stop(); // replacing a reclaimed connection's own prior watchdog
+        const connTag = `${conn.peer}/${conn.connectionId ?? '?'}`;
+        this.onDebugEvent?.('star.seatConnWired', { seat, connTag });
         conn.on('data', (d) => {
             const msg = d as NetMessage;
             this.bySeat.get(seat)?.liveness?.markSeen();
@@ -880,8 +1079,31 @@ export class StarHub implements HostHub {
             if (msg.type === 'pong') return;
             this.onMessage?.(seat, msg);
         });
-        conn.on('close', () => this.dropSeat(seat));
-        conn.on('error', () => this.dropSeat(seat));
+        // Guard against a STALE event from a superseded connection: the
+        // previous connection for this seat (e.g. an abruptly-closed tab)
+        // can fire its own late 'close'/'error' well after the app already
+        // gave up on it via the liveness watchdog — WebRTC's own ICE
+        // teardown has no fixed deadline and can take far longer than our
+        // 10s ping timeout. Without this check, that delayed event would
+        // tear down a BRAND NEW connection wired in the meantime for the
+        // same seat (confirmed live: a successful reclaim's fresh
+        // connection dropped 5ms after being accepted, from exactly this).
+        conn.on('close', () => {
+            const isCurrent = this.bySeat.get(seat)?.conn === conn;
+            this.onDebugEvent?.('star.seatConnClose', { seat, connTag, isCurrent });
+            if (isCurrent) this.dropSeat(seat);
+        });
+        conn.on('error', (err) => {
+            const isCurrent = this.bySeat.get(seat)?.conn === conn;
+            this.onDebugEvent?.('star.seatConnError', {
+                seat,
+                connTag,
+                isCurrent,
+                type: (err as { type?: string }).type,
+                message: err instanceof Error ? err.message : String(err),
+            });
+            if (isCurrent) this.dropSeat(seat);
+        });
         if (viewer) {
             viewer.liveness = watchLiveness(
                 () => conn.send({ type: 'ping' }),
@@ -907,6 +1129,26 @@ export class StarHub implements HostHub {
         return null;
     }
 
+    markReclaimable(seat: SeatId): void {
+        this.reclaimableSeats.add(seat);
+    }
+
+    isReclaimable(seat: SeatId): boolean {
+        return this.reclaimableSeats.has(seat);
+    }
+
+    /** a seat handed to AI control (see markReclaimable) whose roster name
+     *  matches — the AI-takeover counterpart of findDroppedSeatByName,
+     *  checked separately (and AFTER) since it has no grace-window deadline
+     *  and the seat is no longer in `bySeat` at all by the time this can
+     *  match. */
+    private findReclaimableSeatByName(name: string): SeatId | null {
+        for (const seat of this.reclaimableSeats) {
+            if (this.roster[seat]?.name === name) return seat;
+        }
+        return null;
+    }
+
     /**
      * A seat's connection just closed/errored. Doesn't free the seat
      * immediately — keeps it reserved (conn: null) for STAR_RECONNECT_GRACE_MS,
@@ -914,10 +1156,46 @@ export class StarHub implements HostHub {
      * an already-handled drop (e.g. both 'close' and 'error' firing for
      * the same connection) or a seat that already reclaimed itself is a
      * safe no-op (viewer.conn !== null check below).
+     *
+     * That grace window only applies once a real match is running,
+     * though (see `inLobby`/`leaveLobby`) — during the lobby, a drop
+     * (whether a deliberate Cancel or a genuine connection loss) resets
+     * the seat immediately instead. There's no match progress to protect
+     * yet, and critically, nothing would ever RESOLVE a lobby-phase grace
+     * window on its own: onSeatSuspended/onSeatDropped aren't wired up
+     * until Game's own wireStar() runs at match start, so without this
+     * branch a cancelled lobby guest's seat stayed "filled" with their
+     * stale name forever (found live: host still showed a guest in the
+     * roster table after that guest clicked Cancel).
      */
     private dropSeat(seat: SeatId): void {
         const viewer = this.bySeat.get(seat);
         if (!viewer || viewer.conn === null) return;
+        this.onDebugEvent?.('star.dropSeat', {
+            seat,
+            alreadyReclaimable: this.reclaimableSeats.has(seat),
+            inLobby: this.inLobby,
+        });
+        if (this.reclaimableSeats.has(seat)) {
+            // this seat was already fully resolved to AI control BEFORE this
+            // connection's close/error event fired — a voluntary quit
+            // (handleSeatQuit) runs takeOverSeatWithAi/markReclaimable
+            // synchronously, while the connection is still technically open
+            // for a moment. Starting a fresh grace-window reservation here
+            // would leave a stale bySeat entry that findDroppedSeatByName
+            // could match AHEAD of the (correct) AI-reclaim path on a later
+            // rejoin — silently reconnecting the old connection without
+            // ever reversing the takeover. Just clear it and let
+            // reclaimableSeats stay the sole source of truth for this seat.
+            viewer.liveness?.stop();
+            this.bySeat.delete(seat);
+            this.onRosterChange?.();
+            return;
+        }
+        if (this.inLobby) {
+            this.resetSeatToOpen(seat);
+            return;
+        }
         viewer.conn = null;
         viewer.liveness?.stop();
         viewer.liveness = null;
@@ -930,7 +1208,11 @@ export class StarHub implements HostHub {
         this.onRosterChange?.();
         const timer = setTimeout(() => {
             this.reconnectTimers.delete(seat);
-            if (this.bySeat.get(seat)?.conn !== null) return; // reclaimed in the meantime
+            if (this.bySeat.get(seat)?.conn !== null) {
+                this.onDebugEvent?.('star.graceWindowElapsed', { seat, reclaimedInMeantime: true });
+                return;
+            }
+            this.onDebugEvent?.('star.graceWindowElapsed', { seat, reclaimedInMeantime: false });
             this.bySeat.delete(seat);
             this.onSeatDropped?.(seat);
             this.onRosterChange?.();
@@ -1229,6 +1511,27 @@ export type StarRole =
  * `discovery: 'lan'` uses Electron's local PeerServer + UDP announce (no PHP).
  * `discovery: 'matchmaking'` (default) uses the PeerJS cloud + matchmaking.php.
  */
+/**
+ * Turns a raw StarHub.open() failure into an accurate message instead of
+ * blindly assuming every failure is a name collision — it can also be a
+ * generic network/permission error, and blaming the username then is
+ * actively misleading. For the one case that IS a real id collision
+ * ('unavailable-id'), the honest framing is "still marked open," not "pick
+ * another username": overwhelmingly this is the player's OWN previous
+ * hosting attempt (e.g. clicking Cancel) whose peer id the broker hasn't
+ * released yet, not a coincidental second person with the same name — and
+ * "pick another username" is not even an option the room-code-based join
+ * flow supports changing later.
+ */
+function describeHostOpenFailure(name: string, e: unknown): Error {
+    const type = (e as { type?: string } | undefined)?.type;
+    if (type === 'unavailable-id') {
+        return new Error(`A room for "${name}" is still marked open from a previous session.`);
+    }
+    const detail = e instanceof Error ? e.message : String(e);
+    return new Error(`Could not open a room for "${name}": ${detail}`);
+}
+
 export async function hostStarRoom(
     initialRoster: CanonicalSeatDef[],
     onStatus: (status: string) => void,
@@ -1255,10 +1558,10 @@ export async function hostStarRoom(
         let hub: StarHub;
         try {
             hub = await StarHub.open(initialRoster, roomId);
-        } catch {
+        } catch (e) {
             await lan.stopHost();
             setPeerServerConfig(null);
-            throw new Error(`Name "${name}" is already hosting — pick another username`);
+            throw describeHostOpenFailure(name, e);
         }
         return {
             hub,
@@ -1275,8 +1578,8 @@ export async function hostStarRoom(
     let hub: StarHub;
     try {
         hub = await StarHub.open(initialRoster, roomId);
-    } catch {
-        throw new Error(`Name "${name}" is already hosting — pick another username`);
+    } catch (e) {
+        throw describeHostOpenFailure(name, e);
     }
     // reuses the SAME room-code registration as 1v1 custom rooms — `mode`
     // is purely a display label for the room list now (every room is
@@ -1284,11 +1587,25 @@ export async function hostStarRoom(
     // regardless of `mode`, see joinStarRoom's callers in main.ts).
     await lobbyRegister(hub.peerId, name, mode);
     const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, mode), HEARTBEAT_MS);
+    // Without this, closing the tab/browser (rather than clicking Cancel,
+    // which runs cleanup() below) never calls lobbyLeave at all — the
+    // heartbeat just stops, and the room only disappears from the list
+    // once the backend's own 15s TTL lapses (confirmed live: a host
+    // closing mid-lobby left the room listed for a while afterward). A
+    // plain fetch() isn't reliable once the page is actually unloading;
+    // sendBeacon is built for exactly this. No body needed — the backend
+    // reads action/peer from the URL's own query string regardless of
+    // sendBeacon always using POST.
+    const onPageHide = () => {
+        navigator.sendBeacon(`${matchUrl()}?action=leave&peer=${encodeURIComponent(hub.peerId)}`);
+    };
+    window.addEventListener('pagehide', onPageHide);
     return {
         hub,
         roomId,
         cleanup: () => {
             clearInterval(heartbeat);
+            window.removeEventListener('pagehide', onPageHide);
             void lobbyLeave(hub.peerId);
         },
     };

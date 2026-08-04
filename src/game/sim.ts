@@ -28,7 +28,9 @@ import {
 } from './tactics';
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
 import {
+    COMMAND_TOWER,
     DEPLOY_AIR_Y,
+    RESEARCH_CENTER,
     resolveDeathWear,
     syncBattleTint,
     type BattleTeam,
@@ -392,11 +394,17 @@ export class BattleSim {
     elapsed = 0;
     private events: SimEvent[] = [];
     private accumulator = 0;
-    /** how many command towers each side has lost this battle (stack strength) */
-    // horde entries stay 0 forever — the horde has no towers and no debuffs
-    private readonly lostTowers: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
-    /** sim clock time until which each side's tower-destruction debuff runs */
-    private readonly debuffUntil: Record<BattleTeam, number> = { player: 0, enemy: 0, horde: 0 };
+    /**
+     * Sim clock time until which each SEAT's own tower-destruction debuff
+     * runs — keyed by SeatId (not BattleTeam/side): losing a Command Tower
+     * or Research Center only debuffs the seat that owned it, never a
+     * teammate's units too (Stronghold loss triggers no debuff at all — see
+     * isDebuffBuilding). Flat effect while active (see debuff/
+     * damageTakenMult) — it doesn't matter how many of a seat's own
+     * buildings are down at once, or how many seats a side has; only
+     * duration stacks, one +debuffSecondsForTowerLevel per building lost.
+     */
+    private readonly debuffUntil = new Map<SeatId, number>();
     private readonly hash = new Map<number, Actor[]>();
     /** spatial hash of every attackable actor (incl. structures) for targeting / bullets */
     private readonly targetHash = new Map<number, Actor[]>();
@@ -474,9 +482,8 @@ export class BattleSim {
         this.hazards = config.oilField?.cloneForBattle() ?? new HazardField();
         for (const unit of units) {
             if (unit.destroyed) {
-                if (this.isCommandTower(unit)) {
-                    this.lostTowers[unit.team]++;
-                    this.extendTeamDebuff(unit.team, unit.level);
+                if (this.isDebuffBuilding(unit)) {
+                    this.extendSeatDebuff(unit.seat, unit.level);
                 }
                 continue; // rubble is not a target
             }
@@ -1289,8 +1296,12 @@ export class BattleSim {
         );
     }
 
-    private isCommandTower(unit: Unit): boolean {
-        return unit.type.structure === true && !unit.type.extra;
+    /** Command Tower or Research Center specifically — NOT Stronghold, and
+     *  NOT any other non-extra structure. Only these two trigger the
+     *  tower-destruction debuff; Stronghold loss is a separate, currently
+     *  undecided penalty (deliberately no debuff of its own for now). */
+    private isDebuffBuilding(unit: Unit): boolean {
+        return unit.type === COMMAND_TOWER || unit.type === RESEARCH_CENTER;
     }
 
     /** seconds of debuff from losing a command tower at the given level */
@@ -1300,24 +1311,31 @@ export class BattleSim {
         return Math.max(0, baseSeconds - (level - 1) * stepSeconds);
     }
 
-    /** extends (or starts) a side's debuff window — stacks time if already active */
-    private extendTeamDebuff(team: BattleTeam, towerLevel: number): void {
+    /** Extends (or starts) THIS SEAT's own debuff window — never a
+     *  teammate's, even though the lost building's fall is visible to the
+     *  whole match. Stacks time if already active: each building lost adds
+     *  its own full duration on top (unchanged from before — no longer
+     *  divided by building count, since the effect no longer scales with
+     *  how many are down at once; see {@link debuff}). */
+    private extendSeatDebuff(seat: SeatId, towerLevel: number): void {
         const add = this.debuffSecondsForTowerLevel(towerLevel);
-        this.debuffUntil[team] = Math.max(this.debuffUntil[team], this.elapsed) + add;
+        this.debuffUntil.set(seat, Math.max(this.debuffUntil.get(seat) ?? 0, this.elapsed) + add);
     }
 
-    /** tower-destruction debuff is active for this mech right now */
+    /** tower-destruction debuff is active for this mech's OWN seat right now
+     *  (not its side/team — a teammate's building loss never debuffs it) */
     private isDebuffed(actor: Actor): boolean {
         if (this.isGolden(actor)) return false;
-        return this.elapsed < this.debuffUntil[actor.unit.team] - 1e-9;
+        const until = this.debuffUntil.get(actor.unit.seat) ?? 0;
+        return this.elapsed < until - 1e-9;
     }
 
-    /** stacking tower-destruction multiplier — only while the debuff timer runs */
+    /** flat tower-destruction multiplier — only while the debuff timer runs.
+     *  Doesn't matter how many of this seat's own buildings are down at
+     *  once, or simultaneously with the last: the effect is the same fixed
+     *  value the whole time the window is open. */
     private debuff(actor: Actor, mult: number): number {
-        if (!this.isDebuffed(actor)) return 1;
-        let factor = 1;
-        for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
-        return factor;
+        return this.isDebuffed(actor) ? mult : 1;
     }
 
     /** incoming damage: golden = −30%; tower debuff only while its timer runs;
@@ -1329,9 +1347,7 @@ export class BattleSim {
         } else if (!this.isDebuffed(actor)) {
             factor = 1;
         } else {
-            const mult = this.config.towers.debuffPerLostTower.damageTakenMult;
-            factor = 1;
-            for (let i = 0; i < this.lostTowers[actor.unit.team]; i++) factor *= mult;
+            factor = this.config.towers.debuffPerLostTower.damageTakenMult;
         }
         if (actor.corrodedUntil > this.elapsed) factor *= CORRODE_TAKEN_MULT;
         return factor;
@@ -1365,7 +1381,8 @@ export class BattleSim {
     syncBattleVisuals(timeSeconds: number): void {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            const stacks = this.lostTowers[a.unit.team];
+            // debuff severity is flat now (see debuff/isDebuffed) — no
+            // count to reflect, just whether it's active or not
             let tint: 'normal' | 'golden' | 'debuff' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
@@ -1374,7 +1391,7 @@ export class BattleSim {
                 tint = 'spawning';
                 spawnProgress = this.spawnProgress(a);
             }
-            syncBattleTint(a.mesh, tint, timeSeconds, stacks, spawnProgress);
+            syncBattleTint(a.mesh, tint, timeSeconds, 1, spawnProgress);
             this.animateActor(a, timeSeconds);
         }
     }
@@ -1516,9 +1533,8 @@ export class BattleSim {
         });
         if (t.structure) {
             target.unit.markDestroyed();
-            if (this.isCommandTower(target.unit)) {
-                this.lostTowers[target.unit.team]++;
-                this.extendTeamDebuff(target.unit.team, target.unit.level);
+            if (this.isDebuffBuilding(target.unit)) {
+                this.extendSeatDebuff(target.unit.seat, target.unit.level);
             }
         } else {
             // tip over and stay as a battlefield wreck until the round resets

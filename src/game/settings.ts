@@ -110,10 +110,14 @@ export interface LevelingSettings {
 
 export interface TowerSettings {
     /**
-     * Towers are debuffs, not score: destroying an ENEMY tower does nothing to
-     * you; each of YOUR OWN towers that falls applies these multipliers to all
-     * of that side's units, stacking multiplicatively, while the debuff timer
-     * runs (duration depends on the fallen tower's level).
+     * Towers are debuffs, not score: destroying an ENEMY building does
+     * nothing to you; losing your OWN Command Tower or Research Center
+     * applies these multipliers to YOUR SEAT's units only (never a
+     * teammate's) while the debuff timer runs. Flat effect — it doesn't
+     * matter how many of a seat's own buildings are down at once, or how
+     * many seats a side has; only the DURATION stacks (see debuffDuration).
+     * Stronghold destruction currently triggers no debuff at all (a
+     * separate penalty for it is still TBD).
      */
     debuffPerLostTower: {
         speedMult: number;
@@ -121,9 +125,11 @@ export interface TowerSettings {
         damageTakenMult: number;
     };
     /**
-     * How long a tower loss debuffs its side. Level 1 lasts baseSeconds; each
-     * level above 1 subtracts stepSeconds (level 2 → 8s, level 3 → 6s, …).
-     * If another tower falls during an active debuff, the new duration is added.
+     * How long a tower loss debuffs its seat. Level 1 lasts baseSeconds; each
+     * level above 1 subtracts stepSeconds (level 2 → 8s, level 3 → 6s, …). If
+     * another building falls (from the SAME seat) during an active debuff,
+     * its own full duration is added on top — unchanged regardless of team
+     * size, since the debuff is scoped per seat now, not per side.
      */
     debuffDuration: {
         baseSeconds: number;

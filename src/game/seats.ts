@@ -119,6 +119,11 @@ export interface CanonicalSeatDef {
     name: string;
     /** optional custom player face (data URL); omitted for AI / unset */
     avatar?: string | null;
+    /** Custom Game lobby only: this seat's own "I'm ready" checkbox state
+     *  — host-authoritative, reset whenever the lobby settings change (see
+     *  the 'lobbyReady'/'lobbySettings' NetMessage doc comments). Never
+     *  meaningful once the match has actually started. */
+    ready?: boolean;
 }
 
 /**
