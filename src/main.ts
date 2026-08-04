@@ -1331,6 +1331,7 @@ function renderRosterTable(
     roster: CanonicalSeatDef[],
     connectedSeats: readonly SeatId[],
     waitForJoined: number,
+    onKick?: (seat: SeatId) => void,
 ): void {
     rosterTableEl.innerHTML = '';
     rosterTableEl.style.display = '';
@@ -1361,11 +1362,26 @@ function renderRosterTable(
             const guaranteedAi = !filled && rank >= guaranteedAiFrom;
             const cell = document.createElement('div');
             cell.className = `m-roster-seat ${filled ? 'filled' : guaranteedAi ? 'ai' : 'empty'}${seat === 0 ? ' you' : ''}`;
-            cell.textContent = filled
+            const label = document.createElement('span');
+            label.className = 'm-roster-seat-name';
+            label.textContent = filled
                 ? `${roster[seat]!.name}${seat === 0 ? ' (you)' : ''}`
                 : guaranteedAi
                   ? 'AI'
                   : 'Waiting…';
+            cell.appendChild(label);
+            if (filled && seat !== 0 && onKick) {
+                const kick = document.createElement('button');
+                kick.type = 'button';
+                kick.className = 'm-roster-kick';
+                kick.title = `Kick ${roster[seat]!.name}`;
+                kick.textContent = '×';
+                kick.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    onKick(seat);
+                });
+                cell.appendChild(kick);
+            }
             col.appendChild(cell);
         }
         cols.appendChild(col);
@@ -2337,7 +2353,7 @@ async function beginStarHost(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
-        renderRosterTable(roster, hub.connectedSeats(), waitForJoined);
+        renderRosterTable(roster, hub.connectedSeats(), waitForJoined, customConfig ? (seat) => hub.kickSeat(seat) : undefined);
         // let every currently-connected guest see the same live roster
         // preview instead of just a static "waiting for the host" — see
         // runStarPending's 'starRoster' handling
@@ -2685,7 +2701,12 @@ function wireSteamStarHub(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
-        renderRosterTable(roster, hub.connectedSeats(), waitForJoined);
+        renderRosterTable(
+            roster,
+            hub.connectedSeats(),
+            waitForJoined,
+            starCustomConfig ? (seat) => hub.kickSeat(seat) : undefined,
+        );
         hub.broadcast({ type: 'starRoster', roster });
         // same Custom-Game-never-auto-starts rule as beginStarHost's refresh
         // — starCustomConfig is set by beginSteamStarHost right before this

@@ -974,6 +974,36 @@ export class StarHub implements HostHub {
         return true;
     }
 
+    /**
+     * Host explicitly removes a still-joined seat before the match has
+     * started — a lobby-only concept, distinct from a genuine disconnect:
+     * no grace window, no reconnect offer, the seat's roster entry resets
+     * straight back to an open "Waiting…" slot so nextOpenSeat() can
+     * offer it to the next comer immediately. Only meaningful pre-match
+     * (before Game exists to take over onSeatSuspended/onSeatDropped) —
+     * the lobby UI is the only caller and never exposes this once a match
+     * is running.
+     */
+    kickSeat(seat: SeatId): void {
+        if (seat === 0) return; // the host can't kick themselves
+        const viewer = this.bySeat.get(seat);
+        if (!viewer) return;
+        const timer = this.reconnectTimers.get(seat);
+        if (timer !== undefined) {
+            clearTimeout(timer);
+            this.reconnectTimers.delete(seat);
+        }
+        viewer.liveness?.stop();
+        if (viewer.conn) {
+            viewer.conn.send({ type: 'starRejected', reason: 'Kicked by the host.' });
+            viewer.conn.close();
+        }
+        this.bySeat.delete(seat);
+        const entry = this.roster[seat];
+        if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
+        this.onRosterChange?.();
+    }
+
     /** shared per-seat connection wiring — used for both a fresh join and a
      *  successful reclaim. Intercepts ping/pong (see watchLiveness) before
      *  anything reaches `onMessage`, and starts this seat's own liveness

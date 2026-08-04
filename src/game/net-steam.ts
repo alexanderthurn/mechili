@@ -504,6 +504,27 @@ export class SteamStarHub implements HostHub {
         this.onSeatDropped?.(seat);
     }
 
+    /**
+     * Host explicitly removes a still-joined seat before the match has
+     * started — a lobby-only concept, distinct from dropSeat's "gone for
+     * good" (which still fires onSeatDropped, a signal meaningless here
+     * since Game doesn't exist yet). Resets the roster entry straight
+     * back to an open "Waiting…" slot so nextOpenSeat() offers it again
+     * immediately, and to keep the lobby roster table from showing the
+     * kicked player's stale name.
+     */
+    kickSeat(seat: SeatId): void {
+        if (seat === 0) return; // the host can't kick themselves
+        const viewer = this.bySeat.get(seat);
+        if (!viewer) return;
+        viewer.channel.send({ type: 'starRejected', reason: 'Kicked by the host.' });
+        viewer.channel.dispose();
+        this.bySeat.delete(seat);
+        const entry = this.roster[seat];
+        if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
+        this.onRosterChange?.();
+    }
+
     send(seat: SeatId, msg: NetMessage): void {
         this.bySeat.get(seat)?.channel.send(msg);
     }

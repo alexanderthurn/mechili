@@ -819,27 +819,48 @@ ${fontFaceCss()}
 .mechili-menu .m-roster-col-foe .m-roster-col-header { color: ${u.enemy}; }
 .mechili-menu .m-roster-seat {
     box-sizing: border-box;
-    padding: 8px 10px;
+    padding: 8px 8px 8px 10px;
     min-height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     text-align: center;
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 0.3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     border-radius: 8px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
     color: ${u.text};
 }
+.mechili-menu .m-roster-seat-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .mechili-menu .m-roster-seat.filled.you { border-color: ${u.brassLight}; color: ${u.brassLight}; }
 .mechili-menu .m-roster-seat.filled:not(.you) { border-color: ${u.hpBar}; }
 .mechili-menu .m-roster-seat.empty { border-style: dashed; color: ${u.textMuted}; font-weight: normal; }
 .mechili-menu .m-roster-seat.ai { border-color: ${u.speedBg}; color: ${u.textMuted}; font-style: italic; }
+.mechili-menu .m-roster-kick {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    line-height: 16px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid ${u.undoBorder};
+    background: ${u.undoBg};
+    color: ${u.undoText};
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+.mechili-menu .m-roster-kick:hover { border-color: ${u.hover}; background: ${u.undoHover}; }
 button.m-seat-invite {
     cursor: pointer;
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
