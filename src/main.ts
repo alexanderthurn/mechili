@@ -714,6 +714,7 @@ menu.innerHTML = `
         <button class="m-btn m-small" data-mode="cg-back">Back</button>
     </div>
     <div class="m-status" style="display:none"></div>
+    <div class="m-roster-table" style="display:none"></div>
     <button class="m-btn m-small" data-mode="startstar" style="display:none">Start Match</button>
     <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
@@ -931,6 +932,7 @@ const roomsLabelEl = menu.querySelector<HTMLSpanElement>('.m-rooms-label')!;
 const matchmakingLabelEl = menu.querySelector<HTMLSpanElement>('.m-btn[data-mode="matchmaking"] .m-label')!;
 const customGameLabelEl = menu.querySelector<HTMLSpanElement>('.m-btn[data-mode="custom"] .m-label')!;
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
+const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
@@ -1295,6 +1297,57 @@ function setStatus(text: string): void {
     statusEl.style.display = text ? '' : 'none';
     statusEl.textContent = text;
     cancelEl.style.display = text ? '' : 'none';
+}
+
+/** hides the host-waiting-room seat table (see renderRosterTable) — call
+ *  whenever hosting stops, whether cancelled or a match actually starts */
+function clearRosterTable(): void {
+    rosterTableEl.style.display = 'none';
+    rosterTableEl.innerHTML = '';
+}
+
+/**
+ * A visible "who's actually here" table for a host waiting on guests —
+ * columns = sides (yours, then the opponent's), rows = one per seat on
+ * that side. Every seat always renders (roster entries carry a
+ * "Waiting…" placeholder name until filled), so an empty seat is never
+ * just... missing — it's a dashed, muted box, visually distinct from a
+ * filled one. Built to directly address the "I saw a Start button and
+ * assumed someone had joined" confusion: the seat count and names are
+ * front and center instead of buried in a status sentence.
+ */
+function renderRosterTable(roster: CanonicalSeatDef[], connectedSeats: readonly SeatId[]): void {
+    rosterTableEl.innerHTML = '';
+    rosterTableEl.style.display = '';
+    const mySide = roster[0]?.side;
+    const cols = document.createElement('div');
+    cols.className = 'm-roster-cols';
+    const bySide = new Map<string, SeatId[]>();
+    roster.forEach((s, i) => {
+        const arr = bySide.get(s.side) ?? [];
+        arr.push(i);
+        bySide.set(s.side, arr);
+    });
+    // your side first, always — sides beyond 'a'/'b' would sort arbitrarily
+    // otherwise, and "you" belongs on the left regardless of side order
+    const sides = [...bySide.keys()].sort((a, b) => (a === mySide ? -1 : b === mySide ? 1 : 0));
+    for (const side of sides) {
+        const col = document.createElement('div');
+        col.className = `m-roster-col ${side === mySide ? 'm-roster-col-you' : 'm-roster-col-foe'}`;
+        const header = document.createElement('div');
+        header.className = 'm-roster-col-header';
+        header.textContent = side === mySide ? 'Your Side' : 'Opponent';
+        col.appendChild(header);
+        for (const seat of bySide.get(side)!) {
+            const filled = seat === 0 || connectedSeats.includes(seat);
+            const cell = document.createElement('div');
+            cell.className = `m-roster-seat ${filled ? 'filled' : 'empty'}${seat === 0 ? ' you' : ''}`;
+            cell.textContent = filled ? `${roster[seat]!.name}${seat === 0 ? ' (you)' : ''}` : 'Waiting…';
+            col.appendChild(cell);
+        }
+        cols.appendChild(col);
+    }
+    rosterTableEl.appendChild(cols);
 }
 
 function setMenuBusy(busy: boolean): void {
@@ -2183,6 +2236,7 @@ function cancelStarHost(): void {
     starHosting?.cleanup();
     starHosting = null;
     startStarBtn.style.display = 'none';
+    clearRosterTable();
 }
 
 /** set by beginStarHost's caller right before hosting; read by startStarMatch */
@@ -2260,6 +2314,7 @@ async function beginStarHost(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
+        renderRosterTable(roster, hub.connectedSeats());
         // let every currently-connected guest see the same live roster
         // preview instead of just a static "waiting for the host" — see
         // runStarPending's 'starRoster' handling
@@ -2349,6 +2404,7 @@ function startStarMatch(): void {
         });
     }
     startStarBtn.style.display = 'none';
+    clearRosterTable();
     const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
     startGame(
         hostSettings,
@@ -2572,6 +2628,7 @@ function cancelSteamStarHost(): void {
     steamStarHosting = null;
     starCustomConfig = null;
     startStarBtn.style.display = 'none';
+    clearRosterTable();
 }
 
 /** shared setup for a freshly-created SteamStarHub, whichever call site created it */
@@ -2599,6 +2656,7 @@ function wireSteamStarHub(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
+        renderRosterTable(roster, hub.connectedSeats());
         hub.broadcast({ type: 'starRoster', roster });
         if (joined >= waitForJoined) {
             setStatus(`Steam lobby — ${joined}/${roster.length} joined: ${names}. Starting…`);
@@ -2709,6 +2767,7 @@ function startSteamStarMatch(): void {
         });
     }
     startStarBtn.style.display = 'none';
+    clearRosterTable();
     const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
     startGame(
         hostSettings,

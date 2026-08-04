@@ -799,6 +799,46 @@ ${fontFaceCss()}
     color: ${u.text};
 }
 .mechili-menu .m-seat-you { color: ${u.brassLight}; }
+.mechili-menu .m-roster-table {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    max-width: 380px;
+}
+.mechili-menu .m-roster-cols { display: flex; gap: 10px; width: 100%; }
+.mechili-menu .m-roster-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mechili-menu .m-roster-col-header {
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+}
+.mechili-menu .m-roster-col-you .m-roster-col-header { color: ${u.player}; }
+.mechili-menu .m-roster-col-foe .m-roster-col-header { color: ${u.enemy}; }
+.mechili-menu .m-roster-seat {
+    box-sizing: border-box;
+    padding: 8px 10px;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 8px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    color: ${u.text};
+}
+.mechili-menu .m-roster-seat.filled.you { border-color: ${u.brassLight}; color: ${u.brassLight}; }
+.mechili-menu .m-roster-seat.filled:not(.you) { border-color: ${u.hpBar}; }
+.mechili-menu .m-roster-seat.empty { border-style: dashed; color: ${u.textMuted}; font-weight: normal; }
 button.m-seat-invite {
     cursor: pointer;
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
