@@ -968,12 +968,12 @@ for (const algo of ROUND_CARD_ALGORITHMS) {
     cgRoundCardsEl.appendChild(opt);
 }
 
+/** every Custom Game mode (including 1v1ai) now opens a room and waits
+ *  for an explicit Start click — see hostCustomGame's own doc comment —
+ *  so this always reads "Host Game", never an instant-start "Start Game" */
 function updateCgHostButtonLabel(): void {
-    const modeInput = customEl.querySelector<HTMLInputElement>('input[name="cgmode"]:checked');
     const hostBtn = customEl.querySelector<HTMLButtonElement>('button[data-mode="cg-host"]');
-    if (hostBtn) {
-        hostBtn.textContent = modeInput?.value === '1v1ai' ? 'Start Game' : 'Host Game';
-    }
+    if (hostBtn) hostBtn.textContent = 'Host Game';
 }
 
 function populateCustomGameForm(cfg: CustomGameConfig): void {
@@ -1010,20 +1010,21 @@ function closeCustomGameScreen(): void {
 }
 
 /** host a game with the Custom Game screen's current settings — every
- *  online mode reuses beginStarHost now (1v1 is just a 2-seat star room),
- *  with the mode-appropriate roster + join threshold (see beginStarHost's
- *  own doc comment: 2v2ai isn't a different wire mode, just waitFor=2). */
+ *  mode reuses beginStarHost now (1v1 is just a 2-seat star room), with
+ *  the mode-appropriate roster + join threshold (see beginStarHost's own
+ *  doc comment: *ai isn't a different wire mode, just a lower waitFor).
+ *  1v1ai's waitForJoined=1 means Start is available the instant the room
+ *  opens — the "AI" placeholder appears in the roster table immediately
+ *  (see renderRosterTable's guaranteedAiFrom derivation) since no other
+ *  human is ever waited for, same idea as 2v2ai's opponent side. This is
+ *  a completely separate code path from the top-level menu's "Single
+ *  Player" button (startLocalMatch/'single'/'sp-*' cases) — that one
+ *  stays a true local-only game with no networking at all. */
 function hostCustomGame(): void {
     const cfg = readCustomGameForm();
     saveCustomGameConfig(cfg);
     closeCustomGameScreen();
     mainButtonsEl.style.display = 'none';
-    if (cfg.mode === '1v1ai') {
-        const settings = settingsFromUrl();
-        applyCustomGameConfig(settings, cfg);
-        startGame(settings);
-        return;
-    }
     void (async () => {
         const transport = await resolveMultiplayerTransport();
         if (!transport) {
@@ -1044,7 +1045,7 @@ function hostCustomGame(): void {
             }
             await beginSteamStarHost({
                 customConfig: cfg,
-                waitForJoined: cfg.mode === '2v2' ? 4 : 2,
+                waitForJoined: cfg.mode === '2v2' ? 4 : cfg.mode === '2v2ai' ? 2 : 1,
                 isPublic: true,
                 offerAiStart: true,
             });
@@ -1054,8 +1055,8 @@ function hostCustomGame(): void {
         setStatus(
             discovery === 'lan' ? 'Opening LAN room…' : 'Opening room…',
         );
-        if (cfg.mode === '1v1') {
-            await beginStarHost(false, 2, cfg, initial1v1Roster, '1v1', true, discovery);
+        if (cfg.mode === '1v1' || cfg.mode === '1v1ai') {
+            await beginStarHost(false, cfg.mode === '1v1' ? 2 : 1, cfg, initial1v1Roster, '1v1', true, discovery);
             return;
         }
         await beginStarHost(
