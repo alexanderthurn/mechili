@@ -2172,6 +2172,14 @@ const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startsta
 let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
 
 function cancelStarHost(): void {
+    // .cleanup() alone only does lobby/heartbeat bookkeeping — deliberately
+    // NOT the hub's own Peer connection, since startStarMatch's identical
+    // cleanup() call needs the hub to survive the handoff to the running
+    // Game. Here, though, nobody is ever going to use this hub — abandoning
+    // without closing it left the peer id registered with the PeerJS
+    // broker indefinitely, so hosting again under the same username failed
+    // with "already hosting" until the whole tab was reloaded.
+    starHosting?.hub.close();
     starHosting?.cleanup();
     starHosting = null;
     startStarBtn.style.display = 'none';
