@@ -65,6 +65,13 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
                 report('Scenery');
             }),
         );
+    } else if (sceneryQ === 'medium') {
+        jobs.push(
+            loadSceneryBillboards().then(() => {
+                sceneryFrac = 1;
+                report('Scenery');
+            }),
+        );
     } else {
         sceneryFrac = 1;
     }

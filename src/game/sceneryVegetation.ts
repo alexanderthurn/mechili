@@ -46,8 +46,22 @@ export const BILLBOARD_SCALE = 1.55;
 /** Sink billboards into the ground a bit (transparent PNG padding reads as floating). */
 export const BILLBOARD_Y_SINK = 1.85;
 
+/** Soft ground-blob radius for a billboard (canopy footprint, not height). */
+export function billboardShadowRadius(kind: VegetationKind, scale: number): number {
+    const h = SPECS[kind]!.height;
+    const canopy = kind === 'oak' || kind === 'pine' ? 0.28 : 0.5;
+    return Math.max(0.7, h * scale * canopy);
+}
+
 /** MeshBasic cards miss sun lift; multiply albedo so they match lit near trees. */
 export const BILLBOARD_BRIGHTNESS = 1.55;
+
+/**
+ * Tripo GLBs are MeshStandard + scene sun/hemi/env — they read much hotter
+ * (white-green canopy belt) than unlit billboards. Dial this down so the
+ * near/far seam matches. Try 0.65–0.85.
+ */
+export const TRIPO_FOLIAGE_GAIN = 0.45;
 
 const SPECS: Record<
     VegetationKind,
@@ -448,8 +462,15 @@ function bake(root: Group): VegetationAsset {
         };
     }
     merged.computeBoundingSphere();
-    matOut.envMapIntensity = 1.05;
-    if (typeof matOut.metalness === 'number') matOut.metalness = Math.min(matOut.metalness, 0.15);
+    // Unlit billboards can't get this hot — pull GLB foliage down toward the cards.
+    matOut.color.multiplyScalar(TRIPO_FOLIAGE_GAIN);
+    matOut.envMapIntensity = 0.35;
+    if (typeof matOut.roughness === 'number') {
+        matOut.roughness = Math.min(1, Math.max(0.82, matOut.roughness));
+    } else {
+        matOut.roughness = 0.88;
+    }
+    if (typeof matOut.metalness === 'number') matOut.metalness = Math.min(matOut.metalness, 0.08);
     attachVegetationSnow(matOut, { strength: 0.88 });
     const box = new Box3().setFromObject(root);
     return { geometry: merged, material: matOut, height: box.max.y - box.min.y };
@@ -602,3 +623,4 @@ export function placeVegetationInstance(
     mesh.setMatrixAt(mesh.count++, dummy.matrix);
     return true;
 }
+

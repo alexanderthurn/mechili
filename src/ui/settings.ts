@@ -30,6 +30,9 @@ export function openSettings(parent: HTMLElement): void {
 
     const overlay = document.createElement('div');
     overlay.className = 'mechili-settings';
+    // #match-ui-root is pointer-events:none — without this, in-match Settings
+    // (opened from pause) looks fine but nothing inside is clickable.
+    overlay.style.pointerEvents = 'auto';
     overlay.innerHTML =
         `<div class="box">` +
         `<div class="s-title">Settings</div>` +
@@ -216,5 +219,8 @@ export function openSettings(parent: HTMLElement): void {
             window.removeEventListener('keydown', onKey);
         },
     );
-    parent.appendChild(overlay);
+    // Prefer the game wrapper over #match-ui-root (pointer-events:none shell).
+    const host =
+        parent.id === 'match-ui-root' && parent.parentElement ? parent.parentElement : parent;
+    host.appendChild(overlay);
 }

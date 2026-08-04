@@ -55,6 +55,7 @@ import {
     BILLBOARD_Y_SINK,
     attachSeasonTint,
     attachVegetationSnow,
+    billboardShadowRadius,
     createBillboardInstances,
     createVegetationInstances,
     loadSceneryBillboards,
@@ -67,6 +68,7 @@ import {
     updateVegetationSeason,
     type VegetationKind,
 } from './sceneryVegetation';
+import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
 /** Instance / mesh density for scenery tiers (trees stay InstancedMesh). */
 function sceneryDensity(quality: SceneryQuality): {
@@ -122,18 +124,19 @@ function sceneryDensity(quality: SceneryQuality): {
             peakClouds: 18,
         };
     }
-    // medium — former "full"
+    // medium — billboard forest (cheaper than high; no blob shadows / Tripo)
     return {
-        outer: 1,
-        field: 1,
+        // ~3.5× former medium tree counts; still well under high/ultra (outer: 10)
+        outer: 3.5,
+        field: 1.2,
         meadow: 1,
         lake: 1,
         segs: 300,
-        margin: 420,
-        acceptBase: 0.18,
-        beltNear: 25,
-        beltRamp: 70,
-        beltFar: 300,
+        margin: 480,
+        acceptBase: 0.42,
+        beltNear: 14,
+        beltRamp: 40,
+        beltFar: 380,
         forestFogCards: 12,
         peakClouds: 12,
     };
@@ -167,6 +170,9 @@ export class Scenery {
     private readonly cloudBoundsX: number;
     private readonly map: BattleMap;
     private weather: Weather | null = null;
+    /** far-card contact shadows (sun-aligned); built when billboards are placed */
+    private readonly treeShadows = new BillboardTreeShadows(this.group);
+    private sunLight: DirectionalLight | null = null;
 
     private waterTexture: CanvasTexture | null = null;
     private waterMaterial: MeshStandardMaterial | null = null;
@@ -380,7 +386,13 @@ export class Scenery {
             },
             seed,
         );
+        this.sunLight = sun;
         return this.weather;
+    }
+
+    /** Drive billboard ground blobs when weather is off (createWeather also sets this). */
+    attachSun(sun: DirectionalLight): void {
+        this.sunLight = sun;
     }
 
     /** 0..1 how much snow currently lies on the ground (drives the board's own snow blend too) */
@@ -443,6 +455,9 @@ export class Scenery {
         }
         if (this.tuftMaterial?.userData.shader) {
             this.tuftMaterial.userData.shader.uniforms.uTime!.value = this.time;
+        }
+        if (this.sunLight) {
+            this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
         }
     }
 
@@ -1239,9 +1254,9 @@ export class Scenery {
         const white = new Color(0xffffff);
         const lighten = (c: Color) => c.lerp(white, 0.45);
         // Ultra: Tripo owns all trees via addHqVegetation.
-        // High: Tripo on the board, billboards outside (no procedural trees).
-        // Medium: full procedural.
-        const highMix = this.quality === 'high';
+        // High: Tripo on the board, billboards outside (with blob shadows).
+        // Medium: billboards everywhere (no low-poly cones, no blob shadows).
+        const billboardMix = this.quality === 'high' || this.quality === 'medium';
         const PINES = hq ? 0 : scaleCount(200, dens.outer);
         const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
         const FIELD_PINES = hq ? 0 : scaleCount(5, dens.field);
@@ -1252,7 +1267,7 @@ export class Scenery {
         // forest in it so the horde has somewhere to live (pure scenery, no
         // collision; packs standing between trunks is the point). Treated
         // as on-field vegetation like FIELD_* above: zeroed on Ultra,
-        // billboard/Tripo-routed on High, procedural on Medium.
+        // billboard/Tripo-routed on High/Medium.
         const beltHalf = (map.size.neutralRows * CELL) / 2;
         const beltWide = map.size.neutralRows > 8;
         const BELT_PINES = hq || !beltWide ? 0 : scaleCount(26, dens.field);
@@ -1265,7 +1280,7 @@ export class Scenery {
 
         const treeCapacity = PINES + LEAFY + FIELD_PINES + FIELD_LEAFY + BELT_PINES + BELT_LEAFY;
         const bushCapacity = BUSHES + FIELD_BUSHES + BELT_BUSHES;
-        const placeProceduralTrees = treeCapacity > 0 && !highMix;
+        const placeProceduralTrees = treeCapacity > 0 && !billboardMix;
 
         let trunks: InstancedMesh | null = null;
         let cones: InstancedMesh | null = null;
@@ -1294,7 +1309,7 @@ export class Scenery {
             // pines stay green year-round — only the leafy (oak) canopy retints
             attachSeasonTint(blobs.material as MeshStandardMaterial);
         }
-        if (bushCapacity > 0 && !highMix) {
+        if (bushCapacity > 0 && !billboardMix) {
             bushes = new InstancedMesh(
                 new IcosahedronGeometry(1, 1),
                 new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }),
@@ -1310,10 +1325,17 @@ export class Scenery {
         type PlantSpot = { kind: VegetationKind; x: number; z: number; sc: number };
         const farPlants: PlantSpot[] = [];
         const fieldHqPlants: PlantSpot[] = [];
-        /** High: board → Tripo GLB, outside → billboard. */
-        const routeHigh = (onField: boolean, kind: VegetationKind, x: number, z: number, sc: number) => {
-            if (!highMix) return false;
-            (onField ? fieldHqPlants : farPlants).push({ kind, x, z, sc });
+        /** High: board → Tripo, outside → billboard. Medium: everything → billboard. */
+        const routeBillboard = (
+            onField: boolean,
+            kind: VegetationKind,
+            x: number,
+            z: number,
+            sc: number,
+        ) => {
+            if (!billboardMix) return false;
+            if (this.quality === 'high' && onField) fieldHqPlants.push({ kind, x, z, sc });
+            else farPlants.push({ kind, x, z, sc });
             return true;
         };
 
@@ -1335,7 +1357,7 @@ export class Scenery {
                     : beltSpot()
                 : forestSpot(84);
             const sc = onField ? 0.7 + rng() * 0.5 : 0.8 + rng() * 1.1;
-            if (routeHigh(onField, 'pine', x, z, sc)) continue;
+            if (routeBillboard(onField, 'pine', x, z, sc)) continue;
             if (!trunks || !cones) continue;
             const h = groundY(x, z);
             placeTrunk(x, z, sc, h);
@@ -1361,7 +1383,7 @@ export class Scenery {
                     : beltSpot()
                 : forestSpot(72);
             const sc = onField ? 0.75 + rng() * 0.55 : 0.9 + rng() * 1.2;
-            if (routeHigh(onField, 'oak', x, z, sc)) continue;
+            if (routeBillboard(onField, 'oak', x, z, sc)) continue;
             if (!trunks || !blobs) continue;
             const h = groundY(x, z);
             placeTrunk(x, z, sc, h);
@@ -1379,7 +1401,7 @@ export class Scenery {
             }
         }
 
-        if (bushes || highMix) {
+        if (bushes || billboardMix) {
             let bushI = 0;
             for (let i = 0; i < BUSHES + FIELD_BUSHES + BELT_BUSHES; i++) {
                 const onField = i >= BUSHES;
@@ -1390,7 +1412,7 @@ export class Scenery {
                     : forestSpot(56);
                 const sc = 0.6 + rng() * 0.8;
                 const kind: VegetationKind = rng() < 0.55 ? 'bushRound' : 'bushTall';
-                if (routeHigh(onField, kind, x, z, sc)) continue;
+                if (routeBillboard(onField, kind, x, z, sc)) continue;
                 if (!bushes) continue;
                 dummy.position.set(x, groundY(x, z) + 0.45 * sc, z);
                 dummy.scale.set(sc * (0.9 + rng() * 0.4), sc * 0.7, sc * (0.9 + rng() * 0.4));
@@ -1416,7 +1438,9 @@ export class Scenery {
         }
 
         if (farPlants.length > 0) {
-            void this.placeFarBillboards(farPlants, groundY, rng);
+            void this.placeFarBillboards(farPlants, groundY, rng, {
+                shadows: this.quality !== 'medium',
+            });
         }
         if (fieldHqPlants.length > 0) {
             void this.placeTripoVegetation(fieldHqPlants, groundY, rng);
@@ -1489,15 +1513,18 @@ export class Scenery {
         }
     }
 
-    /** Far belt as crossed billboard cards (high + ultra). */
+    /** Far belt as crossed billboard cards; optional sun-aligned blob shadows. */
     private async placeFarBillboards(
         plants: { kind: VegetationKind; x: number; z: number; sc: number }[],
         groundY: (x: number, z: number) => number,
         rng: () => number,
+        opts: { shadows?: boolean } = {},
     ): Promise<void> {
+        const withShadows = opts.shadows !== false;
         await loadSceneryBillboards();
         const dummy = new Object3D();
         const kinds: VegetationKind[] = ['oak', 'pine', 'bushRound', 'bushTall'];
+        const shadows: BlobShadowSource[] = [];
         let total = 0;
         for (const kind of kinds) {
             const list = plants.filter((p) => p.kind === kind);
@@ -1508,21 +1535,27 @@ export class Scenery {
                 continue;
             }
             for (const p of list) {
+                const sc = p.sc * BILLBOARD_SCALE;
                 placeVegetationInstance(
                     mesh,
                     p.x,
                     groundY(p.x, p.z) - BILLBOARD_Y_SINK,
                     p.z,
-                    p.sc * BILLBOARD_SCALE,
+                    sc,
                     rng() * Math.PI * 2,
                     dummy,
                 );
+                if (withShadows) {
+                    shadows.push({ x: p.x, z: p.z, radius: billboardShadowRadius(kind, sc) });
+                }
             }
             mesh.instanceMatrix.needsUpdate = true;
             this.group.add(mesh);
             total += mesh.count;
         }
-        console.info(`[scenery] far billboards: ${total}`);
+        if (withShadows) this.treeShadows.setSources(shadows);
+        else this.treeShadows.setSources([]);
+        console.info(`[scenery] far billboards: ${total}${withShadows ? ' +shadows' : ''}`);
     }
 
     /** On-board Tripo GLBs (high) — matches billboard art direction. */
@@ -1562,8 +1595,8 @@ export class Scenery {
     }
 
     /**
-     * Ultra-only: near Tripo mid-poly + far billboards (same headcount as dense
-     * procedural belt).
+     * Ultra: near Tripo mid-poly + far billboards with blob shadows
+     * (same headcount as the dense procedural belt).
      */
     private async addHqVegetation(
         map: BattleMap,
@@ -1643,6 +1676,7 @@ export class Scenery {
         const kinds: VegetationKind[] = ['oak', 'pine', 'bushRound', 'bushTall'];
         let nearN = 0;
         let farN = 0;
+        const shadows: BlobShadowSource[] = [];
 
         for (const kind of kinds) {
             const nearList = plants.filter((p) => p.kind === kind && p.near);
@@ -1676,15 +1710,17 @@ export class Scenery {
                     console.warn(`[scenery] billboard '${kind}' missing`);
                 } else {
                     for (const p of farList) {
+                        const sc = p.sc * BILLBOARD_SCALE;
                         placeVegetationInstance(
                             mesh,
                             p.x,
                             groundY(p.x, p.z) - BILLBOARD_Y_SINK,
                             p.z,
-                            p.sc * BILLBOARD_SCALE,
+                            sc,
                             rng() * Math.PI * 2,
                             dummy,
                         );
+                        shadows.push({ x: p.x, z: p.z, radius: billboardShadowRadius(kind, sc) });
                     }
                     mesh.instanceMatrix.needsUpdate = true;
                     this.group.add(mesh);
@@ -1693,6 +1729,7 @@ export class Scenery {
             }
         }
 
+        this.treeShadows.setSources(shadows);
         console.info(
             `[scenery] HQ vegetation: near3D=${nearN} farBillboards=${farN} (cut=${NEAR_TREE_DIST})`,
         );

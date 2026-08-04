@@ -93,7 +93,7 @@ import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
-import { ITEMS, itemSlotLimit } from './items';
+import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -239,6 +239,10 @@ const CHEAT_TACTIC_GRANTS = [
 ] as const;
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
+/** Shift+U: max free base runes of each id in the left bag strip */
+const CHEAT_BASE_RUNE_COPIES = 2;
+/** Shift+U: max free advanced (and other) runes of each id in the left bag strip */
+const CHEAT_ADVANCED_RUNE_COPIES = 1;
 
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
@@ -1169,6 +1173,7 @@ export class Game {
                   this.effectToggles,
               )
             : null;
+        this.scenery.attachSun(sun);
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // specialist streams are keyed by canonical side (different draws)
         this.rngCards = {
@@ -2122,6 +2127,7 @@ export class Game {
                 this.effectToggles,
             );
             if (weatherSnapshot) this.weather.setAtmosphere(weatherSnapshot);
+            this.scenery.attachSun(this.sun);
         } else {
             // weather off: no fog and the default calm daylight
             this.weather = null;
@@ -2132,6 +2138,7 @@ export class Game {
             this.sun.position.set(120, 160, 80);
             this.hemi.color.setHex(THEME.hemiSky);
             this.hemi.groundColor.setHex(THEME.hemiGround);
+            this.scenery.attachSun(this.sun);
             this.hemi.intensity = THEME.hemiIntensity;
         }
 
@@ -2336,7 +2343,7 @@ export class Game {
         this.hud.setHp(this.playerHp, this.enemyHp);
         this.cheatGrantSupply(10_000);
         this.cheatGrantAllTactics();
-        this.cheatGrantAllItems(1);
+        this.cheatGrantAllItems();
         this.cheatGrantTechs(3);
         // sidebar intel: enemy bag unchanged by human-only item/tactic grants
         this.captureEnemyIntelSnapshot();
@@ -2607,11 +2614,19 @@ export class Game {
         for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
     }
 
-    /** SP cheat (Shift+U): add `copies` of every pack item to the human seat. */
-    private cheatGrantAllItems(copies = 1): void {
-        const seat = this.humanSeat;
+    /**
+     * SP cheat (Shift+U): top up free bag runes (left strip) for the human seat.
+     * Base runes fill to {@link CHEAT_BASE_RUNE_COPIES}; advanced/other to
+     * {@link CHEAT_ADVANCED_RUNE_COPIES}. Already-applied pack runes are ignored.
+     * Extra presses do not stack beyond the caps.
+     */
+    private cheatGrantAllItems(): void {
+        const bag = this.itemInventory[this.humanSeat]!;
+        const base = new Set<string>(BASE_RUNE_IDS);
         for (const id of Object.keys(ITEMS)) {
-            for (let i = 0; i < copies; i++) this.itemInventory[seat]!.push(id);
+            const max = base.has(id) ? CHEAT_BASE_RUNE_COPIES : CHEAT_ADVANCED_RUNE_COPIES;
+            const have = bag.filter((x) => x === id).length;
+            for (let i = have; i < max; i++) bag.push(id);
         }
     }
 
