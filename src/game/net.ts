@@ -1423,9 +1423,7 @@ export type StarRole =
 function describeHostOpenFailure(name: string, e: unknown): Error {
     const type = (e as { type?: string } | undefined)?.type;
     if (type === 'unavailable-id') {
-        return new Error(
-            `A room for "${name}" is still marked open from a previous session — reload the page to release it, then try again.`,
-        );
+        return new Error(`A room for "${name}" is still marked open from a previous session.`);
     }
     const detail = e instanceof Error ? e.message : String(e);
     return new Error(`Could not open a room for "${name}": ${detail}`);
