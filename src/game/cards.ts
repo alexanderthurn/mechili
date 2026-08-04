@@ -259,7 +259,7 @@ export const UNIT_UNLOCK_COST: Record<ShopUnitId, number> = {
     archer: 0,
     crowRider: 50,
     ballista: 200,
-    wizard: 100,
+    wizard: 200,
 };
 
 /** the signature unit a specialist can buy even if it is not in the starter army */

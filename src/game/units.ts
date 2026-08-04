@@ -572,7 +572,7 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'wizard',
         name: 'Wizard',
-        cost: 100,
+        cost: 400,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
