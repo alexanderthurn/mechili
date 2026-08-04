@@ -1295,10 +1295,28 @@ usernameEl.addEventListener('click', () => {
     showNameEditor();
 });
 
-function setStatus(text: string): void {
+let statusClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * `autoDismissMs`: for a TERMINAL message (host closed the room, rejected,
+ * version mismatch) — there's no pending operation left for the Cancel
+ * button (tied to this same text) to actually cancel, so without this the
+ * message+button just sat there forever once the player moved on to
+ * browsing the room list (live-reported: still showing minutes later).
+ * Omit for an in-progress status, where the text disappearing on its own
+ * while still connecting/hosting would be actively misleading.
+ */
+function setStatus(text: string, autoDismissMs?: number): void {
+    if (statusClearTimer) {
+        clearTimeout(statusClearTimer);
+        statusClearTimer = null;
+    }
     statusEl.style.display = text ? '' : 'none';
     statusEl.textContent = text;
     cancelEl.style.display = text ? '' : 'none';
+    if (text && autoDismissMs) {
+        statusClearTimer = setTimeout(() => setStatus(''), autoDismissMs);
+    }
 }
 
 /** hides the host-waiting-room seat table (see renderRosterTable) — call
@@ -2683,7 +2701,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         cancelled = true;
         pending = null;
         setMenuBusy(false);
-        setStatus('Host closed the room.');
+        setStatus('Host closed the room.', 5000);
         mainButtonsEl.style.display = '';
         clearRosterTable();
         clearLobbySettings();
@@ -2737,7 +2755,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             // bottom of this file) — most commonly a version mismatch after
             // a bundle update, which no amount of retrying ever resolves
             clearStarResumeMarker();
-            setStatus(msg.reason);
+            setStatus(msg.reason, 5000);
             session.close();
             mainButtonsEl.style.display = '';
             clearRosterTable();
@@ -2747,7 +2765,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         if (msg.type === 'starResumeState') {
             if (msg.version !== GAME_VERSION) {
                 clearStarResumeMarker();
-                setStatus('Version mismatch — both players need the same game version.');
+                setStatus('Version mismatch — both players need the same game version.', 5000);
                 session.close();
                 mainButtonsEl.style.display = '';
                 clearRosterTable();
@@ -2779,7 +2797,7 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         // only 'starSetup' can reach here (see the guard above)
         if (msg.version !== GAME_VERSION) {
             clearStarResumeMarker();
-            setStatus('Version mismatch — both players need the same game version.');
+            setStatus('Version mismatch — both players need the same game version.', 5000);
             session.close();
             mainButtonsEl.style.display = '';
             clearRosterTable();
@@ -3067,7 +3085,7 @@ function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessag
         cancelled = true;
         pending = null;
         setMenuBusy(false);
-        setStatus('Host closed the room.');
+        setStatus('Host closed the room.', 5000);
         mainButtonsEl.style.display = '';
         clearRosterTable();
         clearLobbySettings();
@@ -3090,7 +3108,7 @@ function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessag
         pending = null;
         setMenuBusy(false);
         if (msg.type === 'starRejected') {
-            setStatus(msg.reason);
+            setStatus(msg.reason, 5000);
             session.close();
             mainButtonsEl.style.display = '';
             clearRosterTable();
@@ -3098,7 +3116,7 @@ function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessag
             return;
         }
         if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
-            setStatus('Version mismatch — both players need the same game version.');
+            setStatus('Version mismatch — both players need the same game version.', 5000);
             session.close();
             mainButtonsEl.style.display = '';
             clearRosterTable();
