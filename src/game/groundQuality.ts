@@ -25,11 +25,12 @@ export type GroundTextureTier = 'low' | 'medium' | 'high' | 'ultra';
  */
 export const PHOTO_BLEND = {
     grass: {
-        density: 0.3,
-        cellScale: 1.15,
-        radius: 0.1,
-        strength: 5,
-        uvScale: 3.4,
+        // Broad soft coverage; photo-2 is UV-bombed + multiplied with photo-0
+        density: 0.7,
+        cellScale: 0.38,
+        radius: 0.95,
+        strength: 0.7,
+        uvScale: 2.2,
     },
     rock: {
         density: 1,
@@ -50,7 +51,7 @@ export const PHOTO_BLEND = {
 export const GROUND_UNIT_Y = -0.08;
 
 /**
- * Footprint / wear dirt (`dirt-albedo-hq`) — NOT the grass photo accents.
+ * Footprint / wear dirt (`dirt-albedo-hq` on high/ultra, sand otherwise).
  * Shows under unit stamps + sparse base patches at match start.
  *
  * - basePatchArea: lower divisor → more random dirt patches (try 12000–40000)

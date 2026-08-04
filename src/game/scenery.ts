@@ -45,7 +45,7 @@ import {
     barkUrl,
     foliageUrl,
     iceAlbedoUrl,
-    sandAlbedoUrl,
+    shoreAlbedoUrl,
     loadGrassTextures,
     loadRockTextures,
     loadWorldTexture,
@@ -879,7 +879,7 @@ export class Scenery {
 
         const pos = geometry.attributes.position!;
         const colors = new Float32Array(pos.count * 3);
-        /** 0..1 per vertex: how sandy this spot is (lake shores + rare patches) */
+        /** 0..1 per vertex: how sandy/gravelly this spot is (lake shores + rare patches) */
         const beach = new Float32Array(pos.count);
         const meadow = new Color(0xffffff); // grass texture shows as-is
         // near-white: the tiled rock texture carries the stone color, the
@@ -895,8 +895,9 @@ export class Scenery {
             const h = this.terrainHeight(x, z);
             pos.setY(i, h);
 
-            // sand around (and under) the lakes, fading up the banks…
-            const shore = smooth01(this.lakeAt(x, z) / 0.5) * (1 - smooth01((h - 0.2) / 2.0));
+            // gravel shore around (and under) the lakes, fading up the banks…
+            // tight band: needs solid basin + cuts off quickly uphill
+            const shore = smooth01((this.lakeAt(x, z) - 0.12) / 0.45) * (1 - smooth01((h - 0.1) / 1.1));
             // …plus rare small dry patches scattered over the meadow
             const patchN = this.noise(x / 37 + 5.1, z / 37 + 50.4);
             const patch = smooth01((patchN - 0.72) / 0.09) * 0.7 * (h < 10 ? 1 : 0);
@@ -947,18 +948,21 @@ export class Scenery {
         const BOARD_TONE = 0.93;
         const profile = groundMaterialProfile();
         const tileSize = profile.detailTile;
+        // Gravel shore tile — smaller than lawn so pebbles stay pebble-sized
+        const shoreTile = 11;
         const rockTile = 34; // legacy rock tile scale
         const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
-        const [grass, rockPack, sand] = await Promise.all([
+        const [grass, rockPack, shore] = await Promise.all([
             loadGrassTextures(),
             loadRockTextures(),
-            loadWorldTexture(sandAlbedoUrl),
+            loadWorldTexture(shoreAlbedoUrl),
         ]);
         if (!grass?.albedo) return;
         const { albedo, normal } = grass;
         const rock = rockPack?.albedo ?? null;
         const rockPhoto1 = rockPack?.variants[0] ?? null;
         const rockPhoto2 = rockPack?.variants[1] ?? null;
+        // Outer meadow: lighter photo accents only (no dark seamless photo-2)
         const photoGrass =
             grass.variants[0] && grass.variants[1]
                 ? ([grass.variants[0], grass.variants[1]] as const)
@@ -990,10 +994,10 @@ export class Scenery {
             rp.colorSpace = SRGBColorSpace;
             rp.anisotropy = profile.anisotropy;
         }
-        if (sand) {
-            sand.wrapS = sand.wrapT = RepeatWrapping;
-            sand.colorSpace = SRGBColorSpace;
-            sand.anisotropy = profile.anisotropy;
+        if (shore) {
+            shore.wrapS = shore.wrapT = RepeatWrapping;
+            shore.colorSpace = SRGBColorSpace;
+            shore.anisotropy = profile.anisotropy;
         }
         for (const v of grass.variants) {
             v.wrapS = v.wrapT = RepeatWrapping;
@@ -1015,7 +1019,7 @@ export class Scenery {
                 shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
                 shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
             }
-            if (sand) shader.uniforms.uSand = { value: sand };
+            if (shore) shader.uniforms.uShore = { value: shore };
             shader.uniforms.uSnowCover = { value: 0 };
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
             if (useDetail) {
@@ -1067,8 +1071,9 @@ export class Scenery {
             if (photoGrass) {
                 const g = PHOTO_BLEND.grass;
                 inject += `
-    float pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );
-    vec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};
+    // Mild photo-0/1 accents only — dark board midfield mix stays off the outer world
+    float pgSoft = softBlobMask( vMapUv, 1.15, 0.28, 0.12 );
+    vec2 pgUv = vMapUv * 3.4;
     float pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
     vec3 pgTex = mix(
         texture2D( uPhotoGrass1, pgUv ).rgb,
@@ -1076,12 +1081,12 @@ export class Scenery {
         step( 0.5, pgWhich ) );
     float pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
     vec3 pgDetail = pgTex / pgLum;
-    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * ${g.strength.toFixed(2)} );`;
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * 0.55 );`;
             }
-            if (sand) {
+            if (shore) {
                 inject += `
-    // sand where the geometry says so: lake shores + rare dry patches
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${tileSize.toFixed(1)}).rgb, vBeach);`;
+    // gravel shore where the geometry says so: lake banks + rare dry patches
+    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uShore, vWorldXZ / ${shoreTile.toFixed(1)}).rgb, vBeach);`;
             }
             inject += `
     // permanent alpine snowcap — always on, independent of weather
@@ -1127,7 +1132,7 @@ export class Scenery {
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
-                (sand ? 'uniform sampler2D uSand;\n' : '') +
+                (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 'uniform float uSnowCover;\n' +
                 (needBlob ? softBlobFn : '') +
@@ -1152,7 +1157,7 @@ export class Scenery {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v11${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgblob' : ''}${sand ? '-sand' : ''}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v16${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 

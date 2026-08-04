@@ -745,19 +745,20 @@ export class BattleMap {
             this.hazardTimeUniform = shader.uniforms.uHazardTime as { value: number };
             shader.uniforms.uSnowCover = { value: 0 };
             this.snowCoverUniform = shader.uniforms.uSnowCover as { value: number };
+            shader.uniforms.uBoardHalf = { value: new Vector2(this.halfW, this.halfH) };
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
             }
             shader.vertexShader =
-                'varying vec2 vMacroUv;\n' +
+                'varying vec2 vMacroUv;\nvarying vec2 vBoardXZ;\n' +
                 shader.vertexShader.replace(
                     '#include <uv_vertex>',
-                    '#include <uv_vertex>\n\tvMacroUv = uv;',
+                    '#include <uv_vertex>\n\tvMacroUv = uv;\n\tvBoardXZ = position.xz;',
                 );
             let inject = '';
             let extraUniforms =
-                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\n';
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n';
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
@@ -798,8 +799,8 @@ export class BattleMap {
                     '\tvec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
             }
-            // HQ lawn stays dominant. Field photos multiply in via soft round
-            // blobs (texture bombing) so they never paint hard square tiles.
+            // Field photos: multiply dark seamless (photo-2) with photo-0 detail,
+            // UV-bomb photo-2 so tile seams don't read as cutoffs.
             if (photoGrass) {
                 const g = PHOTO_BLEND.grass;
                 shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
@@ -808,14 +809,29 @@ export class BattleMap {
                 inject +=
                     `\tfloat pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );\n` +
                     `\tvec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};\n` +
-                    '\tfloat pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
-                    '\tvec3 pgTex = mix(\n' +
-                    '\t\ttexture2D( uPhotoGrass1, pgUv ).rgb,\n' +
-                    '\t\ttexture2D( uPhotoGrass2, pgUv.yx * 1.07 + 0.21 ).rgb,\n' +
-                    '\t\tstep( 0.5, pgWhich ) );\n' +
-                    '\tfloat pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );\n' +
-                    '\tvec3 pgDetail = pgTex / pgLum;\n' +
-                    `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * ${g.strength.toFixed(2)} );\n`;
+                    '\tvec2 pgUvB = pgUv.yx * vec2( -0.91, 1.07 ) + vec2( 0.27, 0.41 );\n' +
+                    '\tfloat pgBomb = fract( sin( dot( floor( vMapUv * 2.4 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
+                    '\tpgBomb = smoothstep( 0.22, 0.78, pgBomb );\n' +
+                    '\tvec3 pgA = texture2D( uPhotoGrass1, pgUv ).rgb;\n' +
+                    '\tvec3 pgDark = mix(\n' +
+                    '\t\ttexture2D( uPhotoGrass2, pgUv * 0.72 ).rgb,\n' +
+                    '\t\ttexture2D( uPhotoGrass2, pgUvB * 0.64 ).rgb,\n' +
+                    '\t\tpgBomb );\n' +
+                    // Multiply the two photos, keep some absolute dark from photo-2
+                    '\tfloat pgDarkLum = max( dot( pgDark, vec3( 0.299, 0.587, 0.114 ) ), 0.06 );\n' +
+                    '\tvec3 pgCombo = pgA * ( pgDark / pgDarkLum );\n' +
+                    '\tpgCombo = mix( pgCombo, pgA * pgDark * 2.2, 0.35 );\n' +
+                    '\tfloat pgComboLum = max( dot( pgCombo, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );\n' +
+                    '\tvec3 pgDetail = pgCombo / pgComboLum;\n' +
+                    // Soft veil + midfield band in world XZ (between players, inset from rim)
+                    `\tfloat pgVeil = 0.45 + 0.55 * pgSoft;\n` +
+                    '\tvec2 pgN = abs( vBoardXZ ) / max( uBoardHalf, vec2( 1.0 ) );\n' +
+                    // Soft fill over inner ~80% of the board (fade in the outer 10% rim)
+                    '\tfloat pgInner = 1.0 - smoothstep( 0.80, 0.92, max( pgN.x, pgN.y ) );\n' +
+                    '\tfloat pgPatch = softBlobMask( vMapUv, 0.55, 0.45, 0.7 );\n' +
+                    '\tpgVeil *= pgInner * mix( 0.25, 0.55, pgPatch ) * 0.45;\n' +
+                    `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgVeil * ${g.strength.toFixed(2)} );\n` +
+                    `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * mix( vec3( 1.0 ), pgDark * 1.8, 0.6 ), pgVeil * ${(g.strength * 0.65).toFixed(2)} );\n`;
             }
             // Soft macro before snow so the white wash matches the outer meadow
             // (macro after snow was tinting the board frost green again).
@@ -909,7 +925,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v18${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pgblob' : ''}-${
+            `ground-hazard-v30${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-${
                 useDetail ? groundDetailCacheKey(profile) : 'plain'
             }`;
     }
@@ -978,7 +994,7 @@ export class BattleMap {
         if (!grass?.albedo) return;
         const { albedo, normal } = grass;
         const profile = groundMaterialProfile();
-        // Wear surface: packed dirt on HQ tiers, sand otherwise
+        // Wear surface: HQ dirt on high/ultra, sand on lower tiers
         const wear = await loadWearGroundTextures();
         const sand = wear?.albedo ?? (await loadWorldTexture(sandAlbedoUrl));
         const tileSize = profile.detailTile;
@@ -1015,11 +1031,13 @@ export class BattleMap {
             roughness: THEME.terrain.groundRoughness,
             metalness: 0,
         });
-        // variants = grass photos only (HQ lawn is base; dirt photos unused here)
+        // variants = grass photos; prefer photo-2 (dark seamless) in the blob mix
         const photoGrass =
-            grass.variants[0] && grass.variants[1]
-                ? ([grass.variants[0], grass.variants[1]] as const)
-                : null;
+            grass.variants[0] && grass.variants[2]
+                ? ([grass.variants[0], grass.variants[2]] as const)
+                : grass.variants[0] && grass.variants[1]
+                  ? ([grass.variants[0], grass.variants[1]] as const)
+                  : null;
         this.attachGroundShader(material, macro, {
             hazardMask,
             sand: sandMask ? sand : null,
