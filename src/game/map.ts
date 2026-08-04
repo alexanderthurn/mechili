@@ -895,9 +895,11 @@ export class BattleMap {
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
                     // In snow: footprints = pressed pack (darker frost), not bare mud.
                     // snowMask 0 → dirt trails; snowMask 1 → compacted snow with a hint of grit.
+                    // grassStampShow softens mud on lawn only — snow keeps full sandM.
                     '\tvec3 packedSnow = diffuseColor.rgb * vec3( 0.52, 0.58, 0.68 );\n' +
                     '\tvec3 trailCol = mix( sandTexel, mix( packedSnow, sandTexel, 0.22 ), snowMask );\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandM);\n';
+                    `\tfloat sandShow = sandM * mix( ${WEAR_BLEND.grassStampShow.toFixed(2)}, 1.0, snowMask );\n` +
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandShow);\n';
             }
             // oil / fire / acid — always, gameplay-readable on every quality setting
             inject +=
@@ -948,9 +950,9 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v30${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-${
-                useDetail ? groundDetailCacheKey(profile) : 'plain'
-            }`;
+            `ground-hazard-v31${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-gs${
+                WEAR_BLEND.grassStampShow.toFixed(2)
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}`;
     }
 
     /**

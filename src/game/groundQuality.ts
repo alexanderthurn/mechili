@@ -56,10 +56,13 @@ export const GROUND_UNIT_Y = -0.08;
  *
  * - stampStrength: multiplies every footprint stamp (0.5–2)
  * - stampRadius: multiplies footprint size (0.7–1.5)
+ * - grassStampShow: how hard dirt trails read on green grass (0.3–1).
+ *   Snow tracks stay full strength (shader mixes this → 1 with snowMask).
  */
 export const WEAR_BLEND = {
     stampStrength: 1,
     stampRadius: 1,
+    grassStampShow: 0.45,
 } as const;
 
 export interface GroundMaterialProfile {

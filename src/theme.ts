@@ -2798,11 +2798,23 @@ ${fontFaceCss()}
     border: 1.5px solid ${u.border};
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     z-index: 80;
-    pointer-events: none;
+    /* must hit-test: otherwise outside/preview clicks pass through and the
+     * panel never dismisses (touch peek / sticky after click-open) */
+    pointer-events: auto;
+    cursor: default;
 }
 .forge-slot-preview.recipes .forge-recipes-block {
     margin: 0;
     padding: 0;
+}
+.forge-slot-preview.recipes .forge-recipes-hint {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: ${u.phase};
+    margin: 0 0 6px;
+    padding: 0 2px;
+    text-align: center;
 }
 .forge-slot-preview.recipes .forge-tile-grid {
     display: flex;

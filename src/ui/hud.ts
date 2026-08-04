@@ -777,6 +777,8 @@ export class Hud {
                         this.showActionInfo(peek);
                         return;
                     }
+                    // second tap on the same tile — drop sticky recipe peek
+                    this.hideForgeSlotHoverPreview();
                 } else {
                     this.hideActionInfo();
                 }
@@ -1732,6 +1734,19 @@ export class Hud {
     private forgeSlotPreviewAnchor: HTMLElement | null = null;
     /** rune id used while recipes hover is open (shop / bag / drag) */
     private forgeRecipesHoverRuneId: string | null = null;
+    private forgeRecipesDismissArmed = false;
+
+    /** click outside / on the popup dismisses sticky recipe peeks */
+    private readonly onForgeRecipesPointerDown = (e: PointerEvent) => {
+        const el = this.forgeSlotPreviewEl;
+        if (!el || el.hidden || !el.classList.contains('recipes')) return;
+        const t = e.target as Node | null;
+        if (!t) return;
+        // still interacting with the forge/shop/bag anchor — keep open
+        if (this.forgeSlotPreviewAnchor?.contains(t)) return;
+        // preview itself or anywhere else → dismiss
+        this.dismissForgeRecipesPreview();
+    };
 
     private isForgePreviewSlot(el: HTMLElement): boolean {
         return (
@@ -1783,10 +1798,33 @@ export class Hud {
         this.forgeSlotPreviewAnchor = anchor;
         this.forgeRecipesHoverRuneId = highlightRuneId;
         el.classList.add('recipes');
-        el.innerHTML = recipes;
+        el.innerHTML =
+            `<div class="forge-recipes-hint">Drag onto a Stronghold to forge</div>` + recipes;
         el.hidden = false;
         this.bindCardSpellTips(el);
         this.positionForgeSlotHoverPreview();
+        this.armForgeRecipesDismiss();
+    }
+
+    /** outside / popup click dismiss — deferred so the opening tap doesn't close it */
+    private armForgeRecipesDismiss(): void {
+        if (this.forgeRecipesDismissArmed) return;
+        this.forgeRecipesDismissArmed = true;
+        setTimeout(() => {
+            if (!this.forgeRecipesDismissArmed) return;
+            window.addEventListener('pointerdown', this.onForgeRecipesPointerDown, true);
+        }, 0);
+    }
+
+    private disarmForgeRecipesDismiss(): void {
+        if (!this.forgeRecipesDismissArmed) return;
+        this.forgeRecipesDismissArmed = false;
+        window.removeEventListener('pointerdown', this.onForgeRecipesPointerDown, true);
+    }
+
+    /** hide recipes (+ action-info peek when it opened them via touch/click) */
+    private dismissForgeRecipesPreview(): void {
+        this.hideActionInfo();
     }
 
     /** rebuild open recipe hover after bag / oven changes (e.g. shop buy while hovering) */
@@ -1811,6 +1849,12 @@ export class Hud {
                 const to = e.relatedTarget as Node | null;
                 if (this.forgeSlotPreviewAnchor?.contains(to)) return;
                 this.hideForgeSlotHoverPreview();
+            });
+            // click the recipe panel itself to dismiss (touch peek / sticky)
+            this.forgeSlotPreviewEl.addEventListener('click', (e) => {
+                if (!this.forgeSlotPreviewEl?.classList.contains('recipes')) return;
+                e.stopPropagation();
+                this.dismissForgeRecipesPreview();
             });
             document.body.appendChild(this.forgeSlotPreviewEl);
         }
@@ -1849,6 +1893,7 @@ export class Hud {
     }
 
     private hideForgeSlotHoverPreview(): void {
+        this.disarmForgeRecipesDismiss();
         this.forgeSlotPreviewAnchor = null;
         this.forgeRecipesHoverRuneId = null;
         if (this.forgeSlotPreviewEl) {
