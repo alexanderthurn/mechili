@@ -904,6 +904,30 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: grid; }
 .mechili-menu .m-lobby-settings .m-field { min-width: 0; }
+.mechili-menu .m-lobby-settings-reset {
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin: 2px 0 0;
+    padding: 2px 0;
+    width: auto;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: ${u.textMuted};
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: color 0.12s ease;
+}
+.mechili-menu .m-lobby-settings-reset:hover:not(:disabled) {
+    color: ${u.brassLight};
+}
+.mechili-menu .m-lobby-settings-reset:disabled,
+.mechili-menu .m-lobby-settings.m-readonly .m-lobby-settings-reset,
+.mechili-menu .m-lobby-settings-reset[hidden] {
+    display: none;
+}
 .mechili-menu .m-session-layout {
     display: flex;
     flex-direction: column;

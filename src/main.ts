@@ -728,6 +728,7 @@ menu.innerHTML = `
                 <label class="m-field">HP
                     <select class="cg-commander-hp"></select>
                 </label>
+                <button type="button" class="m-lobby-settings-reset" hidden>Reset to defaults</button>
             </div>
         </div>
     </div>
@@ -962,6 +963,7 @@ const cgPaceEl = menu.querySelector<HTMLSelectElement>('.cg-pace')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
+const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
@@ -1105,6 +1107,18 @@ for (const optHp of COMMANDER_HP_FACTOR_OPTIONS) {
 }
 wireSelectShortLabels(cgCommanderHpEl);
 
+function defaultLobbySettings(): Pick<
+    CustomGameConfig,
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor'
+> {
+    return {
+        pace: DEFAULT_CUSTOM_GAME_PACE_ID,
+        hordePreset: DEFAULT_HORDE_PRESET_ID,
+        roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
+        commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    };
+}
+
 function isNonDefaultLobbySettings(cfg: CustomGameConfig): boolean {
     return (
         cfg.pace !== DEFAULT_CUSTOM_GAME_PACE_ID ||
@@ -1129,6 +1143,12 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
         syncSelectOptionLabels(sel, false);
     }
+    syncLobbySettingsResetVisibility(cfg);
+}
+
+/** Host-only: show "Reset to defaults" only when pace/horde/cards/HP differ. */
+function syncLobbySettingsResetVisibility(cfg: CustomGameConfig): void {
+    cgResetEl.hidden = !activeLobbyHost || !isNonDefaultLobbySettings(cfg);
 }
 
 function selectedLobbyOptionFull(select: HTMLSelectElement): string {
@@ -1559,12 +1579,20 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, readLobbySettingsForm());
         saveCustomGameConfig(activeLobbyHost.config);
+        syncLobbySettingsResetVisibility(activeLobbyHost.config);
         activeLobbyHost.onChange();
     };
     cgPaceEl.addEventListener('change', onChange);
     cgHordeEl.addEventListener('change', onChange);
     cgRoundCardsEl.addEventListener('change', onChange);
     cgCommanderHpEl.addEventListener('change', onChange);
+    cgResetEl.addEventListener('click', () => {
+        if (!activeLobbyHost) return;
+        Object.assign(activeLobbyHost.config, defaultLobbySettings());
+        populateLobbySettingsForm(activeLobbyHost.config);
+        saveCustomGameConfig(activeLobbyHost.config);
+        activeLobbyHost.onChange();
+    });
 })();
 
 /** host-side only: show + populate the editable lobby-settings panel for
@@ -1586,6 +1614,7 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
     cgHordeEl.disabled = false;
     cgRoundCardsEl.disabled = false;
     cgCommanderHpEl.disabled = false;
+    cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
 }
 
@@ -1607,6 +1636,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgHordeEl.disabled = true;
     cgRoundCardsEl.disabled = true;
     cgCommanderHpEl.disabled = true;
+    cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }
