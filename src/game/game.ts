@@ -7419,6 +7419,7 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
         this.spellVisuals.clear(); // active zone markers are battle-only
+        this.rallyVisuals.sync([], null); // battle-only follower markers
         if (hash !== undefined && this.star) {
             // Star mode's battle-end / pre-match-end sync barrier: gates
             // BOTH of what used to run immediately below (finishMatch(), or
@@ -8151,8 +8152,11 @@ export class Game {
             this.roundCardPicksView('player'),
             this.enemyActionIntelVisible() ? this.roundCardPicksView('enemy') : [],
         );
-        // rally sync is folded into syncTacticVisuals during build; battle needs routes gone
-        if (this.phase === 'battle') this.rallyVisuals.sync([], null);
+        // rally sync is folded into syncTacticVisuals during build; in battle
+        // keep a route visible while any living mech is still marching on it
+        if (this.phase === 'battle') {
+            this.rallyVisuals.sync(this.sim?.activeRallyRoutes() ?? [], null);
+        }
         this.hud.setSupply(this.economy.balance(this.humanSeat));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();

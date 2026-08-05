@@ -205,6 +205,8 @@ export interface Actor {
     /** personal rally-route destination (null = default seek-enemy AI) */
     pathDestX: number | null;
     pathDestZ: number | null;
+    /** which {@link RallyRoute.id} this path order came from (null when not on a route) */
+    pathRouteId: number | null;
     /** seconds without getting closer to the rally destination */
     pathStuck: number;
     /** closest approach to pathDest so far */
@@ -446,6 +448,8 @@ export class BattleSim {
     lastMobileCount = 0;
     /** whether soft crowd was enabled on the last step */
     lastSoftCrowd = true;
+    /** routes passed at battle start — used by {@link activeRallyRoutes} */
+    private rallyRoutes: readonly RallyRoute[] = [];
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -527,6 +531,7 @@ export class BattleSim {
                     spawnDamaged: false,
                     pathDestX: null,
                     pathDestZ: null,
+                    pathRouteId: null,
                     pathStuck: 0,
                     pathBestDist: Infinity,
                     mvX: 0,
@@ -638,6 +643,7 @@ export class BattleSim {
     /** snapshot at battle start: mechs inside a route's start circle march to a
      *  matching offset at the end. Overlapping zones: last-placed route wins. */
     private assignRallyRoutes(routes: readonly RallyRoute[]): void {
+        this.rallyRoutes = routes;
         const r2 = RALLY_ROUTE_RADIUS * RALLY_ROUTE_RADIUS;
         for (const route of routes) {
             for (const a of this.actors) {
@@ -648,6 +654,7 @@ export class BattleSim {
                 if (dx * dx + dz * dz > r2) continue;
                 a.pathDestX = route.endX + dx;
                 a.pathDestZ = route.endZ + dz;
+                a.pathRouteId = route.id;
                 a.pathStuck = 0;
                 a.pathBestDist = Infinity;
             }
@@ -657,6 +664,7 @@ export class BattleSim {
     private clearPathOrder(a: Actor): void {
         a.pathDestX = null;
         a.pathDestZ = null;
+        a.pathRouteId = null;
         a.pathStuck = 0;
         a.pathBestDist = Infinity;
     }
@@ -711,6 +719,20 @@ export class BattleSim {
             out.push({ tacticId: z.tacticId, x: z.x, z: z.z, radius: z.radius });
         }
         return out;
+    }
+
+    /**
+     * Rally routes that still have at least one living mech marching along
+     * them. Render-only — hide a route once every assignee has arrived,
+     * given up (stuck), or died.
+     */
+    activeRallyRoutes(): readonly RallyRoute[] {
+        const live = new Set<number>();
+        for (const a of this.actors) {
+            if (a.alive && a.pathRouteId !== null) live.add(a.pathRouteId);
+        }
+        if (live.size === 0) return [];
+        return this.rallyRoutes.filter((r) => live.has(r.id));
     }
 
     private recordDamage(attacker: Unit, amount: number): void {
