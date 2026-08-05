@@ -7826,8 +7826,8 @@ export class Game {
         const built = buildHpDrawSources(sim, this.economy);
         const damageToPlayer = built.damageToPlayer;
         const damageToEnemy = built.damageToEnemy;
-        this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
-        this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
+        this.playerHp = this.playerHp - damageToPlayer;
+        this.enemyHp = this.enemyHp - damageToEnemy;
         this.debugLog.log('hp.applyBattleResult', {
             watching: this.watching,
             round: this.round,

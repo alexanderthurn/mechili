@@ -2800,8 +2800,9 @@ export class Hud {
         // one teammate has chosen yet.
         const p = this.playerMaxHp > 0 ? Math.max(0, Math.min(1, player / this.playerMaxHp)) : 0;
         const e = this.enemyMaxHp > 0 ? Math.max(0, Math.min(1, enemy / this.enemyMaxHp)) : 0;
-        const pRound = Math.max(0, Math.round(player));
-        const eRound = Math.max(0, Math.round(enemy));
+        // Allow negative labels on the killing blow — overkill is interesting
+        const pRound = Math.round(player);
+        const eRound = Math.round(enemy);
         // Avoid rewriting transform every frame — CSS transition + per-tick
         // style assignment makes the fightbar HP look like it flickers on hover.
         if (
