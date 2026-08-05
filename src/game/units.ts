@@ -377,6 +377,9 @@ class PartFactory {
             }),
         );
         mesh.scale.y = heightScale;
+        // Visual-only: the hull must not steal unit picks (build or battle).
+        // Click the stone/pylon to select the ward; units under the dome stay clickable.
+        mesh.raycast = () => {};
         this.group.add(mesh);
         return mesh;
     }
