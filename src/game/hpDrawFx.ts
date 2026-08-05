@@ -1,21 +1,26 @@
 import {
     AdditiveBlending,
-    Color,
-    DynamicDrawUsage,
-    InstancedMesh,
+    DoubleSide,
+    Group,
     MathUtils,
-    Matrix4,
+    Mesh,
+    MeshBasicMaterial,
     PerspectiveCamera,
-    Quaternion,
     Raycaster,
-    ShaderMaterial,
-    SphereGeometry,
+    Sprite,
+    SpriteMaterial,
+    Texture,
+    TextureLoader,
     Vector2,
     Vector3,
+    SRGBColorSpace,
+    type Material,
+    type Object3D,
     type Scene,
 } from 'three';
 import type { HpDrawScheduledParticle } from './hpDraw';
 import type { HpDrawWaveTier } from './units';
+import { cloneUnitModel, hasUnitModel } from './unitModels';
 
 const MAX_HP_DRAW = 256;
 /** Distance along the view ray for the HP-corner anchor in world space. */
@@ -32,14 +37,6 @@ const HOMING_TURN_RAD = 7.44;
 const FLIGHT_SPEED_MULT = 3.3;
 /** Arc paths are longer than a straight line — baked into launch speed. */
 const ARC_LENGTH_MULT = 1.15;
-/** Base mesh radius; tier scale applies 1× / 2× / 4× on top. */
-const BASE_MESH_RADIUS = 0.34;
-/** Soft outer glow relative to the core sphere. */
-const HALO_SCALE = 2.15;
-/** Scale = tierSize × clamp(CAM_SCALE_REF / distanceToCamera, min, max). */
-const CAM_SCALE_REF = 62;
-const CAM_SCALE_MIN = 0.72;
-const CAM_SCALE_MAX = 2.35;
 
 /** Normalized screen coords — top corners where HUD HP cards sit. */
 const HP_CORNER_SCREEN = {
@@ -47,23 +44,94 @@ const HP_CORNER_SCREEN = {
     enemy: { x: 0.87, y: 0.055 },
 } as const;
 
-const TIER_SCALE: Record<HpDrawWaveTier, number> = {
-    low: 1,
-    medium: 2,
-    high: 4,
+/** Billboard soul size by wave tier (world units). */
+const SOUL_SPRITE_SIZE: Record<HpDrawWaveTier, number> = {
+    low: 2.2,
+    medium: 3.6,
+    high: 5.5,
 };
+
+/**
+ * Transparent unit-mesh ghosts only for medium/high — packs of dwarves would
+ * clone too many GLBs if every low particle got one.
+ */
+const MESH_GHOST_TIERS: ReadonlySet<HpDrawWaveTier> = new Set(['medium', 'high']);
+
+const GHOST_TINT = 0xb8f0ff;
+
+let sharedSoulTexture: Texture | null = null;
+let soulTextureLoading = false;
+
+function ensureSoulTexture(): Texture | null {
+    if (sharedSoulTexture) return sharedSoulTexture;
+    if (soulTextureLoading) return null;
+    soulTextureLoading = true;
+    const url = new URL('../../assets/textures/vfx/soul-ghost.png', import.meta.url).href;
+    new TextureLoader().load(
+        url,
+        (tex) => {
+            tex.colorSpace = SRGBColorSpace;
+            sharedSoulTexture = tex;
+            soulTextureLoading = false;
+        },
+        undefined,
+        () => {
+            soulTextureLoading = false;
+        },
+    );
+    return null;
+}
+
+/** Turn a unit-model clone into an additive cyan spirit silhouette. */
+function ghostifyUnitMesh(root: Object3D): void {
+    root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) (m as Material).dispose?.();
+        mesh.material = new MeshBasicMaterial({
+            color: GHOST_TINT,
+            transparent: true,
+            opacity: 0.38,
+            depthWrite: false,
+            blending: AdditiveBlending,
+            side: DoubleSide,
+            fog: false,
+        });
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        mesh.renderOrder = 14;
+    });
+}
+
+function disposeObject(root: Object3D): void {
+    root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (mesh.isMesh) {
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const m of mats) (m as Material).dispose?.();
+            // Do NOT dispose geometry — unit clones share template buffers.
+        }
+        const spr = o as Sprite;
+        if (spr.isSprite) {
+            // Shared soul texture stays loaded; only dispose this sprite's material.
+            (spr.material as SpriteMaterial).dispose();
+        }
+    });
+}
 
 type LiveProjectile = HpDrawScheduledParticle & {
     start: Vector3;
-    /** Current world position — advanced along velocity, never snapped. */
     pos: Vector3;
-    /** Current flight velocity (direction × speed). */
     vel: Vector3;
     launchTime: number;
-    /** World units per second — set once at launch. */
     speed: number;
     flying: boolean;
     hit: boolean;
+    /** Camera-facing soul sprite */
+    sprite: Sprite;
+    /** Optional transparent unit silhouette (medium/high) */
+    meshGhost: Group | null;
 };
 
 export type HpDrawHitEvent = {
@@ -73,160 +141,70 @@ export type HpDrawHitEvent = {
 };
 
 /**
- * Additive fresnel orb — hot white core + gold rim (same look as wizard orbs,
- * retuned for HP-draw). Shared by every tier; size alone marks low/med/high.
- */
-function makeCoreMaterial(): ShaderMaterial {
-    return new ShaderMaterial({
-        uniforms: {
-            uTime: { value: 0 },
-            uCore: { value: new Color(0xffffff) },
-            uMid: { value: new Color(0xffe8a8) },
-            uGlow: { value: new Color(0xffb040) },
-        },
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        fog: false,
-        vertexShader: /* glsl */ `
-            varying vec3 vNormal;
-            varying vec3 vView;
-            varying float vPulse;
-            uniform float uTime;
-            void main() {
-                float pulse = 1.0 + 0.1 * sin(uTime * 10.0 + position.y * 5.0);
-                vPulse = pulse;
-                vec3 pos = position * pulse;
-                #ifdef USE_INSTANCING
-                mat4 im = instanceMatrix;
-                #else
-                mat4 im = mat4(1.0);
-                #endif
-                vec4 world = im * vec4(pos, 1.0);
-                vec4 mv = modelViewMatrix * world;
-                vNormal = normalize(normalMatrix * mat3(im) * normal);
-                vView = normalize(-mv.xyz);
-                gl_Position = projectionMatrix * mv;
-            }
-        `,
-        fragmentShader: /* glsl */ `
-            varying vec3 vNormal;
-            varying vec3 vView;
-            varying float vPulse;
-            uniform vec3 uCore;
-            uniform vec3 uMid;
-            uniform vec3 uGlow;
-            uniform float uTime;
-            void main() {
-                float ndv = max(dot(normalize(vNormal), normalize(vView)), 0.0);
-                float fresnel = pow(1.0 - ndv, 2.0);
-                float spark = 0.5 + 0.5 * sin(uTime * 14.0 + fresnel * 12.0);
-                vec3 col = mix(uCore, uMid, fresnel * 0.55 + spark * 0.15);
-                col = mix(col, uGlow, fresnel * 0.85);
-                // hot center stays opaque-bright; rim blooms soft
-                float alpha = 0.55 + fresnel * 0.55 + 0.12 * spark;
-                gl_FragColor = vec4(col * (1.25 + 0.3 * vPulse), alpha);
-            }
-        `,
-    });
-}
-
-/** Soft additive halo — cheap bloom without a post-process pass. */
-function makeHaloMaterial(): ShaderMaterial {
-    return new ShaderMaterial({
-        uniforms: {
-            uTime: { value: 0 },
-            uColor: { value: new Color(0xffc050) },
-        },
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        fog: false,
-        vertexShader: /* glsl */ `
-            varying vec3 vNormal;
-            varying vec3 vView;
-            uniform float uTime;
-            void main() {
-                float pulse = 1.0 + 0.06 * sin(uTime * 7.0);
-                vec3 pos = position * pulse;
-                #ifdef USE_INSTANCING
-                mat4 im = instanceMatrix;
-                #else
-                mat4 im = mat4(1.0);
-                #endif
-                vec4 world = im * vec4(pos, 1.0);
-                vec4 mv = modelViewMatrix * world;
-                vNormal = normalize(normalMatrix * mat3(im) * normal);
-                vView = normalize(-mv.xyz);
-                gl_Position = projectionMatrix * mv;
-            }
-        `,
-        fragmentShader: /* glsl */ `
-            varying vec3 vNormal;
-            varying vec3 vView;
-            uniform vec3 uColor;
-            void main() {
-                float ndv = max(dot(normalize(vNormal), normalize(vView)), 0.0);
-                // soft shell — brighter at the rim, nearly clear in the center
-                float rim = pow(1.0 - ndv, 1.6);
-                float alpha = rim * 0.45;
-                gl_FragColor = vec4(uColor * (0.7 + rim), alpha);
-            }
-        `,
-    });
-}
-
-/**
- * Free-flying shiny 3D orbs from surviving mechs toward the viewport HP-bar
- * corners. Additive fresnel core + soft halo; size alone marks wave tier.
+ * Dead-Marches souls: translucent spirit sprites flying from survivors to the
+ * HP bars. Medium/high also carry a transparent shiny clone of their unit mesh.
  */
 export class HpDrawFx {
-    private readonly core: InstancedMesh;
-    private readonly halo: InstancedMesh;
-    private readonly coreMat: ShaderMaterial;
-    private readonly haloMat: ShaderMaterial;
-    private readonly matrix = new Matrix4();
-    private readonly haloMatrix = new Matrix4();
-    private readonly dir = new Vector3();
+    private readonly root = new Group();
     private readonly desired = new Vector3();
     private readonly velDir = new Vector3();
-    private readonly quat = new Quaternion();
-    private readonly fwd = new Vector3(0, 0, 1);
-    private readonly scale = new Vector3();
-    private readonly haloScale = new Vector3();
     private readonly raycaster = new Raycaster();
     private readonly ndc = new Vector2();
     private readonly cornerPlayer = new Vector3();
     private readonly cornerEnemy = new Vector3();
-    private readonly camPos = new Vector3();
     private particles: LiveProjectile[] = [];
     private elapsed = 0;
+    private readonly pendingMatBinds: SpriteMaterial[] = [];
 
     constructor(scene: Scene) {
-        const geo = new SphereGeometry(BASE_MESH_RADIUS, 14, 12);
-        this.coreMat = makeCoreMaterial();
-        this.haloMat = makeHaloMaterial();
-
-        this.core = new InstancedMesh(geo, this.coreMat, MAX_HP_DRAW);
-        this.core.instanceMatrix.setUsage(DynamicDrawUsage);
-        this.core.frustumCulled = false;
-        this.core.renderOrder = 13;
-        this.core.count = 0;
-        scene.add(this.core);
-
-        this.halo = new InstancedMesh(geo, this.haloMat, MAX_HP_DRAW);
-        this.halo.instanceMatrix.setUsage(DynamicDrawUsage);
-        this.halo.frustumCulled = false;
-        this.halo.renderOrder = 12;
-        this.halo.count = 0;
-        scene.add(this.halo);
+        scene.add(this.root);
+        ensureSoulTexture();
     }
 
     start(scheduled: readonly HpDrawScheduledParticle[]): void {
         this.clear();
         this.elapsed = 0;
-        for (const p of scheduled) {
+        const tex = ensureSoulTexture();
+        const n = Math.min(scheduled.length, MAX_HP_DRAW);
+
+        for (let i = 0; i < n; i++) {
+            const p = scheduled[i]!;
             const start = new Vector3(p.x, p.y, p.z);
+
+            const mat = new SpriteMaterial({
+                map: tex ?? undefined,
+                color: 0xffffff,
+                transparent: true,
+                opacity: tex ? 0.92 : 0.55,
+                depthWrite: false,
+                blending: AdditiveBlending,
+                fog: false,
+                sizeAttenuation: true,
+            });
+            if (!tex) this.pendingMatBinds.push(mat);
+
+            const sprite = new Sprite(mat);
+            const sz = SOUL_SPRITE_SIZE[p.tier];
+            sprite.scale.set(sz * 0.65, sz, 1);
+            sprite.position.copy(start);
+            sprite.renderOrder = 15;
+            sprite.visible = false;
+            this.root.add(sprite);
+
+            let meshGhost: Group | null = null;
+            if (MESH_GHOST_TIERS.has(p.tier) && hasUnitModel(p.modelId)) {
+                const clone = cloneUnitModel(p.modelId);
+                if (clone) {
+                    ghostifyUnitMesh(clone);
+                    clone.scale.setScalar(p.meshScale * (p.tier === 'high' ? 1.15 : 1));
+                    clone.rotation.set(0, p.yaw, 0);
+                    clone.position.copy(start);
+                    clone.visible = false;
+                    this.root.add(clone);
+                    meshGhost = clone;
+                }
+            }
+
             this.particles.push({
                 ...p,
                 start,
@@ -236,14 +214,12 @@ export class HpDrawFx {
                 speed: 0,
                 flying: false,
                 hit: false,
+                sprite,
+                meshGhost,
             });
         }
     }
 
-    /**
-     * Advance flight. Corner targets refresh every frame; each particle climbs
-     * vertically then homes in with limited turn rate (missile-style).
-     */
     update(
         dtSeconds: number,
         camera: PerspectiveCamera,
@@ -251,10 +227,18 @@ export class HpDrawFx {
         viewH: number,
     ): HpDrawHitEvent[] {
         this.elapsed += dtSeconds;
-        this.coreMat.uniforms.uTime!.value = this.elapsed;
-        this.haloMat.uniforms.uTime!.value = this.elapsed;
+
+        // Bind texture once it finishes loading mid-flight.
+        if (sharedSoulTexture && this.pendingMatBinds.length > 0) {
+            for (const mat of this.pendingMatBinds) {
+                mat.map = sharedSoulTexture;
+                mat.opacity = 0.92;
+                mat.needsUpdate = true;
+            }
+            this.pendingMatBinds.length = 0;
+        }
+
         camera.updateMatrixWorld();
-        camera.getWorldPosition(this.camPos);
 
         this.cornerPlayer.copy(
             screenNormToWorld(
@@ -279,18 +263,16 @@ export class HpDrawFx {
             ),
         );
 
-        let count = 0;
         const hits: HpDrawHitEvent[] = [];
 
         for (const p of this.particles) {
-            const size = TIER_SCALE[p.tier];
-            let alphaScale = 1;
             const target = p.victim === 'player' ? this.cornerPlayer : this.cornerEnemy;
+            let appear = 1;
 
             if (this.elapsed < p.launchTime) {
                 const waitDur = Math.max(p.launchTime, 0.001);
                 const waitT = Math.min(1, this.elapsed / waitDur);
-                alphaScale = 0.4 + waitT * 0.6;
+                appear = 0.25 + waitT * 0.75;
                 p.pos.copy(p.start);
             } else {
                 const flightAge = this.elapsed - p.launchTime;
@@ -305,7 +287,7 @@ export class HpDrawFx {
                     p.vel.set(0, p.speed, 0);
                 }
 
-                alphaScale = 1;
+                appear = 1;
                 const dist = p.pos.distanceTo(target);
 
                 if (
@@ -336,58 +318,58 @@ export class HpDrawFx {
                 }
             }
 
-            if (p.hit) continue;
+            if (p.hit) {
+                p.sprite.visible = false;
+                if (p.meshGhost) p.meshGhost.visible = false;
+                continue;
+            }
 
-            if (p.flying && p.vel.lengthSq() > 1e-8) this.dir.copy(p.vel).normalize();
-            else this.dir.set(0, 1, 0);
-            this.quat.setFromUnitVectors(this.fwd, this.dir);
+            // Soft float bob — spirit energy, not a rigid bolt
+            const bob = Math.sin(this.elapsed * 6 + p.index * 0.7) * 0.15;
+            p.sprite.visible = true;
+            p.sprite.position.set(p.pos.x, p.pos.y + bob, p.pos.z);
+            const base = SOUL_SPRITE_SIZE[p.tier] * appear;
+            p.sprite.scale.set(base * 0.65, base, 1);
+            (p.sprite.material as SpriteMaterial).opacity = 0.55 + appear * 0.4;
+            // Sprites auto-face camera; slight spin for life
+            p.sprite.material.rotation = Math.sin(this.elapsed * 2.2 + p.index) * 0.12;
 
-            const camDist = Math.max(p.pos.distanceTo(this.camPos), 1);
-            const distScale = MathUtils.clamp(CAM_SCALE_REF / camDist, CAM_SCALE_MIN, CAM_SCALE_MAX);
-            const s = size * alphaScale * distScale;
-            this.scale.set(s, s, s);
-            this.matrix.compose(p.pos, this.quat, this.scale);
-            this.core.setMatrixAt(count, this.matrix);
-
-            const hs = s * HALO_SCALE;
-            this.haloScale.set(hs, hs, hs);
-            this.haloMatrix.compose(p.pos, this.quat, this.haloScale);
-            this.halo.setMatrixAt(count, this.haloMatrix);
-            count++;
+            if (p.meshGhost) {
+                p.meshGhost.visible = true;
+                p.meshGhost.position.copy(p.pos);
+                // Keep the living unit's facing — no flight reorient / spin
+                p.meshGhost.rotation.set(0, p.yaw, 0);
+            }
         }
-
-        this.core.count = count;
-        this.halo.count = count;
-        this.core.instanceMatrix.needsUpdate = true;
-        this.halo.instanceMatrix.needsUpdate = true;
 
         return hits;
     }
 
-    /** True once every scheduled particle has hit (or there were none). */
     allHit(): boolean {
         return this.particles.length > 0 && this.particles.every((p) => p.hit);
     }
 
     clear(): void {
+        for (const p of this.particles) {
+            this.root.remove(p.sprite);
+            disposeObject(p.sprite);
+            if (p.meshGhost) {
+                this.root.remove(p.meshGhost);
+                disposeObject(p.meshGhost);
+            }
+        }
         this.particles = [];
+        this.pendingMatBinds.length = 0;
         this.elapsed = 0;
-        this.core.count = 0;
-        this.halo.count = 0;
     }
 
     destroy(): void {
         this.clear();
-        this.core.removeFromParent();
-        this.halo.removeFromParent();
-        this.core.geometry.dispose();
-        // halo shares the same geometry instance — dispose once
-        this.coreMat.dispose();
-        this.haloMat.dispose();
+        this.root.removeFromParent();
+        this.root.clear();
     }
 }
 
-/** Rotate `current` toward `desired` by at most `maxRad` radians (in-place). */
 function steerDirection(current: Vector3, desired: Vector3, maxRad: number): void {
     const dot = MathUtils.clamp(current.dot(desired), -1, 1);
     const angle = Math.acos(dot);

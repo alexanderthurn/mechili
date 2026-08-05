@@ -26,6 +26,12 @@ export type HpDrawSource = {
     damage: number;
     withdraw: number;
     tier: HpDrawWaveTier;
+    /** Unit visual key for ghost mesh clones (`modelId` or type id) */
+    modelId: string;
+    /** World mesh scale of the living unit */
+    meshScale: number;
+    /** Living unit yaw at battle end — ghost should match */
+    yaw: number;
 };
 
 export type HpDrawScheduledParticle = HpDrawSource & {
@@ -96,6 +102,9 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
         const withdraw = hpWithdrawOf(a.unit.type);
         const tier = hpDrawWaveTier(withdraw);
         const { x, y, z } = hpDrawOrigin(a);
+        const modelId = a.unit.type.modelId ?? a.unit.type.id;
+        const meshScale = a.unit.type.meshScale;
+        const yaw = a.mesh.rotation.y;
 
         if (team === 'player') {
             damageToEnemy += value;
@@ -109,6 +118,9 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
                 damage: value,
                 withdraw,
                 tier,
+                modelId,
+                meshScale,
+                yaw,
             });
         } else if (team === 'enemy') {
             damageToPlayer += value;
@@ -122,6 +134,9 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
                 damage: value,
                 withdraw,
                 tier,
+                modelId,
+                meshScale,
+                yaw,
             });
         } else {
             hordeValue += value;
@@ -146,6 +161,9 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
             const withdraw = hpWithdrawOf(a.unit.type);
             const tier = hpDrawWaveTier(withdraw);
             const { x, y, z } = hpDrawOrigin(a);
+            const modelId = a.unit.type.modelId ?? a.unit.type.id;
+            const meshScale = a.unit.type.meshScale;
+            const yaw = a.mesh.rotation.y;
             if (!playerSurvived) {
                 sources.push({
                     index: a.index,
@@ -156,6 +174,9 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
                     damage: value,
                     withdraw,
                     tier,
+                    modelId,
+                    meshScale,
+                    yaw,
                 });
             }
             if (!enemySurvived) {
@@ -168,6 +189,9 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
                     damage: value,
                     withdraw,
                     tier,
+                    modelId,
+                    meshScale,
+                    yaw,
                 });
             }
         }
