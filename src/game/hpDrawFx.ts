@@ -51,16 +51,6 @@ const SOUL_SPRITE_MULT: Record<HpDrawWaveTier, number> = {
     high: 1.45,
 };
 
-/**
- * Transparent unit-mesh ghosts for bigger mechs (crow, archer, ballista…) and
- * for medium/high waves. Skip tiny low-tier swarm packs (dwarves) for perf.
- */
-function wantsMeshGhost(tier: HpDrawWaveTier, meshScale: number): boolean {
-    return MESH_GHOST_TIERS.has(tier) || meshScale >= 2;
-}
-
-const MESH_GHOST_TIERS: ReadonlySet<HpDrawWaveTier> = new Set(['medium', 'high']);
-
 const GHOST_TINT = 0xb8f0ff;
 
 let sharedSoulTexture: Texture | null = null;
@@ -146,7 +136,7 @@ export type HpDrawHitEvent = {
 
 /**
  * Dead-Marches souls: translucent spirit sprites flying from survivors to the
- * HP bars. Medium/high also carry a transparent shiny clone of their unit mesh.
+ * HP bars, plus a transparent shiny clone of each unit's mesh.
  */
 export class HpDrawFx {
     private readonly root = new Group();
@@ -196,7 +186,7 @@ export class HpDrawFx {
             this.root.add(sprite);
 
             let meshGhost: Group | null = null;
-            if (wantsMeshGhost(p.tier, p.meshScale) && hasUnitModel(p.modelId)) {
+            if (hasUnitModel(p.modelId)) {
                 const clone = cloneUnitModel(p.modelId);
                 if (clone) {
                     ghostifyUnitMesh(clone);
