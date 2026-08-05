@@ -13,6 +13,12 @@ const grassAlbedoHqUrl = new URL('../../assets/textures/grass-albedo-hq.webp', i
 const grassNormalHqUrl = new URL('../../assets/textures/grass-normal-hq.webp', import.meta.url).href;
 const sandAlbedoUrl = new URL('../../assets/textures/sand-albedo.webp', import.meta.url).href;
 const sandNormalUrl = new URL('../../assets/textures/sand-normal.webp', import.meta.url).href;
+/** Lake-shore gravel (from misc/photos/water/wsc_s.png) — outer meadow beaches. */
+const shoreAlbedoUrl = new URL('../../assets/textures/shore-albedo.webp', import.meta.url).href;
+const shoreNormalUrl = new URL('../../assets/textures/shore-normal.webp', import.meta.url).href;
+/** Board wear / footprints (from misc/photos/grass/IMG_4881.JPG). */
+const wearAlbedoUrl = new URL('../../assets/textures/wear-albedo.webp', import.meta.url).href;
+const wearNormalUrl = new URL('../../assets/textures/wear-normal.webp', import.meta.url).href;
 const dirtAlbedoHqUrl = new URL('../../assets/textures/dirt-albedo-hq.webp', import.meta.url).href;
 const dirtNormalHqUrl = new URL('../../assets/textures/dirt-normal-hq.webp', import.meta.url).href;
 const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
@@ -70,6 +76,10 @@ export {
     grassNormalHqUrl,
     sandAlbedoUrl,
     sandNormalUrl,
+    shoreAlbedoUrl,
+    shoreNormalUrl,
+    wearAlbedoUrl,
+    wearNormalUrl,
     dirtAlbedoHqUrl,
     dirtNormalHqUrl,
     barkUrl,
@@ -91,6 +101,8 @@ const SRGB_URLS = new Set<string>([
     grassAlbedoUrl,
     grassAlbedoHqUrl,
     sandAlbedoUrl,
+    shoreAlbedoUrl,
+    wearAlbedoUrl,
     dirtAlbedoHqUrl,
     barkUrl,
     foliageUrl,
@@ -107,6 +119,8 @@ export const WORLD_TEXTURE_URLS: readonly string[] = [
     grassAlbedoUrl,
     grassNormalUrl,
     sandAlbedoUrl,
+    shoreAlbedoUrl,
+    wearAlbedoUrl,
     barkUrl,
     foliageUrl,
     rockUrl,
@@ -195,7 +209,11 @@ export async function loadGrassTextures(): Promise<PhotoTextureSet | null> {
     return { albedo, normal, variants: [] };
 }
 
-/** Wear / footprint dirt: keep the packed HQ dirt that stamped well. */
+/**
+ * Wear / footprint surface:
+ * - high/ultra: packed HQ dirt (original HQ wear)
+ * - low/medium: sand
+ */
 export async function loadWearGroundTextures(): Promise<PhotoTextureSet | null> {
     if (groundMaterialProfile().useHqTextures) {
         const [albedo, normal] = await Promise.all([

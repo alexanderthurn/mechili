@@ -903,18 +903,15 @@ export class PlacementController {
         return unit;
     }
 
-    /** Soft sand under base buildings only (packs leave no courtyard wear). */
+    /** Soft rounded pad under base buildings (matches footprint; packs leave none). */
     private stampSandUnder(unit: Unit): void {
         const t = unit.type;
         if (!t.structure || t.extra || t.flying) return;
         const fp = this.footprintOf(t, unit.rotated);
         const w = this.map.sandStampWeight(t);
-        this.map.stampSand(
-            unit.world.x,
-            unit.world.z,
-            this.map.packSandRadius(fp.cols, fp.rows) * Math.sqrt(w),
-            0.22 * w,
-        );
+        const scale =
+            t.id === 'stronghold' ? 1.55 : t.id === 'command-tower' || t.id === 'research-center' ? 1.35 : 1;
+        this.map.stampSandFootprint(unit.world.x, unit.world.z, fp.cols, fp.rows, 0.2 * w, scale);
     }
 
     /** Re-stamp every ground pack (after clearing sand wear at round start). */
@@ -1715,36 +1712,31 @@ export class PlacementController {
             if (done) this.cancelPlacing();
             return;
         }
-        // while carrying, a click on an extra's tiles means "drop here", not "select it"
+        // while carrying, a click on another pack/building means "drop here",
+        // not "select it" (extras were already skipped for the same reason)
         const carrying =
             this.formationActive ||
             (this.selectedUnit !== null &&
                 this.carryingSelected &&
                 this.isMovable(this.selectedUnit));
         const clicked = this.pickUnitAt(x, y, { skipExtras: carrying });
-        // selecting: any own pack, or an enemy pack visible in intel
-        if (clicked && !clicked.destroyed && (clicked.team === 'player' || this.enemyIntelVisible(clicked))) {
+        // selecting: any own pack, or an enemy pack visible in intel —
+        // suppressed entirely while carrying / formation-dragging
+        if (
+            !carrying &&
+            clicked &&
+            !clicked.destroyed &&
+            (clicked.team === 'player' || this.enemyIntelVisible(clicked))
+        ) {
             const previouslySelected = this.selectedUnit;
             // armed rune drop: apply without selecting / picking up the pack
             if (this.itemDropValid?.(clicked)) {
                 this.onSelect?.(clicked, previouslySelected);
                 return;
             }
-            if (clicked === this.selectedUnit && !this.formationActive) {
+            if (clicked === this.selectedUnit) {
                 if (this.isMovable(clicked)) {
-                    if (!this.carryingSelected) {
-                        this.carryingSelected = true; // second click picks it up
-                    } else {
-                        // carrying and clicked its own tiles: drop it right here
-                        const anchor = this.centeredAnchor(clicked.type, clicked.rotated, cell);
-                        const done = this.dispatch?.({
-                            kind: 'move',
-                            team: 'player',
-                            unitId: clicked.id,
-                            anchor,
-                        });
-                        if (done) this.carryingSelected = false; // dropped, still selected
-                    }
+                    this.carryingSelected = true; // second click picks it up
                 }
             } else {
                 this.restoreSelectedView();

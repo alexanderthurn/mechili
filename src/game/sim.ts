@@ -40,6 +40,7 @@ import {
     type UnitType,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
+import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import type { CpuTimings } from '../ui/debug';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
@@ -204,6 +205,8 @@ export interface Actor {
     /** personal rally-route destination (null = default seek-enemy AI) */
     pathDestX: number | null;
     pathDestZ: number | null;
+    /** which {@link RallyRoute.id} this path order came from (null when not on a route) */
+    pathRouteId: number | null;
     /** seconds without getting closer to the rally destination */
     pathStuck: number;
     /** closest approach to pathDest so far */
@@ -318,7 +321,17 @@ export type SimEvent =
     /** storm lightning bolt cue (render-only) */
     | { kind: 'spellLightning'; x: number; z: number }
     /** wizard convert finished — flash + mesh recolor hook */
-    | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam };
+    | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam }
+    /** command tower / research center destroyed — seat debuff starts/extends */
+    | {
+          kind: 'towerDebuff';
+          seat: SeatId;
+          team: BattleTeam;
+          x: number;
+          y: number;
+          z: number;
+          level: number;
+      };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
@@ -435,6 +448,8 @@ export class BattleSim {
     lastMobileCount = 0;
     /** whether soft crowd was enabled on the last step */
     lastSoftCrowd = true;
+    /** routes passed at battle start — used by {@link activeRallyRoutes} */
+    private rallyRoutes: readonly RallyRoute[] = [];
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -516,6 +531,7 @@ export class BattleSim {
                     spawnDamaged: false,
                     pathDestX: null,
                     pathDestZ: null,
+                    pathRouteId: null,
                     pathStuck: 0,
                     pathBestDist: Infinity,
                     mvX: 0,
@@ -627,6 +643,7 @@ export class BattleSim {
     /** snapshot at battle start: mechs inside a route's start circle march to a
      *  matching offset at the end. Overlapping zones: last-placed route wins. */
     private assignRallyRoutes(routes: readonly RallyRoute[]): void {
+        this.rallyRoutes = routes;
         const r2 = RALLY_ROUTE_RADIUS * RALLY_ROUTE_RADIUS;
         for (const route of routes) {
             for (const a of this.actors) {
@@ -637,6 +654,7 @@ export class BattleSim {
                 if (dx * dx + dz * dz > r2) continue;
                 a.pathDestX = route.endX + dx;
                 a.pathDestZ = route.endZ + dz;
+                a.pathRouteId = route.id;
                 a.pathStuck = 0;
                 a.pathBestDist = Infinity;
             }
@@ -646,6 +664,7 @@ export class BattleSim {
     private clearPathOrder(a: Actor): void {
         a.pathDestX = null;
         a.pathDestZ = null;
+        a.pathRouteId = null;
         a.pathStuck = 0;
         a.pathBestDist = Infinity;
     }
@@ -700,6 +719,20 @@ export class BattleSim {
             out.push({ tacticId: z.tacticId, x: z.x, z: z.z, radius: z.radius });
         }
         return out;
+    }
+
+    /**
+     * Rally routes that still have at least one living mech marching along
+     * them. Render-only — hide a route once every assignee has arrived,
+     * given up (stuck), or died.
+     */
+    activeRallyRoutes(): readonly RallyRoute[] {
+        const live = new Set<number>();
+        for (const a of this.actors) {
+            if (a.alive && a.pathRouteId !== null) live.add(a.pathRouteId);
+        }
+        if (live.size === 0) return [];
+        return this.rallyRoutes.filter((r) => live.has(r.id));
     }
 
     private recordDamage(attacker: Unit, amount: number): void {
@@ -1177,8 +1210,9 @@ export class BattleSim {
      * Direct disc (or strike footprint) damage with Great Meteor shield rules:
      * units under a living ward are spared; the dome takes the hit instead.
      * Pass `strike` for hammer rectangles / exact strike hit tests; otherwise
-     * a plain circle of `radius` around (x, z) is used (dragon breath drips) —
-     * breath is ground-only (air ignored).
+     * a plain circle of `radius` around (x, z) is used (dragon breath drips).
+     * Hits ground and air — the breath beam is a column, not ground-fire.
+     * Lingering ground flame still ignores air via {@link applyBurn}.
      */
     private applySpellDiscDamage(
         x: number,
@@ -1188,12 +1222,10 @@ export class BattleSim {
         strike?: SpellStrike,
     ): void {
         if (damage <= 0) return;
-        const groundOnly = !strike;
         const domes = this.actors.filter((a) => a.alive && a.unit.type.shield);
         const hitDomes = new Set<Actor>();
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.extra) continue;
-            if (groundOnly && a.altitude > 0) continue;
             const inArea = strike
                 ? strikeHits(strike, a.x, a.z, a.radius)
                 : hypot(a.x - x, a.z - z) <= radius + a.radius;
@@ -1377,8 +1409,13 @@ export class BattleSim {
         }
     }
 
-    /** golden tint on golden mechs; wild color shift while tower debuff timer runs */
-    syncBattleVisuals(timeSeconds: number): void {
+    /** golden tint on golden mechs; wild color shift while tower debuff timer runs.
+     *  `debuffTintAt` gates the psychedelic tint only (stats stay immediate) — used
+     *  so the shockwave rim can “reveal” the look as it sweeps. */
+    syncBattleVisuals(
+        timeSeconds: number,
+        debuffTintAt?: (seat: SeatId, x: number, z: number) => boolean,
+    ): void {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
             // debuff severity is flat now (see debuff/isDebuffed) — no
@@ -1386,8 +1423,9 @@ export class BattleSim {
             let tint: 'normal' | 'golden' | 'debuff' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
-            else if (this.isDebuffed(a)) tint = 'debuff';
-            else if (this.isSpawning(a)) {
+            else if (this.isDebuffed(a) && (debuffTintAt?.(a.unit.seat, a.x, a.z) ?? true)) {
+                tint = 'debuff';
+            } else if (this.isSpawning(a)) {
                 tint = 'spawning';
                 spawnProgress = this.spawnProgress(a);
             }
@@ -1535,6 +1573,18 @@ export class BattleSim {
             target.unit.markDestroyed();
             if (this.isDebuffBuilding(target.unit)) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
+                // half tower height — tallest collider × meshScale / 2
+                const towerTop =
+                    Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
+                this.events.push({
+                    kind: 'towerDebuff',
+                    seat: target.unit.seat,
+                    team: target.unit.team,
+                    x: target.x,
+                    y: target.altitude + towerTop * 0.5,
+                    z: target.z,
+                    level: target.unit.level,
+                });
             }
         } else {
             // tip over and stay as a battlefield wreck until the round resets
@@ -2361,9 +2411,18 @@ export class BattleSim {
     }
 
     /**
+     * Structures and golden-aura mechs cannot be converted — the ray chews
+     * their HP instead (same DPS stack as shield absorb / convert progress).
+     */
+    private convertRayDealsDamage(target: Actor): boolean {
+        return !!target.unit.type.structure || this.isGolden(target);
+    }
+
+    /**
      * Wizard convert ray: progress fills at the caster's effective attack
      * (same stack as orb damage — resolved damage × level × tower attack debuff).
      * Enemy ward domes absorb the beam (damage the shield; no convert through).
+     * Buildings and golden-aura units take the same continuous HP damage.
      */
     private stepConversionRays(dt: number): void {
         // clear stale convertBy / beam tips (channelers re-assert each step)
@@ -2394,9 +2453,12 @@ export class BattleSim {
                 target &&
                 target.alive &&
                 actorTeam(target) !== team &&
-                !target.unit.type.structure &&
                 !target.unit.type.extra &&
-                (target.altitude > 0 ? targets.air : targets.ground);
+                // structures are valid ray victims (damage, not convert)
+                (target.unit.type.structure ||
+                    (target.altitude > 0 ? targets.air : targets.ground)) &&
+                // already flipped this battle — leave alone
+                (target.unit.type.structure || target.allegiance === null);
 
             if (stillOk && target) {
                 const reach = ray.range + caster.radius + target.radius;
@@ -2425,12 +2487,12 @@ export class BattleSim {
             const intensity =
                 stats.damage * this.levelMult(caster.unit) * this.debuff(caster, d.attackMult);
 
-            const fromY = caster.footY + Math.max(1.6, caster.unit.type.meshScale * 1.15);
+            const from = this.convertRayOrigin(caster);
             const toY = target.footY + Math.max(1.0, target.unit.type.meshScale * 0.9);
-            const sx = target.x - caster.x;
-            const sy = toY - fromY;
-            const sz = target.z - caster.z;
-            const block = this.enemyShieldHitOnSegment(caster.x, fromY, caster.z, sx, sy, sz, team);
+            const sx = target.x - from.x;
+            const sy = toY - from.y;
+            const sz = target.z - from.z;
+            const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
 
             caster.convertRayActive = true;
             if (block) {
@@ -2448,6 +2510,15 @@ export class BattleSim {
             caster.convertRayTipX = target.x;
             caster.convertRayTipY = toY;
             caster.convertRayTipZ = target.z;
+
+            if (this.convertRayDealsDamage(target)) {
+                // buildings + golden aura: same continuous chew as wards, no convert
+                if (target.convertProgress > 0) target.convertProgress = 0;
+                const dealt = intensity * dt * this.damageTakenMult(target);
+                if (dealt > 0) this.applyDamage(caster.unit, target, dealt);
+                continue;
+            }
+
             target.convertBy = caster;
             target.convertProgress += intensity * dt;
             // keep the convert bar visible
@@ -2457,6 +2528,24 @@ export class BattleSim {
                 this.convertActor(caster, target);
             }
         }
+    }
+
+    /**
+     * Convert-ray muzzle: GLB `AttackNode` when present, else chest-height fallback.
+     * Uses sim xz + mesh yaw so the beam tracks facing.
+     */
+    private convertRayOrigin(caster: Actor): { x: number; y: number; z: number } {
+        const t = caster.unit.type;
+        const modelKey = t.modelId ?? t.id;
+        const local = getUnitAttackNodeLocal(modelKey);
+        if (local) {
+            return attackNodeWorld(local, caster.x, caster.footY, caster.z, caster.mesh.rotation.y, t.meshScale);
+        }
+        return {
+            x: caster.x,
+            y: caster.footY + Math.max(1.6, t.meshScale * 1.15),
+            z: caster.z,
+        };
     }
 
     private closestConvertTarget(
@@ -2470,10 +2559,16 @@ export class BattleSim {
         const reach = range + from.radius;
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === team) continue;
-            if (a.unit.type.structure || a.unit.type.extra) continue;
-            if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
-            // already converted this battle — leave alone
-            if (a.allegiance !== null) continue;
+            // board extras (wards) are hit via beam blocking, not as ray targets
+            if (a.unit.type.extra) continue;
+            if (a.unit.type.structure) {
+                // buildings: always ground ray victims (damage, not convert)
+            } else if (a.altitude > 0 ? !targets.air : !targets.ground) {
+                continue;
+            } else if (a.allegiance !== null) {
+                // already converted this battle — leave alone
+                continue;
+            }
             const dx = a.x - from.x;
             const dz = a.z - from.z;
             const d = dx * dx + dz * dz;

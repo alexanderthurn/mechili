@@ -324,31 +324,30 @@ ${fontFaceCss()}
     user-select: none;
     z-index: 30;
 }
-/* Custom Game screen: wider, near-fullscreen, scrollable — the settings
-   form (mode + 4 timers + horde + roundcards) doesn't fit the normal
-   compact button-list width, and the logo (hidden separately via
-   title.visible) would just eat vertical space it needs instead. */
-.mechili-menu.m-wide {
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: min(720px, 94vw);
-    max-height: min(92vh, calc(100dvh - 120px));
-    overflow-y: auto;
+/* Exclusive submenu screens — only .is-active is shown (see showMenuView).
+   :not(.is-active) beats later .m-main/.m-custom display:flex rules. */
+.mechili-menu .m-view:not(.is-active) { display: none; }
+.mechili-menu .m-view.is-active {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
 }
 /* short viewports: keep the button stack readable above bottom chrome */
 @media (max-height: 720px) {
-    .mechili-menu:not(.m-wide) {
+    .mechili-menu {
         gap: 8px;
         padding: 14px 16px 16px;
         max-height: min(86vh, calc(100dvh - 168px));
     }
-    .mechili-menu:not(.m-wide) .m-btn {
+    .mechili-menu .m-btn {
         padding: 11px 14px;
         font-size: 15px;
     }
-    .mechili-menu:not(.m-wide) .m-primary { font-size: 16px; }
-    .mechili-menu:not(.m-wide) .m-main { gap: 8px; }
-    .mechili-menu:not(.m-wide) .m-room-list {
+    .mechili-menu .m-primary { font-size: 16px; }
+    .mechili-menu .m-main { gap: 8px; }
+    .mechili-menu .m-room-list {
         max-height: min(120px, 22vh);
         min-height: 48px;
     }
@@ -439,7 +438,7 @@ ${fontFaceCss()}
     font-size: 13px;
     letter-spacing: 1px;
 }
-.mechili-menu .m-custom { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.mechili-menu .m-custom { flex-direction: column; align-items: center; gap: 10px; }
 .mechili-menu .m-join { display: flex; gap: 8px; }
 .mechili-menu .m-input {
     width: 130px;
@@ -613,18 +612,10 @@ ${fontFaceCss()}
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
 .mechili-menu .m-main {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
     gap: 12px;
-    width: 100%;
 }
 .mechili-menu .m-spmode {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
     gap: 14px;
-    width: 100%;
 }
 .mechili-menu .m-spmode-title {
     font-size: 20px;
@@ -747,7 +738,7 @@ ${fontFaceCss()}
 }
 /* Custom Game screen: mode toggle reuses m-toggle-row/card above; these are
    just the timer/horde/roundcards form rows */
-.mechili-menu .m-custom { display: flex; flex-direction: column; align-items: stretch; gap: 14px; width: 100%; }
+.mechili-menu .m-custom { align-items: stretch; gap: 14px; }
 .mechili-menu .m-field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 14px; width: 100%; }
 .mechili-menu .m-field {
     display: flex;
@@ -804,23 +795,42 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 6px;
     width: 100%;
-    max-width: 380px;
+    max-width: none;
 }
-.mechili-menu .m-roster-cols { display: flex; gap: 10px; width: 100%; }
-.mechili-menu .m-roster-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mechili-menu .m-roster-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+    align-items: center;
+}
+.mechili-menu .m-roster-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .mechili-menu .m-roster-col-header {
-    font-size: 11px;
-    font-weight: bold;
-    letter-spacing: 1px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
     text-align: center;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
-.mechili-menu .m-roster-col-you .m-roster-col-header { color: ${u.player}; }
-.mechili-menu .m-roster-col-foe .m-roster-col-header { color: ${u.enemy}; }
+/* Canonical team colors (side a = blue, side b = red) — lightened for dark panel. */
+.mechili-menu .m-roster-col-a .m-roster-col-header { color: #8ec8f8; }
+.mechili-menu .m-roster-col-b .m-roster-col-header { color: #ff8a7a; }
+.mechili-menu .m-roster-vs {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: lowercase;
+    color: ${u.brassLight};
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    padding: 0 2px;
+    user-select: none;
+}
 .mechili-menu .m-roster-seat {
     box-sizing: border-box;
-    padding: 8px 8px 8px 10px;
-    min-height: 34px;
+    padding: 8px 10px;
+    min-height: 36px;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -828,7 +838,7 @@ ${fontFaceCss()}
     text-align: center;
     font-size: 13px;
     font-weight: bold;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
     border-radius: 8px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
@@ -872,6 +882,7 @@ ${fontFaceCss()}
     border: none;
     padding: 2px 0;
     width: auto;
+    align-self: flex-start;
     font-size: 12px;
     font-weight: bold;
     letter-spacing: 0.3px;
@@ -881,19 +892,85 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-lobby-settings-toggle:hover { color: ${u.brassLight}; }
 .mechili-menu .m-lobby-settings {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
     width: 100%;
-    max-width: 380px;
     padding: 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
     border-radius: 10px;
+    box-sizing: border-box;
+}
+.mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: grid; }
+.mechili-menu .m-lobby-settings .m-field { min-width: 0; }
+.mechili-menu .m-lobby-settings-reset {
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin: 2px 0 0;
+    padding: 2px 0;
+    width: auto;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: ${u.textMuted};
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: color 0.12s ease;
+}
+.mechili-menu .m-lobby-settings-reset:hover:not(:disabled) {
+    color: ${u.brassLight};
+}
+.mechili-menu .m-lobby-settings-reset:disabled,
+.mechili-menu .m-lobby-settings.m-readonly .m-lobby-settings-reset,
+.mechili-menu .m-lobby-settings-reset[hidden] {
+    display: none;
+}
+.mechili-menu .m-session-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+}
+.mechili-menu .m-session-primary {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    min-width: 0;
 }
 .mechili-menu .m-lobby-settings select:disabled {
-    opacity: 0.7;
-    cursor: default;
+    opacity: 0.85;
+    pointer-events: none;
+    cursor: inherit;
+}
+.mechili-menu .m-lobby-settings.m-readonly .m-field {
+    cursor: help;
+}
+.mechili-menu .m-lobby-settings.m-readonly .m-field:hover select:disabled,
+.mechili-menu .m-lobby-settings.m-readonly .m-field:active select:disabled {
+    border-color: ${u.brassLight};
+}
+.m-lobby-setting-tip {
+    position: fixed;
+    z-index: 80;
+    max-width: min(320px, calc(100vw - 24px));
+    padding: 10px 12px;
+    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    border: 1.5px solid ${u.brass};
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    color: ${u.text};
+    font-size: 13px;
+    line-height: 1.45;
+    pointer-events: none;
+    user-select: none;
+}
+.m-lobby-setting-tip.sticky {
+    pointer-events: auto;
 }
 .mechili-menu .m-lobby-ready-row {
     display: flex;
@@ -905,6 +982,38 @@ ${fontFaceCss()}
     text-transform: none;
     color: ${u.text};
     cursor: pointer;
+}
+/* Desktop lobby: give name seats more room; widen further when advanced
+   settings sit beside the roster */
+@media (min-width: 720px) {
+    .mechili-menu:has(.m-session.is-active) {
+        width: min(440px, 92vw);
+    }
+    .mechili-menu:has(.m-session.is-active.m-has-lobby-settings.m-lobby-settings-open) {
+        width: min(760px, 94vw);
+    }
+    .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-session-layout {
+        display: grid;
+        grid-template-columns: minmax(260px, 1.2fr) minmax(200px, 0.85fr);
+        gap: 14px 18px;
+        align-items: start;
+    }
+    .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-lobby-settings {
+        max-width: none;
+    }
+}
+/* Narrow / single-column lobby: use more horizontal room so advanced
+   settings (2-col selects) and the main button stack aren't tiny. */
+@media (max-width: 719px) {
+    .mechili-menu {
+        width: min(92vw, 420px);
+    }
+    .mechili-menu:has(.m-session.is-active) {
+        width: min(94vw, 460px);
+    }
+    .mechili-menu:has(.m-session.is-active.m-has-lobby-settings.m-lobby-settings-open) {
+        width: min(96vw, 520px);
+    }
 }
 .mechili-menu .m-lobby-ready-check { width: 18px; height: 18px; accent-color: ${u.brass}; cursor: pointer; }
 button.m-seat-invite {
@@ -1425,19 +1534,36 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     z-index: 70;
+    padding: 16px;
+    box-sizing: border-box;
 }
 .mechili-settings .box {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     padding: 18px 20px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
     border-radius: 12px;
-    min-width: 320px;
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(88vh, calc(100dvh - 32px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     color: ${u.text};
+    box-sizing: border-box;
 }
 .mechili-settings .s-title { font-size: 15px; font-weight: bold; letter-spacing: 2px; }
+.mechili-settings .s-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.mechili-settings .s-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
 .mechili-settings .s-section {
     display: flex;
     flex-direction: column;
@@ -1484,16 +1610,20 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-settings .s-row {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 9px;
     font-size: 13.5px;
     cursor: pointer;
     user-select: none;
 }
+.mechili-settings .s-row select {
+    margin-left: auto;
+    min-width: 110px;
+}
 .mechili-settings .s-row input { width: 16px; height: 16px; accent-color: ${u.brass}; }
 .mechili-settings .s-hint {
     font-size: 12px;
     color: ${u.textMuted};
-    white-space: nowrap;
 }
 .mechili-settings .actions { display: flex; justify-content: flex-end; }
 .mechili-settings button {
@@ -1510,6 +1640,20 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-settings button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-settings button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
 .mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.hover}; outline-offset: 1px; }
+/* Desktop: use horizontal space — general left, graphics right */
+@media (min-width: 720px) {
+    .mechili-settings .box {
+        width: min(720px, calc(100vw - 48px));
+        padding: 22px 24px;
+    }
+    .mechili-settings .s-title { font-size: 17px; }
+    .mechili-settings .s-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+        gap: 8px 28px;
+        align-items: start;
+    }
+}
 
 /* Community Suggest — shared by game menu / pause / homepage */
 .mechili-suggest {
@@ -2046,7 +2190,8 @@ ${fontFaceCss()}
 .mechili-shop .shop-rune:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 .mechili-shop .shop-rune:active { transform: scale(0.94); }
 .mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
-.mechili-shop .shop-rune.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-shop .shop-rune.unaffordable { opacity: 0.35; }
+.mechili-shop .shop-rune.unaffordable:hover { border-color: ${u.hover}; transform: none; }
 .mechili-shop .shop-rune .shop-rune-ico,
 .mechili-shop .shop-rune .shop-rune-ico.m-icon {
     display: block;
@@ -2584,8 +2729,37 @@ ${fontFaceCss()}
     border: 1px solid ${u.border};
     border-radius: 4px;
     pointer-events: none;
+    text-transform: lowercase;
 }
-.mechili-sidebar .inv-item.placed .inv-cd { color: ${u.techOwned}; }
+.mechili-sidebar .inv-item .inv-cd.wait {
+    color: ${u.brassLight};
+}
+/* same full-bleed bottom strip as .action-tile .at-cost — brass, not red */
+.mechili-sidebar .inv-item:has(.inv-cd.cancel) {
+    padding-bottom: 12px;
+}
+.mechili-sidebar .inv-item .inv-cd.cancel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    min-width: 0;
+    padding: 1px 0 2px;
+    font-size: 9px;
+    font-weight: bold;
+    line-height: 1.2;
+    letter-spacing: 0.3px;
+    color: #20180a;
+    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
+    border: none;
+    border-radius: 0 0 7px 7px;
+}
+.mechili-sidebar .inv-item.cancelable {
+    box-shadow: 0 0 8px rgba(200, 140, 60, 0.35);
+}
+.mechili-sidebar .inv-item.cooling {
+    opacity: 0.72;
+}
+.mechili-sidebar .inv-item.placed .inv-cd.wait { color: ${u.brassLight}; }
 .mechili-sidebar .inv-item.readonly { cursor: default; pointer-events: none; }
 .inv-drag {
     position: fixed;
@@ -2690,10 +2864,24 @@ ${fontFaceCss()}
     background: linear-gradient(180deg, rgba(38, 54, 32, 0.94), rgba(22, 34, 19, 0.96));
     border: 1.5px solid ${u.border};
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    z-index: 80;
+    /* must hit-test: otherwise outside/preview clicks pass through and the
+     * panel never dismisses (touch peek / sticky after click-open) */
+    pointer-events: auto;
+    cursor: default;
 }
 .forge-slot-preview.recipes .forge-recipes-block {
     margin: 0;
     padding: 0;
+}
+.forge-slot-preview.recipes .forge-recipes-hint {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: ${u.phase};
+    margin: 0 0 6px;
+    padding: 0 2px;
+    text-align: center;
 }
 .forge-slot-preview.recipes .forge-tile-grid {
     display: flex;
@@ -2969,6 +3157,16 @@ ${fontFaceCss()}
     width: 26px;
     height: 26px;
     flex: 0 0 auto;
+    box-sizing: border-box;
+    border-radius: 50%;
+}
+.forge-tile-ings .forge-ing.owned {
+    border: 2.5px solid rgb(0, 220, 90);
+    box-shadow: none;
+}
+.forge-tile-ings .forge-ing.in-forge {
+    border: 2.5px solid rgb(255, 168, 40);
+    box-shadow: none;
 }
 .forge-tile-name {
     grid-column: 1 / -1;
@@ -3815,6 +4013,10 @@ ${fontFaceCss()}
     overflow: visible;
     user-select: none;
     pointer-events: none;
+    /* above .mechili-cards (50) so commander HP cards stay under the cursor
+       during specialist peek — otherwise the full-screen dim steals hover and
+       the bars flicker */
+    z-index: 51;
 }
 .mechili-fightbar .fighter-stack {
     position: absolute;
@@ -4048,6 +4250,8 @@ ${fontFaceCss()}
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Enemy track is rtl for the fill; keep the number LTR so "-" stays in front. */
+    direction: ltr;
     font-size: 13px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;

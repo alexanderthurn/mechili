@@ -19,6 +19,7 @@ import {
 import { colorForUnit } from './colors';
 import { isSecondarySeat, type SeatDef } from './seats';
 import { actorSeat, actorTeam, type Actor } from './sim';
+import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import { THEME } from '../theme';
 
 const MAX_RAYS = 64;
@@ -116,7 +117,7 @@ export class ConversionFx {
     /**
      * Draw a beam from every living caster with an active convert ray.
      * Tip comes from the sim (`convertRayTip*`) so ward blocks clip the beam.
-     * Uses interpolated rx/rz for the caster origin so the ray sticks to meshes.
+     * Origin prefers GLB `AttackNode` (else chest height); uses interpolated rx/rz.
      */
     update(actors: readonly Actor[]): void {
         const t = (performance.now() - this.t0) * 0.001;
@@ -132,18 +133,34 @@ export class ConversionFx {
             if (n >= MAX_RAYS) break;
             if (!caster.alive || !caster.convertRayActive || !caster.unit.type.convertRay) continue;
 
-            const fromY = caster.footY + Math.max(1.6, caster.unit.type.meshScale * 1.15);
-            _pos.set(caster.rx, fromY, caster.rz);
+            const ut = caster.unit.type;
+            const modelKey = ut.modelId ?? ut.id;
+            const local = getUnitAttackNodeLocal(modelKey);
+            const from = local
+                ? attackNodeWorld(
+                      local,
+                      caster.rx,
+                      caster.footY,
+                      caster.rz,
+                      caster.mesh.rotation.y,
+                      ut.meshScale,
+                  )
+                : {
+                      x: caster.rx,
+                      y: caster.footY + Math.max(1.6, ut.meshScale * 1.15),
+                      z: caster.rz,
+                  };
+            _pos.set(from.x, from.y, from.z);
             const victim = caster.convertTarget;
             // unblocked: stick tip to the victim mesh; blocked: sim tip on the ward skin
             if (victim?.alive && victim.convertBy === caster) {
                 const toY = victim.footY + Math.max(1.0, victim.unit.type.meshScale * 0.9);
-                _dir.set(victim.rx - caster.rx, toY - fromY, victim.rz - caster.rz);
+                _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
             } else {
                 _dir.set(
-                    caster.convertRayTipX - caster.rx,
-                    caster.convertRayTipY - fromY,
-                    caster.convertRayTipZ - caster.rz,
+                    caster.convertRayTipX - from.x,
+                    caster.convertRayTipY - from.y,
+                    caster.convertRayTipZ - from.z,
                 );
             }
             const len = Math.max(_dir.length(), 0.35);

@@ -41,8 +41,13 @@ export interface GameSettings {
     specialistTimeSeconds: RoundTimer;
     /** between-round card pick length (before the deploy clock starts) */
     cardTimeSeconds: RoundTimer;
-    /** each player's hit points; surviving enemy units bite into these after every battle */
-    startingHp: number;
+    /**
+     * Multiplier on each commander card’s starting HP when the card is
+     * picked (both teams). 1 = normal; Custom Game can raise this to make
+     * sides tankier. Applied in chooseCard — not baked into cards.
+     * Team HP itself comes only from those card grants (summed in 2v2).
+     */
+    commanderHpFactor: number;
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
@@ -165,6 +170,8 @@ export interface DeploySettings {
     unitsPerRound: number;
     /** shop price of a base rune (earth/fire/water/wind); shares the buy limit with units */
     baseRuneCost: number;
+    /** each shop rune purchase raises the next one's price by this much (per seat, match-long) */
+    runeCostStep: number;
     /** Command Tower: price of +1 buy for the running round only */
     extraSlotCost: number;
     /** Command Tower: +rangeBoost range for all ranged units this round only */
@@ -236,13 +243,47 @@ export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
     return `${p.label} — Deploy ${p.buildSeconds}s · Battle ${p.battleSeconds}s · ${DISPLAY.commander} ${p.specialistSeconds}s · Cards ${p.cardSeconds}s`;
 }
 
+/** Custom Game commander-HP multiplier options — both teams share one factor. */
+export interface CommanderHpFactorOption {
+    factor: number;
+    label: string;
+}
+
+export const COMMANDER_HP_FACTOR_OPTIONS: readonly CommanderHpFactorOption[] = [
+    { factor: 0.5, label: '0.5×' },
+    { factor: 1, label: '1×' },
+    { factor: 2, label: '2×' },
+    { factor: 5, label: '5×' },
+    { factor: 10, label: '10×' },
+];
+
+export const DEFAULT_COMMANDER_HP_FACTOR = 1;
+
+/** Snap unknown / legacy values onto a known lobby option (default ×1). */
+export function commanderHpFactorOption(raw: unknown): number {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (COMMANDER_HP_FACTOR_OPTIONS.some((o) => o.factor === n)) return n;
+    return DEFAULT_COMMANDER_HP_FACTOR;
+}
+
+/** Any positive finite factor for live GameSettings (wire / URL / saves). */
+export function resolveCommanderHpFactor(raw: unknown): number {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+    return DEFAULT_COMMANDER_HP_FACTOR;
+}
+
+export function formatCommanderHpFactorOption(o: CommanderHpFactorOption): string {
+    return `${o.label} ${DISPLAY.commander} HP (both teams)`;
+}
+
 export const DEFAULT_SETTINGS: GameSettings = {
     map: STANDARD_MAP,
     buildTimeSeconds: 90,
     battleTimeSeconds: 90,
     specialistTimeSeconds: 15,
     cardTimeSeconds: 15,
-    startingHp: 2000,
+    commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
     economy: {
         startingSupply: 200,
         supplyGrowthPerRound: 200,
@@ -275,6 +316,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     deploy: {
         unitsPerRound: 2,
         baseRuneCost: 50,
+        runeCostStep: 50,
         extraSlotCost: 50,
         rangedRangeBoostCost: 100,
         rangeBoost: 5,
@@ -360,6 +402,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
         roundCardPreset: resolveRoundCardPreset(legacy),
         hordePreset: resolveHordePreset(legacy),
+        commanderHpFactor: resolveCommanderHpFactor(settings.commanderHpFactor),
     };
 }
 
@@ -497,7 +540,11 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 { label: 'Battle phase', value: fmtTimer(settings.battleTimeSeconds) },
                 { label: `${DISPLAY.commander} pick`, value: fmtTimer(settings.specialistTimeSeconds) },
                 { label: 'Round card pick', value: fmtTimer(settings.cardTimeSeconds) },
-                { label: 'Starting HP', value: `${settings.startingHp}` },
+                {
+                    label: `${DISPLAY.commander} HP factor`,
+                    value: `×${settings.commanderHpFactor}`,
+                    note: 'scales each commander card’s starting HP for both teams',
+                },
             ],
         },
         {
@@ -553,7 +600,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Base rune',
                     value: `${settings.deploy.baseRuneCost} supply`,
-                    note: 'shop — uses one buy slot',
+                    note: `shop — +${settings.deploy.runeCostStep} per purchase; uses one buy slot`,
                 },
                 {
                     label: 'Extra buy slot',

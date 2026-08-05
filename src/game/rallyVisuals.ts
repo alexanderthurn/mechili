@@ -32,6 +32,7 @@ export type RallyDraft = {
  */
 export class RallyVisuals {
     readonly group = new Group();
+    private syncKey = '';
 
     constructor(
         private readonly scene: Scene,
@@ -46,19 +47,19 @@ export class RallyVisuals {
     }
 
     clear(): void {
-        for (const child of [...this.group.children]) {
-            child.traverse((o) => {
-                const mesh = o as Mesh;
-                mesh.geometry?.dispose();
-                const mat = mesh.material;
-                if (mat && !Array.isArray(mat)) mat.dispose();
-            });
-            this.group.remove(child);
-        }
+        this.syncKey = '';
+        this.clearChildren();
     }
 
     sync(routes: readonly RallyRoute[], draft: RallyDraft | null): void {
-        this.clear();
+        const key =
+            routes.map((r) => `${r.id}:${r.team}`).join('|') +
+            (draft
+                ? `#${draft.mode}:${draft.startX.toFixed(1)},${draft.startZ.toFixed(1)},${draft.endX.toFixed(1)},${draft.endZ.toFixed(1)}`
+                : '');
+        if (key === this.syncKey) return;
+        this.clearChildren();
+        this.syncKey = key;
         for (const route of routes) {
             const color =
                 route.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex;
@@ -70,6 +71,18 @@ export class RallyVisuals {
             this.addCircleMarker(draft.startX, draft.startZ, draftColor, true);
         } else {
             this.addRoute(draft.startX, draft.startZ, draft.endX, draft.endZ, draftColor, true);
+        }
+    }
+
+    private clearChildren(): void {
+        for (const child of [...this.group.children]) {
+            child.traverse((o) => {
+                const mesh = o as Mesh;
+                mesh.geometry?.dispose();
+                const mat = mesh.material;
+                if (mat && !Array.isArray(mat)) mat.dispose();
+            });
+            this.group.remove(child);
         }
     }
 

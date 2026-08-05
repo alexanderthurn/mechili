@@ -3,6 +3,8 @@ import { getAvatarDataUrl } from './avatar';
 import { getPlayerName } from './player';
 import {
     GAME_VERSION,
+    isRevealable,
+    seatVisionPolicy,
     watchLiveness,
     type GuestSession,
     type HostHub,
@@ -574,6 +576,7 @@ export class SteamStarHub implements HostHub {
         }
     }
 
+    /** Same vision gate as PeerJS `StarHub.relayBuild` — see `isRevealable`. */
     relayBuild(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
         fromSeat: SeatId,
@@ -581,13 +584,18 @@ export class SteamStarHub implements HostHub {
     ): void {
         const fromSide = this.sideOf(fromSeat);
         for (const [seat, viewer] of this.bySeat) {
+            const policy = seatVisionPolicy(this.sideOf(seat));
+            // flush newly-entitled backlog even for the locking sender
+            // (must not echo `msg` back to them — see StarHub.relayBuild)
+            if (
+                viewer.buffer.length > 0 &&
+                [...policy.ownSides].every((side) => sideLocked(side))
+            ) {
+                for (const buffered of viewer.buffer) viewer.channel.send(buffered);
+                viewer.buffer.length = 0;
+            }
             if (seat === fromSeat) continue;
-            const isAlly = this.sideOf(seat) === fromSide;
-            if (isAlly || sideLocked(fromSide)) {
-                if (viewer.buffer.length > 0) {
-                    for (const buffered of viewer.buffer) viewer.channel.send(buffered);
-                    viewer.buffer.length = 0;
-                }
+            if (isRevealable(policy, fromSide, sideLocked)) {
                 viewer.channel.send(msg);
             } else {
                 viewer.buffer.push(msg);

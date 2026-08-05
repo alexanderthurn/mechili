@@ -142,9 +142,9 @@ def make_normal(pixels, w, h, strength=3.0):
     return out
 
 
-def export_pair(stem: str, pixels, w, h, n_strength: float, q_alb=84, q_n=90):
+def export_pair(stem: str, pixels, w, h, n_strength: float, q_alb=84, q_n=90, seam: int | None = None):
     pixels = soften_lighting(pixels, w, h)
-    pixels = make_seamless(pixels, w, h)
+    pixels = make_seamless(pixels, w, h, seam if seam is not None else SEAM)
     tw, th, pixels = resize_nearest_bilinear(pixels, w, h, SIZE, SIZE)
     normals = make_normal(pixels, tw, th, n_strength)
     alb_png = Path(f"/tmp/{stem}_a.png")
@@ -185,12 +185,88 @@ def process_rock(src: Path, stem: str, frac: float = 0.90):
     export_pair(stem, px, len(px[0]), len(px), 4.2, q_alb=86)
 
 
+def process_shore(src: Path, stem: str = "shore-albedo"):
+    """Already-tileable shore gravel (full frame, no center crop)."""
+    print(f"shore {src.name} -> {stem}")
+    w, h, px = load_rgb(src)
+    export_pair(stem, px, w, h, 3.2, q_alb=86)
+    # Prefer shore-normal.webp naming (sand/dirt style) over stem-normal
+    out_n = OUT / f"{stem}-normal.webp"
+    pref_n = OUT / "shore-normal.webp"
+    if stem != "shore" and out_n.exists():
+        out_n.replace(pref_n)
+
+
+def process_wear(src: Path | None = None, frac: float | None = None):
+    """Board footprint / mud wear from the original dry-grass photo (not seamless)."""
+    photos = ROOT / "misc/photos/grass"
+    if src is None:
+        src = photos / "IMG_4881.JPG"
+    print(f"wear {src.name} -> wear-albedo")
+    w, h, px = load_rgb(src)
+    if frac is None:
+        frac = None if "seamless" in src.stem.lower() else 0.74
+    if frac is not None:
+        _, _, px = center_square(px, w, h, frac)
+        w, h = len(px[0]), len(px)
+    seam = 8 if "seamless" in src.stem.lower() else SEAM
+    export_pair("wear-albedo", px, w, h, 2.5, q_alb=86, seam=seam)
+    out_n = OUT / "wear-albedo-normal.webp"
+    if out_n.exists():
+        out_n.replace(OUT / "wear-normal.webp")
+    grade_olive_dark(OUT / "wear-albedo.webp")
+
+
+def grade_olive_dark(alb: Path) -> None:
+    """Shared dark olive grade (wear + dark grass accents)."""
+    run(
+        "magick",
+        str(alb),
+        "-colorspace",
+        "sRGB",
+        "-modulate",
+        "62,92,96",
+        "-brightness-contrast",
+        "-8x8",
+        "-fill",
+        "#355743",
+        "-colorize",
+        "22%",
+        "-sigmoidal-contrast",
+        "4x45%",
+        "-modulate",
+        "100,105,108",
+        "-fill",
+        "#2d5a40",
+        "-colorize",
+        "12%",
+        "-quality",
+        "86",
+        str(alb),
+    )
+
+
+def process_dark_grass_photo(src: Path, stem: str = "grass-photo-2"):
+    """Seamless dark grass accent for HQ photo blobs."""
+    print(f"dark grass {src.name} -> {stem}")
+    w, h, px = load_rgb(src)
+    export_pair(stem, px, w, h, 2.5, q_alb=86, seam=8)
+    # export_pair writes stem.webp and stem-normal.webp when stem is grass-photo-2
+    # Actually stem-normal is grass-photo-2-normal.webp — correct naming already
+    grade_olive_dark(OUT / f"{stem}.webp")
+
+
 def main():
     photos = ROOT / "misc/photos"
     # Grass — 3 variants (wild lawn, leaf litter, mossy patch)
     process_grass(photos / "grass/IMG_4835.JPG", "grass-photo-0", 0.70)
     process_grass(photos / "grass/IMG_4837.JPG", "grass-photo-1", 0.66)
-    process_grass(photos / "grass/IMG_4857.JPG", "grass-photo-2", 0.78)
+    # Dark seamless accent (IMG_4881 seamless) — not the older IMG_4857 crop
+    seamless = photos / "grass/IMG_4881-seamless.png"
+    if seamless.exists():
+        process_dark_grass_photo(seamless, "grass-photo-2")
+    else:
+        process_grass(photos / "grass/IMG_4857.JPG", "grass-photo-2", 0.78)
 
     # Dirt — path soil, catkin forest floor, leafy ground
     process_dirt(photos / "dirt/IMG_4834.JPG", "dirt-photo-0", left_frac=0.42, center_frac=0.85)
@@ -200,6 +276,12 @@ def main():
     # Rock — rock-only field photos (center crop)
     process_rock(photos / "rock/IMG_4848.JPG", "rock-photo-0", 0.90)
     process_rock(photos / "rock/IMG_4851.JPG", "rock-photo-1", 0.90)
+
+    # Lake shore gravel (outer meadow beaches)
+    process_shore(photos / "water/wsc_s.png")
+
+    # Board wear / footprints from original (non-seamless) IMG_4881
+    process_wear()
     print("done")
 
 

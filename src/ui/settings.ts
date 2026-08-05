@@ -11,7 +11,13 @@ import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
 /**
  * The settings dialog — one shared overlay, opened from the main menu and
  * from the in-game top bar. Options apply immediately and persist.
+ * Desktop: two columns (general | graphics). Narrow: single stacked column.
  */
+/** dismiss the shared settings overlay if open (menu or in-match). */
+export function closeSettings(): void {
+    document.querySelector('.mechili-settings')?.remove();
+}
+
 export function openSettings(parent: HTMLElement): void {
     if (document.querySelector('.mechili-settings')) return; // already open
 
@@ -24,9 +30,14 @@ export function openSettings(parent: HTMLElement): void {
 
     const overlay = document.createElement('div');
     overlay.className = 'mechili-settings';
+    // #match-ui-root is pointer-events:none — without this, in-match Settings
+    // (opened from pause) looks fine but nothing inside is clickable.
+    overlay.style.pointerEvents = 'auto';
     overlay.innerHTML =
         `<div class="box">` +
         `<div class="s-title">Settings</div>` +
+        `<div class="s-body">` +
+        `<div class="s-col s-col-general">` +
         `<section class="s-section">` +
         `<div class="s-section-head">Look</div>` +
         `<label class="s-row">UI font <select class="s-font">${fontOptions}</select>` +
@@ -46,6 +57,8 @@ export function openSettings(parent: HTMLElement): void {
         `</select></label>` +
         `<div class="s-hint s-mp-hint"></div>` +
         `</section>` +
+        `</div>` +
+        `<div class="s-col s-col-graphics">` +
         `<section class="s-section">` +
         `<div class="s-section-head">Graphics</div>` +
         `<div class="s-presets">` +
@@ -91,6 +104,8 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><input type="checkbox" class="s-dead" /> Show dead units</label>` +
         `<label class="s-row"><input type="checkbox" class="s-aa" /> Antialiasing <span class="s-hint">smoother edges · next match</span></label>` +
         `</section>` +
+        `</div>` +
+        `</div>` +
         `<div class="actions"><button type="button" class="primary" data-act="close">Close</button></div>` +
         `</div>`;
 
@@ -204,5 +219,8 @@ export function openSettings(parent: HTMLElement): void {
             window.removeEventListener('keydown', onKey);
         },
     );
-    parent.appendChild(overlay);
+    // Prefer the game wrapper over #match-ui-root (pointer-events:none shell).
+    const host =
+        parent.id === 'match-ui-root' && parent.parentElement ? parent.parentElement : parent;
+    host.appendChild(overlay);
 }

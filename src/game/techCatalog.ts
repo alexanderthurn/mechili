@@ -91,7 +91,7 @@ export const TECHS: Record<string, TechDef> = {
         cost: 50,
         mods: {},
         icon: 'tech-golden-aura',
-        description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s.',
+        description: 'Nearby allies resist tower debuffs and take 30% less damage for 30s. Wizards cannot convert them — the ray deals damage instead.',
     },
     pitchBolts: {
         id: 'pitchBolts',

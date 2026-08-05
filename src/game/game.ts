@@ -30,7 +30,7 @@ import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCos
 import {
     emptyForgeSlots,
     forgeHintText,
-    forgePreviewView,
+    forgeIngredientIcons,
     forgeProductInfo,
     forgeRecipesCraftableFromBag,
     forgeSeatCanInsert,
@@ -93,7 +93,8 @@ import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
-import { ITEMS, itemSlotLimit } from './items';
+import { TowerDebuffFx } from './towerDebuffFx';
+import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -116,6 +117,14 @@ import {
     type ShadowQuality,
 } from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
+import {
+    buildHpDrawSources,
+    hpDrawShakeIntensity,
+    scheduleHpDrawParticles,
+    type HpDrawPlan,
+} from './hpDraw';
+import { HpDrawFx } from './hpDrawFx';
+import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
@@ -204,6 +213,8 @@ const MATCH_OUTRO_SEC = 0.8;
 const MATCH_INTRO_ZOOM = 200;
 const MATCH_INTRO_PITCH = (48 * Math.PI) / 180;
 const PLAY_START_ZOOM = 110;
+/** post-battle HP damage VFX — hard cap even with huge survivor counts */
+const HP_DRAW_MAX_SECONDS = 8;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the
@@ -239,6 +250,10 @@ const CHEAT_TACTIC_GRANTS = [
 ] as const;
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
+/** Shift+U: max free base runes of each id in the left bag strip */
+const CHEAT_BASE_RUNE_COPIES = 2;
+/** Shift+U: max free advanced (and other) runes of each id in the left bag strip */
+const CHEAT_ADVANCED_RUNE_COPIES = 1;
 
 /** derives an independent, label-specific seed for a named rng stream */
 function seedFrom(seed: number, label: string): number {
@@ -267,10 +282,12 @@ export class Game {
     private readonly debug: DebugOverlay;
     private readonly cpuSampler = new CpuSampler();
     private readonly hpBars = new HpBars();
+    private readonly hpDrawFx: HpDrawFx;
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly forgeFx = new ForgeFx();
+    private readonly towerDebuffFx: TowerDebuffFx;
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
@@ -315,6 +332,16 @@ export class Game {
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
     private selectedActor: Actor | null = null;
+    /** post-battle HP draw VFX (visual only; HP already applied in sim) */
+    private pendingHpDrawPlan: HpDrawPlan | null = null;
+    private pendingHpDrawPreHp: { player: number; enemy: number } | null = null;
+    private hpDrawPlan: HpDrawPlan | null = null;
+    private hpDrawElapsed = 0;
+    private hpDrawDisplayPlayer = 0;
+    private hpDrawDisplayEnemy = 0;
+    private hpDrawPrePlayer = 0;
+    private hpDrawPreEnemy = 0;
+    private hpDrawAfterMatchOver = false;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
 
@@ -337,6 +364,13 @@ export class Game {
     // keeps reading/writing them completely unchanged; only genuinely
     // N-side-aware code (stateHash) touches `hp` directly.
     private hp: number[] = [];
+    /**
+     * Per-side peak HP (commander grants). Survives damage and reconnect
+     * hydrate — the HUD bar max must NOT collapse to current HP when a
+     * new Hud is built mid-match (first setHp would otherwise lock max
+     * to the damaged value).
+     */
+    private hpPeak: number[] = [];
     private matchOver = false;
     private disposed = false;
     private sim: BattleSim | null = null;
@@ -495,12 +529,14 @@ export class Game {
     private readonly sellState: { owned: boolean[]; used: number[] };
     /** per-SEAT: one-time rally-route purchase (permanent flag) */
     private readonly rallyRouteOwned: boolean[];
-    /** per-SEAT buy limits: `limit` is permanent (specials may raise it), rest resets per round */
+    /** per-SEAT buy limits: `limit` + `runesBought` are permanent; rest resets per round */
     private readonly deployState: {
         limit: number[];
         extra: number[];
         used: number[];
         extrasSpent: number[];
+        /** shop base-rune buys this match (escalating price) */
+        runesBought: number[];
     };
     /** per-SEAT permanent army-wide boost tiers (0 = none) */
     private readonly boostState: Record<'attack' | 'hp', number[]>;
@@ -852,7 +888,7 @@ export class Game {
     constructor(
         private readonly pixiApp: Application,
         threeCanvas: HTMLCanvasElement,
-        wrapper: HTMLElement,
+        wrapper: HTMLElement, // #match-ui-root — HUD mount + resize size source
         settingsInput: GameSettings = DEFAULT_SETTINGS,
         /** the peer connection in multiplayer, null against the AI (swappable on reconnect) */
         private net: Session | null = null,
@@ -1014,16 +1050,17 @@ export class Game {
         this.forgeSlots.enemy = emptyForgeSlots(
             forgeTeamCapacity(seatIdsOf(this.seats, 'enemy').length),
         );
-        // starts at 0, not settings.startingHp: each seat's own card ADDS its
-        // own startingHp in chooseCard (additive, so it's safe regardless of
-        // which seat's pick a client applies first) — settings.startingHp is
-        // only ever a pre-pick placeholder for the HUD's initial bar max
-        // (see setPlayers below), never the real baseline. Explicitly sized
-        // to the roster's real side count (not just "however far the
-        // playerHp/enemyHp setters happen to have written") so the
-        // enemyHp getter's "sum every other side" loop sees every side
-        // from the start, even ones nothing has assigned to yet.
-        this.hp = new Array(sideCount(this.seats)).fill(0);
+        // starts at 0: each seat's own card ADDS its own startingHp in
+        // chooseCard (additive, so it's safe regardless of which seat's
+        // pick a client applies first). Explicitly sized to the roster's
+        // real side count (not just "however far the playerHp/enemyHp
+        // setters happen to have written") so the enemyHp getter's "sum
+        // every other side" loop sees every side from the start, even
+        // ones nothing has assigned to yet. Peak grows with grants (see
+        // playerHp/enemyHp setters) so the HUD bar max survives reconnect.
+        const sides = sideCount(this.seats);
+        this.hp = new Array(sides).fill(0);
+        this.hpPeak = new Array(sides).fill(0);
         // Prefer the boot-warmed GL context so flame/projectile programs survive;
         // fall back to a fresh renderer after return-to-menu (new canvas).
         this.renderer =
@@ -1063,13 +1100,16 @@ export class Game {
         sun.position.set(120, 160, 80);
         // a bit stronger than the Three default (1) so packs/towers read clearly on the grass
         sun.shadow.intensity = 1.55;
-        // frustum reaches past the field so the tree ring casts onto its edges
-        sun.shadow.camera.left = -this.map.halfW - 40;
-        sun.shadow.camera.right = this.map.halfW + 40;
-        sun.shadow.camera.top = this.map.halfH + 40;
-        sun.shadow.camera.bottom = -this.map.halfH - 40;
+        // Large square frustum past the near forest. A board-tight box (±half+40)
+        // reads as a rotating "cube shadow" when the sun lerps during season/time.
+        const shadowExtent = Math.max(this.map.halfW, this.map.halfH) + 280;
+        sun.shadow.camera.left = -shadowExtent;
+        sun.shadow.camera.right = shadowExtent;
+        sun.shadow.camera.top = shadowExtent;
+        sun.shadow.camera.bottom = -shadowExtent;
         sun.shadow.camera.near = 10;
-        sun.shadow.camera.far = 500;
+        sun.shadow.camera.far = 720;
+        sun.shadow.camera.updateProjectionMatrix();
         this.scene.add(sun);
 
         this.sun = sun;
@@ -1087,6 +1127,7 @@ export class Game {
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
+        this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
         this.hammerFx = new HammerFx(this.scene);
         this.meteorFx = new MeteorFx(this.scene);
         this.cloudFx = new CloudFx(this.scene);
@@ -1133,6 +1174,8 @@ export class Game {
         syncEdgeScroll();
         this.inputDisposers.push(onInputModeChange(syncEdgeScroll));
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
+        installScreenShake(this.rig.camera, () => this.rig.target);
+        this.hpDrawFx = new HpDrawFx(this.scene);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.placement.hasTech = (seat, typeId, techId) => this.techTree.has(seat, typeId, techId);
         // spectator watching a LIVE match (not a replay, which has no
@@ -1167,6 +1210,7 @@ export class Game {
                   this.effectToggles,
               )
             : null;
+        this.scenery.attachSun(sun);
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // specialist streams are keyed by canonical side (different draws)
         this.rngCards = {
@@ -1182,6 +1226,7 @@ export class Game {
             extra: this.seats.map(() => 0),
             used: this.seats.map(() => 0),
             extrasSpent: this.seats.map(() => 0),
+            runesBought: this.seats.map(() => 0),
         };
         this.sellState = { owned: this.seats.map(() => false), used: this.seats.map(() => 0) };
         this.rallyRouteOwned = this.seats.map(() => false);
@@ -1237,6 +1282,7 @@ export class Game {
                     else this.enemyHp = hp;
                 },
             },
+            commanderHpFactor: settings.commanderHpFactor,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -1421,7 +1467,7 @@ export class Game {
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
-        this.hud.setCommanders(this.commanderEntries(), this.humanSeat, settings.startingHp);
+        this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
         this.hud.onEndDeployment = () => {
             if (this.phase === 'build') {
                 this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
@@ -2119,6 +2165,7 @@ export class Game {
                 this.effectToggles,
             );
             if (weatherSnapshot) this.weather.setAtmosphere(weatherSnapshot);
+            this.scenery.attachSun(this.sun);
         } else {
             // weather off: no fog and the default calm daylight
             this.weather = null;
@@ -2129,6 +2176,7 @@ export class Game {
             this.sun.position.set(120, 160, 80);
             this.hemi.color.setHex(THEME.hemiSky);
             this.hemi.groundColor.setHex(THEME.hemiGround);
+            this.scenery.attachSun(this.sun);
             this.hemi.intensity = THEME.hemiIntensity;
         }
 
@@ -2206,10 +2254,13 @@ export class Game {
         this.dragonFx.dispose();
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
+        this.towerDebuffFx.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
         this.hud.destroy();
         this.hpBars.destroy();
+        this.hpDrawFx.destroy();
+        clearScreenShake();
         this.debug.destroy();
         this.debugDumpButton?.destroy();
         this.scene.overrideMaterial = null;
@@ -2330,10 +2381,10 @@ export class Game {
         const CHEAT_HP = 999_999;
         this.playerHp = CHEAT_HP;
         this.enemyHp = CHEAT_HP;
-        this.hud.setHp(this.playerHp, this.enemyHp);
+        this.paintHudHp();
         this.cheatGrantSupply(10_000);
         this.cheatGrantAllTactics();
-        this.cheatGrantAllItems(1);
+        this.cheatGrantAllItems();
         this.cheatGrantTechs(3);
         // sidebar intel: enemy bag unchanged by human-only item/tactic grants
         this.captureEnemyIntelSnapshot();
@@ -2604,11 +2655,19 @@ export class Game {
         for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
     }
 
-    /** SP cheat (Shift+U): add `copies` of every pack item to the human seat. */
-    private cheatGrantAllItems(copies = 1): void {
-        const seat = this.humanSeat;
+    /**
+     * SP cheat (Shift+U): top up free bag runes (left strip) for the human seat.
+     * Base runes fill to {@link CHEAT_BASE_RUNE_COPIES}; advanced/other to
+     * {@link CHEAT_ADVANCED_RUNE_COPIES}. Already-applied pack runes are ignored.
+     * Extra presses do not stack beyond the caps.
+     */
+    private cheatGrantAllItems(): void {
+        const bag = this.itemInventory[this.humanSeat]!;
+        const base = new Set<string>(BASE_RUNE_IDS);
         for (const id of Object.keys(ITEMS)) {
-            for (let i = 0; i < copies; i++) this.itemInventory[seat]!.push(id);
+            const max = base.has(id) ? CHEAT_BASE_RUNE_COPIES : CHEAT_ADVANCED_RUNE_COPIES;
+            const have = bag.filter((x) => x === id).length;
+            for (let i = have; i < max; i++) bag.push(id);
         }
     }
 
@@ -2742,7 +2801,9 @@ export class Game {
         return this.hp[this.mySide()] ?? 0;
     }
     private set playerHp(v: number) {
-        this.hp[this.mySide()] = v;
+        const side = this.mySide();
+        this.hp[side] = v;
+        this.hpPeak[side] = Math.max(this.hpPeak[side] ?? 0, v);
     }
     private get enemyHp(): number {
         let sum = 0;
@@ -2753,8 +2814,32 @@ export class Game {
     }
     private set enemyHp(v: number) {
         for (let side = 0; side < this.hp.length; side++) {
-            if (side !== this.mySide()) this.hp[side] = v;
+            if (side !== this.mySide()) {
+                this.hp[side] = v;
+                this.hpPeak[side] = Math.max(this.hpPeak[side] ?? 0, v);
+            }
         }
+    }
+
+    /** HUD bar denominator — peak commander HP, not current (damaged) HP. */
+    private get playerHpPeak(): number {
+        return this.hpPeak[this.mySide()] ?? 0;
+    }
+    private get enemyHpPeak(): number {
+        let sum = 0;
+        for (let side = 0; side < this.hpPeak.length; side++) {
+            if (side !== this.mySide()) sum += this.hpPeak[side] ?? 0;
+        }
+        return sum;
+    }
+
+    private paintHudHp(): void {
+        this.hud.setHp(
+            this.phase === 'hpDraw' ? this.hpDrawDisplayPlayer : this.playerHp,
+            this.phase === 'hpDraw' ? this.hpDrawDisplayEnemy : this.enemyHp,
+            this.playerHpPeak,
+            this.enemyHpPeak,
+        );
     }
 
     /**
@@ -3558,10 +3643,37 @@ export class Game {
         this.hydrating = true;
         this.replayLogFrom(log, fromIndex, msg.battleElapsed);
         this.hydrating = false;
+        this.ensureLocalAiBuildActions();
         this.seedSeqTracking();
         if (this.phase === 'build' && msg.phaseRemaining !== undefined) {
             this.phaseRemaining = msg.phaseRemaining;
         }
+    }
+
+    /**
+     * After a hydrate/catch-up that skipped `onBuildPhase` (see startBuildPhase's
+     * `!hydrating` guard), any local AI seat that still hasn't locked in for
+     * the current build must act now. Otherwise a solo (or host-with-AI)
+     * resume that lands on a brand-new deployment — log ended at the previous
+     * round's endDeployment pair, battle was fast-forwarded, AI never ran —
+     * lets the human lock in and then wait forever on an enemy that will
+     * never end. Safe no-op when every AI seat is already seatReady (normal
+     * mid-deploy resume where the bot's endDeployment is already in the log)
+     * or when this client doesn't drive AI (net peer / star guest / watch).
+     */
+    private ensureLocalAiBuildActions(): void {
+        if (this.watching || this.matchOver || this.phase !== 'build') return;
+        if (this.star?.role === 'guest') return;
+
+        if (this.opponent instanceof AiOpponent) {
+            const seat = primarySeatOf(this.seats, 'enemy');
+            if (!this.seatReady[seat]) this.opponent.onBuildPhase(this.round);
+        }
+        for (const e of this.extraAis) {
+            if (!this.seatReady[e.seat]) e.ai.onBuildPhase(this.round);
+        }
+        this.maybeStartBattleAfterDeploy();
+        if (this.star) this.maybeStartStarBattle();
     }
 
     /**
@@ -4240,6 +4352,7 @@ export class Game {
         this.suspended = false;
         this.suspendDeadline = null;
         this.hud.hideNotice();
+        this.hud.hideReconnectWait();
         this.net?.close();
         this.net = null;
         if (!this.disposed && !this.outroActive) {
@@ -4445,8 +4558,8 @@ export class Game {
      * agnostic predicate is correct for a star OR classic 1v1 host, with no
      * `this.star`/`hub` reach-in needed at all. Verified equivalent to the
      * three prior implementations branch-by-branch before landing this,
-     * including the seat viewer's per-side (not both-sides) lock asymmetry
-     * `isRevealable` itself documents.
+     * including the seat viewer's "reveal enemy once MY side locked"
+     * asymmetry `isRevealable` itself documents.
      */
     private revealableToViewer(policy: VisionPolicy): (e: LoggedAction) => boolean {
         return (e) => {
@@ -4618,6 +4731,10 @@ export class Game {
 
         this.replayLogFrom(log, 0, liveBattleElapsed);
         this.hydrating = false;
+        // startBuildPhase skips AI while hydrating — if we landed on a fresh
+        // build phase (log ended at the previous round's lock-ins), kick the
+        // local bots now or a solo resume stays stuck after the player locks in
+        this.ensureLocalAiBuildActions();
         this.debugLog.log('hp.hydrateDone', {
             watching: this.watching,
             processed: this.dispatcher.serializable().length,
@@ -5720,6 +5837,11 @@ export class Game {
         armed: boolean;
         placed?: boolean;
         routeId?: number;
+        /**
+         * Corner badge: omit when ready to cast; `'cancel'` while placed/used
+         * this deploy; a positive number = rounds until the charge returns.
+         */
+        badge?: 'cancel' | number;
         hint?: string;
         index: number;
     }[] {
@@ -5731,7 +5853,7 @@ export class Game {
             armed: boolean;
             placed?: boolean;
             routeId?: number;
-            cooldown?: number;
+            badge?: 'cancel' | number;
             hint?: string;
             index: number;
         }[] = [];
@@ -5759,7 +5881,7 @@ export class Game {
             const ability = abilityChargesOf(tactic.id);
             // greyed and available entries are counted from separate sources,
             // so using a charge turns an entry grey instead of removing it
-            let placedEntries: { routeId?: number; hint?: string }[];
+            let placedEntries: { routeId?: number; hint?: string; badge?: 'cancel' | number }[];
             let avail: number;
             if (tactic.kind === 'placement') {
                 // charge stays in the inventory; placements are right-click resettable
@@ -5784,10 +5906,12 @@ export class Game {
                 placedEntries = [
                     ...placements.map((p) => ({
                         routeId: p.id,
+                        badge: 'cancel' as const,
                     })),
                     ...cooling.map((s) => {
                         const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
                         return {
+                            badge: readyIn,
                             hint: `${tactic.name} — cooling down.\nReady again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`,
                         };
                     }),
@@ -5806,8 +5930,7 @@ export class Game {
                     tactic.id,
                     this.round - tactic.cooldownRounds,
                 );
-                const coolingHint = (usedRound: number): string => {
-                    const readyIn = usedRound + tactic.cooldownRounds + 1 - this.round;
+                const coolingHint = (usedRound: number, readyIn: number): string => {
                     const ready = `Ready again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`;
                     return usedRound === this.round
                         ? `${tactic.name} — used this round.\nUndo gives it back. ${ready}`
@@ -5815,9 +5938,16 @@ export class Game {
                 };
                 placedEntries = [
                     ...Array.from({ length: ability.used }, () => ({
+                        badge: 'cancel' as const,
                         hint: `${tactic.name} — used this round.\nUndo gives it back.`,
                     })),
-                    ...useRounds.map((r) => ({ hint: coolingHint(r) })),
+                    ...useRounds.map((r) => {
+                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
+                        return {
+                            badge: (r === this.round ? 'cancel' : readyIn) as 'cancel' | number,
+                            hint: coolingHint(r, readyIn),
+                        };
+                    }),
                 ];
                 avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
             }
@@ -5828,7 +5958,6 @@ export class Game {
                     name: `${tactic.name} — ${tactic.kind === 'placement' ? 'placed' : 'used'}`,
                     armed: false,
                     placed: true,
-                    cooldown: tactic.cooldownRounds,
                     index: slot,
                     ...p,
                 });
@@ -5841,7 +5970,6 @@ export class Game {
                     name: `${tactic.name} — ${tactic.description}`,
                     // duplicates share an id: highlight exactly the clicked slot
                     armed: this.armedTactic === tactic.id && this.armedTacticIndex === slot,
-                    cooldown: tactic.cooldownRounds,
                     index: slot,
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
@@ -5884,7 +6012,7 @@ export class Game {
     }
 
     private enemyInventoryView(): {
-        items: { icon: string; name: string }[];
+        items: { id: string; icon: string; name: string }[];
         tactics: { icon: string; name: string }[];
         sellAbility: boolean;
     } {
@@ -5900,6 +6028,7 @@ export class Game {
         const mapItem = (id: string) => {
             const item = ITEMS[id];
             return {
+                id,
                 icon: item?.icon ?? '?',
                 name: item ? `${item.name} — ${item.description}` : id,
             };
@@ -5916,6 +6045,18 @@ export class Game {
             tactics: tactics.map(mapTactic),
             sellAbility,
         };
+    }
+
+    /** enemy forge tray ids visible to the local player (live or intel) */
+    private enemyForgeOvenView(): string[] {
+        if (this.phase !== 'build') return [];
+        if (this.deployReady.player) {
+            return (this.forgeSlots.enemy ?? [])
+                .filter((s): s is ForgeSlot => !!s)
+                .map((s) => s.itemId);
+        }
+        const snap = this.buildingIntelSnapshot?.forge.enemy ?? [];
+        return snap.filter((id): id is string => !!id);
     }
 
     private resetPlacedRallyRoute(routeId: number): void {
@@ -6503,8 +6644,8 @@ export class Game {
     }
 
     /**
-     * While dragging a rune over the forge, decorate the cursor ghost with the
-     * spell that would bake now + smaller icons for recipes still reachable.
+     * While dragging a rune over the forge, show the same recipe grid as shop /
+     * bag / forge-slot hover (spells using this rune sorted first).
      */
     private syncArmedRuneForgeGhost(): void {
         if (!this.armedItem || !ITEMS[this.armedItem]) {
@@ -6520,16 +6661,7 @@ export class Game {
             this.hud.setItemGhostForgePreview(null);
             return;
         }
-        const oven = this.forgeSlots.player
-            .filter((s): s is ForgeSlot => !!s)
-            .map((s) => s.itemId);
-        this.hud.setItemGhostForgePreview(
-            forgePreviewView(
-                oven,
-                this.armedItem,
-                this.teamForgePool('player'),
-            ),
-        );
+        this.hud.setItemGhostForgePreview(this.armedItem);
     }
 
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
@@ -7301,10 +7433,27 @@ export class Game {
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
     private endBattlePhase(): void {
         let hash: number | undefined;
+        this.pendingHpDrawPlan = null;
+        this.pendingHpDrawPreHp = null;
         if (this.sim) {
+            const preHp = { player: this.playerHp, enemy: this.enemyHp };
+            const built = buildHpDrawSources(this.sim, this.economy);
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
+            if (
+                !this.hydrating &&
+                built.sources.length > 0 &&
+                (built.damageToPlayer > 0 || built.damageToEnemy > 0)
+            ) {
+                this.pendingHpDrawPreHp = preHp;
+                this.pendingHpDrawPlan = scheduleHpDrawParticles(built.sources, {
+                    damageToPlayer: built.damageToPlayer,
+                    damageToEnemy: built.damageToEnemy,
+                    hordeLumpPlayer: built.hordeLumpPlayer,
+                    hordeLumpEnemy: built.hordeLumpEnemy,
+                });
+            }
             // capture the battle-end sync-barrier fingerprint BEFORE the sim
             // (and its actors) are torn down below — stateHash() reads
             // this.sim.actors, so this MUST run before `this.sim = null`.
@@ -7314,6 +7463,7 @@ export class Game {
         this.selectedActor = null;
         this.projectileRenderer.clear();
         this.fireFx.clear(); // instanced flame tongues are battle-only
+        this.towerDebuffFx.clear();
         this.hammerFx.clear();
         this.meteorFx.clear();
         this.cloudFx.clear();
@@ -7324,6 +7474,7 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
         this.spellVisuals.clear(); // active zone markers are battle-only
+        this.rallyVisuals.sync([], null); // battle-only follower markers
         if (hash !== undefined && this.star) {
             // Star mode's battle-end / pre-match-end sync barrier: gates
             // BOTH of what used to run immediately below (finishMatch(), or
@@ -7359,14 +7510,6 @@ export class Game {
         this.finishOrContinueAfterBattle();
     }
 
-    /**
-     * The actual battle-end decision — finishMatch() vs. cleanup-and-
-     * continue — deferred behind the sync barrier for star mode (see
-     * endBattlePhase), but otherwise identical to this function's original
-     * inline body from before the barrier existed: runs immediately for
-     * classic 1v1, single-player/AI, and hydrating/replay (none of which
-     * take the barrier branch above at all).
-     */
     private finishOrContinueAfterBattle(): void {
         if (this.star && this.star.role === 'host' && !this.hydrating) {
             // every OTHER connected seat is still waiting on this exact
@@ -7378,7 +7521,80 @@ export class Game {
             // announce a verdict of its own.
             this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
         }
-        if (this.playerHp <= 0 || this.enemyHp <= 0) {
+        this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
+        if (this.pendingHpDrawPlan && this.pendingHpDrawPlan.sources.length > 0) {
+            this.beginHpDrawPhase();
+            return;
+        }
+        this.proceedAfterHpDraw();
+    }
+
+    private beginHpDrawPhase(): void {
+        const plan = this.pendingHpDrawPlan;
+        const pre = this.pendingHpDrawPreHp;
+        if (!plan || !pre) {
+            this.proceedAfterHpDraw();
+            return;
+        }
+        this.hpDrawPlan = plan;
+        this.pendingHpDrawPlan = null;
+        this.pendingHpDrawPreHp = null;
+        this.phase = 'hpDraw';
+        this.hpDrawElapsed = 0;
+        this.hpDrawPrePlayer = pre.player;
+        this.hpDrawPreEnemy = pre.enemy;
+        this.hpDrawDisplayPlayer = pre.player;
+        this.hpDrawDisplayEnemy = pre.enemy;
+        this.phaseRemaining = Math.min(HP_DRAW_MAX_SECONDS, plan.timelineSeconds + 0.85);
+        this.placement.enabled = false;
+        this.gridOverlay.visible = false;
+        this.selectedActor = null;
+        this.hpBars.clear();
+
+        this.hpDrawFx.start(plan.sources);
+    }
+
+    private tickHpDraw(dtSeconds: number): void {
+        const plan = this.hpDrawPlan;
+        if (!plan) return;
+        this.hpDrawElapsed += dtSeconds;
+        const w = this.pixiApp.screen.width;
+        const h = this.pixiApp.screen.height;
+        const hits = this.hpDrawFx.update(dtSeconds, this.rig.camera, w, h);
+        for (const hit of hits) {
+            const dmg = Math.round(hit.damage);
+            screenShake({
+                intensity: hpDrawShakeIntensity(hit.tier, dmg),
+                duration: hit.tier === 'high' ? 0.7 : hit.tier === 'medium' ? 0.55 : 0.44,
+                frequency: hit.tier === 'high' ? 72 : hit.tier === 'medium' ? 56 : 48,
+            });
+            if (hit.victim === 'player') this.hpDrawDisplayPlayer -= dmg;
+            else this.hpDrawDisplayEnemy -= dmg;
+        }
+        this.hpDrawDisplayPlayer = Math.max(this.playerHp, this.hpDrawDisplayPlayer);
+        this.hpDrawDisplayEnemy = Math.max(this.enemyHp, this.hpDrawDisplayEnemy);
+
+        const done =
+            this.hpDrawFx.allHit() ||
+            this.hpDrawElapsed >= plan.timelineSeconds + 0.7 ||
+            this.phaseRemaining <= 0;
+        if (done) {
+            this.flushHpDrawDisplay();
+            this.proceedAfterHpDraw();
+        }
+    }
+
+    private flushHpDrawDisplay(): void {
+        this.hpDrawDisplayPlayer = this.playerHp;
+        this.hpDrawDisplayEnemy = this.enemyHp;
+        this.hpDrawFx.clear();
+        this.hpDrawPlan = null;
+    }
+
+    /** Continues the round after HP-draw VFX (or when skipped). */
+    private proceedAfterHpDraw(): void {
+        this.flushHpDrawDisplay();
+        if (this.hpDrawAfterMatchOver) {
             this.finishMatch();
             return;
         }
@@ -7390,9 +7606,6 @@ export class Game {
         }
         this.placement.refaceAll();
         if (this.star && !this.hydrating) {
-            // star's own readiness/hash reporting already happened above
-            // (endBattlePhase/markStarBattleReady) — this continuation is
-            // the "go" signal itself, nothing left to announce
             this.startBuildPhase();
             return;
         }
@@ -7679,47 +7892,19 @@ export class Game {
      * its own was left to stop either force.
      */
     private applyBattleResult(sim: BattleSim): void {
-        let damageToPlayer = 0;
-        let damageToEnemy = 0;
-        let playerSurvived = false;
-        let enemySurvived = false;
-        let hordeValue = 0;
-        // score per mech by battle allegiance (converted mechs count for their new side)
-        for (const a of sim.actors) {
-            if (a.unit.type.structure) continue;
-            const headcount = Math.max(1, a.unit.members.length);
-            const value = this.economy.costOf(a.unit.type) / headcount;
-            const team = actorTeam(a);
-            if (team === 'player') {
-                if (a.alive) {
-                    damageToEnemy += value;
-                    playerSurvived = true;
-                }
-            } else if (team === 'enemy') {
-                if (a.alive) {
-                    damageToPlayer += value;
-                    enemySurvived = true;
-                }
-            } else if (a.alive) {
-                hordeValue += value;
-            }
-        }
-        damageToPlayer = Math.round(damageToPlayer);
-        damageToEnemy = Math.round(damageToEnemy);
-        hordeValue = Math.round(hordeValue);
-        // a wiped side had nothing left to stop the horde either
-        if (!playerSurvived) damageToPlayer += hordeValue;
-        if (!enemySurvived) damageToEnemy += hordeValue;
-        this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
-        this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
+        const built = buildHpDrawSources(sim, this.economy);
+        const damageToPlayer = built.damageToPlayer;
+        const damageToEnemy = built.damageToEnemy;
+        this.playerHp = this.playerHp - damageToPlayer;
+        this.enemyHp = this.enemyHp - damageToEnemy;
         this.debugLog.log('hp.applyBattleResult', {
             watching: this.watching,
             round: this.round,
             damageToPlayer,
             damageToEnemy,
-            hordeValue,
-            playerSurvived,
-            enemySurvived,
+            hordeValue: built.hordeValue,
+            playerSurvived: built.playerSurvived,
+            enemySurvived: built.enemySurvived,
             playerHp: this.playerHp,
             enemyHp: this.enemyHp,
             unitCount: sim.unitSurvivors().size,
@@ -7852,12 +8037,19 @@ export class Game {
                 this.round === 0 &&
                 this.starterPicked[this.humanSeat] &&
                 !this.starterPicked.every(Boolean);
-            if (!waitingForStarterPeer) {
+            // freeze once I've locked in — solo used to keep draining the
+            // timer (and re-firing onDeployTimerExpired) while waiting on the
+            // AI / an ally, which is how a stuck resume showed 0:00 forever
+            const waitingForDeployPeer =
+                this.phase === 'build' && !!this.seatReady[this.humanSeat];
+            if (!waitingForStarterPeer && !waitingForDeployPeer) {
                 this.phaseRemaining -= gameDt;
             }
             if (this.phase === 'build') {
                 if (this.watching) this.tickReplayPlayback();
                 if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
+            } else if (this.phase === 'hpDraw') {
+                this.tickHpDraw(dtSeconds);
             } else if (this.sim) {
                 if (profile) {
                     this.sim.profileEnabled = true;
@@ -7873,6 +8065,7 @@ export class Game {
                 const battleEvents = this.sim.consumeEvents();
                 this.particles.spawnFromEvents(battleEvents);
                 this.fireFx.spawnFromEvents(battleEvents);
+                this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
                 for (const ev of battleEvents) {
                     if (ev.kind === 'spellMeteor') {
@@ -7900,8 +8093,12 @@ export class Game {
                 if (profile) cpu.begin();
                 this.sim.syncMeshes(); // per-frame interpolated positions
                 if (profile) cpu.end('syncMeshes');
+                // advance wave before tint gate so rim coverage matches this frame
+                this.towerDebuffFx.update(gameDt);
                 if (profile) cpu.begin();
-                this.sim.syncBattleVisuals(this.time);
+                this.sim.syncBattleVisuals(this.time, (seat, x, z) =>
+                    this.towerDebuffFx.waveRevealsDebuffTint(seat, x, z),
+                );
                 if (profile) cpu.end('battleVisuals');
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
@@ -7961,19 +8158,10 @@ export class Game {
                 ((this.phase === 'build' && this.deployReady.player && !this.deployReady.enemy) ||
                     (this.awaitingCards && this.round === 0 && this.starterPicked[this.humanSeat]) ||
                     (this.battleReady.player && !this.battleReady.enemy))) ||
-            // team modes (local duo or online 2v2): reuse the same "hide
-            // everything, show the waiting text" treatment once THIS seat
-            // has locked in — deployReady.player only flips once every seat
-            // on the side has, so without this branch a locked-in seat kept
-            // seeing the full shop/buttons for as long as an ally (or the
-            // enemy side) hadn't finished yet. No need to distinguish
-            // "waiting on ally" vs "waiting on enemy" here: either way there
-            // is nothing left for this seat to do, and the game simply not
-            // starting already makes that clear.
-            (seatIdsOf(this.seats, 'player').length > 1 &&
-                this.phase === 'build' &&
-                !this.matchOver &&
-                this.seatReady[this.humanSeat]) ||
+            // locked in (solo vs AI too): hide shop / End Deployment — without
+            // this, solo showed a clickable End Deployment that no-op'd while
+            // waiting on the bot (or after a resume that never re-ran the AI)
+            (this.phase === 'build' && !this.matchOver && !!this.seatReady[this.humanSeat]) ||
             // watching: nothing here is ever "mine" to act on — reuse the
             // same full-hide treatment for the whole build UI, not just the
             // few individual gates (playerCanAct, canUndo, round-card
@@ -8009,9 +8197,17 @@ export class Game {
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
         );
         this.hud.setShopRuneCost(
-            this.settings.deploy.baseRuneCost,
+            this.settings.deploy.baseRuneCost +
+                this.deployState.runesBought[this.humanSeat]! * this.settings.deploy.runeCostStep,
             this.economy.balance(this.humanSeat),
         );
+        {
+            const oven = this.forgeSlots.player ?? [];
+            this.hud.setForgeRecipeContext(
+                this.teamForgePool('player'),
+                oven.filter((s): s is ForgeSlot => !!s).map((s) => s.itemId),
+            );
+        }
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
         this.syncArmedRuneForgeGhost();
@@ -8019,19 +8215,24 @@ export class Game {
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
         });
+        this.hud.setEnemyForgeOven(this.enemyForgeOvenView());
         this.hud.setRoundCardPicks(
             this.roundCardPicksView('player'),
             this.enemyActionIntelVisible() ? this.roundCardPicksView('enemy') : [],
         );
-        // rally sync is folded into syncTacticVisuals during build; battle needs routes gone
-        if (this.phase === 'battle') this.rallyVisuals.sync([], null);
+        // rally sync is folded into syncTacticVisuals during build; in battle
+        // keep a route visible while any living mech is still marching on it
+        if (this.phase === 'battle') {
+            this.rallyVisuals.sync(this.sim?.activeRallyRoutes() ?? [], null);
+        }
         this.hud.setSupply(this.economy.balance(this.humanSeat));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();
-        this.hud.setHp(this.playerHp, this.enemyHp);
+        this.paintHudHp();
         this.hud.layout();
         if (profile) cpu.end('hud');
         if (profile) cpu.begin();
+        updateScreenShake(dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);
         if (profile) cpu.end('render');
         let mechs = 0;
@@ -8146,6 +8347,10 @@ export class Game {
                 }
             } else if (e.kind === 'groundFire') {
                 this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.85, 2), e.oilCells > 0 ? 0.35 : 0.22);
+            } else if (e.kind === 'towerDebuff') {
+                // dark burn under the lost tower — team-tint flash is visual-only in TowerDebuffFx
+                this.map.stampScorch(e.x, e.z, 14, 0.8);
+                this.map.stampScorch(e.x, e.z, 22, 0.35);
             }
         }
     }
@@ -8327,7 +8532,9 @@ export class Game {
      *  (repro: host saw no change at all when a quitting client's seat got
      *  handed to AI — same stale name, no visible cue anything happened). */
     private refreshCommanders(): void {
-        this.hud.setCommanders(this.commanderEntries(), this.humanSeat, this.settings.startingHp);
+        this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
+        // new fill nodes — re-apply current HP against match peaks
+        this.paintHudHp();
     }
 
     /** veterancy display values for a pack (enemy uses phase-start intel while fogged) */
@@ -8707,7 +8914,8 @@ export class Game {
         const ovenEmpty = !fogged && live.every((s) => s === null);
         const pool = this.teamForgePool(team);
         const suggestions =
-            ovenEmpty && canBuy && !this.armedItem
+            // TEMP: one-click forge-fill shortcuts disabled
+            false && ovenEmpty && canBuy && !this.armedItem
                 ? forgeRecipesCraftableFromBag(
                       this.itemInventory[this.humanSeat] ?? [],
                       pool,
@@ -8734,6 +8942,10 @@ export class Game {
                       icon: bakeInfo.icon,
                       name: bakeInfo.name,
                       desc: bakeInfo.desc,
+                      ingredientIcons:
+                          bakeResult.product?.kind === 'tactic'
+                              ? forgeIngredientIcons(bakeResult.product.id)
+                              : [],
                   }
                 : undefined,
             slots: Array.from({ length: slotCount }, (_, i) => {

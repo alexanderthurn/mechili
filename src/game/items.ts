@@ -135,7 +135,8 @@ export const ITEMS: Record<string, ItemDef> = {
         icon: 'item-golden',
         mods: {},
         debuffImmune: true,
-        description: 'Immune to tower debuffs and takes 30% less damage for this pack.',
+        description:
+            'Immune to tower debuffs and takes 30% less damage for this pack. Wizards cannot convert — the ray deals damage instead.',
     },
 };
 

@@ -148,6 +148,17 @@ export interface UnitType {
     id: string;
     name: string;
     cost: number;
+    /**
+     * End-of-battle HP-withdraw weight for this type (per mech in the sim).
+     * Drives post-battle particle wave tier (low / medium / high). Omit to
+     * derive from {@link hpWithdrawOf}.
+     */
+    hpWithdraw?: number;
+    /**
+     * Once-per-deployment shop unlock fee (supply). Only shop-buyable army
+     * types set this — omit for towers / board extras / unlisted types.
+     */
+    unlockCost?: number;
     /** tiles this unit occupies on the grid (width x depth) */
     footprint: GridExtent;
     /** how many individual mechs stand inside the footprint (width x depth) */
@@ -205,7 +216,9 @@ export interface UnitType {
      * Conversion ray — the Wizard's only attack. Progress fills at effective
      * attack (resolved damage × level × tower attack debuff) per second toward
      * the victim's current HP; at full, allegiance flips for the rest of the
-     * battle. `recover` is idle seconds after a successful convert.
+     * battle. Buildings, golden-aura mechs, and ward domes cannot be converted
+     * — the ray deals the same continuous HP damage instead. `recover` is idle
+     * seconds after a successful convert.
      */
     convertRay?: { range: number; recover?: number };
     /**
@@ -370,6 +383,9 @@ class PartFactory {
             }),
         );
         mesh.scale.y = heightScale;
+        // Visual-only: the hull must not steal unit picks (build or battle).
+        // Click the stone/pylon to select the ward; units under the dome stay clickable.
+        mesh.raycast = () => {};
         this.group.add(mesh);
         return mesh;
     }
@@ -512,6 +528,7 @@ export const HORDE_DWARF: UnitType = {
     id: 'hordeDwarf',
     name: 'Horde Dwarf',
     cost: 100,
+    hpWithdraw: 4,
     modelId: 'dwarf', // reuse the buildable dwarf's exact model/instance pool
     footprint: { cols: 10, rows: 6 }, // much looser than dwarf's 5x2 — spreads the mob out
     formation: { cols: 8, rows: 3 }, // same 24-strong headcount as dwarf
@@ -534,6 +551,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'dwarf',
         name: 'Dwarf',
         cost: 100,
+        unlockCost: 0,
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a pack of 24 fighters
         meshScale: 1,
@@ -552,6 +570,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'archer',
         name: 'Archer',
         cost: 100,
+        unlockCost: 0,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
@@ -572,18 +591,20 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'wizard',
         name: 'Wizard',
-        cost: 100,
+        cost: 50,
+        unlockCost: 50,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
         burn: { takenMult: 1.15 },
-        // convert is the only attack — ground by default; Sky Bind unlocks air
+        // convert ray is the only attack — ground by default; Sky Bind unlocks air.
+        // Buildings / golden aura / wards take HP damage from the same ray.
         targets: { ground: true, air: false },
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
         convertRay: { range: 80, recover: 1.25 },
         hp: 160,
-        // attack = convert intensity (HP of progress per second)
+        // attack = convert intensity / ray DPS (HP progress or damage per second)
         damage: 45,
         range: 80,
         attackInterval: 1.6,
@@ -594,6 +615,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'crowRider',
         name: 'Crow Rider',
         cost: 200,
+        unlockCost: 50,
         footprint: { cols: 5, rows: 2 }, // same pack size as dwarves
         formation: { cols: 4, rows: 1 }, // a flock of 12 riders, two wide rows
         meshScale: 4.35, // slightly smaller so the tighter columns don't touch
@@ -617,6 +639,8 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'ballista',
         name: 'Ballista',
         cost: 400,
+        unlockCost: 200,
+        hpWithdraw: 400,
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
@@ -690,6 +714,30 @@ export const UNIT_TYPES: UnitType[] = [
         build: buildRocket,
     },
 ];
+
+/** Mechs in a pack — used for default hpWithdraw derivation. */
+export function formationHeadcount(type: UnitType): number {
+    return Math.max(1, type.formation.cols * type.formation.rows);
+}
+
+/**
+ * Per-mech HP-withdraw weight for wave grouping. Explicit `hpWithdraw` on the
+ * type wins; otherwise `cost / formation headcount` (same basis as battle-end
+ * damage per sim actor).
+ */
+export function hpWithdrawOf(type: UnitType): number {
+    if (type.hpWithdraw !== undefined) return type.hpWithdraw;
+    return type.cost / formationHeadcount(type);
+}
+
+export type HpDrawWaveTier = 'low' | 'medium' | 'high';
+
+/** Post-battle particle wave from hpWithdraw: low < 100, medium < 300, high otherwise. */
+export function hpDrawWaveTier(withdraw: number): HpDrawWaveTier {
+    if (withdraw < 100) return 'low';
+    if (withdraw < 300) return 'medium';
+    return 'high';
+}
 
 /**
  * A placed unit: one or more real 3D mech meshes standing in formation
@@ -1271,4 +1319,10 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === STRONGHOLD.id) return STRONGHOLD;
     if (id === HORDE_DWARF.id) return HORDE_DWARF;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
+}
+
+/** once-per-deployment shop unlock fee — {@link UnitType.unlockCost} */
+export function unitUnlockCost(typeId: string): number {
+    const cost = unitTypeById(typeId)?.unlockCost;
+    return cost !== undefined ? cost : Number.POSITIVE_INFINITY;
 }

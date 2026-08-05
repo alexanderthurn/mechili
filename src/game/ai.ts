@@ -1,6 +1,6 @@
 import { quantizeWorld, quantizeYaw, type Action } from './actions';
+import { SHOP_UNIT_IDS } from './cards';
 import type { RoundCard, StartCard } from './cards';
-import { SHOP_UNIT_IDS, unitUnlockCost } from './cards';
 import type { PlacementController } from './placement';
 import type { Economy } from './settings';
 import {
@@ -12,7 +12,7 @@ import {
 } from './tactics';
 import type { TechTree } from './tech';
 import { techsForUnit } from './techCatalog';
-import { UNIT_TYPES, unitTypeById, type Team } from './units';
+import { UNIT_TYPES, unitTypeById, unitUnlockCost, type Team } from './units';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 

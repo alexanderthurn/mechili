@@ -25,11 +25,12 @@ export type GroundTextureTier = 'low' | 'medium' | 'high' | 'ultra';
  */
 export const PHOTO_BLEND = {
     grass: {
-        density: 0.3,
-        cellScale: 1.15,
-        radius: 0.1,
-        strength: 5,
-        uvScale: 3.4,
+        // Broad soft coverage; photo-2 is UV-bombed + multiplied with photo-0
+        density: 0.7,
+        cellScale: 0.38,
+        radius: 0.95,
+        strength: 0.7,
+        uvScale: 2.2,
     },
     rock: {
         density: 1,
@@ -50,20 +51,18 @@ export const PHOTO_BLEND = {
 export const GROUND_UNIT_Y = -0.08;
 
 /**
- * Footprint / wear dirt (`dirt-albedo-hq`) — NOT the grass photo accents.
- * Shows under unit stamps + sparse base patches at match start.
+ * Footprint / wear dirt (`dirt-albedo-hq` on high/ultra, sand otherwise).
+ * Live stamps only — no match-start mud under bases.
  *
- * - basePatchArea: lower divisor → more random dirt patches (try 12000–40000)
- * - basePatchAlpha: how strong those starting patches look (0.2–0.8)
  * - stampStrength: multiplies every footprint stamp (0.5–2)
  * - stampRadius: multiplies footprint size (0.7–1.5)
+ * - grassStampShow: how hard dirt trails read on green grass (0.3–1).
+ *   Snow tracks stay full strength (shader mixes this → 1 with snowMask).
  */
 export const WEAR_BLEND = {
-    // denser start patches (~2× prior 22000); leave headroom for footprints
-    basePatchArea: 11000,
-    basePatchAlpha: 0.55,
     stampStrength: 1,
     stampRadius: 1,
+    grassStampShow: 0.45,
 } as const;
 
 export interface GroundMaterialProfile {

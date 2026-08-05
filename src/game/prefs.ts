@@ -34,8 +34,8 @@ export interface Prefs {
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
      * - ultra: wall of trees just past the board edge (still instanced)
-     * - high: dense forests outside the board
-     * - medium: standard mountains / lakes / forests (former "full")
+     * - high: dense forests outside the board + Tripo near board
+     * - medium: billboard forest (no low-poly cones; no tree blob shadows)
      * - low: flat board + flat green world, no decoration
      */
     scenery: SceneryQuality;

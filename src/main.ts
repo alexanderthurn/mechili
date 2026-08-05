@@ -53,7 +53,7 @@ import {
     type MultiplayerTransport,
 } from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
-import { getCachedProfile, isProfileLockedOut, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
+import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, wireAvatar } from './game/avatar';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
@@ -63,14 +63,19 @@ import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { iconHtml } from './ui/iconAtlas';
 import {
+    COMMANDER_HP_FACTOR_OPTIONS,
     CUSTOM_GAME_PACE_PRESETS,
+    DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
     DEFAULT_SETTINGS,
     HORDE_ALGORITHMS,
+    commanderHpFactorOption,
     customGamePaceById,
+    formatCommanderHpFactorOption,
     formatCustomGamePaceOption,
     hordeAlgorithmById,
+    resolveCommanderHpFactor,
     type GameSettings,
 } from './game/settings';
 import {
@@ -120,6 +125,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     pace: DEFAULT_CUSTOM_GAME_PACE_ID,
     hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
+    commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
 };
 
 const CUSTOM_GAME_KEY = 'mechili-custom-game';
@@ -160,6 +166,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             pace: customGamePaceById(pace).id,
             hordePreset: hordeAlgorithmById(hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
+            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
         };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
@@ -182,17 +189,15 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.cardTimeSeconds = pace.cardSeconds;
     settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
     settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
+    settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
 }
 
-// dev override: tweak match settings from the URL, e.g. ?hp=100&build=20&nocards
+// dev override: tweak match settings from the URL, e.g. ?build=20&nocards
 function settingsFromUrl(): GameSettings {
     const params = new URLSearchParams(location.search);
     const settings = structuredClone(DEFAULT_SETTINGS);
-    // NOTE: no longer shortens real matches for testing — actual match HP is
-    // additive per seat from a zero baseline (chooseCard), so this only
-    // affects the pre-pick placeholder shown before any card is chosen
-    const hp = Number(params.get('hp'));
-    if (hp > 0) settings.startingHp = hp;
+    const hpFactor = Number(params.get('commanderHpFactor') ?? params.get('hpFactor'));
+    if (hpFactor > 0) settings.commanderHpFactor = hpFactor;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
     // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
@@ -300,6 +305,16 @@ function createThreeCanvas(): HTMLCanvasElement {
 let threeCanvas = createThreeCanvas();
 wrapper.appendChild(threeCanvas);
 
+/** Match-only HUD/overlays — wiped on return-to-menu so leftovers can't survive.
+ *  Must sit above the 3D/Pixi canvases (appended later) or those steal all clicks.
+ *  pointer-events:none on the root so an empty shell never blocks the menu;
+ *  Hud.mount sets auto on each child. z-index below menu chrome (30). */
+const matchUiRoot = document.createElement('div');
+matchUiRoot.id = 'match-ui-root';
+matchUiRoot.style.cssText =
+    'position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:10;';
+wrapper.appendChild(matchUiRoot);
+
 function replaceThreeCanvas(): void {
     discardPrewarmedRenderer();
     threeCanvas.remove();
@@ -312,6 +327,7 @@ function replaceThreeCanvas(): void {
 document.body.appendChild(wrapper);
 
 // Loading chrome first — Feuerware + bar show before Pixi / Melodan logo finish.
+// Match HUD CSS is owned by Hud (permanent shared sheet — never torn down).
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
@@ -610,7 +626,7 @@ const menu = document.createElement('div');
 menu.className = 'mechili-menu';
 menu.style.display = 'none';
 menu.innerHTML = `
-    <div class="m-main">
+    <div class="m-view m-main is-active" data-view="main">
         <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">Single Player</span></button>
         <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">Matchmaking (WEB)</span></button>
         <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label">Custom Game (WEB)</span></button>
@@ -622,7 +638,7 @@ menu.innerHTML = `
             <div class="m-room-list empty">No open Web Games</div>
         </div>
     </div>
-    <div class="m-spmode" style="display:none">
+    <div class="m-view m-spmode" data-view="sp">
         <div class="m-spmode-title">Single Player</div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
@@ -631,7 +647,7 @@ menu.innerHTML = `
         </div>
         <button class="m-btn m-small" data-mode="sp-back">Back</button>
     </div>
-    <div class="m-matchmaking" style="display:none">
+    <div class="m-view m-matchmaking" data-view="matchmaking">
         <div class="m-spmode-title">Matchmaking</div>
         <!-- mode/Horde choice hidden for now (focus: 1v1 Horde only) — not
              removed, just forced+hidden, so it's a one-line revert later -->
@@ -659,7 +675,7 @@ menu.innerHTML = `
             <button class="m-btn m-primary m-small" data-mode="mm-play">Play</button>
         </div>
     </div>
-    <div class="m-mm-simple" style="display:none">
+    <div class="m-view m-mm-simple" data-view="mm-simple">
         <div class="m-spmode-title">Matchmaking</div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="mms-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
@@ -668,7 +684,7 @@ menu.innerHTML = `
         </div>
         <button class="m-btn m-small" data-mode="mms-back">Back</button>
     </div>
-    <div class="m-custom" style="display:none">
+    <div class="m-view m-custom" data-view="custom">
         <div class="m-spmode-title">Custom Game</div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="cg-host-1v1">
@@ -686,26 +702,36 @@ menu.innerHTML = `
         </div>
         <button class="m-btn m-small" data-mode="cg-back">Back</button>
     </div>
-    <div class="m-status" style="display:none"></div>
-    <div class="m-roster-table" style="display:none"></div>
-    <label class="m-lobby-ready-row" style="display:none">
-        <input type="checkbox" class="m-lobby-ready-check">
-        I'm ready
-    </label>
-    <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
-    <div class="m-lobby-settings" style="display:none">
-        <label class="m-field">Pace
-            <select class="cg-pace"></select>
-        </label>
-        <label class="m-field">Horde
-            <select class="cg-horde"></select>
-        </label>
-        <label class="m-field">Round cards
-            <select class="cg-roundcards"></select>
-        </label>
+    <div class="m-view m-session" data-view="session">
+        <div class="m-status" style="display:none"></div>
+        <div class="m-session-layout">
+            <div class="m-session-primary">
+                <div class="m-roster-table" style="display:none"></div>
+                <label class="m-lobby-ready-row" style="display:none">
+                    <input type="checkbox" class="m-lobby-ready-check">
+                    I'm ready
+                </label>
+                <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
+                <button class="m-btn m-small" data-mode="startstar" style="display:none">Start Match</button>
+                <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
+            </div>
+            <div class="m-lobby-settings">
+                <label class="m-field">Pace
+                    <select class="cg-pace"></select>
+                </label>
+                <label class="m-field">Horde
+                    <select class="cg-horde"></select>
+                </label>
+                <label class="m-field">Round cards
+                    <select class="cg-roundcards"></select>
+                </label>
+                <label class="m-field">HP
+                    <select class="cg-commander-hp"></select>
+                </label>
+                <button type="button" class="m-lobby-settings-reset" hidden>Reset to defaults</button>
+            </div>
+        </div>
     </div>
-    <button class="m-btn m-small" data-mode="startstar" style="display:none">Start Match</button>
-    <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
 `;
 wrapper.appendChild(menu);
 layoutTitle();
@@ -932,46 +958,174 @@ const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
 const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
 const mmSimpleEl = menu.querySelector<HTMLDivElement>('.m-mm-simple')!;
 const customEl = menu.querySelector<HTMLDivElement>('.m-custom')!;
+const sessionEl = menu.querySelector<HTMLDivElement>('.m-session')!;
 const cgPaceEl = menu.querySelector<HTMLSelectElement>('.cg-pace')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
+const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
+const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
+const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
+
+/** Exclusive menu screens — only one is active at a time. Session owns
+ *  connecting / lobby / waiting UI so main never stacks under it. */
+type MenuViewId = 'main' | 'sp' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+const menuViews: Record<MenuViewId, HTMLElement> = {
+    main: mainButtonsEl,
+    sp: spModeEl,
+    custom: customEl,
+    matchmaking: mmModeEl,
+    'mm-simple': mmSimpleEl,
+    session: sessionEl,
+};
+let currentMenuView: MenuViewId = 'main';
+let statusClearTimer: ReturnType<typeof setTimeout> | null = null;
+/** Hosting handles — cleared when leaving session unexpectedly. */
+let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
+let steamStarHosting: { hub: SteamStarHub; lobbyId: string } | null = null;
+/** a cancellable in-flight connection attempt (matchmaking probe, star
+ *  join/host, Steam join) — only ever cancelled or checked for busyness,
+ *  never awaited on directly here */
+let pending: { cancel: () => void } | null = null;
+
+/** Wipe session chrome so a drop / cancel / return never leaves roster
+ *  leftovers visible the next time session opens. */
+function resetSessionChrome(): void {
+    if (statusClearTimer) {
+        clearTimeout(statusClearTimer);
+        statusClearTimer = null;
+    }
+    statusEl.style.display = 'none';
+    statusEl.textContent = '';
+    cancelEl.style.display = 'none';
+    startStarBtn.style.display = 'none';
+    clearRosterTable();
+    clearLobbySettings();
+}
+
+/**
+ * Switch to exactly one menu screen. Leaving `session` always clears its
+ * chrome so connection drops / cancel / Escape can't leave mixed UI.
+ */
+function showMenuView(view: MenuViewId): void {
+    if (currentMenuView === 'session' && view !== 'session') {
+        resetSessionChrome();
+    }
+    currentMenuView = view;
+    for (const [id, el] of Object.entries(menuViews) as [MenuViewId, HTMLElement][]) {
+        el.classList.toggle('is-active', id === view);
+    }
+    scheduleLayoutTitle();
+}
+
+/** True while a live host/join wait is still owned by menu chrome. */
+function isSessionBusy(): boolean {
+    return !!(pending || starHosting || steamStarHosting);
+}
 /** collapsed by default every time a lobby is (re)entered — see
  *  clearLobbySettings(). Persists across refresh() calls within the
  *  same lobby so re-rendering the roster doesn't fight the user's own
- *  expand/collapse click. */
+ *  expand/collapse click. Auto-opens only on first show when the saved
+ *  pace/horde/cards differ from defaults. Desktop keeps the toggle and
+ *  parks the panel beside the roster when open. */
 let lobbySettingsExpanded = false;
+let lobbySettingsAvailable = false;
 lobbySettingsToggleEl.addEventListener('click', () => {
     lobbySettingsExpanded = !lobbySettingsExpanded;
     applyLobbySettingsExpanded();
 });
 function applyLobbySettingsExpanded(): void {
-    lobbySettingsEl.style.display = lobbySettingsExpanded ? '' : 'none';
+    sessionEl.classList.toggle('m-has-lobby-settings', lobbySettingsAvailable);
+    sessionEl.classList.toggle('m-lobby-settings-open', lobbySettingsAvailable && lobbySettingsExpanded);
+    lobbySettingsToggleEl.style.display = lobbySettingsAvailable ? '' : 'none';
     lobbySettingsToggleEl.textContent = lobbySettingsExpanded ? 'Advanced settings ▾' : 'Advanced settings ▸';
+    scheduleLayoutTitle();
+}
+
+/** Short closed-select label — full blurb lives after " — ". */
+function shortSelectLabel(full: string): string {
+    const i = full.indexOf(' — ');
+    return i >= 0 ? full.slice(0, i) : full;
+}
+
+/** Closed state shows a short name; opening the list reveals the full blurb. */
+function fillSelectOption(opt: HTMLOptionElement, short: string, full: string): void {
+    opt.dataset.short = short;
+    opt.dataset.full = full;
+    opt.textContent = short;
+}
+
+function syncSelectOptionLabels(select: HTMLSelectElement, full: boolean): void {
+    for (const opt of Array.from(select.options)) {
+        const short = opt.dataset.short ?? opt.textContent ?? '';
+        const long = opt.dataset.full ?? short;
+        opt.textContent = full ? long : short;
+    }
+}
+
+function wireSelectShortLabels(select: HTMLSelectElement): void {
+    select.addEventListener('focus', () => syncSelectOptionLabels(select, true));
+    select.addEventListener('mousedown', () => syncSelectOptionLabels(select, true));
+    select.addEventListener('blur', () => syncSelectOptionLabels(select, false));
+    select.addEventListener('change', () => syncSelectOptionLabels(select, false));
 }
 
 for (const pace of CUSTOM_GAME_PACE_PRESETS) {
     const opt = document.createElement('option');
     opt.value = pace.id;
-    opt.textContent = formatCustomGamePaceOption(pace);
+    fillSelectOption(opt, pace.label, formatCustomGamePaceOption(pace));
     cgPaceEl.appendChild(opt);
 }
+wireSelectShortLabels(cgPaceEl);
 
 for (const algo of HORDE_ALGORITHMS) {
     const opt = document.createElement('option');
     opt.value = algo.id;
-    opt.textContent = algo.describe();
+    const full = algo.describe();
+    fillSelectOption(opt, shortSelectLabel(full), full);
     cgHordeEl.appendChild(opt);
 }
+wireSelectShortLabels(cgHordeEl);
 
 for (const algo of ROUND_CARD_ALGORITHMS) {
     const opt = document.createElement('option');
     opt.value = algo.id;
-    opt.textContent = algo.describe();
+    const full = algo.describe();
+    fillSelectOption(opt, shortSelectLabel(full), full);
     cgRoundCardsEl.appendChild(opt);
+}
+wireSelectShortLabels(cgRoundCardsEl);
+
+for (const optHp of COMMANDER_HP_FACTOR_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = String(optHp.factor);
+    fillSelectOption(opt, optHp.label, formatCommanderHpFactorOption(optHp));
+    cgCommanderHpEl.appendChild(opt);
+}
+wireSelectShortLabels(cgCommanderHpEl);
+
+function defaultLobbySettings(): Pick<
+    CustomGameConfig,
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor'
+> {
+    return {
+        pace: DEFAULT_CUSTOM_GAME_PACE_ID,
+        hordePreset: DEFAULT_HORDE_PRESET_ID,
+        roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
+        commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    };
+}
+
+function isNonDefaultLobbySettings(cfg: CustomGameConfig): boolean {
+    return (
+        cfg.pace !== DEFAULT_CUSTOM_GAME_PACE_ID ||
+        cfg.hordePreset !== DEFAULT_HORDE_PRESET_ID ||
+        cfg.roundCardPreset !== DEFAULT_ROUND_CARD_PRESET_ID ||
+        cfg.commanderHpFactor !== DEFAULT_COMMANDER_HP_FACTOR
+    );
 }
 
 /** Custom Game's mode (1v1/1v1ai/2v2/2v2ai) is now fixed at the moment
@@ -983,54 +1137,130 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgPaceEl.value = customGamePaceById(cfg.pace).id;
     cgHordeEl.value = hordeAlgorithmById(cfg.hordePreset).id;
     cgRoundCardsEl.value = roundCardAlgorithmById(cfg.roundCardPreset).id;
+    cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
+    // Always short in the closed box — hosts open the list for details;
+    // guests get a hover/tap tip (see wireLobbySettingTips).
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
+        syncSelectOptionLabels(sel, false);
+    }
+    syncLobbySettingsResetVisibility(cfg);
 }
 
-function readLobbySettingsForm(): Pick<CustomGameConfig, 'pace' | 'hordePreset' | 'roundCardPreset'> {
+/** Host-only: show "Reset to defaults" only when pace/horde/cards/HP differ. */
+function syncLobbySettingsResetVisibility(cfg: CustomGameConfig): void {
+    cgResetEl.hidden = !activeLobbyHost || !isNonDefaultLobbySettings(cfg);
+}
+
+function selectedLobbyOptionFull(select: HTMLSelectElement): string {
+    const opt = select.selectedOptions[0];
+    return opt?.dataset.full ?? opt?.textContent ?? '';
+}
+
+let lobbySettingTipEl: HTMLDivElement | null = null;
+let lobbySettingTipSticky = false;
+let lobbySettingTipAnchor: HTMLElement | null = null;
+
+function hideLobbySettingTip(): void {
+    lobbySettingTipEl?.remove();
+    lobbySettingTipEl = null;
+    lobbySettingTipSticky = false;
+    lobbySettingTipAnchor = null;
+}
+
+function positionLobbySettingTip(anchor: HTMLElement): void {
+    if (!lobbySettingTipEl) return;
+    const r = anchor.getBoundingClientRect();
+    const tip = lobbySettingTipEl;
+    tip.style.left = '0';
+    tip.style.top = '0';
+    tip.style.visibility = 'hidden';
+    tip.style.display = 'block';
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    const pad = 8;
+    let left = r.left;
+    let top = r.bottom + 6;
+    if (left + tw > window.innerWidth - pad) left = Math.max(pad, window.innerWidth - tw - pad);
+    if (top + th > window.innerHeight - pad) top = Math.max(pad, r.top - th - 6);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+    tip.style.visibility = '';
+}
+
+function showLobbySettingTip(anchor: HTMLElement, text: string, sticky: boolean): void {
+    if (!text) {
+        hideLobbySettingTip();
+        return;
+    }
+    if (!lobbySettingTipEl) {
+        lobbySettingTipEl = document.createElement('div');
+        lobbySettingTipEl.className = 'm-lobby-setting-tip';
+        wrapper.appendChild(lobbySettingTipEl);
+    }
+    lobbySettingTipEl.textContent = text;
+    lobbySettingTipEl.classList.toggle('sticky', sticky);
+    lobbySettingTipSticky = sticky;
+    lobbySettingTipAnchor = anchor;
+    positionLobbySettingTip(anchor);
+}
+
+/** Guest (disabled) fields: short labels in the box, full blurb on hover /
+ *  tap — disabled <select>s don't receive pointer events, so the parent
+ *  .m-field owns the interaction. */
+function wireLobbySettingTips(): void {
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
+        const field = sel.closest<HTMLElement>('.m-field');
+        if (!field) continue;
+        field.addEventListener('pointerenter', (e) => {
+            if (!sel.disabled) return;
+            if (e.pointerType === 'touch') return;
+            showLobbySettingTip(field, selectedLobbyOptionFull(sel), false);
+        });
+        field.addEventListener('pointerleave', () => {
+            if (!lobbySettingTipSticky) hideLobbySettingTip();
+        });
+        field.addEventListener('click', (e) => {
+            if (!sel.disabled) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const text = selectedLobbyOptionFull(sel);
+            if (lobbySettingTipSticky && lobbySettingTipAnchor === field) hideLobbySettingTip();
+            else showLobbySettingTip(field, text, true);
+        });
+    }
+    document.addEventListener('pointerdown', (e) => {
+        if (!lobbySettingTipSticky || !lobbySettingTipEl) return;
+        const t = e.target as Node;
+        if (lobbySettingTipEl.contains(t)) return;
+        if ((e.target as HTMLElement | null)?.closest?.('.m-lobby-settings .m-field')) return;
+        if ((e.target as HTMLElement | null)?.closest?.('.m-roster-seat')) return;
+        hideLobbySettingTip();
+    });
+}
+wireLobbySettingTips();
+
+function readLobbySettingsForm(): Pick<
+    CustomGameConfig,
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor'
+> {
     return {
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
+        commanderHpFactor: commanderHpFactorOption(Number(cgCommanderHpEl.value)),
     };
 }
 
-/** undoes 'custom' case's wide-layout/no-logo treatment — shared by both
- *  Back (return to the normal-width main menu) and actually hosting
- *  (the shared waiting-for-connection status screen is normal-width too) */
-function closeCustomGameScreen(): void {
-    customEl.style.display = 'none';
-    menu.classList.remove('m-wide');
-    title.visible = true;
-    scheduleLayoutTitle();
-}
-
-/** host a game in the given mode — every mode reuses beginStarHost now
- *  (1v1 is just a 2-seat star room), with the mode-appropriate roster +
- *  join threshold (see beginStarHost's own doc comment: *ai isn't a
- *  different wire mode, just a lower waitFor). 1v1ai's waitForJoined=1
- *  means Start is available the instant the room opens — the "AI"
- *  placeholder appears in the roster table immediately (see
- *  renderRosterTable's guaranteedAiFrom derivation) since no other
- *  human is ever waited for, same idea as 2v2ai's opponent side.
- *
- *  Unlike the old form-based flow, `mode` is fixed the moment one of the
- *  Custom Game screen's 4 buttons is clicked — pace/horde/round-cards
- *  start from whatever was last saved and stay live-tunable afterward,
- *  in the waiting room's .m-lobby-settings panel (wired inside
- *  beginStarHost's/wireSteamStarHub's own refresh()).
- *
- *  Completely separate code path from the top-level menu's "Single
- *  Player" button (startLocalMatch/'single'/'sp-*' cases) — that one
- *  stays a true local-only game with no networking at all. */
+/** Custom Game mode is fixed when a host button is clicked — pace/horde/
+ *  round-cards stay live-tunable in the waiting-room settings panel. */
 function hostCustomGame(mode: CustomGameMode): void {
     const cfg: CustomGameConfig = { ...loadCustomGameConfig(), mode };
     saveCustomGameConfig(cfg);
-    closeCustomGameScreen();
-    mainButtonsEl.style.display = 'none';
+    showMenuView('session');
     void (async () => {
         const transport = await resolveMultiplayerTransport();
         if (!transport) {
             setStatus(transportUnavailableMessage());
-            mainButtonsEl.style.display = '';
             return;
         }
         if (transport === 'steam') {
@@ -1073,10 +1303,6 @@ function hostCustomGame(mode: CustomGameMode): void {
 }
 
 let started = false;
-/** a cancellable in-flight connection attempt (matchmaking probe, star
- *  join/host, Steam join) — only ever cancelled or checked for busyness,
- *  never awaited on directly here */
-let pending: { cancel: () => void } | null = null;
 /** true after 3D assets finish loading — match starts wait for this */
 let bootReady = false;
 let roomPoll: ReturnType<typeof setTimeout> | null = null;
@@ -1100,11 +1326,10 @@ function hideResumeOverlay(): void {
 function refreshUsernameLabel(): void {
     const name = getPlayerName();
     const profile = getCachedProfile();
-    if (isProfileLockedOut()) {
-        usernameTextEl.textContent = `${name} · 🔒`;
-    } else {
-        usernameTextEl.textContent = profile ? `${name} · ${profile.mmr}` : name;
-    }
+    // Password UI is inactive — never show a lock badge. If the backend still
+    // has a password on this name (legacy), we simply omit MMR until a session
+    // exists; the local display name still works for lobbies / matches.
+    usernameTextEl.textContent = profile ? `${name} · ${profile.mmr}` : name;
     const avatar = getAvatarDataUrl();
     if (avatar) {
         usernameAvatarEl.src = avatar;
@@ -1295,8 +1520,6 @@ usernameEl.addEventListener('click', () => {
     showNameEditor();
 });
 
-let statusClearTimer: ReturnType<typeof setTimeout> | null = null;
-
 /**
  * `autoDismissMs`: for a TERMINAL message (host closed the room, rejected,
  * version mismatch) — there's no pending operation left for the Cancel
@@ -1305,23 +1528,40 @@ let statusClearTimer: ReturnType<typeof setTimeout> | null = null;
  * browsing the room list (live-reported: still showing minutes later).
  * Omit for an in-progress status, where the text disappearing on its own
  * while still connecting/hosting would be actively misleading.
+ *
+ * Non-empty status always owns the exclusive `session` view so it can never
+ * stack under the main menu. Clearing a dismissed terminal message returns
+ * to main when nothing else is holding the session open.
  */
 function setStatus(text: string, autoDismissMs?: number): void {
     if (statusClearTimer) {
         clearTimeout(statusClearTimer);
         statusClearTimer = null;
     }
-    statusEl.style.display = text ? '' : 'none';
-    statusEl.textContent = text;
-    cancelEl.style.display = text ? '' : 'none';
-    if (text && autoDismissMs) {
-        statusClearTimer = setTimeout(() => setStatus(''), autoDismissMs);
+    if (text) {
+        if (currentMenuView !== 'session') showMenuView('session');
+        statusEl.style.display = '';
+        statusEl.textContent = text;
+        cancelEl.style.display = '';
+        if (autoDismissMs) {
+            statusClearTimer = setTimeout(() => {
+                setStatus('');
+                if (currentMenuView === 'session' && !isSessionBusy()) {
+                    showMenuView('main');
+                }
+            }, autoDismissMs);
+        }
+    } else {
+        statusEl.style.display = 'none';
+        statusEl.textContent = '';
+        cancelEl.style.display = 'none';
     }
 }
 
 /** hides the host-waiting-room seat table (see renderRosterTable) — call
  *  whenever hosting stops, whether cancelled or a match actually starts */
 function clearRosterTable(): void {
+    hideLobbySettingTip();
     rosterTableEl.style.display = 'none';
     rosterTableEl.innerHTML = '';
 }
@@ -1337,11 +1577,21 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
     const onChange = () => {
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, readLobbySettingsForm());
+        saveCustomGameConfig(activeLobbyHost.config);
+        syncLobbySettingsResetVisibility(activeLobbyHost.config);
         activeLobbyHost.onChange();
     };
     cgPaceEl.addEventListener('change', onChange);
     cgHordeEl.addEventListener('change', onChange);
     cgRoundCardsEl.addEventListener('change', onChange);
+    cgCommanderHpEl.addEventListener('change', onChange);
+    cgResetEl.addEventListener('click', () => {
+        if (!activeLobbyHost) return;
+        Object.assign(activeLobbyHost.config, defaultLobbySettings());
+        populateLobbySettingsForm(activeLobbyHost.config);
+        saveCustomGameConfig(activeLobbyHost.config);
+        activeLobbyHost.onChange();
+    });
 })();
 
 /** host-side only: show + populate the editable lobby-settings panel for
@@ -1350,14 +1600,20 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
  *  button-gating all happen through the exact same path a roster change
  *  already goes through. Idempotent — safe to call on every refresh(). */
 function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () => void): void {
+    const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = { config, onChange: onSettingsChanged };
-    lobbySettingsToggleEl.style.display = '';
+    lobbySettingsAvailable = true;
+    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config);
+    lobbySettingsEl.classList.remove('m-readonly');
+    hideLobbySettingTip();
     applyLobbySettingsExpanded();
     // the host doesn't ready up — clicking Start IS their commitment
     lobbyReadyRowEl.style.display = 'none';
     cgPaceEl.disabled = false;
     cgHordeEl.disabled = false;
     cgRoundCardsEl.disabled = false;
+    cgCommanderHpEl.disabled = false;
+    cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
 }
 
@@ -1368,13 +1624,18 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
  *  locally, since the host can reset it server-side (a settings change)
  *  without this client doing anything. */
 function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boolean) => void): void {
+    const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = null;
-    lobbySettingsToggleEl.style.display = '';
+    lobbySettingsAvailable = true;
+    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config);
+    lobbySettingsEl.classList.add('m-readonly');
     applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = '';
     cgPaceEl.disabled = true;
     cgHordeEl.disabled = true;
     cgRoundCardsEl.disabled = true;
+    cgCommanderHpEl.disabled = true;
+    cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }
@@ -1385,8 +1646,10 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
  *  back to its default closed state for the NEXT lobby too. */
 function clearLobbySettings(): void {
     activeLobbyHost = null;
-    lobbySettingsToggleEl.style.display = 'none';
+    lobbySettingsAvailable = false;
     lobbySettingsExpanded = false;
+    lobbySettingsEl.classList.remove('m-readonly');
+    hideLobbySettingTip();
     applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = 'none';
     lobbyReadyCheckEl.checked = false;
@@ -1421,8 +1684,9 @@ const OPEN_SEAT_NAME = 'Waiting…';
  * A visible "who's actually here" table, usable from EITHER the host's
  * or a guest's own perspective (`mySeat` — always 0 for the host, the
  * guest's own seat index otherwise, found by name-matching the roster —
- * see bindStarGuestSession's 'starRoster' handling). Columns = sides
- * (yours first, then the opponent's), rows = one per seat on that side.
+ * see bindStarGuestSession's 'starRoster' handling). Columns = canonical
+ * teams (Team 1 / side a, then Team 2 / side b) with a centered "vs",
+ * rows = one per seat on that side. Your own seat is still marked "(you)".
  * Every seat always renders (roster entries carry a "Waiting…"
  * placeholder name until filled), so an empty seat is never just...
  * missing — it's a dashed, muted box, visually distinct from a filled
@@ -1454,7 +1718,6 @@ function renderRosterTable(
 ): void {
     rosterTableEl.innerHTML = '';
     rosterTableEl.style.display = '';
-    const mySide = roster[mySeat]?.side ?? roster[0]?.side;
     const cols = document.createElement('div');
     cols.className = 'm-roster-cols';
     const bySide = new Map<string, SeatId[]>();
@@ -1463,17 +1726,24 @@ function renderRosterTable(
         arr.push(i);
         bySide.set(s.side, arr);
     });
-    // your side first, always — sides beyond 'a'/'b' would sort arbitrarily
-    // otherwise, and "you" belongs on the left regardless of side order
-    const sides = [...bySide.keys()].sort((a, b) => (a === mySide ? -1 : b === mySide ? 1 : 0));
+    // Canonical team order (a = Team 1, b = Team 2) — same on every client.
+    const sides = [...bySide.keys()].sort((a, b) => a.localeCompare(b));
     const guaranteedAiFrom = waitForJoined - 1; // join-rank (0-based, excludes host) beyond which a seat can't be human
     let openRank = 0;
-    for (const side of sides) {
+    sides.forEach((side, sideIndex) => {
+        if (sideIndex > 0) {
+            const vs = document.createElement('div');
+            vs.className = 'm-roster-vs';
+            vs.textContent = 'vs';
+            vs.setAttribute('aria-hidden', 'true');
+            cols.appendChild(vs);
+        }
         const col = document.createElement('div');
-        col.className = `m-roster-col ${side === mySide ? 'm-roster-col-you' : 'm-roster-col-foe'}`;
+        const teamNum = side === 'a' ? 1 : side === 'b' ? 2 : sideIndex + 1;
+        col.className = `m-roster-col m-roster-col-${side}`;
         const header = document.createElement('div');
         header.className = 'm-roster-col-header';
-        header.textContent = side === mySide ? 'Your Side' : 'Opponent';
+        header.textContent = `Team ${teamNum}`;
         col.appendChild(header);
         for (const seat of bySide.get(side)!) {
             const filled = roster[seat]!.name !== OPEN_SEAT_NAME;
@@ -1483,11 +1753,30 @@ function renderRosterTable(
             cell.className = `m-roster-seat ${filled ? 'filled' : guaranteedAi ? 'ai' : 'empty'}${seat === mySeat ? ' you' : ''}`;
             const label = document.createElement('span');
             label.className = 'm-roster-seat-name';
-            label.textContent = filled
+            const displayName = filled
                 ? `${roster[seat]!.name}${seat === mySeat ? ' (you)' : ''}`
                 : guaranteedAi
                   ? 'AI'
                   : OPEN_SEAT_NAME;
+            label.textContent = displayName;
+            if (filled) {
+                // Truncated seats still expose the full name on hover / tap.
+                cell.addEventListener('pointerenter', (e) => {
+                    if (e.pointerType === 'touch') return;
+                    if (label.scrollWidth <= label.clientWidth + 1) return;
+                    showLobbySettingTip(cell, displayName, false);
+                });
+                cell.addEventListener('pointerleave', () => {
+                    if (!lobbySettingTipSticky) hideLobbySettingTip();
+                });
+                cell.addEventListener('click', (e) => {
+                    if ((e.target as HTMLElement).closest('.m-roster-kick')) return;
+                    if (label.scrollWidth <= label.clientWidth + 1) return;
+                    e.stopPropagation();
+                    if (lobbySettingTipSticky && lobbySettingTipAnchor === cell) hideLobbySettingTip();
+                    else showLobbySettingTip(cell, displayName, true);
+                });
+            }
             cell.appendChild(label);
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
@@ -1511,24 +1800,14 @@ function renderRosterTable(
             col.appendChild(cell);
         }
         cols.appendChild(col);
-    }
+    });
     rosterTableEl.appendChild(cols);
 }
 
 /**
- * Every long-running connect/host/join/spectate operation calls this at
- * its start (busy=true) and its final resolution (busy=false — either a
- * rejection back to the idle menu, or the match/spectate view about to
- * take over the whole screen). Folding the top-level menu buttons'
- * visibility in here — not just disabling them — is what actually keeps
- * the main menu and a connecting/lobby screen from ever being visible at
- * once: every one of these call sites already needs setMenuBusy(true)
- * regardless, so this makes "hide the main menu" automatic instead of a
- * second call each site has to separately remember (found live: a guest
- * mid-join/mid-lobby could still see the main menu buttons showing
- * through, stacked on top of the roster table — beginStarJoin never hid
- * them at all, and while the lobby table is up, busy never got set back
- * to false to trigger any OTHER "show it again" cleanup path either).
+ * Disable interactive menu buttons during a long-running connect/host/join.
+ * Visibility is owned exclusively by showMenuView — this must NOT re-show
+ * the main menu when busy clears (that was stacking main under lobby UI).
  */
 function setMenuBusy(busy: boolean): void {
     menu.querySelectorAll<HTMLButtonElement>('.m-btn:not(.m-cancel)').forEach((b) => {
@@ -1537,7 +1816,6 @@ function setMenuBusy(busy: boolean): void {
     roomListEl.querySelectorAll<HTMLButtonElement>('.m-room').forEach((b) => {
         b.disabled = busy;
     });
-    mainButtonsEl.style.display = busy ? 'none' : '';
 }
 
 /**
@@ -1727,6 +2005,13 @@ function finishReturnToMenu(): void {
     clearMatchResumeData();
     activeGame?.destroy();
     activeGame = null;
+    // Belt-and-suspenders: Hud.destroy should already clear this, but any
+    // orphan (reconnect cards, settings, pause leftovers) must not outlive
+    // the match — wipe the dedicated match root before the menu returns.
+    matchUiRoot.replaceChildren();
+    document.querySelector('.mechili-settings')?.remove();
+    document.querySelector('.mechili-touchtip')?.remove();
+    document.querySelector('.forge-slot-preview')?.remove();
     replayControlsPanel?.remove();
     replayControlsPanel = null;
     currentReplayRecord = null;
@@ -1752,18 +2037,8 @@ function finishReturnToMenu(): void {
     };
     requestAnimationFrame(step);
     // Reset to the top-level panel regardless of which sub-panel was
-    // showing when the match started (Matchmaking/Single Player/Rooms all
-    // hide mainButtonsEl and show their own panel, but nothing was ever
-    // resetting that back on return — the menu container itself became
-    // visible again via setMenuChromeVisible below, but with every child
-    // still hidden from mid-flow, rendering as an empty, collapsed frame;
-    // a spectator reaches the game through a different button entirely
-    // and never touches these, which is why only real players hit this).
-    spModeEl.style.display = 'none';
-    mmModeEl.style.display = 'none';
-    mmSimpleEl.style.display = 'none';
-    closeCustomGameScreen();
-    mainButtonsEl.style.display = '';
+    // showing when the match started — exclusive views make this one call.
+    showMenuView('main');
     pending?.cancel();
     pending = null;
     cancelStarHost();
@@ -1777,7 +2052,7 @@ function finishReturnToMenu(): void {
     refreshUsernameLabel();
     void refreshOpenProfile();
     setMenuBusy(false);
-    setStatus('');
+    // status already cleared by showMenuView('main') above
     setMenuChromeVisible(true);
 }
 
@@ -1875,7 +2150,7 @@ function startGame(
         const game = new Game(
             app,
             threeCanvas,
-            wrapper,
+            matchUiRoot,
             settings,
             net,
             side,
@@ -2349,6 +2624,7 @@ function runSteamPending(
     role: 'host' | 'guest',
     applyMode?: (settings: GameSettings) => void,
 ): void {
+    showMenuView('session');
     setMenuBusy(true);
     if (role === 'host') setStatus('Waiting for an opponent…');
     p.then((session) => {
@@ -2357,7 +2633,6 @@ function runSteamPending(
     }).catch((e: unknown) => {
         setMenuBusy(false);
         setStatus(`Could not connect: ${e instanceof Error ? e.message : e}`);
-        mainButtonsEl.style.display = '';
     });
 }
 
@@ -2407,9 +2682,6 @@ function opponentDisplayName(roster: CanonicalSeatDef[], mySeat: SeatId): string
     if (roster.length !== 2) return '2v2';
     return roster[mySeat === 0 ? 1 : 0]?.name ?? '2v2';
 }
-
-const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
-let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
 
 function cancelStarHost(): void {
     // .cleanup() alone only does lobby/heartbeat bookkeeping — deliberately
@@ -2492,6 +2764,7 @@ async function beginStarHost(
     starHordeFlag = horde;
     starCustomConfig = customConfig;
     starDiscovery = discovery;
+    showMenuView('session');
     setMenuBusy(true);
     setStatus(
         discovery === 'lan'
@@ -2708,6 +2981,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
             p.cancel();
         },
     };
+    showMenuView('session');
     setMenuBusy(true);
     p.session
         .then((session) => {
@@ -2721,7 +2995,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
             pending = null;
             setMenuBusy(false);
             if (cancelled || String(e).includes('cancelled')) {
-                setStatus('');
+                showMenuView('main');
             } else {
                 // without this, a permanently-dead host (room gone for good)
                 // leaves the StarResumeMarker in place, and the next page
@@ -2733,7 +3007,6 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
                 clearStarResumeMarker();
                 setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
             }
-            mainButtonsEl.style.display = '';
         });
 }
 
@@ -2753,10 +3026,9 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         cancelled = true;
         pending = null;
         setMenuBusy(false);
-        setStatus('Host closed the room.', 5000);
-        mainButtonsEl.style.display = '';
         clearRosterTable();
         clearLobbySettings();
+        setStatus('Host closed the room.', 5000);
     };
     // this client's OWN seat number, once known — needed both for
     // renderRosterTable's "you" highlighting and to interpret 'ready'
@@ -2807,11 +3079,10 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             // bottom of this file) — most commonly a version mismatch after
             // a bundle update, which no amount of retrying ever resolves
             clearStarResumeMarker();
-            setStatus(msg.reason, 5000);
-            session.close();
-            mainButtonsEl.style.display = '';
             clearRosterTable();
             clearLobbySettings();
+            setStatus(msg.reason, 5000);
+            session.close();
             return;
         }
         if (msg.type === 'matchCatchUp') {
@@ -2822,11 +3093,10 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
             if (msg.viewer.kind !== 'seat') return;
             if (msg.version !== GAME_VERSION) {
                 clearStarResumeMarker();
-                setStatus('Version mismatch — both players need the same game version.', 5000);
-                session.close();
-                mainButtonsEl.style.display = '';
                 clearRosterTable();
                 clearLobbySettings();
+                setStatus('Version mismatch — both players need the same game version.', 5000);
+                session.close();
                 return;
             }
             const mySeat = msg.viewer.seat;
@@ -2855,11 +3125,10 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
         // only 'starSetup' can reach here (see the guard above)
         if (msg.version !== GAME_VERSION) {
             clearStarResumeMarker();
-            setStatus('Version mismatch — both players need the same game version.', 5000);
-            session.close();
-            mainButtonsEl.style.display = '';
             clearRosterTable();
             clearLobbySettings();
+            setStatus('Version mismatch — both players need the same game version.', 5000);
+            session.close();
             return;
         }
         const settings = msg.settings;
@@ -2932,8 +3201,6 @@ async function tryAdmitStarGuest(
 // ---- Steam 2v2 (parallel to beginStarHost/startStarMatch/beginStarJoin/
 // runStarPending above; own state (steamStarHosting) since a PeerJS StarHub
 // and a SteamStarHub are never both active at once) -------------------------
-
-let steamStarHosting: { hub: SteamStarHub; lobbyId: string } | null = null;
 
 function cancelSteamStarHost(): void {
     steamStarHosting?.hub.close();
@@ -3057,6 +3324,7 @@ async function beginSteamStarHost(
     const openInvite = o.openInvite ?? !isPublic;
     const buildRoster = o.buildRoster ?? initialStarRoster;
 
+    showMenuView('session');
     setMenuBusy(true);
     setStatus('Opening Steam lobby…');
     // same missing-cancellation-check bug as beginStarHost, same fix: track
@@ -3161,10 +3429,9 @@ function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessag
         cancelled = true;
         pending = null;
         setMenuBusy(false);
-        setStatus('Host closed the room.', 5000);
-        mainButtonsEl.style.display = '';
         clearRosterTable();
         clearLobbySettings();
+        setStatus('Host closed the room.', 5000);
     };
     let mySeat: SeatId | null = null;
     const handle = (msg: NetMessage): void => {
@@ -3184,19 +3451,17 @@ function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessag
         pending = null;
         setMenuBusy(false);
         if (msg.type === 'starRejected') {
-            setStatus(msg.reason, 5000);
-            session.close();
-            mainButtonsEl.style.display = '';
             clearRosterTable();
             clearLobbySettings();
+            setStatus(msg.reason, 5000);
+            session.close();
             return;
         }
         if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
-            setStatus('Version mismatch — both players need the same game version.', 5000);
-            session.close();
-            mainButtonsEl.style.display = '';
             clearRosterTable();
             clearLobbySettings();
+            setStatus('Version mismatch — both players need the same game version.', 5000);
+            session.close();
             return;
         }
         const settings = msg.settings;
@@ -3223,6 +3488,7 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
             cancelled = true;
         },
     };
+    showMenuView('session');
     setMenuBusy(true);
     p.then((session) => {
         if (cancelled) {
@@ -3233,9 +3499,8 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
     }).catch((e: unknown) => {
         pending = null;
         setMenuBusy(false);
-        if (cancelled || String(e).includes('cancelled')) setStatus('');
+        if (cancelled || String(e).includes('cancelled')) showMenuView('main');
         else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
-        mainButtonsEl.style.display = '';
     });
 }
 
@@ -3310,7 +3575,6 @@ function test2v2Param(): number | null {
  * the rest, everyone else finds that room and joins it.
  */
 function try2v2Match(horde: boolean, waitForJoined = 2): void {
-    mmSimpleEl.style.display = 'none';
     void runQuickMatchmaking('matchmaking', {
         modeFilter: '2v2',
         hostHorde: horde,
@@ -3481,14 +3745,12 @@ async function runQuickMatchmaking(
         await hostQuickMatch(transport, opts);
     } catch (e: unknown) {
         if (cancelled || String(e).includes('cancelled')) {
-            setStatus('');
-            mainButtonsEl.style.display = '';
             setMenuBusy(false);
+            showMenuView('main');
             return;
         }
         setMenuBusy(false);
         setStatus(`Matchmaking failed: ${e instanceof Error ? e.message : e}`);
-        mainButtonsEl.style.display = '';
     }
 }
 
@@ -3497,7 +3759,6 @@ async function startMatchmakingForTransport(): Promise<void> {
     const transport = await resolveMultiplayerTransport();
     if (!transport) {
         setStatus(transportUnavailableMessage());
-        mainButtonsEl.style.display = '';
         return;
     }
     void runQuickMatchmaking(transport);
@@ -3558,13 +3819,7 @@ function cancelMenuPending(): void {
     cancelStarHost();
     cancelSteamStarHost();
     setMenuBusy(false);
-    setStatus('');
-    // a quick-match probe/wait hides every panel including mainButtonsEl
-    // (see tryQuickMatch/try2v2Match) — restore a sane menu state rather
-    // than leaving the player at a blank screen with nothing clickable
-    mmModeEl.style.display = 'none';
-    mmSimpleEl.style.display = 'none';
-    mainButtonsEl.style.display = '';
+    showMenuView('main');
 }
 
 function isMenuBlockingOverlayOpen(): boolean {
@@ -3579,9 +3834,8 @@ function isMenuBlockingOverlayOpen(): boolean {
 function closeMenuSubPanelOnEscape(): boolean {
     if (isMenuBlockingOverlayOpen()) return false;
 
-    // If we're actively waiting/connecting (the "Cancel" button is visible),
-    // Escape should cancel and restore the top-level menu.
-    if (pending || cancelEl.style.display !== 'none') {
+    // Session (connecting / lobby / waiting): Escape cancels and returns home.
+    if (currentMenuView === 'session' || pending || cancelEl.style.display !== 'none') {
         cancelMenuPending();
         return true;
     }
@@ -3592,37 +3846,13 @@ function closeMenuSubPanelOnEscape(): boolean {
         return true;
     }
 
-    // Panels (submenus) inside the main menu: back them out in priority order.
-    if (customEl.style.display !== 'none') {
-        closeCustomGameScreen();
-        mainButtonsEl.style.display = '';
-        return true;
-    }
-
-    if (mmModeEl.style.display !== 'none') {
+    // Any non-main submenu: back out to the root menu.
+    if (currentMenuView !== 'main') {
         pending = null;
         cancelStarHost();
         cancelSteamStarHost();
         setMenuBusy(false);
-        setStatus('');
-        mmModeEl.style.display = 'none';
-        mainButtonsEl.style.display = '';
-        return true;
-    }
-
-    if (mmSimpleEl.style.display !== 'none') {
-        pending = null;
-        cancelStarHost();
-        setMenuBusy(false);
-        setStatus('');
-        mmSimpleEl.style.display = 'none';
-        mainButtonsEl.style.display = '';
-        return true;
-    }
-
-    if (spModeEl.style.display !== 'none') {
-        spModeEl.style.display = 'none';
-        mainButtonsEl.style.display = '';
+        showMenuView('main');
         return true;
     }
 
@@ -3726,29 +3956,21 @@ menu.addEventListener('click', (e) => {
             startLocalMatch({ horde: true });
             break;
         case 'sp-back':
-            spModeEl.style.display = 'none';
-            mainButtonsEl.style.display = '';
+            showMenuView('main');
             break;
         case 'sp-1v1':
-            spModeEl.style.display = 'none';
-            mainButtonsEl.style.display = '';
+            showMenuView('main');
             startLocalMatch();
             break;
         case 'sp-2v2':
-            spModeEl.style.display = 'none';
-            mainButtonsEl.style.display = '';
+            showMenuView('main');
             startLocalMatch({ duo: true });
             break;
         case 'sp-horde':
-            spModeEl.style.display = 'none';
-            mainButtonsEl.style.display = '';
+            showMenuView('main');
             startLocalMatch({ horde: true });
             break;
         case 'matchmaking': {
-            spModeEl.style.display = 'none';
-            customEl.style.display = 'none';
-            mmSimpleEl.style.display = 'none';
-            mainButtonsEl.style.display = 'none';
             const test2v2 = test2v2Param();
             if (test2v2 !== null) {
                 try2v2Match(true, test2v2);
@@ -3765,9 +3987,7 @@ menu.addEventListener('click', (e) => {
             pending = null;
             cancelStarHost();
             setMenuBusy(false);
-            setStatus('');
-            mmSimpleEl.style.display = 'none';
-            mainButtonsEl.style.display = '';
+            showMenuView('main');
             break;
         case 'mm-back':
             pending?.cancel();
@@ -3775,9 +3995,7 @@ menu.addEventListener('click', (e) => {
             cancelStarHost();
             cancelSteamStarHost();
             setMenuBusy(false);
-            setStatus('');
-            mmModeEl.style.display = 'none';
-            mainButtonsEl.style.display = '';
+            showMenuView('main');
             break;
         case 'mm-invite': {
             const team = mmModeEl.querySelector<HTMLInputElement>('input[name="mmteam"]:checked')!.value;
@@ -3897,19 +4115,11 @@ menu.addEventListener('click', (e) => {
             })();
             break;
         }
-        case 'custom': {
-            spModeEl.style.display = 'none';
-            mmModeEl.style.display = 'none';
-            mmSimpleEl.style.display = 'none';
-            mainButtonsEl.style.display = 'none';
-            customEl.style.display = '';
-            menu.classList.add('m-wide');
-            title.visible = false;
+        case 'custom':
+            showMenuView('custom');
             break;
-        }
         case 'cg-back':
-            closeCustomGameScreen();
-            mainButtonsEl.style.display = '';
+            showMenuView('main');
             break;
         case 'cg-host-1v1':
             hostCustomGame('1v1');

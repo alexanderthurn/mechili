@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, type SpecialityId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -45,7 +45,7 @@ import type {
 } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
-import { unitTypeById, type Team, type Unit, type UnitType } from './units';
+import { unitTypeById, unitUnlockCost, type Team, type Unit, type UnitType } from './units';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -397,13 +397,15 @@ export interface ActionContext {
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
      */
-    /** per-SEAT buy limits (limit permanent; extra/used/extrasSpent reset per round) */
+    /** per-SEAT buy limits (limit + runesBought permanent; extra/used/extrasSpent reset per round) */
     deployState: {
         limit: number[];
         extra: number[];
         used: number[];
         /** supply spent on board extras this round (own budget, resets per round) */
         extrasSpent: number[];
+        /** shop base-rune buys this match (drives escalating rune price; not reset per round) */
+        runesBought: number[];
     };
     /** per-SEAT tier (0 = none) of each permanent army boost (own Command Tower) */
     boostState: Record<'attack' | 'hp', number[]>;
@@ -465,6 +467,11 @@ export interface ActionContext {
     unlockUsedThisRound: boolean[];
     /** player HP pools (cards set the starting value) */
     hp: { get: (team: Team) => number; set: (team: Team, hp: number) => void };
+    /**
+     * Multiplier on each commander card’s startingHp (both teams). Comes
+     * from GameSettings.commanderHpFactor — applied at chooseCard time.
+     */
+    commanderHpFactor: number;
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -673,12 +680,14 @@ export class ActionDispatcher {
                 if (!ITEMS[action.itemId]) return false;
                 const deploy = this.ctx.deployState;
                 if (deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!) return false;
-                const cost = this.ctx.deploySettings.baseRuneCost;
+                const ds = this.ctx.deploySettings;
+                const cost = ds.baseRuneCost + (deploy.runesBought[seat] ?? 0) * ds.runeCostStep;
                 if (!economy.spend(seat, cost)) return false;
                 this.ctx.items[seat]!.push(action.itemId);
                 entry.paid = cost;
                 entry.grantedItems = [action.itemId];
                 deploy.used[seat] = (deploy.used[seat] ?? 0) + 1;
+                deploy.runesBought[seat] = (deploy.runesBought[seat] ?? 0) + 1;
                 return true;
             }
             case 'move': {
@@ -873,7 +882,8 @@ export class ActionDispatcher {
                 // regardless of which seat's pick a client happens to apply
                 // first. Speciality/flankSpawnMult are plain per-seat
                 // overwrites of THIS SEAT's own slot, so they can never
-                // race with a teammate's slot either.
+                // race with a teammate's slot either. commanderHpFactor
+                // scales both teams the same (Custom Game / GameSettings).
                 if (this.ctx.starterPicked[seat]) return false;
                 const card = START_CARDS.find((c) => c.id === action.cardId);
                 if (!card) return false;
@@ -883,7 +893,8 @@ export class ActionDispatcher {
                     this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
-                this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + card.startingHp);
+                const grantedHp = Math.round(card.startingHp * this.ctx.commanderHpFactor);
+                this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + grantedHp);
                 // shop unlocks are per-SEAT (your own card decides your own
                 // buyable roster — no sharing, per-seat like items), so unlike
                 // speciality/HP above this is unconditional, not primary-only
@@ -1278,6 +1289,10 @@ export class ActionDispatcher {
                 if (i >= 0) bag.splice(i, 1);
                 economy.credit(seat, e.paid!);
                 this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
+                this.ctx.deployState.runesBought[seat] = Math.max(
+                    0,
+                    (this.ctx.deployState.runesBought[seat] ?? 0) - 1,
+                );
                 break;
             }
             case 'move':
