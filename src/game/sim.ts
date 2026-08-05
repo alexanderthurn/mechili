@@ -319,7 +319,17 @@ export type SimEvent =
     /** storm lightning bolt cue (render-only) */
     | { kind: 'spellLightning'; x: number; z: number }
     /** wizard convert finished — flash + mesh recolor hook */
-    | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam };
+    | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam }
+    /** command tower / research center destroyed — seat debuff starts/extends */
+    | {
+          kind: 'towerDebuff';
+          seat: SeatId;
+          team: BattleTeam;
+          x: number;
+          y: number;
+          z: number;
+          level: number;
+      };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
@@ -1535,6 +1545,18 @@ export class BattleSim {
             target.unit.markDestroyed();
             if (this.isDebuffBuilding(target.unit)) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
+                // half tower height — tallest collider × meshScale / 2
+                const towerTop =
+                    Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
+                this.events.push({
+                    kind: 'towerDebuff',
+                    seat: target.unit.seat,
+                    team: target.unit.team,
+                    x: target.x,
+                    y: target.altitude + towerTop * 0.5,
+                    z: target.z,
+                    level: target.unit.level,
+                });
             }
         } else {
             // tip over and stay as a battlefield wreck until the round resets

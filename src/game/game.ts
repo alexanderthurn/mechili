@@ -93,6 +93,7 @@ import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
+import { TowerDebuffFx } from './towerDebuffFx';
 import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
 import { OilVisuals } from './oilVisuals';
@@ -286,6 +287,7 @@ export class Game {
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly forgeFx = new ForgeFx();
+    private readonly towerDebuffFx: TowerDebuffFx;
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
@@ -1125,6 +1127,7 @@ export class Game {
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
+        this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
         this.hammerFx = new HammerFx(this.scene);
         this.meteorFx = new MeteorFx(this.scene);
         this.cloudFx = new CloudFx(this.scene);
@@ -2251,6 +2254,7 @@ export class Game {
         this.dragonFx.dispose();
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
+        this.towerDebuffFx.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
         this.hud.destroy();
@@ -7373,6 +7377,7 @@ export class Game {
         this.selectedActor = null;
         this.projectileRenderer.clear();
         this.fireFx.clear(); // instanced flame tongues are battle-only
+        this.towerDebuffFx.clear();
         this.hammerFx.clear();
         this.meteorFx.clear();
         this.cloudFx.clear();
@@ -7955,6 +7960,7 @@ export class Game {
                 const battleEvents = this.sim.consumeEvents();
                 this.particles.spawnFromEvents(battleEvents);
                 this.fireFx.spawnFromEvents(battleEvents);
+                this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
                 for (const ev of battleEvents) {
                     if (ev.kind === 'spellMeteor') {
@@ -7988,6 +7994,7 @@ export class Game {
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
+                this.towerDebuffFx.update(gameDt);
                 const battleShields = livingShieldDisks(this.placement.allUnits());
                 this.hammerFx.update(this.sim.elapsed, battleShields);
                 this.meteorFx.update(this.sim.elapsed, battleShields);
