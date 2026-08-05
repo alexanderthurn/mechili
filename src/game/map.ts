@@ -54,6 +54,8 @@ export interface MapSize {
     neutralRows: number;
     /** width of the flank strips beside the opponent's half */
     flankCols: number;
+    /** always-neutral band around the whole board (never deployable) */
+    rimCells: number;
 }
 
 export const STANDARD_MAP: MapSize = {
@@ -61,6 +63,7 @@ export const STANDARD_MAP: MapSize = {
     zoneRows: 30,
     neutralRows: 4,
     flankCols: 6,
+    rimCells: 4,
 };
 
 export function mulberry32(seed: number): () => number {
@@ -229,8 +232,8 @@ export class BattleMap {
     }
 
     constructor(readonly size: MapSize = STANDARD_MAP) {
-        this.cols = size.zoneCols + 2 * size.flankCols;
-        this.rows = 2 * size.zoneRows + size.neutralRows;
+        this.cols = size.zoneCols + 2 * size.flankCols + 2 * size.rimCells;
+        this.rows = 2 * size.zoneRows + size.neutralRows + 2 * size.rimCells;
         this.width = this.cols * CELL;
         this.height = this.rows * CELL;
         this.halfW = this.width / 2;
@@ -262,20 +265,30 @@ export class BattleMap {
         return { col, row };
     }
 
-    private inFlankCols(col: number): boolean {
-        return col < this.size.flankCols || col >= this.cols - this.size.flankCols;
+    private inRim(cell: Cell): boolean {
+        const r = this.size.rimCells;
+        return cell.col < r || cell.col >= this.cols - r || cell.row < r || cell.row >= this.rows - r;
     }
 
-    /** rows of a side's territory, measured from its own edge (grows into the neutral strip once unlocked) */
+    /** flank strips sit inside the outer rim, beside the main zone */
+    private inFlankCols(col: number): boolean {
+        const r = this.size.rimCells;
+        const f = this.size.flankCols;
+        return (col >= r && col < r + f) || (col >= this.cols - r - f && col < this.cols - r);
+    }
+
+    /** rows of a side's territory, measured from its own playable edge (grows into the middle strip once unlocked) */
     private ownRows(): number {
         return this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0);
     }
 
     /** own half minus the opponent's flanks, plus (once unlocked) own flanks beside the opponent's half */
     private zoneHalf(cell: Cell, near: boolean): boolean {
+        if (this.inRim(cell)) return false;
+        const rim = this.size.rimCells;
         const zr = this.ownRows();
-        const inNear = cell.row < zr;
-        const inFar = cell.row >= this.rows - zr;
+        const inNear = cell.row >= rim && cell.row < rim + zr;
+        const inFar = cell.row >= this.rows - rim - zr && cell.row < this.rows - rim;
         const ownHalf = near ? inNear : inFar;
         const oppHalf = near ? inFar : inNear;
         if (!this.inFlankCols(cell.col)) return ownHalf;
@@ -292,17 +305,21 @@ export class BattleMap {
 
     /** flank strips beside the opponent's half — deployable from round 2 once unlocked */
     isFlankDeployCell(cell: Cell, team: 'player' | 'enemy'): boolean {
-        if (!this.flanksUnlocked || !this.inFlankCols(cell.col)) return false;
+        if (!this.flanksUnlocked || this.inRim(cell) || !this.inFlankCols(cell.col)) return false;
         const near = team === 'player' ? !this.ownAtFar : this.ownAtFar;
+        const rim = this.size.rimCells;
         const zr = this.ownRows();
-        const oppHalf = near ? cell.row >= this.rows - zr : cell.row < zr;
+        const oppHalf = near
+            ? cell.row >= this.rows - rim - zr && cell.row < this.rows - rim
+            : cell.row >= rim && cell.row < rim + zr;
         return oppHalf;
     }
 
     /** center row of a team's main zone (near = row 0 side, the +z edge) */
     zoneCenterRow(near: boolean): number {
+        const rim = this.size.rimCells;
         const half = Math.floor(this.size.zoneRows / 2);
-        return near ? half : this.rows - 1 - half;
+        return near ? rim + half : this.rows - 1 - rim - half;
     }
 
     private readonly reliefNoise = makeValueNoise(9241);
@@ -311,8 +328,8 @@ export class BattleMap {
      * Visual-only relief: gentle mounds rising up to `reliefDepth`, never
      * below 0. The sim keeps walking on the flat y=0 plane — feet wade a bit
      * into a mound, which the grass hides (better than hovering over dips).
-     * Flat near the borders (to meet the outer meadow) and under the four
-     * base buildings (so the castles sit cleanly).
+     * Flat across the outer rim (to meet the outer meadow at y=0) and under
+     * the base buildings (so the castles sit cleanly).
      */
     /**
      * The board's relief. ALWAYS on — never gated by graphics settings: the
@@ -325,8 +342,11 @@ export class BattleMap {
             this.reliefNoise(x / WAVE + 37.2, z / WAVE + 11.7) * 0.72 +
             this.reliefNoise(x / (WAVE * 0.41) + 5.1, z / (WAVE * 0.41) + 91.3) * 0.28;
         const hill = smooth01((n - 0.44) / 0.42); // the higher part of the noise mounds up
+        // entire outer rim stays at y=0 so the field meets the meadow cleanly;
+        // mounds only ease in once past the rim into the playable band
+        const rimW = this.size.rimCells * CELL;
         const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
-        let fade = smooth01(edge / 14);
+        let fade = smooth01((edge - rimW) / 14);
         for (const a of this.baseAnchors()) {
             const d = Math.hypot(x - a.x, z - a.z);
             fade = Math.min(fade, smooth01((d - a.r) / 10));
@@ -336,7 +356,7 @@ export class BattleMap {
 
     /** approximate centers of the base buildings on both sides (see game.ts spawnTowers) */
     baseAnchors(): { x: number; z: number; r: number }[] {
-        const { flankCols, zoneCols, zoneRows } = this.size;
+        const { rimCells, flankCols, zoneCols, zoneRows } = this.size;
         const anchors: { x: number; z: number; r: number }[] = [];
         const specs = [
             BASE_ANCHORS.stronghold,
@@ -348,8 +368,8 @@ export class BattleMap {
             { xFrac: 1 - BASE_ANCHORS.outerTowerXFrac, rowFrac: BASE_ANCHORS.outerTowerRowFrac, r: 9 },
         ];
         for (const a of specs) {
-            const x = -this.halfW + (flankCols + zoneCols * a.xFrac) * CELL;
-            const z = this.halfH - zoneRows * a.rowFrac * CELL;
+            const x = -this.halfW + (rimCells + flankCols + zoneCols * a.xFrac) * CELL;
+            const z = this.halfH - (rimCells + zoneRows * a.rowFrac) * CELL;
             anchors.push({ x, z, r: a.r }, { x: -x, z: -z, r: a.r });
         }
         return anchors;
@@ -1225,9 +1245,12 @@ export class BattleMap {
 
         // deployment zone tints: each half has the owner's color in the
         // center; the flank strips belong to the opponent once unlocked.
-        // the zones grow into the neutral strip once that is unlocked
+        // the zones grow into the middle strip once that is unlocked.
+        // the outer rim stays clear of overlay paint/grid so it reads as terrain.
+        const rimPx = this.size.rimCells * cellPx;
         const zonePx = (this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0)) * cellPx;
         const flankPx = this.size.flankCols * cellPx;
+        const playH = h - 2 * rimPx;
         const paintZone = (x: number, y: number, zw: number, zh: number, tint: string, dim = false) => {
             ctx.fillStyle = `${tint} ${dim ? 0.04 : 0.12})`;
             ctx.fillRect(x, y, zw, zh);
@@ -1250,18 +1273,20 @@ export class BattleMap {
         // instead of one uniform tint across ground you can't actually use.
         // Only MY OWN zone is ever split like this — the opponent's stays a
         // single uniform tint regardless of my lane.
+        const mainLeft = rimPx + flankPx;
+        const mainRight = w - rimPx - flankPx;
         const paintMainZone = (y: number, tint: string, mine: boolean) => {
             if (lane === 'full' || !mine) {
-                paintZone(flankPx, y, w - 2 * flankPx, zonePx, tint);
+                paintZone(mainLeft, y, mainRight - mainLeft, zonePx, tint);
                 return;
             }
-            const leftW = midX - flankPx;
-            const rightW = w - flankPx - midX;
-            paintZone(flankPx, y, leftW, zonePx, tint, lane !== 'left');
+            const leftW = midX - mainLeft;
+            const rightW = mainRight - midX;
+            paintZone(mainLeft, y, leftW, zonePx, tint, lane !== 'left');
             paintZone(midX, y, rightW, zonePx, tint, lane !== 'right');
         };
-        paintMainZone(0, farTint, myZoneIsTop);
-        paintMainZone(h - zonePx, nearTint, !myZoneIsTop);
+        paintMainZone(rimPx, farTint, myZoneIsTop);
+        paintMainZone(h - rimPx - zonePx, nearTint, !myZoneIsTop);
         if (this.flanksUnlocked) {
             // flanks beside the OPPONENT's half belong to you — the crossed
             // rule means flank ownership is the OPPOSITE of that row-band's
@@ -1271,37 +1296,42 @@ export class BattleMap {
             // so it's either fully mine or fully dimmed, no split needed.
             const dimFlank = (isMine: boolean, laneMatch: boolean) =>
                 isMine && lane !== 'full' && !laneMatch;
-            paintZone(0, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'left'));
-            paintZone(w - flankPx, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'right'));
-            paintZone(0, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'left'));
-            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'right'));
+            const farY = rimPx;
+            const nearY = h - rimPx - zonePx;
+            paintZone(rimPx, farY, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'left'));
+            paintZone(w - rimPx - flankPx, farY, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'right'));
+            paintZone(rimPx, nearY, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'left'));
+            paintZone(w - rimPx - flankPx, nearY, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'right'));
         } else {
-            // locked in round 1: neutral grey
+            // locked in round 1: neutral grey on flank strips (inside the rim)
             ctx.fillStyle = t.flankLocked;
-            ctx.fillRect(0, 0, flankPx, h);
-            ctx.fillRect(w - flankPx, 0, flankPx, h);
+            ctx.fillRect(rimPx, rimPx, flankPx, playH);
+            ctx.fillRect(w - rimPx - flankPx, rimPx, flankPx, playH);
         }
 
-        // tile grid
+        // tile grid — playable band only; outer rim stays clear so it reads as terrain
+        const rim = this.size.rimCells;
         ctx.strokeStyle = t.grid;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        for (let c = 1; c < this.cols; c++) {
-            ctx.moveTo(c * cellPx, 0);
-            ctx.lineTo(c * cellPx, h);
+        for (let c = rim; c <= this.cols - rim; c++) {
+            const x = c * cellPx;
+            ctx.moveTo(x, rimPx);
+            ctx.lineTo(x, h - rimPx);
         }
-        for (let r = 1; r < this.rows; r++) {
-            ctx.moveTo(0, r * cellPx);
-            ctx.lineTo(w, r * cellPx);
+        for (let r = rim; r <= this.rows - rim; r++) {
+            const y = r * cellPx;
+            ctx.moveTo(rimPx, y);
+            ctx.lineTo(w - rimPx, y);
         }
         ctx.stroke();
 
-        // center line through the neutral strip
+        // center line through the middle strip
         ctx.strokeStyle = t.centerLine;
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(0, h / 2);
-        ctx.lineTo(w, h / 2);
+        ctx.moveTo(rimPx, h / 2);
+        ctx.lineTo(w - rimPx, h / 2);
         ctx.stroke();
 
         // duo/2v2: a dashed line marking where MY OWN lane ends within my
@@ -1309,8 +1339,8 @@ export class BattleMap {
         // rejected), so without this there's no visual cue at all for where
         // a seat may actually place
         if (lane !== 'full') {
-            const myZoneTop = this.ownAtFar ? 0 : h - zonePx;
-            const myZoneBottom = this.ownAtFar ? zonePx : h;
+            const myZoneTop = this.ownAtFar ? rimPx : h - rimPx - zonePx;
+            const myZoneBottom = this.ownAtFar ? rimPx + zonePx : h - rimPx;
             ctx.save();
             ctx.strokeStyle = t.laneLine;
             ctx.lineWidth = 3;

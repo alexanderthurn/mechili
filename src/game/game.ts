@@ -169,7 +169,7 @@ import { techSlotLimit, techsForUnit } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
-    HORDE_DWARF,
+    HORDE_ZOMBIE,
     RESEARCH_CENTER,
     STRONGHOLD,
     UNIT_TYPES,
@@ -1155,7 +1155,8 @@ export class Game {
         const nearSide = side === 'a';
         this.rig.setBaseHeading(nearSide ? 0 : Math.PI);
         const ownZoneZ =
-            (this.map.halfH - (this.map.size.zoneRows * CELL) / 2) * (nearSide ? 1 : -1);
+            (this.map.halfH - (this.map.size.rimCells + this.map.size.zoneRows / 2) * CELL) *
+            (nearSide ? 1 : -1);
         this.rig.startAt(0, ownZoneZ, PLAY_START_ZOOM);
         if (matchIntro) {
             const play = this.rig.getPose();
@@ -2289,7 +2290,7 @@ export class Game {
      * instead of a single pair both teammates used to share.
      */
     private spawnTowers(): void {
-        const { flankCols, zoneCols, zoneRows } = this.map.size;
+        const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
         const spawnBuilding = (
             xFrac: number,
@@ -2299,8 +2300,8 @@ export class Game {
             seat: SeatId,
         ) => {
             const fp = type.footprint;
-            const centerRow = Math.round(zoneRows * rowFrac - fp.rows / 2);
-            const col = flankCols + Math.round(zoneCols * xFrac) - Math.floor(fp.cols / 2);
+            const centerRow = Math.round(rimCells + zoneRows * rowFrac - fp.rows / 2);
+            const col = rimCells + flankCols + Math.round(zoneCols * xFrac) - Math.floor(fp.cols / 2);
             // the far side's base is the near layout rotated 180°, so each
             // player sees their own buildings laid out the same way locally
             const near = { col, row: centerRow };
@@ -2482,13 +2483,12 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], true);
         this.syncTacticVisuals();
-        // flanks and the neutral strip open up after the first round — but in
-        // horde mode the widened strip is the horde's belt and never opens
+        // flanks and the middle strip open up after the first round; the outer
+        // rim stays undeployable forever
         const unlocked = this.round >= 2;
-        const neutralOpen = unlocked && !hordeEnabled(this.settings);
-        if (unlocked !== this.map.flanksUnlocked || neutralOpen !== this.map.neutralUnlocked) {
+        if (unlocked !== this.map.flanksUnlocked || unlocked !== this.map.neutralUnlocked) {
             this.map.flanksUnlocked = unlocked;
-            this.map.neutralUnlocked = neutralOpen;
+            this.map.neutralUnlocked = unlocked;
             this.refreshOverlay();
         }
         this.gridOverlay.visible = true;
@@ -2713,7 +2713,7 @@ export class Game {
         for (let i = 0; i < count; i++) {
             const spot = this.findHordeRingSpot(rng, 0, outerHalfW, outerHalfH);
             if (!spot) continue;
-            const unit = this.placement.spawnAtWorld(HORDE_DWARF, spot.x, spot.z);
+            const unit = this.placement.spawnAtWorld(HORDE_ZOMBIE, spot.x, spot.z);
             unit.summoned = true;
             unit.deployedRound = this.round;
             unit.marchIn = true;
@@ -7359,7 +7359,7 @@ export class Game {
     /**
      * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`
      * — which rounds spawn a wave, and the last round always does, boosted),
-     * materializes this round's neutral dwarf wave in a ring OUTSIDE the
+     * materializes this round's neutral zombie wave in a ring OUTSIDE the
      * playable board at BUILD-phase start, marching straight toward center
      * (`Unit.marchIn`, see `BattleSim.stepMarchIn`) — normal combat AI takes
      * over the moment a unit crosses onto the board. Fully derived from the
@@ -7372,9 +7372,8 @@ export class Game {
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
-        // HORDE_DWARF: same model/stats/headcount as the buildable dwarf pack,
-        // just spread into a mob instead of a drilled rectangle (see units.ts)
-        const type = HORDE_DWARF;
+        // HORDE_ZOMBIE: dwarf pack stats/headcount, zombie GLB, mob footprint
+        const type = HORDE_ZOMBIE;
         const budget = hordeBudgetForRound(this.settings, this.round);
         const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
