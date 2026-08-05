@@ -2426,6 +2426,16 @@ function cancelStarHost(): void {
     } catch (e) {
         console.error('cancelStarHost: cleanup() failed', e);
     }
+    // the real, final teardown (LAN's lan.stopHost() — deliberately NOT
+    // part of cleanup() above, see hostStarRoom's own doc comment on why:
+    // startStarMatch() reuses that same cleanup() at the point ownership
+    // passes to the running Game, and the LAN signaling server must
+    // survive that handoff for guests to be able to redial later)
+    try {
+        starHosting?.stopDiscovery();
+    } catch (e) {
+        console.error('cancelStarHost: stopDiscovery() failed', e);
+    }
     try {
         starHosting?.hub.close();
     } catch (e) {
@@ -2442,6 +2452,10 @@ let starHordeFlag = false;
 /** set only by the Custom Game host flow — when present, startStarMatch
  *  applies ALL of it (timers, roundCards, horde), overriding starHordeFlag */
 let starCustomConfig: CustomGameConfig | null = null;
+/** set by beginStarHost right before hosting; read by startStarMatch to tag
+ *  the running Game's StarRole so it can skip registering a LAN match's
+ *  spectate endpoint with the public cloud backend (see StarRole.isLan) */
+let starDiscovery: 'matchmaking' | 'lan' = 'matchmaking';
 
 /**
  * `waitForJoined`: total participants (host included) to wait for before
@@ -2471,6 +2485,7 @@ async function beginStarHost(
 ): Promise<void> {
     starHordeFlag = horde;
     starCustomConfig = customConfig;
+    starDiscovery = discovery;
     setMenuBusy(true);
     setStatus(
         discovery === 'lan'
@@ -2482,12 +2497,32 @@ async function beginStarHost(
               : 'Opening 2v2 room…',
     );
     const hostName = getPlayerName();
+    // hostStarRoom() itself can't be aborted mid-flight (a real network
+    // round trip: PeerJS signaling plus an HTTP call to the matchmaking
+    // backend) — this only tracks whether Cancel was clicked WHILE it was
+    // pending, so the resolved room can be torn down immediately instead
+    // of reviving a "ghost" room the user already dismissed (starHosting
+    // was still null when cancelStarHost() ran, so it had nothing to do).
+    let cancelled = false;
+    pending?.cancel();
+    pending = {
+        cancel: () => {
+            cancelled = true;
+        },
+    };
     let hosted: Awaited<ReturnType<typeof hostStarRoom>>;
     try {
         hosted = await hostStarRoom(buildRoster(hostName), setStatus, mode, discovery);
     } catch (e) {
+        pending = null;
         setMenuBusy(false);
         setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        return;
+    }
+    pending = null;
+    if (cancelled) {
+        hosted.hub.close();
+        hosted.cleanup();
         return;
     }
     setMenuBusy(false);
@@ -2638,7 +2673,7 @@ function startStarMatch(): void {
         'a',
         { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) },
         null,
-        { role: 'host', hub, mySeat: 0 },
+        { role: 'host', hub, mySeat: 0, isLan: starDiscovery === 'lan' },
     );
     // the room is no longer "waiting to join" — stop the lobby heartbeat
     // and tell the backend it's gone (does NOT touch `hub`/its Peer
@@ -3007,13 +3042,31 @@ async function beginSteamStarHost(
 
     setMenuBusy(true);
     setStatus('Opening Steam lobby…');
+    // same missing-cancellation-check bug as beginStarHost, same fix: track
+    // whether Cancel was clicked while hostSteamStarRoom() was still
+    // pending (steamStarHosting is still null then, so cancelSteamStarHost
+    // has nothing to close), and tear the lobby down immediately once it
+    // resolves instead of reviving a dismissed "ghost" lobby.
+    let cancelled = false;
+    pending?.cancel();
+    pending = {
+        cancel: () => {
+            cancelled = true;
+        },
+    };
     let hosted: { hub: SteamStarHub; lobbyId: string };
     try {
         hosted = await hostSteamStarRoom(buildRoster(getPlayerName()), isPublic);
     } catch (e) {
+        pending = null;
         setMenuBusy(false);
         starCustomConfig = null;
         setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        return;
+    }
+    pending = null;
+    if (cancelled) {
+        hosted.hub.close();
         return;
     }
     setMenuBusy(false);
@@ -3724,6 +3777,7 @@ menu.addEventListener('click', (e) => {
                     if (team === '2v2') void beginSteamStarHost(horde);
                     else {
                         const hosted = hostSteamRoom(false, () => steamLobby.openInviteDialog());
+                        pending = hosted;
                         runSteamPending(hosted.session, 'host', horde ? applyHordeMode : undefined);
                     }
                     return;

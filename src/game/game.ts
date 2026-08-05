@@ -3298,17 +3298,23 @@ export class Game {
             this.spectatorHub = hub;
             // discoverable under the same room name a "Host Room" match
             // already uses — spectators look it up the same way a joining
-            // player would find the room
-            this.spectateRegistration = registerSpectateEndpoint(
-                hub.peerId,
-                this.playerNames.local,
-                // seat COUNT, not `this.star` truthiness — 1v1 is a 2-seat
-                // star match now too, so `this.star` alone can no longer
-                // tell 1v1 and 2v2 apart (repro: room list showed
-                // "watch mangoo (2v2)" for a plain 1v1 room)
-                this.seats.length > 2 ? '2v2' : '1v1',
-                () => ({ roster: this.backendRosterSnapshot(), round: this.round }),
-            );
+            // player would find the room. Skipped entirely for a LAN room:
+            // this would otherwise post the LAN-only host's identity/peer
+            // id to the PUBLIC cloud matchmaking backend regardless of the
+            // player's LAN-only intent — LAN spectators find the match via
+            // the LAN discovery mechanism, not this cloud lookup.
+            if (!(this.star?.role === 'host' && this.star.isLan)) {
+                this.spectateRegistration = registerSpectateEndpoint(
+                    hub.peerId,
+                    this.playerNames.local,
+                    // seat COUNT, not `this.star` truthiness — 1v1 is a 2-seat
+                    // star match now too, so `this.star` alone can no longer
+                    // tell 1v1 and 2v2 apart (repro: room list showed
+                    // "watch mangoo (2v2)" for a plain 1v1 room)
+                    this.seats.length > 2 ? '2v2' : '1v1',
+                    () => ({ roster: this.backendRosterSnapshot(), round: this.round }),
+                );
+            }
             hub.onRosterChange = () => this.broadcastRoster();
             hub.onSpectatorChat = (name, item) => {
                 const relayed: NetMessage = { type: 'chat', item, from: { name, role: 'spectator' } };
@@ -4131,9 +4137,17 @@ export class Game {
             // symmetric while watching — see PlacementController.isFogged)
             // stop being hidden the instant a grant lands, not just once
             // the round's normal both-locked reveal happens
+            // side->seat expansion via sideIdsOf, not a hardcoded 'a'->0/
+            // 'b'->1 pair — SpectatorVision.seats is side-granular, but a
+            // 2v2+ side can have more than one seat (side 'a' = seats
+            // {0,1}, side 'b' = seats {2,3} in a standard 2v2 roster). The
+            // old hardcoded mapping only ever unfogged the FIRST seat of a
+            // granted side, leaving its second seat still fogged despite
+            // being granted, and (for a grant to 'b') incorrectly unfogged
+            // seat 1 even though that seat is actually still on side 'a'.
             this.placement.spectatorLiveSeats =
                 msg.vision.mode === 'live'
-                    ? new Set(msg.vision.seats.map((s) => (s === 'a' ? 0 : 1)))
+                    ? new Set(msg.vision.seats.flatMap((s) => sideIdsOf(this.seats, s === 'a' ? 0 : 1)))
                     : new Set();
         } else if (msg.type === 'quit') {
             // classic 1v1 forfeit-quit, mirrored (see onNetMessage's own

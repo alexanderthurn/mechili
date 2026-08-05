@@ -1515,7 +1515,18 @@ function connectRawTo(peer: Peer, remoteId: string, signal?: AbortSignal): Promi
  * `StarHub`/`StarGuestSession` (PeerJS) already satisfy them.
  */
 export type StarRole =
-    | { role: 'host'; hub: HostHub; mySeat: SeatId }
+    | {
+          role: 'host';
+          hub: HostHub;
+          mySeat: SeatId;
+          /** true for a LAN-discovered room — lets Game.startSpectatorHub()
+           *  skip registering with the public cloud matchmaking backend
+           *  (registerSpectateEndpoint), which would otherwise advertise a
+           *  LAN-only host's identity/peer id globally regardless of the
+           *  player's LAN-only intent. Undefined/false for a normal
+           *  matchmaking or Steam host. */
+          isLan?: boolean;
+      }
     | { role: 'guest'; session: GuestSession; mySeat: SeatId };
 
 /**
@@ -1553,7 +1564,7 @@ export async function hostStarRoom(
     onStatus: (status: string) => void,
     mode: '1v1' | '2v2' = '2v2',
     discovery: 'matchmaking' | 'lan' = 'matchmaking',
-): Promise<{ hub: StarHub; roomId: string; cleanup: () => void }> {
+): Promise<{ hub: StarHub; roomId: string; cleanup: () => void; stopDiscovery: () => void }> {
     const name = getPlayerName();
     const roomId = peerRoomId(name);
 
@@ -1582,7 +1593,18 @@ export async function hostStarRoom(
         return {
             hub,
             roomId,
-            cleanup: () => {
+            // Deliberately NOT lan.stopHost() here — cleanup() is reused by
+            // startStarMatch() at the exact point ownership of `hub` (and
+            // every guest's ability to redial through the local PeerServer
+            // this LAN room depends on) passes to the running Game. Tearing
+            // down the LAN signaling server there — as the old single
+            // cleanup() used to — meant any WiFi hiccup for the rest of a
+            // LAN match had nothing left to redial into and could never
+            // recover, unlike matchmaking/Steam. Real, final teardown (the
+            // "nobody is using this room anymore" case) is stopDiscovery(),
+            // called only from cancelStarHost() below.
+            cleanup: () => {},
+            stopDiscovery: () => {
                 void lan.stopHost();
                 setPeerServerConfig(null);
             },
@@ -1624,6 +1646,10 @@ export async function hostStarRoom(
             window.removeEventListener('pagehide', onPageHide);
             void lobbyLeave(hub.peerId);
         },
+        // matchmaking's cleanup() above already fully tears down (or is a
+        // safe no-op for) both the cancel and match-start-handoff cases —
+        // no separate final-teardown step needed, unlike LAN's stopHost().
+        stopDiscovery: () => {},
     };
 }
 
