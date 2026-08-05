@@ -322,7 +322,13 @@ function handleGet(): void {
     // treats that as a duplicate (see its comment), so both files can now
     // genuinely coexist; optional and defaults to "first match" for callers
     // that don't have a side handy (unchanged prior behavior).
+    // whitelisted to the only two legitimate values (same set enforced at
+    // write time, see handleSubmit's own 'side' !== 'a'/'b' check below) —
+    // unlike $id above, this was previously interpolated into the glob()
+    // pattern completely unvalidated, letting a caller pass glob
+    // metacharacters (*, ?, [...]) to broaden which files match.
     $side = $_GET['side'] ?? '';
+    if ($side !== 'a' && $side !== 'b') $side = '';
     $pattern = $side !== '' ? "*_{$side}_{$id}.json" : "*_{$id}.json";
     $files = glob(MATCH_DIR . '/' . $pattern) ?: [];
     if (!$files) {
