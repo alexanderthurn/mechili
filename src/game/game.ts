@@ -3628,10 +3628,37 @@ export class Game {
         this.hydrating = true;
         this.replayLogFrom(log, fromIndex, msg.battleElapsed);
         this.hydrating = false;
+        this.ensureLocalAiBuildActions();
         this.seedSeqTracking();
         if (this.phase === 'build' && msg.phaseRemaining !== undefined) {
             this.phaseRemaining = msg.phaseRemaining;
         }
+    }
+
+    /**
+     * After a hydrate/catch-up that skipped `onBuildPhase` (see startBuildPhase's
+     * `!hydrating` guard), any local AI seat that still hasn't locked in for
+     * the current build must act now. Otherwise a solo (or host-with-AI)
+     * resume that lands on a brand-new deployment — log ended at the previous
+     * round's endDeployment pair, battle was fast-forwarded, AI never ran —
+     * lets the human lock in and then wait forever on an enemy that will
+     * never end. Safe no-op when every AI seat is already seatReady (normal
+     * mid-deploy resume where the bot's endDeployment is already in the log)
+     * or when this client doesn't drive AI (net peer / star guest / watch).
+     */
+    private ensureLocalAiBuildActions(): void {
+        if (this.watching || this.matchOver || this.phase !== 'build') return;
+        if (this.star?.role === 'guest') return;
+
+        if (this.opponent instanceof AiOpponent) {
+            const seat = primarySeatOf(this.seats, 'enemy');
+            if (!this.seatReady[seat]) this.opponent.onBuildPhase(this.round);
+        }
+        for (const e of this.extraAis) {
+            if (!this.seatReady[e.seat]) e.ai.onBuildPhase(this.round);
+        }
+        this.maybeStartBattleAfterDeploy();
+        if (this.star) this.maybeStartStarBattle();
     }
 
     /**
@@ -4673,6 +4700,10 @@ export class Game {
 
         this.replayLogFrom(log, 0, liveBattleElapsed);
         this.hydrating = false;
+        // startBuildPhase skips AI while hydrating — if we landed on a fresh
+        // build phase (log ended at the previous round's lock-ins), kick the
+        // local bots now or a solo resume stays stuck after the player locks in
+        this.ensureLocalAiBuildActions();
         this.debugLog.log('hp.hydrateDone', {
             watching: this.watching,
             processed: this.dispatcher.serializable().length,
@@ -7937,7 +7968,12 @@ export class Game {
                 this.round === 0 &&
                 this.starterPicked[this.humanSeat] &&
                 !this.starterPicked.every(Boolean);
-            if (!waitingForStarterPeer) {
+            // freeze once I've locked in — solo used to keep draining the
+            // timer (and re-firing onDeployTimerExpired) while waiting on the
+            // AI / an ally, which is how a stuck resume showed 0:00 forever
+            const waitingForDeployPeer =
+                this.phase === 'build' && !!this.seatReady[this.humanSeat];
+            if (!waitingForStarterPeer && !waitingForDeployPeer) {
                 this.phaseRemaining -= gameDt;
             }
             if (this.phase === 'build') {
@@ -8050,19 +8086,10 @@ export class Game {
                 ((this.phase === 'build' && this.deployReady.player && !this.deployReady.enemy) ||
                     (this.awaitingCards && this.round === 0 && this.starterPicked[this.humanSeat]) ||
                     (this.battleReady.player && !this.battleReady.enemy))) ||
-            // team modes (local duo or online 2v2): reuse the same "hide
-            // everything, show the waiting text" treatment once THIS seat
-            // has locked in — deployReady.player only flips once every seat
-            // on the side has, so without this branch a locked-in seat kept
-            // seeing the full shop/buttons for as long as an ally (or the
-            // enemy side) hadn't finished yet. No need to distinguish
-            // "waiting on ally" vs "waiting on enemy" here: either way there
-            // is nothing left for this seat to do, and the game simply not
-            // starting already makes that clear.
-            (seatIdsOf(this.seats, 'player').length > 1 &&
-                this.phase === 'build' &&
-                !this.matchOver &&
-                this.seatReady[this.humanSeat]) ||
+            // locked in (solo vs AI too): hide shop / End Deployment — without
+            // this, solo showed a clickable End Deployment that no-op'd while
+            // waiting on the bot (or after a resume that never re-ran the AI)
+            (this.phase === 'build' && !this.matchOver && !!this.seatReady[this.humanSeat]) ||
             // watching: nothing here is ever "mine" to act on — reuse the
             // same full-hide treatment for the whole build UI, not just the
             // few individual gates (playerCanAct, canUndo, round-card
@@ -8245,6 +8272,10 @@ export class Game {
                 }
             } else if (e.kind === 'groundFire') {
                 this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.85, 2), e.oilCells > 0 ? 0.35 : 0.22);
+            } else if (e.kind === 'towerDebuff') {
+                // dark burn under the lost tower — team-tint flash is visual-only in TowerDebuffFx
+                this.map.stampScorch(e.x, e.z, 14, 0.8);
+                this.map.stampScorch(e.x, e.z, 22, 0.35);
             }
         }
     }
