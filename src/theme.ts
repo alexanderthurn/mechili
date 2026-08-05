@@ -4250,6 +4250,8 @@ ${fontFaceCss()}
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Enemy track is rtl for the fill; keep the number LTR so "-" stays in front. */
+    direction: ltr;
     font-size: 13px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;

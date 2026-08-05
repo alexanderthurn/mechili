@@ -27,16 +27,22 @@ const MAX_HP_DRAW = 256;
 const CORNER_RAY_DIST = 55;
 /** Arrive when within this many world units of the moving target. */
 const HIT_RADIUS = 2.5;
-/** Extra seconds past scheduled hitTime before forcing a hit mid-arc. */
-const HIT_GRACE_SECONDS = 0.55;
+/** Extra seconds past scheduled hitTime before forcing a hit. */
+const HIT_GRACE_SECONDS = 0.45;
 /** Seconds of mostly-vertical climb before homing kicks in. */
 const BOOST_SECONDS = 0.07;
-/** Max turn rate (rad/s) while homing — scales with flight speed for the same arc. */
-const HOMING_TURN_RAD = 7.44;
-/** Extra multiplier on top of scheduled flight duration (higher = faster). */
-const FLIGHT_SPEED_MULT = 3.3;
-/** Arc paths are longer than a straight line — baked into launch speed. */
-const ARC_LENGTH_MULT = 1.15;
+
+// --- flight feel (tune these) ---
+/** Launch speed — same for every soul (world units / sec). */
+const SPEED_START = 50;
+/** Constant acceleration — far souls fly longer, so they end up faster. */
+const ACCEL = 150;
+/** Homing turn rate (rad/s). */
+const TURN_RATE = 5;
+/** Within this distance, turn ramps up toward CLOSE_TURN_MULT. */
+const CLOSE_TURN_DIST = 22;
+/** Peak turn multiplier at the HP corner. */
+const CLOSE_TURN_MULT = 100;
 
 /** Normalized screen coords — top corners where HUD HP cards sit. */
 const HP_CORNER_SCREEN = {
@@ -119,12 +125,13 @@ type LiveProjectile = HpDrawScheduledParticle & {
     pos: Vector3;
     vel: Vector3;
     launchTime: number;
+    /** Current speed magnitude (SPEED_START + ACCEL * age). */
     speed: number;
     flying: boolean;
     hit: boolean;
     /** Camera-facing soul sprite */
     sprite: Sprite;
-    /** Optional transparent unit silhouette (medium/high) */
+    /** Optional transparent unit silhouette */
     meshGhost: Group | null;
 };
 
@@ -275,10 +282,7 @@ export class HpDrawFx {
                 if (!p.flying) {
                     p.flying = true;
                     p.pos.copy(p.start);
-                    const pathLen = Math.max(p.start.distanceTo(target), 0.001);
-                    p.speed =
-                        (pathLen * ARC_LENGTH_MULT * FLIGHT_SPEED_MULT) /
-                        Math.max(p.flightDuration, 1e-3);
+                    p.speed = SPEED_START;
                     p.vel.set(0, p.speed, 0);
                 }
 
@@ -292,6 +296,11 @@ export class HpDrawFx {
                     p.hit = true;
                     hits.push({ victim: p.victim, damage: p.damage, tier: p.tier });
                 } else if (!p.hit) {
+                    p.speed = SPEED_START + ACCEL * flightAge;
+                    const closeT = 1 - MathUtils.clamp(dist / CLOSE_TURN_DIST, 0, 1);
+                    const turn =
+                        TURN_RATE * (1 + closeT * closeT * (CLOSE_TURN_MULT - 1));
+
                     if (flightAge < BOOST_SECONDS) {
                         p.vel.set(0, p.speed, 0);
                     } else {
@@ -303,9 +312,7 @@ export class HpDrawFx {
                         if (this.velDir.lengthSq() < 1e-8) this.velDir.set(0, 1, 0);
                         else this.velDir.normalize();
 
-                        const tierTurn =
-                            p.tier === 'low' ? 0.85 : p.tier === 'medium' ? 1 : 1.15;
-                        steerDirection(this.velDir, this.desired, HOMING_TURN_RAD * tierTurn * dtSeconds);
+                        steerDirection(this.velDir, this.desired, turn * dtSeconds);
                         p.vel.copy(this.velDir).multiplyScalar(p.speed);
                     }
 
