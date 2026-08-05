@@ -39,6 +39,12 @@ const SESSION_TTL = 90 * 24 * 3600;
 /** Soft cap matching Melodan client (184² webp/jpeg data URL). */
 const MAX_AVATAR_CHARS = 200000;
 const TRACK = 'open';
+const RATE_LIMIT_FILE = PLAYERS_DIR . '/rate-limit.json';
+/** Brand-new account creation is unauthenticated and writes to disk
+ *  (potentially a full ~200KB avatar payload, via handleAvatar's own
+ *  fallback-create path) at zero cost to the caller — a scripted loop with
+ *  a fresh name each time had no cooldown at all before this. */
+const ACCOUNT_CREATE_COOLDOWN = 30;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -91,6 +97,42 @@ function ensureDirs(): void {
     if (!is_file($deny)) {
         @file_put_contents($deny, "Require all denied\n");
     }
+}
+
+/**
+ * Per-IP cooldown gate for brand-new account creation (see
+ * ACCOUNT_CREATE_COOLDOWN's own doc comment) — same simple shared-state-file
+ * pattern suggest.php already uses for its own per-IP post throttle.
+ * Fails OPEN (returns true) on a lock hiccup rather than ever blocking
+ * legitimate traffic because of a transient filesystem issue.
+ */
+function accountCreateAllowed(): bool {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '?';
+    $fp = fopen(RATE_LIMIT_FILE, 'c+');
+    if (!$fp || !flock($fp, LOCK_EX)) {
+        if ($fp) fclose($fp);
+        return true;
+    }
+    $raw = stream_get_contents($fp);
+    $state = $raw ? (json_decode($raw, true) ?: []) : [];
+    if (!isset($state['create']) || !is_array($state['create'])) $state['create'] = [];
+    $now = time();
+    $last = (int) ($state['create'][$ip] ?? 0);
+    if ($now - $last < ACCOUNT_CREATE_COOLDOWN) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        return false;
+    }
+    $state['create'][$ip] = $now;
+    // prune stale entries so this file doesn't grow forever
+    $state['create'] = array_filter($state['create'], fn($ts) => $now - $ts < 3600);
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($state));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    return true;
 }
 
 function respond(array $data, int $code = 200): void {
@@ -274,6 +316,9 @@ function handleHello(): void {
     $player = readPlayer($key);
 
     if ($player === null) {
+        if (!accountCreateAllowed()) {
+            respond(['error' => 'too many new accounts from this address, try again shortly'], 429);
+        }
         $player = defaultPlayer($name);
         savePlayer($player);
         $newToken = issueSession($key);
@@ -339,6 +384,11 @@ function handleClaim(): void {
     $created = false;
 
     if (!is_array($player)) {
+        if (!accountCreateAllowed()) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            respond(['error' => 'too many new accounts from this address, try again shortly'], 429);
+        }
         $player = defaultPlayer($name);
         $created = true;
         if ($setPassword !== null && $setPassword !== '') {
@@ -426,6 +476,15 @@ function handleAvatar(): void {
     $fileRaw = stream_get_contents($fp);
     $player = $fileRaw ? json_decode($fileRaw, true) : null;
     if (!is_array($player)) {
+        // this is the demonstrated exploit shape: a fresh, never-seen name
+        // with no auth needed at all, paired with up to a ~200KB avatar
+        // payload every single call — the account-creation rate limit
+        // applies here same as hello/claim.
+        if (!accountCreateAllowed()) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            respond(['error' => 'too many new accounts from this address, try again shortly'], 429);
+        }
         $player = defaultPlayer($name);
     }
 
@@ -540,22 +599,42 @@ function handleResult(): void {
     if ($localName === null) respond(['error' => 'bad names'], 400);
 
     $localKey = nameKey($localName);
-    $localPlayer = readPlayer($localKey);
 
     // AI / unknown
     if ($mode !== 'mp' || $oppName === null || !in_array($result, ['victory', 'defeat', 'draw'], true)) {
-        if ($localPlayer === null) {
+        // Locked for the WHOLE read-modify-write, not just the final save.
+        // This used to call the unlocked readPlayer() and then a
+        // separately-locked savePlayer() — two concurrent submissions for
+        // the same account (two open tabs, or a client retry) could both
+        // read the same pre-update counts, and the second write would
+        // silently clobber the first's stat increment. The 'mp' path below
+        // already gets this right via lockPair(); this mirrors it for the
+        // single-file case.
+        $localPath = playerPath($localKey);
+        $fp = fopen($localPath, 'c+');
+        if (!$fp || !flock($fp, LOCK_EX)) {
+            if ($fp) fclose($fp);
+            respond(['ok' => false, 'error' => 'lock failed', 'rated' => false], 200);
+        }
+        $fileRaw = stream_get_contents($fp);
+        $localPlayer = $fileRaw ? json_decode($fileRaw, true) : null;
+        $isNew = !is_array($localPlayer);
+        if ($isNew) {
             $localPlayer = defaultPlayer($localName);
         }
         if (!requireLocalAuth($localPlayer, $token)) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
             respond(['ok' => false, 'error' => 'auth', 'needsPassword' => true, 'rated' => false], 200);
         }
         if ($mode === 'ai' && in_array($result, ['victory', 'defeat', 'draw'], true)) {
             $localPlayer = bumpAiStats($localPlayer, $result);
-            savePlayer($localPlayer);
-        } elseif ($localPlayer !== null && !is_file(playerPath($localKey))) {
-            savePlayer($localPlayer);
+            writeLocked($fp, $localPlayer);
+        } elseif ($isNew) {
+            writeLocked($fp, $localPlayer);
         }
+        flock($fp, LOCK_UN);
+        fclose($fp);
         @file_put_contents($resultPath, json_encode([
             'matchId' => $matchId,
             'mode' => $mode,
