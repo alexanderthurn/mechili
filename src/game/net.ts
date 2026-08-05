@@ -894,7 +894,20 @@ export class StarHub implements HostHub {
     listen(onJoin: (name: string, version: number, conn: DataConnection, avatar?: string | null) => SeatId | null): void {
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
+                // A connection that opens but never sends its handshake
+                // ('starJoin'/'starRejoin') — a hung/stale client, or one
+                // that simply never bothers — used to sit here forever:
+                // never added to bySeat (doesn't count against capacity)
+                // but the underlying RTCPeerConnection/listeners never got
+                // cleaned up either, since nothing ever timed it out.
+                const handshakeTimeout = setTimeout(() => {
+                    conn.off('data', onData);
+                    conn.close();
+                }, CONNECT_TIMEOUT_MS);
+                conn.on('close', () => clearTimeout(handshakeTimeout));
+                conn.on('error', () => clearTimeout(handshakeTimeout));
                 const onData = (data: unknown) => {
+                    clearTimeout(handshakeTimeout);
                     const msg = data as NetMessage;
                     if (msg.type === 'starRejoin') {
                         conn.off('data', onData);
@@ -1300,7 +1313,13 @@ export class StarHub implements HostHub {
     close(): void {
         for (const timer of this.reconnectTimers.values()) clearTimeout(timer);
         this.reconnectTimers.clear();
-        for (const { conn } of this.bySeat.values()) conn?.close();
+        // resetSeatToOpen/dropSeat (the per-seat teardown paths) already
+        // correctly stop each seat's liveness watchdog before discarding it
+        // — this bulk teardown skipped that, same gap as SpectatorHub.close().
+        for (const { conn, liveness } of this.bySeat.values()) {
+            liveness?.stop();
+            conn?.close();
+        }
         this.bySeat.clear();
         this.peer.destroy();
     }
@@ -1787,7 +1806,17 @@ export class SpectatorHub {
     listen(onJoin: (name: string, version: number, conn: DataConnection) => void): void {
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
+                // same host-side handshake timeout as StarHub.listen() — a
+                // connection that opens but never sends 'spectate' used to
+                // sit here forever with nothing to time it out.
+                const handshakeTimeout = setTimeout(() => {
+                    conn.off('data', onData);
+                    conn.close();
+                }, CONNECT_TIMEOUT_MS);
+                conn.on('close', () => clearTimeout(handshakeTimeout));
+                conn.on('error', () => clearTimeout(handshakeTimeout));
                 const onData = (data: unknown) => {
+                    clearTimeout(handshakeTimeout);
                     const msg = data as NetMessage;
                     if (msg.type !== 'spectate') {
                         conn.close();
@@ -1994,6 +2023,13 @@ export class SpectatorHub {
     }
 
     close(): void {
+        // drop() (the per-spectator disconnect path) already correctly
+        // stops each viewer's liveness watchdog before discarding it — this
+        // bulk teardown skipped that, leaving every still-connected
+        // spectator's two watchLiveness() timers running (harmlessly
+        // self-terminating after ~10s of silence, but still a needless
+        // leak/ping-churn window on a hub that's already gone).
+        for (const viewer of this.viewers.values()) viewer.liveness.stop();
         for (const conn of this.viewers.keys()) conn.close();
         this.viewers.clear();
         this.peer.destroy();

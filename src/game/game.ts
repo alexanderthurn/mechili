@@ -3325,12 +3325,21 @@ export class Game {
             hub.onSpectatorDebugLog = (events) => this.debugLog.ingest(events);
             hub.onSpectatorJoined = (name) => this.announceSystem(`${name} joined as a spectator.`, name);
             hub.onSpectatorLeft = (name) => this.announceSystem(`${name} stopped spectating.`, name);
-            hub.listen((name, version, conn) => {
+            hub.listen((claimedName, version, conn) => {
                 if (version !== GAME_VERSION) {
                     conn.send({ type: 'spectateRejected', reason: 'Version mismatch' });
                     conn.close();
                     return;
                 }
+                // disambiguate a duplicate display name among CURRENTLY
+                // connected spectators — a player granting live vision
+                // (net.ts's SpectatorHub.setSeatLive) can only identify a
+                // spectator by this name, matching the FIRST viewer whose
+                // name matches; two spectators sharing one name would let
+                // either silently receive a grant meant for the other.
+                const existingNames = new Set(hub.names());
+                let name = claimedName;
+                for (let suffix = 2; existingNames.has(name); suffix++) name = `${claimedName} (${suffix})`;
                 const vision: SpectatorVision = { mode: 'battle' };
                 const resume = this.exportResumeForSpectator(vision);
                 this.debugLog.log('vision.admitSnapshot', {
@@ -7558,11 +7567,24 @@ export class Game {
     private reportOpenRating(result: 'victory' | 'defeat' | 'draw', forceReport = false): void {
         // 2v2 is unranked v1 (no Elo concept for >2 seats yet, per plan) —
         // skip rather than mislabel; proper mode-tagged telemetry is a
-        // separate, later piece of work
-        if (this.star) return;
+        // separate, later piece of work. Seat COUNT, not `this.star`
+        // truthiness — classic 1v1 now runs over the star transport too
+        // (Phase 1), so `this.star` alone can no longer tell a real 1v1
+        // apart from an actual 2v2+ (this used to unconditionally skip
+        // ranked reporting for every 1v1-over-star match — the exact same
+        // this.star/this.net-no-longer-distinguishes-1v1 shape already
+        // fixed once for startSpectatorHub's room-list "1v1"/"2v2" label).
+        if (this.seats.length > 2) return;
+        // only ONE side may report a given match, to avoid double-
+        // submitting the same result: the star host (mirroring net's own
+        // side==='a' check below — this.net is null for a star-based 1v1,
+        // so without this a guest would ALSO report, double-counting it).
+        if (this.star && this.star.role !== 'host' && !forceReport) return;
         if (this.net && this.side !== 'a' && !forceReport) return;
         try {
-            const mode = this.net ? 'mp' : 'ai';
+            // 'mp' for ANY real network connection — this.net alone used to
+            // be sufficient, but is null for a star-based 1v1.
+            const mode = this.star || this.net ? 'mp' : 'ai';
             reportMatchResult({
                 matchId: matchResultId(
                     this.seed,

@@ -1827,6 +1827,12 @@ function startGame(
     started = true;
     destroyMenuGamepadCursor();
     stopGlobalChatPoll();
+    // setMenuChromeVisible(false) is never called anywhere (menu.remove()
+    // below tears the chrome down permanently instead) — without this, the
+    // room-list poll it would otherwise stop just keeps firing every few
+    // seconds in the background for the rest of the session, including
+    // during an active match where the room list is entirely irrelevant.
+    stopRoomPoll();
     hideResumeOverlay();
     // Cinematic handoff for any live match entry (fresh, resume, lobby join).
     // Skip for replay/spectate — those jump straight into playback/viewing.
@@ -2714,8 +2720,19 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
         .catch((e: unknown) => {
             pending = null;
             setMenuBusy(false);
-            if (cancelled || String(e).includes('cancelled')) setStatus('');
-            else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+            if (cancelled || String(e).includes('cancelled')) {
+                setStatus('');
+            } else {
+                // without this, a permanently-dead host (room gone for good)
+                // leaves the StarResumeMarker in place, and the next page
+                // load's auto-reconnect block reads it and repeats this
+                // exact same doomed connect attempt forever — same clear
+                // bindStarGuestSession's starRejected/starRejoinRejected
+                // handling already does for the "connected, then rejected"
+                // case; this is its "never even connected" counterpart.
+                clearStarResumeMarker();
+                setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+            }
             mainButtonsEl.style.display = '';
         });
 }
