@@ -48,7 +48,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 23; // v23: 'starResumeState'/'spectateAccepted' merged into one 'matchCatchUp' message (Phase C, TEAM_MODES_PLAN.md §3c)
+export const GAME_VERSION = 24; // v24: 'starRejoin' gains a required 'name' field, checked against the seat's roster entry (closes an unauthenticated seat-hijack path)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -449,14 +449,16 @@ export type NetMessage =
      * A guest whose connection to the host dropped, redialing the SAME
      * host peer id with its OWN still-alive Peer object (no page reload —
      * that's a separate, still-unbuilt story for star mode, same as
-     * before). `seat` is what it remembers being assigned; the host only
-     * accepts this if that seat is currently marked "awaiting reconnect"
-     * (see StarHub.dropSeat/reclaimSeat) — never treated as proof on its
-     * own, same "trust the outcome, not the claim" spirit as elsewhere,
-     * though here the claim IS the seat we're trying to identify by, so
-     * the host cross-checks it against its own pending-reconnect state.
+     * before). `seat` is what it remembers being assigned; the host accepts
+     * this only if that seat is currently marked "awaiting reconnect" (see
+     * StarHub.dropSeat/reclaimSeat) AND `name` matches that seat's own
+     * roster name — `seat` alone is never proof, it's a small guessable
+     * integer; `name` is the same identity check `starJoin`'s name-matched
+     * reclaim path (findDroppedSeatByName) already requires, closing what
+     * was otherwise a strictly weaker, unauthenticated path to the exact
+     * same seat hijack.
      */
-    | { type: 'starRejoin'; seat: SeatId; version: number }
+    | { type: 'starRejoin'; seat: SeatId; name: string; version: number }
     /**
      * Phase C (TEAM_MODES_PLAN.md §3c): the ONE catch-up payload for any
      * viewer of this match — a reconnecting/resyncing seat OR a freshly-
@@ -896,9 +898,19 @@ export class StarHub implements HostHub {
                     const msg = data as NetMessage;
                     if (msg.type === 'starRejoin') {
                         conn.off('data', onData);
-                        const accepted = msg.version === GAME_VERSION && this.reclaimSeat(msg.seat, conn);
+                        // `seat` alone is never proof of identity — a small
+                        // guessable integer anyone could send during another
+                        // player's reconnect grace window — so this also
+                        // requires `name` to match that seat's own roster
+                        // entry, the same identity check the name-matched
+                        // starJoin reclaim path below already requires.
+                        const accepted =
+                            msg.version === GAME_VERSION &&
+                            this.roster[msg.seat]?.name === msg.name &&
+                            this.reclaimSeat(msg.seat, conn);
                         this.onDebugEvent?.('star.rejoinAttempt', {
                             seat: msg.seat,
+                            name: msg.name,
                             theirVersion: msg.version,
                             ourVersion: GAME_VERSION,
                             accepted,
@@ -1416,7 +1428,7 @@ export class StarGuestSession implements GuestSession {
             if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             try {
                 const conn = await connectRawTo(this.peer, hostId, signal);
-                conn.send({ type: 'starRejoin', seat: mySeat, version: GAME_VERSION });
+                conn.send({ type: 'starRejoin', seat: mySeat, name: getPlayerName(), version: GAME_VERSION });
                 return new StarGuestSession(this.peer, conn);
             } catch (e) {
                 if (e instanceof DOMException && e.name === 'AbortError') throw e;
