@@ -36,15 +36,9 @@ const TIMEOUT_MS = 8_000;
 const AUTH_KEY = 'mechili-open-auth';
 
 let cached: PlayerProfile | null = null;
-/** true when local name is password-locked and we have no valid session */
-let lockedOut = false;
 
 export function getCachedProfile(): PlayerProfile | null {
     return cached;
-}
-
-export function isProfileLockedOut(): boolean {
-    return lockedOut;
 }
 
 interface StoredAuth {
@@ -145,7 +139,6 @@ export async function claimName(input: {
     if (!data) return { ok: false, error: 'unreachable' };
     if (data.ok === true && data.player && data.token) {
         cached = data.player;
-        lockedOut = false;
         saveAuth(input.name, data.token);
         return { ok: true, player: data.player, token: data.token, created: data.created };
     }
@@ -204,7 +197,6 @@ export async function uploadAvatar(input: {
     if (!data) return { ok: false, error: 'unreachable' };
     if (data.ok === true && data.player) {
         cached = data.player;
-        lockedOut = false;
         if (data.token) saveAuth(input.name, data.token);
         return { ok: true, player: data.player };
     }
@@ -229,14 +221,14 @@ export async function syncOpenProfile(name: string): Promise<PlayerProfile | nul
     } | null;
 
     if (!data) return cached;
+    // Password UI is inactive — a legacy passworded name just means no online
+    // profile/MMR this session. Don't surface a lock state to the menu.
     if (data.needsPassword) {
         cached = null;
-        lockedOut = true;
         return null;
     }
     if (data.player) {
         cached = data.player;
-        lockedOut = false;
         if (data.token) saveAuth(name, data.token);
         return cached;
     }
@@ -259,7 +251,6 @@ export async function submitMatchResult(input: {
     })) as { player?: PlayerProfile } | null;
     if (data?.player) {
         cached = data.player;
-        lockedOut = false;
         return cached;
     }
     return null;

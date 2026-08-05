@@ -138,8 +138,9 @@ the name is gone. Session token in localStorage (90 days). `player.php`
 stores sharded profiles under `players/open/`, sessions under
 `players/sessions/`, Elo on multiplayer results (host submit, protected
 names need a valid token). AI games update W/L only. Steam builds will use
-a separate stack and must not call this API. Menu shows `Name · MMR` (or
-🔒 when locked). Ladder via `?action=ladder` / `stats.html`.
+a separate stack and must not call this API. Menu shows `Name · MMR` (or just the name when
+no session). Password APIs remain on the backend but are unused by the UI.
+Ladder via `?action=ladder` / `stats.html`.
 FTP deploy excludes `backend/players/`.
 
 ## Adding a unit type — checklist

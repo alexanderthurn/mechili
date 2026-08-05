@@ -53,7 +53,7 @@ import {
     type MultiplayerTransport,
 } from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
-import { getCachedProfile, isProfileLockedOut, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
+import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, wireAvatar } from './game/avatar';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
@@ -1326,11 +1326,10 @@ function hideResumeOverlay(): void {
 function refreshUsernameLabel(): void {
     const name = getPlayerName();
     const profile = getCachedProfile();
-    if (isProfileLockedOut()) {
-        usernameTextEl.textContent = `${name} · 🔒`;
-    } else {
-        usernameTextEl.textContent = profile ? `${name} · ${profile.mmr}` : name;
-    }
+    // Password UI is inactive — never show a lock badge. If the backend still
+    // has a password on this name (legacy), we simply omit MMR until a session
+    // exists; the local display name still works for lobbies / matches.
+    usernameTextEl.textContent = profile ? `${name} · ${profile.mmr}` : name;
     const avatar = getAvatarDataUrl();
     if (avatar) {
         usernameAvatarEl.src = avatar;
