@@ -3984,6 +3984,10 @@ ${fontFaceCss()}
     overflow: visible;
     user-select: none;
     pointer-events: none;
+    /* above .mechili-cards (50) so commander HP cards stay under the cursor
+       during specialist peek — otherwise the full-screen dim steals hover and
+       the bars flicker */
+    z-index: 51;
 }
 .mechili-fightbar .fighter-stack {
     position: absolute;

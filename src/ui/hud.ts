@@ -357,6 +357,13 @@ export class Hud {
     private enemyHpVal!: HTMLSpanElement;
     private playerMaxHp = 0;
     private enemyMaxHp = 0;
+    /** last painted fill ratios / labels — setHp runs every tick */
+    private lastHpFillP = Number.NaN;
+    private lastHpFillE = Number.NaN;
+    private lastHpValP = Number.NaN;
+    private lastHpValE = Number.NaN;
+    /** skip remounting specialist peek when content is unchanged */
+    private lastSpecDetailKey = '';
     private readonly speedEl: HTMLButtonElement;
     private readonly undoEl: HTMLButtonElement;
     /** phone: always-visible undo + supply strip (top right, below the enemy card) */
@@ -1426,6 +1433,11 @@ export class Hud {
         this.commanderChips = [];
         this.playerStackEl.replaceChildren();
         this.enemyStackEl.replaceChildren();
+        // new fill nodes — force setHp to repaint
+        this.lastHpFillP = Number.NaN;
+        this.lastHpFillE = Number.NaN;
+        this.lastHpValP = Number.NaN;
+        this.lastHpValE = Number.NaN;
 
         const playerEntries = entries.filter((e) => e.team === 'player');
         const enemyEntries = entries.filter((e) => e.team === 'enemy');
@@ -2782,10 +2794,26 @@ export class Hud {
         // one teammate has chosen yet.
         const p = this.playerMaxHp > 0 ? Math.max(0, Math.min(1, player / this.playerMaxHp)) : 0;
         const e = this.enemyMaxHp > 0 ? Math.max(0, Math.min(1, enemy / this.enemyMaxHp)) : 0;
+        const pRound = Math.max(0, Math.round(player));
+        const eRound = Math.max(0, Math.round(enemy));
+        // Avoid rewriting transform every frame — CSS transition + per-tick
+        // style assignment makes the fightbar HP look like it flickers on hover.
+        if (
+            p === this.lastHpFillP &&
+            e === this.lastHpFillE &&
+            pRound === this.lastHpValP &&
+            eRound === this.lastHpValE
+        ) {
+            return;
+        }
+        this.lastHpFillP = p;
+        this.lastHpFillE = e;
+        this.lastHpValP = pRound;
+        this.lastHpValE = eRound;
         this.playerHpFill.style.transform = `scaleX(${p})`;
         this.enemyHpFill.style.transform = `scaleX(${e})`;
-        this.playerHpVal.textContent = String(Math.max(0, Math.round(player)));
-        this.enemyHpVal.textContent = String(Math.max(0, Math.round(enemy)));
+        this.playerHpVal.textContent = String(pRound);
+        this.enemyHpVal.textContent = String(eRound);
     }
 
     /** post-battle damage report; replaces the previous one, dismissible */
@@ -3156,9 +3184,11 @@ export class Hud {
         for (const { seat, card } of entries) {
             const chip = this.commanderChips.find((c) => c.seat === seat);
             if (!chip) continue;
+            const same = chip.card === card;
             chip.card = card;
             chip.cardEl.classList.toggle('has-spec', card !== null);
-            this.applyPortrait(chip.portraitEl, chip.avatar, card);
+            // replaceChildren flashes the portrait — skip when nothing changed
+            if (!same) this.applyPortrait(chip.portraitEl, chip.avatar, card);
         }
         this.updateTeamSpecTitles();
         if (this.specDetailSeat !== null) {
@@ -3220,6 +3250,15 @@ export class Hud {
             picks.length > 0 ||
             teamChips.some((c) => (c.card?.forgeSpells?.length ?? 0) > 0);
         if (!hasContent) return;
+
+        const contentKey =
+            `${seat}|${viaHover ? 1 : 0}|` +
+            teamChips.map((c) => `${c.seat}:${c.card?.id ?? ''}:${c.name}`).join(',') +
+            `|${picks.map((p) => `${p.round}:${p.title}:${p.body}`).join(';')}` +
+            `|${bagIds.join(',')}|${forgeIds.join(',')}`;
+        // Remounting every refresh flashes the full-screen dim over the HP bars.
+        if (this.specDetailOverlay && this.lastSpecDetailKey === contentKey) return;
+        this.lastSpecDetailKey = contentKey;
 
         // avoid stacking duplicate overlays
         if (this.specDetailOverlay) this.unmount(this.specDetailOverlay);
@@ -3360,6 +3399,7 @@ export class Hud {
         }
         this.specDetailSeat = null;
         this.specDetailViaHover = false;
+        this.lastSpecDetailKey = '';
         this.hideCardSpellTip();
         this.enemyInventoryEl.classList.remove('reveal');
     }
