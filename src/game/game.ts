@@ -3854,6 +3854,14 @@ export class Game {
     private resolveSeatGone(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host' || this.matchOver) return;
         this.pendingStarSeats.delete(seat); // in case this seat was mid-reconnect-grace
+        // in case this seat was mid-sync-barrier-resync (verifyStarSyncBarrier's
+        // pendingSyncSeats.add) — the only other place that clears this set is
+        // onStarMessage's 'ready' handler, keyed on a live connection from this
+        // seat that will never arrive now. Without this, recheckStarSyncBarriers()
+        // below just keeps re-hitting resumeIfAllClear()'s early-return on a
+        // pendingSyncSeats entry nothing can ever remove, freezing the whole
+        // match for every other connected seat.
+        this.pendingSyncSeats.delete(seat);
         const def = this.seats[seat];
         if (!def) return;
         const remainingHumans = seatIdsOf(this.seats, def.team).filter(
@@ -5081,13 +5089,26 @@ export class Game {
                 msg.item.kind === 'text'
                     ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
                     : msg.item;
-            if (msg.from.role === 'system') {
+            // trust the CONNECTION's seat for an incoming guest message,
+            // never the sender's own claimed name/role — without this a
+            // guest could impersonate a different player, or claim
+            // role:'system' to make its message look like an authoritative
+            // host announcement (announceSystem is host-local only, never
+            // legitimately relayed FROM a guest). A message that's already
+            // been relayed BY the host (isHost false / fromSeat undefined
+            // here) was already sanitized once, at the point the host first
+            // received it — see the relay below.
+            const from =
+                isHost && fromSeat !== undefined
+                    ? { name: this.seats[fromSeat]?.name ?? msg.from.name, role: 'player' as const }
+                    : msg.from;
+            if (from.role === 'system') {
                 if (item.kind === 'text') this.hud.addSystemMessage(item.text);
             } else {
-                this.hud.addChat(msg.from.name, item, 'remote');
+                this.hud.addChat(from.name, item, 'remote');
             }
             if (isHost && fromSeat !== undefined) {
-                const relayed: NetMessage = { type: 'chat', item, from: msg.from };
+                const relayed: NetMessage = { type: 'chat', item, from };
                 star.hub.broadcast(relayed, fromSeat);
                 this.mirrorToSpectators(relayed);
             }
@@ -5127,8 +5148,13 @@ export class Game {
         } else if (msg.type === 'starBattleStart') {
             if (!isHost && msg.round === this.round && this.phase === 'build') this.startBattlePhase();
         } else if (msg.type === 'starCheck') {
-            if (isHost && msg.round === this.round) {
-                this.starChecks.set(msg.seat, msg.hash);
+            // trust the CONNECTION's seat, never the sender's claim — same
+            // reasoning as onStarMessage's 'action' handling above. A guest
+            // could otherwise send an arbitrary msg.seat and overwrite a
+            // DIFFERENT seat's recorded hash, corrupting the N-way
+            // desync-detection tally for a seat that isn't even the sender.
+            if (isHost && fromSeat !== undefined && msg.round === this.round) {
+                this.starChecks.set(fromSeat, msg.hash);
                 this.starChecksCompared = this.verifyStarSyncBarrier(
                     this.starChecks,
                     this.starChecksExpectedSeats,
@@ -5204,9 +5230,14 @@ export class Game {
                 this.applyStarResumeState(msg);
                 star.session.send({ type: 'ready' });
             }
-        } else if (msg.type === 'roster') {
-            // guest-side: the host is the only one that ever sends this for
-            // a star match — mirrors classic 1v1's onNetMessage roster case
+        } else if (msg.type === 'roster' && !isHost) {
+            // guest-side only: the host is the only one that ever sends this
+            // for a star match — mirrors classic 1v1's onNetMessage roster
+            // case. Without the !isHost guard, a guest could send a forged
+            // 'roster' here and have the HOST overwrite its own
+            // this.seats[].controller bookkeeping from it, corrupting
+            // downstream host-authoritative logic (forfeit decisions,
+            // battle-readiness tallies) that trusts it as ground truth.
             this.receivedRoster = msg.entries;
             this.pushSpectatorBadge();
             // player entries come first, one per seat (see buildRoster) —
@@ -5276,12 +5307,13 @@ export class Game {
                 );
                 this.hud.showNotice('The host ended the match.', 'Back to menu', () => this.quitToMenu());
             }
-        } else if (msg.type === 'starForfeit') {
-            // every non-sending client (guests, and spectators via
-            // onSpectateMessage's own copy of this) applies the same
-            // hp-zeroing + match-over check the forfeiting host already
-            // ran locally — see starForfeit's doc comment for why this is
-            // a direct broadcast rather than a relayed action
+        } else if (msg.type === 'starForfeit' && !isHost) {
+            // host-only signal (see starForfeit's doc comment) — only ever
+            // legitimately sent host->guests via a direct broadcast, never
+            // guest->host, so a HOST receiving this on an incoming
+            // connection is a forged message, not a real forfeit; guests
+            // apply the same hp-zeroing + match-over check the forfeiting
+            // host already ran locally
             if (msg.team === 'player') this.playerHp = 0;
             else this.enemyHp = 0;
             if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
