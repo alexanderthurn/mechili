@@ -92,7 +92,26 @@ function decodeJsonParam(?string $raw, int $maxLen) {
     $v = json_decode($raw, true);
     return $v === null && $raw !== 'null' ? null : $v;
 }
+/** `roster` has a well-defined client-side shape (RoomRosterEntry[] — see
+ *  net.ts) and is echoed VERBATIM to every polling client via ?action=list,
+ *  which trusts it enough to index into by seat and render directly —
+ *  decodeJsonParam alone only proves it's valid JSON, not that it's an
+ *  array of the expected shape, so a malformed roster (e.g. a bare number,
+ *  or an array of non-objects) would previously have been stored and
+ *  handed to every OTHER client's renderer as-is. */
+function validRosterShape($v): bool {
+    if (!is_array($v)) return false;
+    foreach ($v as $entry) {
+        if (!is_array($entry)) return false;
+        if (!isset($entry['name']) || !is_string($entry['name'])) return false;
+        if (!isset($entry['side']) || !in_array($entry['side'], ['a', 'b'], true)) return false;
+        if (!isset($entry['connected']) || !is_bool($entry['connected'])) return false;
+        if (isset($entry['aiControlled']) && !is_bool($entry['aiControlled'])) return false;
+    }
+    return true;
+}
 $rosterParam = decodeJsonParam($_GET['roster'] ?? null, 2000);
+if ($rosterParam !== null && !validRosterShape($rosterParam)) $rosterParam = null;
 $dataParam = decodeJsonParam($_GET['data'] ?? null, 2000);
 $roundParam = isset($_GET['round']) ? max(0, min(9999, (int) $_GET['round'])) : null;
 
@@ -264,7 +283,7 @@ if ($action === 'leave') {
     flock($fp, LOCK_UN);
     fclose($fp);
     exit;
-} else { // join — quick match only, never pairs with lobby hosts
+} elseif ($action === 'join') { // quick match only, never pairs with lobby hosts
     $match = null;
     foreach ($rooms as $i => $r) {
         if (($r['kind'] ?? 'queue') !== 'queue') continue;
@@ -287,9 +306,14 @@ if ($action === 'leave') {
     fclose($fp);
     echo json_encode(['match' => $match]);
     exit;
+} else {
+    // previously an unconditional `else` (any unrecognized/misspelled
+    // action silently fell through to quick-match pairing/queueing
+    // instead of erroring) — the 400 response below was dead code that
+    // could never actually run. Now genuinely reachable.
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    http_response_code(400);
+    echo json_encode(['error' => 'bad action']);
+    exit;
 }
-
-http_response_code(400);
-echo json_encode(['error' => 'bad action']);
-flock($fp, LOCK_UN);
-fclose($fp);
