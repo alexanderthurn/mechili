@@ -428,7 +428,7 @@ export type NetMessage =
           type: 'starSync';
           suspended: boolean;
           round: number;
-          phase: 'build' | 'battle';
+          phase: 'build' | 'battle' | 'hpDraw';
           target: number;
           names: string[];
           silent?: boolean;

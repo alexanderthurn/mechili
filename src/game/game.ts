@@ -116,6 +116,14 @@ import {
     type ShadowQuality,
 } from './prefs';
 import { Particles, ProjectileRenderer } from './effects';
+import {
+    buildHpDrawSources,
+    hpDrawShakeIntensity,
+    scheduleHpDrawParticles,
+    type HpDrawPlan,
+} from './hpDraw';
+import { HpDrawFx } from './hpDrawFx';
+import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
 import { createRangeRing, placeRangeRing, PlacementController } from './placement';
@@ -204,6 +212,8 @@ const MATCH_OUTRO_SEC = 0.8;
 const MATCH_INTRO_ZOOM = 200;
 const MATCH_INTRO_PITCH = (48 * Math.PI) / 180;
 const PLAY_START_ZOOM = 110;
+/** post-battle HP damage VFX — hard cap even with huge survivor counts */
+const HP_DRAW_MAX_SECONDS = 8;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the
@@ -271,6 +281,7 @@ export class Game {
     private readonly debug: DebugOverlay;
     private readonly cpuSampler = new CpuSampler();
     private readonly hpBars = new HpBars();
+    private readonly hpDrawFx: HpDrawFx;
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
@@ -319,6 +330,16 @@ export class Game {
     private time = 0;
     /** battle-phase selection: one individual mech (own or enemy) */
     private selectedActor: Actor | null = null;
+    /** post-battle HP draw VFX (visual only; HP already applied in sim) */
+    private pendingHpDrawPlan: HpDrawPlan | null = null;
+    private pendingHpDrawPreHp: { player: number; enemy: number } | null = null;
+    private hpDrawPlan: HpDrawPlan | null = null;
+    private hpDrawElapsed = 0;
+    private hpDrawDisplayPlayer = 0;
+    private hpDrawDisplayEnemy = 0;
+    private hpDrawPrePlayer = 0;
+    private hpDrawPreEnemy = 0;
+    private hpDrawAfterMatchOver = false;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
 
@@ -1141,6 +1162,8 @@ export class Game {
         syncEdgeScroll();
         this.inputDisposers.push(onInputModeChange(syncEdgeScroll));
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
+        installScreenShake(this.rig.camera, () => this.rig.target);
+        this.hpDrawFx = new HpDrawFx(this.scene);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
         this.placement.hasTech = (seat, typeId, techId) => this.techTree.has(seat, typeId, techId);
         // spectator watching a LIVE match (not a replay, which has no
@@ -2223,6 +2246,8 @@ export class Game {
         this.gamepad.dispose();
         this.hud.destroy();
         this.hpBars.destroy();
+        this.hpDrawFx.destroy();
+        clearScreenShake();
         this.debug.destroy();
         this.debugDumpButton?.destroy();
         this.scene.overrideMaterial = null;
@@ -7283,10 +7308,27 @@ export class Game {
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
     private endBattlePhase(): void {
         let hash: number | undefined;
+        this.pendingHpDrawPlan = null;
+        this.pendingHpDrawPreHp = null;
         if (this.sim) {
+            const preHp = { player: this.playerHp, enemy: this.enemyHp };
+            const built = buildHpDrawSources(this.sim, this.economy);
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
+            if (
+                !this.hydrating &&
+                built.sources.length > 0 &&
+                (built.damageToPlayer > 0 || built.damageToEnemy > 0)
+            ) {
+                this.pendingHpDrawPreHp = preHp;
+                this.pendingHpDrawPlan = scheduleHpDrawParticles(built.sources, {
+                    damageToPlayer: built.damageToPlayer,
+                    damageToEnemy: built.damageToEnemy,
+                    hordeLumpPlayer: built.hordeLumpPlayer,
+                    hordeLumpEnemy: built.hordeLumpEnemy,
+                });
+            }
             // capture the battle-end sync-barrier fingerprint BEFORE the sim
             // (and its actors) are torn down below — stateHash() reads
             // this.sim.actors, so this MUST run before `this.sim = null`.
@@ -7341,14 +7383,6 @@ export class Game {
         this.finishOrContinueAfterBattle();
     }
 
-    /**
-     * The actual battle-end decision — finishMatch() vs. cleanup-and-
-     * continue — deferred behind the sync barrier for star mode (see
-     * endBattlePhase), but otherwise identical to this function's original
-     * inline body from before the barrier existed: runs immediately for
-     * classic 1v1, single-player/AI, and hydrating/replay (none of which
-     * take the barrier branch above at all).
-     */
     private finishOrContinueAfterBattle(): void {
         if (this.star && this.star.role === 'host' && !this.hydrating) {
             // every OTHER connected seat is still waiting on this exact
@@ -7360,7 +7394,77 @@ export class Game {
             // announce a verdict of its own.
             this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
         }
-        if (this.playerHp <= 0 || this.enemyHp <= 0) {
+        this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
+        if (this.pendingHpDrawPlan && this.pendingHpDrawPlan.sources.length > 0) {
+            this.beginHpDrawPhase();
+            return;
+        }
+        this.proceedAfterHpDraw();
+    }
+
+    private beginHpDrawPhase(): void {
+        const plan = this.pendingHpDrawPlan;
+        const pre = this.pendingHpDrawPreHp;
+        if (!plan || !pre) {
+            this.proceedAfterHpDraw();
+            return;
+        }
+        this.hpDrawPlan = plan;
+        this.pendingHpDrawPlan = null;
+        this.pendingHpDrawPreHp = null;
+        this.phase = 'hpDraw';
+        this.hpDrawElapsed = 0;
+        this.hpDrawPrePlayer = pre.player;
+        this.hpDrawPreEnemy = pre.enemy;
+        this.hpDrawDisplayPlayer = pre.player;
+        this.hpDrawDisplayEnemy = pre.enemy;
+        this.phaseRemaining = Math.min(HP_DRAW_MAX_SECONDS, plan.timelineSeconds + 0.85);
+        this.placement.enabled = false;
+        this.gridOverlay.visible = false;
+        this.selectedActor = null;
+        this.hpBars.clear();
+
+        this.hpDrawFx.start(plan.sources);
+    }
+
+    private tickHpDraw(dtSeconds: number): void {
+        const plan = this.hpDrawPlan;
+        if (!plan) return;
+        this.hpDrawElapsed += dtSeconds;
+        const w = this.pixiApp.screen.width;
+        const h = this.pixiApp.screen.height;
+        const hits = this.hpDrawFx.update(dtSeconds, this.rig.camera, w, h);
+        for (const hit of hits) {
+            const dmg = Math.round(hit.damage);
+            screenShake({
+                intensity: hpDrawShakeIntensity(hit.tier, dmg),
+                duration: hit.tier === 'high' ? 0.7 : hit.tier === 'medium' ? 0.55 : 0.44,
+                frequency: hit.tier === 'high' ? 72 : hit.tier === 'medium' ? 56 : 48,
+            });
+            if (hit.victim === 'player') this.hpDrawDisplayPlayer -= dmg;
+            else this.hpDrawDisplayEnemy -= dmg;
+        }
+        this.hpDrawDisplayPlayer = Math.max(this.playerHp, this.hpDrawDisplayPlayer);
+        this.hpDrawDisplayEnemy = Math.max(this.enemyHp, this.hpDrawDisplayEnemy);
+
+        const done = this.hpDrawElapsed >= plan.timelineSeconds + 0.7;
+        if (done || this.phaseRemaining <= 0) {
+            this.flushHpDrawDisplay();
+            this.proceedAfterHpDraw();
+        }
+    }
+
+    private flushHpDrawDisplay(): void {
+        this.hpDrawDisplayPlayer = this.playerHp;
+        this.hpDrawDisplayEnemy = this.enemyHp;
+        this.hpDrawFx.clear();
+        this.hpDrawPlan = null;
+    }
+
+    /** Continues the round after HP-draw VFX (or when skipped). */
+    private proceedAfterHpDraw(): void {
+        this.flushHpDrawDisplay();
+        if (this.hpDrawAfterMatchOver) {
             this.finishMatch();
             return;
         }
@@ -7372,9 +7476,6 @@ export class Game {
         }
         this.placement.refaceAll();
         if (this.star && !this.hydrating) {
-            // star's own readiness/hash reporting already happened above
-            // (endBattlePhase/markStarBattleReady) — this continuation is
-            // the "go" signal itself, nothing left to announce
             this.startBuildPhase();
             return;
         }
@@ -7648,37 +7749,9 @@ export class Game {
      * its own was left to stop either force.
      */
     private applyBattleResult(sim: BattleSim): void {
-        let damageToPlayer = 0;
-        let damageToEnemy = 0;
-        let playerSurvived = false;
-        let enemySurvived = false;
-        let hordeValue = 0;
-        // score per mech by battle allegiance (converted mechs count for their new side)
-        for (const a of sim.actors) {
-            if (a.unit.type.structure) continue;
-            const headcount = Math.max(1, a.unit.members.length);
-            const value = this.economy.costOf(a.unit.type) / headcount;
-            const team = actorTeam(a);
-            if (team === 'player') {
-                if (a.alive) {
-                    damageToEnemy += value;
-                    playerSurvived = true;
-                }
-            } else if (team === 'enemy') {
-                if (a.alive) {
-                    damageToPlayer += value;
-                    enemySurvived = true;
-                }
-            } else if (a.alive) {
-                hordeValue += value;
-            }
-        }
-        damageToPlayer = Math.round(damageToPlayer);
-        damageToEnemy = Math.round(damageToEnemy);
-        hordeValue = Math.round(hordeValue);
-        // a wiped side had nothing left to stop the horde either
-        if (!playerSurvived) damageToPlayer += hordeValue;
-        if (!enemySurvived) damageToEnemy += hordeValue;
+        const built = buildHpDrawSources(sim, this.economy);
+        const damageToPlayer = built.damageToPlayer;
+        const damageToEnemy = built.damageToEnemy;
         this.playerHp = Math.max(0, this.playerHp - damageToPlayer);
         this.enemyHp = Math.max(0, this.enemyHp - damageToEnemy);
         this.debugLog.log('hp.applyBattleResult', {
@@ -7686,9 +7759,9 @@ export class Game {
             round: this.round,
             damageToPlayer,
             damageToEnemy,
-            hordeValue,
-            playerSurvived,
-            enemySurvived,
+            hordeValue: built.hordeValue,
+            playerSurvived: built.playerSurvived,
+            enemySurvived: built.enemySurvived,
             playerHp: this.playerHp,
             enemyHp: this.enemyHp,
             unitCount: sim.unitSurvivors().size,
@@ -7827,6 +7900,8 @@ export class Game {
             if (this.phase === 'build') {
                 if (this.watching) this.tickReplayPlayback();
                 if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
+            } else if (this.phase === 'hpDraw') {
+                this.tickHpDraw(dtSeconds);
             } else if (this.sim) {
                 if (profile) {
                     this.sim.profileEnabled = true;
@@ -8006,10 +8081,14 @@ export class Game {
         this.hud.setSupply(this.economy.balance(this.humanSeat));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();
-        this.hud.setHp(this.playerHp, this.enemyHp);
+        this.hud.setHp(
+            this.phase === 'hpDraw' ? this.hpDrawDisplayPlayer : this.playerHp,
+            this.phase === 'hpDraw' ? this.hpDrawDisplayEnemy : this.enemyHp,
+        );
         this.hud.layout();
         if (profile) cpu.end('hud');
         if (profile) cpu.begin();
+        updateScreenShake(dtSeconds);
         this.renderer.render(this.scene, this.rig.camera);
         if (profile) cpu.end('render');
         let mechs = 0;

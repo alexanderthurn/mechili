@@ -19,7 +19,7 @@ import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpel
 import { roundCardFaceHtml } from './roundCardFace';
 import { THEME, hudStyles } from '../theme';
 
-export type Phase = 'build' | 'battle';
+export type Phase = 'build' | 'battle' | 'hpDraw';
 
 type CommanderChip = {
     seat: number;
@@ -2742,7 +2742,7 @@ export class Hud {
                   : `Round ${round}`;
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-        this.topBar.classList.toggle('battle', phase === 'battle');
+        this.topBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         // last 5s of deployment — pulse so the player knows to hurry
         this.timerEl.classList.toggle(
             'urgent',
@@ -2757,22 +2757,22 @@ export class Hud {
         // as classic 1v1's "locked in" treatment (see game.ts's waitingForPeer).
         this.endButton.classList.toggle('ally-ready', allyLockedIn && !waitingForPeer);
         this.endButton.title = allyLockedIn && !waitingForPeer ? 'Your ally is ready — waiting on you' : '';
-        this.fightBar.classList.toggle('battle', phase === 'battle');
+        this.fightBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
-        this.shopColumn.classList.toggle('battle', phase === 'battle');
+        this.shopColumn.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         // locked in: nothing left to buy/use/undo — hide our own action UI
         // entirely (not just dim it). The enemy's sidebar stays up (its
         // items are already `readonly` display, not action buttons) since
         // we can still watch what they're doing.
         this.inventoryEl.classList.toggle('waiting', waitingForPeer);
-        this.inventoryEl.classList.toggle('battle', phase === 'battle');
-        this.enemyInventoryEl.classList.toggle('battle', phase === 'battle');
-        this.phoneBar.classList.toggle('battle', phase === 'battle');
-        this.phoneStatusEl.classList.toggle('battle', phase === 'battle');
+        this.inventoryEl.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
+        this.enemyInventoryEl.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
+        this.phoneBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
+        this.phoneStatusEl.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         // battle: the chat leaves the bar and becomes the normal floating bar
-        this.chatBar.classList.toggle('battle', phase === 'battle');
-        if (phase === 'battle' && (this.phoneTab === 'shop' || this.phoneTab === 'chat')) {
+        this.chatBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
+        if ((phase === 'battle' || phase === 'hpDraw') && (this.phoneTab === 'shop' || this.phoneTab === 'chat')) {
             this.setPhoneTab(null);
         }
     }
@@ -2816,6 +2816,15 @@ export class Hud {
         this.enemyHpFill.style.transform = `scaleX(${e})`;
         this.playerHpVal.textContent = String(pRound);
         this.enemyHpVal.textContent = String(eRound);
+    }
+
+    /** Screen center of a team's HP bar track (for post-battle damage particles). */
+    getHpBarScreenCenter(team: 'player' | 'enemy'): { x: number; y: number } | null {
+        const fill = team === 'player' ? this.playerHpFill : this.enemyHpFill;
+        if (!fill?.isConnected) return null;
+        const r = fill.getBoundingClientRect();
+        if (r.width <= 0 && r.height <= 0) return null;
+        return { x: r.left + r.width * 0.5, y: r.top + r.height * 0.5 };
     }
 
     /** post-battle damage report; replaces the previous one, dismissible */
