@@ -12,6 +12,7 @@ import {
 import { colorForBattleTeam } from './colors';
 import type { Particles } from './effects';
 import { groundHeightAt } from './map';
+import type { SeatId } from './seats';
 import { screenShake } from './screenShake';
 import type { SimEvent } from './sim';
 
@@ -37,6 +38,12 @@ type Wave = {
     age: number;
     duration: number;
     maxRadius: number;
+    seat: SeatId;
+    originX: number;
+    originZ: number;
+    dirX: number;
+    dirZ: number;
+    stretch: number;
 };
 
 type Column = {
@@ -81,6 +88,40 @@ export class TowerDebuffFx {
             if (e.kind !== 'towerDebuff') continue;
             this.spawn(e);
         }
+    }
+
+    /**
+     * Visual-only gate for unit debuff tint.
+     * - No active wave for this seat → `true` (show tint whenever sim says debuffed).
+     * - Wave in progress → `true` only once the rim/wash has covered (x, z).
+     */
+    waveRevealsDebuffTint(seat: SeatId, x: number, z: number): boolean {
+        let gated = false;
+        for (const w of this.waves) {
+            if (w.seat !== seat) continue;
+            gated = true;
+            if (this.pointInsideWave(w, x, z)) return true;
+        }
+        return !gated;
+    }
+
+    private pointInsideWave(w: Wave, x: number, z: number): boolean {
+        const localAge = w.age - WAVE_DELAY;
+        if (localAge < 0) return false;
+        const t = Math.min(1, localAge / w.duration);
+        const ease = 1 - (1 - t) * (1 - t);
+        const progress = ease * 0.98;
+        const radius = Math.max(0.01, w.maxRadius * ease);
+        // unit-local coords (same space as the wave fragment shader)
+        const lx = (x - w.originX) / radius;
+        const lz = (z - w.originZ) / radius;
+        const len = Math.hypot(w.dirX, w.dirZ) || 1;
+        const dx = w.dirX / len;
+        const dz = w.dirZ / len;
+        const along = Math.abs(lx * dx + lz * dz);
+        const side = Math.abs(lx * -dz + lz * dx);
+        const r = Math.hypot(along, side / w.stretch);
+        return r <= progress + 0.02;
     }
 
     /** radius that reaches every board corner from (x, z), plus a little padding */
@@ -265,6 +306,12 @@ export class TowerDebuffFx {
             age: 0,
             duration: WAVE_DURATION,
             maxRadius: this.boardCoverRadius(e.x, e.z),
+            seat: e.seat,
+            originX: e.x,
+            originZ: e.z,
+            dirX: dir.x,
+            dirZ: dir.y,
+            stretch: SIDEWAYS_STRETCH,
         });
 
         // particles: upward spike first, then outward skirt

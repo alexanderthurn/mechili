@@ -1387,8 +1387,13 @@ export class BattleSim {
         }
     }
 
-    /** golden tint on golden mechs; wild color shift while tower debuff timer runs */
-    syncBattleVisuals(timeSeconds: number): void {
+    /** golden tint on golden mechs; wild color shift while tower debuff timer runs.
+     *  `debuffTintAt` gates the psychedelic tint only (stats stay immediate) — used
+     *  so the shockwave rim can “reveal” the look as it sweeps. */
+    syncBattleVisuals(
+        timeSeconds: number,
+        debuffTintAt?: (seat: SeatId, x: number, z: number) => boolean,
+    ): void {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
             // debuff severity is flat now (see debuff/isDebuffed) — no
@@ -1396,8 +1401,9 @@ export class BattleSim {
             let tint: 'normal' | 'golden' | 'debuff' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
-            else if (this.isDebuffed(a)) tint = 'debuff';
-            else if (this.isSpawning(a)) {
+            else if (this.isDebuffed(a) && (debuffTintAt?.(a.unit.seat, a.x, a.z) ?? true)) {
+                tint = 'debuff';
+            } else if (this.isSpawning(a)) {
                 tint = 'spawning';
                 spawnProgress = this.spawnProgress(a);
             }

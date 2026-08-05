@@ -8024,13 +8024,16 @@ export class Game {
                 if (profile) cpu.begin();
                 this.sim.syncMeshes(); // per-frame interpolated positions
                 if (profile) cpu.end('syncMeshes');
+                // advance wave before tint gate so rim coverage matches this frame
+                this.towerDebuffFx.update(gameDt);
                 if (profile) cpu.begin();
-                this.sim.syncBattleVisuals(this.time);
+                this.sim.syncBattleVisuals(this.time, (seat, x, z) =>
+                    this.towerDebuffFx.waveRevealsDebuffTint(seat, x, z),
+                );
                 if (profile) cpu.end('battleVisuals');
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
-                this.towerDebuffFx.update(gameDt);
                 const battleShields = livingShieldDisks(this.placement.allUnits());
                 this.hammerFx.update(this.sim.elapsed, battleShields);
                 this.meteorFx.update(this.sim.elapsed, battleShields);
