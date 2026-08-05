@@ -1178,8 +1178,9 @@ export class BattleSim {
      * Direct disc (or strike footprint) damage with Great Meteor shield rules:
      * units under a living ward are spared; the dome takes the hit instead.
      * Pass `strike` for hammer rectangles / exact strike hit tests; otherwise
-     * a plain circle of `radius` around (x, z) is used (dragon breath drips) —
-     * breath is ground-only (air ignored).
+     * a plain circle of `radius` around (x, z) is used (dragon breath drips).
+     * Hits ground and air — the breath beam is a column, not ground-fire.
+     * Lingering ground flame still ignores air via {@link applyBurn}.
      */
     private applySpellDiscDamage(
         x: number,
@@ -1189,12 +1190,10 @@ export class BattleSim {
         strike?: SpellStrike,
     ): void {
         if (damage <= 0) return;
-        const groundOnly = !strike;
         const domes = this.actors.filter((a) => a.alive && a.unit.type.shield);
         const hitDomes = new Set<Actor>();
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.extra) continue;
-            if (groundOnly && a.altitude > 0) continue;
             const inArea = strike
                 ? strikeHits(strike, a.x, a.z, a.radius)
                 : hypot(a.x - x, a.z - z) <= radius + a.radius;
