@@ -48,7 +48,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 23; // v23: 'starResumeState'/'spectateAccepted' merged into one 'matchCatchUp' message (Phase C, TEAM_MODES_PLAN.md §3c)
+export const GAME_VERSION = 24; // v24: rally routes are three-point (start → mid → end)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;

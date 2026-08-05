@@ -590,8 +590,10 @@ export class Game {
     /** the tactic currently being placed on the map */
     private armedTactic: string | null = null;
     private armedTacticIndex: number | null = null;
-    /** first click of an in-progress two-point tactic (rally or oil) */
+    /** first click of an in-progress multi-point tactic (rally / oil / hammer) */
     private tacticDraftStart: { x: number; z: number } | null = null;
+    /** second click of a three-point tactic (rally mid waypoint) */
+    private tacticDraftMid: { x: number; z: number } | null = null;
     /** whether each SEAT already took/skipped this round's card */
     private readonly roundCardTaken: boolean[];
     /** the game idles behind the card overlay until the loadout is picked */
@@ -1575,6 +1577,7 @@ export class Game {
             this.armedTactic = tacticId;
             this.armedTacticIndex = index;
             this.tacticDraftStart = null;
+            this.tacticDraftMid = null;
             this.placement.inputLocked = true;
             this.syncTacticVisuals();
         };
@@ -6086,19 +6089,40 @@ export class Game {
         if (this.armedTactic === RALLY_ROUTE_ID && pointer) {
             const pos = this.groundAtLocal(pointer.x, pointer.y, RALLY_ROUTE_RADIUS);
             if (pos) {
-                if (this.tacticDraftStart) {
+                const maxSpan = TACTICS[RALLY_ROUTE_ID]?.maxSpan;
+                if (this.tacticDraftStart && this.tacticDraftMid) {
                     const end = clampTacticEnd(
-                        this.tacticDraftStart.x,
-                        this.tacticDraftStart.z,
+                        this.tacticDraftMid.x,
+                        this.tacticDraftMid.z,
                         pos.x,
                         pos.z,
+                        maxSpan,
                     );
                     draft = {
                         startX: this.tacticDraftStart.x,
                         startZ: this.tacticDraftStart.z,
+                        midX: this.tacticDraftMid.x,
+                        midZ: this.tacticDraftMid.z,
                         endX: end.x,
                         endZ: end.z,
                         mode: 'full',
+                    };
+                } else if (this.tacticDraftStart) {
+                    const mid = clampTacticEnd(
+                        this.tacticDraftStart.x,
+                        this.tacticDraftStart.z,
+                        pos.x,
+                        pos.z,
+                        maxSpan,
+                    );
+                    draft = {
+                        startX: this.tacticDraftStart.x,
+                        startZ: this.tacticDraftStart.z,
+                        midX: mid.x,
+                        midZ: mid.z,
+                        endX: mid.x,
+                        endZ: mid.z,
+                        mode: 'start-mid',
                     };
                 } else {
                     draft = {
@@ -6230,10 +6254,14 @@ export class Game {
 
     /** aborts in-progress tactic placement; returns true when something was cancelled */
     private cancelTacticPlacement(): boolean {
-        const had = this.armedTactic !== null || this.tacticDraftStart !== null;
+        const had =
+            this.armedTactic !== null ||
+            this.tacticDraftStart !== null ||
+            this.tacticDraftMid !== null;
         this.armedTactic = null;
         this.armedTacticIndex = null;
         this.tacticDraftStart = null;
+        this.tacticDraftMid = null;
         this.placement.inputLocked = false;
         this.syncTacticVisuals();
         return had;
@@ -6255,6 +6283,7 @@ export class Game {
             unit?: Unit;
             point?: { x: number; z: number };
             start?: { x: number; z: number };
+            mid?: { x: number; z: number };
             end?: { x: number; z: number };
             yaw?: number;
         },
@@ -6272,6 +6301,8 @@ export class Game {
                     team: 'player',
                     startX: target.start!.x,
                     startZ: target.start!.z,
+                    midX: target.mid!.x,
+                    midZ: target.mid!.z,
                     endX: target.end!.x,
                     endZ: target.end!.z,
                 });
@@ -6364,6 +6395,46 @@ export class Game {
                 this.dispatchTacticUse(tactic.id, {
                     point: this.tacticDraftStart,
                     yaw,
+                })
+            ) {
+                this.cancelTacticPlacement();
+            }
+            return true;
+        }
+
+        if (tactic.targeting === 'three-point') {
+            // start → mid → end; each leg clamps to maxSpan
+            if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
+                return true;
+            }
+            if (!this.tacticDraftStart) {
+                this.tacticDraftStart = ground;
+                this.syncTacticVisuals();
+                return true;
+            }
+            if (!this.tacticDraftMid) {
+                this.tacticDraftMid = clampTacticEnd(
+                    this.tacticDraftStart.x,
+                    this.tacticDraftStart.z,
+                    ground.x,
+                    ground.z,
+                    tactic.maxSpan,
+                );
+                this.syncTacticVisuals();
+                return true;
+            }
+            const end = clampTacticEnd(
+                this.tacticDraftMid.x,
+                this.tacticDraftMid.z,
+                ground.x,
+                ground.z,
+                tactic.maxSpan,
+            );
+            if (
+                this.dispatchTacticUse(tactic.id, {
+                    start: this.tacticDraftStart,
+                    mid: this.tacticDraftMid,
+                    end,
                 })
             ) {
                 this.cancelTacticPlacement();

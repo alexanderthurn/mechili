@@ -246,6 +246,8 @@ export interface PlaceRallyRouteAction {
     team: Team;
     startX: number;
     startZ: number;
+    midX: number;
+    midZ: number;
     endX: number;
     endZ: number;
 }
@@ -1107,18 +1109,23 @@ export class ActionDispatcher {
                 const max = this.ctx.tactics[seat]!.filter((id) => id === RALLY_ROUTE_ID).length;
                 const placed = this.ctx.rallyRoutes.filter((r) => r.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
-                const end = clampTacticEnd(
+                const maxSpan = TACTICS[RALLY_ROUTE_ID]!.maxSpan;
+                const mid = clampTacticEnd(
                     action.startX,
                     action.startZ,
-                    action.endX,
-                    action.endZ,
+                    action.midX,
+                    action.midZ,
+                    maxSpan,
                 );
+                const end = clampTacticEnd(mid.x, mid.z, action.endX, action.endZ, maxSpan);
                 const route: RallyRoute = {
                     id: this.ctx.rallyRouteIds.next++,
                     team: action.team,
                     seat,
                     startX: action.startX,
                     startZ: action.startZ,
+                    midX: mid.x,
+                    midZ: mid.z,
                     endX: end.x,
                     endZ: end.z,
                 };

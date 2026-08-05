@@ -205,6 +205,9 @@ export interface Actor {
     /** personal rally-route destination (null = default seek-enemy AI) */
     pathDestX: number | null;
     pathDestZ: number | null;
+    /** next rally waypoint after {@link pathDestX}/{@link pathDestZ} (end after mid) */
+    pathNextX: number | null;
+    pathNextZ: number | null;
     /** which {@link RallyRoute.id} this path order came from (null when not on a route) */
     pathRouteId: number | null;
     /** seconds without getting closer to the rally destination */
@@ -531,6 +534,8 @@ export class BattleSim {
                     spawnDamaged: false,
                     pathDestX: null,
                     pathDestZ: null,
+                    pathNextX: null,
+                    pathNextZ: null,
                     pathRouteId: null,
                     pathStuck: 0,
                     pathBestDist: Infinity,
@@ -641,7 +646,8 @@ export class BattleSim {
     }
 
     /** snapshot at battle start: mechs inside a route's start circle march to a
-     *  matching offset at the end. Overlapping zones: last-placed route wins. */
+     *  matching offset at mid, then the same offset at end. Overlapping zones:
+     *  last-placed route wins. */
     private assignRallyRoutes(routes: readonly RallyRoute[]): void {
         this.rallyRoutes = routes;
         const r2 = RALLY_ROUTE_RADIUS * RALLY_ROUTE_RADIUS;
@@ -652,8 +658,10 @@ export class BattleSim {
                 const dx = a.x - route.startX;
                 const dz = a.z - route.startZ;
                 if (dx * dx + dz * dz > r2) continue;
-                a.pathDestX = route.endX + dx;
-                a.pathDestZ = route.endZ + dz;
+                a.pathDestX = route.midX + dx;
+                a.pathDestZ = route.midZ + dz;
+                a.pathNextX = route.endX + dx;
+                a.pathNextZ = route.endZ + dz;
                 a.pathRouteId = route.id;
                 a.pathStuck = 0;
                 a.pathBestDist = Infinity;
@@ -664,9 +672,25 @@ export class BattleSim {
     private clearPathOrder(a: Actor): void {
         a.pathDestX = null;
         a.pathDestZ = null;
+        a.pathNextX = null;
+        a.pathNextZ = null;
         a.pathRouteId = null;
         a.pathStuck = 0;
         a.pathBestDist = Infinity;
+    }
+
+    /** advance to the next waypoint, or clear when the path is done */
+    private advanceOrClearPath(a: Actor): void {
+        if (a.pathNextX !== null && a.pathNextZ !== null) {
+            a.pathDestX = a.pathNextX;
+            a.pathDestZ = a.pathNextZ;
+            a.pathNextX = null;
+            a.pathNextZ = null;
+            a.pathStuck = 0;
+            a.pathBestDist = Infinity;
+            return;
+        }
+        this.clearPathOrder(a);
     }
 
     /** true when the mech has arrived or given up on its rally destination */
@@ -674,8 +698,9 @@ export class BattleSim {
         if (a.pathDestX === null || a.pathDestZ === null) return false;
         const dist = hypot(a.x - a.pathDestX, a.z - a.pathDestZ);
         if (dist <= RALLY_ROUTE_REACH) {
-            this.clearPathOrder(a);
-            return false;
+            this.advanceOrClearPath(a);
+            // still on path if we advanced to the next waypoint
+            return a.pathDestX !== null;
         }
         if (dist < a.pathBestDist - 0.05) {
             a.pathBestDist = dist;

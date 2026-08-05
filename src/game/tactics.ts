@@ -50,8 +50,9 @@ export const HAMMER_ZONE = {
 };
 
 /**
- * Max center-to-center distance for two-point tactics (rally corridor / oil capsule).
- * Keeps placements readable and stops a single charge from covering the whole board.
+ * Max center-to-center distance per leg for two-/three-point tactics
+ * (rally corridor segments / oil capsule). Keeps placements readable and
+ * stops a single charge from covering the whole board.
  */
 export const TACTIC_MAX_SPAN = 14 * CELL;
 
@@ -91,7 +92,8 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  *
  * `targeting` (armed-click flow, all generic in Game):
  *  - 'point': one ground click (validated against the safe zone when
- *    `respectsSafeZone`); 'two-point': start + end capsule like oil/rally;
+ *    `respectsSafeZone`); 'two-point': start + end capsule like oil;
+ *  - 'three-point': start → mid → end path (rally); each leg clamps to maxSpan;
  *  - 'point-yaw': first click locks position, move mouse to rotate, second
  *    click commits (hammer footprint);
  *  - 'own-unit': click one of your packs (sell).
@@ -104,12 +106,12 @@ export const TACTICS: Record<
         icon: string;
         description: string;
         kind: 'placement' | 'oneShot';
-        targeting: 'point' | 'two-point' | 'point-yaw' | 'own-unit';
+        targeting: 'point' | 'two-point' | 'three-point' | 'point-yaw' | 'own-unit';
         /** rounds to wait after use before a oneShot charge returns (0 = next round) */
         cooldownRounds: number;
         /** aim radius (point circle / capsule margin); board clamp + previews */
         radius?: number;
-        /** two-point: max start→end distance (default TACTIC_MAX_SPAN) */
+        /** two-/three-point: max center distance per leg (default TACTIC_MAX_SPAN) */
         maxSpan?: number;
         /** true = may not land inside the enemy-base safe zone (spawn-likes) */
         respectsSafeZone?: boolean;
@@ -165,11 +167,11 @@ export const TACTICS: Record<
         name: 'Rally Route',
         icon: 'tactic-rally',
         kind: 'placement',
-        targeting: 'two-point',
+        targeting: 'three-point',
         cooldownRounds: 0,
         radius: RALLY_ROUTE_RADIUS,
         description:
-            'Place a start and end zone. Units in the start circle march to matching positions at the end, fighting along the way.',
+            'Place start, middle, and end zones. Units in the start circle march through matching offsets at the middle, then the end, fighting along the way.',
     },
     [OIL_SPILL_ID]: {
         id: OIL_SPILL_ID,
@@ -449,6 +451,9 @@ export interface RallyRoute {
     seat: import('./seats').SeatId;
     startX: number;
     startZ: number;
+    /** waypoint between start and end (offset-preserving march) */
+    midX: number;
+    midZ: number;
     endX: number;
     endZ: number;
 }
