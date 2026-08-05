@@ -1623,8 +1623,15 @@ export async function hostStarRoom(
     // is purely a display label for the room list now (every room is
     // star-hosted; joining always goes through the star join flow
     // regardless of `mode`, see joinStarRoom's callers in main.ts).
-    await lobbyRegister(hub.peerId, name, mode);
-    const heartbeat = setInterval(() => void lobbyRegister(hub.peerId, name, mode), HEARTBEAT_MS);
+    // `token` proves this same client owns this peer id on every later
+    // call (see lobbyRegister's own doc comment) — reassigned from each
+    // call's response so a server-side token refresh is always picked up.
+    let token = (await lobbyRegister(hub.peerId, name, mode)) ?? undefined;
+    const heartbeat = setInterval(() => {
+        void lobbyRegister(hub.peerId, name, mode, token).then((t) => {
+            if (t) token = t;
+        });
+    }, HEARTBEAT_MS);
     // Without this, closing the tab/browser (rather than clicking Cancel,
     // which runs cleanup() below) never calls lobbyLeave at all — the
     // heartbeat just stops, and the room only disappears from the list
@@ -1635,7 +1642,8 @@ export async function hostStarRoom(
     // reads action/peer from the URL's own query string regardless of
     // sendBeacon always using POST.
     const onPageHide = () => {
-        navigator.sendBeacon(`${matchUrl()}?action=leave&peer=${encodeURIComponent(hub.peerId)}`);
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+        navigator.sendBeacon(`${matchUrl()}?action=leave&peer=${encodeURIComponent(hub.peerId)}${tokenParam}`);
     };
     window.addEventListener('pagehide', onPageHide);
     return {
@@ -1644,7 +1652,7 @@ export async function hostStarRoom(
         cleanup: () => {
             clearInterval(heartbeat);
             window.removeEventListener('pagehide', onPageHide);
-            void lobbyLeave(hub.peerId);
+            void lobbyLeave(hub.peerId, token);
         },
         // matchmaking's cleanup() above already fully tears down (or is a
         // safe no-op for) both the cancel and match-start-handoff cases —
@@ -2109,14 +2117,40 @@ function openPeer(id?: string, signal?: AbortSignal): Promise<Peer> {
 }
 
 
-async function lobbyLeave(peerId: string): Promise<void> {
-    await fetch(`${matchUrl()}?action=leave&peer=${encodeURIComponent(peerId)}`).catch(() => undefined);
+async function lobbyLeave(peerId: string, token?: string): Promise<void> {
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+    await fetch(`${matchUrl()}?action=leave&peer=${encodeURIComponent(peerId)}${tokenParam}`).catch(
+        () => undefined,
+    );
 }
 
-async function lobbyRegister(peerId: string, name: string, mode: '1v1' | '2v2' = '1v1'): Promise<void> {
-    await fetch(
-        `${matchUrl()}?action=host&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(name)}&mode=${mode}`,
-    ).catch(() => undefined);
+/**
+ * Registers/heartbeats a room. `token` proves ownership of a peer id already
+ * registered under the caller's own name — a room's peer id is derived
+ * deterministically from its public display name (see peerRoomId), so
+ * without this any client that can COMPUTE another room's peer id could
+ * silently overwrite or evict it (see matchmaking.php's own doc comment).
+ * Pass `undefined` on the very first call for a peer id; the backend mints
+ * a fresh token then and returns it — echo that back on every later call
+ * for the SAME peer (heartbeats included). Returns the (possibly refreshed)
+ * token to keep threading through, or null if the request itself failed.
+ */
+async function lobbyRegister(
+    peerId: string,
+    name: string,
+    mode: '1v1' | '2v2' = '1v1',
+    token?: string,
+): Promise<string | null> {
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+    try {
+        const res = await fetch(
+            `${matchUrl()}?action=host&peer=${encodeURIComponent(peerId)}&name=${encodeURIComponent(name)}&mode=${mode}${tokenParam}`,
+        );
+        const data = (await res.json()) as { token?: string };
+        return data.token ?? token ?? null;
+    } catch {
+        return token ?? null;
+    }
 }
 
 /**
@@ -2147,6 +2181,10 @@ export function registerSpectateEndpoint(
     snapshot: () => { roster?: RoomRosterEntry[]; round?: number; data?: unknown } = () => ({}),
 ): SpectateRegistration {
     let stopped = false;
+    // see lobbyRegister's own doc comment on why this is needed — same
+    // deterministic-peer-id ownership proof, just threaded through this
+    // endpoint's own raw fetch() heartbeat instead of lobbyRegister itself.
+    let token: string | undefined;
     const beat = () => {
         if (stopped) return;
         const snap = snapshot();
@@ -2156,10 +2194,16 @@ export function registerSpectateEndpoint(
             name: roomName,
             mode,
         });
+        if (token) params.set('token', token);
         if (snap.roster) params.set('roster', JSON.stringify(snap.roster));
         if (snap.round !== undefined) params.set('round', String(snap.round));
         if (snap.data !== undefined) params.set('data', JSON.stringify(snap.data));
-        void fetch(`${matchUrl()}?${params.toString()}`).catch(() => undefined);
+        void fetch(`${matchUrl()}?${params.toString()}`)
+            .then((res) => res.json())
+            .then((data: { token?: string }) => {
+                if (data.token) token = data.token;
+            })
+            .catch(() => undefined);
     };
     beat();
     const heartbeat = setInterval(beat, HEARTBEAT_MS);
@@ -2169,7 +2213,7 @@ export function registerSpectateEndpoint(
             if (stopped) return;
             stopped = true;
             clearInterval(heartbeat);
-            void lobbyLeave(peerId);
+            void lobbyLeave(peerId, token);
         },
     };
 }
