@@ -367,6 +367,8 @@ export class SteamStarHub implements HostHub {
     private accepting = false;
     /** true until leaveLobby() is called — see dropSeat's own doc comment. */
     private inLobby = true;
+    /** unsubscribe from the shared onLobbyChatUpdate multiplexer, set by listen(); called from close() so a hosted match doesn't leak a listener for the process lifetime. */
+    private unsubscribeLobbyUpdate: (() => void) | null = null;
 
     /** call once ownership of this hub passes to the running Game (see
      *  main.ts's startSteamStarMatch) — from here on, a drop no longer
@@ -438,7 +440,7 @@ export class SteamStarHub implements HostHub {
     ): void {
         if (this.accepting) return;
         this.accepting = true;
-        onLobbyChatUpdate(() => {
+        this.unsubscribeLobbyUpdate = onLobbyChatUpdate(() => {
             void lobby.getMembers().then((members) => {
                 const present = new Set(members);
                 // a member who left mid-handshake (quit before sending starJoin)
@@ -477,7 +479,22 @@ export class SteamStarHub implements HostHub {
         ) => SeatId | { reject: string },
     ): Promise<void> {
         const channel = new SteamChannel(steamId64);
+        // wired before the handshake resolves — without this, a peer that
+        // joins the lobby and goes silent (or leaves) before ever sending
+        // `starJoin` fires the liveness watchdog's onClose against a still-
+        // null handler, so the channel is never disposed and its `routes`
+        // entry (plus this steamId64's `pending` membership) leaks for the
+        // rest of the process's life.
+        let settled = false;
+        channel.onClose = () => {
+            if (settled) return;
+            settled = true;
+            this.pending.delete(steamId64);
+            channel.dispose();
+        };
         const msg = await channel.once();
+        if (settled) return;
+        settled = true;
         this.pending.delete(steamId64);
         if (msg.type !== 'starJoin') {
             channel.dispose();
@@ -586,6 +603,8 @@ export class SteamStarHub implements HostHub {
     }
 
     close(): void {
+        this.unsubscribeLobbyUpdate?.();
+        this.unsubscribeLobbyUpdate = null;
         for (const { channel } of this.bySeat.values()) channel.dispose();
         this.bySeat.clear();
         void lobby.leave();
