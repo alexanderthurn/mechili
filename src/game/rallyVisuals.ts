@@ -21,14 +21,17 @@ const ARROW_SPACING = 10;
 export type RallyDraft = {
     startX: number;
     startZ: number;
+    midX?: number;
+    midZ?: number;
     endX: number;
     endZ: number;
-    mode: 'start-only' | 'full';
+    mode: 'start-only' | 'start-mid' | 'full';
 };
 
 /**
  * Ground overlay for rally routes — draped capsule corridor + chevrons
  * (same hill-hugging path markers as oil / acid / dragon).
+ * Three-point routes draw two linked segments: start→mid and mid→end.
  */
 export class RallyVisuals {
     readonly group = new Group();
@@ -53,9 +56,17 @@ export class RallyVisuals {
 
     sync(routes: readonly RallyRoute[], draft: RallyDraft | null): void {
         const key =
-            routes.map((r) => `${r.id}:${r.team}`).join('|') +
+            routes
+                .map(
+                    (r) =>
+                        `${r.id}:${r.team}:${r.startX.toFixed(1)},${r.startZ.toFixed(1)},` +
+                        `${r.midX.toFixed(1)},${r.midZ.toFixed(1)},${r.endX.toFixed(1)},${r.endZ.toFixed(1)}`,
+                )
+                .join('|') +
             (draft
-                ? `#${draft.mode}:${draft.startX.toFixed(1)},${draft.startZ.toFixed(1)},${draft.endX.toFixed(1)},${draft.endZ.toFixed(1)}`
+                ? `#${draft.mode}:${draft.startX.toFixed(1)},${draft.startZ.toFixed(1)},` +
+                  `${draft.midX?.toFixed(1) ?? ''},${draft.midZ?.toFixed(1) ?? ''},` +
+                  `${draft.endX.toFixed(1)},${draft.endZ.toFixed(1)}`
                 : '');
         if (key === this.syncKey) return;
         this.clearChildren();
@@ -63,14 +74,38 @@ export class RallyVisuals {
         for (const route of routes) {
             const color =
                 route.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex;
-            this.addRoute(route.startX, route.startZ, route.endX, route.endZ, color);
+            this.addPolyline(
+                [
+                    { x: route.startX, z: route.startZ },
+                    { x: route.midX, z: route.midZ },
+                    { x: route.endX, z: route.endZ },
+                ],
+                color,
+            );
         }
         if (!draft) return;
         const draftColor = teamColors.player.hex;
         if (draft.mode === 'start-only') {
             this.addCircleMarker(draft.startX, draft.startZ, draftColor, true);
-        } else {
-            this.addRoute(draft.startX, draft.startZ, draft.endX, draft.endZ, draftColor, true);
+        } else if (draft.mode === 'start-mid' && draft.midX !== undefined && draft.midZ !== undefined) {
+            this.addPolyline(
+                [
+                    { x: draft.startX, z: draft.startZ },
+                    { x: draft.midX, z: draft.midZ },
+                ],
+                draftColor,
+                true,
+            );
+        } else if (draft.midX !== undefined && draft.midZ !== undefined) {
+            this.addPolyline(
+                [
+                    { x: draft.startX, z: draft.startZ },
+                    { x: draft.midX, z: draft.midZ },
+                    { x: draft.endX, z: draft.endZ },
+                ],
+                draftColor,
+                true,
+            );
         }
     }
 
@@ -92,7 +127,25 @@ export class RallyVisuals {
         addDrapedCircle(this.group, x, z, RALLY_ROUTE_RADIUS, color, fillOpacity, lineOpacity);
     }
 
-    private addRoute(
+    /** linked corridor segments through the given waypoints */
+    private addPolyline(
+        points: readonly { x: number; z: number }[],
+        color: number,
+        draft = false,
+    ): void {
+        if (points.length === 0) return;
+        if (points.length === 1) {
+            this.addCircleMarker(points[0]!.x, points[0]!.z, color, draft);
+            return;
+        }
+        for (let i = 0; i < points.length - 1; i++) {
+            const a = points[i]!;
+            const b = points[i + 1]!;
+            this.addSegment(a.x, a.z, b.x, b.z, color, draft);
+        }
+    }
+
+    private addSegment(
         startX: number,
         startZ: number,
         endX: number,

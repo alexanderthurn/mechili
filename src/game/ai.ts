@@ -219,14 +219,17 @@ export class AiOpponent implements Opponent {
             if (tacticId === RALLY_ROUTE_ID && allies.length > 0) {
                 const a = allyPoint();
                 const b = foePoint();
+                const c = foePoint();
                 ok = dispatch({
                     kind: 'placeRallyRoute',
                     team,
                     seat: this.seat,
                     startX: a.x,
                     startZ: a.z,
-                    endX: b.x,
-                    endZ: b.z,
+                    midX: b.x,
+                    midZ: b.z,
+                    endX: c.x,
+                    endZ: c.z,
                 });
             } else if (tacticId === OIL_SPILL_ID) {
                 const a = foePoint();

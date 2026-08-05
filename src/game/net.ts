@@ -48,7 +48,9 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
-export const GAME_VERSION = 24; // v24: 'starRejoin' gains a required 'name' field, checked against the seat's roster entry (closes an unauthenticated seat-hijack path)
+// v24: 'starRejoin' gains a required 'name' field, checked against the seat's roster entry (closes an unauthenticated seat-hijack path)
+// v24 (melodan, independently bumped): rally routes are three-point (start → mid → end)
+export const GAME_VERSION = 25; // v25: merge of the above two independent v24 bumps — kept distinct so an old single-fix build can't falsely think it's wire-compatible with this one
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
