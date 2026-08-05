@@ -151,7 +151,9 @@ export class TowerDebuffFx {
         }
 
         const teamHex = colorForBattleTeam(e.team).hex;
-        const teamColor = new Color(teamHex);
+        // same hue, lower value — easier to read on bright terrain
+        const teamColor = new Color(teamHex).multiplyScalar(0.55);
+        const darkHex = teamColor.getHex();
         const gy = groundHeightAt(e.x, e.z);
         const len = Math.hypot(e.x, e.z) || 1;
         const dir = new Vector2(-e.x / len, -e.z / len);
@@ -268,7 +270,7 @@ export class TowerDebuffFx {
         // particles: upward spike first, then outward skirt
         this.particles.burst(e.x, gy + 1, e.z, {
             count: 50,
-            color: teamHex,
+            color: darkHex,
             speed: 8,
             life: 0.7,
             up: 22,
@@ -283,7 +285,7 @@ export class TowerDebuffFx {
         });
         this.particles.burst(e.x, e.y, e.z, {
             count: 60,
-            color: teamHex,
+            color: darkHex,
             speed: 20,
             life: 0.9,
             up: 7,
