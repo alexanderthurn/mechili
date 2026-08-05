@@ -44,17 +44,21 @@ const HP_CORNER_SCREEN = {
     enemy: { x: 0.87, y: 0.055 },
 } as const;
 
-/** Billboard soul size by wave tier (world units). */
-const SOUL_SPRITE_SIZE: Record<HpDrawWaveTier, number> = {
-    low: 2.2,
-    medium: 3.6,
-    high: 5.5,
+/** Billboard soul height ≈ unit size; tier still bumps medium/high. */
+const SOUL_SPRITE_MULT: Record<HpDrawWaveTier, number> = {
+    low: 1.05,
+    medium: 1.25,
+    high: 1.45,
 };
 
 /**
- * Transparent unit-mesh ghosts only for medium/high — packs of dwarves would
- * clone too many GLBs if every low particle got one.
+ * Transparent unit-mesh ghosts for bigger mechs (crow, archer, ballista…) and
+ * for medium/high waves. Skip tiny low-tier swarm packs (dwarves) for perf.
  */
+function wantsMeshGhost(tier: HpDrawWaveTier, meshScale: number): boolean {
+    return MESH_GHOST_TIERS.has(tier) || meshScale >= 2;
+}
+
 const MESH_GHOST_TIERS: ReadonlySet<HpDrawWaveTier> = new Set(['medium', 'high']);
 
 const GHOST_TINT = 0xb8f0ff;
@@ -184,7 +188,7 @@ export class HpDrawFx {
             if (!tex) this.pendingMatBinds.push(mat);
 
             const sprite = new Sprite(mat);
-            const sz = SOUL_SPRITE_SIZE[p.tier];
+            const sz = p.meshScale * SOUL_SPRITE_MULT[p.tier];
             sprite.scale.set(sz * 0.65, sz, 1);
             sprite.position.copy(start);
             sprite.renderOrder = 15;
@@ -192,11 +196,12 @@ export class HpDrawFx {
             this.root.add(sprite);
 
             let meshGhost: Group | null = null;
-            if (MESH_GHOST_TIERS.has(p.tier) && hasUnitModel(p.modelId)) {
+            if (wantsMeshGhost(p.tier, p.meshScale) && hasUnitModel(p.modelId)) {
                 const clone = cloneUnitModel(p.modelId);
                 if (clone) {
                     ghostifyUnitMesh(clone);
-                    clone.scale.setScalar(p.meshScale * (p.tier === 'high' ? 1.15 : 1));
+                    // Same scale as the living member mesh (meshScale on the proxy)
+                    clone.scale.setScalar(p.meshScale);
                     clone.rotation.set(0, p.yaw, 0);
                     clone.position.copy(start);
                     clone.visible = false;
@@ -324,11 +329,12 @@ export class HpDrawFx {
                 continue;
             }
 
-            // Soft float bob — spirit energy, not a rigid bolt
+            // Soft float bob — spirit rises from inside the unit body
+            const bodyLift = p.meshScale * 0.45;
             const bob = Math.sin(this.elapsed * 6 + p.index * 0.7) * 0.15;
             p.sprite.visible = true;
-            p.sprite.position.set(p.pos.x, p.pos.y + bob, p.pos.z);
-            const base = SOUL_SPRITE_SIZE[p.tier] * appear;
+            p.sprite.position.set(p.pos.x, p.pos.y + bodyLift + bob, p.pos.z);
+            const base = p.meshScale * SOUL_SPRITE_MULT[p.tier] * appear;
             p.sprite.scale.set(base * 0.65, base, 1);
             (p.sprite.material as SpriteMaterial).opacity = 0.55 + appear * 0.4;
             // Sprites auto-face camera; slight spin for life
@@ -336,8 +342,8 @@ export class HpDrawFx {
 
             if (p.meshGhost) {
                 p.meshGhost.visible = true;
+                // Mesh origin is at the feet — same pose as the living unit
                 p.meshGhost.position.copy(p.pos);
-                // Keep the living unit's facing — no flight reorient / spin
                 p.meshGhost.rotation.set(0, p.yaw, 0);
             }
         }

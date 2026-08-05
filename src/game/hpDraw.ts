@@ -1,13 +1,11 @@
 import type { Economy } from './settings';
-import { groundHeightAt } from './map';
 import { actorTeam, type Actor, type BattleSim } from './sim';
-import { hpDrawWaveTier, hpWithdrawOf, type HpDrawWaveTier, type Team, type UnitType } from './units';
+import { hpDrawWaveTier, hpWithdrawOf, type HpDrawWaveTier, type Team } from './units';
 
-/** World origin for an HP-draw projectile — matches battle HP bar height. */
+/** World origin for an HP-draw soul — living unit feet / hover base. */
 function hpDrawOrigin(a: Actor): { x: number; y: number; z: number } {
-    const t: UnitType = a.unit.type;
-    const ground = a.altitude > 0 ? 0 : groundHeightAt(a.rx, a.rz);
-    const y = ground + a.altitude + (t.structure ? t.meshScale * 4.2 : t.meshScale * 2.2 + 1);
+    // footY is terrain-aware for ground units; altitude for flyers
+    const y = a.altitude > 0 ? a.altitude : a.footY;
     return { x: a.rx, y, z: a.rz };
 }
 
@@ -103,7 +101,7 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
         const tier = hpDrawWaveTier(withdraw);
         const { x, y, z } = hpDrawOrigin(a);
         const modelId = a.unit.type.modelId ?? a.unit.type.id;
-        const meshScale = a.unit.type.meshScale;
+        const meshScale = a.unit.visualMeshScale();
         const yaw = a.mesh.rotation.y;
 
         if (team === 'player') {
@@ -162,7 +160,7 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
             const tier = hpDrawWaveTier(withdraw);
             const { x, y, z } = hpDrawOrigin(a);
             const modelId = a.unit.type.modelId ?? a.unit.type.id;
-            const meshScale = a.unit.type.meshScale;
+            const meshScale = a.unit.visualMeshScale();
             const yaw = a.mesh.rotation.y;
             if (!playerSurvived) {
                 sources.push({
