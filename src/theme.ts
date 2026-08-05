@@ -2729,8 +2729,37 @@ ${fontFaceCss()}
     border: 1px solid ${u.border};
     border-radius: 4px;
     pointer-events: none;
+    text-transform: lowercase;
 }
-.mechili-sidebar .inv-item.placed .inv-cd { color: ${u.techOwned}; }
+.mechili-sidebar .inv-item .inv-cd.wait {
+    color: ${u.brassLight};
+}
+/* same full-bleed bottom strip as .action-tile .at-cost — brass, not red */
+.mechili-sidebar .inv-item:has(.inv-cd.cancel) {
+    padding-bottom: 12px;
+}
+.mechili-sidebar .inv-item .inv-cd.cancel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    min-width: 0;
+    padding: 1px 0 2px;
+    font-size: 9px;
+    font-weight: bold;
+    line-height: 1.2;
+    letter-spacing: 0.3px;
+    color: #20180a;
+    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
+    border: none;
+    border-radius: 0 0 7px 7px;
+}
+.mechili-sidebar .inv-item.cancelable {
+    box-shadow: 0 0 8px rgba(200, 140, 60, 0.35);
+}
+.mechili-sidebar .inv-item.cooling {
+    opacity: 0.72;
+}
+.mechili-sidebar .inv-item.placed .inv-cd.wait { color: ${u.brassLight}; }
 .mechili-sidebar .inv-item.readonly { cursor: default; pointer-events: none; }
 .inv-drag {
     position: fixed;

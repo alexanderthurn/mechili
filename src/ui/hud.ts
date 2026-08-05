@@ -862,6 +862,21 @@ export class Hud {
                 this.setPhoneTab(null);
                 return;
             }
+            // placed / cancel badge: left-click clears (same as right-click)
+            const cancelBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+                '.inv-item[data-tactic].cancelable, .inv-item[data-tactic].placed',
+            );
+            if (cancelBtn?.dataset.tactic) {
+                e.preventDefault();
+                const routeId = cancelBtn.dataset.routeId;
+                if (routeId) {
+                    this.onResetPlacedTactic?.(cancelBtn.dataset.tactic, Number(routeId));
+                } else {
+                    this.onCancelTactic?.();
+                }
+                this.setPhoneTab(null);
+                return;
+            }
             const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
                 '.inv-item[data-tactic]:not(.placed)',
             );
@@ -876,19 +891,8 @@ export class Hud {
             }
         });
         this.inventoryEl.addEventListener('click', (e) => {
-            // arming is pointerdown — only handle collapse + touch placed-reset here
-            if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
-            if (inputMode() === 'touch') {
-                const placedBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-                    '.inv-item[data-tactic].placed',
-                );
-                if (placedBtn?.dataset.tactic && placedBtn.dataset.routeId) {
-                    this.onResetPlacedTactic?.(
-                        placedBtn.dataset.tactic,
-                        Number(placedBtn.dataset.routeId),
-                    );
-                }
-            }
+            // arming / cancel is pointerdown — only handle collapse here
+            this.toggleSidebarCollapse(this.inventoryEl, 'player', e);
         });
         this.inventoryEl.addEventListener('contextmenu', (e) => {
             const tacticBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.inv-item[data-tactic]');
@@ -1620,8 +1624,11 @@ export class Hud {
             armed: boolean;
             placed?: boolean;
             routeId?: number;
-            /** rounds of cooldown (shown as a corner badge) */
-            cooldown?: number;
+            /**
+             * Corner badge: omit when ready; `'cancel'` while placed/used this
+             * deploy; a positive number = rounds until ready again.
+             */
+            badge?: 'cancel' | number;
             /** overrides the default click/right-click tooltip line */
             hint?: string;
             index: number;
@@ -1652,33 +1659,28 @@ export class Hud {
               tactics
                   .map((t) => {
                       const routeAttr = t.routeId !== undefined ? ` data-route-id="${t.routeId}"` : '';
+                      const cancel = t.badge === 'cancel';
+                      const waitRounds = typeof t.badge === 'number' ? t.badge : null;
                       const cls =
                           `inv-item tactic` +
                           (t.placed ? ' placed' : '') +
-                          (t.armed ? ' armed' : '');
+                          (t.armed ? ' armed' : '') +
+                          (cancel ? ' cancelable' : '') +
+                          (waitRounds !== null ? ' cooling' : '');
                       const baseHint =
                           t.hint ??
                           (t.placed
-                              ? `${t.name}\nRight-click to clear and place again.`
+                              ? `${t.name}\nClick or right-click to clear and place again.`
                               : `${t.name}\nClick to place on the map. Right-click to cancel.`);
-                      const cdLine =
-                          t.cooldown === undefined
-                              ? ''
-                              : t.cooldown <= 0
-                                ? '\nNo cooldown.'
-                                : `\n${t.cooldown} round${t.cooldown === 1 ? '' : 's'} cooldown.`;
-                      const hint = baseHint + cdLine;
-                      const cd =
-                          t.cooldown !== undefined
-                              ? `<span class="inv-cd" title="${
-                                    t.cooldown <= 0
-                                        ? 'No cooldown'
-                                        : `${t.cooldown} round${t.cooldown === 1 ? '' : 's'} cooldown`
-                                }">${t.cooldown}</span>`
-                              : '';
+                      const badge =
+                          cancel
+                              ? `<span class="inv-cd cancel" title="Click to cancel">cancel</span>`
+                              : waitRounds !== null
+                                ? `<span class="inv-cd wait" title="Ready again in ${waitRounds} round${waitRounds === 1 ? '' : 's'}">${waitRounds}</span>`
+                                : '';
                       return (
-                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr} title="${escapeAttr(hint)}">` +
-                          `${iconHtml(t.icon)}${cd}</button>`
+                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr} title="${escapeAttr(baseHint)}">` +
+                          `${iconHtml(t.icon)}${badge}</button>`
                       );
                   })
                   .join('')

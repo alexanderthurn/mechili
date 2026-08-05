@@ -5687,6 +5687,11 @@ export class Game {
         armed: boolean;
         placed?: boolean;
         routeId?: number;
+        /**
+         * Corner badge: omit when ready to cast; `'cancel'` while placed/used
+         * this deploy; a positive number = rounds until the charge returns.
+         */
+        badge?: 'cancel' | number;
         hint?: string;
         index: number;
     }[] {
@@ -5698,7 +5703,7 @@ export class Game {
             armed: boolean;
             placed?: boolean;
             routeId?: number;
-            cooldown?: number;
+            badge?: 'cancel' | number;
             hint?: string;
             index: number;
         }[] = [];
@@ -5726,7 +5731,7 @@ export class Game {
             const ability = abilityChargesOf(tactic.id);
             // greyed and available entries are counted from separate sources,
             // so using a charge turns an entry grey instead of removing it
-            let placedEntries: { routeId?: number; hint?: string }[];
+            let placedEntries: { routeId?: number; hint?: string; badge?: 'cancel' | number }[];
             let avail: number;
             if (tactic.kind === 'placement') {
                 // charge stays in the inventory; placements are right-click resettable
@@ -5751,10 +5756,12 @@ export class Game {
                 placedEntries = [
                     ...placements.map((p) => ({
                         routeId: p.id,
+                        badge: 'cancel' as const,
                     })),
                     ...cooling.map((s) => {
                         const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
                         return {
+                            badge: readyIn,
                             hint: `${tactic.name} — cooling down.\nReady again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`,
                         };
                     }),
@@ -5773,8 +5780,7 @@ export class Game {
                     tactic.id,
                     this.round - tactic.cooldownRounds,
                 );
-                const coolingHint = (usedRound: number): string => {
-                    const readyIn = usedRound + tactic.cooldownRounds + 1 - this.round;
+                const coolingHint = (usedRound: number, readyIn: number): string => {
                     const ready = `Ready again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`;
                     return usedRound === this.round
                         ? `${tactic.name} — used this round.\nUndo gives it back. ${ready}`
@@ -5782,9 +5788,16 @@ export class Game {
                 };
                 placedEntries = [
                     ...Array.from({ length: ability.used }, () => ({
+                        badge: 'cancel' as const,
                         hint: `${tactic.name} — used this round.\nUndo gives it back.`,
                     })),
-                    ...useRounds.map((r) => ({ hint: coolingHint(r) })),
+                    ...useRounds.map((r) => {
+                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
+                        return {
+                            badge: (r === this.round ? 'cancel' : readyIn) as 'cancel' | number,
+                            hint: coolingHint(r, readyIn),
+                        };
+                    }),
                 ];
                 avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
             }
@@ -5795,7 +5808,6 @@ export class Game {
                     name: `${tactic.name} — ${tactic.kind === 'placement' ? 'placed' : 'used'}`,
                     armed: false,
                     placed: true,
-                    cooldown: tactic.cooldownRounds,
                     index: slot,
                     ...p,
                 });
@@ -5808,7 +5820,6 @@ export class Game {
                     name: `${tactic.name} — ${tactic.description}`,
                     // duplicates share an id: highlight exactly the clicked slot
                     armed: this.armedTactic === tactic.id && this.armedTacticIndex === slot,
-                    cooldown: tactic.cooldownRounds,
                     index: slot,
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
