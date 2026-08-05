@@ -1,5 +1,5 @@
 import type { Application } from 'pixi.js';
-import { SHOP_UNIT_IDS, unitUnlockCost, type RoundCard, type StartCard } from '../game/cards';
+import { SHOP_UNIT_IDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
@@ -12,7 +12,7 @@ import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emote
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
-import { UNIT_TYPES, type UnitType } from '../game/units';
+import { UNIT_TYPES, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';

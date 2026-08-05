@@ -148,6 +148,11 @@ export interface UnitType {
     id: string;
     name: string;
     cost: number;
+    /**
+     * Once-per-deployment shop unlock fee (supply). Only shop-buyable army
+     * types set this — omit for towers / board extras / unlisted types.
+     */
+    unlockCost?: number;
     /** tiles this unit occupies on the grid (width x depth) */
     footprint: GridExtent;
     /** how many individual mechs stand inside the footprint (width x depth) */
@@ -205,7 +210,9 @@ export interface UnitType {
      * Conversion ray — the Wizard's only attack. Progress fills at effective
      * attack (resolved damage × level × tower attack debuff) per second toward
      * the victim's current HP; at full, allegiance flips for the rest of the
-     * battle. `recover` is idle seconds after a successful convert.
+     * battle. Buildings, golden-aura mechs, and ward domes cannot be converted
+     * — the ray deals the same continuous HP damage instead. `recover` is idle
+     * seconds after a successful convert.
      */
     convertRay?: { range: number; recover?: number };
     /**
@@ -534,6 +541,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'dwarf',
         name: 'Dwarf',
         cost: 100,
+        unlockCost: 0,
         footprint: { cols: 5, rows: 2 },
         formation: { cols: 8, rows: 3 }, // a pack of 24 fighters
         meshScale: 1,
@@ -552,6 +560,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'archer',
         name: 'Archer',
         cost: 100,
+        unlockCost: 0,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
@@ -572,18 +581,20 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'wizard',
         name: 'Wizard',
-        cost: 400,
+        cost: 50,
+        unlockCost: 50,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
         burn: { takenMult: 1.15 },
-        // convert is the only attack — ground by default; Sky Bind unlocks air
+        // convert ray is the only attack — ground by default; Sky Bind unlocks air.
+        // Buildings / golden aura / wards take HP damage from the same ray.
         targets: { ground: true, air: false },
         collisionRadius: 1.0,
         colliders: [{ y: 1.1, r: 0.75 }],
         convertRay: { range: 80, recover: 1.25 },
         hp: 160,
-        // attack = convert intensity (HP of progress per second)
+        // attack = convert intensity / ray DPS (HP progress or damage per second)
         damage: 45,
         range: 80,
         attackInterval: 1.6,
@@ -594,6 +605,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'crowRider',
         name: 'Crow Rider',
         cost: 200,
+        unlockCost: 50,
         footprint: { cols: 5, rows: 2 }, // same pack size as dwarves
         formation: { cols: 4, rows: 1 }, // a flock of 12 riders, two wide rows
         meshScale: 4.35, // slightly smaller so the tighter columns don't touch
@@ -617,6 +629,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'ballista',
         name: 'Ballista',
         cost: 400,
+        unlockCost: 200,
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
@@ -1271,4 +1284,10 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === STRONGHOLD.id) return STRONGHOLD;
     if (id === HORDE_DWARF.id) return HORDE_DWARF;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
+}
+
+/** once-per-deployment shop unlock fee — {@link UnitType.unlockCost} */
+export function unitUnlockCost(typeId: string): number {
+    const cost = unitTypeById(typeId)?.unlockCost;
+    return cost !== undefined ? cost : Number.POSITIVE_INFINITY;
 }

@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unitUnlockCost, type SpecialityId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, type SpecialityId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -45,7 +45,7 @@ import type {
 } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
-import { unitTypeById, type Team, type Unit, type UnitType } from './units';
+import { unitTypeById, unitUnlockCost, type Team, type Unit, type UnitType } from './units';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.

@@ -151,8 +151,9 @@ FTP deploy excludes `backend/players/`.
    `flying` (altitude), `structure`, `extra` (+`shield`/`rocket`),
    `projectileSpeed`/`homing`/`splashRadius`. Price lives on the type
    (`cost`) next to hp/damage — not in GameSettings.
-2. If shop-buyable: add to `SHOP_UNIT_IDS` + `UNIT_UNLOCK_COST` in
-   `cards.ts`; consider starter cards / `SPECIALITY_UNLOCK`.
+2. If shop-buyable: add to `SHOP_UNIT_IDS` in `cards.ts` and set
+   `unlockCost` on the type in `units.ts`; consider starter cards /
+   `SPECIALITY_UNLOCK`.
 3. Nothing else — sim, placement, HUD, icons (`unitIcons.ts` renders
    thumbnails from the same builders) all read the type definition.
 4. Bump `GAME_VERSION`.

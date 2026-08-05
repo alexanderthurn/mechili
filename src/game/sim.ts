@@ -2362,9 +2362,18 @@ export class BattleSim {
     }
 
     /**
+     * Structures and golden-aura mechs cannot be converted — the ray chews
+     * their HP instead (same DPS stack as shield absorb / convert progress).
+     */
+    private convertRayDealsDamage(target: Actor): boolean {
+        return !!target.unit.type.structure || this.isGolden(target);
+    }
+
+    /**
      * Wizard convert ray: progress fills at the caster's effective attack
      * (same stack as orb damage — resolved damage × level × tower attack debuff).
      * Enemy ward domes absorb the beam (damage the shield; no convert through).
+     * Buildings and golden-aura units take the same continuous HP damage.
      */
     private stepConversionRays(dt: number): void {
         // clear stale convertBy / beam tips (channelers re-assert each step)
@@ -2395,9 +2404,12 @@ export class BattleSim {
                 target &&
                 target.alive &&
                 actorTeam(target) !== team &&
-                !target.unit.type.structure &&
                 !target.unit.type.extra &&
-                (target.altitude > 0 ? targets.air : targets.ground);
+                // structures are valid ray victims (damage, not convert)
+                (target.unit.type.structure ||
+                    (target.altitude > 0 ? targets.air : targets.ground)) &&
+                // already flipped this battle — leave alone
+                (target.unit.type.structure || target.allegiance === null);
 
             if (stillOk && target) {
                 const reach = ray.range + caster.radius + target.radius;
@@ -2449,6 +2461,15 @@ export class BattleSim {
             caster.convertRayTipX = target.x;
             caster.convertRayTipY = toY;
             caster.convertRayTipZ = target.z;
+
+            if (this.convertRayDealsDamage(target)) {
+                // buildings + golden aura: same continuous chew as wards, no convert
+                if (target.convertProgress > 0) target.convertProgress = 0;
+                const dealt = intensity * dt * this.damageTakenMult(target);
+                if (dealt > 0) this.applyDamage(caster.unit, target, dealt);
+                continue;
+            }
+
             target.convertBy = caster;
             target.convertProgress += intensity * dt;
             // keep the convert bar visible
@@ -2489,10 +2510,16 @@ export class BattleSim {
         const reach = range + from.radius;
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === team) continue;
-            if (a.unit.type.structure || a.unit.type.extra) continue;
-            if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
-            // already converted this battle — leave alone
-            if (a.allegiance !== null) continue;
+            // board extras (wards) are hit via beam blocking, not as ray targets
+            if (a.unit.type.extra) continue;
+            if (a.unit.type.structure) {
+                // buildings: always ground ray victims (damage, not convert)
+            } else if (a.altitude > 0 ? !targets.air : !targets.ground) {
+                continue;
+            } else if (a.allegiance !== null) {
+                // already converted this battle — leave alone
+                continue;
+            }
             const dx = a.x - from.x;
             const dz = a.z - from.z;
             const d = dx * dx + dz * dz;

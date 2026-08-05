@@ -253,15 +253,6 @@ export function roundCardIcon(c: RoundCard): string | null {
 export const SHOP_UNIT_IDS = ['dwarf', 'archer', 'crowRider', 'ballista', 'wizard'] as const;
 export type ShopUnitId = (typeof SHOP_UNIT_IDS)[number];
 
-/** once-per-round unlock fee by unit type */
-export const UNIT_UNLOCK_COST: Record<ShopUnitId, number> = {
-    dwarf: 0,
-    archer: 0,
-    crowRider: 50,
-    ballista: 200,
-    wizard: 200,
-};
-
 /** the signature unit a specialist can buy even if it is not in the starter army */
 export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
     air: 'crowRider',
@@ -320,10 +311,6 @@ export function starterUnlockedUnits(card: StartCard): ShopUnitId[] {
     }
     ids.add(SPECIALITY_UNLOCK[card.speciality]);
     return SHOP_UNIT_IDS.filter((id) => ids.has(id));
-}
-
-export function unitUnlockCost(typeId: string): number {
-    return UNIT_UNLOCK_COST[typeId as ShopUnitId] ?? Number.POSITIVE_INFINITY;
 }
 
 export const START_CARDS: StartCard[] = [
