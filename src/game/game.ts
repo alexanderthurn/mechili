@@ -7447,8 +7447,11 @@ export class Game {
         this.hpDrawDisplayPlayer = Math.max(this.playerHp, this.hpDrawDisplayPlayer);
         this.hpDrawDisplayEnemy = Math.max(this.enemyHp, this.hpDrawDisplayEnemy);
 
-        const done = this.hpDrawElapsed >= plan.timelineSeconds + 0.7;
-        if (done || this.phaseRemaining <= 0) {
+        const done =
+            this.hpDrawFx.allHit() ||
+            this.hpDrawElapsed >= plan.timelineSeconds + 0.7 ||
+            this.phaseRemaining <= 0;
+        if (done) {
             this.flushHpDrawDisplay();
             this.proceedAfterHpDraw();
         }

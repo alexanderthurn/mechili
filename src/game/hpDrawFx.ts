@@ -1,13 +1,14 @@
 import {
+    AdditiveBlending,
+    Color,
     DynamicDrawUsage,
-    IcosahedronGeometry,
     InstancedMesh,
     MathUtils,
     Matrix4,
-    MeshBasicMaterial,
     PerspectiveCamera,
     Quaternion,
     Raycaster,
+    ShaderMaterial,
     SphereGeometry,
     Vector2,
     Vector3,
@@ -33,6 +34,8 @@ const FLIGHT_SPEED_MULT = 3.3;
 const ARC_LENGTH_MULT = 1.15;
 /** Base mesh radius; tier scale applies 1× / 2× / 4× on top. */
 const BASE_MESH_RADIUS = 0.34;
+/** Soft outer glow relative to the core sphere. */
+const HALO_SCALE = 2.15;
 /** Scale = tierSize × clamp(CAM_SCALE_REF / distanceToCamera, min, max). */
 const CAM_SCALE_REF = 62;
 const CAM_SCALE_MIN = 0.72;
@@ -43,8 +46,6 @@ const HP_CORNER_SCREEN = {
     player: { x: 0.13, y: 0.055 },
     enemy: { x: 0.87, y: 0.055 },
 } as const;
-
-const PARTICLE_COLOR = 0xffe08a;
 
 const TIER_SCALE: Record<HpDrawWaveTier, number> = {
     low: 1,
@@ -72,19 +73,127 @@ export type HpDrawHitEvent = {
 };
 
 /**
- * Free-flying 3D orbs from surviving mechs toward the viewport HP-bar corners.
- * The corner target tracks the camera each frame; particle positions move
- * incrementally and never jump when the camera pans.
+ * Additive fresnel orb — hot white core + gold rim (same look as wizard orbs,
+ * retuned for HP-draw). Shared by every tier; size alone marks low/med/high.
+ */
+function makeCoreMaterial(): ShaderMaterial {
+    return new ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uCore: { value: new Color(0xffffff) },
+            uMid: { value: new Color(0xffe8a8) },
+            uGlow: { value: new Color(0xffb040) },
+        },
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        fog: false,
+        vertexShader: /* glsl */ `
+            varying vec3 vNormal;
+            varying vec3 vView;
+            varying float vPulse;
+            uniform float uTime;
+            void main() {
+                float pulse = 1.0 + 0.1 * sin(uTime * 10.0 + position.y * 5.0);
+                vPulse = pulse;
+                vec3 pos = position * pulse;
+                #ifdef USE_INSTANCING
+                mat4 im = instanceMatrix;
+                #else
+                mat4 im = mat4(1.0);
+                #endif
+                vec4 world = im * vec4(pos, 1.0);
+                vec4 mv = modelViewMatrix * world;
+                vNormal = normalize(normalMatrix * mat3(im) * normal);
+                vView = normalize(-mv.xyz);
+                gl_Position = projectionMatrix * mv;
+            }
+        `,
+        fragmentShader: /* glsl */ `
+            varying vec3 vNormal;
+            varying vec3 vView;
+            varying float vPulse;
+            uniform vec3 uCore;
+            uniform vec3 uMid;
+            uniform vec3 uGlow;
+            uniform float uTime;
+            void main() {
+                float ndv = max(dot(normalize(vNormal), normalize(vView)), 0.0);
+                float fresnel = pow(1.0 - ndv, 2.0);
+                float spark = 0.5 + 0.5 * sin(uTime * 14.0 + fresnel * 12.0);
+                vec3 col = mix(uCore, uMid, fresnel * 0.55 + spark * 0.15);
+                col = mix(col, uGlow, fresnel * 0.85);
+                // hot center stays opaque-bright; rim blooms soft
+                float alpha = 0.55 + fresnel * 0.55 + 0.12 * spark;
+                gl_FragColor = vec4(col * (1.25 + 0.3 * vPulse), alpha);
+            }
+        `,
+    });
+}
+
+/** Soft additive halo — cheap bloom without a post-process pass. */
+function makeHaloMaterial(): ShaderMaterial {
+    return new ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uColor: { value: new Color(0xffc050) },
+        },
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        fog: false,
+        vertexShader: /* glsl */ `
+            varying vec3 vNormal;
+            varying vec3 vView;
+            uniform float uTime;
+            void main() {
+                float pulse = 1.0 + 0.06 * sin(uTime * 7.0);
+                vec3 pos = position * pulse;
+                #ifdef USE_INSTANCING
+                mat4 im = instanceMatrix;
+                #else
+                mat4 im = mat4(1.0);
+                #endif
+                vec4 world = im * vec4(pos, 1.0);
+                vec4 mv = modelViewMatrix * world;
+                vNormal = normalize(normalMatrix * mat3(im) * normal);
+                vView = normalize(-mv.xyz);
+                gl_Position = projectionMatrix * mv;
+            }
+        `,
+        fragmentShader: /* glsl */ `
+            varying vec3 vNormal;
+            varying vec3 vView;
+            uniform vec3 uColor;
+            void main() {
+                float ndv = max(dot(normalize(vNormal), normalize(vView)), 0.0);
+                // soft shell — brighter at the rim, nearly clear in the center
+                float rim = pow(1.0 - ndv, 1.6);
+                float alpha = rim * 0.45;
+                gl_FragColor = vec4(uColor * (0.7 + rim), alpha);
+            }
+        `,
+    });
+}
+
+/**
+ * Free-flying shiny 3D orbs from surviving mechs toward the viewport HP-bar
+ * corners. Additive fresnel core + soft halo; size alone marks wave tier.
  */
 export class HpDrawFx {
-    private readonly pools: Record<HpDrawWaveTier, InstancedMesh>;
+    private readonly core: InstancedMesh;
+    private readonly halo: InstancedMesh;
+    private readonly coreMat: ShaderMaterial;
+    private readonly haloMat: ShaderMaterial;
     private readonly matrix = new Matrix4();
+    private readonly haloMatrix = new Matrix4();
     private readonly dir = new Vector3();
     private readonly desired = new Vector3();
     private readonly velDir = new Vector3();
     private readonly quat = new Quaternion();
     private readonly fwd = new Vector3(0, 0, 1);
     private readonly scale = new Vector3();
+    private readonly haloScale = new Vector3();
     private readonly raycaster = new Raycaster();
     private readonly ndc = new Vector2();
     private readonly cornerPlayer = new Vector3();
@@ -94,33 +203,23 @@ export class HpDrawFx {
     private elapsed = 0;
 
     constructor(scene: Scene) {
-        const makePool = (color: number) => {
-            const mesh = new InstancedMesh(
-                new SphereGeometry(BASE_MESH_RADIUS, 7, 6),
-                new MeshBasicMaterial({ color }),
-                MAX_HP_DRAW,
-            );
-            mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-            mesh.frustumCulled = false;
-            mesh.renderOrder = 12;
-            mesh.count = 0;
-            scene.add(mesh);
-            return mesh;
-        };
-        this.pools = {
-            low: makePool(PARTICLE_COLOR),
-            medium: makePool(PARTICLE_COLOR),
-            high: new InstancedMesh(
-                new IcosahedronGeometry(BASE_MESH_RADIUS, 1),
-                new MeshBasicMaterial({ color: PARTICLE_COLOR }),
-                MAX_HP_DRAW,
-            ),
-        };
-        this.pools.high.instanceMatrix.setUsage(DynamicDrawUsage);
-        this.pools.high.frustumCulled = false;
-        this.pools.high.renderOrder = 12;
-        this.pools.high.count = 0;
-        scene.add(this.pools.high);
+        const geo = new SphereGeometry(BASE_MESH_RADIUS, 14, 12);
+        this.coreMat = makeCoreMaterial();
+        this.haloMat = makeHaloMaterial();
+
+        this.core = new InstancedMesh(geo, this.coreMat, MAX_HP_DRAW);
+        this.core.instanceMatrix.setUsage(DynamicDrawUsage);
+        this.core.frustumCulled = false;
+        this.core.renderOrder = 13;
+        this.core.count = 0;
+        scene.add(this.core);
+
+        this.halo = new InstancedMesh(geo, this.haloMat, MAX_HP_DRAW);
+        this.halo.instanceMatrix.setUsage(DynamicDrawUsage);
+        this.halo.frustumCulled = false;
+        this.halo.renderOrder = 12;
+        this.halo.count = 0;
+        scene.add(this.halo);
     }
 
     start(scheduled: readonly HpDrawScheduledParticle[]): void {
@@ -152,6 +251,8 @@ export class HpDrawFx {
         viewH: number,
     ): HpDrawHitEvent[] {
         this.elapsed += dtSeconds;
+        this.coreMat.uniforms.uTime!.value = this.elapsed;
+        this.haloMat.uniforms.uTime!.value = this.elapsed;
         camera.updateMatrixWorld();
         camera.getWorldPosition(this.camPos);
 
@@ -178,7 +279,7 @@ export class HpDrawFx {
             ),
         );
 
-        const counts: Record<HpDrawWaveTier, number> = { low: 0, medium: 0, high: 0 };
+        let count = 0;
         const hits: HpDrawHitEvent[] = [];
 
         for (const p of this.particles) {
@@ -215,7 +316,6 @@ export class HpDrawFx {
                     hits.push({ victim: p.victim, damage: p.damage, tier: p.tier });
                 } else if (!p.hit) {
                     if (flightAge < BOOST_SECONDS) {
-                        // Launch boost — climb before turning toward the HP bar.
                         p.vel.set(0, p.speed, 0);
                     } else {
                         this.desired.subVectors(target, p.pos);
@@ -247,36 +347,43 @@ export class HpDrawFx {
             const s = size * alphaScale * distScale;
             this.scale.set(s, s, s);
             this.matrix.compose(p.pos, this.quat, this.scale);
+            this.core.setMatrixAt(count, this.matrix);
 
-            const tier = p.tier;
-            const idx = counts[tier]++;
-            this.pools[tier].setMatrixAt(idx, this.matrix);
+            const hs = s * HALO_SCALE;
+            this.haloScale.set(hs, hs, hs);
+            this.haloMatrix.compose(p.pos, this.quat, this.haloScale);
+            this.halo.setMatrixAt(count, this.haloMatrix);
+            count++;
         }
 
-        for (const tier of Object.keys(this.pools) as HpDrawWaveTier[]) {
-            const mesh = this.pools[tier];
-            mesh.count = counts[tier];
-            mesh.instanceMatrix.needsUpdate = true;
-        }
+        this.core.count = count;
+        this.halo.count = count;
+        this.core.instanceMatrix.needsUpdate = true;
+        this.halo.instanceMatrix.needsUpdate = true;
 
         return hits;
+    }
+
+    /** True once every scheduled particle has hit (or there were none). */
+    allHit(): boolean {
+        return this.particles.length > 0 && this.particles.every((p) => p.hit);
     }
 
     clear(): void {
         this.particles = [];
         this.elapsed = 0;
-        for (const mesh of Object.values(this.pools)) mesh.count = 0;
+        this.core.count = 0;
+        this.halo.count = 0;
     }
 
     destroy(): void {
         this.clear();
-        for (const mesh of Object.values(this.pools)) {
-            mesh.removeFromParent();
-            mesh.geometry.dispose();
-            const mat = mesh.material;
-            if (Array.isArray(mat)) for (const m of mat) m.dispose();
-            else mat.dispose();
-        }
+        this.core.removeFromParent();
+        this.halo.removeFromParent();
+        this.core.geometry.dispose();
+        // halo shares the same geometry instance — dispose once
+        this.coreMat.dispose();
+        this.haloMat.dispose();
     }
 }
 
