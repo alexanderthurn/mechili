@@ -2788,9 +2788,13 @@ export class Hud {
         this.speedEl.style.display = visible ? '' : 'none';
     }
 
-    setHp(player: number, enemy: number): void {
-        if (player > this.playerMaxHp) this.playerMaxHp = player;
-        if (enemy > this.enemyMaxHp) this.enemyMaxHp = enemy;
+    setHp(player: number, enemy: number, playerMax?: number, enemyMax?: number): void {
+        // Prefer authoritative match peaks (reconnect/hydrate). Fall back to
+        // grow-from-current only when the caller didn't pass a max yet.
+        if (playerMax !== undefined && playerMax > this.playerMaxHp) this.playerMaxHp = playerMax;
+        else if (playerMax === undefined && player > this.playerMaxHp) this.playerMaxHp = player;
+        if (enemyMax !== undefined && enemyMax > this.enemyMaxHp) this.enemyMaxHp = enemyMax;
+        else if (enemyMax === undefined && enemy > this.enemyMaxHp) this.enemyMaxHp = enemy;
         // 0/0 before any pick: empty fill (not NaN). After a grant, peak equals
         // current so the bar reads full — including mid-pick in 2v2 when only
         // one teammate has chosen yet.

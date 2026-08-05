@@ -362,6 +362,13 @@ export class Game {
     // keeps reading/writing them completely unchanged; only genuinely
     // N-side-aware code (stateHash) touches `hp` directly.
     private hp: number[] = [];
+    /**
+     * Per-side peak HP (commander grants). Survives damage and reconnect
+     * hydrate — the HUD bar max must NOT collapse to current HP when a
+     * new Hud is built mid-match (first setHp would otherwise lock max
+     * to the damaged value).
+     */
+    private hpPeak: number[] = [];
     private matchOver = false;
     private disposed = false;
     private sim: BattleSim | null = null;
@@ -1047,9 +1054,11 @@ export class Game {
         // real side count (not just "however far the playerHp/enemyHp
         // setters happen to have written") so the enemyHp getter's "sum
         // every other side" loop sees every side from the start, even
-        // ones nothing has assigned to yet. HUD bar max grows to each
-        // side's own peak via setHp (no shared GameSettings placeholder).
-        this.hp = new Array(sideCount(this.seats)).fill(0);
+        // ones nothing has assigned to yet. Peak grows with grants (see
+        // playerHp/enemyHp setters) so the HUD bar max survives reconnect.
+        const sides = sideCount(this.seats);
+        this.hp = new Array(sides).fill(0);
+        this.hpPeak = new Array(sides).fill(0);
         // Prefer the boot-warmed GL context so flame/projectile programs survive;
         // fall back to a fresh renderer after return-to-menu (new canvas).
         this.renderer =
@@ -2368,7 +2377,7 @@ export class Game {
         const CHEAT_HP = 999_999;
         this.playerHp = CHEAT_HP;
         this.enemyHp = CHEAT_HP;
-        this.hud.setHp(this.playerHp, this.enemyHp);
+        this.paintHudHp();
         this.cheatGrantSupply(10_000);
         this.cheatGrantAllTactics();
         this.cheatGrantAllItems();
@@ -2788,7 +2797,9 @@ export class Game {
         return this.hp[this.mySide()] ?? 0;
     }
     private set playerHp(v: number) {
-        this.hp[this.mySide()] = v;
+        const side = this.mySide();
+        this.hp[side] = v;
+        this.hpPeak[side] = Math.max(this.hpPeak[side] ?? 0, v);
     }
     private get enemyHp(): number {
         let sum = 0;
@@ -2799,8 +2810,32 @@ export class Game {
     }
     private set enemyHp(v: number) {
         for (let side = 0; side < this.hp.length; side++) {
-            if (side !== this.mySide()) this.hp[side] = v;
+            if (side !== this.mySide()) {
+                this.hp[side] = v;
+                this.hpPeak[side] = Math.max(this.hpPeak[side] ?? 0, v);
+            }
         }
+    }
+
+    /** HUD bar denominator — peak commander HP, not current (damaged) HP. */
+    private get playerHpPeak(): number {
+        return this.hpPeak[this.mySide()] ?? 0;
+    }
+    private get enemyHpPeak(): number {
+        let sum = 0;
+        for (let side = 0; side < this.hpPeak.length; side++) {
+            if (side !== this.mySide()) sum += this.hpPeak[side] ?? 0;
+        }
+        return sum;
+    }
+
+    private paintHudHp(): void {
+        this.hud.setHp(
+            this.phase === 'hpDraw' ? this.hpDrawDisplayPlayer : this.playerHp,
+            this.phase === 'hpDraw' ? this.hpDrawDisplayEnemy : this.enemyHp,
+            this.playerHpPeak,
+            this.enemyHpPeak,
+        );
     }
 
     /**
@@ -8084,10 +8119,7 @@ export class Game {
         this.hud.setSupply(this.economy.balance(this.humanSeat));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
         this.refreshShopHud();
-        this.hud.setHp(
-            this.phase === 'hpDraw' ? this.hpDrawDisplayPlayer : this.playerHp,
-            this.phase === 'hpDraw' ? this.hpDrawDisplayEnemy : this.enemyHp,
-        );
+        this.paintHudHp();
         this.hud.layout();
         if (profile) cpu.end('hud');
         if (profile) cpu.begin();
@@ -8388,8 +8420,8 @@ export class Game {
      *  handed to AI — same stale name, no visible cue anything happened). */
     private refreshCommanders(): void {
         this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
-        // new fill nodes — re-apply current HP against preserved per-side peaks
-        this.hud.setHp(this.playerHp, this.enemyHp);
+        // new fill nodes — re-apply current HP against match peaks
+        this.paintHudHp();
     }
 
     /** veterancy display values for a pack (enemy uses phase-start intel while fogged) */
