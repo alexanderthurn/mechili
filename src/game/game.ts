@@ -4436,8 +4436,8 @@ export class Game {
      * agnostic predicate is correct for a star OR classic 1v1 host, with no
      * `this.star`/`hub` reach-in needed at all. Verified equivalent to the
      * three prior implementations branch-by-branch before landing this,
-     * including the seat viewer's per-side (not both-sides) lock asymmetry
-     * `isRevealable` itself documents.
+     * including the seat viewer's "reveal enemy once MY side locked"
+     * asymmetry `isRevealable` itself documents.
      */
     private revealableToViewer(policy: VisionPolicy): (e: LoggedAction) => boolean {
         return (e) => {

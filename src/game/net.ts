@@ -630,15 +630,20 @@ export interface VisionPolicy {
  * right now? `sideLocked` is supplied by the caller (Game owns lock-in
  * state; this module only knows connections).
  *
- * A viewer with an own side (a real seat, ally or opponent) only ever
- * needs THAT side's own lock — once `fromSide` locks in, it has nothing
- * left to act on this round, so revealing it can't leak an advantage back
- * against its own future choices. A NEUTRAL viewer (no own side — a true
- * spectator) instead waits for EVERY side to lock before seeing anything
- * ungranted: without that stricter bar, a spectator could relay one side's
- * reveal to the other side while it's still building, a real leak a seat
- * viewer's own gate can't cause. This asymmetry is deliberate and must
- * survive any future refactor of this function.
+ * Invariant: information only flows to players who can no longer act on
+ * it. A seat viewer always sees its own side live; enemy-side builds
+ * become visible once the VIEWER's whole side has locked in (2v2: both
+ * teammates must End Deployment — `deployReady` / `starSideLocked` — not
+ * merely this seat). That is what unlocks the intentional "I locked in
+ * first, now watch them decide live" window. Gating on `fromSide` instead
+ * would only dump the enemy's finished deploy right before battle.
+ *
+ * A NEUTRAL viewer (no own side — a true spectator) instead waits for
+ * EVERY side to lock before seeing anything ungranted: without that
+ * stricter bar, a spectator could relay one side's reveal to the other
+ * side while it's still building, a real leak a seat viewer's own gate
+ * can't cause. This asymmetry is deliberate and must survive any future
+ * refactor of this function.
  */
 export function isRevealable(
     policy: VisionPolicy,
@@ -647,7 +652,12 @@ export function isRevealable(
 ): boolean {
     if (policy.ownSides.has(fromSide)) return true;
     if (policy.granted.has(fromSide)) return true;
-    if (policy.ownSides.size > 0) return sideLocked(fromSide);
+    if (policy.ownSides.size > 0) {
+        for (const side of policy.ownSides) {
+            if (!sideLocked(side)) return false;
+        }
+        return true;
+    }
     return sideLocked('a') && sideLocked('b');
 }
 
@@ -1243,11 +1253,17 @@ export class StarHub implements HostHub {
     /**
      * Vision-filtered relay of one build-phase action/undo: live to every
      * ally (same side) recipient immediately; buffered per-recipient for
-     * enemy-side recipients until `sideLocked(fromSide)` is true, at which
-     * point that recipient's WHOLE buffer flushes (only one enemy side
-     * exists per recipient — Tier 1, sides stay binary). Gate itself is the
-     * shared `isRevealable` predicate (see its doc comment) — same one
-     * SpectatorHub uses, just with a `{kind:'seat'}` policy per recipient.
+     * enemy-side recipients until that recipient's own side has locked in
+     * (`isRevealable` — see its doc comment), at which point that
+     * recipient's WHOLE buffer flushes and further enemy traffic streams
+     * live. Only one enemy side exists per recipient (Tier 1, sides stay
+     * binary).
+     *
+     * The locking seat itself is excluded from receiving its own
+     * `endDeployment` echo, but MUST still get its enemy backlog flushed
+     * the moment its side locks — otherwise a guest who locked in would
+     * never see the buffered enemy deploy (host applies those locally
+     * without buffering; only remote seats hold a per-recipient buffer).
      */
     relayBuild(
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
@@ -1256,16 +1272,22 @@ export class StarHub implements HostHub {
     ): void {
         const fromSide = this.sideOf(fromSeat);
         for (const [seat, viewer] of this.bySeat) {
-            // never echo back to the sender; a currently-disconnected
-            // recipient gets fully caught up via matchCatchUp on
-            // reconnect instead — nothing useful to buffer for them here
-            if (seat === fromSeat || !viewer.conn) continue;
+            // a currently-disconnected recipient gets fully caught up via
+            // matchCatchUp on reconnect instead — nothing useful to buffer
+            if (!viewer.conn) continue;
             const policy = seatVisionPolicy(this.sideOf(seat));
+            // flush anything this viewer just became entitled to (typically:
+            // their side locked in and the enemy backlog can stream now),
+            // even when they are the sender of `msg` and must not be echoed
+            if (
+                viewer.buffer.length > 0 &&
+                [...policy.ownSides].every((side) => sideLocked(side))
+            ) {
+                for (const buffered of viewer.buffer) viewer.conn.send(buffered);
+                viewer.buffer.length = 0;
+            }
+            if (seat === fromSeat) continue;
             if (isRevealable(policy, fromSide, sideLocked)) {
-                if (viewer.buffer.length > 0) {
-                    for (const buffered of viewer.buffer) viewer.conn.send(buffered);
-                    viewer.buffer.length = 0;
-                }
                 viewer.conn.send(msg);
             } else {
                 viewer.buffer.push(msg);
