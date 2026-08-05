@@ -591,8 +591,8 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'wizard',
         name: 'Wizard',
-        cost: 50,
-        unlockCost: 50,
+        cost: 400,
+        unlockCost: 200,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
         meshScale: 2.2,
@@ -644,7 +644,7 @@ export const UNIT_TYPES: UnitType[] = [
         footprint: { cols: 4, rows: 4 },
         formation: { cols: 1, rows: 1 },
         meshScale: 3.2,
-        targets: { ground: true, air: true }, // Sky Bind baked in — bolts can elevate
+        targets: { ground: true, air: false }, // Sky Bind baked in — bolts can elevate
         collisionRadius: 2.8,
         colliders: [{ y: 0.9, r: 1.1 }],
         projectileSpeed: 50,
