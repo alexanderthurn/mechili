@@ -57,7 +57,14 @@ const SOUL_SPRITE_MULT: Record<HpDrawWaveTier, number> = {
     high: 1.45,
 };
 
-const GHOST_TINT = 0xb8f0ff;
+const GHOST_TINT = 0xd0f8ff;
+/** Ghost mesh opacity — additive, so keep low for a glassy silhouette. */
+const GHOST_OPACITY = 0.18;
+/** Billboard soul tint (additive; brighter = shinier glow). */
+const SOUL_TINT = 0xe8ffff;
+/** Sprite opacity while waiting / in flight (additive). */
+const SOUL_OPACITY_WAIT = 0.28;
+const SOUL_OPACITY_FLY = 0.48;
 
 let sharedSoulTexture: Texture | null = null;
 let soulTextureLoading = false;
@@ -92,7 +99,7 @@ function ghostifyUnitMesh(root: Object3D): void {
         mesh.material = new MeshBasicMaterial({
             color: GHOST_TINT,
             transparent: true,
-            opacity: 0.38,
+            opacity: GHOST_OPACITY,
             depthWrite: false,
             blending: AdditiveBlending,
             side: DoubleSide,
@@ -174,9 +181,9 @@ export class HpDrawFx {
 
             const mat = new SpriteMaterial({
                 map: tex ?? undefined,
-                color: 0xffffff,
+                color: SOUL_TINT,
                 transparent: true,
-                opacity: tex ? 0.92 : 0.55,
+                opacity: tex ? SOUL_OPACITY_FLY : SOUL_OPACITY_WAIT,
                 depthWrite: false,
                 blending: AdditiveBlending,
                 fog: false,
@@ -234,7 +241,7 @@ export class HpDrawFx {
         if (sharedSoulTexture && this.pendingMatBinds.length > 0) {
             for (const mat of this.pendingMatBinds) {
                 mat.map = sharedSoulTexture;
-                mat.opacity = 0.92;
+                mat.opacity = SOUL_OPACITY_FLY;
                 mat.needsUpdate = true;
             }
             this.pendingMatBinds.length = 0;
@@ -333,9 +340,14 @@ export class HpDrawFx {
             p.sprite.position.set(p.pos.x, p.pos.y + bodyLift + bob, p.pos.z);
             const base = p.meshScale * SOUL_SPRITE_MULT[p.tier] * appear;
             p.sprite.scale.set(base * 0.65, base, 1);
-            (p.sprite.material as SpriteMaterial).opacity = 0.55 + appear * 0.4;
+            // Soft shimmer — additive glow breathes without going opaque.
+            const shimmer = 0.85 + 0.15 * Math.sin(this.elapsed * 9 + p.index * 1.3);
+            const mat = p.sprite.material as SpriteMaterial;
+            mat.opacity =
+                (SOUL_OPACITY_WAIT + (SOUL_OPACITY_FLY - SOUL_OPACITY_WAIT) * appear) *
+                shimmer;
             // Sprites auto-face camera; slight spin for life
-            p.sprite.material.rotation = Math.sin(this.elapsed * 2.2 + p.index) * 0.12;
+            mat.rotation = Math.sin(this.elapsed * 2.2 + p.index) * 0.12;
 
             if (p.meshGhost) {
                 p.meshGhost.visible = true;
