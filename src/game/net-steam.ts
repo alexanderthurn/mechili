@@ -610,6 +610,15 @@ export class SteamStarHub implements HostHub {
         }
     }
 
+    /** HostHub interface conformance — see StarHub's own doc comment for
+     *  why this exists. Steam star has no reconnect story yet (this class's
+     *  own doc comment), so nothing calls this today, but keeping the real
+     *  implementation (not a stub) means it's already correct if that ever
+     *  changes. */
+    seedBuildBuffer(seat: SeatId, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        this.bySeat.get(seat)?.buffer.push(msg);
+    }
+
     close(): void {
         this.unsubscribeLobbyUpdate?.();
         this.unsubscribeLobbyUpdate = null;

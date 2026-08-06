@@ -908,6 +908,12 @@ export class Game {
             /** the exporting side's live build-phase clock — replay always
              *  resets it to a fresh full timer, so it's restored separately */
             phaseRemaining?: number;
+            /** a star guest's cold reconnect (via `matchCatchUp.seatSeq`) —
+             *  see `seedSeqTracking`'s `authoritative` param doc comment for
+             *  why this must override counting `actions` locally. Absent for
+             *  a classic-1v1/solo local save, where `actions` already IS the
+             *  complete, unfiltered history and counting it is correct. */
+            seatSeq?: number[];
         } | null = null,
         /** 2v2+ star-topology connection — mutually exclusive with `net`.
          *  `settings.seats` must already be the LOCALIZED roster (via
@@ -1776,8 +1782,10 @@ export class Game {
         if (spectate) this.wireSpectateSession(spectate.session);
         // any of the hydrate/replay paths above may already have a non-
         // empty log (resume/spectate) — seed once construction's own
-        // catch-up is fully done, not before
-        this.seedSeqTracking();
+        // catch-up is fully done, not before. resume?.seatSeq overrides
+        // counting locally for a star guest's cold reconnect — see
+        // seedSeqTracking's own doc comment.
+        this.seedSeqTracking(resume?.seatSeq);
 
         // Escape toggles the in-game menu (the match keeps running underneath)
         window.addEventListener('keydown', this.onEscapeKey);
@@ -3449,6 +3457,10 @@ export class Game {
                     version: GAME_VERSION,
                     ...resume,
                     viewer: { kind: 'spectator', vision },
+                    // unused by a spectator viewer (never seq-checked, see
+                    // this field's own doc comment) — sent anyway to keep
+                    // the envelope uniform
+                    seatSeq: this.seatActionCounts(this.dispatcher.serializable()),
                 });
                 hub.admit(name, conn, vision);
                 // backfill whatever the snapshot just excluded (already
@@ -3647,7 +3659,7 @@ export class Game {
         this.replayLogFrom(log, fromIndex, msg.battleElapsed);
         this.hydrating = false;
         this.ensureLocalAiBuildActions();
-        this.seedSeqTracking();
+        this.seedSeqTracking(msg.seatSeq);
         if (this.phase === 'build' && msg.phaseRemaining !== undefined) {
             this.phaseRemaining = msg.phaseRemaining;
         }
@@ -3679,23 +3691,46 @@ export class Game {
         if (this.star) this.maybeStartStarBattle();
     }
 
-    /**
-     * (Re)seeds `seatSendSeq`/`lastSeqSeen` from the current log — called
-     * once at construction (fresh match: everything zero) and again after
-     * any hydrate/replay completes (cold reconnect, live resync), since a
-     * resumed log already reflects everything that happened and both
-     * counters must resume from exactly that point. Deliberately NOT
-     * persisted anywhere: anyone reconstructing state from the same log
-     * (host or guest, at any point) derives the identical seed via this
-     * same formula, so both sides always agree on the resume point without
-     * needing to reconcile a separately-tracked number.
-     */
-    private seedSeqTracking(): void {
+    /** counts, per seat, how many `LoggedAction`s in `log` originated from
+     *  that seat — the exact formula `nextSeatSeq`'s stamping agrees with,
+     *  PROVIDED `log` is that seat's own complete, unfiltered history (see
+     *  `seedSeqTracking`'s own doc comment on why a fog-filtered log breaks
+     *  this assumption for a reconnecting seat). */
+    private seatActionCounts(log: LoggedAction[]): number[] {
         const counts = new Array<number>(this.seats.length).fill(0);
-        for (const entry of this.dispatcher.serializable()) {
+        for (const entry of log) {
             const seat = entry.action.seat;
             if (seat !== undefined) counts[seat] = (counts[seat] ?? 0) + 1;
         }
+        return counts;
+    }
+
+    /**
+     * (Re)seeds `seatSendSeq`/`lastSeqSeen` — called once at construction
+     * (fresh match: everything zero) and again after any hydrate/replay
+     * completes (cold reconnect, live resync), since a resumed log already
+     * reflects everything that happened and both counters must resume from
+     * exactly that point.
+     *
+     * `authoritative`, when given, is used verbatim instead of counting
+     * `this.dispatcher.serializable()` locally — required for a star GUEST
+     * resuming via `matchCatchUp` (`applyStarResumeState`/the constructor's
+     * `resume` path): its own local log only reflects `actions`, which is
+     * fog-filtered (this-round enemy actions withheld until this seat's own
+     * side locks — see `actionsForSeatResume`), while `authoritative` is the
+     * HOST's true, unfiltered per-seat counts (`matchCatchUp.seatSeq`).
+     * Counting locally in that case would undercount the withheld seat(s):
+     * the very next live message from them would then look like a bogus
+     * out-of-order seq and spuriously trigger ANOTHER resync via
+     * `starResyncRequest`, on top of the withheld content itself never
+     * having been delivered (see `excludedActionsForSeatResume`'s doc
+     * comment for that half of the fix). Omitted everywhere else (the HOST
+     * seeding itself, a classic-1v1/solo local save) since there `this`'s
+     * own log already IS the complete, unfiltered history — counting it
+     * locally is correct there, and simpler.
+     */
+    private seedSeqTracking(authoritative?: number[]): void {
+        const counts = authoritative ?? this.seatActionCounts(this.dispatcher.serializable());
         this.seatSendSeq = counts.slice();
         this.lastSeqSeen = counts.slice();
     }
@@ -3868,7 +3903,8 @@ export class Game {
      *  awaitPeerReady. */
     private starSeatReconnected(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host') return;
-        this.star.hub.send(seat, {
+        const hub = this.star.hub;
+        hub.send(seat, {
             type: 'matchCatchUp',
             version: GAME_VERSION,
             // seed/settings/roster: only load-bearing for a COLD reconnect
@@ -3881,7 +3917,20 @@ export class Game {
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
             viewer: { kind: 'seat', seat },
+            seatSeq: this.seatActionCounts(this.dispatcher.serializable()),
         });
+        // backfill whatever the snapshot just excluded (see
+        // excludedActionsForSeatResume's own doc comment for why this is
+        // required, not optional)
+        for (const { entry, seq } of this.excludedActionsForSeatResume(seat)) {
+            hub.seedBuildBuffer(seat, {
+                type: 'action',
+                round: entry.round,
+                action: entry.action,
+                side: entry.action.team === 'player' ? 'a' : 'b',
+                seq,
+            });
+        }
         this.spectateRegistration?.refreshNow();
     }
 
@@ -4584,6 +4633,53 @@ export class Game {
         const all = this.dispatcher.serializable();
         if (this.phase !== 'build') return all;
         return all.filter(this.revealableToViewer(seatVisionPolicy(this.star.hub.sideOf(seat))));
+    }
+
+    /**
+     * The exact complement of {@link actionsForSeatResume} — this-round
+     * enemy actions excluded from that snapshot because they aren't
+     * revealable to `seat` YET (its own side hasn't locked in). Without
+     * backfilling these, they're lost forever the instant they DO become
+     * revealable: found live (2v2 host+guest on opposing sides) — a guest
+     * who disconnected before locking in, during which the host bought more
+     * units, reconnected, finished deployment without ever seeing those
+     * units, and desynced at battle start. Unlike a spectator, whose
+     * `SpectatorHub.relayBuild` buffer never existed until admission,
+     * `StarHub`'s per-seat buffer DID exist before the drop — but
+     * `StarHub.dropSeat` deliberately clears it on disconnect (nothing
+     * live to relay while the connection is down, and stale entries would
+     * risk double-delivery once relay resumes), so it's just as empty by
+     * reconnect time. Backfilled into that buffer via `StarHub.seedBuildBuffer`
+     * (seat-keyed mirror of `SpectatorHub.seedBuildBuffer`), it flushes
+     * naturally at the next reveal — this round's own-side lock-in
+     * (`relayBuild`'s inline flush) or battle start (`flushAllBuffers`),
+     * exactly like a spectator's seeded backlog.
+     *
+     * Same-side (ally, 2v2+) actions were never affected by this bug:
+     * `isRevealable` always reveals a viewer's OWN side unconditionally, so
+     * they were never excluded from the initial snapshot in the first
+     * place — matching the live report that a same-side host/guest pair
+     * saw no problem.
+     *
+     * Each entry's `seq` is its TRUE position in the seat's full,
+     * unfiltered per-seat action count (`seatActionCounts`, same formula
+     * `nextSeatSeq` uses to stamp it originally) — required so the
+     * backfilled message passes this seat's own seq-gap check
+     * (`checkStarSeq`) once flushed; see `NetMessage`'s
+     * `matchCatchUp.seatSeq` doc comment for the resync-loop this avoids.
+     */
+    private excludedActionsForSeatResume(seat: SeatId): { entry: LoggedAction; seq: number }[] {
+        if (!this.star || this.star.role !== 'host' || this.phase !== 'build') return [];
+        const revealable = this.revealableToViewer(seatVisionPolicy(this.star.hub.sideOf(seat)));
+        const counts = new Array<number>(this.seats.length).fill(0);
+        const excluded: { entry: LoggedAction; seq: number }[] = [];
+        for (const entry of this.dispatcher.serializable()) {
+            const fromSeat = entry.action.seat;
+            if (fromSeat === undefined) continue;
+            counts[fromSeat] = (counts[fromSeat] ?? 0) + 1;
+            if (!revealable(entry)) excluded.push({ entry, seq: counts[fromSeat] });
+        }
+        return excluded;
     }
 
     /**

@@ -50,7 +50,8 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 /** bumped on any change that affects game logic — mismatched peers refuse to play */
 // v24: 'starRejoin' gains a required 'name' field, checked against the seat's roster entry (closes an unauthenticated seat-hijack path)
 // v24 (melodan, independently bumped): rally routes are three-point (start → mid → end)
-export const GAME_VERSION = 25; // v25: merge of the above two independent v24 bumps — kept distinct so an old single-fix build can't falsely think it's wire-compatible with this one
+// v25: merge of the above two independent v24 bumps — kept distinct so an old single-fix build can't falsely think it's wire-compatible with this one
+export const GAME_VERSION = 26; // v26: 'matchCatchUp' gains 'seatSeq' — fixes a reconnecting seat silently losing the opponent's build actions taken during its disconnect (see the field's own doc comment)
 
 const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -500,6 +501,29 @@ export type NetMessage =
           battleElapsed: number | null;
           phaseRemaining: number;
           viewer: { kind: 'seat'; seat: SeatId } | { kind: 'spectator'; vision: SpectatorVision };
+          /**
+           * The host's TRUE per-seat action counts as of this snapshot —
+           * i.e. `Game`'s own `seatSendSeq`, counted over the host's full,
+           * UNFILTERED log, not just the (possibly fog-excluded) `actions`
+           * above. A `{kind:'seat'}` viewer's own seq tracking
+           * (`Game.seedSeqTracking`) must reseed from THIS, not from
+           * counting its own locally-received `actions` — those two only
+           * agree when nothing was excluded by fog-of-war. When they
+           * disagree (a reconnecting seat whose own side hadn't locked
+           * yet, so the enemy's this-round build actions are withheld —
+           * see `Game.excludedActionsForSeatResume`/`StarHub.seedBuildBuffer`,
+           * which deliver that withheld content separately, later, once
+           * this seat locks in), reseeding from the LOCAL count instead
+           * would leave `lastSeqSeen` undercounted: the very next live
+           * message from the withheld seat would then look like a bogus
+           * out-of-order seq and spuriously trigger ANOTHER resync via
+           * `starResyncRequest` — a real bug this field closes. Unused by
+           * a `{kind:'spectator'}` viewer (spectators aren't seq-checked
+           * at all, see the 'action'/'undo' doc comment above) but always
+           * sent for both, since it's cheap and keeps this envelope
+           * uniform.
+           */
+          seatSeq: number[];
       }
     /** host declines a starRejoin (seat not actually pending, version
      *  mismatch, or the seat was already reclaimed by a race winner) */
@@ -773,6 +797,10 @@ export interface HostHub {
         sideLocked: (side: 'a' | 'b') => boolean,
     ): void;
     flushAllBuffers(): void;
+    /** seeds a reconnecting seat's build backlog directly (bypasses the
+     *  live/sideLocked check `relayBuild` applies) — see the concrete
+     *  implementations' own doc comments. */
+    seedBuildBuffer(seat: SeatId, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void;
     connectedSeats(): SeatId[];
     sideOf(seat: SeatId): 'a' | 'b';
     currentRoster(): CanonicalSeatDef[];
@@ -1320,6 +1348,25 @@ export class StarHub implements HostHub {
                 viewer.buffer.push(msg);
             }
         }
+    }
+
+    /**
+     * Seeds a reconnecting seat's build backlog directly, bypassing
+     * {@link relayBuild}'s live/sideLocked check — the seat-side mirror of
+     * `SpectatorHub.seedBuildBuffer`. Used to backfill this-round enemy
+     * actions that were excluded from the seat's initial `matchCatchUp`
+     * snapshot because they weren't revealable YET (this seat's own side
+     * hadn't locked in when it reconnected — see
+     * `Game.excludedActionsForSeatResume`'s own doc comment for why this is
+     * needed: `dropSeat` clears this seat's buffer on disconnect, and
+     * nothing lived to relay these while the connection was down, so
+     * without an explicit backfill they're lost forever the moment they DO
+     * become revealable). Flushes naturally at the next reveal, exactly
+     * like a spectator's seeded backlog: this round's own-side lock-in
+     * (`relayBuild`'s inline flush) or battle start (`flushAllBuffers`).
+     */
+    seedBuildBuffer(seat: SeatId, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        this.bySeat.get(seat)?.buffer.push(msg);
     }
 
     /** force-flush every recipient's buffer (all sides now locked) */
