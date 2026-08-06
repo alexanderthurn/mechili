@@ -908,12 +908,6 @@ export class Game {
             /** the exporting side's live build-phase clock — replay always
              *  resets it to a fresh full timer, so it's restored separately */
             phaseRemaining?: number;
-            /** a star guest's cold reconnect (via `matchCatchUp.seatSeq`) —
-             *  see `seedSeqTracking`'s `authoritative` param doc comment for
-             *  why this must override counting `actions` locally. Absent for
-             *  a classic-1v1/solo local save, where `actions` already IS the
-             *  complete, unfiltered history and counting it is correct. */
-            seatSeq?: number[];
         } | null = null,
         /** 2v2+ star-topology connection — mutually exclusive with `net`.
          *  `settings.seats` must already be the LOCALIZED roster (via
@@ -1782,10 +1776,8 @@ export class Game {
         if (spectate) this.wireSpectateSession(spectate.session);
         // any of the hydrate/replay paths above may already have a non-
         // empty log (resume/spectate) — seed once construction's own
-        // catch-up is fully done, not before. resume?.seatSeq overrides
-        // counting locally for a star guest's cold reconnect — see
-        // seedSeqTracking's own doc comment.
-        this.seedSeqTracking(resume?.seatSeq);
+        // catch-up is fully done, not before
+        this.seedSeqTracking();
 
         // Escape toggles the in-game menu (the match keeps running underneath)
         window.addEventListener('keydown', this.onEscapeKey);
@@ -3457,10 +3449,6 @@ export class Game {
                     version: GAME_VERSION,
                     ...resume,
                     viewer: { kind: 'spectator', vision },
-                    // unused by a spectator viewer (never seq-checked, see
-                    // this field's own doc comment) — sent anyway to keep
-                    // the envelope uniform
-                    seatSeq: this.seatActionCounts(this.dispatcher.serializable()),
                 });
                 hub.admit(name, conn, vision);
                 // backfill whatever the snapshot just excluded (already
@@ -3659,7 +3647,7 @@ export class Game {
         this.replayLogFrom(log, fromIndex, msg.battleElapsed);
         this.hydrating = false;
         this.ensureLocalAiBuildActions();
-        this.seedSeqTracking(msg.seatSeq);
+        this.seedSeqTracking();
         if (this.phase === 'build' && msg.phaseRemaining !== undefined) {
             this.phaseRemaining = msg.phaseRemaining;
         }
@@ -3706,31 +3694,34 @@ export class Game {
     }
 
     /**
-     * (Re)seeds `seatSendSeq`/`lastSeqSeen` — called once at construction
-     * (fresh match: everything zero) and again after any hydrate/replay
-     * completes (cold reconnect, live resync), since a resumed log already
-     * reflects everything that happened and both counters must resume from
-     * exactly that point.
+     * (Re)seeds `seatSendSeq`/`lastSeqSeen` from the current log — called
+     * once at construction (fresh match: everything zero) and again after
+     * any hydrate/replay completes (cold reconnect, live resync), since a
+     * resumed log already reflects everything that happened and both
+     * counters must resume from exactly that point.
      *
-     * `authoritative`, when given, is used verbatim instead of counting
-     * `this.dispatcher.serializable()` locally — required for a star GUEST
-     * resuming via `matchCatchUp` (`applyStarResumeState`/the constructor's
-     * `resume` path): its own local log only reflects `actions`, which is
-     * fog-filtered (this-round enemy actions withheld until this seat's own
-     * side locks — see `actionsForSeatResume`), while `authoritative` is the
-     * HOST's true, unfiltered per-seat counts (`matchCatchUp.seatSeq`).
-     * Counting locally in that case would undercount the withheld seat(s):
-     * the very next live message from them would then look like a bogus
-     * out-of-order seq and spuriously trigger ANOTHER resync via
-     * `starResyncRequest`, on top of the withheld content itself never
-     * having been delivered (see `excludedActionsForSeatResume`'s doc
-     * comment for that half of the fix). Omitted everywhere else (the HOST
-     * seeding itself, a classic-1v1/solo local save) since there `this`'s
-     * own log already IS the complete, unfiltered history — counting it
-     * locally is correct there, and simpler.
+     * Deliberately ALWAYS counts locally, even for a star guest resuming
+     * via `matchCatchUp` whose `actions` are fog-filtered (this-round enemy
+     * actions withheld until this seat's own side locks — see
+     * `actionsForSeatResume`). This is correct, not an approximation: a
+     * withheld seat's excluded entries are always a clean, contiguous TAIL
+     * of that seat's history (`revealableToViewer`'s round/lock check is
+     * all-or-nothing per round — never excludes entry N while including
+     * entry N+1 from the same seat), so the local count already lands
+     * exactly on "how many I'll have once the withheld tail is later
+     * delivered" — which is exactly the TRUE seq of the next entry to
+     * arrive (see `excludedActionsForSeatResume`'s seq computation, the
+     * same running-count formula). An earlier version of this function took
+     * an `authoritative` override sourced from the host's TRUE unfiltered
+     * count instead — that seeded `lastSeqSeen` for the withheld seat
+     * HIGHER than what had actually been delivered, so the later real
+     * delivery (once this seat locked in) looked like a DUPLICATE/stale seq
+     * and got rejected via `requestStarResync` — confirmed live (the
+     * backfilled content was silently dropped, not just delayed). Reverted;
+     * `matchCatchUp` no longer carries `seatSeq`.
      */
-    private seedSeqTracking(authoritative?: number[]): void {
-        const counts = authoritative ?? this.seatActionCounts(this.dispatcher.serializable());
+    private seedSeqTracking(): void {
+        const counts = this.seatActionCounts(this.dispatcher.serializable());
         this.seatSendSeq = counts.slice();
         this.lastSeqSeen = counts.slice();
     }
@@ -3917,7 +3908,6 @@ export class Game {
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
             viewer: { kind: 'seat', seat },
-            seatSeq: this.seatActionCounts(this.dispatcher.serializable()),
         });
         // backfill whatever the snapshot just excluded (see
         // excludedActionsForSeatResume's own doc comment for why this is
@@ -4663,10 +4653,11 @@ export class Game {
      *
      * Each entry's `seq` is its TRUE position in the seat's full,
      * unfiltered per-seat action count (`seatActionCounts`, same formula
-     * `nextSeatSeq` uses to stamp it originally) — required so the
-     * backfilled message passes this seat's own seq-gap check
-     * (`checkStarSeq`) once flushed; see `NetMessage`'s
-     * `matchCatchUp.seatSeq` doc comment for the resync-loop this avoids.
+     * `nextSeatSeq` uses to stamp it originally) — matches exactly what the
+     * reconnecting seat's own `lastSeqSeen` will expect next, since
+     * `seedSeqTracking`'s local count already lands on that same number
+     * (see that function's own doc comment for why counting locally is
+     * correct here, not an approximation).
      */
     private excludedActionsForSeatResume(seat: SeatId): { entry: LoggedAction; seq: number }[] {
         if (!this.star || this.star.role !== 'host' || this.phase !== 'build') return [];

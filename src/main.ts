@@ -1315,9 +1315,6 @@ type MatchResume = {
     battleElapsed: number | null;
     local?: boolean;
     phaseRemaining?: number;
-    /** a star guest's cold reconnect — see Game's `seedSeqTracking`
-     *  `authoritative` param doc comment. */
-    seatSeq?: number[];
 };
 
 function hideResumeOverlay(): void {
@@ -3120,7 +3117,6 @@ function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): vo
                     battleElapsed: msg.battleElapsed,
                     phaseRemaining: msg.phaseRemaining,
                     local: false,
-                    seatSeq: msg.seatSeq,
                 },
                 { role: 'guest', session, mySeat },
             );
