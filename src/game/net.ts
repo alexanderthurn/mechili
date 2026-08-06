@@ -1383,10 +1383,6 @@ export interface GuestSession {
     send(msg: NetMessage): void;
     once(): Promise<NetMessage>;
     close(): void;
-    /** this session was superseded by a fresh one from a successful
-     *  redial() — stop listening/reporting without tearing down anything
-     *  the NEW session still needs (e.g. a shared Peer object) */
-    discard(): void;
     redial(mySeat: SeatId, signal: AbortSignal, delayMs?: number): Promise<GuestSession>;
 }
 
@@ -1457,19 +1453,6 @@ export class StarGuestSession implements GuestSession {
                 resolve(msg);
             };
         });
-    }
-
-    /**
-     * Superseded by a fresh reconnected session (a successful redial()) —
-     * stop listening on the shared, still-alive Peer object without
-     * destroying it (unlike close(), which is for actually leaving the
-     * match and needs the peer gone too).
-     */
-    discard(): void {
-        this.onClose = null;
-        this.closed = true;
-        this.liveness.stop();
-        this.peer.off('error', this.onPeerError);
     }
 
     close(): void {

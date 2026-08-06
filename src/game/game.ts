@@ -643,6 +643,19 @@ export class Game {
     onConnectionLost: (() => void) | null = null;
     /** set by main: tear down the match and restore the pre-game menu */
     onReturnToMenu: (() => void) | null = null;
+    /**
+     * Set by main: a star (2v2+) guest needs a full teardown-and-reconstruct
+     * resync (Phase 7 — replaces the old in-place `applyStarResumeState`
+     * patch) — either a real reconnect just succeeded (`session` is a
+     * freshly-redialed `GuestSession`) or a battle-checkpoint hash mismatch
+     * was detected on an otherwise still-healthy connection (`session` is
+     * THIS `Game`'s own, unchanged `star.session`). Either way `msg` is the
+     * full `matchCatchUp` to rebuild from. main.ts owns the actual
+     * `destroy()`/`new Game(...)` swap — see `rebuildStarGuestGame`.
+     */
+    onNeedsFullResync:
+        | ((session: GuestSession, msg: Extract<NetMessage, { type: 'matchCatchUp' }>) => void)
+        | null = null;
     /** throttled hook for persisting single-player state to session storage */
     onStateCheckpoint: (() => void) | null = null;
     /** 0..1 while the 3D camera fly-in runs (main fades the brightness flash) */
@@ -1760,14 +1773,16 @@ export class Game {
         if ((this.net && this.side === 'a') || this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
         if (resume && this.star?.role === 'guest' && !resume.local) {
-            // cold reconnect via the main menu (see the guest session's
-            // 'matchCatchUp' handling) — the host holds this seat
-            // suspended until it hears OUR 'ready', same fairness
-            // handshake an in-session redial already sends via
-            // beginStarGuestReconnect. hydrate() above already ran to
-            // completion synchronously, but see pendingReadyOnIntroFinish's
-            // doc comment for why the SEND itself still needs to wait for
-            // the fly-in, not just the data hydrate.
+            // fires for BOTH a cold reconnect via the main menu (see the
+            // guest session's 'matchCatchUp' handling) and a mid-match
+            // Phase 7 full-rebuild resync (rebuildStarGuestGame, always
+            // constructed with matchIntro=false so this sends immediately,
+            // not deferred — see the branch below) — the host holds this
+            // seat suspended until it hears OUR 'ready' either way.
+            // hydrate() above already ran to completion synchronously, but
+            // see pendingReadyOnIntroFinish's doc comment for why the SEND
+            // itself still needs to wait for the fly-in when there IS one,
+            // not just the data hydrate.
             const guestSession = this.star.session;
             const sendReady = () => guestSession.send({ type: 'ready' });
             if (matchIntro) this.pendingReadyOnIntroFinish = sendReady;
@@ -2196,7 +2211,28 @@ export class Game {
         this.enforceCinemaWorld();
     }
 
-    destroy(): void {
+    /**
+     * `keepStarSession`: used by a full guest-side resync rebuild
+     * (`onNeedsFullResync`) — skips touching `this.star.session` AT ALL
+     * (neither `.close()` nor `.discard()`), for two different reasons
+     * depending on which trigger is rebuilding:
+     * - A real reconnect: `this.star.session` here is the OLD, already-dead
+     *   pre-redial session — `StarGuestSession`'s own `fireClose()` already
+     *   stopped ITS liveness/detached ITS peer-error listener before we
+     *   ever got here, so there's nothing left to clean up except
+     *   `.close()`'s `peer.destroy()` — which would kill the shared
+     *   `Peer` object (see `StarGuestSession`'s own doc comment: `peer`
+     *   is reused across every redial) that the brand-new, already-
+     *   reconnected session the replacement `Game` is about to use needs.
+     * - A hash-mismatch resync (connection never dropped): `this.star.session`
+     *   here IS the exact SAME live object the replacement `Game` will keep
+     *   using. Calling `.discard()` on it would stop its liveness watchdog
+     *   for good — `StarGuestSession`'s watchdog is created once, in its
+     *   constructor, never restarted — silently disabling drop detection
+     *   on this connection for the rest of the match.
+     * Either way the right move is the same: don't call anything on it.
+     */
+    destroy(opts?: { keepStarSession?: boolean }): void {
         if (this.disposed) return;
         this.disposed = true;
         this.introActive = false;
@@ -2225,9 +2261,12 @@ export class Game {
         this.net = null;
         // star (2v2+) connections were never closed here — a real,
         // separate leak from classic 1v1's this.net above, easy to miss
-        // since star is its own optional field
-        if (this.star?.role === 'host') this.star.hub.close();
-        else if (this.star?.role === 'guest') this.star.session.close();
+        // since star is its own optional field. keepStarSession skips this
+        // whole branch (see its own doc comment on the destroy() signature).
+        if (!opts?.keepStarSession) {
+            if (this.star?.role === 'host') this.star.hub.close();
+            else if (this.star?.role === 'guest') this.star.session.close();
+        }
         // stop an in-flight redial from quietly retrying for the rest of its
         // grace window after we've already left — everything it would do on
         // success/failure is separately disposed-guarded either way, this
@@ -3601,17 +3640,12 @@ export class Game {
                     return;
                 }
                 if (reply.type === 'matchCatchUp' && reply.viewer.kind === 'seat') {
-                    this.applyStarResumeState(reply);
-                    // the old session's own peer-error listener would
-                    // otherwise never be removed (see StarGuestSession's
-                    // doc comment) — discard(), not close(): the shared
-                    // Peer object stays alive for `fresh`
-                    session.discard();
-                    star.session = fresh;
-                    this.wireStarGuestSession(fresh);
-                    fresh.send({ type: 'ready' });
-                    this.suspended = false;
-                    this.hud.hideNotice();
+                    // hand off to main.ts for a full teardown-and-reconstruct
+                    // (Phase 7) — this (about to be destroyed) Game object
+                    // does nothing further with `fresh`/`reply` itself; the
+                    // "reconnecting…" notice stays up until the replacement
+                    // Game takes over the screen, rather than flashing hidden
+                    this.onNeedsFullResync?.(fresh, reply);
                 } else {
                     fresh.close();
                     if (!this.matchOver) this.suspend('The host rejected our reconnect.');
@@ -3624,33 +3658,6 @@ export class Game {
                 clearTimeout(timeout);
                 if (this.starRedialAbort === controller) this.starRedialAbort = null;
             });
-    }
-
-    /**
-     * Star guest only: applies a matchCatchUp catch-up onto this
-     * ALREADY-LIVE Game object — never reconstructed, unlike classic 1v1's
-     * page-reload resume. dispatch() is NOT safe to re-run from index 0
-     * here (no idempotency guard — a re-applied buy would double-spend,
-     * a re-applied unlock would double-charge), so this resumes from
-     * `dispatcher.serializable().length`: exactly how many of msg.actions
-     * this object already reflects, since dispatchPlayer refuses all local
-     * input while `suspended` (see beginStarGuestReconnect) — nothing could
-     * have been added locally in the meantime.
-     */
-    private applyStarResumeState(msg: Extract<NetMessage, { type: 'matchCatchUp' }>): void {
-        const log = msg.actions.map((e) => {
-            const team = this.seats[e.action.seat!]?.team;
-            return team ? { ...e, action: { ...e.action, team } } : e;
-        });
-        const fromIndex = this.dispatcher.serializable().length;
-        this.hydrating = true;
-        this.replayLogFrom(log, fromIndex, msg.battleElapsed);
-        this.hydrating = false;
-        this.ensureLocalAiBuildActions();
-        this.seedSeqTracking();
-        if (this.phase === 'build' && msg.phaseRemaining !== undefined) {
-            this.phaseRemaining = msg.phaseRemaining;
-        }
     }
 
     /**
@@ -4705,16 +4712,20 @@ export class Game {
     }
 
     /**
-     * The core catch-up loop shared by `hydrate()` (fresh reconstruction,
-     * `fromIndex` 0) and a star seat's in-session reconnect catch-up
-     * (`applyStarResumeState`, `fromIndex` = however much of this log this
-     * object already reflects). Round/phase advance purely as a side effect
-     * of `dispatch()`/`fastForwardBattle()` — same mechanics the live 60fps
-     * tick uses — so this works identically whether starting from a blank
-     * object or a partially-progressed live one.
+     * `hydrate()`'s catch-up loop — always replays the FULL log from index 0
+     * onto a brand-new `Game` object (safe: `dispatch()` has no idempotency
+     * guard, so this must never run on an already-populated dispatcher).
+     * Round/phase advance purely as a side effect of
+     * `dispatch()`/`fastForwardBattle()` — same mechanics the live 60fps
+     * tick uses. Previously also shared with an in-place, non-zero-index
+     * "patch the already-live object" resync path (`applyStarResumeState`)
+     * — replaced (Phase 7) by tearing down and reconstructing a fresh
+     * `Game` through this same `hydrate()` path instead, so that need is
+     * gone; kept as a plain full replay rather than a generalized
+     * "resume from anywhere" helper, since nothing else needs the latter.
      */
-    private replayLogFrom(log: LoggedAction[], fromIndex: number, liveBattleElapsed: number | null): void {
-        let i = fromIndex;
+    private replayLogFrom(log: LoggedAction[], liveBattleElapsed: number | null): void {
+        let i = 0;
         while (i < log.length && !this.matchOver) {
             const entry = log[i]!;
             if (entry.round === 0) {
@@ -4819,7 +4830,7 @@ export class Game {
         const starterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
         this.draw(START_CARDS, 4, this.rngCards.enemy);
 
-        this.replayLogFrom(log, 0, liveBattleElapsed);
+        this.replayLogFrom(log, liveBattleElapsed);
         this.hydrating = false;
         // startBuildPhase skips AI while hydrating — if we landed on a fresh
         // build phase (log ended at the previous round's lock-ins), kick the
@@ -5456,9 +5467,13 @@ export class Game {
             // own one-time read (beginStarGuestReconnect's fresh.once(), or
             // the main-menu cold-reconnect flow) before onStarMessage is
             // ever wired up to receive it, so there's no double-handling.
+            // Phase 7: hand off for a full teardown-and-reconstruct rather
+            // than patching this object in place — `star.session` here is
+            // this SAME still-connected session (nothing dropped), reused
+            // as-is by the replacement Game; the 'ready' ack is sent by
+            // that replacement's own constructor once it's built.
             if (star.role === 'guest') {
-                this.applyStarResumeState(msg);
-                star.session.send({ type: 'ready' });
+                this.onNeedsFullResync?.(star.session, msg);
             }
         } else if (msg.type === 'roster' && !isHost) {
             // guest-side only: the host is the only one that ever sends this
@@ -7038,11 +7053,15 @@ export class Game {
             !this.seatReady[this.humanSeat] &&
             !this.watching &&
             // undoLast() also bypasses dispatchPlayer's own `!this.suspended`
-            // gate — without this, undoing during a star reconnect's
-            // "Reconnecting…" pause shrinks the local log by one entry that
-            // never reaches the host (the connection is down), which
-            // applyStarResumeState's index-based resume then re-dispatches
-            // on reconnect: an action the host never undid gets double-applied.
+            // gate — without this, undoing while suspended shrinks the local
+            // log by one entry with no way to tell the host (the whole point
+            // of `suspended` is that nothing can be sent right now). This
+            // still matters even after Phase 7's move to full teardown-and-
+            // reconstruct on reconnect/resync: `suspended` also covers being
+            // paused because a DIFFERENT seat dropped (this Game object is
+            // never rebuilt in that case), where a silent local-only undo
+            // would permanently diverge from the host with nothing to catch
+            // it.
             !this.suspended &&
             this.dispatcher.canUndo(this.round, this.humanSeat)
         );
@@ -8136,9 +8155,11 @@ export class Game {
         // recent prior frames (a star reconnect's "suspended" pause can last
         // up to STAR_RECONNECT_GRACE_MS, and a backgrounded/sleeping tab can
         // let real time pile up across that whole window), a resuming
-        // client's catch-up (fastForwardBattle/replayLogFrom via
-        // applyStarResumeState) already brings sim.elapsed to the correct
-        // point on its own. Letting a stale lastSimRealTimeMs leak that same
+        // client's catch-up (fastForwardBattle/replayLogFrom — either a
+        // still-connected seat just un-pausing, or a reconnected/resynced
+        // seat's freshly-reconstructed Game hydrating fresh) already brings
+        // sim.elapsed to the correct point on its own. Letting a stale
+        // lastSimRealTimeMs leak that same
         // gap into trueDtSeconds on the first tick after resuming would feed
         // it AGAIN, double-advancing the sim past where it should be — reset
         // to null whenever we're not sim-active so the next active tick

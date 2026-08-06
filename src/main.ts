@@ -24,6 +24,7 @@ import {
     branchSiteUrl,
     type CustomGameConfig,
     type CustomGameMode,
+    type GuestSession,
     type HostHub,
     type NetMessage,
     type PeerServerConfig,
@@ -1309,6 +1310,10 @@ let roomPoll: ReturnType<typeof setTimeout> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
 let activeGame: Game | null = null;
 let stopSinglePlayerPersist: (() => void) | null = null;
+/** guards `rebuildStarGuestGame` against firing twice before the
+ *  replacement Game exists and `activeGame` is reassigned — see that
+ *  function's own doc comment. */
+let starResyncInFlight = false;
 
 type MatchResume = {
     actions: LoggedAction[];
@@ -2062,6 +2067,59 @@ function wireGameMenuReturn(game: Game): void {
         if (introCoverEl) introCoverEl.style.opacity = String(t);
     };
     game.onReturnToMenu = finishReturnToMenu;
+    // no-op for every mode except a star (2v2+) guest — see rebuildStarGuestGame
+    game.onNeedsFullResync = rebuildStarGuestGame;
+}
+
+/**
+ * The actual `new Game(...)` construction + post-construction wiring,
+ * factored out of `startGame`'s `bootGame` closure so a star (2v2+) guest
+ * resync rebuild (`rebuildStarGuestGame`) can call it directly — bypassing
+ * `startGame`'s menu-entry-only setup (chrome teardown, resume-marker
+ * bookkeeping, the intro-cinematic branch) entirely, since none of that
+ * applies mid-match. `startGame`'s own `bootGame` is now a thin wrapper
+ * around this — behavior for every existing caller is unchanged.
+ */
+function constructGame(
+    settings: GameSettings,
+    net: Session | null,
+    side: 'a' | 'b',
+    names: { local: string; opponent: string },
+    resume: MatchResume | null,
+    star: StarRole | null,
+    replay: {
+        actions: LoggedAction[];
+        jumpToRound?: number;
+        verify?: boolean;
+        mode?: MatchMode;
+        expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    } | null,
+    spectate: {
+        session: SpectatorSession;
+        watcherName: string;
+        initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+    } | null,
+    useIntro: boolean,
+): Game {
+    const game = new Game(
+        app,
+        threeCanvas,
+        matchUiRoot,
+        settings,
+        net,
+        side,
+        names,
+        resume,
+        star,
+        replay,
+        spectate,
+        useIntro,
+    );
+    activeGame = game;
+    wireGameMenuReturn(game);
+    if (net) wireReconnect(game, net);
+    else if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    return game;
 }
 
 function startGame(
@@ -2146,27 +2204,8 @@ function startGame(
         if (!resume?.local && !star) clearSinglePlayer();
     }
 
-    const bootGame = (): Game => {
-        const game = new Game(
-            app,
-            threeCanvas,
-            matchUiRoot,
-            settings,
-            net,
-            side,
-            names,
-            resume,
-            star,
-            replay,
-            spectate,
-            useIntro,
-        );
-        activeGame = game;
-        wireGameMenuReturn(game);
-        if (net) wireReconnect(game, net);
-        else if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
-        return game;
-    };
+    const bootGame = (): Game =>
+        constructGame(settings, net, side, names, resume, star, replay, spectate, useIntro);
 
     if (!useIntro) {
         setGameLayerVisible(true);
@@ -2397,6 +2436,69 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
         const landedRound =
             target === 'end' ? Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round)) : target;
         replayControlsPanel.setCurrentRound(landedRound);
+    }
+}
+
+/**
+ * Phase 7: a star (2v2+) guest's full teardown-and-reconstruct resync —
+ * replaces the old in-place `applyStarResumeState` patch of an already-live
+ * `Game` object. Fired via `Game.onNeedsFullResync` from two triggers: a
+ * real reconnect just succeeded (`session` is a freshly-redialed
+ * `GuestSession`, still unused by anything), or a battle-checkpoint hash
+ * mismatch was detected on an otherwise still-healthy connection (`session`
+ * is the CURRENT `Game`'s own `star.session`, about to be reused as-is).
+ *
+ * Deliberately does NOT go through the public `startGame()` — for a live
+ * in-match resync that would (a) defer actual construction by two
+ * `requestAnimationFrame`s and (b) hold the constructor's own `'ready'` ack
+ * — and therefore the WHOLE match, every seat, via the host's
+ * `pendingStarSeats`/`pendingSyncSeats` bookkeeping — behind a multi-second
+ * camera fly-in cinematic that has no business replaying mid-match anyway.
+ * Instead mirrors `rebuildReplayAt`'s pattern: `destroy()` the old `Game`,
+ * construct a fresh one directly via `constructGame(..., useIntro=false)`,
+ * synchronously, reusing the existing renderer/canvas (no
+ * `replaceThreeCanvas()`).
+ */
+function rebuildStarGuestGame(
+    session: GuestSession,
+    msg: Extract<NetMessage, { type: 'matchCatchUp' }>,
+): void {
+    if (msg.viewer.kind !== 'seat') return; // defensive only, see the constructor's own guard
+    // reject a second trigger landing before the replacement Game exists —
+    // construction below is synchronous, so this only guards a genuinely
+    // reentrant call (e.g. two checkpoints resolving back to back), not a
+    // real race across ticks
+    if (starResyncInFlight) return;
+    starResyncInFlight = true;
+    try {
+        activeGame?.destroy({ keepStarSession: true });
+        activeGame = null;
+        started = false;
+        const mySeat = msg.viewer.seat;
+        const yourSide = msg.roster[mySeat]?.side ?? 'a';
+        const settings = msg.settings;
+        settings.seed = msg.seed;
+        settings.seats = localizeRoster(rosterWithWiredAvatars(msg.roster), yourSide);
+        const myName = msg.roster[mySeat]?.name ?? getPlayerName();
+        constructGame(
+            settings,
+            null,
+            yourSide,
+            { local: myName, opponent: opponentDisplayName(msg.roster, mySeat) },
+            {
+                actions: msg.actions,
+                battleElapsed: msg.battleElapsed,
+                phaseRemaining: msg.phaseRemaining,
+                local: false,
+            },
+            { role: 'guest', session, mySeat },
+            null,
+            null,
+            false,
+        );
+        started = true;
+    } finally {
+        starResyncInFlight = false;
     }
 }
 
