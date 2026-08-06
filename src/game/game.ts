@@ -87,6 +87,7 @@ import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
+import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
 import { ConversionFx } from './conversionFx';
@@ -287,6 +288,7 @@ export class Game {
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly forgeFx = new ForgeFx();
+    private readonly hordeMarkers: HordeMarkers;
     private readonly towerDebuffFx: TowerDebuffFx;
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
@@ -789,6 +791,7 @@ export class Game {
         const hide = !this.hud.isUiHidden;
         this.hud.setUiHidden(hide);
         this.hpBars.view.visible = !hide;
+        this.hordeMarkers.edgeView.visible = !hide;
         this.debug.el.style.visibility = hide ? 'hidden' : '';
         this.applyCinemaWorld(hide);
         if (hide) this.refreshCinemaHint();
@@ -1136,6 +1139,7 @@ export class Game {
         this.dragonFx = new DragonFx(this.scene);
         this.conversionFx = new ConversionFx(this.scene);
         this.oilDripFx = new OilDripFx(this.scene);
+        this.hordeMarkers = new HordeMarkers(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
@@ -1685,6 +1689,7 @@ export class Game {
             this.debug.onCollapsedChange = (collapsed) => this.debugDumpButton?.setVisible(!collapsed);
         }
         pixiApp.stage.addChild(this.hpBars.view);
+        pixiApp.stage.addChild(this.hordeMarkers.edgeView);
 
         // battle phase: left click selects a single mech, own or enemy
         const listen = (type: string, handler: EventListener) => {
@@ -2258,6 +2263,7 @@ export class Game {
         this.dragonFx.dispose();
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
+        this.hordeMarkers.dispose();
         this.towerDebuffFx.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
@@ -6660,6 +6666,46 @@ export class Game {
     }
 
     /**
+     * Pink octahedron beacons over forest-ring horde packs while they wait /
+     * march in. Cleared once `marchIn` ends (on-board combat). During battle,
+     * follow living actor centroids — `unit.world` stays at the spawn point.
+     */
+    private updateHordeMarkers(): void {
+        const spots: HordeMarkerSpot[] = [];
+        if (this.phase === 'battle' && this.sim) {
+            const sums = new Map<number, { x: number; z: number; n: number; seed: number }>();
+            for (const a of this.sim.actors) {
+                if (!a.alive || a.unit.team !== 'horde' || !a.unit.marchIn) continue;
+                const id = a.unit.id;
+                let s = sums.get(id);
+                if (!s) {
+                    s = { x: 0, z: 0, n: 0, seed: id };
+                    sums.set(id, s);
+                }
+                s.x += a.rx;
+                s.z += a.rz;
+                s.n++;
+            }
+            for (const s of sums.values()) {
+                if (s.n <= 0) continue;
+                spots.push({ x: s.x / s.n, z: s.z / s.n, seed: s.seed });
+            }
+        } else {
+            for (const unit of this.placement.allUnits()) {
+                if (unit.team !== 'horde' || !unit.marchIn || unit.destroyed) continue;
+                spots.push({ x: unit.world.x, z: unit.world.z, seed: unit.id });
+            }
+        }
+        this.hordeMarkers.update(
+            this.time,
+            spots,
+            this.rig.camera,
+            this.pixiApp.screen.width,
+            this.pixiApp.screen.height,
+        );
+    }
+
+    /**
      * While dragging a rune over the forge, show the same recipe grid as shop /
      * bag / forge-slot hover (spells using this rune sorted first).
      */
@@ -8127,6 +8173,7 @@ export class Game {
         if (profile) cpu.begin();
         this.particles.update(gameDt);
         this.updateForgeFx(gameDt);
+        this.updateHordeMarkers();
 
         if (!this.introActive && !this.outroActive) {
             this.controls.update(dtSeconds);

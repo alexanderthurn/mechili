@@ -584,6 +584,14 @@
 	"spriteSourceSize": {"x":0,"y":0,"w":128,"h":128},
 	"sourceSize": {"w":128,"h":128}
 },
+"ui-horde.png":
+{
+	"frame": {"x":399,"y":531,"w":128,"h":128},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":128,"h":128},
+	"sourceSize": {"w":128,"h":128}
+},
 "ui-hp.png":
 {
 	"frame": {"x":135,"y":1719,"w":128,"h":128},
@@ -767,6 +775,6 @@
 	"format": "RGBA8888",
 	"size": {"w":1024,"h":2048},
 	"scale": "1",
-	"smartupdate": "$TexturePacker:SmartUpdate:a680511571229b1a6a1ee02ec658cf49:1eccc63f3a4fcec8375a18835fbdc3fa:b5c5bd7252d2048fecbb1bda1760f9ef$"
+	"smartupdate": "$TexturePacker:SmartUpdate:3f80d6572da9b4dd5c13e29c1dbb7f6c:94e159638e2d17e4d2f05094c7a3e830:b5c5bd7252d2048fecbb1bda1760f9ef$"
 }
 }
