@@ -46,16 +46,19 @@ export class HordeMarkers {
     private readonly pool: Sprite[] = [];
     private readonly pipPool: PixiSprite[] = [];
     private readonly material: SpriteMaterial;
+    private readonly iconCanvas: HTMLCanvasElement;
     private readonly tmp = new Vector3();
     private pipTexture: PixiTexture | null = null;
     private used = 0;
 
     constructor(private readonly scene: Scene) {
+        this.iconCanvas = this.stampIconCanvas();
         this.material = new SpriteMaterial({
-            map: this.paintIconTexture(),
+            map: this.canvasTexture(this.iconCanvas),
             transparent: false,
             alphaTest: 0.5,
-            depthTest: true,
+            // Stay above tree billboards (they depth-write and occlude otherwise).
+            depthTest: false,
             depthWrite: true,
             fog: false,
         });
@@ -115,7 +118,7 @@ export class HordeMarkers {
         if (!sprite) {
             sprite = new Sprite(this.material);
             sprite.scale.set(MARKER_SIZE, MARKER_SIZE, 1);
-            sprite.renderOrder = 0;
+            sprite.renderOrder = 20;
             sprite.frustumCulled = false;
             this.scene.add(sprite);
             this.pool.push(sprite);
@@ -199,24 +202,25 @@ export class HordeMarkers {
         return pip;
     }
 
-    /** Atlas stamp for the world sprite (same art as rune badges). */
-    private paintIconTexture(): CanvasTexture {
+    /** Atlas stamp — expects `ui-horde` PNG alpha from the icon pipeline. */
+    private stampIconCanvas(): HTMLCanvasElement {
         const canvas = document.createElement('canvas');
         canvas.width = ICON_TEX_SIZE;
         canvas.height = ICON_TEX_SIZE;
         const ctx = canvas.getContext('2d')!;
         drawIcon(ctx, 'ui-horde', 0, 0, ICON_TEX_SIZE);
+        return canvas;
+    }
+
+    private canvasTexture(canvas: HTMLCanvasElement): CanvasTexture {
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         return texture;
     }
 
-    /** Pixi copy of the same icon for edge pips. */
     private ensurePipTexture(): PixiTexture | null {
         if (this.pipTexture) return this.pipTexture;
-        const map = this.material.map;
-        if (!map || !(map.image instanceof HTMLCanvasElement)) return null;
-        this.pipTexture = PixiTexture.from(map.image);
+        this.pipTexture = PixiTexture.from(this.iconCanvas);
         return this.pipTexture;
     }
 }
