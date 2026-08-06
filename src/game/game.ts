@@ -6671,6 +6671,10 @@ export class Game {
      * follow living actor centroids — `unit.world` stays at the spawn point.
      */
     private updateHordeMarkers(): void {
+        if (this.hud.isUiHidden) {
+            this.hordeMarkers.clear();
+            return;
+        }
         const spots: HordeMarkerSpot[] = [];
         if (this.phase === 'battle' && this.sim) {
             const sums = new Map<number, { x: number; z: number; n: number; seed: number }>();

@@ -532,7 +532,7 @@ export const HORDE_ZOMBIE: UnitType = {
     footprint: { cols: 10, rows: 6 }, // much looser than dwarf's 5x2 — spreads the mob out
     formation: { cols: 8, rows: 3 }, // same 24-strong headcount as dwarf
     formationSpread: 0.8,
-    meshScale: 1,
+    meshScale: 0.5,
     burn: { takenMult: 0.5 },
     targets: { ground: true, air: false },
     collisionRadius: 0.5,
@@ -541,7 +541,7 @@ export const HORDE_ZOMBIE: UnitType = {
     damage: 8,
     range: 2,
     attackInterval: 0.7,
-    speed: 9,
+    speed: 12,
     build: buildDwarf,
 };
 

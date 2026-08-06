@@ -57,8 +57,7 @@ export class HordeMarkers {
             map: this.canvasTexture(this.iconCanvas),
             transparent: false,
             alphaTest: 0.5,
-            // Stay above tree billboards (they depth-write and occlude otherwise).
-            depthTest: false,
+            depthTest: true,
             depthWrite: true,
             fog: false,
         });
@@ -118,7 +117,7 @@ export class HordeMarkers {
         if (!sprite) {
             sprite = new Sprite(this.material);
             sprite.scale.set(MARKER_SIZE, MARKER_SIZE, 1);
-            sprite.renderOrder = 20;
+            sprite.renderOrder = 0;
             sprite.frustumCulled = false;
             this.scene.add(sprite);
             this.pool.push(sprite);
