@@ -144,6 +144,17 @@ export function resolveDeathWear(type: Pick<UnitType, 'deathWear' | 'structure'>
     return type.deathWear ?? (type.structure ? 'ash' : 'blood');
 }
 
+/**
+ * Hit/death particle + ground-stain tint. `undefined` = default red.
+ * Only meaningful when wear resolves to blood.
+ */
+export function bloodColorOf(
+    type: Pick<UnitType, 'bloodColor' | 'deathWear' | 'structure'>,
+): number | undefined {
+    if (resolveDeathWear(type) !== 'blood') return undefined;
+    return type.bloodColor;
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -230,6 +241,11 @@ export interface UnitType {
      * Ground stain / death particles. Omit = ash if structure, else blood.
      */
     deathWear?: DeathWear;
+    /**
+     * Hit/death gore tint (hex). Omit = default red. Ignored when wear is
+     * ash/none (structures, siege, etc.).
+     */
+    bloodColor?: number;
     /**
      * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets).
      * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
@@ -534,6 +550,7 @@ export const HORDE_ZOMBIE: UnitType = {
     formationSpread: 0.8,
     meshScale: 0.5,
     burn: { takenMult: 0.5 },
+    bloodColor: 0x8cef18, // toxic acid green — distinct from red infantry gore
     targets: { ground: true, air: false },
     collisionRadius: 0.5,
     colliders: [{ y: 0.35, r: 0.55 }],

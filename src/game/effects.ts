@@ -30,6 +30,13 @@ const GRAVITY = -14;
 /** wizard orb visual scale vs unit sphere (sim hit radius unchanged) */
 const ORB_SCALE = 2.4;
 
+/** Brighter sibling burst for oversized death gore. */
+function lightenBlood(hex: number): number {
+    const c = new Color(hex);
+    c.offsetHSL(0.02, 0.08, 0.14);
+    return c.getHex();
+}
+
 type ProjectileStyle = Projectile['style'];
 
 /** shaft + tip along +Z (nose forward); `scale` 1 ≈ archer arrow */
@@ -136,7 +143,7 @@ export class Particles {
                 case 'impact':
                     this.burst(e.x, e.y, e.z, {
                         count: 6,
-                        color: THEME.impact,
+                        color: e.blood ?? THEME.impact,
                         speed: 9,
                         life: 0.35,
                         blood: true,
@@ -214,7 +221,7 @@ export class Particles {
                     } else if (e.big) {
                         this.burst(e.x, e.y, e.z, {
                             count: 44,
-                            color: THEME.death,
+                            color: e.blood ?? THEME.death,
                             speed: 17,
                             life: 0.9,
                             up: 6,
@@ -222,7 +229,7 @@ export class Particles {
                         });
                         this.burst(e.x, e.y + 1, e.z, {
                             count: 20,
-                            color: THEME.deathSecondary,
+                            color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
                             speed: 9,
                             life: 0.6,
                             up: 8,
@@ -231,7 +238,7 @@ export class Particles {
                     } else {
                         this.burst(e.x, e.y, e.z, {
                             count: 12,
-                            color: THEME.deathSmall,
+                            color: e.blood ?? THEME.deathSmall,
                             speed: 11,
                             life: 0.5,
                             up: 4,

@@ -31,6 +31,7 @@ import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
     RESEARCH_CENTER,
+    bloodColorOf,
     resolveDeathWear,
     syncBattleTint,
     type BattleTeam,
@@ -301,9 +302,10 @@ export interface Projectile {
 /** visual happenings the renderer turns into particles (drained per frame) */
 export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
-    | { kind: 'impact'; x: number; y: number; z: number }
+    /** `blood` = victim gore tint when hitting flesh (omit = default red / debris) */
+    | { kind: 'impact'; x: number; y: number; z: number; blood?: number }
     | { kind: 'explosion'; x: number; y: number; z: number; radius: number; heavy?: boolean }
-    | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear }
+    | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear; blood?: number }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
     | {
@@ -1586,13 +1588,15 @@ export class BattleSim {
         }
         target.alive = false;
         const t = target.unit.type;
+        const wear = resolveDeathWear(t);
         this.events.push({
             kind: 'death',
             x: target.x,
             y: target.altitude + t.meshScale * 0.8,
             z: target.z,
             big: target.radius >= 2 || !!t.structure,
-            wear: resolveDeathWear(t),
+            wear,
+            blood: wear === 'blood' ? bloodColorOf(t) : undefined,
         });
         if (t.structure) {
             target.unit.markDestroyed();
@@ -1723,7 +1727,13 @@ export class BattleSim {
                                 if (damage > 0) {
                                     const dealt = damage * this.damageTakenMult(target);
                                     this.applyDamage(a.unit, target, dealt);
-                                    this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                                    this.events.push({
+                                        kind: 'impact',
+                                        x: target.x,
+                                        y: 0.6,
+                                        z: target.z,
+                                        blood: bloodColorOf(target.unit.type),
+                                    });
                                 }
                             }
                             a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
@@ -1778,7 +1788,13 @@ export class BattleSim {
                         if (damage > 0) {
                             const dealt = damage * this.damageTakenMult(target);
                             this.applyDamage(a.unit, target, dealt);
-                            this.events.push({ kind: 'impact', x: target.x, y: 0.6, z: target.z });
+                            this.events.push({
+                                kind: 'impact',
+                                x: target.x,
+                                y: 0.6,
+                                z: target.z,
+                                blood: bloodColorOf(target.unit.type),
+                            });
                         }
                     }
                 }
@@ -2215,7 +2231,13 @@ export class BattleSim {
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(p.source, hit, dealt);
-                    this.events.push({ kind: 'impact', x: ix, y: iy, z: iz });
+                    this.events.push({
+                        kind: 'impact',
+                        x: ix,
+                        y: iy,
+                        z: iz,
+                        blood: bloodColorOf(hit.unit.type),
+                    });
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
                 }
                 continue; // bullet consumed

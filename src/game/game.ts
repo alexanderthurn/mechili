@@ -8384,12 +8384,12 @@ export class Game {
         if (prefs().groundEffects === 'off') return;
         for (const e of events) {
             if (e.kind === 'impact' && e.y > 0.25) {
-                this.map.stampBlood(e.x, e.z, 1.1, 0.55);
+                this.map.stampBlood(e.x, e.z, 1.1, 0.55, e.blood);
             } else if (e.kind === 'death') {
                 if (e.wear === 'ash') {
                     this.map.stampScorch(e.x, e.z, e.big ? 10 : 7, e.big ? 0.85 : 0.7);
                 } else if (e.wear === 'blood') {
-                    this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65);
+                    this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
                 }
             } else if (e.kind === 'explosion') {
                 const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);
