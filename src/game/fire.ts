@@ -205,8 +205,8 @@ export function mapHazardSize(size: MapSize = STANDARD_MAP): {
     halfW: number;
     halfH: number;
 } {
-    const cols = size.zoneCols + 2 * size.flankCols;
-    const rows = 2 * size.zoneRows + size.neutralRows;
+    const cols = size.zoneCols + 2 * size.flankCols + 2 * size.rimCells;
+    const rows = 2 * size.zoneRows + size.neutralRows + 2 * size.rimCells;
     const width = cols * CELL;
     const height = rows * CELL;
     return { cols, rows, width, height, halfW: width / 2, halfH: height / 2 };

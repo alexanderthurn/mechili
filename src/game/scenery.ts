@@ -1186,11 +1186,17 @@ export class Scenery {
         const hq = sceneryHqVegetation(this.quality);
         // reach lower mountain slopes (rise starts ~d=55, foothills to ~350)
         const margin = dens.margin;
-        const keepOut = 8;
         const acceptBase = dens.acceptBase;
+        // forest measured from the playable edge so trees sit on the rim;
+        // keepOut matches the pre-rim clearance (~2 tiles) so the wall isn't
+        // tighter than the old board-edge forest
+        const rimW = map.size.rimCells * CELL;
+        const forestHalfW = map.halfW - rimW;
+        const forestHalfH = map.halfH - rimW;
+        const keepOut = 8;
 
         const distOut = (x: number, z: number) =>
-            Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+            Math.max(Math.abs(x) - forestHalfW, Math.abs(z) - forestHalfH, 0);
 
         /** random grassy point outside the field (never on mountain stone) */
         const forestSpot = (maxHeight: number): { x: number; z: number } => {
@@ -1204,8 +1210,8 @@ export class Scenery {
                     else if (roll < 0.55) sampleMargin = 280; // mid meadow
                     else sampleMargin = margin; // green pockets toward mountains
                 }
-                const x = (rng() * 2 - 1) * (map.halfW + sampleMargin);
-                const z = (rng() * 2 - 1) * (map.halfH + sampleMargin);
+                const x = (rng() * 2 - 1) * (forestHalfW + sampleMargin);
+                const z = (rng() * 2 - 1) * (forestHalfH + sampleMargin);
                 const d = distOut(x, z);
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
@@ -1221,8 +1227,8 @@ export class Scenery {
             }
             // fallback: any grassy outer point
             for (let attempt = 0; attempt < 80; attempt++) {
-                const x = (rng() * 2 - 1) * (map.halfW + margin);
-                const z = (rng() * 2 - 1) * (map.halfH + margin);
+                const x = (rng() * 2 - 1) * (forestHalfW + margin);
+                const z = (rng() * 2 - 1) * (forestHalfH + margin);
                 if (distOut(x, z) < keepOut) continue;
                 if (this.terrainHeight(x, z) < -0.4) continue;
                 if (!this.isGrassy(x, z)) continue;
@@ -1230,17 +1236,19 @@ export class Scenery {
             }
             // last resort (should be rare)
             for (;;) {
-                const x = (rng() * 2 - 1) * (map.halfW + margin);
-                const z = (rng() * 2 - 1) * (map.halfH + margin);
+                const x = (rng() * 2 - 1) * (forestHalfW + margin);
+                const z = (rng() * 2 - 1) * (forestHalfH + margin);
                 if (distOut(x, z) >= keepOut) return { x, z };
             }
         };
         // on the battlefield, but never in a base's courtyard
         const anchors = map.baseAnchors();
+        const playHalfW = forestHalfW;
+        const playHalfH = forestHalfH;
         const fieldSpot = (clearance: number): { x: number; z: number } => {
             for (;;) {
-                const x = (rng() * 2 - 1) * (map.halfW - 10);
-                const z = (rng() * 2 - 1) * (map.halfH - 10);
+                const x = (rng() * 2 - 1) * (playHalfW - 10);
+                const z = (rng() * 2 - 1) * (playHalfH - 10);
                 if (anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + clearance)) {
                     return { x, z };
                 }
@@ -1466,8 +1474,8 @@ export class Scenery {
         const flowerTones = THEME.terrain.flowers;
         const meadowSpot = (): { x: number; z: number } => {
             for (;;) {
-                const x = (rng() * 2 - 1) * (map.halfW + 260);
-                const z = (rng() * 2 - 1) * (map.halfH + 260);
+                const x = (rng() * 2 - 1) * (forestHalfW + 260);
+                const z = (rng() * 2 - 1) * (forestHalfH + 260);
                 if (distOut(x, z) < keepOut) continue;
                 const h = this.terrainHeight(x, z);
                 if (h > -0.4 && h < 5) return { x, z }; // meadow only, not in lakes

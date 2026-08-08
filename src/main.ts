@@ -3031,7 +3031,8 @@ function startStarMatch(): void {
     delete settings.seats; // canonical roster travels separately, localized per recipient
     if (starCustomConfig) applyCustomGameConfig(settings, starCustomConfig);
     else if (starHordeFlag) applyHordeMode(settings);
-    widenMapForDuo(settings);
+    // 2v2 / duo only — 1v1 must keep the standard map width
+    if (finalRoster.length > 2) widenMapForDuo(settings);
     settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     for (const seat of connected) {
         hub.send(seat, {
@@ -3482,7 +3483,8 @@ function startSteamStarMatch(): void {
     delete settings.seats;
     if (starCustomConfig) applyCustomGameConfig(settings, starCustomConfig);
     else if (starHordeFlag) applyHordeMode(settings);
-    widenMapForDuo(settings);
+    // 2v2 / duo only — 1v1 must keep the standard map width
+    if (finalRoster.length > 2) widenMapForDuo(settings);
     settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     for (const seat of connected) {
         hub.send(seat, {

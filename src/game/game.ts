@@ -87,6 +87,7 @@ import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
+import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
 import { ConversionFx } from './conversionFx';
@@ -169,7 +170,7 @@ import { techSlotLimit, techsForUnit } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
-    HORDE_DWARF,
+    HORDE_ZOMBIE,
     RESEARCH_CENTER,
     STRONGHOLD,
     UNIT_TYPES,
@@ -287,6 +288,7 @@ export class Game {
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly forgeFx = new ForgeFx();
+    private readonly hordeMarkers: HordeMarkers;
     private readonly towerDebuffFx: TowerDebuffFx;
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
@@ -802,6 +804,7 @@ export class Game {
         const hide = !this.hud.isUiHidden;
         this.hud.setUiHidden(hide);
         this.hpBars.view.visible = !hide;
+        this.hordeMarkers.edgeView.visible = !hide;
         this.debug.el.style.visibility = hide ? 'hidden' : '';
         this.applyCinemaWorld(hide);
         if (hide) this.refreshCinemaHint();
@@ -1149,6 +1152,7 @@ export class Game {
         this.dragonFx = new DragonFx(this.scene);
         this.conversionFx = new ConversionFx(this.scene);
         this.oilDripFx = new OilDripFx(this.scene);
+        this.hordeMarkers = new HordeMarkers(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
@@ -1168,7 +1172,8 @@ export class Game {
         const nearSide = side === 'a';
         this.rig.setBaseHeading(nearSide ? 0 : Math.PI);
         const ownZoneZ =
-            (this.map.halfH - (this.map.size.zoneRows * CELL) / 2) * (nearSide ? 1 : -1);
+            (this.map.halfH - (this.map.size.rimCells + this.map.size.zoneRows / 2) * CELL) *
+            (nearSide ? 1 : -1);
         this.rig.startAt(0, ownZoneZ, PLAY_START_ZOOM);
         if (matchIntro) {
             const play = this.rig.getPose();
@@ -1697,6 +1702,7 @@ export class Game {
             this.debug.onCollapsedChange = (collapsed) => this.debugDumpButton?.setVisible(!collapsed);
         }
         pixiApp.stage.addChild(this.hpBars.view);
+        pixiApp.stage.addChild(this.hordeMarkers.edgeView);
 
         // battle phase: left click selects a single mech, own or enemy
         const listen = (type: string, handler: EventListener) => {
@@ -2296,6 +2302,7 @@ export class Game {
         this.dragonFx.dispose();
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
+        this.hordeMarkers.dispose();
         this.towerDebuffFx.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
@@ -2328,7 +2335,7 @@ export class Game {
      * instead of a single pair both teammates used to share.
      */
     private spawnTowers(): void {
-        const { flankCols, zoneCols, zoneRows } = this.map.size;
+        const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
         const spawnBuilding = (
             xFrac: number,
@@ -2338,8 +2345,8 @@ export class Game {
             seat: SeatId,
         ) => {
             const fp = type.footprint;
-            const centerRow = Math.round(zoneRows * rowFrac - fp.rows / 2);
-            const col = flankCols + Math.round(zoneCols * xFrac) - Math.floor(fp.cols / 2);
+            const centerRow = Math.round(rimCells + zoneRows * rowFrac - fp.rows / 2);
+            const col = rimCells + flankCols + Math.round(zoneCols * xFrac) - Math.floor(fp.cols / 2);
             // the far side's base is the near layout rotated 180°, so each
             // player sees their own buildings laid out the same way locally
             const near = { col, row: centerRow };
@@ -2521,13 +2528,12 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], true);
         this.syncTacticVisuals();
-        // flanks and the neutral strip open up after the first round — but in
-        // horde mode the widened strip is the horde's belt and never opens
+        // flanks and the middle strip open up after the first round; the outer
+        // rim stays undeployable forever
         const unlocked = this.round >= 2;
-        const neutralOpen = unlocked && !hordeEnabled(this.settings);
-        if (unlocked !== this.map.flanksUnlocked || neutralOpen !== this.map.neutralUnlocked) {
+        if (unlocked !== this.map.flanksUnlocked || unlocked !== this.map.neutralUnlocked) {
             this.map.flanksUnlocked = unlocked;
-            this.map.neutralUnlocked = neutralOpen;
+            this.map.neutralUnlocked = unlocked;
             this.refreshOverlay();
         }
         this.gridOverlay.visible = true;
@@ -2752,7 +2758,7 @@ export class Game {
         for (let i = 0; i < count; i++) {
             const spot = this.findHordeRingSpot(rng, 0, outerHalfW, outerHalfH);
             if (!spot) continue;
-            const unit = this.placement.spawnAtWorld(HORDE_DWARF, spot.x, spot.z);
+            const unit = this.placement.spawnAtWorld(HORDE_ZOMBIE, spot.x, spot.z);
             unit.summoned = true;
             unit.deployedRound = this.round;
             unit.marchIn = true;
@@ -6817,6 +6823,50 @@ export class Game {
     }
 
     /**
+     * Pink octahedron beacons over forest-ring horde packs while they wait /
+     * march in. Cleared once `marchIn` ends (on-board combat). During battle,
+     * follow living actor centroids — `unit.world` stays at the spawn point.
+     */
+    private updateHordeMarkers(): void {
+        if (this.hud.isUiHidden) {
+            this.hordeMarkers.clear();
+            return;
+        }
+        const spots: HordeMarkerSpot[] = [];
+        if (this.phase === 'battle' && this.sim) {
+            const sums = new Map<number, { x: number; z: number; n: number; seed: number }>();
+            for (const a of this.sim.actors) {
+                if (!a.alive || a.unit.team !== 'horde' || !a.unit.marchIn) continue;
+                const id = a.unit.id;
+                let s = sums.get(id);
+                if (!s) {
+                    s = { x: 0, z: 0, n: 0, seed: id };
+                    sums.set(id, s);
+                }
+                s.x += a.rx;
+                s.z += a.rz;
+                s.n++;
+            }
+            for (const s of sums.values()) {
+                if (s.n <= 0) continue;
+                spots.push({ x: s.x / s.n, z: s.z / s.n, seed: s.seed });
+            }
+        } else {
+            for (const unit of this.placement.allUnits()) {
+                if (unit.team !== 'horde' || !unit.marchIn || unit.destroyed) continue;
+                spots.push({ x: unit.world.x, z: unit.world.z, seed: unit.id });
+            }
+        }
+        this.hordeMarkers.update(
+            this.time,
+            spots,
+            this.rig.camera,
+            this.pixiApp.screen.width,
+            this.pixiApp.screen.height,
+        );
+    }
+
+    /**
      * While dragging a rune over the forge, show the same recipe grid as shop /
      * bag / forge-slot hover (spells using this rune sorted first).
      */
@@ -7520,7 +7570,7 @@ export class Game {
     /**
      * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`
      * — which rounds spawn a wave, and the last round always does, boosted),
-     * materializes this round's neutral dwarf wave in a ring OUTSIDE the
+     * materializes this round's neutral zombie wave in a ring OUTSIDE the
      * playable board at BUILD-phase start, marching straight toward center
      * (`Unit.marchIn`, see `BattleSim.stepMarchIn`) — normal combat AI takes
      * over the moment a unit crosses onto the board. Fully derived from the
@@ -7533,9 +7583,8 @@ export class Game {
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
-        // HORDE_DWARF: same model/stats/headcount as the buildable dwarf pack,
-        // just spread into a mob instead of a drilled rectangle (see units.ts)
-        const type = HORDE_DWARF;
+        // HORDE_ZOMBIE: dwarf pack stats/headcount, zombie GLB, mob footprint
+        const type = HORDE_ZOMBIE;
         const budget = hordeBudgetForRound(this.settings, this.round);
         const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
@@ -8304,6 +8353,7 @@ export class Game {
         if (profile) cpu.begin();
         this.particles.update(gameDt);
         this.updateForgeFx(gameDt);
+        this.updateHordeMarkers();
 
         if (!this.introActive && !this.outroActive) {
             this.controls.update(dtSeconds);
@@ -8510,12 +8560,12 @@ export class Game {
         if (prefs().groundEffects === 'off') return;
         for (const e of events) {
             if (e.kind === 'impact' && e.y > 0.25) {
-                this.map.stampBlood(e.x, e.z, 1.1, 0.55);
+                this.map.stampBlood(e.x, e.z, 1.1, 0.55, e.blood);
             } else if (e.kind === 'death') {
                 if (e.wear === 'ash') {
                     this.map.stampScorch(e.x, e.z, e.big ? 10 : 7, e.big ? 0.85 : 0.7);
                 } else if (e.wear === 'blood') {
-                    this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65);
+                    this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
                 }
             } else if (e.kind === 'explosion') {
                 const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);

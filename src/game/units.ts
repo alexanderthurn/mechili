@@ -144,6 +144,17 @@ export function resolveDeathWear(type: Pick<UnitType, 'deathWear' | 'structure'>
     return type.deathWear ?? (type.structure ? 'ash' : 'blood');
 }
 
+/**
+ * Hit/death particle + ground-stain tint. `undefined` = default red.
+ * Only meaningful when wear resolves to blood.
+ */
+export function bloodColorOf(
+    type: Pick<UnitType, 'bloodColor' | 'deathWear' | 'structure'>,
+): number | undefined {
+    if (resolveDeathWear(type) !== 'blood') return undefined;
+    return type.bloodColor;
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -231,6 +242,11 @@ export interface UnitType {
      */
     deathWear?: DeathWear;
     /**
+     * Hit/death gore tint (hex). Omit = default red. Ignored when wear is
+     * ash/none (structures, siege, etc.).
+     */
+    bloodColor?: number;
+    /**
      * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets).
      * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
      */
@@ -259,8 +275,9 @@ export interface UnitType {
     /**
      * Id to use for 3D model / InstancedMesh-pool lookups (unitModels.ts,
      * unitAnimated.ts, UnitInstanceRenderer) instead of this type's own `id`.
-     * Lets a variant type (e.g. HORDE_DWARF) reuse a buildable type's exact
-     * model asset with no separate GLB registration. Defaults to `id`.
+     * Id to look up in unitModels MODEL_SPECS / instance pools instead of
+     * this type's own `id`. Lets a variant (e.g. HORDE_ZOMBIE → `horde`)
+     * point at a dedicated GLB. Defaults to `id`.
      */
     modelId?: string;
 }
@@ -517,24 +534,23 @@ export const SHIELD_RADIUS = 20;
 export const SHIELD_HEIGHT = 17;
 
 /**
- * Horde-only wave unit: same model, stats, and headcount as {@link
- * UNIT_TYPES}'s `dwarf` pack, but spread across a much looser footprint
- * with `formationSpread` scatter — reads as a wild mob marching out of the
- * forest instead of a drilled 24-strong rectangle. Deliberately excluded
- * from `UNIT_TYPES` (never buildable, never offered by AI/deck/cheat-spawn)
- * — resolved only via `unitTypeById`, same pattern as the tower types above.
+ * Horde-only wave unit: dwarf pack stats/headcount, but the zombie GLB
+ * (`horde.glb`) and a looser footprint with `formationSpread` so the wave
+ * reads as a wild mob out of the forest. Excluded from `UNIT_TYPES`
+ * (never buildable) — resolved only via `unitTypeById`.
  */
-export const HORDE_DWARF: UnitType = {
-    id: 'hordeDwarf',
-    name: 'Horde Dwarf',
+export const HORDE_ZOMBIE: UnitType = {
+    id: 'hordeZombie',
+    name: 'Zombie',
     cost: 100,
     hpWithdraw: 4,
-    modelId: 'dwarf', // reuse the buildable dwarf's exact model/instance pool
+    modelId: 'horde',
     footprint: { cols: 10, rows: 6 }, // much looser than dwarf's 5x2 — spreads the mob out
     formation: { cols: 8, rows: 3 }, // same 24-strong headcount as dwarf
     formationSpread: 0.8,
-    meshScale: 1,
+    meshScale: 0.5,
     burn: { takenMult: 0.5 },
+    bloodColor: 0x8cef18, // toxic acid green — distinct from red infantry gore
     targets: { ground: true, air: false },
     collisionRadius: 0.5,
     colliders: [{ y: 0.35, r: 0.55 }],
@@ -542,7 +558,7 @@ export const HORDE_DWARF: UnitType = {
     damage: 8,
     range: 2,
     attackInterval: 0.7,
-    speed: 9,
+    speed: 12,
     build: buildDwarf,
 };
 
@@ -819,9 +835,8 @@ export class Unit {
         const spacingX = (footprint.cols * CELL) / formation.cols;
         const spacingZ = (footprint.rows * CELL) / formation.rows;
         // which model/instance-pool asset to use — defaults to the type's own
-        // id, but a horde-only variant (e.g. HORDE_DWARF) can point this at a
-        // buildable type's id to reuse its exact model/pool without a second
-        // asset registration (see UnitType.modelId)
+        // id, but a horde-only variant (e.g. HORDE_ZOMBIE) can point this at a
+        // dedicated GLB via modelId (see UnitType.modelId)
         const modelKey = type.modelId ?? type.id;
         for (let i = 0; i < formation.cols; i++) {
             for (let j = 0; j < formation.rows; j++) {
@@ -1317,7 +1332,7 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;
-    if (id === HORDE_DWARF.id) return HORDE_DWARF;
+    if (id === HORDE_ZOMBIE.id) return HORDE_ZOMBIE;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
 }
 

@@ -54,6 +54,8 @@ export interface MapSize {
     neutralRows: number;
     /** width of the flank strips beside the opponent's half */
     flankCols: number;
+    /** always-neutral band around the whole board (never deployable) */
+    rimCells: number;
 }
 
 export const STANDARD_MAP: MapSize = {
@@ -61,6 +63,7 @@ export const STANDARD_MAP: MapSize = {
     zoneRows: 30,
     neutralRows: 4,
     flankCols: 6,
+    rimCells: 4,
 };
 
 export function mulberry32(seed: number): () => number {
@@ -194,6 +197,12 @@ export class BattleMap {
     private sandMask: CanvasTexture | null = null;
     /** static match-start mud patches — drawn under snow; not stamped by units */
     private baseSandMask: CanvasTexture | null = null;
+    /**
+     * Optional gore hue under blood stains (wear.g). Black = default dark red;
+     * non-black RGB = darkened unit bloodColor (e.g. zombie acid green).
+     */
+    private bloodTintMask: CanvasTexture | null = null;
+    private bloodTintCtx: CanvasRenderingContext2D | null = null;
     private sandCtx: CanvasRenderingContext2D | null = null;
     private sandW = 0;
     private sandH = 0;
@@ -229,8 +238,8 @@ export class BattleMap {
     }
 
     constructor(readonly size: MapSize = STANDARD_MAP) {
-        this.cols = size.zoneCols + 2 * size.flankCols;
-        this.rows = 2 * size.zoneRows + size.neutralRows;
+        this.cols = size.zoneCols + 2 * size.flankCols + 2 * size.rimCells;
+        this.rows = 2 * size.zoneRows + size.neutralRows + 2 * size.rimCells;
         this.width = this.cols * CELL;
         this.height = this.rows * CELL;
         this.halfW = this.width / 2;
@@ -262,20 +271,30 @@ export class BattleMap {
         return { col, row };
     }
 
-    private inFlankCols(col: number): boolean {
-        return col < this.size.flankCols || col >= this.cols - this.size.flankCols;
+    private inRim(cell: Cell): boolean {
+        const r = this.size.rimCells;
+        return cell.col < r || cell.col >= this.cols - r || cell.row < r || cell.row >= this.rows - r;
     }
 
-    /** rows of a side's territory, measured from its own edge (grows into the neutral strip once unlocked) */
+    /** flank strips sit inside the outer rim, beside the main zone */
+    private inFlankCols(col: number): boolean {
+        const r = this.size.rimCells;
+        const f = this.size.flankCols;
+        return (col >= r && col < r + f) || (col >= this.cols - r - f && col < this.cols - r);
+    }
+
+    /** rows of a side's territory, measured from its own playable edge (grows into the middle strip once unlocked) */
     private ownRows(): number {
         return this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0);
     }
 
     /** own half minus the opponent's flanks, plus (once unlocked) own flanks beside the opponent's half */
     private zoneHalf(cell: Cell, near: boolean): boolean {
+        if (this.inRim(cell)) return false;
+        const rim = this.size.rimCells;
         const zr = this.ownRows();
-        const inNear = cell.row < zr;
-        const inFar = cell.row >= this.rows - zr;
+        const inNear = cell.row >= rim && cell.row < rim + zr;
+        const inFar = cell.row >= this.rows - rim - zr && cell.row < this.rows - rim;
         const ownHalf = near ? inNear : inFar;
         const oppHalf = near ? inFar : inNear;
         if (!this.inFlankCols(cell.col)) return ownHalf;
@@ -292,17 +311,21 @@ export class BattleMap {
 
     /** flank strips beside the opponent's half — deployable from round 2 once unlocked */
     isFlankDeployCell(cell: Cell, team: 'player' | 'enemy'): boolean {
-        if (!this.flanksUnlocked || !this.inFlankCols(cell.col)) return false;
+        if (!this.flanksUnlocked || this.inRim(cell) || !this.inFlankCols(cell.col)) return false;
         const near = team === 'player' ? !this.ownAtFar : this.ownAtFar;
+        const rim = this.size.rimCells;
         const zr = this.ownRows();
-        const oppHalf = near ? cell.row >= this.rows - zr : cell.row < zr;
+        const oppHalf = near
+            ? cell.row >= this.rows - rim - zr && cell.row < this.rows - rim
+            : cell.row >= rim && cell.row < rim + zr;
         return oppHalf;
     }
 
     /** center row of a team's main zone (near = row 0 side, the +z edge) */
     zoneCenterRow(near: boolean): number {
+        const rim = this.size.rimCells;
         const half = Math.floor(this.size.zoneRows / 2);
-        return near ? half : this.rows - 1 - half;
+        return near ? rim + half : this.rows - 1 - rim - half;
     }
 
     private readonly reliefNoise = makeValueNoise(9241);
@@ -311,8 +334,8 @@ export class BattleMap {
      * Visual-only relief: gentle mounds rising up to `reliefDepth`, never
      * below 0. The sim keeps walking on the flat y=0 plane — feet wade a bit
      * into a mound, which the grass hides (better than hovering over dips).
-     * Flat near the borders (to meet the outer meadow) and under the four
-     * base buildings (so the castles sit cleanly).
+     * Flat across the outer rim (to meet the outer meadow at y=0) and under
+     * the base buildings (so the castles sit cleanly).
      */
     /**
      * The board's relief. ALWAYS on — never gated by graphics settings: the
@@ -325,8 +348,11 @@ export class BattleMap {
             this.reliefNoise(x / WAVE + 37.2, z / WAVE + 11.7) * 0.72 +
             this.reliefNoise(x / (WAVE * 0.41) + 5.1, z / (WAVE * 0.41) + 91.3) * 0.28;
         const hill = smooth01((n - 0.44) / 0.42); // the higher part of the noise mounds up
+        // entire outer rim stays at y=0 so the field meets the meadow cleanly;
+        // mounds only ease in once past the rim into the playable band
+        const rimW = this.size.rimCells * CELL;
         const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
-        let fade = smooth01(edge / 14);
+        let fade = smooth01((edge - rimW) / 14);
         for (const a of this.baseAnchors()) {
             const d = Math.hypot(x - a.x, z - a.z);
             fade = Math.min(fade, smooth01((d - a.r) / 10));
@@ -336,7 +362,7 @@ export class BattleMap {
 
     /** approximate centers of the base buildings on both sides (see game.ts spawnTowers) */
     baseAnchors(): { x: number; z: number; r: number }[] {
-        const { flankCols, zoneCols, zoneRows } = this.size;
+        const { rimCells, flankCols, zoneCols, zoneRows } = this.size;
         const anchors: { x: number; z: number; r: number }[] = [];
         const specs = [
             BASE_ANCHORS.stronghold,
@@ -348,8 +374,8 @@ export class BattleMap {
             { xFrac: 1 - BASE_ANCHORS.outerTowerXFrac, rowFrac: BASE_ANCHORS.outerTowerRowFrac, r: 9 },
         ];
         for (const a of specs) {
-            const x = -this.halfW + (flankCols + zoneCols * a.xFrac) * CELL;
-            const z = this.halfH - zoneRows * a.rowFrac * CELL;
+            const x = -this.halfW + (rimCells + flankCols + zoneCols * a.xFrac) * CELL;
+            const z = this.halfH - (rimCells + zoneRows * a.rowFrac) * CELL;
             anchors.push({ x, z, r: a.r }, { x: -x, z: -z, r: a.r });
         }
         return anchors;
@@ -421,6 +447,17 @@ export class BattleMap {
         this.sandCtx = ctx;
         const tex = new CanvasTexture(canvas);
         this.sandMask = tex;
+
+        // matching tint layer for non-red gore (same UV / resolution)
+        const tintCanvas = document.createElement('canvas');
+        tintCanvas.width = w;
+        tintCanvas.height = h;
+        const tintCtx = tintCanvas.getContext('2d')!;
+        tintCtx.fillStyle = '#000';
+        tintCtx.fillRect(0, 0, w, h);
+        this.bloodTintCtx = tintCtx;
+        this.bloodTintMask = new CanvasTexture(tintCanvas);
+
         return tex;
     }
 
@@ -532,6 +569,7 @@ export class BattleMap {
         const s =
             (this.groundEffects === 'medium' ? strength * 0.55 : strength) * WEAR_BLEND.stampStrength;
         this.stampWearChannel(x, z, radius * WEAR_BLEND.stampRadius, s, 'r');
+        this.scrubBloodTint(x, z, radius * WEAR_BLEND.stampRadius, s);
     }
 
     /**
@@ -560,13 +598,66 @@ export class BattleMap {
         const hy = Math.max(1, halfHu * (this.sandH / this.height));
         this.drawWearRect(ctx, cx, cy, hx, hy, s, 'r');
         this.sandDirty = true;
+        // courtyard pads also scrub gore tint under the footprint
+        this.scrubBloodTint(x, z, Math.hypot(halfWu, halfHu), s);
     }
 
     /** Stamp blood under a hit/kill (G) — tight stain, short soft edge. */
-    stampBlood(x: number, z: number, radius: number, strength = 0.14): void {
+    stampBlood(x: number, z: number, radius: number, strength = 0.14, color?: number): void {
         if (this.groundEffects !== 'high') return; // medium: sand + scorch only
         this.stampWearChannel(x, z, radius, strength, 'g');
         this.stampWearChannel(x, z, radius * 1.35, strength * 0.35, 'g');
+        if (color != null) {
+            this.stampBloodTint(x, z, radius, strength, color);
+            this.stampBloodTint(x, z, radius * 1.35, strength * 0.35, color);
+        }
+    }
+
+    /** Dark puddle tint matching particle bloodColor (keeps hue, crushes value). */
+    private stampBloodTint(
+        x: number,
+        z: number,
+        radius: number,
+        strength: number,
+        color: number,
+    ): void {
+        const ctx = this.bloodTintCtx;
+        if (!ctx || !this.bloodTintMask) return;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const r = Math.max(0.5, radius) * (this.sandW / this.width);
+        const a = Math.min(1, Math.max(0.02, strength));
+        // crush to a wet-stain value while keeping the unit's gore hue
+        const k = 0.14;
+        const rr = Math.round(((color >> 16) & 255) * k);
+        const gg = Math.round(((color >> 8) & 255) * k);
+        const bb = Math.round((color & 255) * k);
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0, `rgba(${rr},${gg},${bb},${a})`);
+        grad.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        this.sandDirty = true;
+    }
+
+    /** Footsteps wash custom gore tint along with wear.g blood. */
+    private scrubBloodTint(x: number, z: number, radius: number, strength: number): void {
+        const ctx = this.bloodTintCtx;
+        if (!ctx || !this.bloodTintMask) return;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const r = Math.max(0.5, radius) * (this.sandW / this.width);
+        const a = Math.min(1, Math.max(0.02, strength * 1.2));
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0, `rgba(0,0,0,${a})`);
+        grad.addColorStop(1, `rgba(0,0,0,0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        this.sandDirty = true;
     }
 
     /** Stamp scorched earth under explosions / big breaks (B). */
@@ -582,6 +673,7 @@ export class BattleMap {
         const minMs = this.groundEffects === 'medium' ? 160 : 80;
         if (!force && now - this.sandFlushAt < minMs) return;
         this.sandMask.needsUpdate = true;
+        if (this.bloodTintMask) this.bloodTintMask.needsUpdate = true;
         this.sandDirty = false;
         this.sandFlushAt = now;
     }
@@ -743,6 +835,7 @@ export class BattleMap {
             sand?: import('three').Texture | null;
             sandMask?: CanvasTexture | null;
             baseSandMask?: CanvasTexture | null;
+            bloodTintMask?: CanvasTexture | null;
             // Soft circular field-photo accents (texture bombing + multiply).
             photoGrass?: readonly [import('three').Texture, import('three').Texture] | null;
             detail?: boolean;
@@ -753,6 +846,7 @@ export class BattleMap {
             sand = null,
             sandMask = null,
             baseSandMask = null,
+            bloodTintMask = null,
             photoGrass = null,
             detail = false,
         } = opts;
@@ -884,6 +978,10 @@ export class BattleMap {
             if (sand && sandMask) {
                 shader.uniforms.uSandMask = { value: sandMask };
                 extraUniforms += 'uniform sampler2D uSandMask;\n';
+                if (bloodTintMask) {
+                    shader.uniforms.uBloodTint = { value: bloodTintMask };
+                    extraUniforms += 'uniform sampler2D uBloodTint;\n';
+                }
                 inject +=
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
                     '\tfloat sandLum = preSnowLum;\n' +
@@ -891,7 +989,12 @@ export class BattleMap {
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n' +
+                    (bloodTintMask
+                        ? '\tvec3 goreTint = texture2D(uBloodTint, vMacroUv).rgb;\n' +
+                          '\tfloat hasGore = step(0.004, max(goreTint.r, max(goreTint.g, goreTint.b)));\n' +
+                          '\tvec3 bloodCol = mix(vec3(0.06, 0.005, 0.008), goreTint, hasGore);\n' +
+                          '\tdiffuseColor.rgb = mix(diffuseColor.rgb, bloodCol, bloodM);\n'
+                        : '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n') +
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
                     // In snow: footprints = pressed pack (darker frost), not bare mud.
                     // snowMask 0 → dirt trails; snowMask 1 → compacted snow with a hint of grit.
@@ -950,7 +1053,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v31${sand && sandMask ? '-wear-rgb' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-gs${
+            `ground-hazard-v32${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}`;
     }
@@ -970,6 +1073,15 @@ export class BattleMap {
         ctx.fillRect(0, 0, this.sandW, this.sandH);
         ctx.restore();
         this.sandMask.needsUpdate = true;
+        const tint = this.bloodTintCtx;
+        if (tint && this.bloodTintMask) {
+            tint.save();
+            tint.globalCompositeOperation = 'multiply';
+            tint.fillStyle = `rgb(${v},${v},${v})`;
+            tint.fillRect(0, 0, this.sandW, this.sandH);
+            tint.restore();
+            this.bloodTintMask.needsUpdate = true;
+        }
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
     }
@@ -981,6 +1093,12 @@ export class BattleMap {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, this.sandW, this.sandH);
         this.sandMask.needsUpdate = true;
+        const tint = this.bloodTintCtx;
+        if (tint && this.bloodTintMask) {
+            tint.fillStyle = '#000';
+            tint.fillRect(0, 0, this.sandW, this.sandH);
+            this.bloodTintMask.needsUpdate = true;
+        }
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
     }
@@ -1045,6 +1163,8 @@ export class BattleMap {
             this.sandMask = null;
             this.baseSandMask = null;
             this.sandCtx = null;
+            this.bloodTintMask = null;
+            this.bloodTintCtx = null;
         }
         const hazardMask = this.ensureHazardMask();
 
@@ -1068,6 +1188,7 @@ export class BattleMap {
             sand: sandMask ? sand : null,
             sandMask,
             baseSandMask: this.baseSandMask,
+            bloodTintMask: this.bloodTintMask,
             photoGrass,
             detail: true,
         });
@@ -1225,9 +1346,12 @@ export class BattleMap {
 
         // deployment zone tints: each half has the owner's color in the
         // center; the flank strips belong to the opponent once unlocked.
-        // the zones grow into the neutral strip once that is unlocked
+        // the zones grow into the middle strip once that is unlocked.
+        // the outer rim stays clear of overlay paint/grid so it reads as terrain.
+        const rimPx = this.size.rimCells * cellPx;
         const zonePx = (this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0)) * cellPx;
         const flankPx = this.size.flankCols * cellPx;
+        const playH = h - 2 * rimPx;
         const paintZone = (x: number, y: number, zw: number, zh: number, tint: string, dim = false) => {
             ctx.fillStyle = `${tint} ${dim ? 0.04 : 0.12})`;
             ctx.fillRect(x, y, zw, zh);
@@ -1250,18 +1374,20 @@ export class BattleMap {
         // instead of one uniform tint across ground you can't actually use.
         // Only MY OWN zone is ever split like this — the opponent's stays a
         // single uniform tint regardless of my lane.
+        const mainLeft = rimPx + flankPx;
+        const mainRight = w - rimPx - flankPx;
         const paintMainZone = (y: number, tint: string, mine: boolean) => {
             if (lane === 'full' || !mine) {
-                paintZone(flankPx, y, w - 2 * flankPx, zonePx, tint);
+                paintZone(mainLeft, y, mainRight - mainLeft, zonePx, tint);
                 return;
             }
-            const leftW = midX - flankPx;
-            const rightW = w - flankPx - midX;
-            paintZone(flankPx, y, leftW, zonePx, tint, lane !== 'left');
+            const leftW = midX - mainLeft;
+            const rightW = mainRight - midX;
+            paintZone(mainLeft, y, leftW, zonePx, tint, lane !== 'left');
             paintZone(midX, y, rightW, zonePx, tint, lane !== 'right');
         };
-        paintMainZone(0, farTint, myZoneIsTop);
-        paintMainZone(h - zonePx, nearTint, !myZoneIsTop);
+        paintMainZone(rimPx, farTint, myZoneIsTop);
+        paintMainZone(h - rimPx - zonePx, nearTint, !myZoneIsTop);
         if (this.flanksUnlocked) {
             // flanks beside the OPPONENT's half belong to you — the crossed
             // rule means flank ownership is the OPPOSITE of that row-band's
@@ -1271,37 +1397,42 @@ export class BattleMap {
             // so it's either fully mine or fully dimmed, no split needed.
             const dimFlank = (isMine: boolean, laneMatch: boolean) =>
                 isMine && lane !== 'full' && !laneMatch;
-            paintZone(0, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'left'));
-            paintZone(w - flankPx, 0, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'right'));
-            paintZone(0, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'left'));
-            paintZone(w - flankPx, h - zonePx, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'right'));
+            const farY = rimPx;
+            const nearY = h - rimPx - zonePx;
+            paintZone(rimPx, farY, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'left'));
+            paintZone(w - rimPx - flankPx, farY, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'right'));
+            paintZone(rimPx, nearY, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'left'));
+            paintZone(w - rimPx - flankPx, nearY, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'right'));
         } else {
-            // locked in round 1: neutral grey
+            // locked in round 1: neutral grey on flank strips (inside the rim)
             ctx.fillStyle = t.flankLocked;
-            ctx.fillRect(0, 0, flankPx, h);
-            ctx.fillRect(w - flankPx, 0, flankPx, h);
+            ctx.fillRect(rimPx, rimPx, flankPx, playH);
+            ctx.fillRect(w - rimPx - flankPx, rimPx, flankPx, playH);
         }
 
-        // tile grid
+        // tile grid — playable band only; outer rim stays clear so it reads as terrain
+        const rim = this.size.rimCells;
         ctx.strokeStyle = t.grid;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        for (let c = 1; c < this.cols; c++) {
-            ctx.moveTo(c * cellPx, 0);
-            ctx.lineTo(c * cellPx, h);
+        for (let c = rim; c <= this.cols - rim; c++) {
+            const x = c * cellPx;
+            ctx.moveTo(x, rimPx);
+            ctx.lineTo(x, h - rimPx);
         }
-        for (let r = 1; r < this.rows; r++) {
-            ctx.moveTo(0, r * cellPx);
-            ctx.lineTo(w, r * cellPx);
+        for (let r = rim; r <= this.rows - rim; r++) {
+            const y = r * cellPx;
+            ctx.moveTo(rimPx, y);
+            ctx.lineTo(w - rimPx, y);
         }
         ctx.stroke();
 
-        // center line through the neutral strip
+        // center line through the middle strip
         ctx.strokeStyle = t.centerLine;
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(0, h / 2);
-        ctx.lineTo(w, h / 2);
+        ctx.moveTo(rimPx, h / 2);
+        ctx.lineTo(w - rimPx, h / 2);
         ctx.stroke();
 
         // duo/2v2: a dashed line marking where MY OWN lane ends within my
@@ -1309,8 +1440,8 @@ export class BattleMap {
         // rejected), so without this there's no visual cue at all for where
         // a seat may actually place
         if (lane !== 'full') {
-            const myZoneTop = this.ownAtFar ? 0 : h - zonePx;
-            const myZoneBottom = this.ownAtFar ? zonePx : h;
+            const myZoneTop = this.ownAtFar ? rimPx : h - rimPx - zonePx;
+            const myZoneBottom = this.ownAtFar ? rimPx + zonePx : h - rimPx;
             ctx.save();
             ctx.strokeStyle = t.laneLine;
             ctx.lineWidth = 3;
