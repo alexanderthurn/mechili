@@ -221,7 +221,7 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
 // per-match settings instead of these defaults.
 const SETTINGS_GROUPS: SettingGroup[] = describeGameSettings({
     ...DEFAULT_SETTINGS,
-    hordePreset: 'medium',
+    hordePreset: 'low',
 });
 
 function settingsGroupHtml(g: SettingGroup): string {
