@@ -138,6 +138,18 @@ export const TECHS: Record<string, TechDef> = {
         icon: 'tech-earthbound',
         description: 'Keeps this unit on the ground (overrides Sky Lift / natural flight).',
     },
+    /**
+     * Schwarze Spinne innate (also a template for future produce techs —
+     * dwarven forges, etc.). Spawns match the parent's level.
+     */
+    spiderMother: {
+        id: 'spiderMother',
+        name: 'Mother of Spiders',
+        cost: 0,
+        mods: {},
+        icon: 'tech-default',
+        produce: { typeId: 'hordeBrutSpawn', interval: 0.5, max: 50 },
+    },
 };
 
 /**
@@ -164,6 +176,8 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
         'stingers', // damage
         'engines', // move speed
     ],
+    // horde — innate on the type; listed so tooling / future research UI can see it
+    hordeSpinne: ['spiderMother'],
 };
 
 /**
@@ -214,4 +228,24 @@ export function isTechSelectedForUnit(
     maxSlots = techSlotLimit(typeId),
 ): boolean {
     return selectedTechIds(typeId, maxSlots).includes(techId);
+}
+
+/**
+ * Produce techs this pack currently owns (innate + researched allowlist).
+ * Shared by battle prep and the sim — one place for future dwarf forges etc.
+ */
+export function ownedProduceTechs(
+    type: import('./units').UnitType,
+    seat: import('./seats').SeatId,
+    hasTech: (seat: import('./seats').SeatId, typeId: string, techId: string) => boolean,
+): { tech: TechDef; produce: NonNullable<TechDef['produce']> }[] {
+    const ids = new Set<string>([...(type.innateTechs ?? []), ...allowedTechIds(type.id)]);
+    const out: { tech: TechDef; produce: NonNullable<TechDef['produce']> }[] = [];
+    for (const id of ids) {
+        if (!hasTech(seat, type.id, id)) continue;
+        const tech = TECHS[id];
+        if (!tech?.produce) continue;
+        out.push({ tech, produce: tech.produce });
+    }
+    return out;
 }

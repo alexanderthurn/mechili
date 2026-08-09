@@ -27,6 +27,7 @@ import {
     type RallyRoute,
 } from './tactics';
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
+import { ownedProduceTechs } from './techCatalog';
 import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
@@ -487,6 +488,20 @@ export class BattleSim {
     lastSoftCrowd = true;
     /** routes passed at battle start — used by {@link activeRallyRoutes} */
     private rallyRoutes: readonly RallyRoute[] = [];
+    /** parent → production-tech release lanes (pre-placed children) */
+    private readonly productionLanes = new Map<
+        Unit,
+        {
+            techId: string;
+            interval: number;
+            max: number;
+            /** length of the current cycle (delay for the first, then interval) */
+            cycleLen: number;
+            nextAt: number;
+            released: number;
+            children: Unit[];
+        }[]
+    >();
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -628,6 +643,17 @@ export class BattleSim {
             a.alive = false;
             a.mesh.visible = false;
         }
+
+        // production reserves: pre-placed children stay dormant until the
+        // parent releases them (appearAt stays 0 so stepSummonAppearances skips them).
+        for (const a of this.actors) {
+            if (!a.unit.productionHeld) continue;
+            a.appeared = false;
+            a.alive = false;
+            a.mesh.visible = false;
+            a.appearAt = 0;
+        }
+        this.initProductionState();
 
         this.strikes = (config.spellStrikes ?? []).map((s) => ({
             ...s,
@@ -967,6 +993,198 @@ export class BattleSim {
                 flying: a.altitude > 0,
             });
         }
+    }
+
+    /** wire parents to pre-placed production children per produce-tech lane */
+    private initProductionState(): void {
+        const parentById = new Map<number, Unit>();
+        for (const a of this.actors) {
+            if (a.unit.productionHeld) continue;
+            parentById.set(a.unit.id, a.unit);
+        }
+        const lanesByParent = new Map<
+            Unit,
+            Map<string, Unit[]>
+        >();
+        const seen = new Set<Unit>();
+        for (const a of this.actors) {
+            const u = a.unit;
+            if (!u.productionHeld || u.productionParentId == null || !u.productionTechId) continue;
+            if (seen.has(u)) continue;
+            seen.add(u);
+            const parent = parentById.get(u.productionParentId);
+            if (!parent) continue;
+            let byTech = lanesByParent.get(parent);
+            if (!byTech) {
+                byTech = new Map();
+                lanesByParent.set(parent, byTech);
+            }
+            let list = byTech.get(u.productionTechId);
+            if (!list) {
+                list = [];
+                byTech.set(u.productionTechId, list);
+            }
+            list.push(u);
+        }
+        for (const [parent, byTech] of lanesByParent) {
+            const owned = ownedProduceTechs(parent.type, parent.seat, this.config.hasTech);
+            const lanes: {
+                techId: string;
+                interval: number;
+                max: number;
+                cycleLen: number;
+                nextAt: number;
+                released: number;
+                children: Unit[];
+            }[] = [];
+            for (const { tech, produce } of owned) {
+                const children = (byTech.get(tech.id) ?? []).sort((a, b) => a.id - b.id);
+                const delay = produce.delay ?? produce.interval;
+                lanes.push({
+                    techId: tech.id,
+                    interval: produce.interval,
+                    max: produce.max,
+                    cycleLen: delay,
+                    nextAt: BATTLE_START_FREEZE + delay,
+                    released: 0,
+                    children,
+                });
+            }
+            this.productionLanes.set(parent, lanes);
+        }
+        // parents that own produce techs but got no children still track (noop)
+        for (const a of this.actors) {
+            if (a.unit.productionHeld || this.productionLanes.has(a.unit)) continue;
+            const owned = ownedProduceTechs(a.unit.type, a.unit.seat, this.config.hasTech);
+            if (owned.length === 0) continue;
+            this.productionLanes.set(
+                a.unit,
+                owned.map(({ tech, produce }) => {
+                    const delay = produce.delay ?? produce.interval;
+                    return {
+                        techId: tech.id,
+                        interval: produce.interval,
+                        max: produce.max,
+                        cycleLen: delay,
+                        nextAt: BATTLE_START_FREEZE + delay,
+                        released: 0,
+                        children: [],
+                    };
+                }),
+            );
+        }
+    }
+
+    /**
+     * HUD: progress through the current produce cycle for a pack's tech.
+     * `progress` is 0..1 toward the next spawn (1 = done / about to fire).
+     */
+    productionProgress(
+        unit: Unit,
+        techId: string,
+    ): {
+        progress: number;
+        released: number;
+        max: number;
+        done: boolean;
+    } | null {
+        const lanes = this.productionLanes.get(unit);
+        const lane = lanes?.find((l) => l.techId === techId);
+        if (!lane) return null;
+        if (lane.released >= lane.max) {
+            return { progress: 1, released: lane.released, max: lane.max, done: true };
+        }
+        const remaining = Math.max(0, lane.nextAt - this.elapsed);
+        const cycle = Math.max(1e-6, lane.cycleLen);
+        const progress = Math.min(1, Math.max(0, 1 - remaining / cycle));
+        return {
+            progress: Math.round(progress * 100) / 100,
+            released: lane.released,
+            max: lane.max,
+            done: false,
+        };
+    }
+
+    /**
+     * Produce-tech releases: while a parent pack is alive, release one held
+     * child per owned produce lane every `interval` (up to `max`), relocated
+     * to the parent's current spot. Offspring already carry parent level.
+     */
+    private stepProductionReleases(): void {
+        for (const [parent, lanes] of this.productionLanes) {
+            const parentAlive = this.actors.some((a) => a.unit === parent && a.alive);
+            if (!parentAlive) continue;
+            for (const lane of lanes) {
+                if (lane.released >= lane.max) continue;
+                if (this.elapsed < lane.nextAt) continue;
+                const child = lane.children[lane.released];
+                if (!child || !child.productionHeld) {
+                    lane.released++;
+                    lane.cycleLen = lane.interval;
+                    lane.nextAt += lane.interval;
+                    continue;
+                }
+                // keep level in sync if parent somehow changed
+                if (child.level !== parent.level) {
+                    child.level = parent.level;
+                    child.applyLevelLook(child.level);
+                }
+                this.releaseProductionChild(parent, child);
+                lane.released++;
+                lane.cycleLen = lane.interval;
+                lane.nextAt += lane.interval;
+            }
+        }
+    }
+
+    private releaseProductionChild(parent: Unit, child: Unit): void {
+        const parentActor = this.actors.find((a) => a.unit === parent && a.alive);
+        if (!parentActor) return;
+        const ang = (((child.id * 2654435761) >>> 0) * (Math.PI * 2)) / 4294967296;
+        const radius = 3.2 + (child.id % 5) * 0.55;
+        const cx = parentActor.x + Math.cos(ang) * radius;
+        const cz = parentActor.z + Math.sin(ang) * radius;
+        child.productionHeld = false;
+        child.marchIn = parent.marchIn;
+        child.world.set(cx, 0, cz);
+        // view is the scene root — syncMeshes only offsets member meshes from
+        // unit.world, so without this the brood pops at the deploy park spot
+        child.view.position.set(cx, child.world.y, cz);
+        const levelMult = this.levelMult(child);
+        const stats = this.resolved.get(child);
+        for (const a of this.actors) {
+            if (a.unit !== child) continue;
+            a.x = cx;
+            a.z = cz;
+            a.prevX = cx;
+            a.prevZ = cz;
+            a.rx = cx;
+            a.rz = cz;
+            // refresh HP for inherited level (stats snapshotted at battle start)
+            if (stats) {
+                a.maxHp = stats.hp * levelMult;
+                a.hp = a.maxHp;
+            }
+            a.appeared = true;
+            a.alive = true;
+            a.mesh.visible = true;
+            a.footY = this.feetY(a);
+            this.events.push({
+                kind: 'summon',
+                x: a.x,
+                y: a.altitude > 0 ? a.altitude : simGroundHeightAt(a.x, a.z),
+                z: a.z,
+                flying: a.altitude > 0,
+            });
+        }
+    }
+
+    /** acid debuff from Webweaver / Spinne hits — player armies only */
+    private applyCorrodeOnHit(source: Unit, hit: Actor): void {
+        const spec = source.type.corrodeOnHit;
+        if (!spec) return;
+        if (actorTeam(hit) === 'horde') return;
+        hit.corrodedUntil = Math.max(hit.corrodedUntil, this.elapsed + spec.seconds);
     }
 
     /** advances every scheduled spell effect whose time has come: one-shot
@@ -1697,6 +1915,7 @@ export class BattleSim {
         if (this.elapsed < BATTLE_START_FREEZE) return;
 
         this.stepSummonAppearances();
+        this.stepProductionReleases();
         this.stepSpellStrikes();
         this.stepHazardDrips();
 
@@ -2271,6 +2490,7 @@ export class BattleSim {
                         blood: bloodColorOf(hit.unit.type),
                     });
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
+                    this.applyCorrodeOnHit(p.source, hit);
                 }
                 continue; // bullet consumed
             }
@@ -2320,6 +2540,7 @@ export class BattleSim {
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.damageTakenMult(a);
             this.applyDamage(p.source, a, dealt);
+            this.applyCorrodeOnHit(p.source, a);
         }
         // burn + ground fire (friendly fire) — after kinetic hits
         this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source));

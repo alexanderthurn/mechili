@@ -12,7 +12,7 @@ import {
 } from './tactics';
 import type { TechTree } from './tech';
 import { techsForUnit } from './techCatalog';
-import { UNIT_TYPES, unitTypeById, unitUnlockCost, type Team } from './units';
+import { UNIT_TYPES, isPlayerBuyable, unitTypeById, unitUnlockCost, type Team } from './units';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 
@@ -109,6 +109,7 @@ export class AiOpponent implements Opponent {
             const affordable = UNIT_TYPES.filter(
                 (t) =>
                     !t.extra &&
+                    isPlayerBuyable(t) &&
                     unlockedUnits[this.seat]!.includes(t.id) &&
                     economy.canAfford(this.seat, t),
             );

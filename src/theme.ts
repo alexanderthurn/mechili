@@ -2474,6 +2474,43 @@ ${fontFaceCss()}
 .mechili-panel .action-tile.locked { opacity: 0.42; }
 .mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
+.mechili-panel .action-tile.producing .at-icon { opacity: 1; }
+.mechili-panel .action-tile .at-produce {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+.mechili-panel .action-tile .at-produce-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+        from -90deg,
+        ${u.techOwned} calc(var(--p, 0) * 100%),
+        rgba(255, 255, 255, 0.14) 0
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    pointer-events: none;
+}
+.mechili-panel .action-tile .at-produce.done .at-produce-ring {
+    background: conic-gradient(from -90deg, ${u.techOwned} 100%, ${u.techOwned} 0);
+}
+.mechili-panel .action-tile .at-produce .at-icon.m-icon {
+    width: 22px;
+    height: 22px;
+    position: relative;
+    z-index: 1;
+}
+.mechili-panel .action-tile .at-badge.produce-count {
+    font-size: 8px;
+    letter-spacing: -0.2px;
+    padding: 1px 3px;
+    min-width: 0;
+}
 .mechili-panel .action-tile.empty {
     background: ${u.techBuyBg};
     border: 1.5px solid ${u.border};

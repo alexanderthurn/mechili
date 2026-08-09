@@ -10,6 +10,7 @@ import {
     RESEARCH_CENTER,
     STRONGHOLD,
     UNIT_TYPES,
+    isPlayerBuyable,
     preloadUnitVisuals,
     techDescription,
     techIcon,
@@ -69,7 +70,7 @@ const SHOWCASE_UNITS: UnitType[] = [
     COMMAND_TOWER,
     RESEARCH_CENTER,
     STRONGHOLD,
-].filter((t) => t.id in MODEL_SPECS);
+].filter((t) => t.id in MODEL_SPECS && (t.structure || isPlayerBuyable(t)));
 
 const BUILDINGS = SHOWCASE_UNITS.filter((t) => t.structure);
 const UNITS = SHOWCASE_UNITS.filter((t) => !t.structure);

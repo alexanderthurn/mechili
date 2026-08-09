@@ -87,6 +87,20 @@ export interface GridExtent {
 }
 
 /** a purchasable upgrade for a unit type — pure stat multipliers */
+export interface TechProduce {
+    /** unit type id to spawn */
+    typeId: string;
+    /** seconds between each completed spawn ("how often" / time to produce one) */
+    interval: number;
+    /** max spawns per battle from this tech on one pack */
+    max: number;
+    /**
+     * Seconds after the opening freeze before the first spawn.
+     * Omit = use `interval` (first unit after one production cycle).
+     */
+    delay?: number;
+}
+
 export interface TechDef {
     id: string;
     name: string;
@@ -102,6 +116,11 @@ export interface TechDef {
     }>;
     /** optional fire / oil on hit — applied when this tech is owned */
     fire?: import('./fire').FireProfile;
+    /**
+     * Battle production: while this pack lives, spawn `typeId` units on a
+     * timer (shared machinery for spider mothers, future dwarf forges, etc.).
+     */
+    produce?: TechProduce;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
@@ -113,7 +132,7 @@ export function techIcon(tech: TechDef): string {
     return tech.icon ?? 'tech-default';
 }
 
-/** human-readable summary of what a tech does — its own text, or built from its mods */
+/** human-readable summary of what a tech does — its own text, or built from its mods / produce */
 export function techDescription(tech: TechDef): string {
     if (tech.description) return tech.description;
     const parts: string[] = [];
@@ -130,7 +149,24 @@ export function techDescription(tech: TechDef): string {
     if (splashRadius !== undefined && splashRadius !== 1) {
         parts.push(`${splashRadius}× splash radius`);
     }
-    return parts.length ? parts.join(', ') : tech.name;
+    if (tech.produce) {
+        const p = tech.produce;
+        const childName = unitTypeById(p.typeId)?.name ?? p.typeId;
+        const every = formatTechSeconds(p.interval);
+        let line = `Produces ${childName} every ${every} (up to ${p.max})`;
+        if (p.delay !== undefined && p.delay !== p.interval) {
+            line += `, first after ${formatTechSeconds(p.delay)}`;
+        }
+        line += '. Offspring match parent level';
+        parts.push(line);
+    }
+    return parts.length ? parts.join('. ') : tech.name;
+}
+
+/** Compact seconds for tech blurbs (`0.1s`, `3s`). */
+function formatTechSeconds(seconds: number): string {
+    const n = Number.isInteger(seconds) ? String(seconds) : String(Math.round(seconds * 1000) / 1000);
+    return `${n}s`;
 }
 
 /** ground-hugging altitude for flyers during deployment (full height comes at battle start) */
@@ -153,6 +189,11 @@ export function bloodColorOf(
 ): number | undefined {
     if (resolveDeathWear(type) !== 'blood') return undefined;
     return type.bloodColor;
+}
+
+/** Shop / unlock / AI buy eligibility — {@link UnitType.buyable}. */
+export function isPlayerBuyable(type: UnitType): boolean {
+    return type.buyable !== false;
 }
 
 export interface UnitType {
@@ -183,6 +224,12 @@ export interface UnitType {
      * damaged by ordinary fire, exempt from the deploy limit and recruiting
      */
     extra?: boolean;
+    /**
+     * When `false`, players and the AI cannot buy or unlock this type from
+     * the shop. Omit or `true` = eligible (still subject to unlock / extras).
+     * Horde / Der Komtur units set this false.
+     */
+    buyable?: boolean;
     /** shield extra: a dome that absorbs enemy projectiles crossing INTO it */
     shield?: { radius: number; height: number };
     /** rocket extra: waits armed, then homes onto the first enemy in range */
@@ -253,6 +300,16 @@ export interface UnitType {
     fire?: import('./fire').FireProfile;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
     burn?: import('./fire').BurnAffinity;
+    /**
+     * On projectile/splash hit: apply the corroded (acid) debuff to non-horde
+     * victims for this many seconds (refreshes).
+     */
+    corrodeOnHit?: { seconds: number };
+    /**
+     * Tech ids always owned by this type (even horde / seat −1). Used for
+     * innate battle abilities like Schwarze Spinne's brood production.
+     */
+    innateTechs?: string[];
     /** immune to poison-cloud spells (default: affected) */
     poisonImmune?: boolean;
     /** combat stats, per individual mech */
@@ -534,30 +591,189 @@ export const SHIELD_RADIUS = 20;
 export const SHIELD_HEIGHT = 17;
 
 /**
- * Horde-only wave unit: dwarf pack stats/headcount, Black Spider GLB
- * (`horde.glb`) and a looser footprint with `formationSpread` so the wave
- * reads as a wild mob out of the forest. Excluded from `UNIT_TYPES`
- * (never buildable) — resolved only via `unitTypeById`. Owned by Der Komtur.
+ * Der Komtur's light spider swarm — `horde.glb` at base scale. Cheap melee
+ * fodder. `buyable: false`.
  */
-export const HORDE_ZOMBIE: UnitType = {
-    id: 'hordeZombie',
-    name: 'Black Spider',
-    cost: 100,
-    hpWithdraw: 4,
+export const HORDE_BRUT: UnitType = {
+    id: 'hordeZombie', // keep legacy id for hydrate/replay
+    name: 'Schwarze Brut',
+    cost: 80,
+    hpWithdraw: 2,
+    buyable: false,
     modelId: 'horde',
-    footprint: { cols: 10, rows: 6 }, // much looser than dwarf's 5x2 — spreads the mob out
-    formation: { cols: 8, rows: 3 }, // same 24-strong headcount as dwarf
-    formationSpread: 0.8,
+    footprint: { cols: 10, rows: 6 },
+    formation: { cols: 8, rows: 3 }, // dense swarm
+    formationSpread: 0.85,
     meshScale: 0.5,
     burn: { takenMult: 0.5 },
-    bloodColor: 0x8cef18, // toxic acid green — distinct from red infantry gore
+    bloodColor: 0x8cef18,
     targets: { ground: true, air: false },
-    collisionRadius: 0.5,
-    colliders: [{ y: 0.35, r: 0.55 }],
-    hp: 40,
-    damage: 8,
+    collisionRadius: 0.45,
+    colliders: [{ y: 0.3, r: 0.5 }],
+    sandWeight: 0.15,
+    hp: 24,
+    damage: 5,
+    range: 2,
+    attackInterval: 0.65,
+    speed: 12,
+    build: buildDwarf,
+};
+
+/** @deprecated use {@link HORDE_BRUT} */
+export const HORDE_ZOMBIE = HORDE_BRUT;
+
+/**
+ * Mid spider pack — `horde.glb` at 2×. Distant fighters (special attacks later).
+ * Smaller packs than Brut. `buyable: false`.
+ */
+export const HORDE_WEBWEAVER: UnitType = {
+    id: 'hordeWebweaver',
+    name: 'Webweavers',
+    cost: 200,
+    hpWithdraw: 12,
+    buyable: false,
+    modelId: 'horde',
+    footprint: { cols: 6, rows: 4 },
+    formation: { cols: 4, rows: 2 }, // 8 mechs
+    formationSpread: 0.7,
+    meshScale: 1.0, // 2× Brut
+    burn: { takenMult: 0.5 },
+    bloodColor: 0x8cef18,
+    targets: { ground: true, air: false },
+    collisionRadius: 0.7,
+    colliders: [{ y: 0.5, r: 0.75 }],
+    sandWeight: 0.2,
+    projectileSpeed: 55,
+    projectileStyle: 'bolt',
+    corrodeOnHit: { seconds: 5 },
+    hp: 55,
+    damage: 12,
+    range: 16,
+    attackInterval: 0.9,
+    speed: 12,
+    build: buildDwarf,
+};
+
+/**
+ * Single Schwarze Brut spawned by the mother Spinne — same stats as the swarm
+ * mech, 1×1 formation so brood doesn't dump full packs. `buyable: false`.
+ */
+export const HORDE_BRUT_SPAWN: UnitType = {
+    id: 'hordeBrutSpawn',
+    name: 'Schwarze Brut',
+    cost: 0,
+    hpWithdraw: 2,
+    buyable: false,
+    modelId: 'horde',
+    footprint: { cols: 2, rows: 2 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 0.5,
+    burn: { takenMult: 0.5 },
+    bloodColor: 0x8cef18,
+    targets: { ground: true, air: false },
+    collisionRadius: 0.45,
+    colliders: [{ y: 0.3, r: 0.5 }],
+    sandWeight: 0.15,
+    hp: 24,
+    damage: 5,
+    range: 2,
+    attackInterval: 0.65,
+    speed: 12,
+    build: buildDwarf,
+};
+
+/**
+ * The one Schwarze Spinne — `horde.glb` at large scale. Mother of spiders via
+ * innate `spiderMother` produce tech + acid shots. `buyable: false`.
+ */
+export const HORDE_SPINNE: UnitType = {
+    id: 'hordeSpinne',
+    name: 'Schwarze Spinne',
+    cost: 500,
+    hpWithdraw: 70,
+    buyable: false,
+    modelId: 'horde',
+    footprint: { cols: 4, rows: 3 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 4.0, // 2× prior 2.0 (8× Brut)
+    burn: { takenMult: 0.4 },
+    bloodColor: 0x8cef18,
+    targets: { ground: true, air: true },
+    collisionRadius: 3.2,
+    colliders: [
+        { y: 0.7, r: 1.5 },
+        { y: 2.0, r: 1.1 },
+    ],
+    sandWeight: 0.135, // 10% of prior 1.35
+    projectileSpeed: 70,
+    projectileStyle: 'orb',
+    corrodeOnHit: { seconds: 6 },
+    innateTechs: ['spiderMother'],
+    hp: 900,
+    damage: 40,
+    range: 22,
+    attackInterval: 1.0,
+    speed: 12,
+    build: buildDwarf,
+};
+
+/**
+ * Der Komtur's forest levy — `horde2.glb` farmer. `buyable: false`.
+ */
+export const HORDE_FARMER: UnitType = {
+    id: 'hordeFarmer',
+    name: 'Dead Farmer',
+    cost: 175,
+    hpWithdraw: 7,
+    buyable: false,
+    modelId: 'horde2',
+    footprint: { cols: 10, rows: 6 },
+    formation: { cols: 6, rows: 2 }, // 12 — fewer than Brut swarm
+    formationSpread: 0.75,
+    meshScale: 1.7, // 2× prior 0.85
+    burn: { takenMult: 0.5 },
+    bloodColor: 0x8cef18,
+    targets: { ground: true, air: false },
+    collisionRadius: 0.9,
+    colliders: [{ y: 0.55, r: 0.95 }],
+    sandWeight: 0.25,
+    hp: 70,
+    damage: 14,
     range: 2,
     attackInterval: 0.7,
+    speed: 12,
+    build: buildDwarf,
+};
+
+/**
+ * Der Komtur himself — mounted knight on `horde3.glb`. Flying ranged boss,
+ * single-mech pack. `buyable: false`.
+ */
+export const HORDE_KOMTUR: UnitType = {
+    id: 'hordeKomtur',
+    name: 'Der Komtur',
+    cost: 600,
+    hpWithdraw: 80,
+    buyable: false,
+    modelId: 'horde3',
+    footprint: { cols: 4, rows: 3 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 4.2, // half of prior 8.4
+    flying: 22,
+    burn: { takenMult: 0.35 },
+    bloodColor: 0x8cef18,
+    targets: { ground: true, air: true },
+    collisionRadius: 1.1,
+    colliders: [
+        { y: 0.8, r: 2.0 },
+        { y: 2.4, r: 1.5 },
+    ],
+    projectileSpeed: 80,
+    projectileStyle: 'largeArrow',
+    hp: 1200,
+    damage: 55,
+    range: 24,
+    attackInterval: 0.85,
     speed: 12,
     build: buildDwarf,
 };
@@ -729,6 +945,13 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 0,
         build: buildRocket,
     },
+    // Der Komtur's forest roster — in the catalog for lookup/preload, not shop
+    HORDE_BRUT,
+    HORDE_BRUT_SPAWN,
+    HORDE_WEBWEAVER,
+    HORDE_SPINNE,
+    HORDE_FARMER,
+    HORDE_KOMTUR,
 ];
 
 /** Mechs in a pack — used for default hpWithdraw derivation. */
@@ -794,6 +1017,14 @@ export class Unit {
     marchIn = false;
     /** seconds after the opening freeze until a summon materializes */
     summonDelay = 0;
+    /**
+     * Production-tech child ({@link TechDef.produce}): stays dormant in the
+     * sim until the parent releases it. `productionParentId` is the parent's
+     * unit id; `productionTechId` which produce tech lane spawned it.
+     */
+    productionHeld = false;
+    productionParentId: number | null = null;
+    productionTechId: string | null = null;
     /** lifetime EFFECTIVE damage dealt (capped at each victim's remaining hp) */
     damageDealt = 0;
     /** lifetime individual mechs killed (a wiped 24-dwarf pack counts 24) */
@@ -1332,12 +1563,13 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;
-    if (id === HORDE_ZOMBIE.id) return HORDE_ZOMBIE;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
 }
 
 /** once-per-deployment shop unlock fee — {@link UnitType.unlockCost} */
 export function unitUnlockCost(typeId: string): number {
-    const cost = unitTypeById(typeId)?.unlockCost;
+    const type = unitTypeById(typeId);
+    if (!type || !isPlayerBuyable(type)) return Number.POSITIVE_INFINITY;
+    const cost = type.unlockCost;
     return cost !== undefined ? cost : Number.POSITIVE_INFINITY;
 }

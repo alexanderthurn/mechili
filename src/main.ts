@@ -93,7 +93,9 @@ import { THEME, applyUiFont, menuStyles } from './theme';
 // own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
 // mode specifically). `?hordePreset=` / `?hordeFactor=` selects an algorithm id.
 function applyHordeMode(settings: GameSettings): void {
-    settings.hordePreset = 'medium';
+    // SP / local horde: every round so forest units are easy to eyeball.
+    // `?hordePreset=` / `?hordeFactor=` still overrides.
+    settings.hordePreset = 'ultra';
     const params = new URLSearchParams(location.search);
     const presetParam = params.get('hordePreset') ?? params.get('hordeFactor');
     if (!presetParam) return;

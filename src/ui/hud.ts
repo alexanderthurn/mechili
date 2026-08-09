@@ -12,7 +12,7 @@ import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emote
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
-import { UNIT_TYPES, unitUnlockCost, type UnitType } from '../game/units';
+import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
 import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
@@ -195,6 +195,16 @@ export interface SelectionInfo {
               cost: number;
               owned: boolean;
               affordable: boolean;
+              /**
+               * Live produce-tech cycle (battle). `progress` is 0..1 toward the
+               * next spawn; shown as a circular ring on the tech icon.
+               */
+              produce?: {
+                  progress: number;
+                  released: number;
+                  max: number;
+                  done: boolean;
+              };
           }
     )[];
     /** base buildings render their level as N / maxLevel and hide XP */
@@ -607,8 +617,8 @@ export class Hud {
         // colors for this match, never tear down so orphans stay laid out.
         ensureHudStyleSheet();
 
-        const shopUnits = UNIT_TYPES.filter((t) => !t.extra);
-        const extraTypes = UNIT_TYPES.filter((t) => t.extra);
+        const shopUnits = UNIT_TYPES.filter((t) => !t.extra && isPlayerBuyable(t));
+        const extraTypes = UNIT_TYPES.filter((t) => t.extra && isPlayerBuyable(t));
 
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
@@ -2609,7 +2619,8 @@ export class Hud {
 
     /**
      * One tile per tech slot for this pack — filled slots are buyable action
-     * tiles; unused slots are dark empty plates.
+     * tiles; unused slots are dark empty plates. Produce techs show a circular
+     * progress ring toward the next spawn.
      */
     private renderTechSlots(
         techs: SelectionInfo['techs'],
@@ -2623,19 +2634,31 @@ export class Hud {
                         `<span class="action-tile empty" data-ttitle="${DISPLAY.tech} slot ${slot}" data-tdesc="Empty — no ${DISPLAY.tech.toLowerCase()} selected for this slot."></span>`
                     );
                 }
-                const badge =
-                    t.owned
-                        ? `<span class="at-badge">✓</span>`
-                        : t.cost !== undefined
-                          ? `<span class="at-cost">${t.cost}</span>`
-                          : '';
+                const produce = t.produce;
+                const produceNote = produce
+                    ? produce.done
+                        ? `Production complete (${produce.released}/${produce.max}).`
+                        : `Producing… ${produce.released}/${produce.max} · ${Math.round(produce.progress * 100)}% to next.`
+                    : '';
+                const badge = produce
+                    ? `<span class="at-badge produce-count">${produce.released}/${produce.max}</span>`
+                    : t.owned
+                      ? `<span class="at-badge">✓</span>`
+                      : t.cost !== undefined
+                        ? `<span class="at-cost">${t.cost}</span>`
+                        : '';
                 const state = t.owned ? 'owned' : t.affordable ? 'buy' : 'locked';
+                const ring = produce
+                    ? `<span class="at-produce${produce.done ? ' done' : ''}" style="--p:${produce.progress}">` +
+                      `<span class="at-produce-ring" aria-hidden="true"></span>` +
+                      `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span></span>`
+                    : `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>`;
                 return (
-                    `<button class="action-tile ${state}" data-tech="${t.id}"` +
+                    `<button class="action-tile ${state}${produce ? ' producing' : ''}" data-tech="${t.id}"` +
                     ` data-ttitle="${escapeAttr(t.name)}" data-tdesc="${escapeAttr(t.desc)}"` +
                     ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost}"` +
-                    ` data-tstate="${state}">` +
-                    `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>${badge}</button>`
+                    ` data-tstate="${state}" data-tnote="${escapeAttr(produceNote)}">` +
+                    `${ring}${badge}</button>`
                 );
             })
             .join('');

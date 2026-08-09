@@ -45,7 +45,7 @@ import type {
 } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
-import { unitTypeById, unitUnlockCost, type Team, type Unit, type UnitType } from './units';
+import { unitTypeById, unitUnlockCost, isPlayerBuyable, type Team, type Unit, type UnitType } from './units';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -636,6 +636,7 @@ export class ActionDispatcher {
                 const type = unitTypeById(action.typeId);
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
+                if (!isPlayerBuyable(type)) return false;
                 if (
                     !type.extra &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)

@@ -1,15 +1,12 @@
 /**
  * Horde mode presets: match config stores only an id; each algorithm owns
- * schedule, budget, bias, and the English select-box blurb.
+ * spawn schedule, pack-count multiplier, leader bias, and the select-box blurb.
+ * Wave *composition* lives in {@link hordeWavePlan} (hordeRoster.ts).
  */
 
-/** Last match round — finale wave when the preset is enabled. */
+/** Last slot of each 10-round circle — Mother night. */
 export const HORDE_FINAL_ROUND = 10;
 
-/** Shared wave economy (tweak here, not on GameSettings). */
-const BASE_BUDGET = 300;
-const BUDGET_PER_ROUND = 200;
-const FINALE_BUDGET_MULT = 4;
 /** Share of packs biased toward the HP leader's ring half. */
 const LEADER_SHARE = 0.65;
 
@@ -23,6 +20,11 @@ export interface HordeContext {
     enemyHp?: number;
 }
 
+/** Slot 1–10 inside the current circle (same as {@link hordeSlot}). */
+function slotOf(round: number): number {
+    return (((Math.max(1, round) - 1) % 10) + 1);
+}
+
 export abstract class HordeAlgorithm {
     abstract readonly id: string;
     /** Full select-option text (name + what the player gets). */
@@ -32,9 +34,20 @@ export abstract class HordeAlgorithm {
     /** Whether this round materializes a wave. */
     abstract shouldSpawn(round: number, ctx?: HordeContext): boolean;
 
-    budget(round: number): number {
-        const base = BASE_BUDGET + BUDGET_PER_ROUND * (round - 1);
-        return round === HORDE_FINAL_ROUND ? base * FINALE_BUDGET_MULT : base;
+    /**
+     * Pack-count multiplier for {@link hordeWavePlan}. Ultra doubles;
+     * others are 1. Budget shopping is gone — this is the only intensity knob.
+     */
+    countMult(): number {
+        return 1;
+    }
+
+    /**
+     * @deprecated Composition no longer spends a budget. Kept so old callers
+     * compile; always 0.
+     */
+    budget(_round: number): number {
+        return 0;
     }
 
     leaderShare(): number {
@@ -55,59 +68,64 @@ class OffHorde extends HordeAlgorithm {
     }
 }
 
-/** Finale only. */
+/** Mid check + Mother night. */
 class LowHorde extends HordeAlgorithm {
     readonly id = 'low';
     describe(): string {
-        return `Low — finale only (round ${HORDE_FINAL_ROUND}, boosted)`;
+        return 'Low — waves on 5 and Mother night (10)';
     }
     enabled(): boolean {
         return true;
     }
     shouldSpawn(round: number): boolean {
-        return round === HORDE_FINAL_ROUND;
+        const s = slotOf(round);
+        return s === 5 || s === 10;
     }
 }
 
-/** Mid check + finale. */
+/** Weaver intro through Mother. */
 class MediumHorde extends HordeAlgorithm {
     readonly id = 'medium';
     describe(): string {
-        return `Medium — waves on rounds 5 and ${HORDE_FINAL_ROUND}`;
+        return 'Medium — waves on 3, 5, 7, and Mother night';
     }
     enabled(): boolean {
         return true;
     }
     shouldSpawn(round: number): boolean {
-        return round === 5 || round === HORDE_FINAL_ROUND;
+        const s = slotOf(round);
+        return s === 3 || s === 5 || s === 7 || s === 10;
     }
 }
 
-/** Frequent pressure. */
+/** Full ramp every round. */
 class HighHorde extends HordeAlgorithm {
     readonly id = 'high';
     describe(): string {
-        return `High — waves on rounds 3, 5, 7, and ${HORDE_FINAL_ROUND}`;
-    }
-    enabled(): boolean {
-        return true;
-    }
-    shouldSpawn(round: number): boolean {
-        return round === 3 || round === 5 || round === 7 || round === HORDE_FINAL_ROUND;
-    }
-}
-
-/** Every round. */
-class UltraHorde extends HordeAlgorithm {
-    readonly id = 'ultra';
-    describe(): string {
-        return `Ultra — a wave every round (1–${HORDE_FINAL_ROUND})`;
+        return 'High — a wave every round';
     }
     enabled(): boolean {
         return true;
     }
     shouldSpawn(_round: number): boolean {
         return true;
+    }
+}
+
+/** Full ramp, double pack counts. */
+class UltraHorde extends HordeAlgorithm {
+    readonly id = 'ultra';
+    describe(): string {
+        return 'Ultra — every round, double pack counts';
+    }
+    enabled(): boolean {
+        return true;
+    }
+    shouldSpawn(_round: number): boolean {
+        return true;
+    }
+    countMult(): number {
+        return 2;
     }
 }
 

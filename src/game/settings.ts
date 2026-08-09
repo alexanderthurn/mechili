@@ -28,7 +28,7 @@ export type RoundTimer = number | number[];
  * so different game modes are just different settings, and multiplayer can
  * pass them around (lobby, server list, replay header).
  *
- * Catalog data (unit cost/hp, card pools, horde budgets) lives on the
+ * Catalog data (unit cost/hp, card pools, horde wave scripts) lives on the
  * entity / algorithm — this object only picks modes and match-wide knobs.
  */
 export interface GameSettings {
@@ -63,7 +63,7 @@ export interface GameSettings {
     seed?: number;
     /**
      * Horde algorithm id (see {@link HORDE_ALGORITHMS}).
-     * Owns rounds, budget, and leader bias.
+     * Owns spawn schedule, pack-count multiplier, and leader bias.
      */
     hordePreset: string;
     /**
@@ -88,9 +88,17 @@ export function isHordeRoundActive(settings: GameSettings, round: number): boole
     return hordeAlgorithmById(settings.hordePreset).shouldSpawn(round);
 }
 
-/** this round's wave budget — caller should have checked {@link isHordeRoundActive} */
+/**
+ * @deprecated Wave composition uses authored counts ({@link hordeWavePlan}),
+ * not a budget. Always 0.
+ */
 export function hordeBudgetForRound(settings: GameSettings, round: number): number {
     return hordeAlgorithmById(settings.hordePreset).budget(round);
+}
+
+/** Pack-count multiplier for the active preset (Ultra = 2). */
+export function hordeCountMult(settings: GameSettings): number {
+    return hordeAlgorithmById(settings.hordePreset).countMult();
 }
 
 /** leader-hunt spawn share for the active preset */

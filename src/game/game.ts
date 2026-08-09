@@ -135,7 +135,7 @@ import {
     DEFAULT_SETTINGS,
     describeGameSettings,
     Economy,
-    hordeBudgetForRound,
+    hordeCountMult,
     hordeEnabled,
     hordeLeaderShare,
     isHordeRoundActive,
@@ -144,6 +144,7 @@ import {
     shouldOfferRoundCards,
     type GameSettings,
 } from './settings';
+import { hordeWavePlan } from './hordeRoster';
 import { BattleSim, BATTLE_START_FREEZE, actorSeat, actorTeam, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
 import {
     BIG_METEOR_ID,
@@ -166,11 +167,10 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
-import { techSlotLimit, techsForUnit } from './techCatalog';
+import { ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
-    HORDE_ZOMBIE,
     RESEARCH_CENTER,
     STRONGHOLD,
     UNIT_TYPES,
@@ -757,6 +757,11 @@ export class Game {
             this.cheatSpawnHordePacks();
             return;
         }
+        if (e.code === 'KeyI' && e.shiftKey && !this.net && !this.star) {
+            // Shift+I = SP skip to next round (lock deploy → resolve battle)
+            this.cheatSkipRound();
+            return;
+        }
         if (e.code === 'KeyT' && e.shiftKey) {
             // Shift+T cycles material debug: clay → wireframe → normals → off
             this.cycleMaterialDebug();
@@ -1197,7 +1202,7 @@ export class Game {
         installScreenShake(this.rig.camera, () => this.rig.target);
         this.hpDrawFx = new HpDrawFx(this.scene);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
-        this.placement.hasTech = (seat, typeId, techId) => this.techTree.has(seat, typeId, techId);
+        this.placement.hasTech = (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId);
         // spectator watching a LIVE match (not a replay, which has no
         // "vision" concept — it's a neutral post-hoc view of everything):
         // neither side is "mine", so both are fogged symmetrically from the
@@ -2738,33 +2743,107 @@ export class Game {
     }
 
     /**
-     * SP cheat (H): dumps extra horde packs into the forest ring right now —
-     * for stress-testing marchIn performance and eyeballing the ring
-     * spawn/lake-avoidance logic (findHordeRingSpot) without waiting on a
-     * round's normal wave budget. Build-phase only: battle's actor list is
-     * fixed at battle start (see BattleSim's constructor), so packs spawned
-     * mid-battle would sit there without ever joining the sim. Not logged as
-     * an action — press again after a reload if you want more.
+     * SP cheat (H): spawn this round's authored horde plan into the forest
+     * ring (same composition as a real wave, including Ultra ×2 and cycle
+     * level). Build-phase only — battle actors are fixed at battle start.
      */
-    private cheatSpawnHordePacks(count = 40): void {
+    private cheatSpawnHordePacks(): void {
         if (this.phase !== 'build') {
             console.info('[cheat] KeyH only works during build phase (battle actors are already fixed)');
             return;
         }
+        const plan = hordeWavePlan(Math.max(1, this.round), hordeCountMult(this.settings));
         const rng = mulberry32(seedFrom(this.seed, `horde-cheat:${this.round}:${Date.now()}`));
         const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
         let spawned = 0;
-        for (let i = 0; i < count; i++) {
+        for (const entry of plan) {
             const spot = this.findHordeRingSpot(rng, 0, outerHalfW, outerHalfH);
             if (!spot) continue;
-            const unit = this.placement.spawnAtWorld(HORDE_ZOMBIE, spot.x, spot.z);
+            const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
             unit.summoned = true;
             unit.deployedRound = this.round;
             unit.marchIn = true;
+            unit.level = entry.level;
+            unit.applyLevelLook(entry.level);
             spawned++;
         }
-        console.info(`[cheat] KeyH: spawned ${spawned}/${count} extra horde packs`);
+        console.info(`[cheat] KeyH: spawned ${spawned}/${plan.length} packs from round ${this.round} plan`);
+    }
+
+    /**
+     * SP cheat (Shift+I): end the current round and advance — auto-lock
+     * deployment if needed, headless-resolve battle, skip HP-draw VFX.
+     * Restores both sides to peak (starting) HP so the skip never chips the
+     * bar. Solo only (no net / star / watch).
+     */
+    private cheatSkipRound(): void {
+        if (this.net || this.star || this.watching || this.matchOver || this.hydrating) return;
+        if (this.introActive || this.outroActive) return;
+        const fromRound = this.round;
+        const fromPhase = this.phase;
+        // Snapshot peaks before any inflate — setters would raise hpPeak.
+        const peaks = this.hpPeak.slice();
+        const padHp = () => {
+            for (let s = 0; s < this.hp.length; s++) {
+                this.hp[s] = (peaks[s] ?? 0) + 1_000_000;
+            }
+        };
+        const restoreHp = () => {
+            for (let s = 0; s < this.hp.length; s++) {
+                this.hp[s] = peaks[s] ?? 0;
+            }
+            this.hpDrawAfterMatchOver = false;
+            this.pendingHpDrawPlan = null;
+            this.pendingHpDrawPreHp = null;
+            this.paintHudHp();
+        };
+
+        if (this.phase === 'hpDraw') {
+            restoreHp();
+            this.flushHpDrawDisplay();
+            this.proceedAfterHpDraw();
+            restoreHp();
+            console.info(`[cheat] Shift+I: skipped HP draw → round ${this.round}`);
+            return;
+        }
+
+        if (this.phase === 'build') {
+            if (this.round === 0 && !this.starterPicked[this.humanSeat]) {
+                this.autoPickSpecialist();
+            }
+            if (this.awaitingCards) this.autoSkipRoundCard();
+            if (this.phase === 'build' && !this.seatReady[this.humanSeat]) {
+                this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
+            }
+            // Solo AI usually already locked in at build start; if not, force it.
+            if (this.phase === 'build' && !this.deployReady.enemy) {
+                for (const seat of seatIdsOf(this.seats, 'enemy')) {
+                    if (this.seatReady[seat]) continue;
+                    this.dispatcher.dispatch({ kind: 'endDeployment', team: 'enemy', seat });
+                }
+                this.maybeStartBattleAfterDeploy();
+            }
+        }
+
+        if (this.phase === 'battle' && this.sim) {
+            // Pad so applyBattleResult can't zero anyone / end the match.
+            padHp();
+            this.fastForwardBattle();
+        }
+
+        restoreHp();
+
+        // Battle end may land on HP-draw VFX — skip straight to next build.
+        if ((this.phase as Phase) === 'hpDraw') {
+            this.flushHpDrawDisplay();
+            this.proceedAfterHpDraw();
+            restoreHp();
+        }
+
+        console.info(
+            `[cheat] Shift+I: ${fromPhase} r${fromRound} → ${this.phase} r${this.round}`,
+        );
     }
 
     /** local player input — refused once this deployment is locked in.
@@ -2796,10 +2875,21 @@ export class Game {
         return true;
     }
 
+    /**
+     * Seat research plus {@link UnitType.innateTechs} (e.g. Spinne's
+     * Mother of Spiders). Used everywhere combat/UI asks "does this pack
+     * own tech X?".
+     */
+    private unitHasTech(seat: SeatId, typeId: string, techId: string): boolean {
+        const type = unitTypeById(typeId);
+        if (type?.innateTechs?.includes(techId)) return true;
+        return seat >= 0 && this.techTree.has(seat, typeId, techId);
+    }
+
     /** Apply Sky Lift / Earthbound to pack hover altitude during deployment. */
     private refreshFlightAlts(): void {
         const has = (seat: SeatId, typeId: string, techId: string) =>
-            this.techTree.has(seat, typeId, techId);
+            this.unitHasTech(seat, typeId, techId);
         for (const u of this.placement.allUnits()) {
             if (u.team === 'horde') {
                 u.techFlying = null;
@@ -7167,6 +7257,7 @@ export class Game {
             const spawn = TACTICS[stamp.tacticId]?.spell?.spawn;
             if (spawn) this.spawnSummons(stamp, spawn);
         }
+        this.prepareProductionReserves();
         const spellStrikes = pendingSpells.flatMap((s) => {
             const spell = TACTICS[s.tacticId]?.spell;
             return spell?.strike
@@ -7399,7 +7490,7 @@ export class Game {
             seatRank: (seat) => this.seatRank(seat),
             costOf: (type) => this.economy.costOf(type),
             statsOf: (unit) => this.resolvedStats(unit),
-            hasTech: (seat, typeId, techId) => seat >= 0 && this.techTree.has(seat, typeId, techId),
+            hasTech: (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId),
             flankSpawnSeconds: this.settings.deploy.flankSpawnSeconds ?? 5,
             flankSpawnMult: (seat) => (seat < 0 ? 1 : this.flankSpawnMult[seat]!),
             needsFlankSpawn: (unit) =>
@@ -7568,36 +7659,72 @@ export class Game {
     }
 
     /**
-     * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`
-     * — which rounds spawn a wave, and the last round always does, boosted),
-     * materializes this round's neutral zombie wave in a ring OUTSIDE the
+     * Pre-place dormant production children for every living pack that owns a
+     * {@link TechDef.produce} tech. The sim releases them on that tech's timer
+     * while the parent lives — packs are created here so ids/meshes stay
+     * deterministic across peers (no mid-battle spawn injection). Offspring
+     * inherit the parent's level.
+     */
+    private prepareProductionReserves(): void {
+        const parents = this.placement
+            .allUnits()
+            .filter((u) => !u.destroyed && !u.productionHeld)
+            .sort((a, b) => a.id - b.id);
+        for (const parent of parents) {
+            const lanes = ownedProduceTechs(parent.type, parent.seat, (s, t, id) =>
+                this.unitHasTech(s, t, id),
+            );
+            for (const { tech, produce } of lanes) {
+                const childType = unitTypeById(produce.typeId);
+                if (!childType) continue;
+                for (let i = 0; i < produce.max; i++) {
+                    // park off to the side — sim relocates to the parent on release
+                    const ang = ((i * 2654435761) >>> 0) * ((Math.PI * 2) / 4294967296);
+                    const r = 2 + (i % 7) * 0.4;
+                    const x = parent.world.x + Math.cos(ang) * r;
+                    const z = parent.world.z + Math.sin(ang) * r;
+                    const child = this.placement.spawnAtWorld(
+                        childType,
+                        x,
+                        z,
+                        parent.team,
+                        parent.seat,
+                    );
+                    child.summoned = true;
+                    child.productionHeld = true;
+                    child.productionParentId = parent.id;
+                    child.productionTechId = tech.id;
+                    child.marchIn = parent.marchIn;
+                    child.deployedRound = this.round;
+                    child.level = parent.level;
+                    child.applyLevelLook(child.level);
+                    child.setDeployment(false);
+                    for (const m of child.members) m.mesh.visible = false;
+                }
+            }
+        }
+    }
+
+    /**
+     * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`),
+     * materializes this round's authored pack list in a ring OUTSIDE the
      * playable board at BUILD-phase start, marching straight toward center
-     * (`Unit.marchIn`, see `BattleSim.stepMarchIn`) — normal combat AI takes
-     * over the moment a unit crosses onto the board. Fully derived from the
-     * match seed + round + HP standings — every client computes the
-     * identical wave, nothing ever crosses the wire. Positioning IS the
-     * aiming: packs biased toward the leader's half of the ring march at the
-     * leader once they arrive, while packs near the weaker player's half
-     * harass him locally — same idea the old center-belt spawn used, just
-     * generalized from a strip position to a ring half.
+     * (`Unit.marchIn`). Counts come from {@link hordeWavePlan} (slot formula +
+     * preset multiplier); no budget shopping. Positioning biases toward the
+     * HP leader's ring half.
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
-        // HORDE_ZOMBIE: dwarf pack stats/headcount, Black Spider GLB, mob footprint
-        const type = HORDE_ZOMBIE;
-        const budget = hordeBudgetForRound(this.settings, this.round);
-        const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
+        const plan = hordeWavePlan(this.round, hordeCountMult(this.settings));
+        if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
         const leader: Team | null =
             this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
-        // The board is canonical; which z-half is "mine" flips with ownAtFar
-        // (guest side). Team identity and edge-sign both flip per client, so
-        // the canonical spawn positions come out identical on every machine.
         const ownSign = this.map.ownAtFar ? -1 : 1;
         const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const leaderShare = hordeLeaderShare(this.settings);
-        for (let i = 0; i < packs; i++) {
+        for (const entry of plan) {
             let zSign = 0;
             if (leader !== null) {
                 const target = rng() < leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
@@ -7605,10 +7732,12 @@ export class Game {
             }
             const spot = this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
             if (!spot) continue;
-            const unit = this.placement.spawnAtWorld(type, spot.x, spot.z);
-            unit.summoned = true; // battle-only: leaves the board at the round reset
+            const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
+            unit.summoned = true;
             unit.deployedRound = this.round;
             unit.marchIn = true;
+            unit.level = entry.level;
+            unit.applyLevelLook(entry.level);
         }
     }
 
@@ -8932,9 +9061,31 @@ export class Game {
         });
     }
 
-    /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks */
+    /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks.
+     *  Horde / innate packs list owned techs (e.g. Mother of Spiders) with live produce %. */
     private techSelection(u: Unit): SelectionInfo['techs'] {
-        if (u.type.structure || u.type.extra || u.team === 'horde' || u.seat < 0) return undefined;
+        if (u.type.structure || u.type.extra) return undefined;
+        const isHorde = u.team === 'horde' || u.seat < 0;
+        if (isHorde) {
+            const ids = new Set<string>([...(u.type.innateTechs ?? []), ...allowedTechIds(u.type.id)]);
+            const slots: NonNullable<SelectionInfo['techs']> = [];
+            for (const id of ids) {
+                if (!this.unitHasTech(u.seat, u.type.id, id)) continue;
+                const t = techById(id);
+                if (!t) continue;
+                slots.push({
+                    id: t.id,
+                    name: t.name,
+                    desc: techDescription(t),
+                    icon: techIcon(t),
+                    cost: 0,
+                    owned: true,
+                    affordable: false,
+                    produce: this.produceProgressInfo(u, t.id),
+                });
+            }
+            return slots.length ? slots : undefined;
+        }
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const selected = techsForUnit(u.type.id);
         const slotsN = techSlotLimit(u.type.id);
@@ -8948,7 +9099,7 @@ export class Game {
                 slots.push({ empty: true });
                 continue;
             }
-            const isOwned = owned.has(t.id);
+            const isOwned = owned.has(t.id) || !!u.type.innateTechs?.includes(t.id);
             const cost = this.economy.techCostOf(t, ownedCount);
             slots.push({
                 id: t.id,
@@ -8958,9 +9109,20 @@ export class Game {
                 cost,
                 owned: isOwned,
                 affordable: canBuy && !isOwned && bal >= cost,
+                produce: isOwned ? this.produceProgressInfo(u, t.id) : undefined,
             });
         }
         return slots;
+    }
+
+    /** Live produce-tech ring data while a battle sim is running. */
+    private produceProgressInfo(
+        u: Unit,
+        techId: string,
+    ): NonNullable<Exclude<NonNullable<SelectionInfo['techs']>[number], { empty: true }>>['produce'] {
+        if (!this.sim) return undefined;
+        const p = this.sim.productionProgress(u, techId);
+        return p ?? undefined;
     }
 
     /**
