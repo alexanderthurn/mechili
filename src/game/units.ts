@@ -534,14 +534,14 @@ export const SHIELD_RADIUS = 20;
 export const SHIELD_HEIGHT = 17;
 
 /**
- * Horde-only wave unit: dwarf pack stats/headcount, but the zombie GLB
+ * Horde-only wave unit: dwarf pack stats/headcount, Black Spider GLB
  * (`horde.glb`) and a looser footprint with `formationSpread` so the wave
  * reads as a wild mob out of the forest. Excluded from `UNIT_TYPES`
- * (never buildable) — resolved only via `unitTypeById`.
+ * (never buildable) — resolved only via `unitTypeById`. Owned by Der Komtur.
  */
 export const HORDE_ZOMBIE: UnitType = {
     id: 'hordeZombie',
-    name: 'Zombie',
+    name: 'Black Spider',
     cost: 100,
     hpWithdraw: 4,
     modelId: 'horde',

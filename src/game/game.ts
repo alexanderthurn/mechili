@@ -7583,7 +7583,7 @@ export class Game {
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
-        // HORDE_ZOMBIE: dwarf pack stats/headcount, zombie GLB, mob footprint
+        // HORDE_ZOMBIE: dwarf pack stats/headcount, Black Spider GLB, mob footprint
         const type = HORDE_ZOMBIE;
         const budget = hordeBudgetForRound(this.settings, this.round);
         const packs = Math.max(1, Math.floor(budget / this.economy.costOf(type)));
@@ -8722,7 +8722,7 @@ export class Game {
 
     /** display name for the side (or, in duo modes, the SEAT) that owns a pack */
     private ownerName(team: BattleTeam, seat?: SeatId): string {
-        if (team === 'horde') return 'Horde';
+        if (team === 'horde') return 'Der Komtur';
         // classic two-seat roster: exact existing wording, unchanged
         if (this.seats.length <= 2 || seat === undefined || seat < 0) {
             return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
