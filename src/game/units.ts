@@ -601,9 +601,10 @@ export const HORDE_BRUT: UnitType = {
     hpWithdraw: 2,
     buyable: false,
     modelId: 'horde',
-    footprint: { cols: 10, rows: 6 },
-    formation: { cols: 8, rows: 3 }, // dense swarm
-    formationSpread: 0.85,
+    // 2× terrain pack area vs original 10×6; same small mesh
+    footprint: { cols: 20, rows: 12 },
+    formation: { cols: 8, rows: 6 }, // 48 — 2× prior 8×3 headcount
+    formationSpread: 0.95,
     meshScale: 0.5,
     burn: { takenMult: 0.5 },
     bloodColor: 0x8cef18,
@@ -633,10 +634,11 @@ export const HORDE_WEBWEAVER: UnitType = {
     hpWithdraw: 12,
     buyable: false,
     modelId: 'horde',
-    footprint: { cols: 6, rows: 4 },
-    formation: { cols: 4, rows: 2 }, // 8 mechs
-    formationSpread: 0.7,
-    meshScale: 1.0, // 2× Brut
+    // 2× terrain pack area vs original 6×4; same mesh scale
+    footprint: { cols: 12, rows: 8 },
+    formation: { cols: 4, rows: 2 }, // 8 mechs, more spread out
+    formationSpread: 1.0,
+    meshScale: 1.0,
     burn: { takenMult: 0.5 },
     bloodColor: 0x8cef18,
     targets: { ground: true, air: false },
@@ -709,8 +711,8 @@ export const HORDE_SPINNE: UnitType = {
     projectileStyle: 'orb',
     corrodeOnHit: { seconds: 6 },
     innateTechs: ['spiderMother'],
-    hp: 900,
-    damage: 40,
+    hp: 4500, // 5× prior
+    damage: 200,
     range: 22,
     attackInterval: 1.0,
     speed: 12,
@@ -753,7 +755,7 @@ export const HORDE_KOMTUR: UnitType = {
     id: 'hordeKomtur',
     name: 'Der Komtur',
     cost: 600,
-    hpWithdraw: 80,
+    hpWithdraw: 800,
     buyable: false,
     modelId: 'horde3',
     footprint: { cols: 4, rows: 3 },
@@ -770,8 +772,8 @@ export const HORDE_KOMTUR: UnitType = {
     ],
     projectileSpeed: 80,
     projectileStyle: 'largeArrow',
-    hp: 1200,
-    damage: 55,
+    hp: 12000, // 10× prior boss weight
+    damage: 550,
     range: 24,
     attackInterval: 0.85,
     speed: 12,

@@ -2744,21 +2744,43 @@ export class Game {
 
     /**
      * SP cheat (H): spawn this round's authored horde plan into the forest
-     * ring (same composition as a real wave, including Ultra ×2 and cycle
-     * level). Build-phase only — battle actors are fixed at battle start.
+     * as two camps (same split as a real wave). Build-phase only.
      */
     private cheatSpawnHordePacks(): void {
         if (this.phase !== 'build') {
             console.info('[cheat] KeyH only works during build phase (battle actors are already fixed)');
             return;
         }
+        // Reuse the real wave spawner path by temporarily ensuring the round
+        // plan runs even if the preset would skip — spawnHordeWave gates on
+        // isHordeRoundActive, so duplicate the camp logic here lightly.
         const plan = hordeWavePlan(Math.max(1, this.round), hordeCountMult(this.settings));
+        if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde-cheat:${this.round}:${Date.now()}`));
+        const leader: Team | null =
+            this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
+        const ownSign = this.map.ownAtFar ? -1 : 1;
         const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
+        const leaderSign =
+            leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : ownSign;
+        const trailerSign = -leaderSign;
+        const bigCamp = this.findHordeRingSpot(rng, leaderSign, outerHalfW, outerHalfH);
+        const smallCamp = this.findHordeRingSpot(rng, trailerSign, outerHalfW, outerHalfH);
+        const bigShare = leader !== null ? hordeLeaderShare(this.settings) : 0.5;
+        let nBig = Math.floor(plan.length * bigShare + 1e-9);
+        if (plan.length >= 2) nBig = Math.min(plan.length - 1, Math.max(1, nBig));
+        else nBig = plan.length;
+        const nSmall = plan.length - nBig;
         let spawned = 0;
-        for (const entry of plan) {
-            const spot = this.findHordeRingSpot(rng, 0, outerHalfW, outerHalfH);
+        for (let i = 0; i < plan.length; i++) {
+            const entry = plan[i]!;
+            const camp = i < nBig ? bigCamp : smallCamp;
+            const zSign = i < nBig ? leaderSign : trailerSign;
+            const campN = i < nBig ? nBig : nSmall;
+            const spot =
+                (camp && this.findHordeSpotNear(rng, camp, campN)) ??
+                this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
             if (!spot) continue;
             const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
             unit.summoned = true;
@@ -2768,7 +2790,9 @@ export class Game {
             unit.applyLevelLook(entry.level);
             spawned++;
         }
-        console.info(`[cheat] KeyH: spawned ${spawned}/${plan.length} packs from round ${this.round} plan`);
+        console.info(
+            `[cheat] KeyH: spawned ${spawned}/${plan.length} packs in 2 camps (big ${nBig})`,
+        );
     }
 
     /**
@@ -7707,11 +7731,10 @@ export class Game {
 
     /**
      * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`),
-     * materializes this round's authored pack list in a ring OUTSIDE the
-     * playable board at BUILD-phase start, marching straight toward center
-     * (`Unit.marchIn`). Counts come from {@link hordeWavePlan} (slot formula +
-     * preset multiplier); no budget shopping. Positioning biases toward the
-     * HP leader's ring half.
+     * materializes this round's authored pack list as **two forest camps**:
+     * a large army (~{@link hordeLeaderShare} toward the HP leader) and a
+     * small one on the trailer's side. Each camp is one ring anchor; packs
+     * scatter nearby and march in (`Unit.marchIn`).
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
@@ -7723,14 +7746,26 @@ export class Game {
         const ownSign = this.map.ownAtFar ? -1 : 1;
         const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
-        const leaderShare = hordeLeaderShare(this.settings);
-        for (const entry of plan) {
-            let zSign = 0;
-            if (leader !== null) {
-                const target = rng() < leaderShare ? leader : leader === 'player' ? 'enemy' : 'player';
-                zSign = target === 'player' ? ownSign : -ownSign;
-            }
-            const spot = this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
+        // Leader's board half in world z; trailer is the opposite. On a tie,
+        // still plant two opposite camps (player half = "big" for determinism).
+        const leaderSign =
+            leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : ownSign;
+        const trailerSign = -leaderSign;
+        const bigCamp = this.findHordeRingSpot(rng, leaderSign, outerHalfW, outerHalfH);
+        const smallCamp = this.findHordeRingSpot(rng, trailerSign, outerHalfW, outerHalfH);
+        const bigShare = leader !== null ? hordeLeaderShare(this.settings) : 0.5;
+        let nBig = Math.floor(plan.length * bigShare + 1e-9);
+        if (plan.length >= 2) nBig = Math.min(plan.length - 1, Math.max(1, nBig));
+        else nBig = plan.length;
+        const nSmall = plan.length - nBig;
+        for (let i = 0; i < plan.length; i++) {
+            const entry = plan[i]!;
+            const camp = i < nBig ? bigCamp : smallCamp;
+            const zSign = i < nBig ? leaderSign : trailerSign;
+            const campN = i < nBig ? nBig : nSmall;
+            const spot =
+                (camp && this.findHordeSpotNear(rng, camp, campN)) ??
+                this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
             if (!spot) continue;
             const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
             unit.summoned = true;
@@ -7766,6 +7801,30 @@ export class Game {
             // "literally inside the board" let spots land right at the edge
             // whenever just one axis barely cleared it — this enforces the
             // real HORDE_RING_NEAR..+SPAN annulus instead.
+            const d = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
+            if (d < HORDE_RING_NEAR || d > HORDE_RING_NEAR + HORDE_RING_SPAN) continue;
+            if (this.hordePathCrossesWater(x, z)) continue;
+            return { x, z };
+        }
+        return null;
+    }
+
+    /**
+     * Scatter a pack near a camp anchor while staying in the forest ring and
+     * clear of lakes. Radius grows with how many packs share the camp.
+     */
+    private findHordeSpotNear(
+        rng: () => number,
+        camp: { x: number; z: number },
+        campPacks: number,
+    ): { x: number; z: number } | null {
+        // ~12 wu for a lone pack; ~34 for 10; capped so we stay in the annulus
+        const scatter = Math.min(48, 10 + Math.max(1, campPacks) * 2.4);
+        for (let attempt = 0; attempt < HORDE_SPAWN_ATTEMPTS; attempt++) {
+            const ang = rng() * Math.PI * 2;
+            const r = rng() * scatter;
+            const x = camp.x + Math.cos(ang) * r;
+            const z = camp.z + Math.sin(ang) * r;
             const d = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
             if (d < HORDE_RING_NEAR || d > HORDE_RING_NEAR + HORDE_RING_SPAN) continue;
             if (this.hordePathCrossesWater(x, z)) continue;

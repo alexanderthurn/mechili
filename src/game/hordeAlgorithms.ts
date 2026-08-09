@@ -4,11 +4,14 @@
  * Wave *composition* lives in {@link hordeWavePlan} (hordeRoster.ts).
  */
 
-/** Last slot of each 10-round circle — Mother night. */
-export const HORDE_FINAL_ROUND = 10;
+/** Length of one forest circle (Mother on the last slot). */
+export const HORDE_CYCLE_LEN = 9;
 
-/** Share of packs biased toward the HP leader's ring half. */
-const LEADER_SHARE = 0.65;
+/** Last slot of each circle — Mother night (rounds 9, 18, 27, …). */
+export const HORDE_FINAL_ROUND = HORDE_CYCLE_LEN;
+
+/** Share of packs in the large army camp (HP leader's side). Rest → trailer camp. */
+const LEADER_SHARE = 0.8;
 
 /**
  * Optional runtime context for future conditional algorithms
@@ -20,9 +23,9 @@ export interface HordeContext {
     enemyHp?: number;
 }
 
-/** Slot 1–10 inside the current circle (same as {@link hordeSlot}). */
+/** Slot 1–{@link HORDE_CYCLE_LEN} inside the current circle. */
 function slotOf(round: number): number {
-    return (((Math.max(1, round) - 1) % 10) + 1);
+    return (((Math.max(1, round) - 1) % HORDE_CYCLE_LEN) + 1);
 }
 
 export abstract class HordeAlgorithm {
@@ -72,14 +75,14 @@ class OffHorde extends HordeAlgorithm {
 class LowHorde extends HordeAlgorithm {
     readonly id = 'low';
     describe(): string {
-        return 'Low — waves on 5 and Mother night (10)';
+        return `Low — waves on 5 and Mother night (${HORDE_FINAL_ROUND})`;
     }
     enabled(): boolean {
         return true;
     }
     shouldSpawn(round: number): boolean {
         const s = slotOf(round);
-        return s === 5 || s === 10;
+        return s === 5 || s === HORDE_FINAL_ROUND;
     }
 }
 
@@ -87,14 +90,14 @@ class LowHorde extends HordeAlgorithm {
 class MediumHorde extends HordeAlgorithm {
     readonly id = 'medium';
     describe(): string {
-        return 'Medium — waves on 3, 5, 7, and Mother night';
+        return `Medium — waves on 3, 5, 7, and Mother night (${HORDE_FINAL_ROUND})`;
     }
     enabled(): boolean {
         return true;
     }
     shouldSpawn(round: number): boolean {
         const s = slotOf(round);
-        return s === 3 || s === 5 || s === 7 || s === 10;
+        return s === 3 || s === 5 || s === 7 || s === HORDE_FINAL_ROUND;
     }
 }
 

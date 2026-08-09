@@ -12,7 +12,7 @@ import {
     hordeAlgorithmById,
 } from './hordeAlgorithms';
 
-export { HORDE_FINAL_ROUND, DEFAULT_HORDE_PRESET_ID, HORDE_ALGORITHMS, hordeAlgorithmById } from './hordeAlgorithms';
+export { HORDE_FINAL_ROUND, HORDE_CYCLE_LEN, DEFAULT_HORDE_PRESET_ID, HORDE_ALGORITHMS, hordeAlgorithmById } from './hordeAlgorithms';
 export type { HordeContext, HordeAlgorithm } from './hordeAlgorithms';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
