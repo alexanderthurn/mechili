@@ -148,7 +148,7 @@ export const TECHS: Record<string, TechDef> = {
         cost: 0,
         mods: {},
         icon: 'tech-default',
-        produce: { typeId: 'hordeBrutSpawn', interval: 0.5, max: 50 },
+        produce: { typeId: 'hordeBrutSpawn', interval: 0.5, max: 200 },
     },
 };
 
