@@ -352,12 +352,44 @@ function hypot(x: number, y: number, z = 0): number {
     return Math.sqrt(x * x + y * y + z * z);
 }
 
+/**
+ * Deterministic replacements for Math.sin/cos — same hazard as Math.hypot
+ * above (implementation-approximated per spec, not guaranteed bit-identical
+ * across engines) but strikeHits' Hammer rectangle test below feeds a real
+ * hit/miss decision, not just a visual offset. Range-reduced Taylor series
+ * to x^11, built from only +, -, *, / (exactly specified by IEEE-754), so
+ * every peer computes identical bits regardless of engine.
+ */
+function wrapPi(a: number): number {
+    const twoPi = Math.PI * 2;
+    return a - twoPi * Math.floor((a + Math.PI) / twoPi);
+}
+
+function detSin(a: number): number {
+    let x = wrapPi(a);
+    // fold into [-π/2, π/2], where the series below converges tightly
+    if (x > Math.PI / 2) x = Math.PI - x;
+    else if (x < -Math.PI / 2) x = -Math.PI - x;
+    const x2 = x * x;
+    return (
+        x *
+        (1 +
+            x2 *
+                (-1 / 6 +
+                    x2 * (1 / 120 + x2 * (-1 / 5040 + x2 * (1 / 362880 - x2 / 39916800)))))
+    );
+}
+
+function detCos(a: number): number {
+    return detSin(a + Math.PI / 2);
+}
+
 /** circle (default) or hammer rectangle footprint — includes actor radius as padding */
 function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean {
     if (s.tacticId === HAMMER_ID) {
         const yaw = s.yaw ?? 0;
-        const c = Math.cos(yaw);
-        const sn = Math.sin(yaw);
+        const c = detCos(yaw);
+        const sn = detSin(yaw);
         const dx = x - s.x;
         const dz = z - s.z;
         const lx = dx * c + dz * sn;

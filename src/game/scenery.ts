@@ -152,6 +152,44 @@ function smooth01(t: number): number {
 }
 
 /**
+ * Deterministic replacements for `Math.pow(x, exponent)` on `x` clamped to
+ * [0, 1] — used only by {@link terrainHeight} below, which feeds
+ * `worldHeightAt` → `hordePathCrossesWater` for real GAMEPLAY decisions
+ * (horde-wave spawn-point rejection near lakes, see registerOuterHeight's
+ * call site further down). `Math.pow` with a fractional exponent is
+ * implementation-approximated per spec, not guaranteed bit-identical across
+ * engines — the same lockstep hazard `sim.ts`'s local `hypot()` exists to
+ * avoid for `Math.hypot`. Each is a degree-7, zero-constant-term least-
+ * squares fit of x^exponent on [0,1] (max abs error ~8e-4), evaluated with
+ * only +, -, * (exactly specified by IEEE-754) so every peer gets the
+ * identical bits — the tiny fit error vs. the "true" curve is invisible in
+ * a hand-authored terrain shape and doesn't matter for determinism, only
+ * consistency does.
+ */
+function detPow01(x: number, c: readonly [number, number, number, number, number, number, number]): number {
+    const v = Math.min(1, Math.max(0, x));
+    // Horner's method
+    return v * (c[0] + v * (c[1] + v * (c[2] + v * (c[3] + v * (c[4] + v * (c[5] + v * c[6]))))));
+}
+
+const POW_1_45 = [
+    0.15304741, 2.50136129, -6.09467962, 11.84031086, -13.80380794, 8.60550388, -2.20198833,
+] as const;
+const POW_1_3 = [
+    0.3007198, 2.57445524, -7.27909887, 14.64816629, -17.34878685, 10.91272683, -2.8085132,
+] as const;
+const POW_1_35 = [
+    0.2418669, 2.60154548, -7.03726829, 14.0043433, -16.50211579, 10.34998924, -2.65867118,
+] as const;
+
+/** Deterministic replacement for `Math.hypot` — sqrt IS correctly rounded
+ *  per IEEE-754 in every engine, `Math.hypot` is NOT (see detPow01's doc
+ *  comment for why that matters here). */
+function detHypot(x: number, z: number): number {
+    return Math.sqrt(x * x + z * z);
+}
+
+/**
  * Everything around and above the battlefield, generated in code: sky dome,
  * sun glow, the outer world (ground, trees), horizon clouds, forest fog, rain/snow.
  */
@@ -228,7 +266,7 @@ export class Scenery {
             // rounded distance past the board + mild noise (not a square cliff line)
             const ox = Math.max(0, Math.abs(x) - map.halfW);
             const oz = Math.max(0, Math.abs(z) - map.halfH);
-            let d = Math.hypot(ox, oz);
+            let d = detHypot(ox, oz);
             d += (noise(x / 95 + 2.4, z / 95 + 6.1) - 0.5) * 28;
             d += (noise(x / 40 + 9.0, z / 40 + 1.7) - 0.5) * 12;
             d = Math.max(0, d);
@@ -237,13 +275,13 @@ export class Scenery {
             // via the noise on d, but never the old "wall at 5 tiles")
             const nearFlat = 24; // CELL=4 → 6 tiles
             const ramp = 90;
-            const edgeIn = Math.pow(smooth01((d - nearFlat) / ramp), 1.45);
+            const edgeIn = detPow01(smooth01((d - nearFlat) / ramp), POW_1_45);
 
             const hN =
                 noise(x / 110 + 1.2, z / 110 + 4.8) * 0.5 +
                 noise(x / 48 + 22.1, z / 48 + 9.3) * 0.32 +
                 noise(x / 22 + 8.8, z / 22 + 55.5) * 0.18;
-            const knoll = Math.pow(Math.max(0, hN - 0.45) / 0.55, 1.3);
+            const knoll = detPow01(Math.max(0, hN - 0.45) / 0.55, POW_1_3);
             // real rolling hills — mountains still carry the big drama farther out
             const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn;
 
@@ -252,7 +290,7 @@ export class Scenery {
                 noise(x / 170 + 3.7, z / 170 + 8.1) * 0.55 +
                 noise(x / 62 + 51.2, z / 62 + 17.9) * 0.3 +
                 noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
-            const ridge = Math.pow(Math.max(0, n - 0.32) / 0.68, 1.35);
+            const ridge = detPow01(Math.max(0, n - 0.32) / 0.68, POW_1_35);
             const mountain = rise * (28 + 280 * ridge);
 
             // lakes win over everything: where the basin noise runs high the
