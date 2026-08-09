@@ -19,7 +19,8 @@
     "build:win": "steam-electron-build win",
     "build:linux": "steam-electron-build linux",
     "icons:split": "uv run --with pillow python scripts/split_icon_sheets.py",
-    "icons:pack": "printf 'agree\\n' | TexturePacker --format json --sheet misc/icons/icons.png --data assets/icons/icons.json --algorithm MaxRects --max-size 2048 --size-constraints POT --trim-mode None --padding 2 --extrude 1 --disable-rotation misc/icons/src && uv run --with pillow python -c \"from PIL import Image; Image.open('misc/icons/icons.png').save('assets/icons/icons.webp','WEBP',quality=90,method=6)\""
+    "icons:pack": "printf 'agree\\n' | TexturePacker --format json --sheet misc/icons/icons.png --data assets/icons/icons.json --algorithm MaxRects --max-size 2048 --size-constraints POT --trim-mode None --padding 2 --extrude 1 --disable-rotation misc/icons/src && uv run --with pillow python -c \"from PIL import Image; Image.open('misc/icons/icons.png').save('assets/icons/icons.webp','WEBP',quality=90,method=6)\"",
+    "models:draco": "bash scripts/compress-glb-draco.sh"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

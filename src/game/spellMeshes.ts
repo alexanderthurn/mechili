@@ -7,7 +7,7 @@ import {
     Vector3,
     type Material,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { getGltfLoader } from '../engine/gltfLoader';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 
 /** Load a GLB and normalize to unit longest-axis, optional baked rotation. */
@@ -15,7 +15,7 @@ export async function loadSpellTemplate(
     url: string,
     opts: { bakeEuler?: { x?: number; y?: number; z?: number } } = {},
 ): Promise<Group> {
-    const gltf = await new GLTFLoader().loadAsync(url);
+    const gltf = await getGltfLoader().loadAsync(url);
     return prepareSpellTemplate(gltf.scene, opts);
 }
 

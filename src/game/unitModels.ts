@@ -10,9 +10,9 @@ import {
     Vector3,
     type Object3D,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { BattleTeam, Team } from './units';
 
@@ -79,7 +79,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
 
 type Template = Group;
 const templates = new Map<string, Template>();
-const loader = new GLTFLoader();
+const loader = getGltfLoader();
 
 /** Shared geometry + material for InstancedMesh pools (one entry per material). */
 export interface InstancePart {

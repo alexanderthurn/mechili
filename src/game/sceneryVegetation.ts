@@ -22,8 +22,8 @@ import {
     type Object3D as Obj3D,
     type Texture,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { SceneryQuality } from './prefs';
 import { TRANSITION_TAU, type Season } from './weather';
@@ -145,7 +145,7 @@ const SPECS: Record<
     },
 };
 
-const loader = new GLTFLoader();
+const loader = getGltfLoader();
 const texLoader = new TextureLoader();
 const cache = new Map<VegetationKind, VegetationAsset>();
 const billboardCache = new Map<VegetationKind, { geometry: BufferGeometry; material: MeshBasicMaterial }>();

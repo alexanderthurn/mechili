@@ -5,12 +5,10 @@ import {
     Object3D,
     Vector3,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { getGltfLoader } from '../engine/gltfLoader';
 import { loadSpellTemplate } from './spellMeshes';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
-
-const loader = new GLTFLoader();
 
 const URLS = {
     hammer: new URL('../../assets/models/spells/hammer-of-gods.glb', import.meta.url).href,
@@ -69,7 +67,7 @@ async function loadOne(id: SpellAssetId): Promise<Group> {
     if (hit) return hit;
     let tpl: Group;
     if (id === 'hammer') {
-        const gltf = await loader.loadAsync(URLS.hammer);
+        const gltf = await getGltfLoader().loadAsync(URLS.hammer);
         tpl = prepareHammerTemplate(gltf.scene);
     } else if (id === 'meteor-great') {
         tpl = await loadSpellTemplate(URLS['meteor-great'], { bakeEuler: { x: 0.3 } });
