@@ -87,6 +87,7 @@ import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { FireFx } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
+import { StrongholdFlags } from './strongholdFlags';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx } from './cloudFx';
@@ -298,6 +299,7 @@ export class Game {
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly forgeFx = new ForgeFx();
+    private readonly strongholdFlags = new StrongholdFlags();
     private readonly hordeMarkers: HordeMarkers;
     private readonly towerDebuffFx: TowerDebuffFx;
     private readonly hammerFx: HammerFx;
@@ -2318,6 +2320,7 @@ export class Game {
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
         this.hordeMarkers.dispose();
+        this.strongholdFlags.dispose();
         this.towerDebuffFx.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
@@ -6946,6 +6949,24 @@ export class Game {
         this.forgeFx.update(dt, this.time, targets, this.scene);
     }
 
+    /** Player/enemy avatar flags on each living Stronghold rooftop. */
+    private updateStrongholdFlags(): void {
+        const keeps: Unit[] = [];
+        if (!this.hud.isUiHidden) {
+            for (const unit of this.placement.allUnits()) {
+                if (unit.type === STRONGHOLD && !unit.destroyed) keeps.push(unit);
+            }
+        }
+        this.strongholdFlags.update(
+            this.time,
+            keeps,
+            this.seats,
+            this.scene,
+            !this.hud.isUiHidden,
+            this.weather?.wind,
+        );
+    }
+
     /**
      * Pink octahedron beacons over forest-ring horde packs while they wait /
      * march in. Cleared once `marchIn` ends (on-board combat). During battle,
@@ -8551,6 +8572,7 @@ export class Game {
         if (profile) cpu.begin();
         this.particles.update(gameDt);
         this.updateForgeFx(gameDt);
+        this.updateStrongholdFlags();
         this.updateHordeMarkers();
 
         if (!this.introActive && !this.outroActive) {

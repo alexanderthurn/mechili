@@ -33,6 +33,14 @@ export type WeatherKind = 'clear' | 'rain' | 'snow';
 /** where the sun/moon sits — owns the base sky, sun, stars, exposure, sun direction */
 export type TimeOfDay = 'dawn' | 'day' | 'golden' | 'dusk' | 'night';
 
+/** Board-wide wind for flags / foliage — yaw is world Y rotation (cloth blows along it). */
+export interface WindInfo {
+    /** radians — flag stand yaw so cloth extends downwind */
+    yaw: number;
+    /** 0 = nearly still, 1 = storm snap */
+    strength: number;
+}
+
 /** the three independent axes composed into one atmosphere every update */
 export interface Atmosphere {
     season: Season;
@@ -292,6 +300,43 @@ function applySeasonBias(p: TimePreset, season: Season): void {
         case 'summer':
             break; // current THEME greens — no bias
     }
+}
+
+/**
+ * Derive a single board wind from atmosphere. Season sets the prevailing
+ * direction; weather kind/intensity set strength (clear ≈ still, storm ≈ hard).
+ */
+export function windFromAtmosphere(a: Atmosphere): WindInfo {
+    // prevailing yaw by season (world radians)
+    let yaw =
+        a.season === 'spring'
+            ? 0.55
+            : a.season === 'summer'
+              ? -0.35
+              : a.season === 'autumn'
+                ? 2.15
+                : 1.05; // winter
+
+    let strength: number;
+    if (a.weatherKind === 'rain') {
+        // showers → breeze; full storm → hard gale, swung further
+        strength = 0.42 + a.weatherIntensity * 0.55;
+        yaw += 0.55 + a.weatherIntensity * 0.7;
+    } else if (a.weatherKind === 'snow') {
+        strength = 0.28 + a.weatherIntensity * 0.5;
+        yaw -= 0.75 + a.weatherIntensity * 0.35;
+    } else {
+        // clear: mostly still / light air; autumn evenings a bit breezier
+        strength =
+            a.timeOfDay === 'night' || a.timeOfDay === 'dawn'
+                ? 0.06
+                : a.season === 'autumn'
+                  ? 0.32
+                  : 0.14;
+        if (a.timeOfDay === 'golden') strength += 0.08;
+    }
+
+    return { yaw, strength: Math.min(1, Math.max(0, strength)) };
 }
 
 function lerpOverlay(p: TimePreset, overlay: WeatherOverlay, t: number): void {
@@ -753,6 +798,15 @@ export class Weather {
         return this.atmosphere.timeOfDay;
     }
 
+    /**
+     * Shared board wind from the current atmosphere — all stronghold flags
+     * (and similar props) should align to this. Clear/calm → little motion;
+     * storms → stronger flutter.
+     */
+    get wind(): WindInfo {
+        return windFromAtmosphere(this.atmosphere);
+    }
+
     /** immutable copy of the current atmosphere — stash it, then `setAtmosphere` it back later */
     get snapshot(): Atmosphere {
         return { ...this.atmosphere };
@@ -783,6 +837,7 @@ export class Weather {
         return [
             `scene ${this.sceneStatus()}`,
             `season ${a.season}  weather ${a.weatherKind} ${(a.weatherIntensity * 100).toFixed(0)}%  time ${a.timeOfDay}`,
+            `wind yaw ${((this.wind.yaw * 180) / Math.PI).toFixed(0)}°  strength ${(this.wind.strength * 100).toFixed(0)}%`,
             `ground-snow accum ${(this.snowCover * 100).toFixed(0)}% visual ${(this.groundSnow * 100).toFixed(0)}%`,
             `sky zenith ${hex(s.skyZenith)} mid ${hex(s.skyMid)} horizon ${hex(s.skyHorizon)}`,
             `fog near ${s.fogNear.toFixed(0)} far ${s.fogFar.toFixed(0)}`,

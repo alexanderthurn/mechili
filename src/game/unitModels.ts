@@ -73,7 +73,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
     'command-tower': { url: new URL('../../assets/models/command-tower-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower
-    stronghold: { url: new URL('../../assets/models/command-tower-keep.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep (Tripo v3.1, gltf-transform-optimized)
+    stronghold: { url: new URL('../../assets/models/stronghold.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep + Flag empty for the mast
     'research-center': { url: new URL('../../assets/models/research-center-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 1.25 }, // wizard tower
 };
 
@@ -103,6 +103,11 @@ const visualHeights = new Map<string, number>();
  * normalized model space (feet at y=0, rest forward −Z, before meshScale).
  */
 const attackNodes = new Map<string, { x: number; y: number; z: number }>();
+/**
+ * Optional flag-mast sockets from GLB empties named `Flag` (same space as
+ * AttackNode). Used by StrongholdFlags.
+ */
+const flagNodes = new Map<string, { x: number; y: number; z: number }>();
 
 /** Local mesh height for badges / arrows (× meshScale → world). Falls back to 1. */
 export function getUnitVisualHeight(id: string): number {
@@ -112,6 +117,11 @@ export function getUnitVisualHeight(id: string): number {
 /** Rest-local AttackNode offset, or null if the GLB has none. */
 export function getUnitAttackNodeLocal(id: string): { x: number; y: number; z: number } | null {
     return attackNodes.get(id) ?? null;
+}
+
+/** Rest-local Flag empty offset, or null if the GLB has none. */
+export function getUnitFlagNodeLocal(id: string): { x: number; y: number; z: number } | null {
+    return flagNodes.get(id) ?? null;
 }
 
 /**
@@ -358,6 +368,15 @@ export async function loadUnitModels(
                 attackNodes.set(id, { x: p.x, y: p.y, z: p.z });
                 console.info(
                     `[unitModels] AttackNode '${id}' @ (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
+                );
+            }
+            const flag = root.getObjectByName('Flag');
+            if (flag) {
+                const p = new Vector3();
+                flag.getWorldPosition(p);
+                flagNodes.set(id, { x: p.x, y: p.y, z: p.z });
+                console.info(
+                    `[unitModels] Flag '${id}' @ (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
                 );
             }
             templates.set(id, root);
