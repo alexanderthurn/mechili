@@ -697,7 +697,7 @@ export const HORDE_SPINNE: UnitType = {
     modelId: 'horde',
     footprint: { cols: 4, rows: 3 },
     formation: { cols: 1, rows: 1 },
-    meshScale: 4.0, // 2× prior 2.0 (8× Brut)
+    meshScale: 6.0, // 12× Brood — showcase boss presence
     burn: { takenMult: 0.4 },
     bloodColor: 0x8cef18,
     targets: { ground: true, air: true },

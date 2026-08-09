@@ -11,7 +11,7 @@ import {
     Vector3,
     WebGLRenderer,
 } from 'three';
-import { cloneUnitModel, hasUnitModel } from '../game/unitModels';
+import { cloneUnitModel, getUnitVisualHeight, hasUnitModel } from '../game/unitModels';
 import { THEME } from '../theme';
 
 export interface ShowcaseViewer {
@@ -30,6 +30,13 @@ const MIN_ZOOM = 0.55; // closer
 const MAX_ZOOM = 2.5; // further
 const ZOOM_SPEED = 0.0015;
 const FIT_PADDING = 1.2; // headroom so the model doesn't touch the canvas edge
+/**
+ * Shared showcase "stage" — frame as if looking at a mid-army unit (Archer).
+ * Smaller meshScales (Black Brood vs Webweaver vs Black Spider) read smaller
+ * in the canvas; anything bigger than the stage still pulls the camera out to fit.
+ */
+const STAGE_REF_MODEL = 'archer';
+const STAGE_REF_MESH_SCALE = 2.2;
 
 /**
  * One persistent WebGL canvas — swap models with show().
@@ -67,7 +74,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     let lastY = 0;
     let resumeTimer = 0;
 
-    /** Recomputes target/baseDistance from the model's true bounding sphere so it always fits the frustum. */
+    /** Frame against a fixed mid-army stage so meshScale differences stay visible. */
     function fitToModel(): void {
         if (!current) return;
         current.updateMatrixWorld(true);
@@ -75,10 +82,16 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         box.getSize(boxSize);
         box.getCenter(target);
         const sphereRadius = boxSize.length() * 0.5 || 1;
+        const stageHeight = getUnitVisualHeight(STAGE_REF_MODEL) * STAGE_REF_MESH_SCALE;
+        const stageSphere = Math.max(stageHeight * 0.75, 0.5);
+        // Under the stage → leave empty space (small units). Over it → sit closer
+        // than a perfect fit so bosses like Black Spider feel massive (mild crop OK).
+        const framingRadius =
+            sphereRadius <= stageSphere ? stageSphere : sphereRadius * 0.68;
         const vFov = MathUtils.degToRad(camera.fov * 0.5);
         const hFov = Math.atan(Math.tan(vFov) * Math.max(camera.aspect, 0.0001));
         const limitingHalfFov = Math.min(vFov, hFov);
-        baseDistance = (sphereRadius / Math.sin(limitingHalfFov)) * FIT_PADDING;
+        baseDistance = (framingRadius / Math.sin(limitingHalfFov)) * FIT_PADDING;
         target.y += boxSize.y * 0.08;
     }
 
@@ -180,6 +193,8 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
                 current = null;
             }
             next.scale.setScalar(meshScale);
+            // Game models face −Z; default camera is on +Z — flip so the face shows first.
+            next.rotation.y = Math.PI;
             spherical.theta = 0;
             spherical.phi = DEFAULT_POLAR;
             zoom = 1;
