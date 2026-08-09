@@ -366,7 +366,10 @@ function wrapPi(a: number): number {
     return a - twoPi * Math.floor((a + Math.PI) / twoPi);
 }
 
-function detSin(a: number): number {
+/** exported for reuse anywhere else a deterministic angle→offset conversion
+ *  feeds a value that must agree across peers (see game.ts's production-
+ *  reserve parking and horde camp-scatter spawn points) */
+export function detSin(a: number): number {
     let x = wrapPi(a);
     // fold into [-π/2, π/2], where the series below converges tightly
     if (x > Math.PI / 2) x = Math.PI - x;
@@ -381,7 +384,7 @@ function detSin(a: number): number {
     );
 }
 
-function detCos(a: number): number {
+export function detCos(a: number): number {
     return detSin(a + Math.PI / 2);
 }
 
@@ -1142,8 +1145,8 @@ export class BattleSim {
         if (!parentActor) return;
         const ang = (((child.id * 2654435761) >>> 0) * (Math.PI * 2)) / 4294967296;
         const radius = 3.2 + (child.id % 5) * 0.55;
-        const cx = parentActor.x + Math.cos(ang) * radius;
-        const cz = parentActor.z + Math.sin(ang) * radius;
+        const cx = parentActor.x + detCos(ang) * radius;
+        const cz = parentActor.z + detSin(ang) * radius;
         child.productionHeld = false;
         child.marchIn = parent.marchIn;
         child.world.set(cx, 0, cz);

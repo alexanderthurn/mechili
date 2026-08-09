@@ -145,7 +145,17 @@ import {
     type GameSettings,
 } from './settings';
 import { hordeWavePlan } from './hordeRoster';
-import { BattleSim, BATTLE_START_FREEZE, actorSeat, actorTeam, type Actor, type SimEvent, SOFT_CROWD_LIMIT } from './sim';
+import {
+    BattleSim,
+    BATTLE_START_FREEZE,
+    actorSeat,
+    actorTeam,
+    detCos,
+    detSin,
+    type Actor,
+    type SimEvent,
+    SOFT_CROWD_LIMIT,
+} from './sim';
 import {
     BIG_METEOR_ID,
     DRAGON_APPROACH_SEC,
@@ -7705,8 +7715,8 @@ export class Game {
                     // park off to the side — sim relocates to the parent on release
                     const ang = ((i * 2654435761) >>> 0) * ((Math.PI * 2) / 4294967296);
                     const r = 2 + (i % 7) * 0.4;
-                    const x = parent.world.x + Math.cos(ang) * r;
-                    const z = parent.world.z + Math.sin(ang) * r;
+                    const x = parent.world.x + detCos(ang) * r;
+                    const z = parent.world.z + detSin(ang) * r;
                     const child = this.placement.spawnAtWorld(
                         childType,
                         x,
@@ -7823,8 +7833,8 @@ export class Game {
         for (let attempt = 0; attempt < HORDE_SPAWN_ATTEMPTS; attempt++) {
             const ang = rng() * Math.PI * 2;
             const r = rng() * scatter;
-            const x = camp.x + Math.cos(ang) * r;
-            const z = camp.z + Math.sin(ang) * r;
+            const x = camp.x + detCos(ang) * r;
+            const z = camp.z + detSin(ang) * r;
             const d = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
             if (d < HORDE_RING_NEAR || d > HORDE_RING_NEAR + HORDE_RING_SPAN) continue;
             if (this.hordePathCrossesWater(x, z)) continue;
