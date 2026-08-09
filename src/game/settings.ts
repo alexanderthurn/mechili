@@ -580,7 +580,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 },
             ],
         },
-        { title: 'Horde mode', rows: hordeRows },
+        { title: DISPLAY.horde, rows: hordeRows },
         {
             title: 'Towers',
             rows: [

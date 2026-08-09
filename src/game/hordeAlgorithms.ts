@@ -61,7 +61,7 @@ export abstract class HordeAlgorithm {
 class OffHorde extends HordeAlgorithm {
     readonly id = 'off';
     describe(): string {
-        return 'Off — no forest waves';
+        return 'Off — no waves';
     }
     enabled(): boolean {
         return false;

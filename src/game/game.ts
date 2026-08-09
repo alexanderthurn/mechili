@@ -21,6 +21,7 @@ import {
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { EffectToggles } from './effectToggles';
+import { DISPLAY } from './displayNames';
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
@@ -8942,7 +8943,7 @@ export class Game {
 
     /** display name for the side (or, in duo modes, the SEAT) that owns a pack */
     private ownerName(team: BattleTeam, seat?: SeatId): string {
-        if (team === 'horde') return 'Der Komtur';
+        if (team === 'horde') return DISPLAY.horde;
         // classic two-seat roster: exact existing wording, unchanged
         if (this.seats.length <= 2 || seat === undefined || seat < 0) {
             return team === 'player' ? this.playerNames.local : this.playerNames.opponent;

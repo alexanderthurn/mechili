@@ -15,4 +15,9 @@ export const DISPLAY = {
     /** pre-round-1 loadout pick (`cards.ts` StartCard) */
     commander: 'Commander',
     commanders: 'Commanders',
+    /**
+     * Neutral forest-wave faction (`team === 'horde'`, presets, menu).
+     * Keep `horde` in code / unit ids; this string is what players see.
+     */
+    horde: 'The Komtur',
 } as const;

@@ -596,7 +596,7 @@ export const SHIELD_HEIGHT = 17;
  */
 export const HORDE_BRUT: UnitType = {
     id: 'hordeZombie', // keep legacy id for hydrate/replay
-    name: 'Schwarze Brut',
+    name: 'Black Brood',
     cost: 80,
     hpWithdraw: 2,
     buyable: false,
@@ -629,7 +629,7 @@ export const HORDE_ZOMBIE = HORDE_BRUT;
  */
 export const HORDE_WEBWEAVER: UnitType = {
     id: 'hordeWebweaver',
-    name: 'Webweavers',
+    name: 'Webweaver',
     cost: 200,
     hpWithdraw: 12,
     buyable: false,
@@ -662,7 +662,7 @@ export const HORDE_WEBWEAVER: UnitType = {
  */
 export const HORDE_BRUT_SPAWN: UnitType = {
     id: 'hordeBrutSpawn',
-    name: 'Schwarze Brut',
+    name: 'Black Brood',
     cost: 0,
     hpWithdraw: 2,
     buyable: false,
@@ -690,7 +690,7 @@ export const HORDE_BRUT_SPAWN: UnitType = {
  */
 export const HORDE_SPINNE: UnitType = {
     id: 'hordeSpinne',
-    name: 'Schwarze Spinne',
+    name: 'Black Spider',
     cost: 500,
     hpWithdraw: 70,
     buyable: false,
@@ -753,7 +753,7 @@ export const HORDE_FARMER: UnitType = {
  */
 export const HORDE_KOMTUR: UnitType = {
     id: 'hordeKomtur',
-    name: 'Der Komtur',
+    name: 'Hans von Stoffeln',
     cost: 600,
     hpWithdraw: 800,
     buyable: false,

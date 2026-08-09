@@ -79,6 +79,7 @@ import {
     resolveCommanderHpFactor,
     type GameSettings,
 } from './game/settings';
+import { DISPLAY } from './game/displayNames';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
@@ -646,7 +647,7 @@ menu.innerHTML = `
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">Horde</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-back">Back</button>
     </div>
@@ -666,7 +667,7 @@ menu.innerHTML = `
         </div>
         <label class="m-toggle-pill" style="display:none">
             <input type="checkbox" class="mm-horde" checked>
-            ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">Horde Mode</span>
+            ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span>
         </label>
         <div class="m-seats">
             <div class="m-seat m-seat-you"><span class="mm-you-name"></span></div>
@@ -683,7 +684,7 @@ menu.innerHTML = `
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="mms-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="mms-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="mms-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">Horde</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span></button>
         </div>
         <button class="m-btn m-small" data-mode="mms-back">Back</button>
     </div>
@@ -722,7 +723,7 @@ menu.innerHTML = `
                 <label class="m-field">Pace
                     <select class="cg-pace"></select>
                 </label>
-                <label class="m-field">Horde
+                <label class="m-field">${DISPLAY.horde}
                     <select class="cg-horde"></select>
                 </label>
                 <label class="m-field">Round cards

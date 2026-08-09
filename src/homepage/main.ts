@@ -65,15 +65,30 @@ const SCREENSHOTS = SCREENSHOT_DEFS.slice(0, 4).map((s, i) => ({
     index: i,
 }));
 
+/** GLB key for the showcase viewer (`modelId` when a type shares a mesh). */
+function showcaseModelKey(t: UnitType): string {
+    return t.modelId ?? t.id;
+}
+
+/** Distinct The Komtur packs — skip spawn-only brood duplicate. */
+function isHordeShowcaseUnit(t: UnitType): boolean {
+    return !t.structure && !isPlayerBuyable(t) && t.id.startsWith('horde') && t.id !== 'hordeBrutSpawn';
+}
+
 const SHOWCASE_UNITS: UnitType[] = [
     ...UNIT_TYPES,
     COMMAND_TOWER,
     RESEARCH_CENTER,
     STRONGHOLD,
-].filter((t) => t.id in MODEL_SPECS && (t.structure || isPlayerBuyable(t)));
+].filter(
+    (t) =>
+        showcaseModelKey(t) in MODEL_SPECS &&
+        (t.structure || isPlayerBuyable(t) || isHordeShowcaseUnit(t)),
+);
 
 const BUILDINGS = SHOWCASE_UNITS.filter((t) => t.structure);
-const UNITS = SHOWCASE_UNITS.filter((t) => !t.structure);
+const UNITS = SHOWCASE_UNITS.filter((t) => !t.structure && isPlayerBuyable(t));
+const HORDE_UNITS = SHOWCASE_UNITS.filter((t) => isHordeShowcaseUnit(t));
 
 function pickButtons(list: UnitType[], activeId: string): string {
     return list
@@ -297,7 +312,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="units">
     <h2>Units &amp; buildings</h2>
-    <p class="mh-sub">Your army and buildings. Pick one to inspect. </p>
+    <p class="mh-sub">Your army, buildings, and ${esc(DISPLAY.horde)} packs from the forest ring. Pick one to inspect.</p>
     <div class="mh-showcase">
       <div class="mh-showcase-view">
         <canvas id="mh-unit-canvas" aria-label="Unit 3D preview"></canvas>
@@ -315,6 +330,9 @@ app.innerHTML = `
           <optgroup label="Units">
             ${UNITS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
           </optgroup>
+          <optgroup label="${esc(DISPLAY.horde)}">
+            ${HORDE_UNITS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+          </optgroup>
         </select>
         <div class="mh-unit-picks" role="listbox" aria-label="Units and buildings">
           <div class="mh-pick-group">
@@ -324,6 +342,10 @@ app.innerHTML = `
           <div class="mh-pick-group">
             <div class="mh-pick-label">Units</div>
             <div class="mh-pick-row">${pickButtons(UNITS, first.id)}</div>
+          </div>
+          <div class="mh-pick-group">
+            <div class="mh-pick-label">${esc(DISPLAY.horde)}</div>
+            <div class="mh-pick-row">${pickButtons(HORDE_UNITS, first.id)}</div>
           </div>
         </div>
         <div class="mh-unit-stats" id="mh-unit-stats">${statsHtml(first)}</div>
@@ -814,7 +836,7 @@ const showcaseHint = app.querySelector<HTMLElement>('#mh-showcase-hint')!;
 
 void preloadUnitVisuals().then(() => {
     const viewer = createShowcaseViewer(canvas);
-    viewer.show(first.id, first.meshScale);
+    viewer.show(showcaseModelKey(first), first.meshScale);
     showcaseLoading.remove();
     showcaseHint.classList.add('visible');
     const hideHint = () => showcaseHint.classList.remove('visible');
@@ -831,7 +853,7 @@ void preloadUnitVisuals().then(() => {
             p.setAttribute('aria-selected', p.dataset.unitId === id ? 'true' : 'false');
         }
         if (unitSelect) unitSelect.value = id;
-        viewer.show(type.id, type.meshScale);
+        viewer.show(showcaseModelKey(type), type.meshScale);
         statsEl.innerHTML = statsHtml(type);
     }
 
