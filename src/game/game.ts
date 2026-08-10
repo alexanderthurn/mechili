@@ -63,7 +63,19 @@ import {
     type StarRole,
     type VisionPolicy,
 } from './net';
-import { BALANCE_PATCH_ID, submitMatchTelemetry, summarizeUnits, type MatchMode, type MatchResult } from './telemetry';
+import {
+    BALANCE_PATCH_ID,
+    TELEMETRY_SCHEMA,
+    accumulateBattleDamage,
+    submitMatchTelemetry,
+    summarizeDamage,
+    summarizeTechs,
+    summarizeUnits,
+    telemetryChannel,
+    telemetryIncludeReplay,
+    type MatchMode,
+    type MatchResult,
+} from './telemetry';
 import { matchResultId, reportMatchResult } from './account';
 import {
     AIR_BONUS,
@@ -387,6 +399,8 @@ export class Game {
      */
     private hpPeak: number[] = [];
     private matchOver = false;
+    /** match-total combat damage by `${team}:${typeId}` — fed into telemetry */
+    private readonly matchDamageByType = new Map<string, number>();
     private disposed = false;
     private sim: BattleSim | null = null;
     /** everything the player and the AI do goes through here — undo & replay source */
@@ -8277,12 +8291,19 @@ export class Game {
      */
     private reportMatchTelemetry(result: 'victory' | 'defeat' | 'draw'): void {
         try {
-            const replay = this.exportReplay();
+            const full = this.exportReplay();
+            // Default: seed+settings stub only (empty actions) so matchKey still
+            // groups both sides without storing the action log. Opt in with
+            // ?telemetryReplay=1 or localStorage mechili-telemetry-replay=1.
+            const replay = telemetryIncludeReplay()
+                ? full
+                : { version: full.version, seed: full.seed, settings: full.settings, actions: [] };
             submitMatchTelemetry({
-                schema: 1,
+                schema: TELEMETRY_SCHEMA,
                 ts: Math.floor(Date.now() / 1000),
                 gameVersion: GAME_VERSION,
                 balancePatchId: BALANCE_PATCH_ID,
+                channel: telemetryChannel(),
                 // seat COUNT decides '2v2' vs 'mp' now, not `this.star`
                 // truthiness — 1v1 is a 2-seat star match too, and should
                 // still report as ordinary 'mp', same as it always has.
@@ -8301,6 +8322,8 @@ export class Game {
                     enemy: this.speciality[primarySeatOf(this.seats, 'enemy')]!,
                 },
                 units: summarizeUnits(this.placement.allUnits()),
+                techs: summarizeTechs(this.techTree, this.seats),
+                damage: summarizeDamage(this.matchDamageByType),
                 // telemetry reporting only — merges every seat's own unlocks
                 // per side (each seat's shop stays exclusively its own in play)
                 unlocked: {
@@ -8338,6 +8361,7 @@ export class Game {
      * its own was left to stop either force.
      */
     private applyBattleResult(sim: BattleSim): void {
+        accumulateBattleDamage(this.matchDamageByType, sim.damageByType);
         const built = buildHpDrawSources(sim, this.economy);
         const damageToPlayer = built.damageToPlayer;
         const damageToEnemy = built.damageToEnemy;

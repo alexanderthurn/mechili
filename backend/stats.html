@@ -42,6 +42,12 @@
       border-color: var(--accent);
       font-weight: 600;
     }
+    button.secondary {
+      background: var(--panel);
+      color: var(--ink);
+      border-color: var(--line);
+      font-weight: 500;
+    }
     button:disabled { opacity: 0.5; cursor: wait; }
     .status { color: var(--muted); min-height: 1.2em; margin-bottom: 12px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
@@ -60,13 +66,14 @@
     .num { font-variant-numeric: tabular-nums; text-align: right !important; }
     .hi { color: var(--good); }
     .lo { color: var(--bad); }
+    .muted { color: var(--muted); }
     h2 { font-size: 1rem; margin: 28px 0 10px; font-weight: 600; }
-    .hint { font-size: 12px; color: var(--muted); margin-top: 24px; max-width: 52em; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 24px; max-width: 56em; }
   </style>
 </head>
 <body>
   <h1>Match statistics</h1>
-  <p class="sub">Downloads bulk match records from the file-based API and analyzes them in the browser.</p>
+  <p class="sub">Downloads bulk match records (summary fields) and analyzes them in the browser. Dedupes both sides of a match via <code>matchKey</code>.</p>
 
   <div class="row">
     <label>API base
@@ -80,10 +87,28 @@
         <option value="2v2">2v2</option>
       </select>
     </label>
+    <label>Channel
+      <select id="channel">
+        <option value="all">all</option>
+        <option value="open">open</option>
+        <option value="steam">steam</option>
+      </select>
+    </label>
     <label>Patch
       <input id="patch" size="10" placeholder="any" />
     </label>
+    <label>Min rounds
+      <input id="minRounds" type="number" min="0" value="0" style="width:5em" />
+    </label>
+    <label>Exclude AI-only
+      <select id="excludeAi">
+        <option value="0">no</option>
+        <option value="1">yes (keep mp/2v2)</option>
+      </select>
+    </label>
     <button id="load">Load &amp; analyze</button>
+    <button id="csvUnits" class="secondary" type="button" disabled>CSV units</button>
+    <button id="csvTechs" class="secondary" type="button" disabled>CSV techs</button>
   </div>
   <div class="status" id="status">Ready.</div>
 
@@ -97,9 +122,26 @@
         <th class="num">Pick %</th>
         <th class="num">Win % when present</th>
         <th class="num">Avg count</th>
+        <th class="num">Avg level</th>
+        <th class="num">Avg damage</th>
       </tr>
     </thead>
     <tbody id="units"></tbody>
+  </table>
+
+  <h2>Talents (unit × tech)</h2>
+  <p class="sub" style="margin-top:-4px">Win rate when that talent is owned on the submitting side. Schema-1 records have no tech data.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Unit</th>
+        <th>Tech</th>
+        <th class="num">Games</th>
+        <th class="num">Among unit %</th>
+        <th class="num">Win %</th>
+      </tr>
+    </thead>
+    <tbody id="techs"></tbody>
   </table>
 
   <h2>Commanders</h2>
@@ -130,9 +172,12 @@
   </table>
 
   <p class="hint">
-    Presence = unit type appears on that side’s final board. Win rate is from the
-    submitting player’s perspective (host in multiplayer). Open ladder is
-    honor-system (no passwords). Complex balance questions belong in richer
+    Presence = unit type appears on that side’s final board. Analysis collapses
+    dual submissions with the same <code>matchKey</code> into one match (preferring
+    <code>source: player</code> over verify). Win rate is from each included side’s
+    perspective. Damage and talent columns need schema-2 records. Full replays
+    are opt-in on the client (<code>?telemetryReplay=1</code>); bulk uses
+    <code>fields=summary</code>. Complex balance questions belong in richer
     clients — this page is a smoke-check dashboard.
   </p>
 
@@ -141,8 +186,14 @@
     const statusEl = document.getElementById('status');
     const cardsEl = document.getElementById('cards');
     const unitsEl = document.getElementById('units');
+    const techsEl = document.getElementById('techs');
     const specsEl = document.getElementById('specs');
     const ladderEl = document.getElementById('ladder');
+    const csvUnitsBtn = document.getElementById('csvUnits');
+    const csvTechsBtn = document.getElementById('csvTechs');
+
+    let lastUnitRows = [];
+    let lastTechRows = [];
 
     // default: same folder as this page
     apiInput.value = new URL('stats.php', location.href).href;
@@ -150,6 +201,30 @@
     document.getElementById('load').addEventListener('click', () => loadAll().catch((e) => {
       statusEl.textContent = 'Failed: ' + (e.message || e);
     }));
+    csvUnitsBtn.addEventListener('click', () => downloadCsv('units.csv', [
+      ['unit', 'games', 'pickPct', 'winPct', 'avgCount', 'avgLevel', 'avgDamage'],
+      ...lastUnitRows.map((r) => [r.id, r.games, r.pick.toFixed(2), r.win.toFixed(2), r.avg.toFixed(3), r.avgLevel.toFixed(3), r.avgDamage === null ? '' : r.avgDamage.toFixed(1)]),
+    ]));
+    csvTechsBtn.addEventListener('click', () => downloadCsv('techs.csv', [
+      ['unit', 'tech', 'games', 'amongUnitPct', 'winPct'],
+      ...lastTechRows.map((r) => [r.unit, r.tech, r.games, r.among.toFixed(2), r.win.toFixed(2)]),
+    ]));
+
+    function downloadCsv(filename, rows) {
+      const body = rows.map((row) => row.map(csvEscape).join(',')).join('\n');
+      const blob = new Blob([body], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function csvEscape(v) {
+      const s = String(v ?? '');
+      if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    }
 
     async function fetchLadder(statsBase) {
       const playerBase = new URL('player.php', statsBase).href.replace(/\?.*$/, '');
@@ -179,7 +254,7 @@
       let since = 0;
       let pages = 0;
       while (pages < 200) {
-        const url = `${base}?action=bulk&since=${since}&limit=200`;
+        const url = `${base}?action=bulk&fields=summary&since=${since}&limit=200`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -199,16 +274,67 @@
       return null;
     }
 
+    /**
+     * Collapse dual (and verify) submissions into one row per matchKey when
+     * available. Prefer player-source over verify; keep both sides as separate
+     * analysis rows so each army's presence still counts once per match.
+     */
+    function dedupeMatches(matches) {
+      const byKey = new Map();
+      const orphans = [];
+
+      for (const m of matches) {
+        const key = m.matchKey || '';
+        if (!key) {
+          orphans.push(m);
+          continue;
+        }
+        let g = byKey.get(key);
+        if (!g) { g = []; byKey.set(key, g); }
+        g.push(m);
+      }
+
+      const out = [];
+      for (const group of byKey.values()) {
+        const bySide = new Map();
+        for (const m of group) {
+          const side = m.side === 'b' ? 'b' : 'a';
+          const prev = bySide.get(side);
+          if (!prev) {
+            bySide.set(side, m);
+            continue;
+          }
+          // prefer player over verify; otherwise newer ts
+          const prevScore = (prev.source === 'verify' ? 0 : 2) + (prev.ts || 0) / 1e12;
+          const nextScore = (m.source === 'verify' ? 0 : 2) + (m.ts || 0) / 1e12;
+          if (nextScore >= prevScore) bySide.set(side, m);
+        }
+        for (const m of bySide.values()) out.push(m);
+      }
+      out.push(...orphans);
+      return out;
+    }
+
     function analyze(matches) {
       const mode = document.getElementById('mode').value;
+      const channel = document.getElementById('channel').value;
       const patch = document.getElementById('patch').value.trim();
-      let filtered = matches;
-      if (mode !== 'all') filtered = filtered.filter((m) => m.mode === mode);
-      if (patch) filtered = filtered.filter((m) => String(m.balancePatchId || '') === patch);
+      const minRounds = Math.max(0, Number(document.getElementById('minRounds').value) || 0);
+      const excludeAi = document.getElementById('excludeAi').value === '1';
 
-      const unitStats = new Map(); // id -> { games, wins, picks, countSum }
+      let filtered = dedupeMatches(matches);
+      if (mode !== 'all') filtered = filtered.filter((m) => m.mode === mode);
+      if (channel !== 'all') filtered = filtered.filter((m) => String(m.channel || '') === channel);
+      if (patch) filtered = filtered.filter((m) => String(m.balancePatchId || '') === patch);
+      if (minRounds > 0) filtered = filtered.filter((m) => (m.rounds || 0) >= minRounds);
+      if (excludeAi) filtered = filtered.filter((m) => m.mode === 'mp' || m.mode === '2v2');
+
+      const unitStats = new Map(); // id -> { games, wins, countSum, levelsSum, damageSum, damageGames }
+      const unitPresenceGames = new Map(); // unitId -> games with that unit (for tech among %)
+      const techStats = new Map(); // `${unit}|${tech}` -> { unit, tech, games, wins }
       const specStats = new Map();
       let wins = 0, losses = 0, draws = 0;
+      let withTech = 0;
 
       for (const m of filtered) {
         const won = sideWon(m.result);
@@ -216,15 +342,40 @@
         else if (won === false) losses++;
         else draws++;
 
+        if (m.techs && m.techs.player) withTech++;
+
         const playerUnits = (m.units && m.units.player) || {};
+        const playerDamage = (m.damage && m.damage.player) || {};
+        const playerTechs = (m.techs && m.techs.player) || {};
+
         for (const [uid, info] of Object.entries(playerUnits)) {
           const count = (info && info.count) || 0;
           if (count <= 0) continue;
           let s = unitStats.get(uid);
-          if (!s) { s = { games: 0, wins: 0, countSum: 0 }; unitStats.set(uid, s); }
+          if (!s) {
+            s = { games: 0, wins: 0, countSum: 0, levelsSum: 0, damageSum: 0, damageGames: 0 };
+            unitStats.set(uid, s);
+          }
           s.games++;
           s.countSum += count;
+          s.levelsSum += (info && info.levels) || 0;
           if (won === true) s.wins++;
+          if (Object.prototype.hasOwnProperty.call(playerDamage, uid)) {
+            s.damageSum += Number(playerDamage[uid]) || 0;
+            s.damageGames++;
+          }
+          unitPresenceGames.set(uid, (unitPresenceGames.get(uid) || 0) + 1);
+
+          const techList = playerTechs[uid];
+          if (Array.isArray(techList)) {
+            for (const techId of techList) {
+              const key = uid + '|' + techId;
+              let ts = techStats.get(key);
+              if (!ts) { ts = { unit: uid, tech: techId, games: 0, wins: 0 }; techStats.set(key, ts); }
+              ts.games++;
+              if (won === true) ts.wins++;
+            }
+          }
         }
 
         const spec = (m.speciality && m.speciality.player) || '(none)';
@@ -241,28 +392,58 @@
         ['Losses', losses],
         ['Draws', draws],
         ['Win %', n ? ((wins / Math.max(1, wins + losses)) * 100).toFixed(1) + '%' : '—'],
+        ['With tech data', withTech],
       ].map(([l, v]) => `<div class="card"><div class="n">${v}</div><div class="l">${l}</div></div>`).join('');
 
-      const unitRows = [...unitStats.entries()]
+      lastUnitRows = [...unitStats.entries()]
         .map(([id, s]) => ({
           id,
           games: s.games,
           pick: n ? (s.games / n) * 100 : 0,
           win: s.games ? (s.wins / s.games) * 100 : 0,
           avg: s.games ? s.countSum / s.games : 0,
+          avgLevel: s.games && s.levelsSum ? s.levelsSum / s.countSum : 0,
+          avgDamage: s.damageGames ? s.damageSum / s.damageGames : null,
         }))
         .sort((a, b) => b.games - a.games);
 
-      unitsEl.innerHTML = unitRows.map((r) => {
-        const winCls = r.win >= 55 ? 'hi' : r.win <= 45 ? 'lo' : '';
+      unitsEl.innerHTML = lastUnitRows.map((r) => {
+        const winCls = r.games >= 5 ? (r.win >= 55 ? 'hi' : r.win <= 45 ? 'lo' : '') : 'muted';
+        const dmg = r.avgDamage === null ? '—' : r.avgDamage.toFixed(0);
         return `<tr>
           <td>${escapeHtml(r.id)}</td>
           <td class="num">${r.games}</td>
           <td class="num">${r.pick.toFixed(1)}%</td>
           <td class="num ${winCls}">${r.win.toFixed(1)}%</td>
           <td class="num">${r.avg.toFixed(2)}</td>
+          <td class="num">${r.avgLevel ? r.avgLevel.toFixed(2) : '—'}</td>
+          <td class="num">${dmg}</td>
         </tr>`;
-      }).join('') || '<tr><td colspan="5">No data</td></tr>';
+      }).join('') || '<tr><td colspan="7">No data</td></tr>';
+
+      lastTechRows = [...techStats.values()]
+        .map((s) => {
+          const amongBase = unitPresenceGames.get(s.unit) || 0;
+          return {
+            unit: s.unit,
+            tech: s.tech,
+            games: s.games,
+            among: amongBase ? (s.games / amongBase) * 100 : 0,
+            win: s.games ? (s.wins / s.games) * 100 : 0,
+          };
+        })
+        .sort((a, b) => b.games - a.games || a.unit.localeCompare(b.unit));
+
+      techsEl.innerHTML = lastTechRows.map((r) => {
+        const winCls = r.games >= 5 ? (r.win >= 55 ? 'hi' : r.win <= 45 ? 'lo' : '') : 'muted';
+        return `<tr>
+          <td>${escapeHtml(r.unit)}</td>
+          <td>${escapeHtml(r.tech)}</td>
+          <td class="num">${r.games}</td>
+          <td class="num">${r.among.toFixed(1)}%</td>
+          <td class="num ${winCls}">${r.win.toFixed(1)}%</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="5">No tech data (need schema-2 matches)</td></tr>';
 
       const specRows = [...specStats.entries()]
         .map(([id, s]) => ({
@@ -273,7 +454,7 @@
         .sort((a, b) => b.picks - a.picks);
 
       specsEl.innerHTML = specRows.map((r) => {
-        const winCls = r.win >= 55 ? 'hi' : r.win <= 45 ? 'lo' : '';
+        const winCls = r.picks >= 5 ? (r.win >= 55 ? 'hi' : r.win <= 45 ? 'lo' : '') : 'muted';
         return `<tr>
           <td>${escapeHtml(r.id)}</td>
           <td class="num">${r.picks}</td>
@@ -281,7 +462,9 @@
         </tr>`;
       }).join('') || '<tr><td colspan="3">No data</td></tr>';
 
-      statusEl.textContent = `Loaded ${matches.length} raw · analyzed ${n} after filters.`;
+      csvUnitsBtn.disabled = lastUnitRows.length === 0;
+      csvTechsBtn.disabled = lastTechRows.length === 0;
+      statusEl.textContent = `Loaded ${matches.length} raw · ${filtered.length} after dedupe/filters (${withTech} with tech data).`;
     }
 
     function escapeHtml(s) {

@@ -348,13 +348,18 @@
         // through quickly — see verifyReplayAndReturn in main.ts
         const verifyUrl = `../index.html?verify=${encodeURIComponent(r.id)}&side=${encodeURIComponent(r.side)}`;
         const sourceTag = r.source === 'verify' ? '<span class="source-tag">verify</span>' : '';
+        // summary-only telemetry (schema 2 default) has no action log — hide
+        // Watch/Verify so users don't hit a dead load
+        const replayLinks = r.hasReplay
+          ? `<a class="raw-link" href="${watchUrl}">▶ Watch</a>
+          <a class="raw-link" href="${verifyUrl}" title="Instantly recomputes the result and re-submits it — no new file if it still matches, a second one if it doesn't">⚡ Verify</a>`
+          : `<span class="raw-link" style="opacity:0.45;cursor:default" title="Summary-only record (no action log)">○ No replay</span>`;
         return `<div class="rec">
           <div class="name">${escapeHtml(r.names.local || '(unknown)')}${sourceTag}</div>
           <div class="vs">vs ${escapeHtml(r.names.opponent || '(unknown)')} · side ${escapeHtml(r.side)}</div>
           <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)} · ${r.playerHp} - ${r.enemyHp}</div>
           <div class="meta">${r.rounds} rounds · v${r.gameVersion} · ${fmtTime(r.ts)}</div>
-          <a class="raw-link" href="${watchUrl}">▶ Watch</a>
-          <a class="raw-link" href="${verifyUrl}" title="Instantly recomputes the result and re-submits it — no new file if it still matches, a second one if it doesn't">⚡ Verify</a>
+          ${replayLinks}
           <a class="raw-link" data-id="${escapeHtml(r.id)}" data-side="${escapeHtml(r.side)}" data-target="raw-${uid}">View raw ▸</a>
           <pre id="raw-${uid}" hidden></pre>
         </div>`;
