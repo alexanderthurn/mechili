@@ -159,6 +159,13 @@ export const THEME = {
         bronzeDark: '#6a5030',
         cream: '#f0e8d8',
         creamMuted: '#b8a890',
+        // Old-paper cards / commander plaques
+        parchment: '#d4bc8a',
+        parchmentHi: '#e2cfa0',
+        parchmentLo: '#c4a878',
+        parchmentEdge: '#8a6d48',
+        parchmentInk: '#2e2214',
+        parchmentInkMuted: '#5a4834',
     },
 } as const;
 
@@ -420,8 +427,9 @@ html .m-lobby-setting-tip {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
-/* Commander cards keep team border colors — leather fill only */
+/* Commander HUD plaques — keep leather chrome (parchment is for pick cards only) */
 html .mechili-fightbar .fighter {
+    color: ${u.cream};
     background: ${leatherFill};
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
@@ -3917,25 +3925,34 @@ ${materialStyles(u)}
     align-items: center;
     gap: clamp(8px, 1vw, 12px);
     background:
-        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
-        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%);
-    border: 1.5px solid ${u.frameMid};
+        radial-gradient(ellipse at 22% 12%, rgba(255, 245, 220, 0.35), transparent 48%),
+        radial-gradient(ellipse at 78% 88%, rgba(120, 85, 45, 0.22), transparent 52%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 3px,
+            rgba(90, 65, 35, 0.05) 3px,
+            rgba(90, 65, 35, 0.05) 4px
+        ),
+        linear-gradient(165deg, ${u.parchmentHi} 0%, ${u.parchment} 45%, ${u.parchmentLo} 100%);
+    border: 1.5px solid ${u.parchmentEdge};
     border-radius: 4px;
-    color: ${u.cream};
+    color: ${u.parchmentInk};
     cursor: pointer;
     box-shadow:
-        0 6px 18px rgba(0, 0, 0, 0.45),
-        inset 0 1px 0 rgba(255, 230, 180, 0.12),
-        inset 0 -2px 5px rgba(0, 0, 0, 0.4);
+        0 8px 22px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(70, 45, 20, 0.25),
+        inset 0 0 0 1px rgba(255, 240, 210, 0.25),
+        inset 0 0 28px rgba(100, 70, 35, 0.16);
     transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
-.mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
-.mechili-cards .card:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); transform: translateY(-5px); }
+.mechili-cards .card:hover { border-color: ${u.bronzeDark}; transform: translateY(-5px); }
+.mechili-cards .card:focus-visible { outline: none; border-color: ${u.bronze}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); transform: translateY(-5px); }
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
 .mechili-cards .card.locked-card:disabled { opacity: 1; }
 /* a card shown for information only (waiting / reveal) — no hover, no lift */
 .mechili-cards .card.static { cursor: default; }
-.mechili-cards .card.static:hover { border-color: ${u.border}; transform: none; }
+.mechili-cards .card.static:hover { border-color: ${u.parchmentEdge}; transform: none; }
 .mechili-cards .card-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
 /* specialist pick: wobble in place, then fly to commander frame */
@@ -4007,12 +4024,12 @@ ${materialStyles(u)}
 }
 .mechili-cards .c-owner.player { color: ${pc}; }
 .mechili-cards .c-owner.enemy { color: ${ec}; }
-.mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.brassLight}; }
+.mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.parchmentInk}; }
 .mechili-cards .c-portrait { display: flex; align-items: center; justify-content: center; }
 .mechili-cards .c-portrait .m-icon { width: 72px; height: 72px; }
-.mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
-.mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
-.mechili-cards .c-desc { font-size: 12.5px; color: ${u.phase}; line-height: 1.55; }
+.mechili-cards .c-units { font-size: 12.5px; color: ${u.parchmentInk}; }
+.mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.parchmentInk}; }
+.mechili-cards .c-desc { font-size: 12.5px; color: ${u.parchmentInkMuted}; line-height: 1.55; }
 .mechili-cards .c-forge {
     display: flex;
     flex-direction: row;
@@ -4416,22 +4433,21 @@ ${materialStyles(u)}
     box-sizing: border-box;
     min-width: 200px;
     padding: 8px 12px;
-    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
-    border: 2px solid ${u.border};
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    /* leather fill applied via materialStyles */
+    border: 2px solid ${u.frameMid};
     pointer-events: auto;
     cursor: pointer;
 }
 .mechili-fightbar .fighter.player {
     border-left: none;
     border-top: none;
-    border-radius: 0 0 10px 0;
+    border-radius: 0 0 4px 0;
 }
 .mechili-fightbar .fighter.enemy {
     border-right: none;
     border-top: none;
     flex-direction: row-reverse;
-    border-radius: 0 0 0 10px;
+    border-radius: 0 0 0 4px;
 }
 .mechili-fightbar .portrait-group {
     position: relative;
