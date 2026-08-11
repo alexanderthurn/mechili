@@ -201,13 +201,17 @@ html, body {
     justify-content: flex-end;
     gap: 0;
     padding: 0;
-    border-radius: 14px 0 0 0;
-    border: 1px solid rgba(255, 208, 64, 0.28);
+    border-radius: 6px 0 0 0;
+    border: 1px solid ${u.frameMid};
     border-right: none;
     border-bottom: none;
-    background: rgba(12, 18, 14, 0.92);
-    backdrop-filter: blur(10px);
-    box-shadow: -6px -6px 24px rgba(0, 0, 0, 0.35);
+    background:
+        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
+        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%);
+    backdrop-filter: none;
+    box-shadow:
+        -6px -6px 24px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12);
     opacity: 0;
     pointer-events: none;
     transition: transform 0.28s ease, opacity 0.28s ease;

@@ -34,7 +34,7 @@ export function openSettings(parent: HTMLElement): void {
     // (opened from pause) looks fine but nothing inside is clickable.
     overlay.style.pointerEvents = 'auto';
     overlay.innerHTML =
-        `<div class="box">` +
+        `<div class="box m-frame">` +
         `<div class="s-title">Settings</div>` +
         `<div class="s-body">` +
         `<div class="s-col s-col-general">` +
@@ -106,7 +106,7 @@ export function openSettings(parent: HTMLElement): void {
         `</section>` +
         `</div>` +
         `</div>` +
-        `<div class="actions"><button type="button" class="primary" data-act="close">Close</button></div>` +
+        `<div class="actions"><button type="button" class="m-btn-bronze primary" data-act="close">Close</button></div>` +
         `</div>`;
 
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;

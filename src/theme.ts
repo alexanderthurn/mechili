@@ -109,24 +109,25 @@ export const THEME = {
     },
 
     ui: {
-        text: '#f0f4e8',
-        textMuted: '#a8b898',
-        panelBg: 'rgba(32, 48, 28, 0.88)',
-        panelBgSolid: 'rgba(32, 48, 28, 0.85)',
-        panelBgDark: 'rgba(24, 36, 20, 0.92)',
-        border: '#5a7048',
-        hover: '#ffd040',
+        // Fantasy leather / bronze (global HUD + menus)
+        text: '#f0e8d8',
+        textMuted: '#b8a890',
+        panelBg: 'rgba(34, 28, 22, 0.94)',
+        panelBgSolid: 'rgba(34, 28, 22, 0.96)',
+        panelBgDark: 'rgba(22, 18, 14, 0.96)',
+        border: '#8a6d4a',
+        hover: '#d4b878',
         player: '#3d8cd4',
         enemy: '#e83828',
-        brass: '#ffd040',
-        brassLight: '#ffe878',
-        brassDark: '#b89020',
+        brass: '#b8924a',
+        brassLight: '#d4b878',
+        brassDark: '#6a5030',
         hpBar: '#78c848',
         techOwned: '#a8d868',
-        barTrack: '#2a3820',
-        divider: '#4a6040',
-        techBuyBg: '#2a4020',
-        phase: '#b8d0a0',
+        barTrack: '#1a1612',
+        divider: '#5c4634',
+        techBuyBg: '#181410',
+        phase: '#c4b89a',
         alliedBtnBg: '#1a3a58',
         alliedBtnHover: '#245078',
         undoBg: '#483020',
@@ -136,10 +137,28 @@ export const THEME = {
         speedBg: '#4a4018',
         speedHover: '#5a5020',
         iconCenter: '#3d8cd4',
-        iconEdge: '#1a2818',
-        helpBold: '#d0e0c0',
-        veteranStar: '#ffe040',
+        iconEdge: '#1a1612',
+        helpBold: '#e8dcc4',
+        veteranStar: '#d4b878',
         debug: '#a8d878',
+
+        // Fantasy carved-bronze / leather material system
+        frameHi: '#c4a574',
+        frameMid: '#8a6d4a',
+        frameLo: '#3a2e24',
+        frameEdge: '#1e1812',
+        leather: '#1a1612',
+        leatherHi: '#2c241c',
+        leatherMid: '#221c17',
+        gem: '#3db8a8',
+        gemDeep: '#1a7a70',
+        slotBg: '#100e0c',
+        slotBorder: '#5c4634',
+        bronze: '#b8924a',
+        bronzeLight: '#d4b878',
+        bronzeDark: '#6a5030',
+        cream: '#f0e8d8',
+        creamMuted: '#b8a890',
     },
 } as const;
 
@@ -211,6 +230,247 @@ function gamepadCursorStyles(u: (typeof THEME)['ui']): string {
     border-right-color: ${u.brassLight};
 }
 .mechili-gpcursor.visible { display: block; }
+`;
+}
+
+/**
+ * Shared fantasy material primitives — carved bronze frames, leather fills,
+ * recessed slots, bronze buttons. Opt-in via `.m-frame` / `.m-slot` / `.m-btn-bronze`,
+ * or applied to specific surfaces (settings, shop) in Phase 1.
+ */
+function materialStyles(u: (typeof THEME)['ui']): string {
+    const leatherFill = `
+        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
+        radial-gradient(ellipse at 78% 88%, rgba(0, 0, 0, 0.35), transparent 48%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.035) 2px,
+            rgba(0, 0, 0, 0.035) 3px
+        ),
+        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%)
+    `;
+    const bronzeBevel = `
+        0 10px 28px rgba(0, 0, 0, 0.55),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 3px ${u.frameMid},
+        0 0 0 4px ${u.frameHi},
+        0 0 0 5px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.2),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.5),
+        inset 1px 0 0 rgba(255, 220, 160, 0.06),
+        inset -1px 0 0 rgba(0, 0, 0, 0.28)
+    `;
+    const gem = (pos: string) =>
+        `radial-gradient(circle at ${pos}, ${u.gem} 0 2.5px, ${u.gemDeep} 2.5px 3.5px, ${u.frameHi} 3.5px 6px, ${u.frameLo} 6px 7.5px, transparent 8px)`;
+
+    return `
+/* --- fantasy material primitives --- */
+.m-frame {
+    position: relative;
+    color: ${u.cream};
+    background: ${leatherFill};
+    border: 1px solid ${u.frameLo};
+    border-radius: 4px;
+    box-shadow: ${bronzeBevel};
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.m-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    border-radius: inherit;
+    background:
+        ${gem('8px 8px')},
+        ${gem('calc(100% - 8px) 8px')},
+        ${gem('8px calc(100% - 8px)')},
+        ${gem('calc(100% - 8px) calc(100% - 8px)')};
+}
+.m-frame--slim {
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 2px ${u.frameMid},
+        0 0 0 3px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+}
+.m-frame--slim::before { display: none; }
+.m-titleplate {
+    font-family: var(--font-ui);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    color: ${u.cream};
+    padding: 8px 14px 10px;
+    margin: 0 0 4px;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.08);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.m-slot {
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.7),
+        inset 0 -1px 0 rgba(255, 220, 160, 0.05),
+        0 1px 0 rgba(180, 140, 80, 0.12);
+}
+.m-btn-bronze {
+    appearance: none;
+    -webkit-appearance: none;
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    color: ${u.cream};
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.45),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+    transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.m-btn-bronze:hover {
+    border-color: ${u.bronzeLight};
+    color: ${u.bronzeLight};
+    transform: translateY(-1px);
+}
+.m-btn-bronze:active { transform: translateY(0) scale(0.98); }
+.m-btn-bronze:focus-visible {
+    outline: none;
+    border-color: ${u.bronzeLight};
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        0 0 0 3px rgba(184, 146, 74, 0.35);
+}
+.m-btn-bronze.primary {
+    border-color: ${u.bronze};
+    color: ${u.bronzeLight};
+}
+
+/* Auto-apply ornate frames to major dialogs / menus (CSS-only — no HTML churn).
+   html prefix beats later single-class chrome rules in this same stylesheet. */
+html .mechili-menu,
+html .mechili-name-edit .box,
+html .mechili-suggest .box,
+html .mechili-pause .pause-box,
+html .mechili-resume .resume-box,
+html .mechili-gameover {
+    position: relative;
+    color: ${u.cream};
+    background: ${leatherFill};
+    border: 1px solid ${u.frameLo};
+    border-radius: 4px;
+    box-shadow: ${bronzeBevel};
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-menu::after,
+html .mechili-name-edit .box::before,
+html .mechili-suggest .box::before,
+html .mechili-pause .pause-box::before,
+html .mechili-resume .resume-box::before,
+html .mechili-gameover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    border-radius: inherit;
+    background:
+        ${gem('8px 8px')},
+        ${gem('calc(100% - 8px) 8px')},
+        ${gem('8px calc(100% - 8px)')},
+        ${gem('calc(100% - 8px) calc(100% - 8px)')};
+}
+
+/* Slim bronze chrome — compact HUD strips / chips / tips.
+   Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
+html .mechili-supply,
+html .mechili-sidebar,
+html .mechili-report,
+html .mechili-username,
+html .mechili-replay-controls,
+html .mechili-phone-status,
+html .mechili-gchat.open .g-panel,
+html .mechili-chat.open .c-panel,
+html .mechili-panel .action-info,
+html .forge-slot-preview.recipes,
+html .mechili-card-spell-tip,
+html .mechili-touchtip,
+html .m-lobby-setting-tip {
+    color: ${u.cream};
+    background: ${leatherFill};
+    border-color: ${u.frameMid};
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 2px ${u.frameMid},
+        0 0 0 3px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+/* Commander cards keep team border colors — leather fill only */
+html .mechili-fightbar .fighter {
+    background: ${leatherFill};
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12),
+        inset 0 -1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* Docked unit panel — ornate but edge-aware (like shop) */
+html .mechili-panel {
+    color: ${u.cream};
+    background: ${leatherFill};
+    border: 1px solid ${u.frameLo};
+    border-left: none;
+    border-bottom: none;
+    border-radius: 6px 0 0 0;
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.5),
+        0 0 0 1px ${u.frameEdge},
+        2px 0 0 0 ${u.frameMid},
+        3px 0 0 0 ${u.frameHi},
+        4px 0 0 0 ${u.frameLo},
+        0 -2px 0 0 ${u.frameMid},
+        0 -3px 0 0 ${u.frameHi},
+        0 -4px 0 0 ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.16),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-panel::before {
+    content: '';
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(
+        circle at 8px 8px,
+        ${u.gem} 0 2.5px,
+        ${u.gemDeep} 2.5px 3.5px,
+        ${u.frameHi} 3.5px 6px,
+        ${u.frameLo} 6px 7.5px,
+        transparent 8px
+    );
+}
 `;
 }
 
@@ -300,6 +560,7 @@ export function menuStyles(bars?: BarAssets): string {
     const pc = teamColors.player.css;
     return `
 ${fontFaceCss()}
+${materialStyles(u)}
 .mechili-menu {
     position: absolute;
     left: 50%;
@@ -313,14 +574,10 @@ ${fontFaceCss()}
     box-sizing: border-box;
     padding: 22px 20px 24px;
     max-height: min(88vh, calc(100dvh - 200px));
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background: linear-gradient(180deg, rgba(30, 44, 26, 0.62), rgba(18, 28, 15, 0.74));
-    border: 1px solid rgba(255, 216, 64, 0.18);
-    border-radius: 18px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    -webkit-backdrop-filter: blur(12px) saturate(1.1);
-    backdrop-filter: blur(12px) saturate(1.1);
+    /* chrome filled by materialStyles ornate frame */
     user-select: none;
     z-index: 30;
 }
@@ -371,16 +628,20 @@ ${fontFaceCss()}
     width: 100%;
     box-sizing: border-box;
     padding: 13px 16px;
-    background: linear-gradient(180deg, rgba(42, 58, 34, 0.95), rgba(24, 36, 20, 0.95));
-    border: 1.5px solid ${u.border};
-    border-radius: 11px;
-    color: ${u.text};
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    color: ${u.cream};
     font-size: 16px;
     font-weight: bold;
     letter-spacing: 1.5px;
     text-align: left;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+
     transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease,
         background 0.14s ease, color 0.14s ease;
 }
@@ -407,14 +668,14 @@ ${fontFaceCss()}
     border-color: ${u.hover};
     color: ${u.brassLight};
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 216, 64, 0.15),
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(184, 146, 74, 0.22),
         inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .mechili-menu .m-btn:active { transform: translateY(0) scale(0.98); }
 .mechili-menu .m-btn:focus-visible {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-menu .m-btn:disabled { opacity: 0.4; pointer-events: none; box-shadow: none; }
 /* Single Player — the hero call to action */
@@ -423,14 +684,14 @@ ${fontFaceCss()}
     border-color: ${u.brassLight};
     color: #20180a;
     font-size: 17px;
-    box-shadow: 0 4px 14px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 14px rgba(184, 146, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .mechili-menu .m-primary .m-ico { color: #20180a; filter: none; }
 .mechili-menu .m-primary:hover {
     color: #20180a;
     background: linear-gradient(180deg, #fff0b0, ${u.brassLight});
     transform: translateY(-2px);
-    box-shadow: 0 8px 22px rgba(255, 180, 40, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    box-shadow: 0 8px 22px rgba(184, 146, 74, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .mechili-menu .m-small {
     justify-content: center;
@@ -445,7 +706,7 @@ ${fontFaceCss()}
     padding: 9px 10px;
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 14px;
     letter-spacing: 2px;
@@ -476,7 +737,7 @@ ${fontFaceCss()}
     text-transform: uppercase;
     background: ${u.panelBg};
     border: 1px solid ${u.border};
-    border-radius: 9px;
+    border-radius: 3px;
     color: ${u.textMuted};
     cursor: pointer;
     opacity: 0.8;
@@ -489,9 +750,9 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 5px;
     padding: 10px 12px;
-    background: linear-gradient(180deg, rgba(30, 44, 26, 0.72), rgba(18, 28, 15, 0.82));
+    background: linear-gradient(180deg, rgba(40, 32, 24, 0.92), rgba(20, 16, 12, 0.95));
     border: 1.5px solid ${u.border};
-    border-radius: 12px;
+    border-radius: 4px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
@@ -530,7 +791,7 @@ ${fontFaceCss()}
 }
 .mechili-gchat .g-send { transition: border-color 0.12s ease, background 0.12s ease; }
 .mechili-gchat .g-send:hover { border-color: ${u.hover}; }
-.mechili-gchat .g-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-gchat .g-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-gchat .g-input:focus-visible { outline: none; border-color: ${u.hover}; }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .mechili-menu .m-rooms {
@@ -578,16 +839,16 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 6px;
     padding: 6px;
-    background: rgba(18, 28, 15, 0.6);
+    background: rgba(20, 16, 12, 0.75);
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
 }
 .mechili-menu .m-room-list.empty { justify-content: center; align-items: center; color: ${u.textMuted}; font-size: 13px; min-height: 64px; }
 .mechili-menu .m-room {
     padding: 10px 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -598,7 +859,7 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-room::before { content: '▸ '; color: ${u.brass}; }
 .mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateX(2px); }
-.mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+.mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 /* a running match, joinable only as a spectator — visually distinct from
    an open (joinable-as-player) room above */
 .mechili-menu .m-room-spectate { border-style: dashed; }
@@ -654,15 +915,18 @@ ${fontFaceCss()}
     gap: 4px;
     box-sizing: border-box;
     padding: 14px 10px;
-    background: linear-gradient(180deg, rgba(42, 58, 34, 0.95), rgba(24, 36, 20, 0.95));
-    border: 1.5px solid ${u.border};
-    border-radius: 11px;
-    color: ${u.text};
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    color: ${u.cream};
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1px;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4);
     transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease,
         background 0.14s ease, color 0.14s ease;
 }
@@ -693,12 +957,12 @@ ${fontFaceCss()}
     background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
     border-color: ${u.brassLight};
     color: #20180a;
-    box-shadow: 0 4px 14px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 14px rgba(184, 146, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .mechili-menu .m-toggle-card:has(input:checked) .m-ico { filter: none; }
 .mechili-menu .m-toggle-card:has(input:focus-visible) {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-menu .m-toggle-pill {
     position: relative;
@@ -711,7 +975,7 @@ ${fontFaceCss()}
     padding: 10px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -728,13 +992,13 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-toggle-pill:hover { border-color: ${u.hover}; }
 .mechili-menu .m-toggle-pill:has(input:checked) {
-    background: linear-gradient(180deg, rgba(255, 216, 64, 0.22), rgba(255, 180, 40, 0.12));
+    background: linear-gradient(180deg, rgba(184, 146, 74, 0.22), rgba(184, 146, 74, 0.14));
     border-color: ${u.brassLight};
     color: ${u.brassLight};
 }
 .mechili-menu .m-toggle-pill:has(input:focus-visible) {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 /* Custom Game screen: mode toggle reuses m-toggle-row/card above; these are
    just the timer/horde/roundcards form rows */
@@ -755,9 +1019,9 @@ ${fontFaceCss()}
     box-sizing: border-box;
     width: 100%;
     padding: 10px 12px;
-    background: rgba(24, 36, 20, 0.85);
+    background: rgba(28, 22, 16, 0.85);
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 14px;
     font-weight: normal;
@@ -768,7 +1032,7 @@ ${fontFaceCss()}
 .mechili-menu .m-field select:focus {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3);
 }
 .mechili-menu .m-field input[type="checkbox"] { width: 16px; height: 16px; accent-color: ${u.brass}; }
 .mechili-menu .m-seats { display: flex; gap: 10px; width: 100%; }
@@ -786,7 +1050,7 @@ ${fontFaceCss()}
     letter-spacing: 0.5px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
 }
 .mechili-menu .m-seat-you { color: ${u.brassLight}; }
@@ -839,7 +1103,7 @@ ${fontFaceCss()}
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 0.2px;
-    border-radius: 8px;
+    border-radius: 3px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
     color: ${u.text};
@@ -899,7 +1163,7 @@ ${fontFaceCss()}
     padding: 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     box-sizing: border-box;
 }
 .mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: grid; }
@@ -959,9 +1223,9 @@ ${fontFaceCss()}
     z-index: 80;
     max-width: min(320px, calc(100vw - 24px));
     padding: 10px 12px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.97), rgba(22, 18, 14, 0.97));
     border: 1.5px solid ${u.brass};
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     color: ${u.text};
     font-size: 13px;
@@ -1028,9 +1292,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     text-align: center;
     word-break: break-all;
     padding: 8px 10px;
-    background: rgba(18, 28, 15, 0.6);
+    background: rgba(20, 16, 12, 0.75);
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
 }
 .mechili-username {
     position: absolute;
@@ -1039,7 +1303,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 6px 12px 6px 8px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -1068,7 +1332,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 @media (max-width: 599px) {
     .mechili-gchat { bottom: calc(68px + env(safe-area-inset-bottom)); }
 }
-.mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+.mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 
 /* Top-right menu chrome: door (Electron quit) + settings gear */
 .mechili-corner-actions {
@@ -1145,7 +1409,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
     font-size: 13px;
     color: ${u.text};
@@ -1180,7 +1444,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -1193,7 +1457,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-suggest-btn::before { content: '✦ '; color: ${u.brass}; opacity: 0.9; }
 .mechili-suggest-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-suggest-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+.mechili-suggest-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 
 .mechili-username.has-avatar::before { display: none; }
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
@@ -1322,7 +1586,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     height: 36px;
     background: ${u.barTrack};
     border: 2px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     overflow: hidden;
     box-shadow:
         inset 0 2px 6px rgba(0, 0, 0, 0.55),
@@ -1446,7 +1710,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 18px 20px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
-    border-radius: 12px;
+    border-radius: 4px;
     min-width: 280px;
     max-width: min(360px, 92vw);
     color: ${u.text};
@@ -1461,7 +1725,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 10px 12px;
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 15px;
     letter-spacing: 1px;
@@ -1489,7 +1753,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-name-edit .avatar-preview {
     width: 72px;
     height: 72px;
-    border-radius: 10px;
+    border-radius: 4px;
     object-fit: cover;
     border: 1.5px solid ${u.border};
     background: rgba(0, 0, 0, 0.35);
@@ -1500,7 +1764,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     align-items: center;
     padding: 8px 12px;
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     cursor: pointer;
     color: ${u.text};
     font-size: 13px;
@@ -1512,7 +1776,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-weight: bold;
     cursor: pointer;
@@ -1521,8 +1785,8 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-name-edit button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-name-edit button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
 .mechili-name-edit button:hover:not(:disabled) { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-name-edit button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
-.mechili-name-edit input:focus-visible { outline: none; border-color: ${u.hover}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.25); }
+.mechili-name-edit button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
+.mechili-name-edit input:focus-visible { outline: none; border-color: ${u.hover}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.25); }
 
 .mechili-settings {
     position: absolute;
@@ -1541,18 +1805,28 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 18px 20px;
-    background: ${u.panelBgSolid};
-    border: 2px solid ${u.border};
-    border-radius: 12px;
+    padding: 18px 20px 16px;
     width: min(360px, calc(100vw - 32px));
     max-height: min(88vh, calc(100dvh - 32px));
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    color: ${u.text};
     box-sizing: border-box;
 }
-.mechili-settings .s-title { font-size: 15px; font-weight: bold; letter-spacing: 2px; }
+.mechili-settings .s-title {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    color: ${u.cream};
+    padding: 6px 8px 12px;
+    margin: 0;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.08);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
 .mechili-settings .s-body {
     display: flex;
     flex-direction: column;
@@ -1570,11 +1844,12 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     gap: 8px;
 }
 .mechili-settings .s-section-head {
-    font-size: 14px;
-    font-weight: bold;
-    letter-spacing: 1px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: ${u.brass};
+    color: ${u.bronzeLight};
 }
 .mechili-settings .s-presets {
     display: flex;
@@ -1586,26 +1861,30 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     font-size: 12px;
     font-weight: bold;
     letter-spacing: 0.4px;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.border};
-    border-radius: 6px;
-    color: ${u.textMuted};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.creamMuted};
     cursor: pointer;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 .mechili-settings .s-preset:hover {
-    border-color: ${u.hover};
-    color: ${u.text};
+    border-color: ${u.bronzeLight};
+    color: ${u.cream};
     transform: translateY(-1px);
 }
 .mechili-settings .s-preset.active {
-    border-color: ${u.brass};
-    color: ${u.brassLight};
+    border-color: ${u.bronze};
+    color: ${u.bronzeLight};
+    box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(184, 146, 74, 0.25);
 }
 .mechili-settings .s-preset:focus-visible {
     outline: none;
-    border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    border-color: ${u.bronzeLight};
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-settings .s-row {
     display: flex;
@@ -1613,40 +1892,36 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     flex-wrap: wrap;
     gap: 9px;
     font-size: 13.5px;
+    color: ${u.cream};
     cursor: pointer;
     user-select: none;
 }
 .mechili-settings .s-row select {
     margin-left: auto;
     min-width: 110px;
+    background: ${u.leatherMid};
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.cream};
+    padding: 4px 6px;
 }
-.mechili-settings .s-row input { width: 16px; height: 16px; accent-color: ${u.brass}; }
+.mechili-settings .s-row input { width: 16px; height: 16px; accent-color: ${u.bronze}; }
 .mechili-settings .s-hint {
     font-size: 12px;
-    color: ${u.textMuted};
+    color: ${u.creamMuted};
 }
 .mechili-settings .actions { display: flex; justify-content: flex-end; }
 .mechili-settings button {
-    padding: 8px 14px;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.border};
-    border-radius: 8px;
-    color: ${u.text};
-    font-weight: bold;
-    cursor: pointer;
+    padding: 8px 16px;
 }
-.mechili-settings button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
-.mechili-settings button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
-.mechili-settings button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-settings button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
-.mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.hover}; outline-offset: 1px; }
+.mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.bronze}; outline-offset: 1px; }
 /* Desktop: use horizontal space — general left, graphics right */
 @media (min-width: 720px) {
     .mechili-settings .box {
         width: min(720px, calc(100vw - 48px));
-        padding: 22px 24px;
+        padding: 22px 24px 18px;
     }
-    .mechili-settings .s-title { font-size: 17px; }
+    .mechili-settings .s-title { font-size: 17px; letter-spacing: 0.26em; }
     .mechili-settings .s-body {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
@@ -1675,7 +1950,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 18px 20px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
-    border-radius: 12px;
+    border-radius: 4px;
     width: min(420px, 100%);
     color: ${u.text};
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
@@ -1722,7 +1997,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     color: ${u.text};
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     padding: 8px 10px;
 }
 .mechili-suggest .s-msg {
@@ -1734,7 +2009,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-suggest .s-msg:focus-visible {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-suggest .s-status {
     margin: 0;
@@ -1760,7 +2035,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-weight: bold;
     cursor: pointer;
@@ -1771,7 +2046,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-suggest button:focus-visible {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 
 .mechili-resume {
@@ -1805,7 +2080,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     min-width: 280px;
     background: ${u.panelBg};
     border: 2px solid ${u.border};
-    border-radius: 14px;
+    border-radius: 4px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
 .mechili-resume .resume-msg {
@@ -1827,7 +2102,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 10px 28px;
     background: ${u.panelBgDark};
     border: 2px solid ${u.undoBorder};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.undoText};
     font-size: 14px;
     font-weight: bold;
@@ -1860,6 +2135,7 @@ export function hudStyles(bars?: BarAssets): string {
     const ec = teamColors.enemy.css;
     return `
 ${fontFaceCss()}
+${materialStyles(u)}
 .mechili-cinema-hide {
     visibility: hidden !important;
     pointer-events: none !important;
@@ -1876,7 +2152,7 @@ ${fontFaceCss()}
     z-index: 200;
     padding: 6px 8px;
     border-radius: 6px;
-    background: rgba(8, 12, 6, 0.72);
+    background: rgba(8, 8, 6, 0.72);
     border: 1px solid rgba(168, 216, 120, 0.35);
     color: ${u.debug};
     font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1905,9 +2181,9 @@ ${fontFaceCss()}
     box-sizing: border-box;
     min-height: 54px;
     padding: 8px 16px;
-    background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(26, 40, 22, 0.96));
+    background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(40, 32, 24, 0.96));
     border: 2px solid ${u.brassDark};
-    border-radius: 10px;
+    border-radius: 4px;
     user-select: none;
     pointer-events: none;
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
@@ -1954,7 +2230,7 @@ ${fontFaceCss()}
     padding: 8px 14px;
     background: ${u.undoBg};
     border: 2px solid ${u.undoBorder};
-    border-radius: 8px;
+    border-radius: 3px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     color: ${u.undoText};
     font-size: 20px;
@@ -2037,13 +2313,13 @@ ${fontFaceCss()}
     min-height: 40px;
     padding: 2px 12px;
     appearance: none;
-    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
-    border: 2px solid ${u.border};
+    background: linear-gradient(180deg, ${u.leatherHi} 0%, ${u.leather} 100%);
+    border: 2px solid ${u.frameMid};
     border-top: none;
     border-right: none;
-    border-radius: 0 0 0 10px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-    color: ${u.text};
+    border-radius: 0 0 0 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    color: ${u.cream};
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -2074,7 +2350,7 @@ ${fontFaceCss()}
     padding: 4px 8px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     appearance: none;
     cursor: pointer;
@@ -2122,7 +2398,7 @@ ${fontFaceCss()}
 .shop-toolbar .level-all-global:active,
 .mechili-phone-status .level-all-global:active { transform: scale(0.96); }
 .shop-toolbar .level-all-global:focus-visible,
-.mechili-phone-status .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-phone-status .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .shop-toolbar .level-all-global.unaffordable,
 .mechili-phone-status .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras {
@@ -2138,31 +2414,77 @@ ${fontFaceCss()}
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px 10px 10px 12px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
-    border: 1.5px solid ${u.border};
+    padding: 12px 12px 12px 14px;
+    position: relative;
+    color: ${u.cream};
+    background:
+        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
+        radial-gradient(ellipse at 78% 88%, rgba(0, 0, 0, 0.35), transparent 48%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.035) 2px,
+            rgba(0, 0, 0, 0.035) 3px
+        ),
+        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%);
+    border: 1px solid ${u.frameLo};
     border-right: none;
     border-bottom: none;
-    border-radius: 10px 0 0 0;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
+    border-radius: 6px 0 0 0;
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.5),
+        0 0 0 1px ${u.frameEdge},
+        -2px 0 0 0 ${u.frameMid},
+        -3px 0 0 0 ${u.frameHi},
+        -4px 0 0 0 ${u.frameLo},
+        0 -2px 0 0 ${u.frameMid},
+        0 -3px 0 0 ${u.frameHi},
+        0 -4px 0 0 ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.16),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     pointer-events: auto;
+}
+.mechili-shop::before {
+    content: '';
+    position: absolute;
+    top: -7px;
+    left: -7px;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(
+        circle at 8px 8px,
+        ${u.gem} 0 2.5px,
+        ${u.gemDeep} 2.5px 3.5px,
+        ${u.frameHi} 3.5px 6px,
+        ${u.frameLo} 6px 7.5px,
+        transparent 8px
+    );
 }
 .mechili-shop .shop-header {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.06);
 }
 .mechili-shop .shop-header .unit-cap {
-    font-size: 14px;
-    font-weight: bold;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     font-variant-numeric: tabular-nums;
-    color: ${u.phase};
+    color: ${u.bronzeLight};
     display: inline-flex;
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 .mechili-shop .shop-header .unit-cap::before { content: ''; opacity: 0; }
 .mechili-shop .shop-runes {
@@ -2181,17 +2503,18 @@ ${fontFaceCss()}
     height: 34px;
     border-radius: 50%;
     overflow: hidden;
-    border: 1.5px solid ${u.border};
-    background: rgba(12, 18, 10, 0.55);
+    border: 1.5px solid ${u.slotBorder};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 100%);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.65);
     cursor: pointer;
     flex-shrink: 0;
     transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
 }
-.mechili-shop .shop-rune:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-shop .shop-rune:hover { border-color: ${u.bronzeLight}; transform: translateY(-1px); }
 .mechili-shop .shop-rune:active { transform: scale(0.94); }
-.mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-shop .shop-rune.unaffordable { opacity: 0.35; }
-.mechili-shop .shop-rune.unaffordable:hover { border-color: ${u.hover}; transform: none; }
+.mechili-shop .shop-rune.unaffordable:hover { border-color: ${u.bronzeLight}; transform: none; }
 .mechili-shop .shop-rune .shop-rune-ico,
 .mechili-shop .shop-rune .shop-rune-ico.m-icon {
     display: block;
@@ -2209,8 +2532,8 @@ ${fontFaceCss()}
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
     text-align: center;
-    color: ${u.brassLight};
-    background: linear-gradient(180deg, transparent, rgba(8, 12, 6, 0.88) 35%);
+    color: ${u.bronzeLight};
+    background: linear-gradient(180deg, transparent, rgba(8, 8, 6, 0.9) 35%);
     padding: 6px 0 1px;
     pointer-events: none;
 }
@@ -2227,9 +2550,13 @@ ${fontFaceCss()}
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    border: 1.5px solid ${u.border};
-    color: ${u.text};
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.cream};
     cursor: pointer;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.55),
+        0 1px 0 rgba(180, 140, 80, 0.1);
 }
 .mechili-shop-col .shop-tile .title {
     position: absolute;
@@ -2242,9 +2569,9 @@ ${fontFaceCss()}
     letter-spacing: 0.6px;
     text-align: center;
     line-height: 1.1;
-    color: ${u.text};
-    background: rgba(24, 36, 20, 0.88);
-    border-bottom: 1px solid ${u.border};
+    color: ${u.cream};
+    background: linear-gradient(180deg, rgba(34, 28, 22, 0.94), rgba(20, 16, 12, 0.9));
+    border-bottom: 1px solid ${u.frameLo};
     pointer-events: none;
     z-index: 2;
     white-space: nowrap;
@@ -2254,7 +2581,7 @@ ${fontFaceCss()}
 .mechili-shop-col .shop-tile .art {
     position: absolute;
     inset: 0;
-    background-color: #f0ecd8;
+    background-color: #e8dcc4;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -2270,20 +2597,20 @@ ${fontFaceCss()}
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
     color: #fff;
-    background: rgba(180, 32, 24, 0.92);
-    border-radius: 0 6px 0 0;
+    background: rgba(160, 40, 28, 0.92);
+    border-radius: 0 4px 0 0;
     pointer-events: none;
     z-index: 1;
 }
 .mechili-shop-col .shop-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
-.mechili-shop-col .shop-tile:hover { border-color: ${u.hover}; }
+.mechili-shop-col .shop-tile:hover { border-color: ${u.bronzeLight}; }
 .mechili-shop-col .shop-tile:active { transform: scale(0.94); }
-.mechili-shop-col .shop-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); z-index: 3; }
+.mechili-shop-col .shop-tile:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); z-index: 3; }
 .mechili-shop-col .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras .shop-tile {
     width: 64px;
     height: 64px;
-    border-radius: 8px;
+    border-radius: 3px;
 }
 .mechili-extras .shop-tile .title {
     font-size: 8px;
@@ -2297,7 +2624,7 @@ ${fontFaceCss()}
 .mechili-shop .shop-grid .shop-tile {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 9px;
+    border-radius: 3px;
 }
 .mechili-shop .shop-grid .shop-tile .title {
     font-size: 10px;
@@ -2314,22 +2641,22 @@ ${fontFaceCss()}
     opacity: 0.45;
     pointer-events: none;
     cursor: default;
-    background: ${u.panelBgDark};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 100%);
 }
 .mechili-shop .shop-tile.unlock.available {
     opacity: 1;
     pointer-events: auto;
     cursor: pointer;
-    border-color: ${u.brass};
+    border-color: ${u.bronze};
 }
 .mechili-shop .shop-tile.unlock.available:hover {
-    border-color: ${u.hover};
+    border-color: ${u.bronzeLight};
     transform: translateY(-2px);
 }
 .mechili-shop .shop-tile.unlock .unlock-icon {
     font-size: 22px;
     line-height: 1;
-    color: ${u.textMuted};
+    color: ${u.creamMuted};
 }
 .mechili-shop .shop-tile.unlock .unlock-label {
     font-size: 9px;
@@ -2347,15 +2674,8 @@ ${fontFaceCss()}
     min-width: 244px;
     max-width: 300px;
     padding: 12px 14px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
-    border: 1.5px solid ${u.border};
-    border-left: none;
-    border-bottom: none;
-    border-radius: 0 10px 0 0;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    color: ${u.text};
+    /* chrome filled by materialStyles docked-panel frame */
+    color: ${u.cream};
     user-select: none;
 }
 .mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
@@ -2384,7 +2704,7 @@ ${fontFaceCss()}
     min-width: 42px; padding: 2px 6px 3px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.brass};
-    border-radius: 8px;
+    border-radius: 3px;
     line-height: 1;
 }
 .mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: ${u.textMuted}; }
@@ -2412,12 +2732,16 @@ ${fontFaceCss()}
        when there's no strip (owned / no price), center in the full tile */
     padding: 0; margin: 0;
     appearance: none; -webkit-appearance: none;
-    background: ${u.techBuyBg};
-    border: 1.5px solid ${u.border};
-    border-radius: 8px;
-    color: ${u.text};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.cream};
     cursor: pointer;
     overflow: visible;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.65),
+        inset 0 -1px 0 rgba(255, 220, 160, 0.05),
+        0 1px 0 rgba(180, 140, 80, 0.1);
 }
 .mechili-panel .action-tile:has(.at-cost) { padding-bottom: 12px; }
 .mechili-panel .action-tile .at-icon { font-size: 27px; line-height: 1; }
@@ -2470,7 +2794,7 @@ ${fontFaceCss()}
 .mechili-panel .action-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-panel .action-tile:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 .mechili-panel .action-tile:active { transform: scale(0.94); }
-.mechili-panel .action-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-panel .action-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-panel .action-tile.locked { opacity: 0.42; }
 .mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
@@ -2528,7 +2852,7 @@ ${fontFaceCss()}
     padding: 12px 14px;
     background: ${u.panelBgSolid};
     border: 1.5px solid ${u.brass};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
     pointer-events: none;
@@ -2572,7 +2896,7 @@ ${fontFaceCss()}
     appearance: none;
     background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
     border: 1.5px solid ${u.brassLight};
-    border-radius: 8px;
+    border-radius: 3px;
     color: #20180a;
     font-size: 14px;
     font-weight: bold;
@@ -2595,7 +2919,7 @@ ${fontFaceCss()}
     align-items: center;
     gap: 6px;
     padding: 8px 6px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.94), rgba(22, 18, 14, 0.96));
     border: 1.5px solid ${u.border};
     border-radius: 0;
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
@@ -2606,12 +2930,12 @@ ${fontFaceCss()}
 .mechili-sidebar.left {
     left: env(safe-area-inset-left);
     border-left: none;
-    border-radius: 0 10px 10px 0;
+    border-radius: 0 4px 4px 0;
 }
 .mechili-sidebar.right {
     right: env(safe-area-inset-right);
     border-right: none;
-    border-radius: 10px 0 0 10px;
+    border-radius: 4px 0 0 4px;
     /* enemy intel only shows on the enemy commander's detail screen */
     display: none;
 }
@@ -2647,7 +2971,7 @@ ${fontFaceCss()}
     padding: 8px 10px;
     background: ${u.panelBgDark};
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
 }
 .mechili-cards .round-pick .rp-round {
     grid-row: 1 / span 2;
@@ -2733,13 +3057,13 @@ ${fontFaceCss()}
     justify-content: center;
     background: ${u.techBuyBg};
     border: 1.5px solid ${u.border};
-    border-radius: 9px;
+    border-radius: 3px;
     color: ${u.text};
     cursor: pointer;
 }
 .mechili-sidebar .inv-item { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-sidebar .inv-item:hover { border-color: ${u.hover}; transform: translateY(-1px); }
-.mechili-sidebar .inv-item:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-sidebar .inv-item:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-sidebar .inv-item:not(.tactic) {
     background: transparent;
     border: none;
@@ -2762,7 +3086,7 @@ ${fontFaceCss()}
     line-height: 12px;
     text-align: center;
     color: ${u.brassLight};
-    background: rgba(12, 18, 10, 0.85);
+    background: rgba(12, 10, 8, 0.85);
     border: 1px solid ${u.border};
     border-radius: 4px;
     pointer-events: none;
@@ -2897,8 +3221,8 @@ ${fontFaceCss()}
     overflow-y: auto;
     overflow-x: hidden;
     padding: 6px;
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.94), rgba(22, 34, 19, 0.96));
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.96), rgba(22, 18, 14, 0.96));
     border: 1.5px solid ${u.border};
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     z-index: 80;
@@ -2994,7 +3318,7 @@ ${fontFaceCss()}
     padding: 8px 8px 6px;
     margin-left: -8px;
     margin-right: -8px;
-    border-radius: 12px;
+    border-radius: 4px;
     background: rgba(0, 80, 40, 0.22);
     box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.45);
     animation: forge-panel-ready 1.6s ease-in-out infinite;
@@ -3164,7 +3488,7 @@ ${fontFaceCss()}
     column-gap: 6px;
     row-gap: 4px;
     padding: 10px 10px 8px;
-    border-radius: 10px;
+    border-radius: 4px;
     border: 1.5px solid ${u.divider};
     background: rgba(0, 0, 0, 0.18);
     transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -3253,7 +3577,7 @@ ${fontFaceCss()}
     z-index: 10050;
     width: 280px;
     padding: 12px 14px;
-    border-radius: 10px;
+    border-radius: 4px;
     border: 1.5px solid ${u.border};
     background: ${u.panelBgDark};
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
@@ -3323,7 +3647,7 @@ ${fontFaceCss()}
     padding: 6px 18px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.brassDark};
-    border-radius: 14px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 26px;
     white-space: nowrap;
@@ -3364,7 +3688,7 @@ ${fontFaceCss()}
     font-weight: bold;
     letter-spacing: 1px;
     text-transform: uppercase;
-    border-radius: 8px;
+    border-radius: 3px;
     background: ${u.panelBg};
     border: 1px solid ${u.border};
     color: ${u.textMuted};
@@ -3379,9 +3703,9 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    background: linear-gradient(180deg, rgba(30, 44, 26, 0.72), rgba(18, 28, 15, 0.82));
+    background: linear-gradient(180deg, rgba(40, 32, 24, 0.92), rgba(20, 16, 12, 0.95));
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
@@ -3393,12 +3717,12 @@ ${fontFaceCss()}
     font-size: 20px;
     background: ${u.techBuyBg};
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     cursor: pointer;
 }
 .mechili-chat .c-emote { transition: transform 0.12s ease, border-color 0.12s ease; }
 .mechili-chat .c-emote:hover { border-color: ${u.hover}; transform: scale(1.12); }
-.mechili-chat .c-emote:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-chat .c-emote:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-chat .c-row { display: flex; gap: 6px; }
 .mechili-chat .c-input {
     flex: 1;
@@ -3420,7 +3744,7 @@ ${fontFaceCss()}
 }
 .mechili-chat .c-send { transition: border-color 0.12s ease, background 0.12s ease; }
 .mechili-chat .c-send:hover { border-color: ${u.hover}; }
-.mechili-chat .c-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-chat .c-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-chat .c-input:focus-visible { outline: none; border-color: ${u.hover}; }
 
 .mechili-chat-float {
@@ -3438,7 +3762,7 @@ ${fontFaceCss()}
 .mechili-chat-float .cf-msg {
     padding: 3px 12px;
     background: ${u.panelBgDark};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 13px;
     max-width: 460px;
@@ -3538,13 +3862,13 @@ ${fontFaceCss()}
     width: 120px;
     aspect-ratio: 1;
     border: 1.5px solid ${u.border};
-    border-radius: 9px;
+    border-radius: 3px;
     color: ${u.text};
     background: ${u.panelBgDark};
     cursor: pointer;
 }
 .mechili-cards .unlock-pick:hover { border-color: ${u.hover}; transform: translateY(-2px); }
-.mechili-cards .unlock-pick:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-cards .unlock-pick:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-cards .unlock-pick:disabled {
     opacity: 0.4;
     pointer-events: none;
@@ -3559,7 +3883,7 @@ ${fontFaceCss()}
     font-weight: bold;
     padding: 3px 5px;
     text-align: center;
-    background: rgba(24, 36, 20, 0.88);
+    background: rgba(28, 22, 16, 0.88);
     border-bottom: 1px solid ${u.border};
     pointer-events: none;
 }
@@ -3592,15 +3916,21 @@ ${fontFaceCss()}
     flex-direction: column;
     align-items: center;
     gap: clamp(8px, 1vw, 12px);
-    background: ${u.panelBgDark};
-    border: 2px solid ${u.border};
-    border-radius: 14px;
-    color: ${u.text};
+    background:
+        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
+        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    color: ${u.cream};
     cursor: pointer;
-    transition: transform 0.12s, border-color 0.12s;
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12),
+        inset 0 -2px 5px rgba(0, 0, 0, 0.4);
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 .mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
-.mechili-cards .card:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); transform: translateY(-5px); }
+.mechili-cards .card:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); transform: translateY(-5px); }
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
 .mechili-cards .card.locked-card:disabled { opacity: 1; }
 /* a card shown for information only (waiting / reveal) — no hover, no lift */
@@ -3746,7 +4076,7 @@ ${fontFaceCss()}
     padding: 9px 24px;
     background: ${u.undoBg};
     border: 1.5px solid ${u.undoBorder};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.undoText};
     font-size: 14px;
     font-weight: bold;
@@ -3762,7 +4092,7 @@ ${fontFaceCss()}
     max-height: 84vh;
     overflow-y: auto;
     padding: 20px 24px 24px;
-    border-radius: 14px;
+    border-radius: 4px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
     user-select: text;
@@ -3794,7 +4124,7 @@ ${fontFaceCss()}
 }
 .settings-card {
     padding: 12px 14px 14px;
-    border-radius: 10px;
+    border-radius: 4px;
     border: 1.5px solid ${u.divider};
     background: rgba(0, 0, 0, 0.15);
 }
@@ -3859,7 +4189,7 @@ ${fontFaceCss()}
     padding: 22px 24px;
     background: ${u.panelBg};
     border: 2px solid ${u.border};
-    border-radius: 14px;
+    border-radius: 4px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
 .mechili-pause .pause-title {
@@ -3881,7 +4211,7 @@ ${fontFaceCss()}
     padding: 11px 16px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -3890,7 +4220,7 @@ ${fontFaceCss()}
 }
 .mechili-pause button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
 .mechili-pause button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-pause button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-pause button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-pause .pause-quit {
     border-color: ${u.undoBorder};
     color: ${u.undoText};
@@ -3907,10 +4237,11 @@ ${fontFaceCss()}
     align-items: center;
     gap: 18px;
     padding: 36px 64px;
-    background: linear-gradient(180deg, rgba(34, 50, 28, 0.96), rgba(20, 30, 16, 0.97));
-    border: 2px solid ${u.border};
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    /* chrome filled by materialStyles ornate frame */
+    background: transparent;
+    border: 1px solid ${u.frameLo};
+    border-radius: 4px;
+    box-shadow: none;
     user-select: none;
 }
 .mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
@@ -3925,7 +4256,7 @@ ${fontFaceCss()}
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
     border: 1.5px solid ${pc};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${pc};
     font-size: 15px;
     font-weight: bold;
@@ -3934,7 +4265,7 @@ ${fontFaceCss()}
 }
 .mechili-gameover .go-restart { transition: transform 0.14s ease, background 0.14s ease; }
 .mechili-gameover .go-restart:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
-.mechili-gameover .go-restart:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-gameover .go-restart:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 
 .mechili-report {
     position: absolute;
@@ -3942,7 +4273,7 @@ ${fontFaceCss()}
     top: 56px;
     min-width: 200px;
     padding: 12px 14px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.94), rgba(22, 18, 14, 0.96));
     border: 1.5px solid ${u.border};
     border-radius: 10px 0 0 10px;
     border-right: none;
@@ -4022,7 +4353,7 @@ ${fontFaceCss()}
     overflow-y: auto;
     background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     padding: 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     pointer-events: auto;
@@ -4191,7 +4522,7 @@ ${fontFaceCss()}
     height: 22px;
     background: ${u.barTrack};
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     overflow: hidden;
     box-shadow:
         inset 0 1px 3px rgba(0, 0, 0, 0.52),
@@ -4308,32 +4639,32 @@ ${fontFaceCss()}
 }
 .mechili-topbar .end-deploy {
     padding: 10px 24px;
-    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
-    border: 2px solid ${u.brassLight};
-    border-radius: 9px;
-    color: #20180a;
+    background: ${u.bronze};
+    border: 1.5px solid ${u.frameHi};
+    border-radius: 3px;
+    color: #1a140c;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1.5px;
     cursor: pointer;
-    box-shadow: 0 3px 12px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, filter 0.14s ease;
 }
 .mechili-topbar .end-deploy:hover {
-    background: linear-gradient(180deg, #fff0b0, ${u.brassLight});
-    transform: translateY(-2px);
-    box-shadow: 0 7px 20px rgba(255, 180, 40, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    background: ${u.bronzeLight};
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
 }
 .mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
-.mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.5); }
+.mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.45); }
 /* a teammate (2v2/duo) already locked in — half the button turns green so
    both seats on a side can see who's still holding things up */
 .mechili-topbar .end-deploy.ally-ready {
-    background: linear-gradient(90deg, #5ee36b 0%, #5ee36b 48%, ${u.brassLight} 52%, ${u.brass} 100%);
+    background: linear-gradient(90deg, #5ee36b 0%, #5ee36b 48%, ${u.bronze} 52%, ${u.bronze} 100%);
     border-color: #5ee36b;
 }
 .mechili-topbar .end-deploy.ally-ready:hover {
-    background: linear-gradient(90deg, #7dfa8a 0%, #7dfa8a 48%, #fff0b0 52%, ${u.brassLight} 100%);
+    background: linear-gradient(90deg, #7dfa8a 0%, #7dfa8a 48%, ${u.bronzeLight} 52%, ${u.bronzeLight} 100%);
 }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
@@ -4345,7 +4676,7 @@ ${fontFaceCss()}
     padding: 7px 10px;
     background: ${u.speedBg};
     border: 1.5px solid ${u.brass};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.brass};
     font-size: 13px;
     font-weight: bold;
@@ -4354,7 +4685,7 @@ ${fontFaceCss()}
 }
 .mechili-topbar .speed { transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
-.mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 /* sit below End Deployment's deploy-phase hitbox so a phase swap can't
  * land a speed click on "End Deployment" (or the reverse) */
 .mechili-topbar.battle .speed {
@@ -4431,8 +4762,9 @@ ${fontFaceCss()}
     gap: 6px;
     padding: 4px calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom))
         calc(8px + env(safe-area-inset-left));
-    background: linear-gradient(180deg, rgba(26, 40, 22, 0.96), rgba(14, 24, 12, 0.98));
-    border-top: 1.5px solid ${u.border};
+    background: linear-gradient(180deg, ${u.leatherHi} 0%, ${u.leather} 100%);
+    border-top: 2px solid ${u.frameMid};
+    box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.12);
     user-select: none;
     pointer-events: auto;
 }
@@ -4446,7 +4778,7 @@ ${fontFaceCss()}
     appearance: none;
     background: none;
     border: none;
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.textMuted};
     font-size: 10px;
     font-weight: bold;
@@ -4489,7 +4821,7 @@ ${fontFaceCss()}
         padding: 4px 8px;
         gap: 10px;
         border: 1.5px solid ${u.border};
-        border-radius: 14px;
+        border-radius: 4px;
     }
     .mechili-phonebar button { flex: 0 0 auto; padding: 5px 14px; }
 }
@@ -4532,9 +4864,9 @@ ${gamepadCursorStyles(u)}
     z-index: 90;
     max-width: min(340px, calc(100vw - 32px));
     padding: 12px 14px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.97), rgba(22, 18, 14, 0.97));
     border: 1.5px solid ${u.brass};
-    border-radius: 12px;
+    border-radius: 4px;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
     color: ${u.text};
     font-size: 13px;
@@ -4628,7 +4960,7 @@ ${gamepadCursorStyles(u)}
     .mechili-shop-col.phone-open .mechili-shop {
         width: auto;
         border-right: 1.5px solid ${u.border};
-        border-radius: 10px;
+        border-radius: 4px;
     }
     .mechili-shop-col.phone-open .shop-grid {
         grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
