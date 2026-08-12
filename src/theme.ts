@@ -4550,7 +4550,7 @@ ${materialStyles(u)}
     gap: 0;
 }
 .mechili-fightbar .fighter-stack.multi .fname {
-    font-size: 11px;
+    font-size: 13px;
 }
 .mechili-fightbar .fighter-stack.multi .hp-val {
     font-size: 13px;
@@ -4656,45 +4656,41 @@ ${materialStyles(u)}
 .mechili-fightbar .fighter.enemy .fighter-info {
     margin-right: -18px;
 }
-/* Idea 2: name = footplate / caption rail under the tube (text-width only) */
+/* Name under the tube — text only */
 .mechili-fightbar .fname {
     flex: 0 0 auto;
     align-self: flex-start;
     position: relative;
     z-index: 2;
-    margin-top: -1px;
+    margin-top: -2px;
     max-width: 100%;
     width: fit-content;
-    padding: 2px 10px 3px;
+    padding: 0;
     box-sizing: border-box;
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 800;
     letter-spacing: 0.05em;
-    line-height: 1.2;
+    line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     color: ${u.cream};
-    background: linear-gradient(180deg, ${u.leatherHi} 0%, ${u.leather} 100%);
-    border: 1px solid ${u.frameMid};
-    border-top: none;
-    box-shadow:
-        0 2px 6px rgba(0, 0, 0, 0.35),
-        inset 0 1px 0 rgba(255, 230, 180, 0.12);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    background: none;
+    border: none;
+    box-shadow: none;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.95),
+        0 0 8px rgba(0, 0, 0, 0.7);
 }
 .mechili-fightbar .fighter.player .fname {
     text-align: left;
-    padding-left: 20px;
-    border-radius: 0 0 2px 0;
-    color: ${pc};
+    /* clear of the medallion that overlaps the tube */
+    margin-left: 22px;
 }
 .mechili-fightbar .fighter.enemy .fname {
     align-self: flex-end;
     text-align: right;
-    padding-right: 20px;
-    border-radius: 0 0 0 2px;
-    color: ${ec};
+    margin-right: 22px;
 }
 .mechili-fightbar .fspec {
     display: none;
@@ -4717,11 +4713,11 @@ ${hpTubeTrack(u, '.mechili-fightbar .hp-track', 'auto')}
 }
 .mechili-fightbar .fighter.player .hp-track {
     direction: ltr;
-    border-radius: 0 2px 0 0;
+    border-radius: 0 2px 2px 0;
 }
 .mechili-fightbar .fighter.enemy .hp-track {
     direction: rtl;
-    border-radius: 2px 0 0 0;
+    border-radius: 2px 0 0 2px;
 }
 ${hpTubeFill('.mechili-fightbar .fighter.player .hp-fill', `linear-gradient(180deg, #7ec4f0 0%, ${pc} 42%, #2d6a9e 100%)`)}
 ${hpTubeFill('.mechili-fightbar .fighter.enemy .hp-fill', `linear-gradient(180deg, #ff8a80 0%, ${ec} 42%, #a02418 100%)`, { origin: 'right center' })}
@@ -5113,22 +5109,20 @@ ${gamepadCursorStyles(u)}
         margin-left: 0;
         margin-right: 0;
     }
-    .mechili-fightbar .fighter.player .hp-track {
-        border-radius: 2px 2px 0 0;
-    }
+    .mechili-fightbar .fighter.player .hp-track,
     .mechili-fightbar .fighter.enemy .hp-track {
-        border-radius: 2px 2px 0 0;
+        border-radius: 2px;
     }
-    .mechili-fightbar .fighter.player .fname,
+    .mechili-fightbar .fighter.player .fname {
+        margin-left: 8px;
+    }
     .mechili-fightbar .fighter.enemy .fname {
-        padding-left: 8px;
-        padding-right: 8px;
-        border-radius: 0 0 2px 2px;
+        margin-right: 8px;
     }
     .mechili-fightbar .fighter { padding-bottom: 4px; }
     .mechili-fightbar .fighter-info { height: 40px; }
-    .mechili-fightbar .fname { font-size: 10px; letter-spacing: 0.4px; padding-top: 1px; padding-bottom: 2px; }
-    .mechili-fightbar .fighter-stack.multi .fname { font-size: 10px; }
+    .mechili-fightbar .fname { font-size: 12px; letter-spacing: 0.4px; margin-top: -2px; }
+    .mechili-fightbar .fighter-stack.multi .fname { font-size: 12px; }
     .mechili-fightbar .fighter-info { gap: 0; }
     .mechili-fightbar .hp-track { height: auto; }
     .mechili-fightbar .hp-val { font-size: 11px; }
