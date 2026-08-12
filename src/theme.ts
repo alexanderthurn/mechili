@@ -399,7 +399,6 @@ html .mechili-gameover::before {
 }
 /* Slim bronze chrome — compact HUD strips / chips / tips.
    Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
-html .mechili-supply,
 html .mechili-sidebar,
 html .mechili-report,
 html .mechili-username,
@@ -2164,10 +2163,11 @@ ${materialStyles(u)}
     align-items: center;
     box-sizing: border-box;
     min-height: 54px;
-    padding: 8px 16px;
-    /* frame comes from slim chrome (html .mechili-supply) — no second border */
+    padding: 4px 6px;
+    background: none;
     border: none;
-    border-radius: 4px;
+    border-radius: 0;
+    box-shadow: none;
     user-select: none;
     pointer-events: none;
     flex-shrink: 0;
@@ -2182,6 +2182,8 @@ ${materialStyles(u)}
     line-height: 1;
     color: ${u.brassLight};
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    /* hits go to the clickable frame — avoid mid-click DOM thrash on the icon */
+    pointer-events: none;
 }
 .mechili-supply .supply-ico.m-icon {
     width: 30px;
@@ -2191,32 +2193,35 @@ ${materialStyles(u)}
 .mechili-supply.clickable {
     pointer-events: auto;
     cursor: pointer;
-    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+    transition: transform 0.12s, filter 0.12s;
 }
 .mechili-supply.clickable:hover {
-    border-color: ${u.brassLight};
-    box-shadow:
-        0 4px 14px rgba(0, 0, 0, 0.45),
-        0 0 0 1px ${u.frameEdge},
-        0 0 0 2px ${u.brassLight},
-        0 0 0 3px ${u.frameLo},
-        inset 0 1px 0 rgba(255, 230, 180, 0.14),
-        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+    filter: brightness(1.12);
 }
 .mechili-supply.clickable:active { transform: translateY(1px); }
-.shop-toolbar {
+.shop-toolbar,
+.mechili-extras {
     display: flex;
     align-items: stretch;
     justify-content: flex-end;
+    flex-wrap: wrap;
     width: 100%;
-    padding: 0 0 0 8px;
+    padding: 0 3px 0 8px;
+    box-sizing: border-box;
     pointer-events: auto;
+    gap: 8px;
 }
+.mechili-extras {
+    /* board extras (any count) + level-all + undo share one row above the shop */
+    max-width: 100%;
+}
+.mechili-extras .undo,
 .shop-toolbar .undo,
 .mechili-phone-status .undo {
     display: flex;
     align-items: center;
     box-sizing: border-box;
+    height: 54px;
     min-height: 54px;
     padding: 8px 14px;
     background: ${u.undoBg};
@@ -2232,10 +2237,13 @@ ${materialStyles(u)}
     appearance: none;
     flex-shrink: 0;
 }
+.mechili-extras .undo,
 .shop-toolbar .undo,
 .mechili-phone-status .undo { transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease; }
+.mechili-extras .undo:hover,
 .shop-toolbar .undo:hover,
 .mechili-phone-status .undo:hover { background: ${u.undoHover}; transform: translateY(-1px); }
+.mechili-extras .undo:focus-visible,
 .shop-toolbar .undo:focus-visible,
 .mechili-phone-status .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
 
@@ -2279,8 +2287,8 @@ ${materialStyles(u)}
 .mechili-phone-status .undo { pointer-events: auto; }
 /* compact versions of the shop-toolbar frames — the originals crowd End Deployment */
 .mechili-phone-status .mechili-supply {
-    min-height: 54px;
-    padding: 4px 10px;
+    min-height: 40px;
+    padding: 2px 4px;
 }
 .mechili-phone-status .supply { font-size: 20px; }
 .mechili-phone-status .supply-ico.m-icon {
@@ -2363,6 +2371,7 @@ ${materialStyles(u)}
     gap: 8px;
     flex-shrink: 0;
 }
+.mechili-extras .level-all-global,
 .shop-toolbar .level-all-global,
 .mechili-phone-status .level-all-global {
     display: flex;
@@ -2374,6 +2383,7 @@ ${materialStyles(u)}
     width: auto;
     min-width: 72px;
     max-width: 140px;
+    height: 54px;
     min-height: 54px;
     padding: 4px 8px;
     background: ${u.panelBgSolid};
@@ -2386,6 +2396,7 @@ ${materialStyles(u)}
     flex-shrink: 0;
     color: ${u.brassLight};
 }
+.mechili-extras .level-all-global .lag-copy,
 .shop-toolbar .level-all-global .lag-copy,
 .mechili-phone-status .level-all-global .lag-copy {
     display: flex;
@@ -2393,6 +2404,7 @@ ${materialStyles(u)}
     align-items: flex-start;
     min-width: 0;
 }
+.mechili-extras .level-all-global .title,
 .shop-toolbar .level-all-global .title,
 .mechili-phone-status .level-all-global .title {
     font-size: 9px;
@@ -2403,6 +2415,7 @@ ${materialStyles(u)}
     white-space: normal;
     color: ${u.phase};
 }
+.mechili-extras .level-all-global .lag-ico.m-icon,
 .shop-toolbar .level-all-global .lag-ico.m-icon,
 .mechili-phone-status .level-all-global .lag-ico.m-icon {
     width: 26px;
@@ -2410,6 +2423,7 @@ ${materialStyles(u)}
     font-size: 0;
     flex-shrink: 0;
 }
+.mechili-extras .level-all-global .cost,
 .shop-toolbar .level-all-global .cost,
 .mechili-phone-status .level-all-global .cost {
     font-size: 14px;
@@ -2419,26 +2433,24 @@ ${materialStyles(u)}
     line-height: 1;
     margin-top: 2px;
 }
+.mechili-extras .level-all-global,
 .shop-toolbar .level-all-global,
 .mechili-phone-status .level-all-global { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+.mechili-extras .level-all-global:hover,
 .shop-toolbar .level-all-global:hover,
 .mechili-phone-status .level-all-global:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-extras .level-all-global:active,
 .shop-toolbar .level-all-global:active,
 .mechili-phone-status .level-all-global:active { transform: scale(0.96); }
+.mechili-extras .level-all-global:focus-visible,
 .shop-toolbar .level-all-global:focus-visible,
 .mechili-phone-status .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
+.mechili-extras .level-all-global.unaffordable,
 .shop-toolbar .level-all-global.unaffordable,
 .mechili-phone-status .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
-.mechili-extras {
-    display: flex;
-    flex-direction: row-reverse;
-    align-items: stretch;
-    gap: 8px;
-    padding: 0 0 0 8px;
-    pointer-events: auto;
-}
 .mechili-shop {
-    width: 228px;
+    /* 3× ~80% tiles vs prior 2-col (~97px → ~78px) */
+    width: 274px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -2501,20 +2513,23 @@ ${materialStyles(u)}
     border-bottom: 1px solid ${u.frameLo};
     box-shadow: 0 1px 0 rgba(255, 220, 160, 0.06);
 }
-.mechili-shop .shop-header .unit-cap {
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    font-variant-numeric: tabular-nums;
-    color: ${u.bronzeLight};
-    display: inline-flex;
-    align-items: center;
+.mechili-shop .shop-header .mechili-supply {
+    min-height: 0;
+    padding: 0;
+    margin-right: 2px;
+}
+.mechili-shop .shop-header .supply {
+    font-size: 18px;
     gap: 4px;
-    flex-shrink: 0;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
-.mechili-shop .shop-header .unit-cap::before { content: ''; opacity: 0; }
+.mechili-shop .shop-header .supply-ico.m-icon {
+    width: 18px;
+    height: 18px;
+}
+.mechili-shop .shop-header .unit-cap {
+    display: none;
+}
 .mechili-shop .shop-runes {
     display: flex;
     align-items: center;
@@ -2567,8 +2582,8 @@ ${materialStyles(u)}
 }
 .mechili-shop .shop-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
 }
 .mechili-shop-col .shop-tile {
     position: relative;
@@ -2636,9 +2651,10 @@ ${materialStyles(u)}
 .mechili-shop-col .shop-tile:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); z-index: 3; }
 .mechili-shop-col .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras .shop-tile {
-    width: 64px;
-    height: 64px;
+    width: 54px;
+    height: 54px;
     border-radius: 3px;
+    flex-shrink: 0;
 }
 .mechili-extras .shop-tile .title {
     font-size: 8px;
@@ -2655,16 +2671,21 @@ ${materialStyles(u)}
     border-radius: 3px;
 }
 .mechili-shop .shop-grid .shop-tile .title {
-    font-size: 10px;
-    padding: 3px 5px;
+    font-size: 9px;
+    padding: 2px 4px;
+    letter-spacing: 0.5px;
+}
+.mechili-shop .shop-grid .shop-tile .cost {
+    font-size: 11px;
+    padding: 2px 6px 2px;
 }
 .mechili-shop .shop-tile.unlock {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    min-height: 72px;
+    gap: 3px;
+    min-height: 0;
     aspect-ratio: 1;
     opacity: 0.45;
     pointer-events: none;
@@ -2682,17 +2703,17 @@ ${materialStyles(u)}
     transform: translateY(-2px);
 }
 .mechili-shop .shop-tile.unlock .unlock-icon {
-    font-size: 22px;
+    font-size: 18px;
     line-height: 1;
     color: ${u.creamMuted};
 }
 .mechili-shop .shop-tile.unlock .unlock-label {
-    font-size: 9px;
-    letter-spacing: 0.5px;
+    font-size: 8px;
+    letter-spacing: 0.4px;
     text-transform: uppercase;
     color: ${u.textMuted};
     text-align: center;
-    padding: 0 4px;
+    padding: 0 3px;
 }
 
 .mechili-panel {
@@ -4273,60 +4294,66 @@ ${materialStyles(u)}
 
 .settings-panel {
     position: relative;
-    max-width: min(92vw, 920px);
-    max-height: 84vh;
+    width: min(96vw, 1100px);
+    max-height: min(82vh, 720px);
     overflow-y: auto;
-    padding: 20px 24px 24px;
+    padding: 10px 12px 12px;
     border-radius: 4px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
     user-select: text;
+    box-sizing: border-box;
 }
 .settings-panel-title {
-    margin: 0 0 14px;
-    font-size: 20px;
+    margin: 0 0 8px;
+    font-size: 15px;
     font-weight: 900;
-    letter-spacing: 2px;
+    letter-spacing: 1.5px;
     color: ${u.brassLight};
     text-align: center;
 }
 .settings-close {
     position: absolute;
-    top: 10px;
-    right: 12px;
+    top: 6px;
+    right: 8px;
     background: none;
     border: none;
     color: ${u.textMuted};
-    font-size: 26px;
+    font-size: 22px;
     line-height: 1;
     cursor: pointer;
 }
 .settings-close:hover { color: ${u.text}; }
 .settings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 14px;
+    /* more columns → less vertical scroll for the same content */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
 }
 .settings-card {
-    padding: 12px 14px 14px;
-    border-radius: 4px;
-    border: 1.5px solid ${u.divider};
+    padding: 6px 8px 7px;
+    border-radius: 3px;
+    border: 1px solid ${u.divider};
     background: rgba(0, 0, 0, 0.15);
 }
 .settings-card h3 {
-    margin: 0 0 8px;
+    margin: 0 0 4px;
     color: ${u.brassLight};
-    font-size: 14px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 .settings-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12.5px;
+    font-size: 11px;
+    line-height: 1.25;
 }
 .settings-table th,
 .settings-table td {
     text-align: left;
-    padding: 4px 0;
+    padding: 2px 0;
     vertical-align: top;
 }
 .settings-table tr:not(:last-child) th,
@@ -4336,8 +4363,9 @@ ${materialStyles(u)}
 .settings-table th {
     color: ${u.textMuted};
     font-weight: 600;
-    padding-right: 10px;
+    padding-right: 8px;
     white-space: nowrap;
+    width: 38%;
 }
 .settings-table td {
     color: ${u.text};
@@ -4346,11 +4374,30 @@ ${materialStyles(u)}
 .settings-desc {
     display: block;
     color: ${u.textMuted};
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 400;
     font-variant-numeric: normal;
-    margin-top: 2px;
+    margin-top: 1px;
+    line-height: 1.25;
     white-space: normal;
+}
+.mechili-cards.settings-detail {
+    /* fightbar is 51 — settings must cover commander HP, not sit under it */
+    z-index: 54;
+    justify-content: stretch;
+    align-items: stretch;
+    padding: 0;
+    gap: 0;
+}
+.mechili-cards.settings-detail .settings-panel {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    height: 100%;
+    border-radius: 0;
+    border-width: 0;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+        max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
 }
 
 .mechili-pause {
@@ -4924,8 +4971,9 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     .mechili-extras .shop-tile .title { font-size: 10px; }
     .mechili-extras .shop-tile .cost { font-size: 11px; }
     .mechili-shop-col .shop-tile .title { font-size: 11px; }
-    .mechili-shop .shop-grid .shop-tile .title { font-size: 11px; }
-    .mechili-shop .shop-tile.unlock .unlock-label { font-size: 11px; }
+    .mechili-shop .shop-grid .shop-tile .title { font-size: 10px; }
+    .mechili-shop .shop-tile.unlock .unlock-label { font-size: 9px; }
+    .mechili-extras .level-all-global .title,
     .shop-toolbar .level-all-global .title { font-size: 11px; }
     .mechili-panel .lvl-big .lvl-cap { font-size: 9px; }
 }
@@ -5148,7 +5196,7 @@ ${gamepadCursorStyles(u)}
         border-radius: 4px;
     }
     .mechili-shop-col.phone-open .shop-grid {
-        grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .mechili-shop-col.phone-open .mechili-extras { flex-wrap: wrap; justify-content: flex-end; }
     .mechili-sidebar.left.phone-open {
