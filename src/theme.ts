@@ -380,7 +380,6 @@ html .mechili-gameover {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
-html .mechili-menu::after,
 html .mechili-name-edit .box::before,
 html .mechili-suggest .box::before,
 html .mechili-pause .pause-box::before,
@@ -397,6 +396,29 @@ html .mechili-gameover::before {
         ${gem('calc(100% - 8px) 8px')},
         ${gem('8px calc(100% - 8px)')},
         ${gem('calc(100% - 8px) calc(100% - 8px)')};
+}
+/* Main menu: keep bronze frame, skip gem studs — use subtle corner brackets instead */
+html .mechili-menu::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    border-radius: inherit;
+    background:
+        /* top-left */
+        linear-gradient(to right, ${u.frameHi}, ${u.frameHi}) left 5px top 5px / 11px 1px no-repeat,
+        linear-gradient(to bottom, ${u.frameHi}, ${u.frameHi}) left 5px top 5px / 1px 11px no-repeat,
+        /* top-right */
+        linear-gradient(to left, ${u.frameHi}, ${u.frameHi}) right 5px top 5px / 11px 1px no-repeat,
+        linear-gradient(to bottom, ${u.frameHi}, ${u.frameHi}) right 5px top 5px / 1px 11px no-repeat,
+        /* bottom-left */
+        linear-gradient(to right, ${u.frameMid}, ${u.frameMid}) left 5px bottom 5px / 11px 1px no-repeat,
+        linear-gradient(to top, ${u.frameMid}, ${u.frameMid}) left 5px bottom 5px / 1px 11px no-repeat,
+        /* bottom-right */
+        linear-gradient(to left, ${u.frameMid}, ${u.frameMid}) right 5px bottom 5px / 11px 1px no-repeat,
+        linear-gradient(to top, ${u.frameMid}, ${u.frameMid}) right 5px bottom 5px / 1px 11px no-repeat;
+    opacity: 0.85;
 }
 
 /* Slim bronze chrome — compact HUD strips / chips / tips.
