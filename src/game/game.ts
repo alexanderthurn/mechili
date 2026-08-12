@@ -150,6 +150,7 @@ import { hordeWavePlan } from './hordeRoster';
 import {
     BattleSim,
     BATTLE_START_FREEZE,
+    GOLDEN_AURA_RADIUS,
     actorSeat,
     actorTeam,
     detCos,
@@ -361,6 +362,10 @@ export class Game {
     private hpDrawAfterMatchOver = false;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
+    /** gold aura-range ring under a selected battle mech with a special skill */
+    private readonly battleAuraMesh;
+    /** tech tile currently hovered/peeked in the detail panel (drives aura ring) */
+    private hoveredTech: string | null = null;
 
     /** ascending — the speed button steps up (click) or down (right click), wrapping */
     private static readonly SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8];
@@ -1175,6 +1180,8 @@ export class Game {
         setUnitInstanceRenderer(this.unitInstances);
         this.applyShadowQuality();
         this.battleRangeMesh = createRangeRing(this.scene);
+        this.battleAuraMesh = createRangeRing(this.scene);
+        (this.battleAuraMesh.material as import('three').MeshBasicMaterial).color.setHex(0xffcf5a);
 
         // input listens on the Pixi canvas — it's the top-most surface
         const surface = pixiApp.canvas;
@@ -1470,6 +1477,7 @@ export class Game {
             this.placement.rotateSelected();
         };
         this.placement.rangeOf = (unit) => this.resolvedStats(unit).range;
+        this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
         this.controls.onRightClick = () => {
             if (this.cancelTacticPlacement()) return;
             this.placement.deselect();
@@ -1708,6 +1716,10 @@ export class Game {
                 typeId: unit.type.id,
                 techId,
             });
+        };
+        // hovering/peeking a tech tile drives its world range preview (Golden Aura ring)
+        this.hud.onTechHover = (techId) => {
+            this.hoveredTech = techId;
         };
         this.debug = new DebugOverlay(
             wrapper,
@@ -8876,12 +8888,29 @@ export class Game {
     private updateBattleRangeRing(): void {
         const a = this.phase === 'battle' ? this.selectedActor : null;
         this.battleRangeMesh.visible = a !== null;
+        // gold aura ring for a selected mech with a special-ability radius
+        const auraRadius = a ? this.auraRadiusOf(a.unit) : null;
+        this.battleAuraMesh.visible = a !== null && auraRadius !== null;
         if (!a) return;
         const radius =
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
         placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
         material.color.setHex(actorTeam(a) === 'player' ? THEME.valid : teamColors.enemy.hex);
+        if (auraRadius !== null) placeRangeRing(this.battleAuraMesh, a.rx, a.rz, auraRadius);
+    }
+
+    /**
+     * Radius of a unit's special-ability aura, or null when it has none.
+     * Currently the ballista Golden Aura (tech `golden`); drives the gold ring.
+     */
+    private auraRadiusOf(unit: Unit): number | null {
+        // only while the matching tech tile is hovered/peeked in the panel
+        if (this.hoveredTech !== 'golden') return null;
+        if (unit.type.id === 'ballista' && this.unitHasTech(unit.seat, 'ballista', 'golden')) {
+            return GOLDEN_AURA_RADIUS;
+        }
+        return null;
     }
 
     private updateSelectionUi(): void {

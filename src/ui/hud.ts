@@ -242,6 +242,8 @@ export class Hud {
     onSpeedUp: (() => void) | null = null;
     onSpeedDown: (() => void) | null = null;
     onBuyTech: ((techId: string) => void) | null = null;
+    /** a tech tile gained/lost hover (or touch-peek) focus — id, or null on leave */
+    onTechHover: ((techId: string | null) => void) | null = null;
     onBuyLevel: (() => void) | null = null;
     onLevelAll: (() => void) | null = null;
     onLevelAllGlobal: (() => void) | null = null;
@@ -2323,6 +2325,7 @@ export class Hud {
             this.panel.style.display = 'none';
             this.lastPanelKey = '';
             this.unitSheetAutoKey = null;
+            this.onTechHover?.(null);
             if (this.phoneTab === 'unit') this.setPhoneTab(null);
             // only clear forge hover tied to the details panel — shop / bag
             // recipe hover must survive Stronghold being deselected every frame
@@ -2336,6 +2339,7 @@ export class Hud {
         if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
         this.lastPanelKey = key;
         this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
+        this.onTechHover?.(null); // rebuilt tiles: drop any lingering tech-hover preview
         this.hidePanelForgeHoverPreview();
         this.setPanelItemDropReady(false);
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
@@ -2727,6 +2731,8 @@ export class Hud {
             touchBuy;
         frame.style.display = 'block';
         this.actionInfoFor = tile;
+        // let the world react to a focused tech tile (e.g. Golden Aura ring)
+        this.onTechHover?.(d.tech ?? null);
         this.syncForgeSlotHoverPreview(tile);
         frame.querySelector<HTMLButtonElement>('.ai-buy')?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2741,6 +2747,7 @@ export class Hud {
         const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
         if (frame) frame.style.display = 'none';
         this.actionInfoFor = null;
+        this.onTechHover?.(null);
         this.hideForgeSlotHoverPreview();
     }
 

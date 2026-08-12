@@ -56,6 +56,8 @@ interface IntelEntry {
 const VALID_COLOR = THEME.valid;
 const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
+/** gold tint for the special-ability aura ring (Golden Aura) */
+const AURA_RING_COLOR = 0xffcf5a;
 /** how far packs lift off the ground while being moved (carried) */
 const SELECT_LIFT = 2.8;
 /** scratch for visibleMemberWorldPositions (non-fogged view center) */
@@ -157,6 +159,11 @@ export class PlacementController {
     /** effective attack range of a pack (tech-resolved), for the range circle */
     rangeOf: ((unit: Unit) => number) | null = null;
     /**
+     * Radius of a pack's special-ability aura (e.g. ballista Golden Aura),
+     * or null when the pack has no such skill. Drives the gold aura ring.
+     */
+    auraRangeOf: ((unit: Unit) => number | null) | null = null;
+    /**
      * every user commit (move, group move, rotate) leaves as an action here —
      * the controller itself never mutates the board directly
      */
@@ -223,6 +230,8 @@ export class PlacementController {
     private readonly hoverMaterial: MeshBasicMaterial;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
+    /** gold ring showing a pack's special-ability aura radius (Golden Aura) */
+    private readonly auraMesh: Mesh;
     /** whitish ground plates marking the packs that may still be repositioned */
     private readonly movablePlates: Mesh[] = [];
     private readonly plateGeometry: PlaneGeometry;
@@ -297,6 +306,9 @@ export class PlacementController {
 
         // attack range ring for the selected own pack (unit radius, scaled per unit)
         this.rangeMesh = createRangeRing(scene);
+        // gold aura ring (Golden Aura and similar special-ability radii)
+        this.auraMesh = createRangeRing(scene);
+        (this.auraMesh.material as MeshBasicMaterial).color.setHex(AURA_RING_COLOR);
         this.targetPreview = new TargetPreviewVisuals(scene);
 
         this.levelArrowMaterial = new MeshBasicMaterial({ color: SELECT_COLOR });
@@ -1977,6 +1989,7 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+        this.auraMesh.visible = false;
         this.itemDropHovering = false;
         this.itemDropOnForge = false;
 
@@ -2123,6 +2136,11 @@ export class PlacementController {
         if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
             placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
+        }
+        // gold aura ring for packs with a special-ability radius (Golden Aura)
+        if (sel.team === 'player' && this.auraRangeOf) {
+            const auraRadius = this.auraRangeOf(sel);
+            if (auraRadius) placeRangeRing(this.auraMesh, markerCenter.x, markerCenter.z, auraRadius);
         }
 
         const origin =
