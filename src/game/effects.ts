@@ -276,42 +276,48 @@ export class Particles {
                         });
                     } else if (e.wear === 'none') {
                         break;
-                    } else if (e.big) {
-                        // massive gib burst — sprays outward and arcs back down
-                        this.burst(e.x, e.y, e.z, {
-                            count: 80,
-                            color: e.blood ?? THEME.death,
-                            speed: 22,
-                            life: 1.2,
-                            up: 5,
-                            blood: true,
-                        });
-                        this.burst(e.x, e.y + 1, e.z, {
-                            count: 36,
-                            color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
-                            speed: 12,
-                            life: 0.95,
-                            up: 7,
-                            blood: true,
-                        });
                     } else {
-                        // spurting burst on a normal kill
-                        this.burst(e.x, e.y, e.z, {
-                            count: 26,
-                            color: e.blood ?? THEME.deathSmall,
-                            speed: 15,
-                            life: 0.75,
-                            up: 3,
-                            blood: true,
-                        });
-                        this.burst(e.x, e.y + 0.6, e.z, {
-                            count: 12,
-                            color: e.blood ?? THEME.deathSmall,
-                            speed: 8,
-                            life: 0.85,
-                            up: 5,
-                            blood: true,
-                        });
+                        // gore jets along the killing-blow direction (from knockback)
+                        const kill = e.dx !== undefined ? { x: e.dx, y: 0.15, z: e.dz ?? 0 } : undefined;
+                        if (e.big) {
+                            // massive gib burst — an omni cloud + a jet down the blow
+                            this.burst(e.x, e.y, e.z, {
+                                count: 56,
+                                color: e.blood ?? THEME.death,
+                                speed: 22,
+                                life: 1.2,
+                                up: 5,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y + 1, e.z, {
+                                count: 40,
+                                color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
+                                speed: 16,
+                                life: 0.95,
+                                up: 5,
+                                blood: true,
+                                dir: kill,
+                            });
+                        } else {
+                            // omni spurt + a directional gout down the blow
+                            this.burst(e.x, e.y, e.z, {
+                                count: 18,
+                                color: e.blood ?? THEME.deathSmall,
+                                speed: 15,
+                                life: 0.75,
+                                up: 3,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y + 0.4, e.z, {
+                                count: 14,
+                                color: e.blood ?? THEME.deathSmall,
+                                speed: 14,
+                                life: 0.85,
+                                up: 3,
+                                blood: true,
+                                dir: kill,
+                            });
+                        }
                     }
                     break;
                 case 'levelup':

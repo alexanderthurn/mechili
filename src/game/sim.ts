@@ -328,7 +328,18 @@ export type SimEvent =
           dz?: number;
       }
     | { kind: 'explosion'; x: number; y: number; z: number; radius: number; heavy?: boolean }
-    | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear; blood?: number }
+    | {
+          kind: 'death';
+          x: number;
+          y: number;
+          z: number;
+          big: boolean;
+          wear: DeathWear;
+          blood?: number;
+          /** normalized killing-blow direction (from knockback), so gore jets along it */
+          dx?: number;
+          dz?: number;
+      }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
     | {
@@ -1888,6 +1899,8 @@ export class BattleSim {
         target.alive = false;
         const t = target.unit.type;
         const wear = resolveDeathWear(t);
+        // normalize the killing-blow direction so death gore jets along it
+        const klen = knockDir ? hypot(knockDir.x, knockDir.z) : 0;
         this.events.push({
             kind: 'death',
             x: target.x,
@@ -1897,6 +1910,8 @@ export class BattleSim {
             big: target.radius >= 2 || !!t.structure,
             wear,
             blood: wear === 'blood' ? bloodColorOf(t) : undefined,
+            dx: klen > 1e-6 ? knockDir!.x / klen : undefined,
+            dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
         });
         if (t.structure) {
             target.unit.markDestroyed();
