@@ -1437,7 +1437,7 @@ export function syncBattleTint(
 
     const gold = TINT_GOLD;
     const grey = TINT_GREY;
-    const goldPulse = 0.4 + Math.sin(timeSeconds * 4.5) * 0.22;
+    const goldPulse = 1.15 + Math.sin(timeSeconds * 4.5) * 0.4;
     const debuffT = timeSeconds * 7;
     const spawnGlow = tintScratch;
 
@@ -1452,8 +1452,14 @@ export function syncBattleTint(
             let tinted = child.userData.goldenMat as MeshStandardMaterial | undefined;
             if (!tinted) {
                 tinted = (child.userData.battleOrigMat as MeshStandardMaterial).clone();
-                tinted.color.lerpColors((child.userData.battleOrigMat as MeshStandardMaterial).color, gold, 0.55);
+                // solid gold: drop the diffuse texture so it fully overlaps the
+                // skin, polished metal shine, strong emissive for the pulse glow
+                tinted.map = null;
+                tinted.color.copy(gold);
                 tinted.emissive.copy(gold);
+                tinted.metalness = 0.95;
+                tinted.roughness = 0.1;
+                tinted.needsUpdate = true; // removing the map changes the shader
                 child.userData.goldenMat = tinted;
             }
             tinted.emissiveIntensity = goldPulse;

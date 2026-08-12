@@ -48,7 +48,7 @@ import type { CpuTimings } from '../ui/debug';
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
 export const GOLDEN_AURA_DURATION = 30;
 /** how far around a golden ballista allies get the buff (world units) */
-export const GOLDEN_AURA_RADIUS = 20;
+export const GOLDEN_AURA_RADIUS = 40;
 /** golden units take 30% less damage on top of debuff immunity */
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 /** battle clock time when ballista Golden Aura is applied once (after other pre-battle effects) */

@@ -242,6 +242,8 @@ export class Hud {
     onSpeedUp: (() => void) | null = null;
     onSpeedDown: (() => void) | null = null;
     onBuyTech: ((techId: string) => void) | null = null;
+    /** a tech tile gained/lost hover (or touch-peek) focus — id, or null on leave */
+    onTechHover: ((techId: string | null) => void) | null = null;
     onBuyLevel: (() => void) | null = null;
     onLevelAll: (() => void) | null = null;
     onLevelAllGlobal: (() => void) | null = null;
@@ -554,6 +556,7 @@ export class Hud {
     /** cinema / screenshot mode — all chrome hidden except the exit hint */
     private uiHidden = false;
     private cinemaHint: HTMLDivElement | null = null;
+    private cinemaHintTimer: number | null = null;
     private readonly overlayParent: HTMLElement;
     private readonly onItemGhostMove = (e: PointerEvent) => {
         if (!this.itemGhost) return;
@@ -1775,6 +1778,8 @@ export class Hud {
     private forgeSlotPreviewAnchor: HTMLElement | null = null;
     /** rune id used while recipes hover is open (shop / bag / drag) */
     private forgeRecipesHoverRuneId: string | null = null;
+    /** recipe HTML currently written into the popup — skip rewrites when unchanged */
+    private forgeRecipesShownHtml: string | null = null;
     private forgeRecipesDismissArmed = false;
 
     /** click outside / on the popup dismisses sticky recipe peeks */
@@ -1836,8 +1841,20 @@ export class Hud {
             return;
         }
         const el = this.ensureForgeSlotPreviewEl();
+        // Already showing this exact popup for this anchor? Skip the innerHTML
+        // rewrite + tip rebind + reposition (a forced reflow). This kills the
+        // duplicate rebuild when a buy fires setInventory AND setForgeRecipeContext
+        // in the same frame, and makes no-op refreshes free.
+        const unchanged =
+            !el.hidden &&
+            el.classList.contains('recipes') &&
+            this.forgeSlotPreviewAnchor === anchor &&
+            this.forgeRecipesHoverRuneId === highlightRuneId &&
+            this.forgeRecipesShownHtml === recipes;
+        if (unchanged) return;
         this.forgeSlotPreviewAnchor = anchor;
         this.forgeRecipesHoverRuneId = highlightRuneId;
+        this.forgeRecipesShownHtml = recipes;
         el.classList.add('recipes');
         el.innerHTML =
             `<div class="forge-recipes-hint">Drag onto a Stronghold to forge</div>` + recipes;
@@ -1937,6 +1954,7 @@ export class Hud {
         this.disarmForgeRecipesDismiss();
         this.forgeSlotPreviewAnchor = null;
         this.forgeRecipesHoverRuneId = null;
+        this.forgeRecipesShownHtml = null; // popup emptied: next show must rebuild
         if (this.forgeSlotPreviewEl) {
             this.forgeSlotPreviewEl.hidden = true;
             this.forgeSlotPreviewEl.classList.remove('recipes');
@@ -2340,6 +2358,7 @@ export class Hud {
             this.panel.style.display = 'none';
             this.lastPanelKey = '';
             this.unitSheetAutoKey = null;
+            this.onTechHover?.(null);
             if (this.phoneTab === 'unit') this.setPhoneTab(null);
             // only clear forge hover tied to the details panel — shop / bag
             // recipe hover must survive Stronghold being deselected every frame
@@ -2349,13 +2368,29 @@ export class Hud {
         // oven/pool come from setForgeRecipeContext each tick — do not clear
         // them when a non-Stronghold unit is selected
         this.panel.style.display = 'block';
-        const key = JSON.stringify(info);
-        if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
+        // HP / total-damage / kills tick every frame while a mech is selected in
+        // battle. Keep them OUT of the rebuild key so the whole panel DOM isn't
+        // torn down each frame — patch those few values in place instead. Without
+        // this, a battle selection reflowed the entire details panel per frame
+        // (the "HUD at 95%" spike).
+        const key = JSON.stringify({
+            ...info,
+            hp: 0,
+            record: info.record ? { damageDealt: 0, kills: 0 } : undefined,
+        });
+        if (key === this.lastPanelKey) {
+            this.patchLiveStats(info); // structure unchanged: just refresh live numbers
+            return;
+        }
         this.lastPanelKey = key;
         this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
+        this.onTechHover?.(null); // rebuilt tiles: drop any lingering tech-hover preview
         this.hidePanelForgeHoverPreview();
         this.setPanelItemDropReady(false);
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
+        // like row(), but tags the value so patchLiveStats can refresh it in place
+        const liveRow = (k: string, v: string, id: string) =>
+            `<div class="row"><span>${k}</span><span class="v" data-live="${id}">${v}</span></div>`;
 
         // leveling sits at the top-right of the frame (next to the name);
         // everything else is a square tile in the bottom action row.
@@ -2618,7 +2653,7 @@ export class Hud {
             itemSquares +
             forgeSquares +
             row('Hits', info.hits) +
-            row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
+            liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
             row('Level', levelLabel) +
             row('Damage', String(Math.round(info.damage))) +
@@ -2627,12 +2662,29 @@ export class Hud {
             row('Range', String(info.range)) +
             row('Speed', String(info.speed)) +
             (info.record
-                ? row('Total dmg', String(Math.round(info.record.damageDealt))) +
-                  row('Kills', String(info.record.kills))
+                ? liveRow('Total dmg', String(Math.round(info.record.damageDealt)), 'dmg') +
+                  liveRow('Kills', String(info.record.kills), 'kills')
                 : '') +
             techSlots +
             actions +
             `<div class="action-info" style="display:none"></div>`;
+    }
+
+    /**
+     * Refresh only the live-ticking stat values (HP, total damage, kills) in the
+     * already-built details panel, without rebuilding its DOM. Called every frame
+     * a mech stays selected in battle so the panel stays cheap.
+     */
+    private patchLiveStats(info: SelectionInfo): void {
+        const set = (id: string, text: string) => {
+            const el = this.panel.querySelector<HTMLElement>(`.v[data-live="${id}"]`);
+            if (el && el.textContent !== text) el.textContent = text;
+        };
+        set('hp', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`);
+        if (info.record) {
+            set('dmg', String(Math.round(info.record.damageDealt)));
+            set('kills', String(info.record.kills));
+        }
     }
 
     /**
@@ -2744,6 +2796,8 @@ export class Hud {
             touchBuy;
         frame.style.display = 'block';
         this.actionInfoFor = tile;
+        // let the world react to a focused tech tile (e.g. Golden Aura ring)
+        this.onTechHover?.(d.tech ?? null);
         this.syncForgeSlotHoverPreview(tile);
         frame.querySelector<HTMLButtonElement>('.ai-buy')?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2758,6 +2812,7 @@ export class Hud {
         const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
         if (frame) frame.style.display = 'none';
         this.actionInfoFor = null;
+        this.onTechHover?.(null);
         this.hideForgeSlotHoverPreview();
     }
 
@@ -3382,7 +3437,31 @@ export class Hud {
     }
 
     /** forge recipe list — bagIds/forgeIds are that side's runes for ownership marks */
+    /**
+     * Memoized wrapper: the recipe grid HTML is pure over its inputs, so cache
+     * the last result. Buying a rune re-fires the panel refresh (sometimes twice
+     * in one frame, via setInventory + setForgeRecipeContext) — this makes the
+     * repeat builds free instead of recomputing/sorting every recipe each time.
+     */
+    private forgeRecipesMemoKey = '';
+    private forgeRecipesMemoHtml = '';
     private forgeRecipesBlockHtml(
+        pool: readonly string[],
+        bagIds: readonly string[],
+        forgeIds: readonly string[],
+        highlightRuneId: string | null = null,
+    ): string {
+        const memoKey =
+            `${pool.join(',')}${bagIds.join(',')}` +
+            `${forgeIds.join(',')}${highlightRuneId ?? ''}`;
+        if (memoKey === this.forgeRecipesMemoKey) return this.forgeRecipesMemoHtml;
+        const html = this.buildForgeRecipesBlockHtml(pool, bagIds, forgeIds, highlightRuneId);
+        this.forgeRecipesMemoKey = memoKey;
+        this.forgeRecipesMemoHtml = html;
+        return html;
+    }
+
+    private buildForgeRecipesBlockHtml(
         pool: readonly string[],
         bagIds: readonly string[],
         forgeIds: readonly string[],
@@ -3759,14 +3838,29 @@ export class Hud {
             }
             this.cinemaHint.style.display = '';
         } else if (this.cinemaHint) {
+            if (this.cinemaHintTimer !== null) {
+                window.clearTimeout(this.cinemaHintTimer);
+                this.cinemaHintTimer = null;
+            }
+            this.cinemaHint.classList.remove('is-visible');
             this.cinemaHint.style.display = 'none';
         }
     }
 
-    /** Update the cinema footer (e.g. `Shift+C — 1/11 Spring morning`). */
-    setCinemaHint(text: string): void {
+    /**
+     * Briefly show the cinema footer (e.g. `Shift+C — 1/11 Spring morning`),
+     * then fade it back out. Called on cinema enter and on each season change,
+     * so the scene label doesn't linger over the clean view.
+     */
+    flashCinemaHint(text: string, durationMs = 2600): void {
         if (!this.cinemaHint) return;
         this.cinemaHint.textContent = text;
+        this.cinemaHint.classList.add('is-visible');
+        if (this.cinemaHintTimer !== null) window.clearTimeout(this.cinemaHintTimer);
+        this.cinemaHintTimer = window.setTimeout(() => {
+            this.cinemaHint?.classList.remove('is-visible');
+            this.cinemaHintTimer = null;
+        }, durationMs);
     }
 
     /** removes every HUD element from the page */
@@ -3778,6 +3872,10 @@ export class Hud {
         this.unequipDrag = null;
         this.itemGhost?.remove();
         this.itemGhost = null;
+        if (this.cinemaHintTimer !== null) {
+            window.clearTimeout(this.cinemaHintTimer);
+            this.cinemaHintTimer = null;
+        }
         this.cinemaHint?.remove();
         this.cinemaHint = null;
         this.forgeSlotPreviewEl?.remove();

@@ -141,8 +141,10 @@ export class UnitInstanceRenderer {
         proxy.userData.battleTintKind = tint;
 
         if (tint === 'golden') {
-            const pulse = 0.55 + Math.sin(timeSeconds * 4.5) * 0.2;
-            _color.setRGB(pulse, pulse * 0.85, 0.25);
+            // solid gold: multiply hard enough to wash the skin out to bright,
+            // saturated gold; the pulse swings the whole body's glow
+            const pulse = 1.0 + Math.sin(timeSeconds * 4.5) * 0.45;
+            _color.setRGB(pulse * 2.6, pulse * 1.75, 0.0);
         } else if (tint === 'debuff') {
             const t = timeSeconds * 7;
             const amp = Math.min(1, 0.55 + debuffStacks * 0.2);
