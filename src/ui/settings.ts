@@ -89,6 +89,13 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="low">Low</option>` +
         `<option value="off">Off</option>` +
         `</select> <span class="s-hint">flames &amp; smoke</span></label>` +
+        `<label class="s-row">Blood <select class="s-blood">` +
+        `<option value="ultra">Ultra</option>` +
+        `<option value="high">High</option>` +
+        `<option value="medium">Medium</option>` +
+        `<option value="low">Low</option>` +
+        `<option value="off">Off</option>` +
+        `</select> <span class="s-hint">spray &amp; fountains</span></label>` +
         `<label class="s-row">Resolution <select class="s-dpr">` +
         `<option value="2">High</option>` +
         `<option value="1.5">Medium</option>` +
@@ -118,6 +125,7 @@ export function openSettings(parent: HTMLElement): void {
     const scenery = overlay.querySelector<HTMLSelectElement>('.s-scenery')!;
     const ground = overlay.querySelector<HTMLSelectElement>('.s-ground')!;
     const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
+    const blood = overlay.querySelector<HTMLSelectElement>('.s-blood')!;
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;
     const shadows = overlay.querySelector<HTMLSelectElement>('.s-shadows')!;
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
@@ -141,6 +149,7 @@ export function openSettings(parent: HTMLElement): void {
         scenery.value = p.scenery;
         ground.value = p.groundEffects;
         fire.value = p.fireVfx;
+        blood.value = p.bloodFx;
         dpr.value = String(p.dprCap);
         shadows.value = p.shadows;
         dead.checked = p.renderDeadUnits;
@@ -179,6 +188,10 @@ export function openSettings(parent: HTMLElement): void {
     });
     fire.addEventListener('change', () => {
         updatePrefs({ fireVfx: fire.value as Prefs['fireVfx'] });
+        syncFromPrefs();
+    });
+    blood.addEventListener('change', () => {
+        updatePrefs({ bloodFx: blood.value as Prefs['bloodFx'] });
         syncFromPrefs();
     });
     dpr.addEventListener('change', () => {

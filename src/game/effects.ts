@@ -3,6 +3,7 @@ import {
     BoxGeometry,
     BufferAttribute,
     BufferGeometry,
+    CanvasTexture,
     Color,
     ConeGeometry,
     CylinderGeometry,
@@ -14,19 +15,21 @@ import {
     MeshLambertMaterial,
     NormalBlending,
     Points,
-    PointsMaterial,
     Quaternion,
     ShaderMaterial,
     SphereGeometry,
+    Vector2,
     Vector3,
     type Scene,
+    type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Projectile, SimEvent } from './sim';
+import { bloodParticleScale, bloodIntensityScale } from './prefs';
 import { THEME } from '../theme';
 
 const MAX_PROJECTILES = 512;
-const MAX_PARTICLES = 2048;
+const MAX_PARTICLES = 6144;
 const GRAVITY = -14;
 /** wizard orb visual scale vs unit sphere (sim hit radius unchanged) */
 const ORB_SCALE = 2.4;
@@ -129,19 +132,47 @@ function makeOrbMaterial(): ShaderMaterial {
 export class Particles {
     private readonly sparks: ParticlePool;
     private readonly blood: ParticlePool;
+    private readonly darkBlood = new Color();
 
     constructor(scene: Scene) {
         this.sparks = new ParticlePool(scene, AdditiveBlending, 1.4);
-        this.blood = new ParticlePool(scene, NormalBlending, 0.8);
+        this.blood = new ParticlePool(scene, NormalBlending, 1.2);
     }
 
     burst(
         x: number,
         y: number,
         z: number,
-        opts: { count: number; color: number; speed: number; life: number; up?: number; blood?: boolean },
+        opts: {
+            count: number;
+            color: number;
+            speed: number;
+            life: number;
+            up?: number;
+            blood?: boolean;
+            dir?: { x: number; y: number; z: number };
+        },
     ): void {
-        (opts.blood ? this.blood : this.sparks).burst(x, y, z, opts);
+        if (!opts.blood) {
+            this.sparks.burst(x, y, z, opts);
+            return;
+        }
+        // blood volume + energy follow the bloodFx graphics setting (0 = off)
+        const scale = bloodParticleScale();
+        if (scale <= 0) return;
+        const count = Math.max(1, Math.round(opts.count * scale));
+        // lower tiers keep blood low, slow and tight; high/ultra fountain
+        const energy = bloodIntensityScale();
+        // deep, dark gore — the raw hit colors read too bright/pink airborne
+        this.darkBlood.setHex(opts.color).multiplyScalar(0.3);
+        this.blood.burst(x, y, z, {
+            ...opts,
+            count,
+            color: this.darkBlood.getHex(),
+            speed: opts.speed * energy,
+            up: (opts.up ?? 2) * energy,
+            spread: energy,
+        });
     }
 
     update(dt: number): void {
@@ -155,15 +186,42 @@ export class Particles {
                 case 'muzzle':
                     this.burst(e.x, e.y, e.z, { count: 3, color: THEME.muzzle, speed: 5, life: 0.15, up: 1 });
                     break;
-                case 'impact':
+                case 'impact': {
+                    // spray exits the far side, along the bullet/strike direction
+                    const dir = e.dx !== undefined ? { x: e.dx, y: e.dy ?? 0, z: e.dz ?? 0 } : undefined;
+                    if (!e.flesh) {
+                        // towers / ground / shields: gray stone-and-metal debris, not blood
+                        this.burst(e.x, e.y, e.z, {
+                            count: 9,
+                            color: 0x9a938a,
+                            speed: 11,
+                            life: 0.35,
+                            up: 2,
+                            dir,
+                        });
+                        break;
+                    }
                     this.burst(e.x, e.y, e.z, {
-                        count: 6,
+                        count: 12,
                         color: e.blood ?? THEME.impact,
-                        speed: 9,
-                        life: 0.35,
+                        speed: 11,
+                        life: 0.5,
+                        up: 2,
                         blood: true,
+                        dir,
+                    });
+                    // a couple of fast gouts that shoot out ahead of the hit
+                    this.burst(e.x, e.y, e.z, {
+                        count: 4,
+                        color: e.blood ?? THEME.impact,
+                        speed: 18,
+                        life: 0.65,
+                        up: 3,
+                        blood: true,
+                        dir,
                     });
                     break;
+                }
                 case 'explosion': {
                     // dusty debris / scorched soil — not fire-yellow
                     const s = e.radius / 3;
@@ -233,32 +291,48 @@ export class Particles {
                         });
                     } else if (e.wear === 'none') {
                         break;
-                    } else if (e.big) {
-                        this.burst(e.x, e.y, e.z, {
-                            count: 44,
-                            color: e.blood ?? THEME.death,
-                            speed: 17,
-                            life: 0.9,
-                            up: 6,
-                            blood: true,
-                        });
-                        this.burst(e.x, e.y + 1, e.z, {
-                            count: 20,
-                            color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
-                            speed: 9,
-                            life: 0.6,
-                            up: 8,
-                            blood: true,
-                        });
                     } else {
-                        this.burst(e.x, e.y, e.z, {
-                            count: 12,
-                            color: e.blood ?? THEME.deathSmall,
-                            speed: 11,
-                            life: 0.5,
-                            up: 4,
-                            blood: true,
-                        });
+                        // gore jets along the killing-blow direction (from knockback)
+                        const kill = e.dx !== undefined ? { x: e.dx, y: 0.15, z: e.dz ?? 0 } : undefined;
+                        if (e.big) {
+                            // massive gib burst — an omni cloud + a jet down the blow
+                            this.burst(e.x, e.y, e.z, {
+                                count: 56,
+                                color: e.blood ?? THEME.death,
+                                speed: 22,
+                                life: 1.2,
+                                up: 5,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y + 1, e.z, {
+                                count: 40,
+                                color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
+                                speed: 16,
+                                life: 0.95,
+                                up: 5,
+                                blood: true,
+                                dir: kill,
+                            });
+                        } else {
+                            // omni spurt + a directional gout down the blow
+                            this.burst(e.x, e.y, e.z, {
+                                count: 18,
+                                color: e.blood ?? THEME.deathSmall,
+                                speed: 15,
+                                life: 0.75,
+                                up: 3,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y + 0.4, e.z, {
+                                count: 14,
+                                color: e.blood ?? THEME.deathSmall,
+                                speed: 14,
+                                life: 0.85,
+                                up: 3,
+                                blood: true,
+                                dir: kill,
+                            });
+                        }
                     }
                     break;
                 case 'levelup':
@@ -269,34 +343,104 @@ export class Particles {
     }
 }
 
+/**
+ * Soft round sprite for point particles — a radial alpha falloff so blood /
+ * sparks render as droplets and glows instead of hard GL-point squares.
+ * Built once, shared across pools.
+ */
+let particleSprite: Texture | null = null;
+function particleTexture(): Texture {
+    if (particleSprite) return particleSprite;
+    const s = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = s;
+    const ctx = canvas.getContext('2d')!;
+    const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    // soft, mist-like falloff — no hard rim
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.3, 'rgba(255,255,255,0.55)');
+    g.addColorStop(0.65, 'rgba(255,255,255,0.16)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2);
+    ctx.fill();
+    particleSprite = new CanvasTexture(canvas);
+    return particleSprite;
+}
+
 class ParticlePool {
     private readonly positions = new Float32Array(MAX_PARTICLES * 3);
-    private readonly colors = new Float32Array(MAX_PARTICLES * 3);
+    /** per-particle base tint (uploaded on burst) */
+    private readonly aColor = new Float32Array(MAX_PARTICLES * 3);
+    /** per-particle current point size (grows as it dissipates) */
+    private readonly aSize = new Float32Array(MAX_PARTICLES);
+    /** per-particle current alpha (fades over life) */
+    private readonly aOpacity = new Float32Array(MAX_PARTICLES);
     private readonly velocities = new Float32Array(MAX_PARTICLES * 3);
-    private readonly baseColors = new Float32Array(MAX_PARTICLES * 3);
+    /** per-particle spawn size, before the over-life growth */
+    private readonly baseSizes = new Float32Array(MAX_PARTICLES);
     private readonly life = new Float32Array(MAX_PARTICLES);
     private readonly maxLife = new Float32Array(MAX_PARTICLES);
     private readonly geometry = new BufferGeometry();
     private cursor = 0;
     private readonly tmpColor = new Color();
+    /** pool-wide size scalar (blood is smaller/wetter, sparks larger/glowy) */
+    private readonly size: number;
 
     constructor(scene: Scene, blending: typeof AdditiveBlending | typeof NormalBlending, size: number) {
+        this.size = size;
         this.positions.fill(0);
         this.geometry.setAttribute('position', new BufferAttribute(this.positions, 3).setUsage(DynamicDrawUsage));
-        this.geometry.setAttribute('color', new BufferAttribute(this.colors, 3).setUsage(DynamicDrawUsage));
-        const points = new Points(
-            this.geometry,
-            new PointsMaterial({
-                size,
-                vertexColors: true,
-                transparent: true,
-                depthWrite: false,
-                blending,
-                sizeAttenuation: true,
-                opacity: blending === NormalBlending ? 0.92 : 1,
-            }),
-        );
+        this.geometry.setAttribute('aColor', new BufferAttribute(this.aColor, 3).setUsage(DynamicDrawUsage));
+        this.geometry.setAttribute('aSize', new BufferAttribute(this.aSize, 1).setUsage(DynamicDrawUsage));
+        this.geometry.setAttribute('aOpacity', new BufferAttribute(this.aOpacity, 1).setUsage(DynamicDrawUsage));
+        // per-particle size + opacity need a custom shader (PointsMaterial has
+        // one global size only). Soft sprite → round mist; sizeAttenuation via
+        // uScale = drawing-buffer height * 0.5 (matches three's point scaling).
+        const material = new ShaderMaterial({
+            uniforms: {
+                uMap: { value: particleTexture() },
+                uScale: { value: 400 },
+                uOpacity: { value: blending === NormalBlending ? 0.95 : 1 },
+            },
+            transparent: true,
+            depthWrite: false,
+            blending,
+            fog: false,
+            vertexShader: /* glsl */ `
+                attribute vec3 aColor;
+                attribute float aSize;
+                attribute float aOpacity;
+                uniform float uScale;
+                varying vec3 vColor;
+                varying float vOpacity;
+                void main() {
+                    vColor = aColor;
+                    vOpacity = aOpacity;
+                    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = aSize * (uScale / -mv.z);
+                    gl_Position = projectionMatrix * mv;
+                }
+            `,
+            fragmentShader: /* glsl */ `
+                uniform sampler2D uMap;
+                uniform float uOpacity;
+                varying vec3 vColor;
+                varying float vOpacity;
+                void main() {
+                    float a = texture2D(uMap, gl_PointCoord).a;
+                    gl_FragColor = vec4(vColor, a * vOpacity * uOpacity);
+                }
+            `,
+        });
+        const points = new Points(this.geometry, material);
         points.frustumCulled = false;
+        const bufSize = new Vector2();
+        points.onBeforeRender = (renderer) => {
+            renderer.getDrawingBufferSize(bufSize);
+            material.uniforms.uScale!.value = bufSize.y * 0.5;
+        };
         scene.add(points);
         for (let i = 0; i < MAX_PARTICLES; i++) this.positions[i * 3 + 1] = -9999;
     }
@@ -305,40 +449,67 @@ class ParticlePool {
         x: number,
         y: number,
         z: number,
-        opts: { count: number; color: number; speed: number; life: number; up?: number },
+        opts: {
+            count: number;
+            color: number;
+            speed: number;
+            life: number;
+            up?: number;
+            /** normalized jet direction — spray forms a cone around it (e.g. bullet exit) */
+            dir?: { x: number; y: number; z: number };
+            /** 0..1 multiplier on the random (perpendicular) spread; default 1 */
+            spread?: number;
+        },
     ): void {
         this.tmpColor.setHex(opts.color);
+        const dir = opts.dir;
+        const spread = opts.spread ?? 1;
         for (let n = 0; n < opts.count; n++) {
             const i = this.cursor;
             this.cursor = (this.cursor + 1) % MAX_PARTICLES;
             const angle = Math.random() * Math.PI * 2;
             const pitch = Math.random() * Math.PI - Math.PI / 2;
             const speed = opts.speed * (0.4 + Math.random() * 0.6);
+            const rx = Math.cos(angle) * Math.cos(pitch);
+            const ry = Math.abs(Math.sin(pitch));
+            const rz = Math.sin(angle) * Math.cos(pitch);
             this.positions[i * 3] = x;
             this.positions[i * 3 + 1] = y;
             this.positions[i * 3 + 2] = z;
-            this.velocities[i * 3] = Math.cos(angle) * Math.cos(pitch) * speed;
-            this.velocities[i * 3 + 1] = Math.abs(Math.sin(pitch)) * speed + (opts.up ?? 2);
-            this.velocities[i * 3 + 2] = Math.sin(angle) * Math.cos(pitch) * speed;
-            this.baseColors[i * 3] = this.tmpColor.r;
-            this.baseColors[i * 3 + 1] = this.tmpColor.g;
-            this.baseColors[i * 3 + 2] = this.tmpColor.b;
+            if (dir) {
+                // jet along the hit direction (dominant) with a tight random cone
+                this.velocities[i * 3] = (dir.x * 1.5 + rx * 0.32 * spread) * speed;
+                this.velocities[i * 3 + 1] = (dir.y * 1.5 + ry * 0.32 * spread) * speed + (opts.up ?? 1);
+                this.velocities[i * 3 + 2] = (dir.z * 1.5 + rz * 0.32 * spread) * speed;
+            } else {
+                this.velocities[i * 3] = rx * speed * spread;
+                this.velocities[i * 3 + 1] = ry * speed + (opts.up ?? 2);
+                this.velocities[i * 3 + 2] = rz * speed * spread;
+            }
+            this.aColor[i * 3] = this.tmpColor.r;
+            this.aColor[i * 3 + 1] = this.tmpColor.g;
+            this.aColor[i * 3 + 2] = this.tmpColor.b;
+            // mixed droplet sizes — a few fat splats, many fine mist specks
+            this.baseSizes[i] = this.size * (0.4 + Math.random() * Math.random() * 1.5);
+            this.aSize[i] = this.baseSizes[i]!;
+            this.aOpacity[i] = 1;
             this.life[i] = opts.life * (0.6 + Math.random() * 0.4);
             this.maxLife[i] = this.life[i]!;
         }
     }
 
     update(dt: number): void {
+        const drag = Math.max(0, 1 - dt * 2.2); // air resistance → spray settles into mist
         for (let i = 0; i < MAX_PARTICLES; i++) {
             if (this.life[i]! <= 0) continue;
             this.life[i]! -= dt;
             if (this.life[i]! <= 0) {
                 this.positions[i * 3 + 1] = -9999;
-                this.colors[i * 3] = 0;
-                this.colors[i * 3 + 1] = 0;
-                this.colors[i * 3 + 2] = 0;
+                this.aOpacity[i] = 0;
                 continue;
             }
+            this.velocities[i * 3]! *= drag;
+            this.velocities[i * 3 + 2]! *= drag;
             this.velocities[i * 3 + 1]! += GRAVITY * dt;
             this.positions[i * 3]! += this.velocities[i * 3]! * dt;
             this.positions[i * 3 + 1]! += this.velocities[i * 3 + 1]! * dt;
@@ -346,12 +517,15 @@ class ParticlePool {
             // soft floor only for near-zero spawns — don't yank hill-anchored flames to y≈0
             if (this.positions[i * 3 + 1]! < -50) this.positions[i * 3 + 1] = -50;
             const fade = this.life[i]! / this.maxLife[i]!;
-            this.colors[i * 3] = this.baseColors[i * 3]! * fade;
-            this.colors[i * 3 + 1] = this.baseColors[i * 3 + 1]! * fade;
-            this.colors[i * 3 + 2] = this.baseColors[i * 3 + 2]! * fade;
+            // stay fully opaque through most of the life, fade out only in the
+            // last ~35% — keeps droplets solid instead of ghosting immediately
+            this.aOpacity[i] = Math.min(1, fade / 0.35);
+            this.aSize[i] = this.baseSizes[i]! * (1 + (1 - fade) * 0.4);
         }
         this.geometry.attributes.position!.needsUpdate = true;
-        this.geometry.attributes.color!.needsUpdate = true;
+        this.geometry.attributes.aColor!.needsUpdate = true;
+        this.geometry.attributes.aSize!.needsUpdate = true;
+        this.geometry.attributes.aOpacity!.needsUpdate = true;
     }
 }
 

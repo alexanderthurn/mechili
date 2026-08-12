@@ -4811,14 +4811,17 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     transition: left 0.25s ease-out, transform 0.25s ease-out;
 }
 .mechili-fightbar .fighter.player .hp-val {
-    left: calc(2px + var(--hp, 1) * (100% - 4px));
+    /* floor at 24px so a near-empty / negative bar keeps the label out of the
+       portrait, which the tube tucks under (info margin-left + lower z-index) */
+    left: max(24px, calc(2px + var(--hp, 1) * (100% - 4px)));
     transform: translateX(-100%); /* inside the fill */
 }
 .mechili-fightbar .fighter.player .hp-val.outside {
     transform: translateX(0); /* just past the tip, in empty track */
 }
 .mechili-fightbar .fighter.enemy .hp-val {
-    left: calc(2px + (1 - var(--hp, 1)) * (100% - 4px));
+    /* cap so a near-empty bar keeps the label clear of the enemy portrait */
+    left: min(calc(100% - 24px), calc(2px + (1 - var(--hp, 1)) * (100% - 4px)));
     transform: translateX(0); /* inside the fill */
 }
 .mechili-fightbar .fighter.enemy .hp-val.outside {

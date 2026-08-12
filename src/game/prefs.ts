@@ -9,6 +9,8 @@ export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low' | 'off';
 export type GroundEffectsQuality = 'high' | 'medium' | 'low' | 'off';
 /** Combat fire VFX density (visual only — never affects sim). */
 export type FireVfxQuality = 'high' | 'medium' | 'low' | 'off';
+/** Blood spray / gib particle volume (visual only; ground stains are groundEffects). */
+export type BloodFxQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 
 /**
  * Fire VFX tiers (for tuning):
@@ -49,6 +51,13 @@ export interface Prefs {
     groundEffects: GroundEffectsQuality;
     /** Optional fire VFX on top of always-on oil/fire ground tint (see FireVfxQuality). */
     fireVfx: FireVfxQuality;
+    /**
+     * Blood spray / gib particle volume (visual only). Ground blood stains are
+     * governed by {@link groundEffects}; this only scales the airborne gore.
+     * - off: no blood particles
+     * - low → ultra: rising particle counts; ultra throws full fountains
+     */
+    bloodFx: BloodFxQuality;
     /**
      * Cap on `devicePixelRatio` for the WebGL canvas.
      * 2 = current default (retina), 1.5 = medium, 1 = 1:1 CSS pixels.
@@ -102,7 +111,7 @@ export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
 
 export type GraphicsPresetValues = Pick<
     Prefs,
-    'scenery' | 'groundEffects' | 'fireVfx' | 'dprCap' | 'shadows' | 'renderDeadUnits' | 'antialias'
+    'scenery' | 'groundEffects' | 'fireVfx' | 'bloodFx' | 'dprCap' | 'shadows' | 'renderDeadUnits' | 'antialias'
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
@@ -110,6 +119,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         scenery: 'low',
         groundEffects: 'low',
         fireVfx: 'low',
+        bloodFx: 'low',
         dprCap: 1,
         shadows: 'low',
         renderDeadUnits: false,
@@ -119,6 +129,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         scenery: 'medium',
         groundEffects: 'medium',
         fireVfx: 'medium',
+        bloodFx: 'medium',
         dprCap: 1.5,
         shadows: 'medium',
         renderDeadUnits: false,
@@ -128,6 +139,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         scenery: 'high',
         groundEffects: 'high',
         fireVfx: 'medium',
+        bloodFx: 'high',
         dprCap: 2,
         shadows: 'high',
         renderDeadUnits: true,
@@ -137,6 +149,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         scenery: 'ultra',
         groundEffects: 'high',
         fireVfx: 'high',
+        bloodFx: 'ultra',
         dprCap: 2,
         shadows: 'ultra',
         renderDeadUnits: true,
@@ -152,6 +165,7 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
             p.scenery === v.scenery &&
             p.groundEffects === v.groundEffects &&
             p.fireVfx === v.fireVfx &&
+            p.bloodFx === v.bloodFx &&
             p.dprCap === v.dprCap &&
             p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits &&
@@ -174,6 +188,7 @@ const DEFAULTS: Prefs = {
     scenery: 'medium',
     groundEffects: 'high',
     fireVfx: 'medium',
+    bloodFx: 'high',
     dprCap: 2,
     shadows: 'high',
     renderDeadUnits: true,
@@ -208,6 +223,13 @@ function migrateFireVfx(raw: unknown): FireVfxQuality {
     return DEFAULTS.fireVfx;
 }
 
+function migrateBloodFx(raw: unknown): BloodFxQuality {
+    if (raw === 'off' || raw === 'low' || raw === 'medium' || raw === 'high' || raw === 'ultra') {
+        return raw;
+    }
+    return DEFAULTS.bloodFx;
+}
+
 function migrateShadowQuality(raw: unknown): ShadowQuality {
     if (raw === 'off' || raw === 'low' || raw === 'medium' || raw === 'high' || raw === 'ultra') {
         return raw;
@@ -221,6 +243,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.scenery = migrateScenery(p.scenery);
     p.groundEffects = migrateGroundEffects(p.groundEffects);
     p.fireVfx = migrateFireVfx(p.fireVfx);
+    p.bloodFx = migrateBloodFx(p.bloodFx);
     if (p.shadows === undefined && p.unitShadows !== undefined) {
         p.shadows = migrateShadowQuality(p.unitShadows);
     }
@@ -275,6 +298,43 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
 /** True when mountains / forests / textured ground are enabled. */
 export function sceneryDetailed(quality: SceneryQuality = prefs().scenery): boolean {
     return quality !== 'low' && quality !== 'off';
+}
+
+/**
+ * Multiplier on blood-particle counts for the current setting. 0 = off (no
+ * blood particles). Ultra throws full fountains; low keeps it sparse.
+ */
+export function bloodParticleScale(quality: BloodFxQuality = prefs().bloodFx): number {
+    switch (quality) {
+        case 'off':
+            return 0;
+        case 'low':
+            return 0.4;
+        case 'medium':
+            return 0.75;
+        case 'high':
+            return 1.3;
+        case 'ultra':
+            return 4.8;
+    }
+}
+
+/**
+ * Energy multiplier on blood spray — scales launch speed, upward throw, and
+ * random spread together. Lower tiers keep blood low and tight (a subdued
+ * spatter); high and ultra let it fountain up and fan out.
+ */
+export function bloodIntensityScale(quality: BloodFxQuality = prefs().bloodFx): number {
+    switch (quality) {
+        case 'off':
+        case 'low':
+            return 0.45;
+        case 'medium':
+            return 0.7;
+        case 'high':
+        case 'ultra':
+            return 1;
+    }
 }
 
 /** True when the weather system runs (fog, clouds, rain, stars, day/night). */
@@ -366,6 +426,7 @@ function legacyPresetOf(p: Prefs): GraphicsPreset | null {
             p.scenery === v.scenery &&
             p.groundEffects === v.groundEffects &&
             p.fireVfx === v.fireVfx &&
+            p.bloodFx === v.bloodFx &&
             p.dprCap === v.dprCap &&
             p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits
