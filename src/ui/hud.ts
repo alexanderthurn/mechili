@@ -14,7 +14,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
-import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
+import { iconHtml, applyIcon, iconCss, iconMaskCss, moneyHtml } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
 import { THEME, hudStyles } from '../theme';
@@ -1200,21 +1200,21 @@ export class Hud {
             if (levelUp) {
                 this.touchLevelBtn.innerHTML =
                     `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
-                    `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
+                    `<span class="pb-label">Level ${moneyHtml(levelUp.cost)}</span>`;
                 this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
             }
             this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
             if (levelAll) {
                 this.touchLevelAllBtn.innerHTML =
                     `${iconHtml('ability-level-type', 'pb-ico mask-ico')}` +
-                    `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
+                    `<span class="pb-label">All ×${levelAll.count} ${moneyHtml(levelAll.cost)}</span>`;
                 this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
             }
             this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
             if (upgrade) {
                 this.touchUpgradeBtn.innerHTML =
                     `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
-                    `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
+                    `<span class="pb-label">Upgrade ${moneyHtml(upgrade.cost)}</span>`;
                 this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
             }
         }
@@ -1518,7 +1518,8 @@ export class Hud {
         const portraitGroup = document.createElement('div');
         portraitGroup.className = 'portrait-group';
 
-        // 1. Featured main portrait (44px)
+        // Featured main portrait sits against the HP tube (bar grows out of it).
+        // Secondary teammates stack outward, away from the bar.
         const mainPortrait = document.createElement('div');
         mainPortrait.className = 'portrait main';
         mainPortrait.dataset.seat = String(featuredEntry.seat);
@@ -1534,9 +1535,6 @@ export class Hud {
         });
         this.applyPortrait(mainPortrait, mainAvatar, null);
 
-        portraitGroup.appendChild(mainPortrait);
-
-        // 2. Secondary overlapping stacked portraits (28px) if teammates exist
         if (secondaryEntries.length > 0) {
             const subStack = document.createElement('div');
             subStack.className = 'portrait-sub-stack';
@@ -1559,12 +1557,19 @@ export class Hud {
 
                 subStack.appendChild(subPortrait);
             }
-            portraitGroup.appendChild(subStack);
+            // DOM: subs first, main last → main is adjacent to the HP bar
+            // (enemy portrait-group is row-reversed, so the same DOM keeps main inward)
+            portraitGroup.append(subStack, mainPortrait);
+        } else {
+            portraitGroup.appendChild(mainPortrait);
         }
 
         const nameEl = document.createElement('span');
         nameEl.className = 'fname';
         nameEl.textContent = combinedName;
+        // Caps / tall glyphs need a bit more air under the tube; short
+        // lowercase names can sit tighter without overlapping the bar.
+        if (/\p{Lu}/u.test(combinedName)) nameEl.classList.add('tall');
 
         const specEl = document.createElement('span');
         specEl.className = 'fspec';
@@ -1592,6 +1597,7 @@ export class Hud {
         card: StartCard | null,
     ): void {
         el.replaceChildren();
+        el.classList.remove('empty');
         if (avatar) {
             const img = document.createElement('img');
             img.className = 'fighter-portrait-img';
@@ -1605,7 +1611,11 @@ export class Hud {
             el.innerHTML = iconHtml(card.portrait, 'fighter-portrait-ico');
             return;
         }
-        el.textContent = '◆';
+        el.classList.add('empty');
+        const mark = document.createElement('span');
+        mark.className = 'portrait-placeholder';
+        mark.setAttribute('aria-hidden', 'true');
+        el.appendChild(mark);
     }
 
     /** @deprecated use setCommanders — kept for any external callers */
@@ -2235,7 +2245,7 @@ export class Hud {
     }
 
     private unlockTierLabel(unlockCost: number): string {
-        return String(unlockCost);
+        return moneyHtml(unlockCost);
     }
 
     private renderUnlockPickTile(
@@ -2710,12 +2720,12 @@ export class Hud {
             state === 'owned'
                 ? `<span class="ai-cost owned">✓ Owned</span>`
                 : cost
-                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? `+${-Number(cost)} Supply` : `⬢ ${cost}`}</span>`
+                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? moneyHtml(`+${-Number(cost)}`) : moneyHtml(cost)}</span>`
                   : '';
         const note = d.tnote ? `<div class="ai-note">${d.tnote}</div>` : '';
         const touchBuy =
             inputMode() === 'touch' && state === 'buy'
-                ? `<button type="button" class="ai-buy">Buy${cost ? ` · ⬢ ${cost}` : ''}</button>`
+                ? `<button type="button" class="ai-buy">Buy${cost ? ` · ${moneyHtml(cost)}` : ''}</button>`
                 : '';
         const levelIcon = !!d.ticon?.startsWith('ability-level');
         frame.innerHTML =
@@ -2850,6 +2860,13 @@ export class Hud {
         this.lastHpValE = eRound;
         this.playerHpFill.style.transform = `scaleX(${p})`;
         this.enemyHpFill.style.transform = `scaleX(${e})`;
+        this.playerHpVal.style.setProperty('--hp', String(p));
+        this.enemyHpVal.style.setProperty('--hp', String(e));
+        // Full / nearly-full: keep the label inside the fill. Once there's a
+        // clear empty stretch, park it just past the tip in the empty track.
+        const labelOutside = (ratio: number) => ratio < 0.9;
+        this.playerHpVal.classList.toggle('outside', labelOutside(p));
+        this.enemyHpVal.classList.toggle('outside', labelOutside(e));
         this.playerHpVal.textContent = String(pRound);
         this.enemyHpVal.textContent = String(eRound);
     }
@@ -3544,7 +3561,7 @@ export class Hud {
                 })
                 .join('') +
             `</div>` +
-            `<button class="cards-skip">Skip — take ⬢ ${skipReward}</button>`;
+            `<button class="cards-skip">Skip — take ${moneyHtml(skipReward)}</button>`;
         overlay.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('.cards-skip')) {
@@ -3655,8 +3672,9 @@ export class Hud {
     }
 
     setSupply(amount: number): void {
-        this.supplyEl.textContent = String(amount);
-        this.phoneSupplyEl.textContent = String(amount);
+        const html = moneyHtml(amount, 'supply-ico');
+        this.supplyEl.innerHTML = html;
+        this.phoneSupplyEl.innerHTML = html;
         this.shopBalance = amount;
         this.lastShopKey = '';
         for (const { el, type } of this.buttons) {

@@ -20,7 +20,7 @@ import { MODEL_SPECS } from '../game/unitModels';
 import { hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
-import { iconHtml } from '../ui/iconAtlas';
+import { iconHtml, moneyHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from './modelViewer';
 import { homepageStyles } from './styles';
@@ -159,7 +159,7 @@ function statsHtml(t: UnitType): string {
           ${unitTechs
               .map(
                   (tech) =>
-                      `<li>${iconHtml(techIcon(tech), 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(tech.name)}</strong> <span class="mh-tech-cost">⬢ ${tech.cost}</span><br /><span class="mh-tech-desc">${esc(techDescription(tech))}</span></span></li>`,
+                      `<li>${iconHtml(techIcon(tech), 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(tech.name)}</strong> <span class="mh-tech-cost">${moneyHtml(tech.cost)}</span><br /><span class="mh-tech-desc">${esc(techDescription(tech))}</span></span></li>`,
               )
               .join('')}
         </ul>
@@ -174,7 +174,7 @@ function statsHtml(t: UnitType): string {
           ${abilities
               .map(
                   (a) =>
-                      `<li>${iconHtml(a.icon, 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(a.name)}</strong>${a.cost !== undefined ? ` <span class="mh-tech-cost">⬢ ${a.cost}</span>` : ''}<br /><span class="mh-tech-desc">${esc(a.description)}</span></span></li>`,
+                      `<li>${iconHtml(a.icon, 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(a.name)}</strong>${a.cost !== undefined ? ` <span class="mh-tech-cost">${moneyHtml(a.cost)}</span>` : ''}<br /><span class="mh-tech-desc">${esc(a.description)}</span></span></li>`,
               )
               .join('')}
         </ul>

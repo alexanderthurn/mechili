@@ -115,12 +115,34 @@ hydration behavior, or the wire format.
 
 ## Match telemetry
 
-On `finishMatch` the host (and single-player) POSTs a MatchRecord to
-`backend/stats.php` — one JSON file per match under `stats/matches/`,
-atomic write, content-hash dedupe. Failures are ignored. Bulk download
-(`?action=bulk`) feeds client-side analysis (`backend/stats.html`). Bump
-`BALANCE_PATCH_ID` in `telemetry.ts` when tuning costs/stats for patches.
-The FTP deploy excludes `backend/stats/` so collected matches survive releases.
+On `finishMatch` every real client POSTs a MatchRecord to `backend/stats.php`
+— one JSON file per side under `stats/matches/`, atomic write, content-hash
+dedupe (scoped by side). Failures are ignored. Bulk download
+(`?action=bulk&fields=summary`) feeds client-side analysis
+(`backend/stats.html`). Bump `BALANCE_PATCH_ID` in `telemetry.ts` when
+tuning costs/stats for patches. The FTP deploy excludes `backend/stats/` so
+collected matches survive releases.
+
+**Schema 2** (current submits) adds:
+
+- `channel`: `'open' | 'steam'` — balance collection is shared; ranked identity
+  (`player.php`) stays open-only.
+- `techs`: final talent loadout per unit type (union across seats on a side).
+- `damage`: match-total combat damage dealt per unit type (summed from each
+  battle's `sim.damageByType`).
+- Optional full replay: by default the client sends seed+settings with
+  **empty** `actions` (keeps `matchKey` grouping without the action-log
+  bulk). Opt in with `?telemetryReplay=1` or
+  `localStorage.mechili-telemetry-replay=1`. Watch/verify only work when
+  `actions` is non-empty (`hasReplay` in `?action=grouped`).
+
+Admin can reclaim disk later:
+`stats.php?action=stripReplay&key=<ADMIN_KEY>&before=<unix>&dryRun=1`
+(clears `replay.actions`, keeps seed+settings; same key injection as chat).
+
+`stats.html` dedupes dual submissions by `matchKey`, shows unit pick/win/
+damage, and a unit×tech win-rate table. Schema-1 files still load; tech/
+damage columns stay empty for those.
 
 ## Community suggestions
 

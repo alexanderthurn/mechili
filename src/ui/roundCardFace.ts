@@ -9,7 +9,7 @@ import {
 } from '../game/forgeRecipes';
 import { ITEMS } from '../game/items';
 import { TACTICS } from '../game/tactics';
-import { iconHtml } from './iconAtlas';
+import { iconHtml, moneyHtml } from './iconAtlas';
 
 function escapeAttr(s: string): string {
     return s
@@ -112,6 +112,6 @@ export function roundCardFaceHtml(c: RoundCard, opts: RoundCardFaceOpts = {}): s
         (subtitle.length ? `<div class="c-units">${escapeHtml(subtitle.join(' · '))}</div>` : '') +
         `<div class="c-desc">${escapeHtml(c.description)}</div>` +
         forgeRowsHtml(forgeRows, runeId) +
-        `<div class="c-cost">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>`
+        `<div class="c-cost${c.cost > 0 ? '' : ' free'}">${c.cost > 0 ? moneyHtml(c.cost) : 'Free'}</div>`
     );
 }

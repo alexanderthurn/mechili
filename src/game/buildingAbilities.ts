@@ -31,7 +31,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
             icon: 'ability-level',
             name: 'Upgrade level',
             cost: baseCost,
-            description: `Raise this building one level: it gains its base HP. Price starts at ⬢ ${baseCost} and rises by ⬢ ${costStep} each level (max level ${maxLevel}).`,
+            description: `Raise this building one level: it gains its base HP. Price starts at ${baseCost} and rises by ${costStep} each level (max level ${maxLevel}).`,
         });
     }
 
@@ -49,13 +49,13 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
                 icon: 'ability-atk-boost',
                 name: 'Attack Boost',
                 cost: s.boosts.costs[0],
-                description: `Permanent army-wide damage boost. First tier +${attackPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
+                description: `Permanent army-wide damage boost. First tier +${attackPct}%; buy tiers in order (costs ${s.boosts.costs.join(', ')}).`,
             },
             {
                 icon: 'ability-hp-boost',
                 name: 'HP Boost',
                 cost: s.boosts.costs[0],
-                description: `Permanent army-wide HP boost. First tier +${hpPct}%; buy tiers in order (costs ⬢ ${s.boosts.costs.join(', ')}).`,
+                description: `Permanent army-wide HP boost. First tier +${hpPct}%; buy tiers in order (costs ${s.boosts.costs.join(', ')}).`,
             },
             {
                 icon: 'tactic-rally',

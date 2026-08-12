@@ -21,32 +21,48 @@
  *       Store (or dedupe a retried submission from the same side). {"ok":true,"id":"...","duplicate":bool}
  *   GET  ?action=list&since=<unix>&limit=<n>
  *       Lightweight index, oldest-of-the-batch first (forward cursor). {"matches":[{id,ts,...}],"nextSince":n|null}
- *   GET  ?action=bulk&since=<unix>&limit=<n>
- *       Full records, same cursor as `list`. {"matches":[...],"nextSince":n|null}
+ *   GET  ?action=bulk&since=<unix>&limit=<n>[&fields=summary]
+ *       Full records, same cursor as `list`. `fields=summary` omits
+ *       replay.actions (and shrinks settings to {}) for faster analysis
+ *       downloads. {"matches":[...],"nextSince":n|null}
  *   GET  ?action=grouped&limit=<n>
  *       Lightweight index GROUPED by matchKey, most-recent-first — for a
  *       human browsing match history (replays.html), not a sync cursor.
  *       {"groups":[{matchKey,ts,records:[{id,ts,side,mode,gameVersion,result,rounds,
- *       playerHp,enemyHp,verifiedCount,lastVerifiedAt,names,roster},...]}]}
+ *       playerHp,enemyHp,verifiedCount,lastVerifiedAt,names,roster,hasReplay},...]}]}
  *       `roster` (2v2+ only) is the full canonical seat list — every
  *       participant including AI-filled seats: [{seat,side,controller,name}].
  *       `names`/playerHp/enemyHp stay a 2-bucket "mine vs the other side"
  *       reduction regardless of how many seats are actually on each side.
+ *       `hasReplay` is true when replay.actions is non-empty.
  *   GET  ?action=get&id=<id>
  *       One full record.
  *   GET  ?action=count
  *       {"count":n}
+ *   POST|GET ?action=stripReplay&key=<ADMIN_KEY>&before=<unix>&dryRun=1
+ *       Admin: clear replay.actions on records with ts < before (default: all).
+ *       Keeps seed+settings. dryRun=1 reports counts without writing.
  *
  * Missing / bad fields are filled with defaults. Reject only hard failures
  * (oversized body, unreadable JSON).
+ *
+ * Schema 2 adds channel / techs / damage. Full action logs are optional —
+ * clients default to empty actions (seed+settings stub for matchKey).
  */
 
 const DATA_DIR = __DIR__ . '/stats';
 const MATCH_DIR = DATA_DIR . '/matches';
 const MAX_BODY = 1_048_576; // 1 MiB
 const MAX_LIST = 500;
-const SCHEMA = 1;
+/** fingerprint version — bump when fingerprint inputs change (techs/damage) */
+const FINGERPRINT_VERSION = 2;
 const TS_BUCKET_SECONDS = 600; // 10 min — coarse enough that both sides' near-simultaneous submissions land in the same bucket
+
+/**
+ * Injected at deploy time (same placeholder as chat.php). Alternatively set
+ * CHAT_KEY / STATS_KEY env. While unset, stripReplay stays disabled (403).
+ */
+const ADMIN_KEY = '__ADMIN_KEY__';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -76,6 +92,8 @@ try {
         handleGet();
     } elseif ($action === 'count') {
         echo json_encode(['count' => count(matchFiles())]);
+    } elseif ($action === 'stripReplay') {
+        handleStripReplay();
     } else {
         http_response_code(400);
         echo json_encode(['error' => 'bad action']);
@@ -87,6 +105,21 @@ try {
 }
 
 // ---------------------------------------------------------------------------
+
+function adminKey(): ?string {
+    if (ADMIN_KEY !== '' && ADMIN_KEY !== '__ADMIN_KEY__') {
+        $k = trim(ADMIN_KEY);
+        if ($k !== '') return $k;
+    }
+    foreach (['STATS_KEY', 'CHAT_KEY'] as $envName) {
+        $env = getenv($envName);
+        if (is_string($env)) {
+            $k = trim($env);
+            if ($k !== '') return $k;
+        }
+    }
+    return null;
+}
 
 function ensureDirs(): void {
     if (!is_dir(MATCH_DIR)) {
@@ -110,6 +143,24 @@ function respond(array $data, int $code = 200): void {
     http_response_code($code);
     echo json_encode($data);
     exit;
+}
+
+function recordHasReplay(array $data): bool {
+    $actions = $data['replay']['actions'] ?? null;
+    return is_array($actions) && count($actions) > 0;
+}
+
+/** Drop action log (and optionally settings bulk) for analysis downloads. */
+function summarizeRecordForBulk(array $data): array {
+    if (isset($data['replay']) && is_array($data['replay'])) {
+        $data['replay'] = [
+            'version' => (int)($data['replay']['version'] ?? 1),
+            'seed' => (int)($data['replay']['seed'] ?? 0),
+            'settings' => new stdClass(),
+            'actions' => [],
+        ];
+    }
+    return $data;
 }
 
 function handleSubmit(): void {
@@ -202,11 +253,82 @@ function recordVerification(string $path): void {
     @file_put_contents($path, $json);
 }
 
+/**
+ * Admin: strip replay.actions from stored records (keeps seed + settings).
+ * Query: key, before (unix ts, optional — default now+1 so all match), dryRun.
+ */
+function handleStripReplay(): void {
+    $key = adminKey();
+    $provided = trim((string)($_GET['key'] ?? ''));
+    if ($key === null || $provided === '' || !hash_equals($key, $provided)) {
+        respond(['error' => 'forbidden'], 403);
+    }
+
+    $before = (int)($_GET['before'] ?? (time() + 1));
+    if ($before <= 0) $before = time() + 1;
+    $dryRun = isset($_GET['dryRun']) && $_GET['dryRun'] !== '0' && $_GET['dryRun'] !== '';
+
+    $scanned = 0;
+    $eligible = 0;
+    $stripped = 0;
+    $bytesBefore = 0;
+    $bytesAfter = 0;
+
+    foreach (matchFiles() as $path) {
+        $scanned++;
+        $raw = @file_get_contents($path);
+        if ($raw === false) continue;
+        $data = json_decode($raw, true);
+        if (!is_array($data)) continue;
+
+        $ts = (int)($data['ts'] ?? 0);
+        if ($ts >= $before) continue;
+        if (!recordHasReplay($data)) continue;
+
+        $eligible++;
+        $bytesBefore += strlen($raw);
+
+        if (isset($data['replay']) && is_array($data['replay'])) {
+            $data['replay']['actions'] = [];
+        }
+
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) continue;
+        $bytesAfter += strlen($json);
+
+        if (!$dryRun) {
+            $tmp = $path . '.' . getmypid() . '.strip.tmp';
+            if (file_put_contents($tmp, $json) === false) {
+                @unlink($tmp);
+                continue;
+            }
+            if (!@rename($tmp, $path)) {
+                @unlink($tmp);
+                continue;
+            }
+            $stripped++;
+        }
+    }
+
+    respond([
+        'ok' => true,
+        'dryRun' => $dryRun,
+        'before' => $before,
+        'scanned' => $scanned,
+        'eligible' => $eligible,
+        'stripped' => $dryRun ? 0 : $stripped,
+        'bytesBefore' => $bytesBefore,
+        'bytesAfter' => $bytesAfter,
+        'bytesSaved' => max(0, $bytesBefore - $bytesAfter),
+    ]);
+}
+
 function handleList(bool $full): void {
     $since = max(0, (int)($_GET['since'] ?? 0));
     $limit = (int)($_GET['limit'] ?? 100);
     if ($limit < 1) $limit = 100;
     if ($limit > MAX_LIST) $limit = MAX_LIST;
+    $summaryOnly = $full && (($_GET['fields'] ?? '') === 'summary');
 
     $out = [];
     $nextSince = null;
@@ -231,7 +353,7 @@ function handleList(bool $full): void {
         if ($ts < $since) continue;
 
         if ($full) {
-            $out[] = $data;
+            $out[] = $summaryOnly ? summarizeRecordForBulk($data) : $data;
         } else {
             $out[] = [
                 'id' => $data['id'] ?? '',
@@ -241,6 +363,8 @@ function handleList(bool $full): void {
                 'gameVersion' => $data['gameVersion'] ?? 0,
                 'result' => $data['result'] ?? 'unknown',
                 'rounds' => $data['rounds'] ?? 0,
+                'channel' => $data['channel'] ?? '',
+                'hasReplay' => recordHasReplay($data),
             ];
         }
 
@@ -306,6 +430,7 @@ function handleGrouped(): void {
             // this field, or a solo/1v1 record where names above already
             // says everything
             'roster' => is_array($data['roster'] ?? null) ? $data['roster'] : [],
+            'hasReplay' => recordHasReplay($data),
         ];
     }
 
@@ -369,6 +494,17 @@ function normalizeRoster($raw): array {
     return $out;
 }
 
+/** Keep only player/enemy maps of string-keyed arrays/objects. */
+function normalizeTeamBag($raw): array {
+    if (!is_array($raw)) return [];
+    $out = [];
+    foreach (['player', 'enemy'] as $team) {
+        if (!isset($raw[$team]) || !is_array($raw[$team])) continue;
+        $out[$team] = $raw[$team];
+    }
+    return $out;
+}
+
 /**
  * Fill defaults so old/partial clients never break ingest.
  * Id is content-addressed from a stable fingerprint (not the whole body),
@@ -393,6 +529,12 @@ function normalizeRecord(array $data): array {
     $source = (string)($data['source'] ?? 'player');
     if (!in_array($source, ['player', 'verify'], true)) $source = 'player';
 
+    $channel = (string)($data['channel'] ?? '');
+    if (!in_array($channel, ['open', 'steam'], true)) $channel = '';
+
+    $schema = (int)($data['schema'] ?? 2);
+    if ($schema !== 1 && $schema !== 2) $schema = 2;
+
     $replay = is_array($data['replay'] ?? null) ? $data['replay'] : [];
     $seed = (int)($replay['seed'] ?? $data['seed'] ?? 0);
     $gameVersion = (int)($data['gameVersion'] ?? 0);
@@ -401,12 +543,20 @@ function normalizeRecord(array $data): array {
     $speciality = is_array($data['speciality'] ?? null) ? $data['speciality'] : [];
     $units = is_array($data['units'] ?? null) ? $data['units'] : [];
     $unlocked = is_array($data['unlocked'] ?? null) ? $data['unlocked'] : [];
+    $techs = normalizeTeamBag($data['techs'] ?? null);
+    $damage = normalizeTeamBag($data['damage'] ?? null);
     $names = is_array($data['names'] ?? null) ? $data['names'] : [];
     $roster = normalizeRoster($data['roster'] ?? null);
 
-    // fingerprint: enough to identify the match without perspective noise
+    $side = (string)($data['side'] ?? 'a');
+    if ($side !== 'a' && $side !== 'b') $side = 'a';
+
+    // fingerprint: enough to identify the match without perspective noise.
+    // techs/damage included so schema-2 retries with richer summaries still
+    // dedupe; empty objects for schema-1 clients keep fingerprints stable
+    // within that client generation.
     $fp = json_encode([
-        'v' => SCHEMA,
+        'v' => FINGERPRINT_VERSION,
         'gv' => $gameVersion,
         'patch' => $patch,
         'mode' => $mode,
@@ -415,6 +565,8 @@ function normalizeRecord(array $data): array {
         'result' => $result,
         'spec' => $speciality,
         'units' => $units,
+        'techs' => $techs,
+        'damage' => $damage,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $id = substr(hash('sha256', $fp === false ? (string)$ts : $fp), 0, 32);
 
@@ -429,15 +581,15 @@ function normalizeRecord(array $data): array {
     // a real match — see the file docblock).
     $matchKey = substr(hash('sha256', $gameVersion . ':' . $seed), 0, 12);
 
-    return [
-        'schema' => SCHEMA,
+    $out = [
+        'schema' => $schema,
         'id' => $id,
         'matchKey' => $matchKey,
         'ts' => $ts,
         'gameVersion' => $gameVersion,
         'balancePatchId' => $patch,
         'mode' => $mode,
-        'side' => (string)($data['side'] ?? 'a'),
+        'side' => $side,
         'source' => $source,
         'result' => $result,
         'rounds' => max(0, (int)($data['rounds'] ?? 0)),
@@ -461,4 +613,10 @@ function normalizeRecord(array $data): array {
             'actions' => is_array($replay['actions'] ?? null) ? $replay['actions'] : [],
         ],
     ];
+
+    if ($channel !== '') $out['channel'] = $channel;
+    if ($techs !== []) $out['techs'] = $techs;
+    if ($damage !== []) $out['damage'] = $damage;
+
+    return $out;
 }

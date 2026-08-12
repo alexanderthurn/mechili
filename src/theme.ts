@@ -109,24 +109,25 @@ export const THEME = {
     },
 
     ui: {
-        text: '#f0f4e8',
-        textMuted: '#a8b898',
-        panelBg: 'rgba(32, 48, 28, 0.88)',
-        panelBgSolid: 'rgba(32, 48, 28, 0.85)',
-        panelBgDark: 'rgba(24, 36, 20, 0.92)',
-        border: '#5a7048',
-        hover: '#ffd040',
+        // Fantasy leather / bronze (global HUD + menus)
+        text: '#f0e8d8',
+        textMuted: '#b8a890',
+        panelBg: 'rgba(34, 28, 22, 0.94)',
+        panelBgSolid: 'rgba(34, 28, 22, 0.96)',
+        panelBgDark: 'rgba(22, 18, 14, 0.96)',
+        border: '#8a6d4a',
+        hover: '#d4b878',
         player: '#3d8cd4',
         enemy: '#e83828',
-        brass: '#ffd040',
-        brassLight: '#ffe878',
-        brassDark: '#b89020',
+        brass: '#b8924a',
+        brassLight: '#d4b878',
+        brassDark: '#6a5030',
         hpBar: '#78c848',
         techOwned: '#a8d868',
-        barTrack: '#2a3820',
-        divider: '#4a6040',
-        techBuyBg: '#2a4020',
-        phase: '#b8d0a0',
+        barTrack: '#1a1612',
+        divider: '#5c4634',
+        techBuyBg: '#181410',
+        phase: '#c4b89a',
         alliedBtnBg: '#1a3a58',
         alliedBtnHover: '#245078',
         undoBg: '#483020',
@@ -136,10 +137,35 @@ export const THEME = {
         speedBg: '#4a4018',
         speedHover: '#5a5020',
         iconCenter: '#3d8cd4',
-        iconEdge: '#1a2818',
-        helpBold: '#d0e0c0',
-        veteranStar: '#ffe040',
+        iconEdge: '#1a1612',
+        helpBold: '#e8dcc4',
+        veteranStar: '#d4b878',
         debug: '#a8d878',
+
+        // Fantasy carved-bronze / leather material system
+        frameHi: '#c4a574',
+        frameMid: '#8a6d4a',
+        frameLo: '#3a2e24',
+        frameEdge: '#1e1812',
+        leather: '#1a1612',
+        leatherHi: '#2c241c',
+        leatherMid: '#221c17',
+        gem: '#3db8a8',
+        gemDeep: '#1a7a70',
+        slotBg: '#100e0c',
+        slotBorder: '#5c4634',
+        bronze: '#b8924a',
+        bronzeLight: '#d4b878',
+        bronzeDark: '#6a5030',
+        cream: '#f0e8d8',
+        creamMuted: '#b8a890',
+        // Old-paper cards / commander plaques
+        parchment: '#d4bc8a',
+        parchmentHi: '#e2cfa0',
+        parchmentLo: '#c4a878',
+        parchmentEdge: '#8a6d48',
+        parchmentInk: '#2e2214',
+        parchmentInkMuted: '#5a4834',
     },
 } as const;
 
@@ -212,6 +238,312 @@ function gamepadCursorStyles(u: (typeof THEME)['ui']): string {
 }
 .mechili-gpcursor.visible { display: block; }
 `;
+}
+
+/**
+ * Shared fantasy material primitives — carved bronze frames, leather fills,
+ * recessed slots, bronze buttons. Opt-in via `.m-frame` / `.m-slot` / `.m-btn-bronze`,
+ * or applied to specific surfaces (settings, shop) in Phase 1.
+ */
+function materialStyles(u: (typeof THEME)['ui']): string {
+    const leatherFill = `
+        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
+        radial-gradient(ellipse at 78% 88%, rgba(0, 0, 0, 0.35), transparent 48%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.035) 2px,
+            rgba(0, 0, 0, 0.035) 3px
+        ),
+        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%)
+    `;
+    const bronzeBevel = `
+        0 10px 28px rgba(0, 0, 0, 0.55),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 3px ${u.frameMid},
+        0 0 0 4px ${u.frameHi},
+        0 0 0 5px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.2),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.5),
+        inset 1px 0 0 rgba(255, 220, 160, 0.06),
+        inset -1px 0 0 rgba(0, 0, 0, 0.28)
+    `;
+    const gem = (pos: string) =>
+        `radial-gradient(circle at ${pos}, ${u.gem} 0 2.5px, ${u.gemDeep} 2.5px 3.5px, ${u.frameHi} 3.5px 6px, ${u.frameLo} 6px 7.5px, transparent 8px)`;
+
+    return `
+/* --- fantasy material primitives --- */
+.m-frame {
+    position: relative;
+    color: ${u.cream};
+    background: ${leatherFill};
+    border: 1px solid ${u.frameLo};
+    border-radius: 4px;
+    box-shadow: ${bronzeBevel};
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.m-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    border-radius: inherit;
+    background:
+        ${gem('8px 8px')},
+        ${gem('calc(100% - 8px) 8px')},
+        ${gem('8px calc(100% - 8px)')},
+        ${gem('calc(100% - 8px) calc(100% - 8px)')};
+}
+.m-frame--slim {
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 2px ${u.frameMid},
+        0 0 0 3px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+}
+.m-frame--slim::before { display: none; }
+.m-titleplate {
+    font-family: var(--font-ui);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    color: ${u.cream};
+    padding: 8px 14px 10px;
+    margin: 0 0 4px;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.08);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.m-slot {
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.7),
+        inset 0 -1px 0 rgba(255, 220, 160, 0.05),
+        0 1px 0 rgba(180, 140, 80, 0.12);
+}
+.m-btn-bronze {
+    appearance: none;
+    -webkit-appearance: none;
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    color: ${u.cream};
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.45),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+    transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.m-btn-bronze:hover {
+    border-color: ${u.bronzeLight};
+    color: ${u.bronzeLight};
+    transform: translateY(-1px);
+}
+.m-btn-bronze:active { transform: translateY(0) scale(0.98); }
+.m-btn-bronze:focus-visible {
+    outline: none;
+    border-color: ${u.bronzeLight};
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        0 0 0 3px rgba(184, 146, 74, 0.35);
+}
+.m-btn-bronze.primary {
+    border-color: ${u.bronze};
+    color: ${u.bronzeLight};
+}
+
+/* Auto-apply ornate frames to major dialogs / menus (CSS-only — no HTML churn).
+   html prefix beats later single-class chrome rules in this same stylesheet. */
+html .mechili-menu,
+html .mechili-name-edit .box,
+html .mechili-suggest .box,
+html .mechili-pause .pause-box,
+html .mechili-resume .resume-box,
+html .mechili-gameover {
+    position: relative;
+    color: ${u.cream};
+    background: ${leatherFill};
+    border: 1px solid ${u.frameLo};
+    border-radius: 4px;
+    box-shadow: ${bronzeBevel};
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-name-edit .box::before,
+html .mechili-suggest .box::before,
+html .mechili-pause .pause-box::before,
+html .mechili-resume .resume-box::before,
+html .mechili-gameover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    border-radius: inherit;
+    background:
+        ${gem('8px 8px')},
+        ${gem('calc(100% - 8px) 8px')},
+        ${gem('8px calc(100% - 8px)')},
+        ${gem('calc(100% - 8px) calc(100% - 8px)')};
+}
+/* Slim bronze chrome — compact HUD strips / chips / tips.
+   Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
+html .mechili-supply,
+html .mechili-sidebar,
+html .mechili-report,
+html .mechili-username,
+html .mechili-replay-controls,
+html .mechili-gchat.open .g-panel,
+html .mechili-chat.open .c-panel,
+html .mechili-panel .action-info,
+html .forge-slot-preview.recipes,
+html .mechili-card-spell-tip,
+html .mechili-touchtip,
+html .m-lobby-setting-tip {
+    color: ${u.cream};
+    background: ${leatherFill};
+    border-color: ${u.frameMid};
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 2px ${u.frameMid},
+        0 0 0 3px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+/* Commander HUD — bare: portraits + name + HP only (no plaque chrome) */
+html .mechili-fightbar .fighter {
+    color: ${u.cream};
+    background: none;
+    border: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+/* Docked unit panel — ornate but edge-aware (like shop) */
+html .mechili-panel {
+    color: ${u.cream};
+    background: ${leatherFill};
+    border: 1px solid ${u.frameLo};
+    border-left: none;
+    border-bottom: none;
+    border-radius: 6px 0 0 0;
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.5),
+        0 0 0 1px ${u.frameEdge},
+        2px 0 0 0 ${u.frameMid},
+        3px 0 0 0 ${u.frameHi},
+        4px 0 0 0 ${u.frameLo},
+        0 -2px 0 0 ${u.frameMid},
+        0 -3px 0 0 ${u.frameHi},
+        0 -4px 0 0 ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.16),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-panel::before {
+    content: '';
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(
+        circle at 8px 8px,
+        ${u.gem} 0 2.5px,
+        ${u.gemDeep} 2.5px 3.5px,
+        ${u.frameHi} 3.5px 6px,
+        ${u.frameLo} 6px 7.5px,
+        transparent 8px
+    );
+}
+`;
+}
+
+/** Recessed bronze HP/progress tube — shared by boot loader and fightbar. */
+function hpTubeTrack(u: (typeof THEME)['ui'], selector: string, height: string): string {
+    return `
+${selector} {
+    height: ${height};
+    box-sizing: border-box;
+    padding: 2px;
+    background: linear-gradient(180deg, #080604 0%, ${u.slotBg} 55%, #14100c 100%);
+    border: 1px solid ${u.frameMid};
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.75),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+        0 1px 0 rgba(196, 165, 116, 0.18);
+    position: relative;
+}`;
+}
+
+function hpTubeFill(
+    selector: string,
+    fillBg: string,
+    opts?: { transition?: string; origin?: string },
+): string {
+    const transition = opts?.transition ?? '0.25s ease-out';
+    const origin = opts?.origin ?? 'left center';
+    return `
+${selector} {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    top: 2px;
+    bottom: 2px;
+    width: auto;
+    height: auto;
+    border-radius: 1px;
+    transform: scaleX(0);
+    transform-origin: ${origin};
+    transition: transform ${transition};
+    pointer-events: none;
+    z-index: 1;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    background: ${fillBg};
+}`;
+}
+
+function hpTubeVal(selector: string, fontSize: string, extra = ''): string {
+    return `
+${selector} {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    direction: ltr;
+    font-size: ${fontSize};
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.65);
+    pointer-events: none;
+    z-index: 2;
+    ${extra}
+}`;
 }
 
 /** CSS for the pre-game main menu (exists before the HUD does). */
@@ -300,6 +632,7 @@ export function menuStyles(bars?: BarAssets): string {
     const pc = teamColors.player.css;
     return `
 ${fontFaceCss()}
+${materialStyles(u)}
 .mechili-menu {
     position: absolute;
     left: 50%;
@@ -313,14 +646,10 @@ ${fontFaceCss()}
     box-sizing: border-box;
     padding: 22px 20px 24px;
     max-height: min(88vh, calc(100dvh - 200px));
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background: linear-gradient(180deg, rgba(30, 44, 26, 0.62), rgba(18, 28, 15, 0.74));
-    border: 1px solid rgba(255, 216, 64, 0.18);
-    border-radius: 18px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    -webkit-backdrop-filter: blur(12px) saturate(1.1);
-    backdrop-filter: blur(12px) saturate(1.1);
+    /* chrome filled by materialStyles ornate frame */
     user-select: none;
     z-index: 30;
 }
@@ -371,16 +700,20 @@ ${fontFaceCss()}
     width: 100%;
     box-sizing: border-box;
     padding: 13px 16px;
-    background: linear-gradient(180deg, rgba(42, 58, 34, 0.95), rgba(24, 36, 20, 0.95));
-    border: 1.5px solid ${u.border};
-    border-radius: 11px;
-    color: ${u.text};
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    color: ${u.cream};
     font-size: 16px;
     font-weight: bold;
     letter-spacing: 1.5px;
     text-align: left;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+
     transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease,
         background 0.14s ease, color 0.14s ease;
 }
@@ -407,14 +740,14 @@ ${fontFaceCss()}
     border-color: ${u.hover};
     color: ${u.brassLight};
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 216, 64, 0.15),
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(184, 146, 74, 0.22),
         inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .mechili-menu .m-btn:active { transform: translateY(0) scale(0.98); }
 .mechili-menu .m-btn:focus-visible {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-menu .m-btn:disabled { opacity: 0.4; pointer-events: none; box-shadow: none; }
 /* Single Player — the hero call to action */
@@ -423,14 +756,14 @@ ${fontFaceCss()}
     border-color: ${u.brassLight};
     color: #20180a;
     font-size: 17px;
-    box-shadow: 0 4px 14px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 14px rgba(184, 146, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .mechili-menu .m-primary .m-ico { color: #20180a; filter: none; }
 .mechili-menu .m-primary:hover {
     color: #20180a;
     background: linear-gradient(180deg, #fff0b0, ${u.brassLight});
     transform: translateY(-2px);
-    box-shadow: 0 8px 22px rgba(255, 180, 40, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    box-shadow: 0 8px 22px rgba(184, 146, 74, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .mechili-menu .m-small {
     justify-content: center;
@@ -445,7 +778,7 @@ ${fontFaceCss()}
     padding: 9px 10px;
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 14px;
     letter-spacing: 2px;
@@ -476,7 +809,7 @@ ${fontFaceCss()}
     text-transform: uppercase;
     background: ${u.panelBg};
     border: 1px solid ${u.border};
-    border-radius: 9px;
+    border-radius: 3px;
     color: ${u.textMuted};
     cursor: pointer;
     opacity: 0.8;
@@ -489,9 +822,9 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 5px;
     padding: 10px 12px;
-    background: linear-gradient(180deg, rgba(30, 44, 26, 0.72), rgba(18, 28, 15, 0.82));
+    background: linear-gradient(180deg, rgba(40, 32, 24, 0.92), rgba(20, 16, 12, 0.95));
     border: 1.5px solid ${u.border};
-    border-radius: 12px;
+    border-radius: 4px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
@@ -530,7 +863,7 @@ ${fontFaceCss()}
 }
 .mechili-gchat .g-send { transition: border-color 0.12s ease, background 0.12s ease; }
 .mechili-gchat .g-send:hover { border-color: ${u.hover}; }
-.mechili-gchat .g-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-gchat .g-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-gchat .g-input:focus-visible { outline: none; border-color: ${u.hover}; }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .mechili-menu .m-rooms {
@@ -578,16 +911,16 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 6px;
     padding: 6px;
-    background: rgba(18, 28, 15, 0.6);
+    background: rgba(20, 16, 12, 0.75);
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
 }
 .mechili-menu .m-room-list.empty { justify-content: center; align-items: center; color: ${u.textMuted}; font-size: 13px; min-height: 64px; }
 .mechili-menu .m-room {
     padding: 10px 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -598,7 +931,7 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-room::before { content: '▸ '; color: ${u.brass}; }
 .mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateX(2px); }
-.mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+.mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 /* a running match, joinable only as a spectator — visually distinct from
    an open (joinable-as-player) room above */
 .mechili-menu .m-room-spectate { border-style: dashed; }
@@ -654,15 +987,18 @@ ${fontFaceCss()}
     gap: 4px;
     box-sizing: border-box;
     padding: 14px 10px;
-    background: linear-gradient(180deg, rgba(42, 58, 34, 0.95), rgba(24, 36, 20, 0.95));
-    border: 1.5px solid ${u.border};
-    border-radius: 11px;
-    color: ${u.text};
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    color: ${u.cream};
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1px;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4);
     transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease,
         background 0.14s ease, color 0.14s ease;
 }
@@ -693,12 +1029,12 @@ ${fontFaceCss()}
     background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
     border-color: ${u.brassLight};
     color: #20180a;
-    box-shadow: 0 4px 14px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 14px rgba(184, 146, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .mechili-menu .m-toggle-card:has(input:checked) .m-ico { filter: none; }
 .mechili-menu .m-toggle-card:has(input:focus-visible) {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-menu .m-toggle-pill {
     position: relative;
@@ -711,7 +1047,7 @@ ${fontFaceCss()}
     padding: 10px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -728,13 +1064,13 @@ ${fontFaceCss()}
 }
 .mechili-menu .m-toggle-pill:hover { border-color: ${u.hover}; }
 .mechili-menu .m-toggle-pill:has(input:checked) {
-    background: linear-gradient(180deg, rgba(255, 216, 64, 0.22), rgba(255, 180, 40, 0.12));
+    background: linear-gradient(180deg, rgba(184, 146, 74, 0.22), rgba(184, 146, 74, 0.14));
     border-color: ${u.brassLight};
     color: ${u.brassLight};
 }
 .mechili-menu .m-toggle-pill:has(input:focus-visible) {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 /* Custom Game screen: mode toggle reuses m-toggle-row/card above; these are
    just the timer/horde/roundcards form rows */
@@ -755,9 +1091,9 @@ ${fontFaceCss()}
     box-sizing: border-box;
     width: 100%;
     padding: 10px 12px;
-    background: rgba(24, 36, 20, 0.85);
+    background: rgba(28, 22, 16, 0.85);
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 14px;
     font-weight: normal;
@@ -768,7 +1104,7 @@ ${fontFaceCss()}
 .mechili-menu .m-field select:focus {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3);
 }
 .mechili-menu .m-field input[type="checkbox"] { width: 16px; height: 16px; accent-color: ${u.brass}; }
 .mechili-menu .m-seats { display: flex; gap: 10px; width: 100%; }
@@ -786,7 +1122,7 @@ ${fontFaceCss()}
     letter-spacing: 0.5px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
 }
 .mechili-menu .m-seat-you { color: ${u.brassLight}; }
@@ -839,7 +1175,7 @@ ${fontFaceCss()}
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 0.2px;
-    border-radius: 8px;
+    border-radius: 3px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
     color: ${u.text};
@@ -899,7 +1235,7 @@ ${fontFaceCss()}
     padding: 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     box-sizing: border-box;
 }
 .mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: grid; }
@@ -959,9 +1295,9 @@ ${fontFaceCss()}
     z-index: 80;
     max-width: min(320px, calc(100vw - 24px));
     padding: 10px 12px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.97), rgba(22, 18, 14, 0.97));
     border: 1.5px solid ${u.brass};
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     color: ${u.text};
     font-size: 13px;
@@ -1028,9 +1364,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     text-align: center;
     word-break: break-all;
     padding: 8px 10px;
-    background: rgba(18, 28, 15, 0.6);
+    background: rgba(20, 16, 12, 0.75);
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
 }
 .mechili-username {
     position: absolute;
@@ -1039,7 +1375,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 6px 12px 6px 8px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -1052,14 +1388,25 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     align-items: center;
     gap: 8px;
 }
+/* Shared round player avatar (menu chip + name-edit preview; matches fightbar) */
+.mechili-username .u-avatar,
+.mechili-name-edit .avatar-preview {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background:
+        radial-gradient(circle at 35% 28%, rgba(255, 230, 180, 0.2), transparent 55%),
+        linear-gradient(165deg, ${u.leatherHi}, ${u.leather});
+    border: 1.5px solid ${u.frameMid};
+    box-shadow:
+        0 0 0 1px ${u.frameLo},
+        0 0 0 2px ${u.frameHi},
+        inset 0 1px 2px rgba(255, 230, 180, 0.2),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+}
 .mechili-username .u-avatar {
     width: 36px;
     height: 36px;
-    border-radius: 7px;
-    object-fit: cover;
-    flex-shrink: 0;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid ${u.border};
 }
 .mechili-username .u-avatar[hidden] { display: none; }
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
@@ -1068,7 +1415,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 @media (max-width: 599px) {
     .mechili-gchat { bottom: calc(68px + env(safe-area-inset-bottom)); }
 }
-.mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+.mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 
 /* Top-right menu chrome: door (Electron quit) + settings gear */
 .mechili-corner-actions {
@@ -1145,7 +1492,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 12px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
     font-size: 13px;
     color: ${u.text};
@@ -1180,7 +1527,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -1193,7 +1540,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-suggest-btn::before { content: '✦ '; color: ${u.brass}; opacity: 0.9; }
 .mechili-suggest-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-suggest-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.3); }
+.mechili-suggest-btn:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 
 .mechili-username.has-avatar::before { display: none; }
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
@@ -1318,108 +1665,13 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-loading .load-bar {
     width: 100%;
 }
-.mechili-loading .hp-track {
-    height: 36px;
-    background: ${u.barTrack};
-    border: 2px solid ${u.border};
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow:
-        inset 0 2px 6px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    position: relative;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-}
-.mechili-loading .hp-track::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 24%, rgba(255, 255, 255, 0) 52%);
-    opacity: 0.9;
-    pointer-events: none;
-    z-index: 0;
-}
-.mechili-loading .hp-track::after {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background:
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px),
-        radial-gradient(closest-side, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
-    opacity: 0.35;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-    z-index: 0;
-}
-.mechili-loading .hp-fill {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 100%;
-    transform: scaleX(0);
-    transform-origin: left center;
-    background: #4a7a38;
-    opacity: 1;
-    transition: transform 0.2s ease-out;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    pointer-events: none;
-    z-index: 1;
-}
-.mechili-loading .hp-fill::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 58%),
-        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 62%),
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
-        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
-    background-size: 28px 28px;
-    opacity: 0.6;
-    mix-blend-mode: overlay;
-    animation: mechili-fluid-shift 0.7s linear infinite;
-    pointer-events: none;
-}
-.mechili-loading .hp-fill::after {
-    content: '';
-    display: none;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: 6px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
-    box-shadow: 0 0 18px rgba(255, 255, 255, 0.2);
-    opacity: 0.95;
-    pointer-events: none;
-}
-@keyframes mechili-fluid-shift {
-    from { background-position: 0 0; }
-    to { background-position: 28px 0; }
-}
-.mechili-loading .hp-val {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    font-weight: bold;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 1px;
-    color: #ffffff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
-    pointer-events: none;
-    z-index: 2;
-}
+${hpTubeTrack(u, '.mechili-loading .hp-track', '36px')}
+${hpTubeFill(
+    '.mechili-loading .hp-fill',
+    `linear-gradient(180deg, #7ec4f0 0%, ${pc} 42%, #2d6a9e 100%)`,
+    { transition: '0.2s ease-out' },
+)}
+${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 .mechili-loading .load-status {
     font-size: 14px;
     font-weight: bold;
@@ -1446,7 +1698,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 18px 20px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
-    border-radius: 12px;
+    border-radius: 4px;
     min-width: 280px;
     max-width: min(360px, 92vw);
     color: ${u.text};
@@ -1461,7 +1713,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 10px 12px;
     background: ${u.panelBg};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-size: 15px;
     letter-spacing: 1px;
@@ -1489,10 +1741,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-name-edit .avatar-preview {
     width: 72px;
     height: 72px;
-    border-radius: 10px;
-    object-fit: cover;
-    border: 1.5px solid ${u.border};
-    background: rgba(0, 0, 0, 0.35);
 }
 .mechili-name-edit .avatar-preview[hidden] { display: none; }
 .mechili-name-edit .avatar-pick {
@@ -1500,7 +1748,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     align-items: center;
     padding: 8px 12px;
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     cursor: pointer;
     color: ${u.text};
     font-size: 13px;
@@ -1512,7 +1760,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-weight: bold;
     cursor: pointer;
@@ -1521,8 +1769,8 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-name-edit button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-name-edit button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
 .mechili-name-edit button:hover:not(:disabled) { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-name-edit button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
-.mechili-name-edit input:focus-visible { outline: none; border-color: ${u.hover}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.25); }
+.mechili-name-edit button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
+.mechili-name-edit input:focus-visible { outline: none; border-color: ${u.hover}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.25); }
 
 .mechili-settings {
     position: absolute;
@@ -1541,18 +1789,28 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 18px 20px;
-    background: ${u.panelBgSolid};
-    border: 2px solid ${u.border};
-    border-radius: 12px;
+    padding: 18px 20px 16px;
     width: min(360px, calc(100vw - 32px));
     max-height: min(88vh, calc(100dvh - 32px));
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    color: ${u.text};
     box-sizing: border-box;
 }
-.mechili-settings .s-title { font-size: 15px; font-weight: bold; letter-spacing: 2px; }
+.mechili-settings .s-title {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    color: ${u.cream};
+    padding: 6px 8px 12px;
+    margin: 0;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.08);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
 .mechili-settings .s-body {
     display: flex;
     flex-direction: column;
@@ -1570,11 +1828,12 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     gap: 8px;
 }
 .mechili-settings .s-section-head {
-    font-size: 14px;
-    font-weight: bold;
-    letter-spacing: 1px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: ${u.brass};
+    color: ${u.bronzeLight};
 }
 .mechili-settings .s-presets {
     display: flex;
@@ -1586,26 +1845,30 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     font-size: 12px;
     font-weight: bold;
     letter-spacing: 0.4px;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.border};
-    border-radius: 6px;
-    color: ${u.textMuted};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.creamMuted};
     cursor: pointer;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 .mechili-settings .s-preset:hover {
-    border-color: ${u.hover};
-    color: ${u.text};
+    border-color: ${u.bronzeLight};
+    color: ${u.cream};
     transform: translateY(-1px);
 }
 .mechili-settings .s-preset.active {
-    border-color: ${u.brass};
-    color: ${u.brassLight};
+    border-color: ${u.bronze};
+    color: ${u.bronzeLight};
+    box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(184, 146, 74, 0.25);
 }
 .mechili-settings .s-preset:focus-visible {
     outline: none;
-    border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    border-color: ${u.bronzeLight};
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-settings .s-row {
     display: flex;
@@ -1613,40 +1876,36 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     flex-wrap: wrap;
     gap: 9px;
     font-size: 13.5px;
+    color: ${u.cream};
     cursor: pointer;
     user-select: none;
 }
 .mechili-settings .s-row select {
     margin-left: auto;
     min-width: 110px;
+    background: ${u.leatherMid};
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.cream};
+    padding: 4px 6px;
 }
-.mechili-settings .s-row input { width: 16px; height: 16px; accent-color: ${u.brass}; }
+.mechili-settings .s-row input { width: 16px; height: 16px; accent-color: ${u.bronze}; }
 .mechili-settings .s-hint {
     font-size: 12px;
-    color: ${u.textMuted};
+    color: ${u.creamMuted};
 }
 .mechili-settings .actions { display: flex; justify-content: flex-end; }
 .mechili-settings button {
-    padding: 8px 14px;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.border};
-    border-radius: 8px;
-    color: ${u.text};
-    font-weight: bold;
-    cursor: pointer;
+    padding: 8px 16px;
 }
-.mechili-settings button.primary { border-color: ${u.hover}; color: ${u.brassLight}; }
-.mechili-settings button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
-.mechili-settings button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-settings button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
-.mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.hover}; outline-offset: 1px; }
+.mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.bronze}; outline-offset: 1px; }
 /* Desktop: use horizontal space — general left, graphics right */
 @media (min-width: 720px) {
     .mechili-settings .box {
         width: min(720px, calc(100vw - 48px));
-        padding: 22px 24px;
+        padding: 22px 24px 18px;
     }
-    .mechili-settings .s-title { font-size: 17px; }
+    .mechili-settings .s-title { font-size: 17px; letter-spacing: 0.26em; }
     .mechili-settings .s-body {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
@@ -1675,7 +1934,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 18px 20px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
-    border-radius: 12px;
+    border-radius: 4px;
     width: min(420px, 100%);
     color: ${u.text};
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
@@ -1722,7 +1981,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     color: ${u.text};
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     padding: 8px 10px;
 }
 .mechili-suggest .s-msg {
@@ -1734,7 +1993,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-suggest .s-msg:focus-visible {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .mechili-suggest .s-status {
     margin: 0;
@@ -1760,7 +2019,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.text};
     font-weight: bold;
     cursor: pointer;
@@ -1771,7 +2030,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-suggest button:focus-visible {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35);
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 
 .mechili-resume {
@@ -1805,7 +2064,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     min-width: 280px;
     background: ${u.panelBg};
     border: 2px solid ${u.border};
-    border-radius: 14px;
+    border-radius: 4px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
 .mechili-resume .resume-msg {
@@ -1827,7 +2086,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     padding: 10px 28px;
     background: ${u.panelBgDark};
     border: 2px solid ${u.undoBorder};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.undoText};
     font-size: 14px;
     font-weight: bold;
@@ -1860,6 +2119,7 @@ export function hudStyles(bars?: BarAssets): string {
     const ec = teamColors.enemy.css;
     return `
 ${fontFaceCss()}
+${materialStyles(u)}
 .mechili-cinema-hide {
     visibility: hidden !important;
     pointer-events: none !important;
@@ -1876,7 +2136,7 @@ ${fontFaceCss()}
     z-index: 200;
     padding: 6px 8px;
     border-radius: 6px;
-    background: rgba(8, 12, 6, 0.72);
+    background: rgba(8, 8, 6, 0.72);
     border: 1px solid rgba(168, 216, 120, 0.35);
     color: ${u.debug};
     font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1910,12 +2170,11 @@ ${fontFaceCss()}
     box-sizing: border-box;
     min-height: 54px;
     padding: 8px 16px;
-    background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(26, 40, 22, 0.96));
-    border: 2px solid ${u.brassDark};
-    border-radius: 10px;
+    /* frame comes from slim chrome (html .mechili-supply) — no second border */
+    border: none;
+    border-radius: 4px;
     user-select: none;
     pointer-events: none;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     flex-shrink: 0;
 }
 .mechili-supply .supply {
@@ -1929,18 +2188,26 @@ ${fontFaceCss()}
     color: ${u.brassLight};
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
-.mechili-supply .supply::before {
-    content: '⬢';
-    font-size: 28px;
-    line-height: 1;
-    color: ${u.brass};
+.mechili-supply .supply-ico.m-icon {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
 }
 .mechili-supply.clickable {
     pointer-events: auto;
     cursor: pointer;
-    transition: border-color 0.12s, transform 0.12s;
+    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
 }
-.mechili-supply.clickable:hover { border-color: ${u.brassLight}; }
+.mechili-supply.clickable:hover {
+    border-color: ${u.brassLight};
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 2px ${u.brassLight},
+        0 0 0 3px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+}
 .mechili-supply.clickable:active { transform: translateY(1px); }
 .shop-toolbar {
     display: flex;
@@ -1959,7 +2226,7 @@ ${fontFaceCss()}
     padding: 8px 14px;
     background: ${u.undoBg};
     border: 2px solid ${u.undoBorder};
-    border-radius: 8px;
+    border-radius: 3px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     color: ${u.undoText};
     font-size: 20px;
@@ -1977,19 +2244,23 @@ ${fontFaceCss()}
 .shop-toolbar .undo:focus-visible,
 .mechili-phone-status .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
 
-/* top-right stack docked under the enemy card: ☰ on every device,
+/* top-right stack under the enemy commander strip: ☰ on every device,
    plus supply/undo/level-all on phone */
 .mechili-phone-status {
     display: flex;
     position: absolute;
-    top: calc(62px + env(safe-area-inset-top));
-    right: env(safe-area-inset-right);
+    /* clear portraits + HP tube + name under the enemy strip */
+    top: calc(78px + env(safe-area-inset-top));
+    right: calc(8px + env(safe-area-inset-right));
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
     z-index: 3;
     user-select: none;
     pointer-events: none;
+    background: none;
+    border: none;
+    box-shadow: none;
 }
 /* the twins hide by default (button.* outranks the shared component rules
    below regardless of order): money returns in compact chrome; undo/level-all
@@ -2017,7 +2288,10 @@ ${fontFaceCss()}
     padding: 4px 10px;
 }
 .mechili-phone-status .supply { font-size: 20px; }
-.mechili-phone-status .supply::before { font-size: 16px; }
+.mechili-phone-status .supply-ico.m-icon {
+    width: 20px;
+    height: 20px;
+}
 .mechili-phone-status .undo {
     min-height: 40px;
     padding: 6px 10px;
@@ -2030,33 +2304,63 @@ ${fontFaceCss()}
 }
 .mechili-phone-status.overlay-open { display: none !important; }
 
-/* the ☰ menu: a tab growing out of the enemy card's bottom-right corner —
-   same chrome as the card so it reads as part of it */
+/* ☰ menu — standalone bronze control (no longer a tab off the old plaque) */
 .mechili-phone-menu {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
     align-self: flex-end;
-    min-width: 48px;
+    min-width: 44px;
     min-height: 40px;
-    padding: 2px 12px;
+    padding: 6px 12px;
     appearance: none;
-    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
-    border: 2px solid ${u.border};
-    border-top: none;
-    border-right: none;
-    border-radius: 0 0 0 10px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-    color: ${u.text};
+    -webkit-appearance: none;
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.45),
+        0 2px 8px rgba(0, 0, 0, 0.4);
+    color: ${u.cream};
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
     pointer-events: auto;
     user-select: none;
-    transition: color 0.12s ease;
+    transition:
+        color 0.12s ease,
+        background 0.12s ease,
+        transform 0.12s ease,
+        box-shadow 0.12s ease,
+        border-color 0.12s ease;
 }
-.mechili-phone-menu:hover { color: ${u.brassLight}; }
+.mechili-phone-menu:hover {
+    color: ${u.brassLight};
+    border-color: ${u.bronzeLight};
+    background: linear-gradient(180deg, #4a4034 0%, ${u.leatherHi} 55%, #1c1610 100%);
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.16),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+        0 4px 12px rgba(0, 0, 0, 0.45);
+}
+.mechili-phone-menu:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.1),
+        inset 0 -1px 3px rgba(0, 0, 0, 0.5),
+        0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.mechili-phone-menu:focus-visible {
+    outline: none;
+    border-color: ${u.brassLight};
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        0 0 0 3px rgba(184, 146, 74, 0.35),
+        0 2px 8px rgba(0, 0, 0, 0.4);
+}
 .shop-toolbar-right {
     display: flex;
     flex-direction: row;
@@ -2079,7 +2383,7 @@ ${fontFaceCss()}
     padding: 4px 8px;
     background: ${u.panelBgSolid};
     border: 2px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     appearance: none;
     cursor: pointer;
@@ -2127,7 +2431,7 @@ ${fontFaceCss()}
 .shop-toolbar .level-all-global:active,
 .mechili-phone-status .level-all-global:active { transform: scale(0.96); }
 .shop-toolbar .level-all-global:focus-visible,
-.mechili-phone-status .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-phone-status .level-all-global:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .shop-toolbar .level-all-global.unaffordable,
 .mechili-phone-status .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras {
@@ -2143,31 +2447,77 @@ ${fontFaceCss()}
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px 10px 10px 12px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
-    border: 1.5px solid ${u.border};
+    padding: 12px 12px 12px 14px;
+    position: relative;
+    color: ${u.cream};
+    background:
+        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
+        radial-gradient(ellipse at 78% 88%, rgba(0, 0, 0, 0.35), transparent 48%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.035) 2px,
+            rgba(0, 0, 0, 0.035) 3px
+        ),
+        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%);
+    border: 1px solid ${u.frameLo};
     border-right: none;
     border-bottom: none;
-    border-radius: 10px 0 0 0;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
+    border-radius: 6px 0 0 0;
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.5),
+        0 0 0 1px ${u.frameEdge},
+        -2px 0 0 0 ${u.frameMid},
+        -3px 0 0 0 ${u.frameHi},
+        -4px 0 0 0 ${u.frameLo},
+        0 -2px 0 0 ${u.frameMid},
+        0 -3px 0 0 ${u.frameHi},
+        0 -4px 0 0 ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.16),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     pointer-events: auto;
+}
+.mechili-shop::before {
+    content: '';
+    position: absolute;
+    top: -7px;
+    left: -7px;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(
+        circle at 8px 8px,
+        ${u.gem} 0 2.5px,
+        ${u.gemDeep} 2.5px 3.5px,
+        ${u.frameHi} 3.5px 6px,
+        ${u.frameLo} 6px 7.5px,
+        transparent 8px
+    );
 }
 .mechili-shop .shop-header {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.06);
 }
 .mechili-shop .shop-header .unit-cap {
-    font-size: 14px;
-    font-weight: bold;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     font-variant-numeric: tabular-nums;
-    color: ${u.phase};
+    color: ${u.bronzeLight};
     display: inline-flex;
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 .mechili-shop .shop-header .unit-cap::before { content: ''; opacity: 0; }
 .mechili-shop .shop-runes {
@@ -2186,17 +2536,18 @@ ${fontFaceCss()}
     height: 34px;
     border-radius: 50%;
     overflow: hidden;
-    border: 1.5px solid ${u.border};
-    background: rgba(12, 18, 10, 0.55);
+    border: 1.5px solid ${u.slotBorder};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 100%);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.65);
     cursor: pointer;
     flex-shrink: 0;
     transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
 }
-.mechili-shop .shop-rune:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-shop .shop-rune:hover { border-color: ${u.bronzeLight}; transform: translateY(-1px); }
 .mechili-shop .shop-rune:active { transform: scale(0.94); }
-.mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-shop .shop-rune.unaffordable { opacity: 0.35; }
-.mechili-shop .shop-rune.unaffordable:hover { border-color: ${u.hover}; transform: none; }
+.mechili-shop .shop-rune.unaffordable:hover { border-color: ${u.bronzeLight}; transform: none; }
 .mechili-shop .shop-rune .shop-rune-ico,
 .mechili-shop .shop-rune .shop-rune-ico.m-icon {
     display: block;
@@ -2214,8 +2565,8 @@ ${fontFaceCss()}
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
     text-align: center;
-    color: ${u.brassLight};
-    background: linear-gradient(180deg, transparent, rgba(8, 12, 6, 0.88) 35%);
+    color: ${u.bronzeLight};
+    background: linear-gradient(180deg, transparent, rgba(8, 8, 6, 0.9) 35%);
     padding: 6px 0 1px;
     pointer-events: none;
 }
@@ -2232,9 +2583,13 @@ ${fontFaceCss()}
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    border: 1.5px solid ${u.border};
-    color: ${u.text};
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.cream};
     cursor: pointer;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.55),
+        0 1px 0 rgba(180, 140, 80, 0.1);
 }
 .mechili-shop-col .shop-tile .title {
     position: absolute;
@@ -2247,9 +2602,9 @@ ${fontFaceCss()}
     letter-spacing: 0.6px;
     text-align: center;
     line-height: 1.1;
-    color: ${u.text};
-    background: rgba(24, 36, 20, 0.88);
-    border-bottom: 1px solid ${u.border};
+    color: ${u.cream};
+    background: linear-gradient(180deg, rgba(34, 28, 22, 0.94), rgba(20, 16, 12, 0.9));
+    border-bottom: 1px solid ${u.frameLo};
     pointer-events: none;
     z-index: 2;
     white-space: nowrap;
@@ -2259,7 +2614,7 @@ ${fontFaceCss()}
 .mechili-shop-col .shop-tile .art {
     position: absolute;
     inset: 0;
-    background-color: #f0ecd8;
+    background-color: #e8dcc4;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -2275,20 +2630,20 @@ ${fontFaceCss()}
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
     color: #fff;
-    background: rgba(180, 32, 24, 0.92);
-    border-radius: 0 6px 0 0;
+    background: rgba(160, 40, 28, 0.92);
+    border-radius: 0 4px 0 0;
     pointer-events: none;
     z-index: 1;
 }
 .mechili-shop-col .shop-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
-.mechili-shop-col .shop-tile:hover { border-color: ${u.hover}; }
+.mechili-shop-col .shop-tile:hover { border-color: ${u.bronzeLight}; }
 .mechili-shop-col .shop-tile:active { transform: scale(0.94); }
-.mechili-shop-col .shop-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); z-index: 3; }
+.mechili-shop-col .shop-tile:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); z-index: 3; }
 .mechili-shop-col .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras .shop-tile {
     width: 64px;
     height: 64px;
-    border-radius: 8px;
+    border-radius: 3px;
 }
 .mechili-extras .shop-tile .title {
     font-size: 8px;
@@ -2302,7 +2657,7 @@ ${fontFaceCss()}
 .mechili-shop .shop-grid .shop-tile {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 9px;
+    border-radius: 3px;
 }
 .mechili-shop .shop-grid .shop-tile .title {
     font-size: 10px;
@@ -2319,22 +2674,22 @@ ${fontFaceCss()}
     opacity: 0.45;
     pointer-events: none;
     cursor: default;
-    background: ${u.panelBgDark};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 100%);
 }
 .mechili-shop .shop-tile.unlock.available {
     opacity: 1;
     pointer-events: auto;
     cursor: pointer;
-    border-color: ${u.brass};
+    border-color: ${u.bronze};
 }
 .mechili-shop .shop-tile.unlock.available:hover {
-    border-color: ${u.hover};
+    border-color: ${u.bronzeLight};
     transform: translateY(-2px);
 }
 .mechili-shop .shop-tile.unlock .unlock-icon {
     font-size: 22px;
     line-height: 1;
-    color: ${u.textMuted};
+    color: ${u.creamMuted};
 }
 .mechili-shop .shop-tile.unlock .unlock-label {
     font-size: 9px;
@@ -2352,15 +2707,8 @@ ${fontFaceCss()}
     min-width: 244px;
     max-width: 300px;
     padding: 12px 14px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
-    border: 1.5px solid ${u.border};
-    border-left: none;
-    border-bottom: none;
-    border-radius: 0 10px 0 0;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    color: ${u.text};
+    /* chrome filled by materialStyles docked-panel frame */
+    color: ${u.cream};
     user-select: none;
 }
 .mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
@@ -2389,7 +2737,7 @@ ${fontFaceCss()}
     min-width: 42px; padding: 2px 6px 3px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.brass};
-    border-radius: 8px;
+    border-radius: 3px;
     line-height: 1;
 }
 .mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: ${u.textMuted}; }
@@ -2417,12 +2765,16 @@ ${fontFaceCss()}
        when there's no strip (owned / no price), center in the full tile */
     padding: 0; margin: 0;
     appearance: none; -webkit-appearance: none;
-    background: ${u.techBuyBg};
-    border: 1.5px solid ${u.border};
-    border-radius: 8px;
-    color: ${u.text};
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.cream};
     cursor: pointer;
     overflow: visible;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.65),
+        inset 0 -1px 0 rgba(255, 220, 160, 0.05),
+        0 1px 0 rgba(180, 140, 80, 0.1);
 }
 .mechili-panel .action-tile:has(.at-cost) { padding-bottom: 12px; }
 .mechili-panel .action-tile .at-icon { font-size: 27px; line-height: 1; }
@@ -2436,6 +2788,13 @@ ${fontFaceCss()}
     color: transparent;
     overflow: hidden;
     background-repeat: no-repeat;
+}
+/* supply / price coin — scales with surrounding text by default */
+.money-ico.m-icon {
+    width: 1em;
+    height: 1em;
+    margin-right: 0.2em;
+    vertical-align: -0.12em;
 }
 .mechili-sidebar .inv-item .m-icon { width: 30px; height: 30px; }
 .mechili-sidebar .inv-item:not(.tactic) { border-radius: 50%; overflow: hidden; padding: 0; }
@@ -2475,7 +2834,7 @@ ${fontFaceCss()}
 .mechili-panel .action-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-panel .action-tile:hover { border-color: ${u.hover}; transform: translateY(-1px); }
 .mechili-panel .action-tile:active { transform: scale(0.94); }
-.mechili-panel .action-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-panel .action-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-panel .action-tile.locked { opacity: 0.42; }
 .mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
@@ -2533,7 +2892,7 @@ ${fontFaceCss()}
     padding: 12px 14px;
     background: ${u.panelBgSolid};
     border: 1.5px solid ${u.brass};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
     pointer-events: none;
@@ -2577,7 +2936,7 @@ ${fontFaceCss()}
     appearance: none;
     background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
     border: 1.5px solid ${u.brassLight};
-    border-radius: 8px;
+    border-radius: 3px;
     color: #20180a;
     font-size: 14px;
     font-weight: bold;
@@ -2600,7 +2959,7 @@ ${fontFaceCss()}
     align-items: center;
     gap: 6px;
     padding: 8px 6px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.94), rgba(22, 18, 14, 0.96));
     border: 1.5px solid ${u.border};
     border-radius: 0;
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
@@ -2611,12 +2970,12 @@ ${fontFaceCss()}
 .mechili-sidebar.left {
     left: env(safe-area-inset-left);
     border-left: none;
-    border-radius: 0 10px 10px 0;
+    border-radius: 0 4px 4px 0;
 }
 .mechili-sidebar.right {
     right: env(safe-area-inset-right);
     border-right: none;
-    border-radius: 10px 0 0 10px;
+    border-radius: 4px 0 0 4px;
     /* enemy intel only shows on the enemy commander's detail screen */
     display: none;
 }
@@ -2652,7 +3011,7 @@ ${fontFaceCss()}
     padding: 8px 10px;
     background: ${u.panelBgDark};
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
 }
 .mechili-cards .round-pick .rp-round {
     grid-row: 1 / span 2;
@@ -2738,13 +3097,13 @@ ${fontFaceCss()}
     justify-content: center;
     background: ${u.techBuyBg};
     border: 1.5px solid ${u.border};
-    border-radius: 9px;
+    border-radius: 3px;
     color: ${u.text};
     cursor: pointer;
 }
 .mechili-sidebar .inv-item { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-sidebar .inv-item:hover { border-color: ${u.hover}; transform: translateY(-1px); }
-.mechili-sidebar .inv-item:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-sidebar .inv-item:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-sidebar .inv-item:not(.tactic) {
     background: transparent;
     border: none;
@@ -2767,7 +3126,7 @@ ${fontFaceCss()}
     line-height: 12px;
     text-align: center;
     color: ${u.brassLight};
-    background: rgba(12, 18, 10, 0.85);
+    background: rgba(12, 10, 8, 0.85);
     border: 1px solid ${u.border};
     border-radius: 4px;
     pointer-events: none;
@@ -2902,8 +3261,8 @@ ${fontFaceCss()}
     overflow-y: auto;
     overflow-x: hidden;
     padding: 6px;
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.94), rgba(22, 34, 19, 0.96));
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.96), rgba(22, 18, 14, 0.96));
     border: 1.5px solid ${u.border};
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     z-index: 80;
@@ -2999,7 +3358,7 @@ ${fontFaceCss()}
     padding: 8px 8px 6px;
     margin-left: -8px;
     margin-right: -8px;
-    border-radius: 12px;
+    border-radius: 4px;
     background: rgba(0, 80, 40, 0.22);
     box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.45);
     animation: forge-panel-ready 1.6s ease-in-out infinite;
@@ -3169,7 +3528,7 @@ ${fontFaceCss()}
     column-gap: 6px;
     row-gap: 4px;
     padding: 10px 10px 8px;
-    border-radius: 10px;
+    border-radius: 4px;
     border: 1.5px solid ${u.divider};
     background: rgba(0, 0, 0, 0.18);
     transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -3258,7 +3617,7 @@ ${fontFaceCss()}
     z-index: 10050;
     width: 280px;
     padding: 12px 14px;
-    border-radius: 10px;
+    border-radius: 4px;
     border: 1.5px solid ${u.border};
     background: ${u.panelBgDark};
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
@@ -3328,7 +3687,7 @@ ${fontFaceCss()}
     padding: 6px 18px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.brassDark};
-    border-radius: 14px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 26px;
     white-space: nowrap;
@@ -3369,7 +3728,7 @@ ${fontFaceCss()}
     font-weight: bold;
     letter-spacing: 1px;
     text-transform: uppercase;
-    border-radius: 8px;
+    border-radius: 3px;
     background: ${u.panelBg};
     border: 1px solid ${u.border};
     color: ${u.textMuted};
@@ -3384,9 +3743,9 @@ ${fontFaceCss()}
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    background: linear-gradient(180deg, rgba(30, 44, 26, 0.72), rgba(18, 28, 15, 0.82));
+    background: linear-gradient(180deg, rgba(40, 32, 24, 0.92), rgba(20, 16, 12, 0.95));
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
@@ -3398,12 +3757,12 @@ ${fontFaceCss()}
     font-size: 20px;
     background: ${u.techBuyBg};
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     cursor: pointer;
 }
 .mechili-chat .c-emote { transition: transform 0.12s ease, border-color 0.12s ease; }
 .mechili-chat .c-emote:hover { border-color: ${u.hover}; transform: scale(1.12); }
-.mechili-chat .c-emote:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-chat .c-emote:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-chat .c-row { display: flex; gap: 6px; }
 .mechili-chat .c-input {
     flex: 1;
@@ -3425,7 +3784,7 @@ ${fontFaceCss()}
 }
 .mechili-chat .c-send { transition: border-color 0.12s ease, background 0.12s ease; }
 .mechili-chat .c-send:hover { border-color: ${u.hover}; }
-.mechili-chat .c-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-chat .c-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-chat .c-input:focus-visible { outline: none; border-color: ${u.hover}; }
 
 .mechili-chat-float {
@@ -3443,7 +3802,7 @@ ${fontFaceCss()}
 .mechili-chat-float .cf-msg {
     padding: 3px 12px;
     background: ${u.panelBgDark};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 13px;
     max-width: 460px;
@@ -3520,12 +3879,6 @@ ${fontFaceCss()}
     color: ${u.brassLight};
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
-.mechili-cards .unlock-tier-head::before {
-    content: '⬢';
-    font-size: 18px;
-    line-height: 1;
-    color: ${u.brass};
-}
 .mechili-cards .cards-row.unlock-row {
     flex-wrap: wrap;
     justify-content: flex-start;
@@ -3543,13 +3896,13 @@ ${fontFaceCss()}
     width: 120px;
     aspect-ratio: 1;
     border: 1.5px solid ${u.border};
-    border-radius: 9px;
+    border-radius: 3px;
     color: ${u.text};
     background: ${u.panelBgDark};
     cursor: pointer;
 }
 .mechili-cards .unlock-pick:hover { border-color: ${u.hover}; transform: translateY(-2px); }
-.mechili-cards .unlock-pick:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-cards .unlock-pick:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-cards .unlock-pick:disabled {
     opacity: 0.4;
     pointer-events: none;
@@ -3564,7 +3917,7 @@ ${fontFaceCss()}
     font-weight: bold;
     padding: 3px 5px;
     text-align: center;
-    background: rgba(24, 36, 20, 0.88);
+    background: rgba(28, 22, 16, 0.88);
     border-bottom: 1px solid ${u.border};
     pointer-events: none;
 }
@@ -3590,27 +3943,81 @@ ${fontFaceCss()}
     pointer-events: none;
 }
 .mechili-cards .card {
+    --card-pad-x: clamp(10px, 1.1vw, 14px);
+    --card-pad-y: clamp(12px, 1.4vw, 18px);
+    position: relative;
     width: clamp(150px, 22vw, 215px);
     min-height: 0;
-    padding: clamp(12px, 1.4vw, 18px) clamp(10px, 1.1vw, 14px);
+    padding: var(--card-pad-y) var(--card-pad-x);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: clamp(8px, 1vw, 12px);
-    background: ${u.panelBgDark};
-    border: 2px solid ${u.border};
-    border-radius: 14px;
-    color: ${u.text};
+    overflow: hidden;
+    background:
+        /* worn corners */
+        radial-gradient(ellipse at 0% 0%, rgba(55, 35, 15, 0.34), transparent 46%),
+        radial-gradient(ellipse at 100% 0%, rgba(55, 35, 15, 0.34), transparent 46%),
+        radial-gradient(ellipse at 0% 100%, rgba(50, 32, 12, 0.38), transparent 48%),
+        radial-gradient(ellipse at 100% 100%, rgba(50, 32, 12, 0.38), transparent 48%),
+        radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(70, 45, 20, 0.12) 100%),
+        radial-gradient(ellipse at 22% 12%, rgba(255, 245, 220, 0.28), transparent 48%),
+        radial-gradient(ellipse at 78% 88%, rgba(120, 85, 45, 0.2), transparent 52%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 3px,
+            rgba(90, 65, 35, 0.05) 3px,
+            rgba(90, 65, 35, 0.05) 4px
+        ),
+        linear-gradient(165deg, ${u.parchmentHi} 0%, ${u.parchment} 45%, ${u.parchmentLo} 100%);
+    border: 1px solid #4a3420;
+    border-radius: 5px;
+    color: ${u.parchmentInk};
     cursor: pointer;
-    transition: transform 0.12s, border-color 0.12s;
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(30, 18, 8, 0.35),
+        /* double inset frame: cream rule + dark inner */
+        inset 0 0 0 1px rgba(232, 210, 160, 0.55),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.4),
+        inset 0 0 40px rgba(80, 50, 20, 0.14);
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
-.mechili-cards .card:hover { border-color: ${u.hover}; transform: translateY(-5px); }
-.mechili-cards .card:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); transform: translateY(-5px); }
+.mechili-cards .card:hover {
+    border-color: ${u.bronzeDark};
+    transform: translateY(-5px);
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.48),
+        0 0 0 1px rgba(30, 18, 8, 0.4),
+        inset 0 0 0 1px rgba(232, 210, 160, 0.6),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.45),
+        inset 0 0 40px rgba(80, 50, 20, 0.14);
+}
+.mechili-cards .card:focus-visible {
+    outline: none;
+    border-color: ${u.bronze};
+    transform: translateY(-5px);
+    box-shadow:
+        0 0 0 3px rgba(184, 146, 74, 0.4),
+        0 8px 22px rgba(0, 0, 0, 0.42),
+        inset 0 0 0 1px rgba(232, 210, 160, 0.55),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.4);
+}
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
 .mechili-cards .card.locked-card:disabled { opacity: 1; }
 /* a card shown for information only (waiting / reveal) — no hover, no lift */
 .mechili-cards .card.static { cursor: default; }
-.mechili-cards .card.static:hover { border-color: ${u.border}; transform: none; }
+.mechili-cards .card.static:hover {
+    border-color: #4a3420;
+    transform: none;
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(30, 18, 8, 0.35),
+        inset 0 0 0 1px rgba(232, 210, 160, 0.55),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.4),
+        inset 0 0 40px rgba(80, 50, 20, 0.14);
+}
 .mechili-cards .card-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
 /* specialist pick: wobble in place, then fly to commander frame */
@@ -3663,13 +4070,34 @@ ${fontFaceCss()}
     opacity: 0;
     pointer-events: none;
 }
-.mechili-fightbar .fighter.landed-pulse {
+.mechili-fightbar .fighter.landed-pulse .portrait {
     animation: mechili-commander-land 0.5s ease-out;
 }
 @keyframes mechili-commander-land {
-    0% { box-shadow: 0 0 0 0 rgba(255, 220, 120, 0); }
-    35% { box-shadow: 0 0 0 3px rgba(255, 220, 120, 0.45); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 220, 120, 0); }
+    0% {
+        box-shadow:
+            0 0 0 1px ${u.frameLo},
+            0 0 0 2px ${u.frameHi},
+            inset 0 1px 2px rgba(255, 230, 180, 0.2),
+            0 2px 6px rgba(0, 0, 0, 0.35),
+            0 0 0 0 rgba(255, 220, 120, 0);
+    }
+    35% {
+        box-shadow:
+            0 0 0 1px ${u.frameLo},
+            0 0 0 2px ${u.frameHi},
+            inset 0 1px 2px rgba(255, 230, 180, 0.2),
+            0 2px 6px rgba(0, 0, 0, 0.35),
+            0 0 0 3px rgba(255, 220, 120, 0.45);
+    }
+    100% {
+        box-shadow:
+            0 0 0 1px ${u.frameLo},
+            0 0 0 2px ${u.frameHi},
+            inset 0 1px 2px rgba(255, 230, 180, 0.2),
+            0 2px 6px rgba(0, 0, 0, 0.35),
+            0 0 0 0 rgba(255, 220, 120, 0);
+    }
 }
 .mechili-cards .c-owner {
     font-size: 14px;
@@ -3682,12 +4110,52 @@ ${fontFaceCss()}
 }
 .mechili-cards .c-owner.player { color: ${pc}; }
 .mechili-cards .c-owner.enemy { color: ${ec}; }
-.mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.brassLight}; }
-.mechili-cards .c-portrait { display: flex; align-items: center; justify-content: center; }
-.mechili-cards .c-portrait .m-icon { width: 72px; height: 72px; }
-.mechili-cards .c-units { font-size: 12.5px; color: ${u.textMuted}; }
-.mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.hpBar}; }
-.mechili-cards .c-desc { font-size: 12.5px; color: ${u.phase}; line-height: 1.55; }
+.mechili-cards .c-title {
+    align-self: stretch;
+    width: calc(100% + 2 * var(--card-pad-x));
+    margin: 2px calc(-1 * var(--card-pad-x)) 0;
+    padding: 7px var(--card-pad-x) 8px;
+    box-sizing: border-box;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    color: ${u.parchmentInk};
+    background:
+        linear-gradient(180deg, rgba(90, 60, 30, 0.12), transparent 40%),
+        linear-gradient(180deg, ${u.parchmentLo} 0%, #c2a070 100%);
+    border-top: 1px solid rgba(70, 45, 20, 0.35);
+    border-bottom: 1px solid rgba(70, 45, 20, 0.4);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 240, 210, 0.28),
+        0 1px 0 rgba(255, 240, 210, 0.12);
+}
+.mechili-cards .c-portrait {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 78px;
+    height: 78px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 35% 30%, rgba(255, 245, 220, 0.45), transparent 55%),
+        linear-gradient(165deg, ${u.parchmentHi}, ${u.parchmentLo});
+    border: 2px solid ${u.frameMid};
+    box-shadow:
+        0 0 0 2px ${u.frameLo},
+        0 0 0 4px ${u.frameHi},
+        0 0 0 5px ${u.frameEdge},
+        inset 0 1px 2px rgba(255, 245, 220, 0.35),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.25),
+        0 4px 10px rgba(0, 0, 0, 0.3);
+}
+.mechili-cards .c-portrait .m-icon { width: 100%; height: 100%; }
+.mechili-cards .c-units { font-size: 12.5px; color: ${u.parchmentInk}; }
+.mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.parchmentInk}; }
+.mechili-cards .c-desc { font-size: 12.5px; color: ${u.parchmentInkMuted}; line-height: 1.55; }
 .mechili-cards .c-forge {
     display: flex;
     flex-direction: row;
@@ -3746,12 +4214,59 @@ ${fontFaceCss()}
 .mechili-cards .c-forge-missing.trio .c-forge-miss:last-child {
     transform: translateY(-3px);
 }
-.mechili-cards .c-cost { margin-top: auto; font-size: 15px; font-weight: bold; color: ${u.brass}; }
+.mechili-cards .c-cost {
+    margin-top: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: ${u.brassDark};
+    text-shadow: 0 1px 0 rgba(255, 240, 210, 0.4);
+}
+.mechili-cards .c-cost .money-ico.m-icon {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+.mechili-cards .unlock-tier-head .money-ico.m-icon {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+}
+.mechili-panel .action-info .ai-cost .money-ico.m-icon,
+.mechili-panel .action-info .ai-buy .money-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 0.2em;
+}
+.mechili-cards .cards-skip .money-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0 0.15em;
+    vertical-align: -0.15em;
+}
+.mechili-phonebar .pb-label .money-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0 0.12em;
+    vertical-align: -0.15em;
+}
+.mechili-cards .c-cost.free {
+    color: ${u.parchmentInk};
+    padding: 4px 12px;
+    border-radius: 3px;
+    background: rgba(90, 60, 30, 0.12);
+    border: 1px solid rgba(70, 45, 20, 0.32);
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.35);
+    text-shadow: none;
+}
 .mechili-cards .cards-skip {
     padding: 9px 24px;
     background: ${u.undoBg};
     border: 1.5px solid ${u.undoBorder};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.undoText};
     font-size: 14px;
     font-weight: bold;
@@ -3767,7 +4282,7 @@ ${fontFaceCss()}
     max-height: 84vh;
     overflow-y: auto;
     padding: 20px 24px 24px;
-    border-radius: 14px;
+    border-radius: 4px;
     border: 2px solid ${u.border};
     background: ${u.panelBgDark};
     user-select: text;
@@ -3799,7 +4314,7 @@ ${fontFaceCss()}
 }
 .settings-card {
     padding: 12px 14px 14px;
-    border-radius: 10px;
+    border-radius: 4px;
     border: 1.5px solid ${u.divider};
     background: rgba(0, 0, 0, 0.15);
 }
@@ -3864,7 +4379,7 @@ ${fontFaceCss()}
     padding: 22px 24px;
     background: ${u.panelBg};
     border: 2px solid ${u.border};
-    border-radius: 14px;
+    border-radius: 4px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
 .mechili-pause .pause-title {
@@ -3886,7 +4401,7 @@ ${fontFaceCss()}
     padding: 11px 16px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${u.text};
     font-size: 14px;
     font-weight: bold;
@@ -3895,7 +4410,7 @@ ${fontFaceCss()}
 }
 .mechili-pause button { transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease; }
 .mechili-pause button:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-.mechili-pause button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.35); }
+.mechili-pause button:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-pause .pause-quit {
     border-color: ${u.undoBorder};
     color: ${u.undoText};
@@ -3912,10 +4427,11 @@ ${fontFaceCss()}
     align-items: center;
     gap: 18px;
     padding: 36px 64px;
-    background: linear-gradient(180deg, rgba(34, 50, 28, 0.96), rgba(20, 30, 16, 0.97));
-    border: 2px solid ${u.border};
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    /* chrome filled by materialStyles ornate frame */
+    background: transparent;
+    border: 1px solid ${u.frameLo};
+    border-radius: 4px;
+    box-shadow: none;
     user-select: none;
 }
 .mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
@@ -3930,7 +4446,7 @@ ${fontFaceCss()}
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
     border: 1.5px solid ${pc};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${pc};
     font-size: 15px;
     font-weight: bold;
@@ -3939,7 +4455,7 @@ ${fontFaceCss()}
 }
 .mechili-gameover .go-restart { transition: transform 0.14s ease, background 0.14s ease; }
 .mechili-gameover .go-restart:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
-.mechili-gameover .go-restart:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-gameover .go-restart:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 
 .mechili-report {
     position: absolute;
@@ -3947,7 +4463,7 @@ ${fontFaceCss()}
     top: 56px;
     min-width: 200px;
     padding: 12px 14px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.9), rgba(22, 34, 19, 0.93));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.94), rgba(22, 18, 14, 0.96));
     border: 1.5px solid ${u.border};
     border-radius: 10px 0 0 10px;
     border-right: none;
@@ -4027,7 +4543,7 @@ ${fontFaceCss()}
     overflow-y: auto;
     background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
     border: 1px solid ${u.border};
-    border-radius: 8px;
+    border-radius: 3px;
     padding: 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     pointer-events: auto;
@@ -4066,8 +4582,8 @@ ${fontFaceCss()}
     display: flex;
     flex-direction: column;
     gap: 4px;
-    width: min(38vw, 340px);
-    min-width: 200px;
+    width: min(42vw, 460px);
+    min-width: 220px;
     pointer-events: none;
 }
 .mechili-fightbar .fighter-stack.player { left: 0; align-items: stretch; }
@@ -4075,9 +4591,14 @@ ${fontFaceCss()}
 .mechili-fightbar .fighter-stack.multi .fighter {
     min-width: 0;
     padding: 6px 10px;
-    gap: 8px;
+    gap: 0;
 }
-.mechili-fightbar .fighter-stack.multi .fname { font-size: 13px; }
+.mechili-fightbar .fighter-stack.multi .fname {
+    font-size: 13px;
+}
+.mechili-fightbar .fighter-stack.multi .hp-val {
+    font-size: 13px;
+}
 .mechili-fightbar .fighter {
     position: relative;
     top: auto;
@@ -4085,30 +4606,28 @@ ${fontFaceCss()}
     right: auto;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 0;
     width: 100%;
     box-sizing: border-box;
-    min-width: 200px;
-    padding: 8px 12px;
-    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
-    border: 2px solid ${u.border};
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    min-width: 220px;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
     pointer-events: auto;
     cursor: pointer;
 }
 .mechili-fightbar .fighter.player {
-    border-left: none;
-    border-top: none;
-    border-radius: 0 0 10px 0;
+    border-radius: 0;
 }
 .mechili-fightbar .fighter.enemy {
-    border-right: none;
-    border-top: none;
     flex-direction: row-reverse;
-    border-radius: 0 0 0 10px;
+    border-radius: 0;
 }
 .mechili-fightbar .portrait-group {
     position: relative;
+    z-index: 3;
     display: flex;
     align-items: center;
     flex-shrink: 0;
@@ -4125,38 +4644,51 @@ ${fontFaceCss()}
     display: flex;
     align-items: center;
     justify-content: center;
-    background: none;
-    border: none;
-    border-radius: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 35% 28%, rgba(255, 230, 180, 0.2), transparent 55%),
+        linear-gradient(165deg, ${u.leatherHi}, ${u.leather});
+    border: 1.5px solid ${u.frameMid};
+    box-shadow:
+        0 0 0 1px ${u.frameLo},
+        0 0 0 2px ${u.frameHi},
+        inset 0 1px 2px rgba(255, 230, 180, 0.2),
+        0 2px 6px rgba(0, 0, 0, 0.35);
     font-size: 22px;
     font-weight: bold;
-    overflow: hidden;
+    line-height: 1;
+}
+.mechili-fightbar .portrait .portrait-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    line-height: 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+.mechili-fightbar .portrait .portrait-placeholder::before {
+    content: '◆';
+    /* diamond glyph sits low in many fonts — pull up to circle center */
+    display: block;
+    line-height: 1;
+    transform: translateY(-0.12em);
 }
 .mechili-fightbar .portrait-sub-stack {
     position: relative;
     z-index: 1;
     display: flex;
     align-items: center;
-    margin-left: -14px;
+    /* overlap toward the featured main (DOM: sub then main) */
+    margin-right: -6px;
 }
 .mechili-fightbar .fighter.enemy .portrait-sub-stack {
-    margin-left: 0;
-    margin-right: -14px;
-}
-.mechili-fightbar .portrait.sub {
-    width: 44px;
-    height: 44px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    border-radius: 0;
-    font-size: 22px;
-    font-weight: bold;
-    overflow: hidden;
-    opacity: 0.9;
+    margin-right: 0;
+    margin-left: -6px;
 }
 .mechili-fightbar .portrait .m-icon {
     width: 100%;
@@ -4171,136 +4703,119 @@ ${fontFaceCss()}
 }
 .mechili-fightbar .fighter.player .portrait { color: ${pc}; }
 .mechili-fightbar .fighter.enemy .portrait { color: ${ec}; }
-.mechili-fightbar .fighter-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+/* Meter column = portrait height: HP tube + name footplate */
+.mechili-fightbar .fighter-info {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    z-index: 1;
+}
+.mechili-fightbar .fighter.player .fighter-info {
+    margin-left: -18px;
+}
+.mechili-fightbar .fighter.enemy .fighter-info {
+    margin-right: -18px;
+}
+/* Name under the tube — text only */
 .mechili-fightbar .fname {
-    font-size: 15px;
-    font-weight: bold;
-    letter-spacing: 1px;
+    flex: 0 0 auto;
+    align-self: flex-start;
+    position: relative;
+    z-index: 2;
+    margin-top: -2px;
+    max-width: 100%;
+    width: fit-content;
+    padding: 0;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: ${u.cream};
+    background: none;
+    border: none;
+    box-shadow: none;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.95),
+        0 0 8px rgba(0, 0, 0, 0.7);
 }
-.mechili-fightbar .fighter.player .fname { color: ${pc}; text-align: left; }
-.mechili-fightbar .fighter.enemy .fname { color: ${ec}; text-align: right; }
+.mechili-fightbar .fname.tall {
+    margin-top: 2px;
+}
+.mechili-fightbar .fighter.player .fname {
+    text-align: left;
+    /* clear of the medallion that overlaps the tube */
+    margin-left: 22px;
+}
+.mechili-fightbar .fighter.enemy .fname {
+    align-self: flex-end;
+    text-align: right;
+    margin-right: 22px;
+}
 .mechili-fightbar .fspec {
     display: none;
 }
 .mechili-fightbar .fighter.no-hp .fighter-info { gap: 2px; }
-.mechili-fightbar .fighter.no-hp .fname { font-size: 13px; }
+.mechili-fightbar .fighter.no-hp .fname { font-size: 11px; }
 .mechili-fightbar .fighter.player .fspec { text-align: left; }
 .mechili-fightbar .fighter.enemy .fspec { text-align: right; }
 /* a chosen specialist makes the frame clickable (opens its card) */
 .mechili-fightbar .fighter.has-spec { pointer-events: auto; cursor: pointer; }
-.mechili-fightbar .fighter.has-spec:hover { border-color: ${u.hover}; }
+.mechili-fightbar .fighter.has-spec:hover .portrait {
+    border-color: ${u.brassLight};
+    filter: brightness(1.08);
+}
+${hpTubeTrack(u, '.mechili-fightbar .hp-track', 'auto')}
 .mechili-fightbar .hp-track {
-    height: 22px;
-    background: ${u.barTrack};
-    border: 1px solid ${u.border};
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow:
-        inset 0 1px 3px rgba(0, 0, 0, 0.52),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    position: relative;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
 }
-.mechili-fightbar .hp-track::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 22%, rgba(255, 255, 255, 0) 56%);
-    opacity: 0.75;
-    pointer-events: none;
-    z-index: 0;
+.mechili-fightbar .fighter.player .hp-track {
+    direction: ltr;
+    border-radius: 0 2px 2px 0;
 }
-.mechili-fightbar .hp-track::after {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, rgba(0, 0, 0, 0) 1px 5px);
-    opacity: 0.28;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-    z-index: 0;
+.mechili-fightbar .fighter.enemy .hp-track {
+    direction: rtl;
+    border-radius: 2px 0 0 2px;
 }
-.mechili-fightbar .fighter.player .hp-track { direction: ltr; }
-.mechili-fightbar .fighter.enemy .hp-track { direction: rtl; }
-.mechili-fightbar .hp-fill {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 100%;
-    transform: scaleX(0);
-    transition: transform 0.25s ease-out;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    pointer-events: none;
-    z-index: 1;
-}
-.mechili-fightbar .fighter.player .hp-fill {
-    background: ${pc};
-    opacity: 1;
-    transform-origin: left center;
-}
-.mechili-fightbar .fighter.enemy .hp-fill {
-    background: ${ec};
-    opacity: 1;
-    transform-origin: right center;
-}
-.mechili-fightbar .hp-fill::before {
-    content: '';
-    display: none;
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(circle at 12% 50%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 58%),
-        radial-gradient(circle at 42% 22%, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0) 62%),
-        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.10) 0 1px, rgba(0, 0, 0, 0) 1px 8px),
-        repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.26) 0 1px, rgba(0, 0, 0, 0) 1px 4px);
-    background-size: 26px 26px;
-    opacity: 0.62;
-    mix-blend-mode: overlay;
-    animation: mechili-fluid-shift 0.55s linear infinite;
-    pointer-events: none;
-}
-.mechili-fightbar .hp-fill::after {
-    content: '';
-    display: none;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: 6px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0));
-    box-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
-    opacity: 0.95;
-    pointer-events: none;
-}
-.mechili-fightbar .fighter.enemy .hp-fill::after {
-    left: 0;
-    right: auto;
-}
+${hpTubeFill('.mechili-fightbar .fighter.player .hp-fill', `linear-gradient(180deg, #7ec4f0 0%, ${pc} 42%, #2d6a9e 100%)`)}
+${hpTubeFill('.mechili-fightbar .fighter.enemy .hp-fill', `linear-gradient(180deg, #ff8a80 0%, ${ec} 42%, #a02418 100%)`, { origin: 'right center' })}
+${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
+/* HP label rides the fill tip — inside when full, in the empty track when space allows */
 .mechili-fightbar .hp-val {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
+    left: auto;
+    right: auto;
+    width: auto;
+    max-width: 45%;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Enemy track is rtl for the fill; keep the number LTR so "-" stays in front. */
-    direction: ltr;
-    font-size: 13px;
-    font-weight: bold;
-    font-variant-numeric: tabular-nums;
-    color: #ffffff;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
-    pointer-events: none;
-    z-index: 2;
+    padding: 0 6px;
+    box-sizing: border-box;
+    overflow: hidden;
+    transition: left 0.25s ease-out, transform 0.25s ease-out;
+}
+.mechili-fightbar .fighter.player .hp-val {
+    left: calc(2px + var(--hp, 1) * (100% - 4px));
+    transform: translateX(-100%); /* inside the fill */
+}
+.mechili-fightbar .fighter.player .hp-val.outside {
+    transform: translateX(0); /* just past the tip, in empty track */
+}
+.mechili-fightbar .fighter.enemy .hp-val {
+    left: calc(2px + (1 - var(--hp, 1)) * (100% - 4px));
+    transform: translateX(0); /* inside the fill */
+}
+.mechili-fightbar .fighter.enemy .hp-val.outside {
+    transform: translateX(-100%); /* just past the tip, in empty track */
 }
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
@@ -4313,32 +4828,33 @@ ${fontFaceCss()}
 }
 .mechili-topbar .end-deploy {
     padding: 10px 24px;
-    background: linear-gradient(180deg, ${u.brassLight}, ${u.brass});
-    border: 2px solid ${u.brassLight};
-    border-radius: 9px;
-    color: #20180a;
+    background: ${u.bronze};
+    border: 1.5px solid ${u.frameHi};
+    border-radius: 3px;
+    color: #1a140c;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1.5px;
     cursor: pointer;
-    box-shadow: 0 3px 12px rgba(255, 180, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, filter 0.14s ease;
 }
 .mechili-topbar .end-deploy:hover {
-    background: linear-gradient(180deg, #fff0b0, ${u.brassLight});
-    transform: translateY(-2px);
-    box-shadow: 0 7px 20px rgba(255, 180, 40, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    background: ${u.bronzeLight};
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
 }
 .mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
-.mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.5); }
-/* a teammate (2v2/duo) already locked in — half the button turns green so
+.mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.45); }
+/* a teammate (2v2/duo) already locked in — left half lights brass so
    both seats on a side can see who's still holding things up */
 .mechili-topbar .end-deploy.ally-ready {
-    background: linear-gradient(90deg, #5ee36b 0%, #5ee36b 48%, ${u.brassLight} 52%, ${u.brass} 100%);
-    border-color: #5ee36b;
+    background: linear-gradient(90deg, ${u.brassLight} 0%, ${u.brassLight} 48%, ${u.bronze} 52%, ${u.bronze} 100%);
+    border-color: ${u.frameHi};
 }
 .mechili-topbar .end-deploy.ally-ready:hover {
-    background: linear-gradient(90deg, #7dfa8a 0%, #7dfa8a 48%, #fff0b0 52%, ${u.brassLight} 100%);
+    background: linear-gradient(90deg, #e8d49a 0%, #e8d49a 48%, ${u.bronzeLight} 52%, ${u.bronzeLight} 100%);
+    border-color: ${u.brassLight};
 }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
@@ -4350,7 +4866,7 @@ ${fontFaceCss()}
     padding: 7px 10px;
     background: ${u.speedBg};
     border: 1.5px solid ${u.brass};
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.brass};
     font-size: 13px;
     font-weight: bold;
@@ -4359,7 +4875,7 @@ ${fontFaceCss()}
 }
 .mechili-topbar .speed { transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
-.mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(255, 216, 64, 0.4); }
+.mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 /* sit below End Deployment's deploy-phase hitbox so a phase swap can't
  * land a speed click on "End Deployment" (or the reverse) */
 .mechili-topbar.battle .speed {
@@ -4436,8 +4952,9 @@ ${fontFaceCss()}
     gap: 6px;
     padding: 4px calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom))
         calc(8px + env(safe-area-inset-left));
-    background: linear-gradient(180deg, rgba(26, 40, 22, 0.96), rgba(14, 24, 12, 0.98));
-    border-top: 1.5px solid ${u.border};
+    background: linear-gradient(180deg, ${u.leatherHi} 0%, ${u.leather} 100%);
+    border-top: 2px solid ${u.frameMid};
+    box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.12);
     user-select: none;
     pointer-events: auto;
 }
@@ -4451,7 +4968,7 @@ ${fontFaceCss()}
     appearance: none;
     background: none;
     border: none;
-    border-radius: 8px;
+    border-radius: 3px;
     color: ${u.textMuted};
     font-size: 10px;
     font-weight: bold;
@@ -4494,7 +5011,7 @@ ${fontFaceCss()}
         padding: 4px 8px;
         gap: 10px;
         border: 1.5px solid ${u.border};
-        border-radius: 14px;
+        border-radius: 4px;
     }
     .mechili-phonebar button { flex: 0 0 auto; padding: 5px 14px; }
 }
@@ -4537,9 +5054,9 @@ ${gamepadCursorStyles(u)}
     z-index: 90;
     max-width: min(340px, calc(100vw - 32px));
     padding: 12px 14px;
-    background: linear-gradient(180deg, rgba(38, 54, 32, 0.97), rgba(22, 34, 19, 0.97));
+    background: linear-gradient(180deg, rgba(44, 36, 28, 0.97), rgba(22, 18, 14, 0.97));
     border: 1.5px solid ${u.brass};
-    border-radius: 12px;
+    border-radius: 4px;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
     color: ${u.text};
     font-size: 13px;
@@ -4585,8 +5102,8 @@ ${gamepadCursorStyles(u)}
         z-index: 20;
     }
     /* money joins the strip on phone (the shop toolbar lives in a sheet);
-       the phone enemy card is shorter, so the strip docks higher */
-    .mechili-phone-status { top: calc(40px + env(safe-area-inset-top)); }
+       dock below the enemy HP + name (portraits hidden, but name remains) */
+    .mechili-phone-status { top: calc(72px + env(safe-area-inset-top)); }
     .mechili-phone-status .mechili-supply { display: flex; }
     /* no spending during battle — money returns with the next deployment */
     .mechili-phone-status.battle .mechili-supply { display: none; }
@@ -4633,7 +5150,7 @@ ${gamepadCursorStyles(u)}
     .mechili-shop-col.phone-open .mechili-shop {
         width: auto;
         border-right: 1.5px solid ${u.border};
-        border-radius: 10px;
+        border-radius: 4px;
     }
     .mechili-shop-col.phone-open .shop-grid {
         grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
@@ -4649,7 +5166,7 @@ ${gamepadCursorStyles(u)}
 
     /* compact commander bar + center controls */
     .mechili-fightbar .fighter-stack {
-        width: min(31vw, 210px);
+        width: min(40vw, 280px);
         min-width: 0;
     }
     .mechili-fightbar .fighter {
@@ -4658,10 +5175,29 @@ ${gamepadCursorStyles(u)}
         padding: 4px 8px;
     }
     .mechili-fightbar .portrait-group { display: none; }
-    .mechili-fightbar .fname { font-size: 11px; letter-spacing: 0.4px; }
-    .mechili-fightbar .fighter-info { gap: 3px; }
-    .mechili-fightbar .hp-track { height: 14px; }
-    .mechili-fightbar .hp-val { font-size: 10px; }
+    .mechili-fightbar .fighter.player .fighter-info,
+    .mechili-fightbar .fighter.enemy .fighter-info {
+        margin-left: 0;
+        margin-right: 0;
+    }
+    .mechili-fightbar .fighter.player .hp-track,
+    .mechili-fightbar .fighter.enemy .hp-track {
+        border-radius: 2px;
+    }
+    .mechili-fightbar .fighter.player .fname {
+        margin-left: 8px;
+    }
+    .mechili-fightbar .fighter.enemy .fname {
+        margin-right: 8px;
+    }
+    .mechili-fightbar .fighter { padding-bottom: 4px; }
+    .mechili-fightbar .fighter-info { height: 40px; }
+    .mechili-fightbar .fname { font-size: 12px; letter-spacing: 0.4px; margin-top: -2px; }
+    .mechili-fightbar .fname.tall { margin-top: 2px; }
+    .mechili-fightbar .fighter-stack.multi .fname { font-size: 12px; }
+    .mechili-fightbar .fighter-info { gap: 0; }
+    .mechili-fightbar .hp-track { height: auto; }
+    .mechili-fightbar .hp-val { font-size: 11px; }
     .mechili-topbar { top: calc(2px + env(safe-area-inset-top)); gap: 2px; }
     .mechili-topbar .round { font-size: 11px; }
     .mechili-topbar .timer { font-size: 16px; }
