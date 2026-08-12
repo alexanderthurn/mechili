@@ -24,7 +24,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Projectile, SimEvent } from './sim';
-import { bloodParticleScale } from './prefs';
+import { bloodParticleScale, bloodIntensityScale } from './prefs';
 import { THEME } from '../theme';
 
 const MAX_PROJECTILES = 512;
@@ -121,7 +121,7 @@ export class Particles {
 
     constructor(scene: Scene) {
         this.sparks = new ParticlePool(scene, AdditiveBlending, 1.4);
-        this.blood = new ParticlePool(scene, NormalBlending, 1.9);
+        this.blood = new ParticlePool(scene, NormalBlending, 1.2);
     }
 
     burst(
@@ -142,13 +142,22 @@ export class Particles {
             this.sparks.burst(x, y, z, opts);
             return;
         }
-        // blood volume follows the bloodFx graphics setting (0 = off)
+        // blood volume + energy follow the bloodFx graphics setting (0 = off)
         const scale = bloodParticleScale();
         if (scale <= 0) return;
         const count = Math.max(1, Math.round(opts.count * scale));
+        // lower tiers keep blood low, slow and tight; high/ultra fountain
+        const energy = bloodIntensityScale();
         // deep, dark gore — the raw hit colors read too bright/pink airborne
         this.darkBlood.setHex(opts.color).multiplyScalar(0.3);
-        this.blood.burst(x, y, z, { ...opts, count, color: this.darkBlood.getHex() });
+        this.blood.burst(x, y, z, {
+            ...opts,
+            count,
+            color: this.darkBlood.getHex(),
+            speed: opts.speed * energy,
+            up: (opts.up ?? 2) * energy,
+            spread: energy,
+        });
     }
 
     update(dt: number): void {
@@ -165,22 +174,34 @@ export class Particles {
                 case 'impact': {
                     // spray exits the far side, along the bullet/strike direction
                     const dir = e.dx !== undefined ? { x: e.dx, y: e.dy ?? 0, z: e.dz ?? 0 } : undefined;
+                    if (!e.flesh) {
+                        // towers / ground / shields: gray stone-and-metal debris, not blood
+                        this.burst(e.x, e.y, e.z, {
+                            count: 9,
+                            color: 0x9a938a,
+                            speed: 11,
+                            life: 0.35,
+                            up: 2,
+                            dir,
+                        });
+                        break;
+                    }
                     this.burst(e.x, e.y, e.z, {
-                        count: 18,
+                        count: 12,
                         color: e.blood ?? THEME.impact,
-                        speed: 14,
-                        life: 0.55,
-                        up: 3,
+                        speed: 11,
+                        life: 0.5,
+                        up: 2,
                         blood: true,
                         dir,
                     });
-                    // a few fast fat gouts that shoot out ahead of the hit
+                    // a couple of fast gouts that shoot out ahead of the hit
                     this.burst(e.x, e.y, e.z, {
-                        count: 6,
+                        count: 4,
                         color: e.blood ?? THEME.impact,
-                        speed: 24,
-                        life: 0.75,
-                        up: 4,
+                        speed: 18,
+                        life: 0.65,
+                        up: 3,
                         blood: true,
                         dir,
                     });
@@ -256,13 +277,13 @@ export class Particles {
                     } else if (e.wear === 'none') {
                         break;
                     } else if (e.big) {
-                        // massive gib fountain — tall geyser plus a spreading cloud
+                        // massive gib burst — sprays outward and arcs back down
                         this.burst(e.x, e.y, e.z, {
                             count: 80,
                             color: e.blood ?? THEME.death,
                             speed: 22,
                             life: 1.2,
-                            up: 13,
+                            up: 5,
                             blood: true,
                         });
                         this.burst(e.x, e.y + 1, e.z, {
@@ -270,17 +291,17 @@ export class Particles {
                             color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
                             speed: 12,
                             life: 0.95,
-                            up: 17,
+                            up: 7,
                             blood: true,
                         });
                     } else {
-                        // spurting fountain on a normal kill
+                        // spurting burst on a normal kill
                         this.burst(e.x, e.y, e.z, {
                             count: 26,
                             color: e.blood ?? THEME.deathSmall,
                             speed: 15,
                             life: 0.75,
-                            up: 9,
+                            up: 3,
                             blood: true,
                         });
                         this.burst(e.x, e.y + 0.6, e.z, {
@@ -288,7 +309,7 @@ export class Particles {
                             color: e.blood ?? THEME.deathSmall,
                             speed: 8,
                             life: 0.85,
-                            up: 13,
+                            up: 5,
                             blood: true,
                         });
                     }
@@ -415,10 +436,13 @@ class ParticlePool {
             up?: number;
             /** normalized jet direction — spray forms a cone around it (e.g. bullet exit) */
             dir?: { x: number; y: number; z: number };
+            /** 0..1 multiplier on the random (perpendicular) spread; default 1 */
+            spread?: number;
         },
     ): void {
         this.tmpColor.setHex(opts.color);
         const dir = opts.dir;
+        const spread = opts.spread ?? 1;
         for (let n = 0; n < opts.count; n++) {
             const i = this.cursor;
             this.cursor = (this.cursor + 1) % MAX_PARTICLES;
@@ -432,20 +456,20 @@ class ParticlePool {
             this.positions[i * 3 + 1] = y;
             this.positions[i * 3 + 2] = z;
             if (dir) {
-                // jet along the hit direction (dominant) with a soft random cone
-                this.velocities[i * 3] = (dir.x * 1.35 + rx * 0.55) * speed;
-                this.velocities[i * 3 + 1] = (dir.y * 1.35 + ry * 0.55) * speed + (opts.up ?? 1);
-                this.velocities[i * 3 + 2] = (dir.z * 1.35 + rz * 0.55) * speed;
+                // jet along the hit direction (dominant) with a tight random cone
+                this.velocities[i * 3] = (dir.x * 1.5 + rx * 0.32 * spread) * speed;
+                this.velocities[i * 3 + 1] = (dir.y * 1.5 + ry * 0.32 * spread) * speed + (opts.up ?? 1);
+                this.velocities[i * 3 + 2] = (dir.z * 1.5 + rz * 0.32 * spread) * speed;
             } else {
-                this.velocities[i * 3] = rx * speed;
+                this.velocities[i * 3] = rx * speed * spread;
                 this.velocities[i * 3 + 1] = ry * speed + (opts.up ?? 2);
-                this.velocities[i * 3 + 2] = rz * speed;
+                this.velocities[i * 3 + 2] = rz * speed * spread;
             }
             this.aColor[i * 3] = this.tmpColor.r;
             this.aColor[i * 3 + 1] = this.tmpColor.g;
             this.aColor[i * 3 + 2] = this.tmpColor.b;
             // mixed droplet sizes — a few fat splats, many fine mist specks
-            this.baseSizes[i] = this.size * (0.45 + Math.random() * Math.random() * 2.1);
+            this.baseSizes[i] = this.size * (0.4 + Math.random() * Math.random() * 1.5);
             this.aSize[i] = this.baseSizes[i]!;
             this.aOpacity[i] = 1;
             this.life[i] = opts.life * (0.6 + Math.random() * 0.4);

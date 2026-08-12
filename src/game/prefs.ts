@@ -315,7 +315,25 @@ export function bloodParticleScale(quality: BloodFxQuality = prefs().bloodFx): n
         case 'high':
             return 1.3;
         case 'ultra':
-            return 2.4;
+            return 4.8;
+    }
+}
+
+/**
+ * Energy multiplier on blood spray — scales launch speed, upward throw, and
+ * random spread together. Lower tiers keep blood low and tight (a subdued
+ * spatter); high and ultra let it fountain up and fan out.
+ */
+export function bloodIntensityScale(quality: BloodFxQuality = prefs().bloodFx): number {
+    switch (quality) {
+        case 'off':
+        case 'low':
+            return 0.45;
+        case 'medium':
+            return 0.7;
+        case 'high':
+        case 'ultra':
+            return 1;
     }
 }
 
