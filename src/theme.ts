@@ -4682,6 +4682,9 @@ ${materialStyles(u)}
         0 1px 2px rgba(0, 0, 0, 0.95),
         0 0 8px rgba(0, 0, 0, 0.7);
 }
+.mechili-fightbar .fname.tall {
+    margin-top: 2px;
+}
 .mechili-fightbar .fighter.player .fname {
     text-align: left;
     /* clear of the medallion that overlaps the tube */
@@ -4722,7 +4725,7 @@ ${hpTubeTrack(u, '.mechili-fightbar .hp-track', 'auto')}
 ${hpTubeFill('.mechili-fightbar .fighter.player .hp-fill', `linear-gradient(180deg, #7ec4f0 0%, ${pc} 42%, #2d6a9e 100%)`)}
 ${hpTubeFill('.mechili-fightbar .fighter.enemy .hp-fill', `linear-gradient(180deg, #ff8a80 0%, ${ec} 42%, #a02418 100%)`, { origin: 'right center' })}
 ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
-/* HP label rides the trailing edge of the fill (inside the color) */
+/* HP label rides the fill tip — inside when full, in the empty track when space allows */
 .mechili-fightbar .hp-val {
     left: auto;
     right: auto;
@@ -4734,17 +4737,21 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     padding: 0 6px;
     box-sizing: border-box;
     overflow: hidden;
-    transition: left 0.25s ease-out;
+    transition: left 0.25s ease-out, transform 0.25s ease-out;
 }
 .mechili-fightbar .fighter.player .hp-val {
-    /* tip grows from the left — sit just inside the right edge of the fill */
     left: calc(2px + var(--hp, 1) * (100% - 4px));
-    transform: translateX(-100%);
+    transform: translateX(-100%); /* inside the fill */
+}
+.mechili-fightbar .fighter.player .hp-val.outside {
+    transform: translateX(0); /* just past the tip, in empty track */
 }
 .mechili-fightbar .fighter.enemy .hp-val {
-    /* tip grows from the right — sit just inside the left edge of the fill */
     left: calc(2px + (1 - var(--hp, 1)) * (100% - 4px));
-    transform: translateX(0);
+    transform: translateX(0); /* inside the fill */
+}
+.mechili-fightbar .fighter.enemy .hp-val.outside {
+    transform: translateX(-100%); /* just past the tip, in empty track */
 }
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
@@ -5122,6 +5129,7 @@ ${gamepadCursorStyles(u)}
     .mechili-fightbar .fighter { padding-bottom: 4px; }
     .mechili-fightbar .fighter-info { height: 40px; }
     .mechili-fightbar .fname { font-size: 12px; letter-spacing: 0.4px; margin-top: -2px; }
+    .mechili-fightbar .fname.tall { margin-top: 2px; }
     .mechili-fightbar .fighter-stack.multi .fname { font-size: 12px; }
     .mechili-fightbar .fighter-info { gap: 0; }
     .mechili-fightbar .hp-track { height: auto; }

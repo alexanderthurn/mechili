@@ -1564,6 +1564,9 @@ export class Hud {
         const nameEl = document.createElement('span');
         nameEl.className = 'fname';
         nameEl.textContent = combinedName;
+        // Caps / tall glyphs need a bit more air under the tube; short
+        // lowercase names can sit tighter without overlapping the bar.
+        if (/\p{Lu}/u.test(combinedName)) nameEl.classList.add('tall');
 
         const specEl = document.createElement('span');
         specEl.className = 'fspec';
@@ -2846,6 +2849,11 @@ export class Hud {
         this.enemyHpFill.style.transform = `scaleX(${e})`;
         this.playerHpVal.style.setProperty('--hp', String(p));
         this.enemyHpVal.style.setProperty('--hp', String(e));
+        // Full / nearly-full: keep the label inside the fill. Once there's a
+        // clear empty stretch, park it just past the tip in the empty track.
+        const labelOutside = (ratio: number) => ratio < 0.9;
+        this.playerHpVal.classList.toggle('outside', labelOutside(p));
+        this.enemyHpVal.classList.toggle('outside', labelOutside(e));
         this.playerHpVal.textContent = String(pRound);
         this.enemyHpVal.textContent = String(eRound);
     }
