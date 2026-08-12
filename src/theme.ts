@@ -4725,14 +4725,15 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
 }
 .mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
 .mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.45); }
-/* a teammate (2v2/duo) already locked in — half the button turns green so
+/* a teammate (2v2/duo) already locked in — left half lights brass so
    both seats on a side can see who's still holding things up */
 .mechili-topbar .end-deploy.ally-ready {
-    background: linear-gradient(90deg, #5ee36b 0%, #5ee36b 48%, ${u.bronze} 52%, ${u.bronze} 100%);
-    border-color: #5ee36b;
+    background: linear-gradient(90deg, ${u.brassLight} 0%, ${u.brassLight} 48%, ${u.bronze} 52%, ${u.bronze} 100%);
+    border-color: ${u.frameHi};
 }
 .mechili-topbar .end-deploy.ally-ready:hover {
-    background: linear-gradient(90deg, #7dfa8a 0%, #7dfa8a 48%, ${u.bronzeLight} 52%, ${u.bronzeLight} 100%);
+    background: linear-gradient(90deg, #e8d49a 0%, #e8d49a 48%, ${u.bronzeLight} 52%, ${u.bronzeLight} 100%);
+    border-color: ${u.brassLight};
 }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
