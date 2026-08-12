@@ -1,5 +1,6 @@
 import {
     AdditiveBlending,
+    BoxGeometry,
     BufferAttribute,
     BufferGeometry,
     Color,
@@ -39,18 +40,32 @@ function lightenBlood(hex: number): number {
 
 type ProjectileStyle = Projectile['style'];
 
-/** shaft + tip along +Z (nose forward); `scale` 1 ≈ archer arrow */
+/**
+ * Shaft + tip + flat fletching along +Z (nose forward).
+ * Fletching is thin vanes — not a rear cone (that read as a second tip).
+ */
 function makeArrowGeometry(scale: number): BufferGeometry {
-    const shaft = new CylinderGeometry(0.045 * scale, 0.055 * scale, 1.15 * scale, 5);
+    const shaft = new CylinderGeometry(0.032 * scale, 0.038 * scale, 1.35 * scale, 6);
     shaft.rotateX(Math.PI / 2);
-    shaft.translate(0, 0, -0.12 * scale);
-    const tip = new ConeGeometry(0.14 * scale, 0.42 * scale, 5);
+
+    const tip = new ConeGeometry(0.095 * scale, 0.4 * scale, 6);
     tip.rotateX(Math.PI / 2);
-    tip.translate(0, 0, 0.58 * scale);
-    const fletch = new ConeGeometry(0.12 * scale, 0.28 * scale, 4);
-    fletch.rotateX(-Math.PI / 2);
-    fletch.translate(0, 0, -0.72 * scale);
-    return mergeGeometries([shaft, tip, fletch])!;
+    tip.translate(0, 0, 0.72 * scale);
+
+    // three feather vanes around the nock
+    const vanes: BufferGeometry[] = [];
+    for (let i = 0; i < 3; i++) {
+        const vane = new BoxGeometry(0.018 * scale, 0.2 * scale, 0.34 * scale);
+        vane.translate(0, 0.09 * scale, -0.72 * scale);
+        vane.rotateZ((i * Math.PI * 2) / 3);
+        vanes.push(vane);
+    }
+
+    // small nock block at the very back
+    const nock = new BoxGeometry(0.05 * scale, 0.05 * scale, 0.06 * scale);
+    nock.translate(0, 0, -0.92 * scale);
+
+    return mergeGeometries([shaft, tip, nock, ...vanes])!;
 }
 
 /** pulsing additive magic orb — hot core + cyan rim (visual only) */
@@ -363,7 +378,7 @@ export class ProjectileRenderer {
                 new MeshBasicMaterial({ color: THEME.projectile }),
                 MAX_PROJECTILES,
             ),
-            arrow: new InstancedMesh(makeArrowGeometry(3), wood, MAX_PROJECTILES),
+            arrow: new InstancedMesh(makeArrowGeometry(2), wood, MAX_PROJECTILES),
             // still clearly bigger than the archer's arrow
             largeArrow: new InstancedMesh(makeArrowGeometry(5.5), wood, MAX_PROJECTILES),
             // reserved for catapult

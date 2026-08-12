@@ -34,6 +34,7 @@ import {
     RESEARCH_CENTER,
     bloodColorOf,
     resolveDeathWear,
+    projectileAimY,
     syncBattleTint,
     type BattleTeam,
     type DeathWear,
@@ -2392,12 +2393,12 @@ export class BattleSim {
                 : shooterFeet + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
         const mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
         const mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
-        const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
+        const aimLocalY = projectileAimY(tt);
         let aimX = target.x;
         let aimZ = target.z;
         let dx = aimX - mx;
         let dz = aimZ - mz;
-        let dy = this.feetY(target, aimX, aimZ) + aim.y * tt.meshScale - muzzleY;
+        let dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
 
         let vx: number;
         let vy: number;
@@ -2420,7 +2421,7 @@ export class BattleSim {
                 flatDist = hypot(dx, dz) || 1e-6;
                 flightTime = Math.max(1e-3, flatDist / speed);
             }
-            dy = this.feetY(target, aimX, aimZ) + aim.y * tt.meshScale - muzzleY;
+            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
             gravity = BALLISTIC_GRAVITY;
             vx = (dx / flatDist) * speed;
             vz = (dz / flatDist) * speed;
@@ -2464,9 +2465,9 @@ export class BattleSim {
             // homing shots re-aim at their victim every step — they can't miss
             if (p.target?.alive) {
                 const tt = p.target.unit.type;
-                const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
+                const aimLocalY = projectileAimY(tt);
                 const dx = p.target.x - p.x;
-                const dy = p.target.footY + aim.y * tt.meshScale - p.y;
+                const dy = p.target.footY + aimLocalY * tt.meshScale - p.y;
                 const dz = p.target.z - p.z;
                 const len = hypot(dx, dy, dz) || 1e-6;
                 const speed = hypot(p.vx, p.vy, p.vz);
