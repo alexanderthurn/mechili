@@ -1770,6 +1770,8 @@ export class Hud {
     private forgeSlotPreviewAnchor: HTMLElement | null = null;
     /** rune id used while recipes hover is open (shop / bag / drag) */
     private forgeRecipesHoverRuneId: string | null = null;
+    /** recipe HTML currently written into the popup — skip rewrites when unchanged */
+    private forgeRecipesShownHtml: string | null = null;
     private forgeRecipesDismissArmed = false;
 
     /** click outside / on the popup dismisses sticky recipe peeks */
@@ -1831,8 +1833,20 @@ export class Hud {
             return;
         }
         const el = this.ensureForgeSlotPreviewEl();
+        // Already showing this exact popup for this anchor? Skip the innerHTML
+        // rewrite + tip rebind + reposition (a forced reflow). This kills the
+        // duplicate rebuild when a buy fires setInventory AND setForgeRecipeContext
+        // in the same frame, and makes no-op refreshes free.
+        const unchanged =
+            !el.hidden &&
+            el.classList.contains('recipes') &&
+            this.forgeSlotPreviewAnchor === anchor &&
+            this.forgeRecipesHoverRuneId === highlightRuneId &&
+            this.forgeRecipesShownHtml === recipes;
+        if (unchanged) return;
         this.forgeSlotPreviewAnchor = anchor;
         this.forgeRecipesHoverRuneId = highlightRuneId;
+        this.forgeRecipesShownHtml = recipes;
         el.classList.add('recipes');
         el.innerHTML =
             `<div class="forge-recipes-hint">Drag onto a Stronghold to forge</div>` + recipes;
@@ -1932,6 +1946,7 @@ export class Hud {
         this.disarmForgeRecipesDismiss();
         this.forgeSlotPreviewAnchor = null;
         this.forgeRecipesHoverRuneId = null;
+        this.forgeRecipesShownHtml = null; // popup emptied: next show must rebuild
         if (this.forgeSlotPreviewEl) {
             this.forgeSlotPreviewEl.hidden = true;
             this.forgeSlotPreviewEl.classList.remove('recipes');
@@ -3414,7 +3429,31 @@ export class Hud {
     }
 
     /** forge recipe list — bagIds/forgeIds are that side's runes for ownership marks */
+    /**
+     * Memoized wrapper: the recipe grid HTML is pure over its inputs, so cache
+     * the last result. Buying a rune re-fires the panel refresh (sometimes twice
+     * in one frame, via setInventory + setForgeRecipeContext) — this makes the
+     * repeat builds free instead of recomputing/sorting every recipe each time.
+     */
+    private forgeRecipesMemoKey = '';
+    private forgeRecipesMemoHtml = '';
     private forgeRecipesBlockHtml(
+        pool: readonly string[],
+        bagIds: readonly string[],
+        forgeIds: readonly string[],
+        highlightRuneId: string | null = null,
+    ): string {
+        const memoKey =
+            `${pool.join(',')}${bagIds.join(',')}` +
+            `${forgeIds.join(',')}${highlightRuneId ?? ''}`;
+        if (memoKey === this.forgeRecipesMemoKey) return this.forgeRecipesMemoHtml;
+        const html = this.buildForgeRecipesBlockHtml(pool, bagIds, forgeIds, highlightRuneId);
+        this.forgeRecipesMemoKey = memoKey;
+        this.forgeRecipesMemoHtml = html;
+        return html;
+    }
+
+    private buildForgeRecipesBlockHtml(
         pool: readonly string[],
         bagIds: readonly string[],
         forgeIds: readonly string[],
