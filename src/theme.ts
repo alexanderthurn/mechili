@@ -2412,21 +2412,12 @@ ${materialStyles(u)}
 }
 .shop-toolbar .level-all-global .cost,
 .mechili-phone-status .level-all-global .cost {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
     font-size: 14px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
     color: ${u.brass};
     line-height: 1;
     margin-top: 2px;
-}
-.shop-toolbar .level-all-global .cost .money-ico.m-icon,
-.mechili-phone-status .level-all-global .cost .money-ico.m-icon {
-    width: 14px;
-    height: 14px;
-    margin: 0;
 }
 .shop-toolbar .level-all-global,
 .mechili-phone-status .level-all-global { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
@@ -2564,10 +2555,6 @@ ${materialStyles(u)}
     right: 0;
     bottom: 0;
     left: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
     font-size: 9px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -2577,11 +2564,6 @@ ${materialStyles(u)}
     background: linear-gradient(180deg, transparent, rgba(8, 8, 6, 0.9) 35%);
     padding: 6px 0 1px;
     pointer-events: none;
-}
-.mechili-shop .shop-rune .cost .money-ico.m-icon {
-    width: 9px;
-    height: 9px;
-    margin: 0;
 }
 .mechili-shop .shop-grid {
     display: grid;
@@ -2637,9 +2619,6 @@ ${materialStyles(u)}
     position: absolute;
     left: 0;
     bottom: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
     padding: 2px 7px 3px;
     font-size: 12px;
     font-weight: bold;
@@ -2650,11 +2629,6 @@ ${materialStyles(u)}
     border-radius: 0 4px 0 0;
     pointer-events: none;
     z-index: 1;
-}
-.mechili-shop-col .shop-tile .cost .money-ico.m-icon {
-    width: 12px;
-    height: 12px;
-    margin: 0;
 }
 .mechili-shop-col .shop-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-shop-col .shop-tile:hover { border-color: ${u.bronzeLight}; }
@@ -2834,7 +2808,6 @@ ${materialStyles(u)}
 .mechili-phone-status .btn-ico.m-icon { width: 22px; height: 22px; margin: 0; }
 .mechili-panel .action-tile .at-cost {
     position: absolute; left: 0; bottom: 0; right: 0;
-    display: flex; align-items: center; justify-content: center; gap: 2px;
     padding: 1px 0 2px;
     font-size: 9px; font-weight: bold; text-align: center;
     font-variant-numeric: tabular-nums;
@@ -2842,12 +2815,6 @@ ${materialStyles(u)}
     background: rgba(180, 32, 24, 0.92);
     border-radius: 0 0 6px 6px;
     pointer-events: none;
-}
-.mechili-panel .action-tile .at-cost .money-ico.m-icon {
-    width: 9px;
-    height: 9px;
-    margin: 0;
-    vertical-align: 0;
 }
 .mechili-panel .action-tile .at-cost.refund { background: rgba(40, 140, 60, 0.92); }
 .mechili-panel .action-tile .at-badge {
@@ -3962,9 +3929,6 @@ ${materialStyles(u)}
     left: 0;
     bottom: 0;
     z-index: 1;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
     font-size: 11px;
     font-weight: bold;
     padding: 2px 6px 3px;
@@ -3972,11 +3936,6 @@ ${materialStyles(u)}
     background: rgba(180, 32, 24, 0.92);
     border-radius: 0 6px 0 0;
     pointer-events: none;
-}
-.mechili-cards .unlock-pick .cost .money-ico.m-icon {
-    width: 11px;
-    height: 11px;
-    margin: 0;
 }
 .mechili-cards .card {
     --card-pad-x: clamp(10px, 1.1vw, 14px);

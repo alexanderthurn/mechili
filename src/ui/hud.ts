@@ -627,7 +627,7 @@ export class Hud {
             button.innerHTML =
                 `<span class="title">${type.name}</span>` +
                 `<span class="art"></span>` +
-                `<span class="cost">${moneyHtml(costOf(type))}</span>`;
+                `<span class="cost">${costOf(type)}</span>`;
             const hits = [type.targets.ground && 'ground', type.targets.air && 'air']
                 .filter(Boolean)
                 .join(' + ');
@@ -709,7 +709,7 @@ export class Hud {
             btn.dataset.itemId = itemId;
             btn.innerHTML =
                 `${iconHtml(def.icon, 'shop-rune-ico')}` +
-                `<span class="cost">${moneyHtml(this.shopRuneCost)}</span>`;
+                `<span class="cost">${this.shopRuneCost}</span>`;
             btn.title = `${def.name} — ${this.shopRuneCost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('unaffordable')) return;
@@ -2110,7 +2110,7 @@ export class Hud {
         for (const { el, itemId } of this.shopRuneButtons) {
             const def = ITEMS[itemId]!;
             const costEl = el.querySelector('.cost');
-            if (costEl) costEl.innerHTML = moneyHtml(cost);
+            if (costEl) costEl.textContent = String(cost);
             el.title =
                 `${def.name} — ${cost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
         }
@@ -2130,7 +2130,7 @@ export class Hud {
     /** re-reads unit prices (they change while the recruit switch is active) */
     refreshCosts(): void {
         for (const { el, type } of this.buttons) {
-            el.querySelector('.cost')!.innerHTML = moneyHtml(this.costOf(type));
+            el.querySelector('.cost')!.textContent = String(this.costOf(type));
             if (type.extra) continue;
             const cost = this.costOf(type);
             const blocked = this.deploysLeft <= 0;
@@ -2156,7 +2156,7 @@ export class Hud {
             info.count >= 2 ? `Level all (${info.count})` : 'Level up';
         const html =
             `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
-            `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${moneyHtml(info.cost)}</span></span>`;
+            `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
         // the shop-toolbar button and its phone twin (top-right strip) mirror each other
         for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
             btn.style.display = '';
@@ -2255,7 +2255,7 @@ export class Hud {
             `${o.affordable ? '' : ' disabled'}>` +
             `<span class="title">${escapeAttr(o.name)}</span>` +
             `<span class="art"${artStyle}></span>` +
-            `<span class="cost">${moneyHtml(o.deployCost)}</span>` +
+            `<span class="cost">${o.deployCost}</span>` +
             `</button>`
         );
     }
@@ -2655,7 +2655,7 @@ export class Hud {
                     : t.owned
                       ? `<span class="at-badge">✓</span>`
                       : t.cost !== undefined
-                        ? `<span class="at-cost">${moneyHtml(t.cost)}</span>`
+                        ? `<span class="at-cost">${t.cost}</span>`
                         : '';
                 const state = t.owned ? 'owned' : t.affordable ? 'buy' : 'locked';
                 const ring = produce
@@ -2686,7 +2686,7 @@ export class Hud {
                         t.state === 'owned'
                             ? `<span class="at-badge">✓</span>`
                             : t.cost !== undefined
-                              ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${moneyHtml(t.cost < 0 ? `+${-t.cost}` : t.cost)}</span>`
+                              ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
                               : '';
                     const levelIcon = t.icon.startsWith('ability-level');
                     const icoClass = levelIcon ? 'at-icon m-icon mask-ico' : 'at-icon m-icon';

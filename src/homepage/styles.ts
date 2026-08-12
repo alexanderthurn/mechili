@@ -1000,8 +1000,7 @@ html, body {
     align-items: center;
     gap: 3px;
 }
-.mh-tech-cost .money-ico.m-icon,
-.mh-stat-grid dd .money-ico.m-icon {
+.mh-tech-cost .money-ico.m-icon {
     width: 13px;
     height: 13px;
     margin: 0;

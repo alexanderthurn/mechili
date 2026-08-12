@@ -183,7 +183,7 @@ function statsHtml(t: UnitType): string {
     return `
     <h3>${esc(t.name)}</h3>
     <dl class="mh-stat-grid">
-      <dt>Cost</dt><dd>${moneyHtml(t.cost)}</dd>
+      <dt>Cost</dt><dd>${t.cost}</dd>
       <dt>HP</dt><dd>${t.hp}</dd>
       <dt>Damage</dt><dd>${t.damage}</dd>
       <dt>Range</dt><dd>${t.range}</dd>
