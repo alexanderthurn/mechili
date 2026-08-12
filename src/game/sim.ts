@@ -303,8 +303,10 @@ export interface Projectile {
 /** visual happenings the renderer turns into particles (drained per frame) */
 export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
-    /** `blood` = victim gore tint when hitting flesh (omit = default red / debris) */
-    | { kind: 'impact'; x: number; y: number; z: number; blood?: number }
+    /** `blood` = victim gore tint when hitting flesh (omit = default red / debris).
+     *  `dx/dy/dz` = normalized hit direction (bullet/strike travel) so blood
+     *  sprays out the far side; omit for undirected (ground / shield) impacts. */
+    | { kind: 'impact'; x: number; y: number; z: number; blood?: number; dx?: number; dy?: number; dz?: number }
     | { kind: 'explosion'; x: number; y: number; z: number; radius: number; heavy?: boolean }
     | { kind: 'death'; x: number; y: number; z: number; big: boolean; wear: DeathWear; blood?: number }
     | { kind: 'levelup'; x: number; y: number; z: number }
@@ -1981,12 +1983,16 @@ export class BattleSim {
                                 if (damage > 0) {
                                     const dealt = damage * this.damageTakenMult(target);
                                     this.applyDamage(a.unit, target, dealt);
+                                    const mlen = hypot(target.x - a.x, target.z - a.z) || 1;
                                     this.events.push({
                                         kind: 'impact',
                                         x: target.x,
                                         y: 0.6,
                                         z: target.z,
                                         blood: bloodColorOf(target.unit.type),
+                                        dx: (target.x - a.x) / mlen,
+                                        dy: 0,
+                                        dz: (target.z - a.z) / mlen,
                                     });
                                 }
                             }
@@ -2048,6 +2054,9 @@ export class BattleSim {
                                 y: 0.6,
                                 z: target.z,
                                 blood: bloodColorOf(target.unit.type),
+                                dx: dx / dist,
+                                dy: 0,
+                                dz: dz / dist,
                             });
                         }
                     }
@@ -2485,12 +2494,16 @@ export class BattleSim {
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(p.source, hit, dealt);
+                    const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                     this.events.push({
                         kind: 'impact',
                         x: ix,
                         y: iy,
                         z: iz,
                         blood: bloodColorOf(hit.unit.type),
+                        dx: sx / slen,
+                        dy: sy / slen,
+                        dz: sz / slen,
                     });
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
                     this.applyCorrodeOnHit(p.source, hit);
