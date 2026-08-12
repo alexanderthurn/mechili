@@ -397,30 +397,6 @@ html .mechili-gameover::before {
         ${gem('8px calc(100% - 8px)')},
         ${gem('calc(100% - 8px) calc(100% - 8px)')};
 }
-/* Main menu: keep bronze frame, skip gem studs — use subtle corner brackets instead */
-html .mechili-menu::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 2;
-    border-radius: inherit;
-    background:
-        /* top-left */
-        linear-gradient(to right, ${u.frameHi}, ${u.frameHi}) left 5px top 5px / 11px 1px no-repeat,
-        linear-gradient(to bottom, ${u.frameHi}, ${u.frameHi}) left 5px top 5px / 1px 11px no-repeat,
-        /* top-right */
-        linear-gradient(to left, ${u.frameHi}, ${u.frameHi}) right 5px top 5px / 11px 1px no-repeat,
-        linear-gradient(to bottom, ${u.frameHi}, ${u.frameHi}) right 5px top 5px / 1px 11px no-repeat,
-        /* bottom-left */
-        linear-gradient(to right, ${u.frameMid}, ${u.frameMid}) left 5px bottom 5px / 11px 1px no-repeat,
-        linear-gradient(to top, ${u.frameMid}, ${u.frameMid}) left 5px bottom 5px / 1px 11px no-repeat,
-        /* bottom-right */
-        linear-gradient(to left, ${u.frameMid}, ${u.frameMid}) right 5px bottom 5px / 11px 1px no-repeat,
-        linear-gradient(to top, ${u.frameMid}, ${u.frameMid}) right 5px bottom 5px / 1px 11px no-repeat;
-    opacity: 0.85;
-}
-
 /* Slim bronze chrome — compact HUD strips / chips / tips.
    Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
 html .mechili-supply,
@@ -1412,14 +1388,25 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     align-items: center;
     gap: 8px;
 }
+/* Shared round player avatar (menu chip + name-edit preview; matches fightbar) */
+.mechili-username .u-avatar,
+.mechili-name-edit .avatar-preview {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background:
+        radial-gradient(circle at 35% 28%, rgba(255, 230, 180, 0.2), transparent 55%),
+        linear-gradient(165deg, ${u.leatherHi}, ${u.leather});
+    border: 1.5px solid ${u.frameMid};
+    box-shadow:
+        0 0 0 1px ${u.frameLo},
+        0 0 0 2px ${u.frameHi},
+        inset 0 1px 2px rgba(255, 230, 180, 0.2),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+}
 .mechili-username .u-avatar {
     width: 36px;
     height: 36px;
-    border-radius: 7px;
-    object-fit: cover;
-    flex-shrink: 0;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid ${u.border};
 }
 .mechili-username .u-avatar[hidden] { display: none; }
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
@@ -1754,10 +1741,6 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 .mechili-name-edit .avatar-preview {
     width: 72px;
     height: 72px;
-    border-radius: 4px;
-    object-fit: cover;
-    border: 1.5px solid ${u.border};
-    background: rgba(0, 0, 0, 0.35);
 }
 .mechili-name-edit .avatar-preview[hidden] { display: none; }
 .mechili-name-edit .avatar-pick {
