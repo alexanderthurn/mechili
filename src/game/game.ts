@@ -321,6 +321,8 @@ export class Game {
     private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
     private weather: Weather | null;
+    /** last season the cinema hint flashed for — drives auto-flash on season change */
+    private lastHintSeason: string | null = null;
     private groundMesh: Mesh;
     private readonly sun: DirectionalLight;
     private readonly hemi: HemisphereLight;
@@ -742,19 +744,16 @@ export class Game {
         if (e.code === 'KeyX') {
             // season only (weather + time unchanged) — left of C on DE
             this.weather?.nextSeason();
-            this.refreshCinemaHint();
             return;
         }
         if (e.code === 'KeyV') {
             // weather only — right of C on DE
             this.weather?.nextWeather();
-            this.refreshCinemaHint();
             return;
         }
         if (e.code === 'KeyY') {
             // time of day only — next to X on DE (was B)
             this.weather?.nextTime();
-            this.refreshCinemaHint();
             return;
         }
         if (e.code === 'KeyU' && e.shiftKey && !this.net && !this.star) {
@@ -825,13 +824,13 @@ export class Game {
         this.hordeMarkers.edgeView.visible = !hide;
         this.debug.el.style.visibility = hide ? 'hidden' : '';
         this.applyCinemaWorld(hide);
-        if (hide) this.refreshCinemaHint();
+        if (hide) this.refreshCinemaHint(500);
     }
 
     /** Cinema footer: `Shift+C — 1/11 Spring morning` (same scene text as the debug overlay). */
-    private refreshCinemaHint(): void {
+    private refreshCinemaHint(durationMs?: number): void {
         if (!this.hud.isUiHidden) return;
-        this.hud.setCinemaHint(`Shift+C — ${this.weather?.sceneStatus() ?? '—'}`);
+        this.hud.flashCinemaHint(this.weather?.sceneStatus() ?? '—', durationMs);
     }
 
     /** Shift+T debug: cycle clay → wireframe → normals → off for every mesh. */
@@ -8583,6 +8582,15 @@ export class Game {
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
+        // Flash the cinema scene label whenever the season turns over (manual N/X
+        // keys or the automatic per-round scene) — only while cinema mode is on.
+        if (this.weather) {
+            const season = this.weather.season;
+            if (season !== this.lastHintSeason) {
+                this.lastHintSeason = season;
+                this.refreshCinemaHint();
+            }
+        }
         this.map.setSnowCover(this.scenery.groundSnowCover);
         updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
         // Hide “you can move me” hints + disable visual repositioning once

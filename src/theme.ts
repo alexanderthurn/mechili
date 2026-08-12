@@ -1885,6 +1885,11 @@ ${fontFaceCss()}
     user-select: none;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
     white-space: pre;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.mechili-cinema-hint.is-visible {
+    opacity: 1;
 }
 .mechili-shop-col {
     position: absolute;

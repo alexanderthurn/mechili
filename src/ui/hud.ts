@@ -550,6 +550,7 @@ export class Hud {
     /** cinema / screenshot mode — all chrome hidden except the exit hint */
     private uiHidden = false;
     private cinemaHint: HTMLDivElement | null = null;
+    private cinemaHintTimer: number | null = null;
     private readonly overlayParent: HTMLElement;
     private readonly onItemGhostMove = (e: PointerEvent) => {
         if (!this.itemGhost) return;
@@ -3730,14 +3731,29 @@ export class Hud {
             }
             this.cinemaHint.style.display = '';
         } else if (this.cinemaHint) {
+            if (this.cinemaHintTimer !== null) {
+                window.clearTimeout(this.cinemaHintTimer);
+                this.cinemaHintTimer = null;
+            }
+            this.cinemaHint.classList.remove('is-visible');
             this.cinemaHint.style.display = 'none';
         }
     }
 
-    /** Update the cinema footer (e.g. `Shift+C — 1/11 Spring morning`). */
-    setCinemaHint(text: string): void {
+    /**
+     * Briefly show the cinema footer (e.g. `Shift+C — 1/11 Spring morning`),
+     * then fade it back out. Called on cinema enter and on each season change,
+     * so the scene label doesn't linger over the clean view.
+     */
+    flashCinemaHint(text: string, durationMs = 2600): void {
         if (!this.cinemaHint) return;
         this.cinemaHint.textContent = text;
+        this.cinemaHint.classList.add('is-visible');
+        if (this.cinemaHintTimer !== null) window.clearTimeout(this.cinemaHintTimer);
+        this.cinemaHintTimer = window.setTimeout(() => {
+            this.cinemaHint?.classList.remove('is-visible');
+            this.cinemaHintTimer = null;
+        }, durationMs);
     }
 
     /** removes every HUD element from the page */
@@ -3749,6 +3765,10 @@ export class Hud {
         this.unequipDrag = null;
         this.itemGhost?.remove();
         this.itemGhost = null;
+        if (this.cinemaHintTimer !== null) {
+            window.clearTimeout(this.cinemaHintTimer);
+            this.cinemaHintTimer = null;
+        }
         this.cinemaHint?.remove();
         this.cinemaHint = null;
         this.forgeSlotPreviewEl?.remove();

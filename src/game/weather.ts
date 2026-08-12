@@ -435,7 +435,7 @@ export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
         atmosphere: { season: 'autumn', timeOfDay: 'day', weatherKind: 'rain', weatherIntensity: 0.85 },
     },
     {
-        label: 'Winter snow',
+        label: 'First snow',
         atmosphere: { season: 'winter', timeOfDay: 'day', weatherKind: 'snow', weatherIntensity: 0.9 },
     },
     {
