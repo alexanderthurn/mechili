@@ -112,6 +112,6 @@ export function roundCardFaceHtml(c: RoundCard, opts: RoundCardFaceOpts = {}): s
         (subtitle.length ? `<div class="c-units">${escapeHtml(subtitle.join(' · '))}</div>` : '') +
         `<div class="c-desc">${escapeHtml(c.description)}</div>` +
         forgeRowsHtml(forgeRows, runeId) +
-        `<div class="c-cost">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>`
+        `<div class="c-cost${c.cost > 0 ? '' : ' free'}">${c.cost > 0 ? `⬢ ${c.cost}` : 'Free'}</div>`
     );
 }
