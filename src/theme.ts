@@ -371,14 +371,7 @@ html .mechili-suggest .box,
 html .mechili-pause .pause-box,
 html .mechili-resume .resume-box,
 html .mechili-gameover {
-    /* absolute-centered content box — must beat the generic materialStyles
-       position:relative (same html-prefixed specificity) or the overlay
-       stretches full-width (see the .mechili-gameover rule below) */
-    position: absolute;
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
-    width: auto;
+    position: relative;
     color: ${u.cream};
     background: ${leatherFill};
     border: 1px solid ${u.frameLo};
@@ -386,6 +379,16 @@ html .mechili-gameover {
     box-shadow: ${bronzeBevel};
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+}
+/* Gameover must stay absolute-centered — materialStyles' relative chrome
+   otherwise stretches it full-width (worst on 4K). Keep this scoped so menu /
+   pause / suggest keep their own layout widths. */
+html .mechili-gameover {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    width: auto;
 }
 html .mechili-name-edit .box::before,
 html .mechili-suggest .box::before,
