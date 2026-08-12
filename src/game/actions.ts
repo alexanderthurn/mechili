@@ -103,6 +103,12 @@ export interface BuyLevelAction {
     team: Team;
     unitId: number;
 }
+/** raise several packs one level each — one undo peels the whole batch */
+export interface BuyLevelBatchAction {
+    kind: 'buyLevelBatch';
+    team: Team;
+    unitIds: number[];
+}
 /** once per round: every later buy this round arrives at level 2 (paying the premium) */
 export interface RecruitLevelAction {
     kind: 'recruitLevel';
@@ -302,6 +308,7 @@ type ActionVariant =
     | RotateAction
     | BuyTechAction
     | BuyLevelAction
+    | BuyLevelBatchAction
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuySellAbilityAction
@@ -356,6 +363,8 @@ interface LogEntry extends LoggedAction {
     from?: Cell;
     /** buyLevel: banked XP before the purchase */
     xpBefore?: number;
+    /** buyLevelBatch: per-unit paid + xp snapshot (successful levels only) */
+    levelBatch?: { unitId: number; paid: number; xpBefore: number }[];
     /** chooseCard: the spawned starting army + the HP it replaced + granted items */
     units?: Unit[];
     prevHp?: number;
@@ -758,6 +767,26 @@ export class ActionDispatcher {
                 unit.xp = Math.max(0, unit.xp - threshold);
                 unit.level++;
                 unit.refreshLevelBadge();
+                return true;
+            }
+            case 'buyLevelBatch': {
+                const batch: { unitId: number; paid: number; xpBefore: number }[] = [];
+                for (const unitId of action.unitIds) {
+                    const unit = placement.unitById(unitId);
+                    if (!unit || unit.team !== action.team || unit.type.structure) break;
+                    if (unit.level >= leveling.maxLevel) break;
+                    const threshold = xpForNextLevel(unit, economy, leveling);
+                    if (unit.xp < threshold) break;
+                    const cost = levelCost(unit.type, economy, leveling);
+                    if (!economy.spend(seat, cost)) break;
+                    batch.push({ unitId, paid: cost, xpBefore: unit.xp });
+                    unit.xp = Math.max(0, unit.xp - threshold);
+                    unit.level++;
+                    unit.refreshLevelBadge();
+                }
+                if (batch.length === 0) return false;
+                entry.levelBatch = batch;
+                entry.paid = batch.reduce((sum, b) => sum + b.paid, 0);
                 return true;
             }
             case 'recruitLevel': {
@@ -1326,6 +1355,19 @@ export class ActionDispatcher {
                 unit.xp = e.xpBefore!;
                 unit.refreshLevelBadge();
                 economy.credit(seat, e.paid!);
+                break;
+            }
+            case 'buyLevelBatch': {
+                const batch = e.levelBatch ?? [];
+                for (let i = batch.length - 1; i >= 0; i--) {
+                    const step = batch[i]!;
+                    const unit = placement.unitById(step.unitId);
+                    if (!unit) continue;
+                    unit.level--;
+                    unit.xp = step.xpBefore;
+                    unit.refreshLevelBadge();
+                }
+                economy.credit(seat, e.paid ?? batch.reduce((sum, b) => sum + b.paid, 0));
                 break;
             }
             case 'recruitLevel':

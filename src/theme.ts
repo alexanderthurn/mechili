@@ -2204,7 +2204,17 @@ ${materialStyles(u)}
     filter: brightness(1.12);
 }
 .mechili-supply.clickable:active { transform: translateY(1px); }
-.shop-toolbar,
+.shop-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 6px;
+    width: 100%;
+    padding: 0 3px 0 8px;
+    box-sizing: border-box;
+    pointer-events: auto;
+}
 .mechili-extras {
     display: flex;
     align-items: stretch;
@@ -2215,9 +2225,7 @@ ${materialStyles(u)}
     box-sizing: border-box;
     pointer-events: auto;
     gap: 8px;
-}
-.mechili-extras {
-    /* board extras (any count) + level-all + undo share one row above the shop */
+    /* board extras (any count) + level-all share one row above the shop */
     max-width: 100%;
 }
 .mechili-extras .undo,
@@ -2518,22 +2526,23 @@ ${materialStyles(u)}
     border-bottom: 1px solid ${u.frameLo};
     box-shadow: 0 1px 0 rgba(255, 220, 160, 0.06);
 }
-.mechili-shop .shop-header .mechili-supply {
-    min-height: 0;
-    padding: 0;
-    margin-right: 2px;
-}
-.mechili-shop .shop-header .supply {
-    font-size: 18px;
+.mechili-shop .shop-header .unit-cap {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    color: ${u.bronzeLight};
+    display: inline-flex;
+    align-items: center;
     gap: 4px;
+    flex-shrink: 0;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
-.mechili-shop .shop-header .supply-ico.m-icon {
-    width: 18px;
-    height: 18px;
-}
-.mechili-shop .shop-header .unit-cap {
-    display: none;
+.mechili-shop .shop-header .unit-cap .btn-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0;
 }
 .mechili-shop .shop-runes {
     display: flex;
@@ -2585,12 +2594,14 @@ ${materialStyles(u)}
     padding: 6px 0 1px;
     pointer-events: none;
 }
-.mechili-shop .shop-grid {
+.mechili-shop .shop-grid,
+.mechili-cards .unlock-picker .shop-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;
 }
-.mechili-shop-col .shop-tile {
+.mechili-shop-col .shop-tile,
+.mechili-cards .unlock-picker .shop-tile {
     position: relative;
     overflow: hidden;
     appearance: none;
@@ -2606,7 +2617,8 @@ ${materialStyles(u)}
         inset 0 2px 5px rgba(0, 0, 0, 0.55),
         0 1px 0 rgba(180, 140, 80, 0.1);
 }
-.mechili-shop-col .shop-tile .title {
+.mechili-shop-col .shop-tile .title,
+.mechili-cards .unlock-picker .shop-tile .title {
     position: absolute;
     top: 0;
     left: 0;
@@ -2626,16 +2638,18 @@ ${materialStyles(u)}
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.mechili-shop-col .shop-tile .art {
+.mechili-shop-col .shop-tile .art,
+.mechili-cards .unlock-picker .shop-tile .art {
     position: absolute;
     inset: 0;
     background-color: #e8dcc4;
-    background-size: cover;
+    background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     pointer-events: none;
 }
-.mechili-shop-col .shop-tile .cost {
+.mechili-shop-col .shop-tile .cost,
+.mechili-cards .unlock-picker .shop-tile .cost {
     position: absolute;
     left: 0;
     bottom: 0;
@@ -2650,11 +2664,16 @@ ${materialStyles(u)}
     pointer-events: none;
     z-index: 1;
 }
-.mechili-shop-col .shop-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
-.mechili-shop-col .shop-tile:hover { border-color: ${u.bronzeLight}; }
-.mechili-shop-col .shop-tile:active { transform: scale(0.94); }
-.mechili-shop-col .shop-tile:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); z-index: 3; }
-.mechili-shop-col .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-shop-col .shop-tile,
+.mechili-cards .unlock-picker .shop-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+.mechili-shop-col .shop-tile:hover,
+.mechili-cards .unlock-picker .shop-tile:hover { border-color: ${u.bronzeLight}; }
+.mechili-shop-col .shop-tile:active,
+.mechili-cards .unlock-picker .shop-tile:active { transform: scale(0.94); }
+.mechili-shop-col .shop-tile:focus-visible,
+.mechili-cards .unlock-picker .shop-tile:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); z-index: 3; }
+.mechili-shop-col .shop-tile.unaffordable,
+.mechili-cards .unlock-picker .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-extras .shop-tile {
     width: 54px;
     height: 54px;
@@ -2670,17 +2689,20 @@ ${materialStyles(u)}
     font-size: 10px;
     padding: 1px 5px 2px;
 }
-.mechili-shop .shop-grid .shop-tile {
+.mechili-shop .shop-grid .shop-tile,
+.mechili-cards .unlock-picker .shop-grid .shop-tile {
     width: 100%;
     aspect-ratio: 1;
     border-radius: 3px;
 }
-.mechili-shop .shop-grid .shop-tile .title {
+.mechili-shop .shop-grid .shop-tile .title,
+.mechili-cards .unlock-picker .shop-grid .shop-tile .title {
     font-size: 9px;
     padding: 2px 4px;
     letter-spacing: 0.5px;
 }
-.mechili-shop .shop-grid .shop-tile .cost {
+.mechili-shop .shop-grid .shop-tile .cost,
+.mechili-cards .unlock-picker .shop-grid .shop-tile .cost {
     font-size: 11px;
     padding: 2px 6px 2px;
 }
@@ -3881,7 +3903,8 @@ ${materialStyles(u)}
     display: flex;
     flex-direction: column;
     gap: 16px;
-    width: min(92vw, 520px);
+    /* Match shop grid content width (274px panel − horizontal padding) */
+    width: min(92vw, 248px);
 }
 .mechili-cards .unlock-tier {
     display: flex;
@@ -3899,69 +3922,6 @@ ${materialStyles(u)}
     text-align: left;
     color: ${u.brassLight};
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-}
-.mechili-cards .cards-row.unlock-row {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 12px;
-    width: 100%;
-}
-.mechili-cards .unlock-pick {
-    position: relative;
-    overflow: hidden;
-    appearance: none;
-    -webkit-appearance: none;
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    width: 120px;
-    aspect-ratio: 1;
-    border: 1.5px solid ${u.border};
-    border-radius: 3px;
-    color: ${u.text};
-    background: ${u.panelBgDark};
-    cursor: pointer;
-}
-.mechili-cards .unlock-pick:hover { border-color: ${u.hover}; transform: translateY(-2px); }
-.mechili-cards .unlock-pick:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
-.mechili-cards .unlock-pick:disabled {
-    opacity: 0.4;
-    pointer-events: none;
-}
-.mechili-cards .unlock-pick .title {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 2;
-    font-size: 10px;
-    font-weight: bold;
-    padding: 3px 5px;
-    text-align: center;
-    background: rgba(28, 22, 16, 0.88);
-    border-bottom: 1px solid ${u.border};
-    pointer-events: none;
-}
-.mechili-cards .unlock-pick .art {
-    position: absolute;
-    inset: 0;
-    background-color: #f0ecd8;
-    background-size: cover;
-    background-position: center;
-    pointer-events: none;
-}
-.mechili-cards .unlock-pick .cost {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    z-index: 1;
-    font-size: 11px;
-    font-weight: bold;
-    padding: 2px 6px 3px;
-    color: #fff;
-    background: rgba(180, 32, 24, 0.92);
-    border-radius: 0 6px 0 0;
-    pointer-events: none;
 }
 .mechili-cards .card {
     --card-pad-x: clamp(10px, 1.1vw, 14px);

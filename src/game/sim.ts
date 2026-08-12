@@ -43,6 +43,15 @@ import {
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
+import {
+    beginDeathFall,
+    clearDeathFall,
+    crashDriftFromKnock,
+    crashLandFromFall,
+    tickDeathFall,
+    type CrashLand,
+    type DeathFallState,
+} from './deathFall';
 import type { CpuTimings } from '../ui/debug';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
@@ -844,14 +853,20 @@ export class BattleSim {
     /**
      * The one place damage lands: hp, the per-type report, the pack's
      * lifetime stats (effective damage — overkill doesn't count), and death.
+     * Optional `knockDir` (xz) biases air-death crash drift by blow strength.
      */
-    private applyDamage(source: Unit, target: Actor, amount: number): void {
+    private applyDamage(
+        source: Unit,
+        target: Actor,
+        amount: number,
+        knockDir?: { x: number; z: number },
+    ): void {
         source.damageDealt += Math.min(amount, Math.max(0, target.hp));
         target.hp -= amount;
         this.recordDamage(source, amount);
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
-        if (target.hp <= 0) this.kill(target, source);
+        if (target.hp <= 0) this.kill(target, source, amount, knockDir);
     }
 
     /**
@@ -1704,11 +1719,12 @@ export class BattleSim {
 
     /** golden tint on golden mechs; wild color shift while tower debuff timer runs.
      *  `debuffTintAt` gates the psychedelic tint only (stats stay immediate) — used
-     *  so the shockwave rim can “reveal” the look as it sweeps. */
+     *  so the shockwave rim can “reveal” the look as it sweeps.
+     *  Returns air-crash landings that finished this frame (render-only VFX hooks). */
     syncBattleVisuals(
         timeSeconds: number,
         debuffTintAt?: (seat: SeatId, x: number, z: number) => boolean,
-    ): void {
+    ): CrashLand[] {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
             // debuff severity is flat now (see debuff/isDebuffed) — no
@@ -1725,6 +1741,18 @@ export class BattleSim {
             syncBattleTint(a.mesh, tint, timeSeconds, 1, spawnProgress);
             this.animateActor(a, timeSeconds);
         }
+        // Air wrecks tumble to the lawn (render-only; kill() already marked them dead)
+        const crashLands: CrashLand[] = [];
+        for (const a of this.actors) {
+            if (a.alive || a.unit.type.structure) continue;
+            const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
+            if (!fall) continue;
+            if (!tickDeathFall(a.mesh, fall, this.elapsed, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
+                crashLands.push(crashLandFromFall(fall));
+                clearDeathFall(a.mesh);
+            }
+        }
+        return crashLands;
     }
 
     /**
@@ -1846,7 +1874,12 @@ export class BattleSim {
         killer.xp = Math.min(killer.xp + value, threshold);
     }
 
-    private kill(target: Actor, killer: Unit | null): void {
+    private kill(
+        target: Actor,
+        killer: Unit | null,
+        dealt = 0,
+        knockDir?: { x: number; z: number },
+    ): void {
         if (killer) killer.kills++;
         // no XP for executing a still-spawning pack — it never fully arrived
         if (killer && !target.unit.type.structure && !this.isSpawning(target)) {
@@ -1884,9 +1917,31 @@ export class BattleSim {
             }
         } else {
             // tip over and stay as a battlefield wreck until the round resets
-            // (air units crash to the ground)
-            target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
-            target.mesh.position.y = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
+            const tipZ = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
+            const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
+            if (target.altitude > 0) {
+                // flyers: tumble down; optional knock flings along the killing blow
+                let driftX = 0;
+                let driftZ = 0;
+                if (knockDir && dealt > 0) {
+                    const d = crashDriftFromKnock(dealt, target.maxHp, knockDir.x, knockDir.z);
+                    driftX = d.driftX;
+                    driftZ = d.driftZ;
+                }
+                beginDeathFall(
+                    target.mesh,
+                    groundY,
+                    tipZ,
+                    this.elapsed,
+                    target.unit.world.x,
+                    target.unit.world.z,
+                    driftX,
+                    driftZ,
+                );
+            } else {
+                target.mesh.rotation.z = tipZ;
+                target.mesh.position.y = groundY;
+            }
             target.mesh.userData.dead = true;
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
@@ -1994,10 +2049,9 @@ export class BattleSim {
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                                 if (damage > 0) {
                                     const dealt = damage * this.damageTakenMult(target);
-                                    this.applyDamage(a.unit, target, dealt);
-                                    const mlen = hypot(target.x - a.x, target.z - a.z) || 1;
-                                    const mdx = (target.x - a.x) / mlen;
-                                    const mdz = (target.z - a.z) / mlen;
+                                    this.applyDamage(a.unit, target, dealt, { x: tdx, z: tdz });
+                                    const mdx = tdx / tDist;
+                                    const mdz = tdz / tDist;
                                     this.events.push({
                                         kind: 'impact',
                                         // on the struck face, at mid-body height
@@ -2063,7 +2117,7 @@ export class BattleSim {
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                         if (damage > 0) {
                             const dealt = damage * this.damageTakenMult(target);
-                            this.applyDamage(a.unit, target, dealt);
+                            this.applyDamage(a.unit, target, dealt, { x: dx, z: dz });
                             this.events.push({
                                 kind: 'impact',
                                 // on the struck face, at mid-body height
@@ -2507,11 +2561,11 @@ export class BattleSim {
                 const iy = p.y + sy * hitT;
                 const iz = p.z + sz * hitT;
                 if (splash > 0) {
-                    this.explode(p, ix, iz, splash);
+                    this.explode(p, ix, iz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
-                    this.applyDamage(p.source, hit, dealt);
+                    this.applyDamage(p.source, hit, dealt, { x: sx, z: sz });
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                     this.events.push({
                         kind: 'impact',
@@ -2534,7 +2588,7 @@ export class BattleSim {
             if (ny <= groundY) {
                 // splash shells detonate on the ground too — a miss still hurts
                 if (splash > 0) {
-                    this.explode(p, nx, nz, splash);
+                    this.explode(p, nx, nz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
                 } else {
                     this.events.push({ kind: 'impact', x: nx, y: groundY + 0.15, z: nz });
@@ -2556,12 +2610,14 @@ export class BattleSim {
      * Splash: full damage to every enemy within the radius of the impact,
      * respecting the shooter's can-attack matrix (a ground-only ballista's
      * blast doesn't reach crow riders overhead).
+     * `shotDir` = projectile travel xz (preferred); else radial from blast center.
      */
     private explode(
         p: { damage: number; team: BattleTeam; source: Unit },
         x: number,
         z: number,
         radius: number,
+        shotDir?: { x: number; z: number },
     ): void {
         const targets = effectiveTargets(
             p.source.type,
@@ -2574,7 +2630,11 @@ export class BattleSim {
             if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.damageTakenMult(a);
-            this.applyDamage(p.source, a, dealt);
+            const knock =
+                shotDir && Math.hypot(shotDir.x, shotDir.z) > 1e-6
+                    ? shotDir
+                    : { x: a.x - x, z: a.z - z };
+            this.applyDamage(p.source, a, dealt, knock);
             this.applyCorrodeOnHit(p.source, a);
         }
         // burn + ground fire (friendly fire) — after kinetic hits
@@ -2850,7 +2910,7 @@ export class BattleSim {
                 // buildings + golden aura: same continuous chew as wards, no convert
                 if (target.convertProgress > 0) target.convertProgress = 0;
                 const dealt = intensity * dt * this.damageTakenMult(target);
-                if (dealt > 0) this.applyDamage(caster.unit, target, dealt);
+                if (dealt > 0) this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz });
                 continue;
             }
 

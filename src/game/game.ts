@@ -1712,14 +1712,12 @@ export class Game {
         this.hud.onLevelAll = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
-            // every ready pack of the same kind, oldest first
-            for (const u of this.levelablePacksOf(unit.type)) this.buyLevelFor(u);
+            // every ready pack of the same kind, oldest first — one undo peels all
+            this.buyLevelsFor(this.levelablePacksOf(unit.type));
         };
         this.hud.onLevelAllGlobal = () => {
             if (!this.playerCanAct) return;
-            for (const u of this.allLevelablePacks()) {
-                if (!this.buyLevelFor(u)) break;
-            }
+            this.buyLevelsFor(this.allLevelablePacks());
         };
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
@@ -7142,6 +7140,36 @@ export class Game {
         return true;
     }
 
+    /** Level several packs in one action so Undo reverts the whole batch. */
+    private buyLevelsFor(units: readonly Unit[]): boolean {
+        if (units.length === 0) return false;
+        if (units.length === 1) return this.buyLevelFor(units[0]!);
+        const before = new Map(units.map((u) => [u.id, u.level] as const));
+        if (
+            !this.dispatchPlayer({
+                kind: 'buyLevelBatch',
+                team: 'player',
+                unitIds: units.map((u) => u.id),
+            })
+        ) {
+            return false;
+        }
+        const bursts: SimEvent[] = [];
+        for (const unit of units) {
+            if ((before.get(unit.id) ?? 0) >= unit.level) continue;
+            for (const m of unit.members) {
+                bursts.push({
+                    kind: 'levelup',
+                    x: unit.world.x + m.home.x,
+                    y: unit.type.meshScale * 1.5,
+                    z: unit.world.z + m.home.z,
+                });
+            }
+        }
+        if (bursts.length) this.particles.spawnFromEvents(bursts);
+        return true;
+    }
+
     private cycleSpeed(direction: number): void {
         const n = this.speedSteps.length;
         this.speedIndex = (this.speedIndex + direction + n) % n;
@@ -8579,9 +8607,27 @@ export class Game {
                 // advance wave before tint gate so rim coverage matches this frame
                 this.towerDebuffFx.update(gameDt);
                 if (profile) cpu.begin();
-                this.sim.syncBattleVisuals(this.time, (seat, x, z) =>
+                const crashLands = this.sim.syncBattleVisuals(this.time, (seat, x, z) =>
                     this.towerDebuffFx.waveRevealsDebuffTint(seat, x, z),
                 );
+                for (const p of crashLands) {
+                    // soil kick + pale grit when an air wreck hits the lawn
+                    this.particles.burst(p.x, p.y, p.z, {
+                        count: 14,
+                        color: 0x8a6a42,
+                        speed: 6,
+                        life: 0.5,
+                        up: 5,
+                    });
+                    this.particles.burst(p.x, p.y + 0.15, p.z, {
+                        count: 8,
+                        color: 0xc4b89a,
+                        speed: 3.5,
+                        life: 0.6,
+                        up: 3,
+                        blood: true,
+                    });
+                }
                 if (profile) cpu.end('battleVisuals');
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);

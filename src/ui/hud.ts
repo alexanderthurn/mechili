@@ -664,9 +664,21 @@ export class Hud {
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
 
+        this.supplyFrame = document.createElement('div');
+        this.supplyFrame.className = 'mechili-supply clickable';
+        this.supplyFrame.title = 'Match settings';
+        this.supplyEl = document.createElement('span');
+        this.supplyEl.className = 'supply';
+        this.supplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
+        this.supplyAmtEl = document.createElement('span');
+        this.supplyAmtEl.className = 'supply-amt';
+        this.supplyEl.append(this.supplyAmtEl);
+        this.supplyFrame.append(this.supplyEl);
+        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
+
         const shopToolbar = document.createElement('div');
         shopToolbar.className = 'shop-toolbar';
-        shopToolbar.append(this.undoEl);
+        shopToolbar.append(this.undoEl, this.supplyFrame);
 
         this.levelAllGlobalBtn = document.createElement('button');
         this.levelAllGlobalBtn.className = 'level-all-global';
@@ -688,21 +700,11 @@ export class Hud {
 
         const shopHeader = document.createElement('div');
         shopHeader.className = 'shop-header';
-        this.supplyFrame = document.createElement('div');
-        this.supplyFrame.className = 'mechili-supply clickable';
-        this.supplyFrame.title = 'Match settings';
-        this.supplyEl = document.createElement('span');
-        this.supplyEl.className = 'supply';
-        this.supplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
-        this.supplyAmtEl = document.createElement('span');
-        this.supplyAmtEl.className = 'supply-amt';
-        this.supplyEl.append(this.supplyAmtEl);
-        this.supplyFrame.append(this.supplyEl);
-        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
         this.deploysEl.title = 'Purchases this round / your limit (units + base runes)';
-        this.deploysEl.innerHTML = `<span class="unit-cap-label"></span>`;
+        this.deploysEl.innerHTML =
+            `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
         this.shopRuneRow = document.createElement('div');
         this.shopRuneRow.className = 'shop-runes';
         this.shopRuneRow.title =
@@ -742,7 +744,7 @@ export class Hud {
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
         }
-        shopHeader.append(this.supplyFrame, this.deploysEl, this.shopRuneRow);
+        shopHeader.append(this.deploysEl, this.shopRuneRow);
 
         const shopGrid = document.createElement('div');
         shopGrid.className = 'shop-grid';
@@ -2178,7 +2180,7 @@ export class Hud {
             return;
         }
         const label =
-            info.count >= 2 ? `Level all up (${info.count})` : 'Level all up';
+            info.count >= 2 ? `Level up all (${info.count})` : 'Level up all';
         const html =
             `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
             `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
@@ -2276,8 +2278,7 @@ export class Hud {
         const art = this.unitIcons.get(o.id);
         const artStyle = art ? ` style="background-image:url(${art})"` : '';
         return (
-            `<button class="shop-tile unlock-pick" data-unit="${o.id}"` +
-            `${o.affordable ? '' : ' disabled'}>` +
+            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}">` +
             `<span class="title">${escapeAttr(o.name)}</span>` +
             `<span class="art"${artStyle}></span>` +
             `<span class="cost">${o.deployCost}</span>` +
@@ -2308,7 +2309,7 @@ export class Hud {
                 return (
                     `<section class="unlock-tier">` +
                     `<div class="unlock-tier-head">${this.unlockTierLabel(unlockCost)}</div>` +
-                    `<div class="cards-row unlock-row">` +
+                    `<div class="shop-grid">` +
                     units.map((o) => this.renderUnlockPickTile(o)).join('') +
                     `</div></section>`
                 );
@@ -2329,8 +2330,8 @@ export class Hud {
                 this.hideCardOverlay();
                 return;
             }
-            const button = target.closest<HTMLButtonElement>('.unlock-pick');
-            if (!button?.dataset.unit || button.disabled) return;
+            const button = target.closest<HTMLButtonElement>('.unlock-picker .shop-tile');
+            if (!button?.dataset.unit || button.classList.contains('unaffordable')) return;
             this.hideCardOverlay();
             this.onUnlockPick?.(button.dataset.unit);
         });
