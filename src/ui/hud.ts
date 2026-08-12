@@ -703,7 +703,8 @@ export class Hud {
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
         this.deploysEl.title = 'Purchases this round / your limit (units + base runes)';
-        this.deploysEl.innerHTML = `<span class="unit-cap-label"></span>`;
+        this.deploysEl.innerHTML =
+            `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
         this.shopRuneRow = document.createElement('div');
         this.shopRuneRow.className = 'shop-runes';
         this.shopRuneRow.title =
@@ -2179,7 +2180,7 @@ export class Hud {
             return;
         }
         const label =
-            info.count >= 2 ? `Level all up (${info.count})` : 'Level all up';
+            info.count >= 2 ? `Level up all (${info.count})` : 'Level up all';
         const html =
             `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
             `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;

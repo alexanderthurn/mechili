@@ -1712,14 +1712,12 @@ export class Game {
         this.hud.onLevelAll = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
-            // every ready pack of the same kind, oldest first
-            for (const u of this.levelablePacksOf(unit.type)) this.buyLevelFor(u);
+            // every ready pack of the same kind, oldest first — one undo peels all
+            this.buyLevelsFor(this.levelablePacksOf(unit.type));
         };
         this.hud.onLevelAllGlobal = () => {
             if (!this.playerCanAct) return;
-            for (const u of this.allLevelablePacks()) {
-                if (!this.buyLevelFor(u)) break;
-            }
+            this.buyLevelsFor(this.allLevelablePacks());
         };
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
@@ -7139,6 +7137,36 @@ export class Game {
             z: unit.world.z + m.home.z,
         }));
         this.particles.spawnFromEvents(bursts);
+        return true;
+    }
+
+    /** Level several packs in one action so Undo reverts the whole batch. */
+    private buyLevelsFor(units: readonly Unit[]): boolean {
+        if (units.length === 0) return false;
+        if (units.length === 1) return this.buyLevelFor(units[0]!);
+        const before = new Map(units.map((u) => [u.id, u.level] as const));
+        if (
+            !this.dispatchPlayer({
+                kind: 'buyLevelBatch',
+                team: 'player',
+                unitIds: units.map((u) => u.id),
+            })
+        ) {
+            return false;
+        }
+        const bursts: SimEvent[] = [];
+        for (const unit of units) {
+            if ((before.get(unit.id) ?? 0) >= unit.level) continue;
+            for (const m of unit.members) {
+                bursts.push({
+                    kind: 'levelup',
+                    x: unit.world.x + m.home.x,
+                    y: unit.type.meshScale * 1.5,
+                    z: unit.world.z + m.home.z,
+                });
+            }
+        }
+        if (bursts.length) this.particles.spawnFromEvents(bursts);
         return true;
     }
 

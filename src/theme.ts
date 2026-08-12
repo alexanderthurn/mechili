@@ -2204,7 +2204,17 @@ ${materialStyles(u)}
     filter: brightness(1.12);
 }
 .mechili-supply.clickable:active { transform: translateY(1px); }
-.shop-toolbar,
+.shop-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 6px;
+    width: 100%;
+    padding: 0 3px 0 8px;
+    box-sizing: border-box;
+    pointer-events: auto;
+}
 .mechili-extras {
     display: flex;
     align-items: stretch;
@@ -2215,9 +2225,7 @@ ${materialStyles(u)}
     box-sizing: border-box;
     pointer-events: auto;
     gap: 8px;
-}
-.mechili-extras {
-    /* board extras (any count) + level-all + undo share one row above the shop */
+    /* board extras (any count) + level-all share one row above the shop */
     max-width: 100%;
 }
 .mechili-extras .undo,
@@ -2519,7 +2527,22 @@ ${materialStyles(u)}
     box-shadow: 0 1px 0 rgba(255, 220, 160, 0.06);
 }
 .mechili-shop .shop-header .unit-cap {
-    display: none;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    color: ${u.bronzeLight};
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.mechili-shop .shop-header .unit-cap .btn-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0;
 }
 .mechili-shop .shop-runes {
     display: flex;
