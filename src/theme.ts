@@ -3917,16 +3917,26 @@ ${materialStyles(u)}
     pointer-events: none;
 }
 .mechili-cards .card {
+    --card-pad-x: clamp(10px, 1.1vw, 14px);
+    --card-pad-y: clamp(12px, 1.4vw, 18px);
+    position: relative;
     width: clamp(150px, 22vw, 215px);
     min-height: 0;
-    padding: clamp(12px, 1.4vw, 18px) clamp(10px, 1.1vw, 14px);
+    padding: var(--card-pad-y) var(--card-pad-x);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: clamp(8px, 1vw, 12px);
+    overflow: hidden;
     background:
-        radial-gradient(ellipse at 22% 12%, rgba(255, 245, 220, 0.35), transparent 48%),
-        radial-gradient(ellipse at 78% 88%, rgba(120, 85, 45, 0.22), transparent 52%),
+        /* worn corners */
+        radial-gradient(ellipse at 0% 0%, rgba(55, 35, 15, 0.34), transparent 46%),
+        radial-gradient(ellipse at 100% 0%, rgba(55, 35, 15, 0.34), transparent 46%),
+        radial-gradient(ellipse at 0% 100%, rgba(50, 32, 12, 0.38), transparent 48%),
+        radial-gradient(ellipse at 100% 100%, rgba(50, 32, 12, 0.38), transparent 48%),
+        radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(70, 45, 20, 0.12) 100%),
+        radial-gradient(ellipse at 22% 12%, rgba(255, 245, 220, 0.28), transparent 48%),
+        radial-gradient(ellipse at 78% 88%, rgba(120, 85, 45, 0.2), transparent 52%),
         repeating-linear-gradient(
             0deg,
             transparent,
@@ -3935,24 +3945,53 @@ ${materialStyles(u)}
             rgba(90, 65, 35, 0.05) 4px
         ),
         linear-gradient(165deg, ${u.parchmentHi} 0%, ${u.parchment} 45%, ${u.parchmentLo} 100%);
-    border: 1.5px solid ${u.parchmentEdge};
-    border-radius: 4px;
+    border: 1px solid #4a3420;
+    border-radius: 5px;
     color: ${u.parchmentInk};
     cursor: pointer;
     box-shadow:
-        0 8px 22px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(70, 45, 20, 0.25),
-        inset 0 0 0 1px rgba(255, 240, 210, 0.25),
-        inset 0 0 28px rgba(100, 70, 35, 0.16);
+        0 8px 22px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(30, 18, 8, 0.35),
+        /* double inset frame: cream rule + dark inner */
+        inset 0 0 0 1px rgba(232, 210, 160, 0.55),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.4),
+        inset 0 0 40px rgba(80, 50, 20, 0.14);
     transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
-.mechili-cards .card:hover { border-color: ${u.bronzeDark}; transform: translateY(-5px); }
-.mechili-cards .card:focus-visible { outline: none; border-color: ${u.bronze}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); transform: translateY(-5px); }
+.mechili-cards .card:hover {
+    border-color: ${u.bronzeDark};
+    transform: translateY(-5px);
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.48),
+        0 0 0 1px rgba(30, 18, 8, 0.4),
+        inset 0 0 0 1px rgba(232, 210, 160, 0.6),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.45),
+        inset 0 0 40px rgba(80, 50, 20, 0.14);
+}
+.mechili-cards .card:focus-visible {
+    outline: none;
+    border-color: ${u.bronze};
+    transform: translateY(-5px);
+    box-shadow:
+        0 0 0 3px rgba(184, 146, 74, 0.4),
+        0 8px 22px rgba(0, 0, 0, 0.42),
+        inset 0 0 0 1px rgba(232, 210, 160, 0.55),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.4);
+}
 .mechili-cards .card:disabled { opacity: 0.4; pointer-events: none; }
 .mechili-cards .card.locked-card:disabled { opacity: 1; }
 /* a card shown for information only (waiting / reveal) — no hover, no lift */
 .mechili-cards .card.static { cursor: default; }
-.mechili-cards .card.static:hover { border-color: ${u.parchmentEdge}; transform: none; }
+.mechili-cards .card.static:hover {
+    border-color: #4a3420;
+    transform: none;
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(30, 18, 8, 0.35),
+        inset 0 0 0 1px rgba(232, 210, 160, 0.55),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.4),
+        inset 0 0 40px rgba(80, 50, 20, 0.14);
+}
 .mechili-cards .card-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
 /* specialist pick: wobble in place, then fly to commander frame */
@@ -4024,9 +4063,49 @@ ${materialStyles(u)}
 }
 .mechili-cards .c-owner.player { color: ${pc}; }
 .mechili-cards .c-owner.enemy { color: ${ec}; }
-.mechili-cards .c-title { font-size: 16px; font-weight: bold; color: ${u.parchmentInk}; }
-.mechili-cards .c-portrait { display: flex; align-items: center; justify-content: center; }
-.mechili-cards .c-portrait .m-icon { width: 72px; height: 72px; }
+.mechili-cards .c-title {
+    align-self: stretch;
+    width: calc(100% + 2 * var(--card-pad-x));
+    margin: 2px calc(-1 * var(--card-pad-x)) 0;
+    padding: 7px var(--card-pad-x) 8px;
+    box-sizing: border-box;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    color: ${u.parchmentInk};
+    background:
+        linear-gradient(180deg, rgba(90, 60, 30, 0.12), transparent 40%),
+        linear-gradient(180deg, ${u.parchmentLo} 0%, #c2a070 100%);
+    border-top: 1px solid rgba(70, 45, 20, 0.35);
+    border-bottom: 1px solid rgba(70, 45, 20, 0.4);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 240, 210, 0.28),
+        0 1px 0 rgba(255, 240, 210, 0.12);
+}
+.mechili-cards .c-portrait {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 78px;
+    height: 78px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 35% 30%, rgba(255, 245, 220, 0.45), transparent 55%),
+        linear-gradient(165deg, ${u.parchmentHi}, ${u.parchmentLo});
+    border: 2px solid ${u.frameMid};
+    box-shadow:
+        0 0 0 2px ${u.frameLo},
+        0 0 0 4px ${u.frameHi},
+        0 0 0 5px ${u.frameEdge},
+        inset 0 1px 2px rgba(255, 245, 220, 0.35),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.25),
+        0 4px 10px rgba(0, 0, 0, 0.3);
+}
+.mechili-cards .c-portrait .m-icon { width: 100%; height: 100%; }
 .mechili-cards .c-units { font-size: 12.5px; color: ${u.parchmentInk}; }
 .mechili-cards .c-hp { font-size: 14px; font-weight: bold; color: ${u.parchmentInk}; }
 .mechili-cards .c-desc { font-size: 12.5px; color: ${u.parchmentInkMuted}; line-height: 1.55; }
