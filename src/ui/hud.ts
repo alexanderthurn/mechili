@@ -14,7 +14,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
-import { iconHtml, applyIcon, iconCss, iconMaskCss } from './iconAtlas';
+import { iconHtml, applyIcon, iconCss, iconMaskCss, moneyHtml } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
 import { THEME, hudStyles } from '../theme';
@@ -627,7 +627,7 @@ export class Hud {
             button.innerHTML =
                 `<span class="title">${type.name}</span>` +
                 `<span class="art"></span>` +
-                `<span class="cost">${costOf(type)}</span>`;
+                `<span class="cost">${moneyHtml(costOf(type))}</span>`;
             const hits = [type.targets.ground && 'ground', type.targets.air && 'air']
                 .filter(Boolean)
                 .join(' + ');
@@ -709,7 +709,7 @@ export class Hud {
             btn.dataset.itemId = itemId;
             btn.innerHTML =
                 `${iconHtml(def.icon, 'shop-rune-ico')}` +
-                `<span class="cost">${this.shopRuneCost}</span>`;
+                `<span class="cost">${moneyHtml(this.shopRuneCost)}</span>`;
             btn.title = `${def.name} — ${this.shopRuneCost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('unaffordable')) return;
@@ -1197,21 +1197,21 @@ export class Hud {
             if (levelUp) {
                 this.touchLevelBtn.innerHTML =
                     `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
-                    `<span class="pb-label">Level ⬢ ${levelUp.cost}</span>`;
+                    `<span class="pb-label">Level ${moneyHtml(levelUp.cost)}</span>`;
                 this.touchLevelBtn.classList.toggle('disabled', !levelUp.affordable);
             }
             this.touchLevelAllBtn.style.display = levelAll ? 'flex' : 'none';
             if (levelAll) {
                 this.touchLevelAllBtn.innerHTML =
                     `${iconHtml('ability-level-type', 'pb-ico mask-ico')}` +
-                    `<span class="pb-label">All ×${levelAll.count} ⬢ ${levelAll.cost}</span>`;
+                    `<span class="pb-label">All ×${levelAll.count} ${moneyHtml(levelAll.cost)}</span>`;
                 this.touchLevelAllBtn.classList.toggle('disabled', !levelAll.affordable);
             }
             this.touchUpgradeBtn.style.display = upgrade ? 'flex' : 'none';
             if (upgrade) {
                 this.touchUpgradeBtn.innerHTML =
                     `${iconHtml('ability-level', 'pb-ico mask-ico')}` +
-                    `<span class="pb-label">Upgrade ⬢ ${upgrade.cost}</span>`;
+                    `<span class="pb-label">Upgrade ${moneyHtml(upgrade.cost)}</span>`;
                 this.touchUpgradeBtn.classList.toggle('disabled', !upgrade.affordable);
             }
         }
@@ -2110,7 +2110,7 @@ export class Hud {
         for (const { el, itemId } of this.shopRuneButtons) {
             const def = ITEMS[itemId]!;
             const costEl = el.querySelector('.cost');
-            if (costEl) costEl.textContent = String(cost);
+            if (costEl) costEl.innerHTML = moneyHtml(cost);
             el.title =
                 `${def.name} — ${cost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
         }
@@ -2130,7 +2130,7 @@ export class Hud {
     /** re-reads unit prices (they change while the recruit switch is active) */
     refreshCosts(): void {
         for (const { el, type } of this.buttons) {
-            el.querySelector('.cost')!.textContent = String(this.costOf(type));
+            el.querySelector('.cost')!.innerHTML = moneyHtml(this.costOf(type));
             if (type.extra) continue;
             const cost = this.costOf(type);
             const blocked = this.deploysLeft <= 0;
@@ -2156,7 +2156,7 @@ export class Hud {
             info.count >= 2 ? `Level all (${info.count})` : 'Level up';
         const html =
             `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
-            `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
+            `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${moneyHtml(info.cost)}</span></span>`;
         // the shop-toolbar button and its phone twin (top-right strip) mirror each other
         for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
             btn.style.display = '';
@@ -2242,7 +2242,7 @@ export class Hud {
     }
 
     private unlockTierLabel(unlockCost: number): string {
-        return String(unlockCost);
+        return moneyHtml(unlockCost);
     }
 
     private renderUnlockPickTile(
@@ -2255,7 +2255,7 @@ export class Hud {
             `${o.affordable ? '' : ' disabled'}>` +
             `<span class="title">${escapeAttr(o.name)}</span>` +
             `<span class="art"${artStyle}></span>` +
-            `<span class="cost">${o.deployCost}</span>` +
+            `<span class="cost">${moneyHtml(o.deployCost)}</span>` +
             `</button>`
         );
     }
@@ -2655,7 +2655,7 @@ export class Hud {
                     : t.owned
                       ? `<span class="at-badge">✓</span>`
                       : t.cost !== undefined
-                        ? `<span class="at-cost">${t.cost}</span>`
+                        ? `<span class="at-cost">${moneyHtml(t.cost)}</span>`
                         : '';
                 const state = t.owned ? 'owned' : t.affordable ? 'buy' : 'locked';
                 const ring = produce
@@ -2686,7 +2686,7 @@ export class Hud {
                         t.state === 'owned'
                             ? `<span class="at-badge">✓</span>`
                             : t.cost !== undefined
-                              ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
+                              ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${moneyHtml(t.cost < 0 ? `+${-t.cost}` : t.cost)}</span>`
                               : '';
                     const levelIcon = t.icon.startsWith('ability-level');
                     const icoClass = levelIcon ? 'at-icon m-icon mask-ico' : 'at-icon m-icon';
@@ -2715,12 +2715,12 @@ export class Hud {
             state === 'owned'
                 ? `<span class="ai-cost owned">✓ Owned</span>`
                 : cost
-                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? `+${-Number(cost)} Supply` : `⬢ ${cost}`}</span>`
+                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? moneyHtml(`+${-Number(cost)}`) : moneyHtml(cost)}</span>`
                   : '';
         const note = d.tnote ? `<div class="ai-note">${d.tnote}</div>` : '';
         const touchBuy =
             inputMode() === 'touch' && state === 'buy'
-                ? `<button type="button" class="ai-buy">Buy${cost ? ` · ⬢ ${cost}` : ''}</button>`
+                ? `<button type="button" class="ai-buy">Buy${cost ? ` · ${moneyHtml(cost)}` : ''}</button>`
                 : '';
         const levelIcon = !!d.ticon?.startsWith('ability-level');
         frame.innerHTML =
@@ -3553,7 +3553,7 @@ export class Hud {
                 })
                 .join('') +
             `</div>` +
-            `<button class="cards-skip">Skip — take ⬢ ${skipReward}</button>`;
+            `<button class="cards-skip">Skip — take ${moneyHtml(skipReward)}</button>`;
         overlay.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('.cards-skip')) {
@@ -3664,8 +3664,9 @@ export class Hud {
     }
 
     setSupply(amount: number): void {
-        this.supplyEl.textContent = String(amount);
-        this.phoneSupplyEl.textContent = String(amount);
+        const html = moneyHtml(amount, 'supply-ico');
+        this.supplyEl.innerHTML = html;
+        this.phoneSupplyEl.innerHTML = html;
         this.shopBalance = amount;
         this.lastShopKey = '';
         for (const { el, type } of this.buttons) {

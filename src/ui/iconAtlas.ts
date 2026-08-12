@@ -138,6 +138,16 @@ export function iconHtml(id: string, className = 'i', fallbackId = 'ui-unknown')
     return `<span class="${classes}" style="${style}" role="img" aria-hidden="true"></span>`;
 }
 
+/** Coin mark for supply/money amounts (full-color atlas frame, not mask-tinted). */
+export function moneyIconHtml(className = 'money-ico'): string {
+    return iconHtml('ui-btc', className);
+}
+
+/** Coin + amount for price / balance chips. */
+export function moneyHtml(amount: number | string, className = 'money-ico'): string {
+    return `${moneyIconHtml(className)}${amount}`;
+}
+
 /** Apply atlas background to an existing element (keeps its classes/size). */
 export function applyIcon(el: HTMLElement, id: string, fallbackId = 'ui-unknown'): void {
     el.classList.add('m-icon');

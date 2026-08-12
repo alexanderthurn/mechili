@@ -996,6 +996,16 @@ html, body {
     color: ${u.brass};
     font-weight: 700;
     font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+.mh-tech-cost .money-ico.m-icon,
+.mh-stat-grid dd .money-ico.m-icon {
+    width: 13px;
+    height: 13px;
+    margin: 0;
+    vertical-align: -0.15em;
 }
 .mh-tech-desc {
     color: ${u.phase};
