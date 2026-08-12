@@ -1,6 +1,7 @@
 import {
     BoxGeometry,
     CanvasTexture,
+    Color,
     ConeGeometry,
     DoubleSide,
     Group,
@@ -57,7 +58,11 @@ const VALID_COLOR = THEME.valid;
 const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
 /** gold tint for the special-ability aura ring (Golden Aura) */
-const AURA_RING_COLOR = 0xffcf5a;
+const AURA_RING_COLOR = 0xffcb2e;
+/** two golds the aura ring shimmers between while pulsing */
+const AURA_GOLD_DEEP = new Color(0xf0a808);
+const AURA_GOLD_BRIGHT = new Color(0xfff0a8);
+const _auraCol = new Color();
 /** how far packs lift off the ground while being moved (carried) */
 const SELECT_LIFT = 2.8;
 /** scratch for visibleMemberWorldPositions (non-fogged view center) */
@@ -109,6 +114,19 @@ export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: number)
     mesh.scale.set(radius, 1, radius);
     mesh.renderOrder = 10;
     mesh.visible = true;
+}
+
+/**
+ * Animate an aura ring: pulse its opacity and shimmer between a deep and a
+ * bright gold so it reads as a living magic circle. Call each frame while the
+ * ring is visible. `timeMs` = performance.now().
+ */
+export function pulseAuraRing(mesh: Mesh, timeMs: number): void {
+    const mat = mesh.material as MeshBasicMaterial;
+    const pulse = 0.5 + 0.5 * Math.sin(timeMs * 0.005);
+    mat.opacity = 0.5 + pulse * 0.45; // 0.5 .. 0.95
+    _auraCol.copy(AURA_GOLD_DEEP).lerp(AURA_GOLD_BRIGHT, pulse);
+    mat.color.copy(_auraCol);
 }
 
 /**
@@ -2140,7 +2158,10 @@ export class PlacementController {
         // gold aura ring for packs with a special-ability radius (Golden Aura)
         if (sel.team === 'player' && this.auraRangeOf) {
             const auraRadius = this.auraRangeOf(sel);
-            if (auraRadius) placeRangeRing(this.auraMesh, markerCenter.x, markerCenter.z, auraRadius);
+            if (auraRadius) {
+                placeRangeRing(this.auraMesh, markerCenter.x, markerCenter.z, auraRadius);
+                pulseAuraRing(this.auraMesh, performance.now());
+            }
         }
 
         const origin =

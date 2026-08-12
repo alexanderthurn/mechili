@@ -371,7 +371,14 @@ html .mechili-suggest .box,
 html .mechili-pause .pause-box,
 html .mechili-resume .resume-box,
 html .mechili-gameover {
-    position: relative;
+    /* absolute-centered content box — must beat the generic materialStyles
+       position:relative (same html-prefixed specificity) or the overlay
+       stretches full-width (see the .mechili-gameover rule below) */
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    width: auto;
     color: ${u.cream};
     background: ${leatherFill};
     border: 1px solid ${u.frameLo};
