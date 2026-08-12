@@ -1515,7 +1515,8 @@ export class Hud {
         const portraitGroup = document.createElement('div');
         portraitGroup.className = 'portrait-group';
 
-        // 1. Featured main portrait (44px)
+        // Featured main portrait sits against the HP tube (bar grows out of it).
+        // Secondary teammates stack outward, away from the bar.
         const mainPortrait = document.createElement('div');
         mainPortrait.className = 'portrait main';
         mainPortrait.dataset.seat = String(featuredEntry.seat);
@@ -1531,9 +1532,6 @@ export class Hud {
         });
         this.applyPortrait(mainPortrait, mainAvatar, null);
 
-        portraitGroup.appendChild(mainPortrait);
-
-        // 2. Secondary overlapping stacked portraits (28px) if teammates exist
         if (secondaryEntries.length > 0) {
             const subStack = document.createElement('div');
             subStack.className = 'portrait-sub-stack';
@@ -1556,7 +1554,11 @@ export class Hud {
 
                 subStack.appendChild(subPortrait);
             }
-            portraitGroup.appendChild(subStack);
+            // DOM: subs first, main last → main is adjacent to the HP bar
+            // (enemy portrait-group is row-reversed, so the same DOM keeps main inward)
+            portraitGroup.append(subStack, mainPortrait);
+        } else {
+            portraitGroup.appendChild(mainPortrait);
         }
 
         const nameEl = document.createElement('span');
@@ -2842,6 +2844,8 @@ export class Hud {
         this.lastHpValE = eRound;
         this.playerHpFill.style.transform = `scaleX(${p})`;
         this.enemyHpFill.style.transform = `scaleX(${e})`;
+        this.playerHpVal.style.setProperty('--hp', String(p));
+        this.enemyHpVal.style.setProperty('--hp', String(e));
         this.playerHpVal.textContent = String(pRound);
         this.enemyHpVal.textContent = String(eRound);
     }
