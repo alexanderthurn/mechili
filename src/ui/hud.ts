@@ -661,9 +661,21 @@ export class Hud {
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
 
+        this.supplyFrame = document.createElement('div');
+        this.supplyFrame.className = 'mechili-supply clickable';
+        this.supplyFrame.title = 'Match settings';
+        this.supplyEl = document.createElement('span');
+        this.supplyEl.className = 'supply';
+        this.supplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
+        this.supplyAmtEl = document.createElement('span');
+        this.supplyAmtEl.className = 'supply-amt';
+        this.supplyEl.append(this.supplyAmtEl);
+        this.supplyFrame.append(this.supplyEl);
+        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
+
         const shopToolbar = document.createElement('div');
         shopToolbar.className = 'shop-toolbar';
-        shopToolbar.append(this.undoEl);
+        shopToolbar.append(this.undoEl, this.supplyFrame);
 
         this.levelAllGlobalBtn = document.createElement('button');
         this.levelAllGlobalBtn.className = 'level-all-global';
@@ -685,17 +697,6 @@ export class Hud {
 
         const shopHeader = document.createElement('div');
         shopHeader.className = 'shop-header';
-        this.supplyFrame = document.createElement('div');
-        this.supplyFrame.className = 'mechili-supply clickable';
-        this.supplyFrame.title = 'Match settings';
-        this.supplyEl = document.createElement('span');
-        this.supplyEl.className = 'supply';
-        this.supplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
-        this.supplyAmtEl = document.createElement('span');
-        this.supplyAmtEl.className = 'supply-amt';
-        this.supplyEl.append(this.supplyAmtEl);
-        this.supplyFrame.append(this.supplyEl);
-        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
         this.deploysEl.title = 'Purchases this round / your limit (units + base runes)';
@@ -739,7 +740,7 @@ export class Hud {
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
         }
-        shopHeader.append(this.supplyFrame, this.deploysEl, this.shopRuneRow);
+        shopHeader.append(this.deploysEl, this.shopRuneRow);
 
         const shopGrid = document.createElement('div');
         shopGrid.className = 'shop-grid';

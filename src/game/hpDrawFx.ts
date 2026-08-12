@@ -23,13 +23,13 @@ import type { HpDrawWaveTier } from './units';
 import { cloneUnitModel, hasUnitModel } from './unitModels';
 
 const MAX_HP_DRAW = 256;
-/** Distance along the view ray for the HP-corner anchor in world space. */
-const CORNER_RAY_DIST = 55;
+/** Distance along the view ray for the HP-portrait anchor in world space. */
+const CORNER_RAY_DIST = 42;
 /** Arrive when within this many world units of the moving target. */
-const HIT_RADIUS = 2.5;
+const HIT_RADIUS = 1.8;
 /** Extra seconds past scheduled hitTime before forcing a hit. */
 const HIT_GRACE_SECONDS = 0.45;
-/** Seconds of mostly-vertical climb before homing kicks in. */
+/** Hold launch heading briefly before homing toward the HP portrait. */
 const BOOST_SECONDS = 0.07;
 
 // --- flight feel (tune these) ---
@@ -43,11 +43,26 @@ const TURN_RATE = 5;
 const CLOSE_TURN_DIST = 22;
 /** Peak turn multiplier at the HP corner. */
 const CLOSE_TURN_MULT = 100;
+/**
+ * Camera distance used as “normal” sprite size. Closer than this → scale down
+ * so sizeAttenuation doesn’t blow the soul across the whole HUD.
+ */
+const SOUL_REF_CAM_DIST = 36;
+/** Below this approach fraction, hide the unit mesh ghost (too chunky near cam). */
+const GHOST_HIDE_APPROACH = 0.4;
 
-/** Normalized screen coords — top corners where HUD HP cards sit. */
+/**
+ * Fallback normalized screen coords if portrait DOM isn’t found.
+ * Prefer live `.portrait.main` centers from the fightbar.
+ */
 const HP_CORNER_SCREEN = {
-    player: { x: 0.13, y: 0.055 },
-    enemy: { x: 0.87, y: 0.055 },
+    player: { x: 0.04, y: 0.055 },
+    enemy: { x: 0.96, y: 0.055 },
+} as const;
+
+const PORTRAIT_SEL = {
+    player: '.mechili-fightbar .fighter-stack.player .portrait.main',
+    enemy: '.mechili-fightbar .fighter-stack.enemy .portrait.main',
 } as const;
 
 /** Billboard soul height ≈ unit size; tier still bumps medium/high. */
@@ -149,13 +164,14 @@ export type HpDrawHitEvent = {
 };
 
 /**
- * Dead-Marches souls: translucent spirit sprites flying from survivors to the
- * HP bars, plus a transparent shiny clone of each unit's mesh.
+ * Dead-Marches souls: translucent spirit sprites racing along the ground
+ * toward the camera, then homing into the commander portraits.
  */
 export class HpDrawFx {
     private readonly root = new Group();
     private readonly desired = new Vector3();
     private readonly velDir = new Vector3();
+    private readonly launchDir = new Vector3();
     private readonly raycaster = new Raycaster();
     private readonly ndc = new Vector2();
     private readonly cornerPlayer = new Vector3();
@@ -249,11 +265,16 @@ export class HpDrawFx {
 
         camera.updateMatrixWorld();
 
+        const playerAim =
+            portraitScreenNorm(PORTRAIT_SEL.player, viewW, viewH) ?? HP_CORNER_SCREEN.player;
+        const enemyAim =
+            portraitScreenNorm(PORTRAIT_SEL.enemy, viewW, viewH) ?? HP_CORNER_SCREEN.enemy;
+
         this.cornerPlayer.copy(
             screenNormToWorld(
                 camera,
-                HP_CORNER_SCREEN.player.x,
-                HP_CORNER_SCREEN.player.y,
+                playerAim.x,
+                playerAim.y,
                 viewW,
                 viewH,
                 this.raycaster,
@@ -263,8 +284,8 @@ export class HpDrawFx {
         this.cornerEnemy.copy(
             screenNormToWorld(
                 camera,
-                HP_CORNER_SCREEN.enemy.x,
-                HP_CORNER_SCREEN.enemy.y,
+                enemyAim.x,
+                enemyAim.y,
                 viewW,
                 viewH,
                 this.raycaster,
@@ -290,7 +311,19 @@ export class HpDrawFx {
                     p.flying = true;
                     p.pos.copy(p.start);
                     p.speed = SPEED_START;
-                    p.vel.set(0, p.speed, 0);
+                    // Ground skitter toward the camera (XZ), not a vertical pop
+                    this.launchDir.set(
+                        camera.position.x - p.start.x,
+                        0,
+                        camera.position.z - p.start.z,
+                    );
+                    if (this.launchDir.lengthSq() < 1e-6) {
+                        camera.getWorldDirection(this.launchDir);
+                        this.launchDir.y = 0;
+                    }
+                    if (this.launchDir.lengthSq() < 1e-6) this.launchDir.set(0, 0, 1);
+                    else this.launchDir.normalize();
+                    p.vel.copy(this.launchDir).multiplyScalar(p.speed);
                 }
 
                 appear = 1;
@@ -309,7 +342,11 @@ export class HpDrawFx {
                         TURN_RATE * (1 + closeT * closeT * (CLOSE_TURN_MULT - 1));
 
                     if (flightAge < BOOST_SECONDS) {
-                        p.vel.set(0, p.speed, 0);
+                        // Keep the ground-toward-camera heading for a beat
+                        this.velDir.copy(p.vel);
+                        if (this.velDir.lengthSq() < 1e-8) this.velDir.copy(this.launchDir);
+                        else this.velDir.normalize();
+                        p.vel.copy(this.velDir).multiplyScalar(p.speed);
                     } else {
                         this.desired.subVectors(target, p.pos);
                         if (this.desired.lengthSq() < 1e-8) this.desired.set(0, 1, 0);
@@ -338,7 +375,14 @@ export class HpDrawFx {
             const bob = Math.sin(this.elapsed * 6 + p.index * 0.7) * 0.15;
             p.sprite.visible = true;
             p.sprite.position.set(p.pos.x, p.pos.y + bodyLift + bob, p.pos.z);
-            const base = p.meshScale * SOUL_SPRITE_MULT[p.tier] * appear;
+
+            // Counter sizeAttenuation near the camera + shrink into the portrait
+            const distCam = p.pos.distanceTo(camera.position);
+            const camScale = MathUtils.clamp(distCam / SOUL_REF_CAM_DIST, 0.08, 1.35);
+            const toTarget = p.flying ? p.pos.distanceTo(target) : CLOSE_TURN_DIST;
+            const approach = MathUtils.clamp(toTarget / CLOSE_TURN_DIST, 0.1, 1);
+            const sizeMul = camScale * (0.35 + 0.65 * approach);
+            const base = p.meshScale * SOUL_SPRITE_MULT[p.tier] * appear * sizeMul;
             p.sprite.scale.set(base * 0.65, base, 1);
             // Soft shimmer — additive glow breathes without going opaque.
             const shimmer = 0.85 + 0.15 * Math.sin(this.elapsed * 9 + p.index * 1.3);
@@ -350,10 +394,14 @@ export class HpDrawFx {
             mat.rotation = Math.sin(this.elapsed * 2.2 + p.index) * 0.12;
 
             if (p.meshGhost) {
-                p.meshGhost.visible = true;
-                // Mesh origin is at the feet — same pose as the living unit
-                p.meshGhost.position.copy(p.pos);
-                p.meshGhost.rotation.set(0, p.yaw, 0);
+                const showGhost = approach > GHOST_HIDE_APPROACH;
+                p.meshGhost.visible = showGhost;
+                if (showGhost) {
+                    // Mesh origin is at the feet — same pose as the living unit
+                    p.meshGhost.position.copy(p.pos);
+                    p.meshGhost.rotation.set(0, p.yaw, 0);
+                    p.meshGhost.scale.setScalar(p.meshScale * sizeMul);
+                }
             }
         }
 
@@ -393,6 +441,32 @@ function steerDirection(current: Vector3, desired: Vector3, maxRad: number): voi
         return;
     }
     current.lerp(desired, Math.min(1, maxRad / angle)).normalize();
+}
+
+/** Center of a fightbar portrait in 0..1 view coords (origin top-left), or null. */
+function portraitScreenNorm(
+    selector: string,
+    viewW: number,
+    viewH: number,
+): { x: number; y: number } | null {
+    const el = document.querySelector(selector);
+    if (!el || viewW <= 0 || viewH <= 0) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    // Match the WebGL canvas when present so NDC lines up with the 3D view
+    const canvas = document.querySelector('canvas');
+    const wr = canvas?.getBoundingClientRect();
+    const originX = wr?.left ?? 0;
+    const originY = wr?.top ?? 0;
+    const width = wr && wr.width > 1 ? wr.width : viewW;
+    const height = wr && wr.height > 1 ? wr.height : viewH;
+    const x = (r.left + r.width * 0.5 - originX) / width;
+    const y = (r.top + r.height * 0.5 - originY) / height;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return {
+        x: MathUtils.clamp(x, 0.01, 0.99),
+        y: MathUtils.clamp(y, 0.01, 0.99),
+    };
 }
 
 function screenNormToWorld(

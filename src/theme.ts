@@ -2513,20 +2513,6 @@ ${materialStyles(u)}
     border-bottom: 1px solid ${u.frameLo};
     box-shadow: 0 1px 0 rgba(255, 220, 160, 0.06);
 }
-.mechili-shop .shop-header .mechili-supply {
-    min-height: 0;
-    padding: 0;
-    margin-right: 2px;
-}
-.mechili-shop .shop-header .supply {
-    font-size: 18px;
-    gap: 4px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-}
-.mechili-shop .shop-header .supply-ico.m-icon {
-    width: 18px;
-    height: 18px;
-}
 .mechili-shop .shop-header .unit-cap {
     display: none;
 }
