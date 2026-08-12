@@ -4610,6 +4610,26 @@ ${materialStyles(u)}
         0 2px 6px rgba(0, 0, 0, 0.35);
     font-size: 22px;
     font-weight: bold;
+    line-height: 1;
+}
+.mechili-fightbar .portrait .portrait-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    line-height: 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+.mechili-fightbar .portrait .portrait-placeholder::before {
+    content: '◆';
+    /* diamond glyph sits low in many fonts — pull up to circle center */
+    display: block;
+    line-height: 1;
+    transform: translateY(-0.12em);
 }
 .mechili-fightbar .portrait-sub-stack {
     position: relative;

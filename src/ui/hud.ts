@@ -1594,6 +1594,7 @@ export class Hud {
         card: StartCard | null,
     ): void {
         el.replaceChildren();
+        el.classList.remove('empty');
         if (avatar) {
             const img = document.createElement('img');
             img.className = 'fighter-portrait-img';
@@ -1607,7 +1608,11 @@ export class Hud {
             el.innerHTML = iconHtml(card.portrait, 'fighter-portrait-ico');
             return;
         }
-        el.textContent = '◆';
+        el.classList.add('empty');
+        const mark = document.createElement('span');
+        mark.className = 'portrait-placeholder';
+        mark.setAttribute('aria-hidden', 'true');
+        el.appendChild(mark);
     }
 
     /** @deprecated use setCommanders — kept for any external callers */
