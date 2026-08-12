@@ -14,7 +14,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
-import { iconHtml, applyIcon, iconCss, iconMaskCss, moneyHtml } from './iconAtlas';
+import { iconHtml, applyIcon, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
 import { THEME, hudStyles } from '../theme';
@@ -341,6 +341,10 @@ export class Hud {
     private readonly timerEl: HTMLSpanElement;
     private readonly endButton: HTMLButtonElement;
     private readonly supplyEl: HTMLSpanElement;
+    private readonly supplyAmtEl: HTMLSpanElement;
+    private phoneSupplyAmtEl!: HTMLSpanElement;
+    /** last painted balance — setSupply runs every frame; avoid rewriting the chip DOM */
+    private supplyAmountShown: number | null = null;
     /** between-round picks known for each side (enemy empty until intel reveals) */
     private playerRoundPicks: { round: number; title: string; body: string }[] = [];
     private enemyRoundPicks: { round: number; title: string; body: string }[] = [];
@@ -650,40 +654,30 @@ export class Hud {
             return button;
         };
 
-        // deployment shop column (bottom-right): toolbar, extras row, unit shop
+        // deployment shop column (bottom-right): undo on top, extras+level row, unit shop
         this.shopColumn = document.createElement('div');
         this.shopColumn.className = 'mechili-shop-col';
 
-        const shopToolbar = document.createElement('div');
-        shopToolbar.className = 'shop-toolbar';
         this.undoEl = document.createElement('button');
         this.undoEl.className = 'undo';
         this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} Undo`;
         this.undoEl.title = 'Revert your last action this round — click again for the one before';
         this.undoEl.addEventListener('click', () => this.onUndo?.());
 
-        const toolbarRight = document.createElement('div');
-        toolbarRight.className = 'shop-toolbar-right';
-        toolbarRight.append(this.undoEl);
+        const shopToolbar = document.createElement('div');
+        shopToolbar.className = 'shop-toolbar';
+        shopToolbar.append(this.undoEl);
+
         this.levelAllGlobalBtn = document.createElement('button');
         this.levelAllGlobalBtn.className = 'level-all-global';
         this.levelAllGlobalBtn.style.display = 'none';
         this.levelAllGlobalBtn.title = 'Level up every ready pack on the field';
         this.levelAllGlobalBtn.addEventListener('click', () => this.onLevelAllGlobal?.());
-        toolbarRight.append(this.levelAllGlobalBtn);
-
-        this.supplyFrame = document.createElement('div');
-        this.supplyFrame.className = 'mechili-supply clickable';
-        this.supplyFrame.title = 'Match settings';
-        this.supplyEl = document.createElement('span');
-        this.supplyEl.className = 'supply';
-        this.supplyFrame.append(this.supplyEl);
-        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
-        toolbarRight.append(this.supplyFrame);
-        shopToolbar.append(toolbarRight);
 
         this.extrasRow = document.createElement('div');
         this.extrasRow.className = 'mechili-extras';
+        // LTR: level-all, then board extras (any count) toward the shop edge
+        this.extrasRow.append(this.levelAllGlobalBtn);
         for (const type of extraTypes) {
             const i = UNIT_TYPES.indexOf(type);
             this.extrasRow.appendChild(makeShopTile(type, i));
@@ -694,12 +688,21 @@ export class Hud {
 
         const shopHeader = document.createElement('div');
         shopHeader.className = 'shop-header';
+        this.supplyFrame = document.createElement('div');
+        this.supplyFrame.className = 'mechili-supply clickable';
+        this.supplyFrame.title = 'Match settings';
+        this.supplyEl = document.createElement('span');
+        this.supplyEl.className = 'supply';
+        this.supplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
+        this.supplyAmtEl = document.createElement('span');
+        this.supplyAmtEl.className = 'supply-amt';
+        this.supplyEl.append(this.supplyAmtEl);
+        this.supplyFrame.append(this.supplyEl);
+        this.supplyFrame.addEventListener('click', () => this.showSettingsDetail());
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
         this.deploysEl.title = 'Purchases this round / your limit (units + base runes)';
-        // Render shop "gear" via the icon atlas (no unicode fallback).
-        this.deploysEl.innerHTML =
-            `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
+        this.deploysEl.innerHTML = `<span class="unit-cap-label"></span>`;
         this.shopRuneRow = document.createElement('div');
         this.shopRuneRow.className = 'shop-runes';
         this.shopRuneRow.title =
@@ -739,7 +742,7 @@ export class Hud {
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
         }
-        shopHeader.append(this.deploysEl, this.shopRuneRow);
+        shopHeader.append(this.supplyFrame, this.deploysEl, this.shopRuneRow);
 
         const shopGrid = document.createElement('div');
         shopGrid.className = 'shop-grid';
@@ -1076,6 +1079,10 @@ export class Hud {
         phoneSupplyFrame.title = 'Match settings';
         this.phoneSupplyEl = document.createElement('span');
         this.phoneSupplyEl.className = 'supply';
+        this.phoneSupplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
+        this.phoneSupplyAmtEl = document.createElement('span');
+        this.phoneSupplyAmtEl.className = 'supply-amt';
+        this.phoneSupplyEl.append(this.phoneSupplyAmtEl);
         phoneSupplyFrame.append(this.phoneSupplyEl);
         phoneSupplyFrame.addEventListener('click', () => this.showSettingsDetail());
         this.phoneLevelAllEl = document.createElement('button');
@@ -2171,7 +2178,7 @@ export class Hud {
             return;
         }
         const label =
-            info.count >= 2 ? `Level all (${info.count})` : 'Level up';
+            info.count >= 2 ? `Level all up (${info.count})` : 'Level all up';
         const html =
             `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
             `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
@@ -3743,9 +3750,12 @@ export class Hud {
     }
 
     setSupply(amount: number): void {
-        const html = moneyHtml(amount, 'supply-ico');
-        this.supplyEl.innerHTML = html;
-        this.phoneSupplyEl.innerHTML = html;
+        if (this.supplyAmountShown !== amount) {
+            this.supplyAmountShown = amount;
+            const label = String(amount);
+            this.supplyAmtEl.textContent = label;
+            this.phoneSupplyAmtEl.textContent = label;
+        }
         this.shopBalance = amount;
         this.lastShopKey = '';
         for (const { el, type } of this.buttons) {

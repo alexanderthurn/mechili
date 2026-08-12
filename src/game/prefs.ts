@@ -77,7 +77,7 @@ export interface Prefs {
      * what device last generated an event.
      */
     controlScheme: ControlScheme;
-    /** UI typeface — Cinzel / Exo 2 / Marcellus (live-switched via --font-ui). */
+    /** UI typeface — Cinzel / Exo 2 / Marcellus (live-switched via --font-ui). Default: Marcellus. */
     uiFont: UiFontId;
     /**
      * How Matchmaking / Custom host finds opponents.
@@ -179,7 +179,7 @@ const DEFAULTS: Prefs = {
     renderDeadUnits: true,
     antialias: true,
     controlScheme: 'auto',
-    uiFont: 'exo2',
+    uiFont: 'marcellus',
     multiplayerTransport: 'matchmaking',
     mobileTuned: false,
 };
