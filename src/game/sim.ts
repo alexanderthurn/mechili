@@ -1753,16 +1753,22 @@ export class BattleSim {
             syncBattleTint(a.mesh, tint, timeSeconds, 1, spawnProgress);
             this.animateActor(a, timeSeconds);
         }
-        // Air wrecks tumble to the lawn (render-only; kill() already marked them dead)
+        // Dead wrecks: air units tumble first; settled corpses stay glued to terrain
         const crashLands: CrashLand[] = [];
         for (const a of this.actors) {
             if (a.alive || a.unit.type.structure) continue;
             const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
-            if (!fall) continue;
-            if (!tickDeathFall(a.mesh, fall, this.elapsed, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
-                crashLands.push(crashLandFromFall(fall));
-                clearDeathFall(a.mesh);
+            if (fall) {
+                if (!tickDeathFall(a.mesh, fall, this.elapsed, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
+                    crashLands.push(crashLandFromFall(fall));
+                    clearDeathFall(a.mesh);
+                }
+                continue;
             }
+            // One height sample per wreck — skips mid-fall so flyer crashes stay intact
+            const wx = a.unit.world.x + a.mesh.position.x;
+            const wz = a.unit.world.z + a.mesh.position.z;
+            a.mesh.position.y = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
         }
         return crashLands;
     }
@@ -1933,7 +1939,8 @@ export class BattleSim {
             }
         } else {
             // tip over and stay as a battlefield wreck until the round resets
-            const tipZ = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
+            // ~1.2 rad ≈ flatter on the lawn (old ~0.75 looked half-standing / floaty)
+            const tipZ = (target.index % 2 ? 1 : -1) * (1.2 + (target.index % 4) * 0.06);
             const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
             if (target.altitude > 0) {
                 // flyers: tumble down; optional knock flings along the killing blow
