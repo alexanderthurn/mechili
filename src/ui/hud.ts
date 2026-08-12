@@ -2278,8 +2278,7 @@ export class Hud {
         const art = this.unitIcons.get(o.id);
         const artStyle = art ? ` style="background-image:url(${art})"` : '';
         return (
-            `<button class="shop-tile unlock-pick" data-unit="${o.id}"` +
-            `${o.affordable ? '' : ' disabled'}>` +
+            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}">` +
             `<span class="title">${escapeAttr(o.name)}</span>` +
             `<span class="art"${artStyle}></span>` +
             `<span class="cost">${o.deployCost}</span>` +
@@ -2310,7 +2309,7 @@ export class Hud {
                 return (
                     `<section class="unlock-tier">` +
                     `<div class="unlock-tier-head">${this.unlockTierLabel(unlockCost)}</div>` +
-                    `<div class="cards-row unlock-row">` +
+                    `<div class="shop-grid">` +
                     units.map((o) => this.renderUnlockPickTile(o)).join('') +
                     `</div></section>`
                 );
@@ -2331,8 +2330,8 @@ export class Hud {
                 this.hideCardOverlay();
                 return;
             }
-            const button = target.closest<HTMLButtonElement>('.unlock-pick');
-            if (!button?.dataset.unit || button.disabled) return;
+            const button = target.closest<HTMLButtonElement>('.unlock-picker .shop-tile');
+            if (!button?.dataset.unit || button.classList.contains('unaffordable')) return;
             this.hideCardOverlay();
             this.onUnlockPick?.(button.dataset.unit);
         });
