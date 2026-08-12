@@ -569,18 +569,18 @@ export const UI_FONTS: Record<
     },
     exo2: {
         label: 'Exo 2',
-        hint: 'game UI / HUD',
+        hint: 'modern HUD',
         stack: '"Exo 2", "Segoe UI", system-ui, sans-serif',
     },
     marcellus: {
         label: 'Marcellus',
-        hint: 'softer Roman',
+        hint: 'default',
         stack: '"Marcellus", "Palatino Linotype", Palatino, Georgia, serif',
     },
 };
 
-/** Default stack (Exo 2) — Pixi / callers that need a concrete family string. */
-export const FONT_UI = UI_FONTS.exo2.stack;
+/** Default stack (Marcellus) — Pixi / callers that need a concrete family string. */
+export const FONT_UI = UI_FONTS.marcellus.stack;
 
 const CINZEL_URL = new URL('../assets/fonts/Cinzel-Variable.ttf', import.meta.url).href;
 const EXO2_URL = new URL('../assets/fonts/Exo2-Variable.ttf', import.meta.url).href;
@@ -588,7 +588,7 @@ const MARCELLUS_URL = new URL('../assets/fonts/Marcellus-Regular.ttf', import.me
 
 /** Live-switch `--font-ui` (everything inherits via body + form-control rules). */
 export function applyUiFont(id: UiFontId): void {
-    const font = UI_FONTS[id] ?? UI_FONTS.exo2;
+    const font = UI_FONTS[id] ?? UI_FONTS.marcellus;
     document.documentElement.style.setProperty('--font-ui', font.stack);
 }
 
