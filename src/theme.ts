@@ -4634,26 +4634,11 @@ ${materialStyles(u)}
     z-index: 1;
     display: flex;
     align-items: center;
-    margin-left: -14px;
+    margin-left: -6px;
 }
 .mechili-fightbar .fighter.enemy .portrait-sub-stack {
     margin-left: 0;
-    margin-right: -14px;
-}
-.mechili-fightbar .portrait.sub {
-    width: 44px;
-    height: 44px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    border-radius: 0;
-    font-size: 22px;
-    font-weight: bold;
-    overflow: hidden;
-    opacity: 0.9;
+    margin-right: -6px;
 }
 .mechili-fightbar .portrait .m-icon {
     width: 100%;
