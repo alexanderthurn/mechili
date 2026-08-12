@@ -2249,13 +2249,14 @@ ${materialStyles(u)}
 .shop-toolbar .undo:focus-visible,
 .mechili-phone-status .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
 
-/* top-right stack docked under the enemy card: ☰ on every device,
+/* top-right stack under the enemy commander strip: ☰ on every device,
    plus supply/undo/level-all on phone */
 .mechili-phone-status {
     display: flex;
     position: absolute;
-    top: calc(62px + env(safe-area-inset-top));
-    right: env(safe-area-inset-right);
+    /* clear portraits + HP tube + name under the enemy strip */
+    top: calc(78px + env(safe-area-inset-top));
+    right: calc(8px + env(safe-area-inset-right));
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
@@ -2305,24 +2306,25 @@ ${materialStyles(u)}
 }
 .mechili-phone-status.overlay-open { display: none !important; }
 
-/* the ☰ menu: a tab growing out of the enemy card's bottom-right corner —
-   same chrome as the card so it reads as part of it */
+/* ☰ menu — standalone bronze control (no longer a tab off the old plaque) */
 .mechili-phone-menu {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
     align-self: flex-end;
-    min-width: 48px;
+    min-width: 44px;
     min-height: 40px;
-    padding: 2px 12px;
+    padding: 6px 12px;
     appearance: none;
-    background: linear-gradient(180deg, ${u.leatherHi} 0%, ${u.leather} 100%);
-    border: 2px solid ${u.frameMid};
-    border-top: none;
-    border-right: none;
-    border-radius: 0 0 0 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    -webkit-appearance: none;
+    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
+    border: 1.5px solid ${u.frameMid};
+    border-radius: 4px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.45),
+        0 2px 8px rgba(0, 0, 0, 0.4);
     color: ${u.cream};
     font-size: 20px;
     line-height: 1;
@@ -2338,16 +2340,28 @@ ${materialStyles(u)}
 }
 .mechili-phone-menu:hover {
     color: ${u.brassLight};
-    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherHi} 100%);
-    border-color: ${u.frameHi};
+    border-color: ${u.bronzeLight};
+    background: linear-gradient(180deg, #4a4034 0%, ${u.leatherHi} 55%, #1c1610 100%);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.42);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.16),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+        0 4px 12px rgba(0, 0, 0, 0.45);
 }
-.mechili-phone-menu:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
+.mechili-phone-menu:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.1),
+        inset 0 -1px 3px rgba(0, 0, 0, 0.5),
+        0 1px 4px rgba(0, 0, 0, 0.35);
+}
 .mechili-phone-menu:focus-visible {
     outline: none;
     border-color: ${u.brassLight};
-    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35), 0 6px 16px rgba(0, 0, 0, 0.42);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        0 0 0 3px rgba(184, 146, 74, 0.35),
+        0 2px 8px rgba(0, 0, 0, 0.4);
 }
 .shop-toolbar-right {
     display: flex;
@@ -5038,8 +5052,8 @@ ${gamepadCursorStyles(u)}
         z-index: 20;
     }
     /* money joins the strip on phone (the shop toolbar lives in a sheet);
-       the phone enemy card is shorter, so the strip docks higher */
-    .mechili-phone-status { top: calc(40px + env(safe-area-inset-top)); }
+       dock below the enemy HP + name (portraits hidden, but name remains) */
+    .mechili-phone-status { top: calc(72px + env(safe-area-inset-top)); }
     .mechili-phone-status .mechili-supply { display: flex; }
     /* no spending during battle — money returns with the next deployment */
     .mechili-phone-status.battle .mechili-supply { display: none; }
