@@ -9,14 +9,36 @@ export type DeathFallState = {
     tipZ: number;
     startRotX: number;
     startRotZ: number;
+    startMeshX: number;
+    startMeshZ: number;
+    driftX: number;
+    driftZ: number;
+    /** World xz of the pack origin (for landing VFX / ground sample). */
+    originX: number;
+    originZ: number;
 };
+
+/** World point where a crash just hit the lawn. */
+export type CrashLand = { x: number; y: number; z: number };
 
 const MIN_DUR = 0.45;
 const MAX_DUR = 0.9;
+/** Full-power (heavy overkill) horizontal fling in world units. */
+const MAX_CRASH_DRIFT = 36;
 
 /** Fall duration from drop height (crow ~short, high flyers longer). */
 export function deathFallDuration(drop: number): number {
     return Math.min(MAX_DUR, Math.max(MIN_DUR, 0.35 + Math.max(0, drop) * 0.018));
+}
+
+/**
+ * Knock intensity 0..1 from killing blow vs victim max HP.
+ * Fair/~1× kills (archer into crow) stay mild; big overkill (ballista) → 1.
+ */
+export function crashKnockPower(dealt: number, maxHp: number): number {
+    const r = dealt / Math.max(1, maxHp);
+    // archer ~1.4× → ~0.14 (~5u); ballista overkill → 1 (~36u)
+    return Math.min(1, Math.max(0.08, (r - 0.9) / 4));
 }
 
 export function beginDeathFall(
@@ -24,31 +46,55 @@ export function beginDeathFall(
     groundY: number,
     tipZ: number,
     startAt: number,
+    originX: number,
+    originZ: number,
+    driftX = 0,
+    driftZ = 0,
 ): DeathFallState {
     const startY = mesh.position.y;
+    const driftLen = Math.hypot(driftX, driftZ);
     const state: DeathFallState = {
         startY,
         groundY,
         startAt,
-        dur: deathFallDuration(startY - groundY),
+        // long flings need a beat longer in the air so the throw reads
+        dur: deathFallDuration(startY - groundY) + Math.min(0.55, driftLen * 0.012),
         tipZ,
         startRotX: mesh.rotation.x,
         startRotZ: mesh.rotation.z,
+        startMeshX: mesh.position.x,
+        startMeshZ: mesh.position.z,
+        driftX,
+        driftZ,
+        originX,
+        originZ,
     };
     mesh.userData.deathFall = state;
     return state;
 }
 
 /** Apply fall pose. Returns false when finished (caller should clear state). */
-export function tickDeathFall(mesh: Group, state: DeathFallState, elapsed: number): boolean {
+export function tickDeathFall(
+    mesh: Group,
+    state: DeathFallState,
+    elapsed: number,
+    sampleGroundY: (worldX: number, worldZ: number) => number,
+): boolean {
     const u = Math.min(1, Math.max(0, (elapsed - state.startAt) / state.dur));
-    // Gravity-ish: slow start, accelerate into the lawn
+    // Gravity-ish drop; horizontal ease-out so the fling reads early
     const e = u * u;
-    mesh.position.y = state.startY + (state.groundY - state.startY) * e;
+    const h = 1 - (1 - u) * (1 - u);
+    const mx = state.startMeshX + state.driftX * h;
+    const mz = state.startMeshZ + state.driftZ * h;
+    mesh.position.x = mx;
+    mesh.position.z = mz;
+    const groundY = sampleGroundY(state.originX + mx, state.originZ + mz);
+    state.groundY = groundY;
+    mesh.position.y = state.startY + (groundY - state.startY) * e;
     mesh.rotation.z = state.startRotZ + (state.tipZ - state.startRotZ) * u;
     mesh.rotation.x = state.startRotX + 0.55 * u;
     if (u < 1) return true;
-    mesh.position.y = state.groundY;
+    mesh.position.y = groundY;
     mesh.rotation.z = state.tipZ;
     mesh.rotation.x = state.startRotX + 0.55;
     return false;
@@ -56,4 +102,26 @@ export function tickDeathFall(mesh: Group, state: DeathFallState, elapsed: numbe
 
 export function clearDeathFall(mesh: Group): void {
     delete mesh.userData.deathFall;
+}
+
+export function crashLandFromFall(state: DeathFallState): CrashLand {
+    const mx = state.startMeshX + state.driftX;
+    const mz = state.startMeshZ + state.driftZ;
+    return {
+        x: state.originX + mx,
+        y: state.groundY + 0.12,
+        z: state.originZ + mz,
+    };
+}
+
+export function crashDriftFromKnock(
+    dealt: number,
+    maxHp: number,
+    dirX: number,
+    dirZ: number,
+): { driftX: number; driftZ: number } {
+    const len = Math.hypot(dirX, dirZ);
+    if (len < 1e-6) return { driftX: 0, driftZ: 0 };
+    const dist = MAX_CRASH_DRIFT * crashKnockPower(dealt, maxHp);
+    return { driftX: (dirX / len) * dist, driftZ: (dirZ / len) * dist };
 }

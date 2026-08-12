@@ -8607,9 +8607,27 @@ export class Game {
                 // advance wave before tint gate so rim coverage matches this frame
                 this.towerDebuffFx.update(gameDt);
                 if (profile) cpu.begin();
-                this.sim.syncBattleVisuals(this.time, (seat, x, z) =>
+                const crashLands = this.sim.syncBattleVisuals(this.time, (seat, x, z) =>
                     this.towerDebuffFx.waveRevealsDebuffTint(seat, x, z),
                 );
+                for (const p of crashLands) {
+                    // soil kick + pale grit when an air wreck hits the lawn
+                    this.particles.burst(p.x, p.y, p.z, {
+                        count: 14,
+                        color: 0x8a6a42,
+                        speed: 6,
+                        life: 0.5,
+                        up: 5,
+                    });
+                    this.particles.burst(p.x, p.y + 0.15, p.z, {
+                        count: 8,
+                        color: 0xc4b89a,
+                        speed: 3.5,
+                        life: 0.6,
+                        up: 3,
+                        blood: true,
+                    });
+                }
                 if (profile) cpu.end('battleVisuals');
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
