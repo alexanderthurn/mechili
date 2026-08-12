@@ -2165,12 +2165,11 @@ ${materialStyles(u)}
     box-sizing: border-box;
     min-height: 54px;
     padding: 8px 16px;
-    background: linear-gradient(180deg, rgba(46, 62, 36, 0.96), rgba(40, 32, 24, 0.96));
-    border: 2px solid ${u.brassDark};
+    /* frame comes from slim chrome (html .mechili-supply) — no second border */
+    border: none;
     border-radius: 4px;
     user-select: none;
     pointer-events: none;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     flex-shrink: 0;
 }
 .mechili-supply .supply {
@@ -2193,9 +2192,18 @@ ${materialStyles(u)}
 .mechili-supply.clickable {
     pointer-events: auto;
     cursor: pointer;
-    transition: border-color 0.12s, transform 0.12s;
+    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
 }
-.mechili-supply.clickable:hover { border-color: ${u.brassLight}; }
+.mechili-supply.clickable:hover {
+    border-color: ${u.brassLight};
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        0 0 0 1px ${u.frameEdge},
+        0 0 0 2px ${u.brassLight},
+        0 0 0 3px ${u.frameLo},
+        inset 0 1px 0 rgba(255, 230, 180, 0.14),
+        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+}
 .mechili-supply.clickable:active { transform: translateY(1px); }
 .shop-toolbar {
     display: flex;
