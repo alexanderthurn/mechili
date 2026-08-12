@@ -2345,14 +2345,29 @@ export class Hud {
         // oven/pool come from setForgeRecipeContext each tick — do not clear
         // them when a non-Stronghold unit is selected
         this.panel.style.display = 'block';
-        const key = JSON.stringify(info);
-        if (key === this.lastPanelKey) return; // unchanged: keep the DOM stable
+        // HP / total-damage / kills tick every frame while a mech is selected in
+        // battle. Keep them OUT of the rebuild key so the whole panel DOM isn't
+        // torn down each frame — patch those few values in place instead. Without
+        // this, a battle selection reflowed the entire details panel per frame
+        // (the "HUD at 95%" spike).
+        const key = JSON.stringify({
+            ...info,
+            hp: 0,
+            record: info.record ? { damageDealt: 0, kills: 0 } : undefined,
+        });
+        if (key === this.lastPanelKey) {
+            this.patchLiveStats(info); // structure unchanged: just refresh live numbers
+            return;
+        }
         this.lastPanelKey = key;
         this.actionInfoFor = null; // rebuilt DOM: stale peek references would misfire
         this.onTechHover?.(null); // rebuilt tiles: drop any lingering tech-hover preview
         this.hidePanelForgeHoverPreview();
         this.setPanelItemDropReady(false);
         const row = (k: string, v: string) => `<div class="row"><span>${k}</span><span class="v">${v}</span></div>`;
+        // like row(), but tags the value so patchLiveStats can refresh it in place
+        const liveRow = (k: string, v: string, id: string) =>
+            `<div class="row"><span>${k}</span><span class="v" data-live="${id}">${v}</span></div>`;
 
         // leveling sits at the top-right of the frame (next to the name);
         // everything else is a square tile in the bottom action row.
@@ -2615,7 +2630,7 @@ export class Hud {
             itemSquares +
             forgeSquares +
             row('Hits', info.hits) +
-            row('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`) +
+            liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
             row('Level', levelLabel) +
             row('Damage', String(Math.round(info.damage))) +
@@ -2624,12 +2639,29 @@ export class Hud {
             row('Range', String(info.range)) +
             row('Speed', String(info.speed)) +
             (info.record
-                ? row('Total dmg', String(Math.round(info.record.damageDealt))) +
-                  row('Kills', String(info.record.kills))
+                ? liveRow('Total dmg', String(Math.round(info.record.damageDealt)), 'dmg') +
+                  liveRow('Kills', String(info.record.kills), 'kills')
                 : '') +
             techSlots +
             actions +
             `<div class="action-info" style="display:none"></div>`;
+    }
+
+    /**
+     * Refresh only the live-ticking stat values (HP, total damage, kills) in the
+     * already-built details panel, without rebuilding its DOM. Called every frame
+     * a mech stays selected in battle so the panel stays cheap.
+     */
+    private patchLiveStats(info: SelectionInfo): void {
+        const set = (id: string, text: string) => {
+            const el = this.panel.querySelector<HTMLElement>(`.v[data-live="${id}"]`);
+            if (el && el.textContent !== text) el.textContent = text;
+        };
+        set('hp', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`);
+        if (info.record) {
+            set('dmg', String(Math.round(info.record.damageDealt)));
+            set('kills', String(info.record.kills));
+        }
     }
 
     /**
