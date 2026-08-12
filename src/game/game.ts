@@ -142,7 +142,7 @@ import { HpDrawFx } from './hpDrawFx';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
-import { createRangeRing, placeRangeRing, PlacementController } from './placement';
+import { createRangeRing, placeRangeRing, pulseAuraRing, PlacementController } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
 import {
@@ -8967,7 +8967,10 @@ export class Game {
         placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
         material.color.setHex(actorTeam(a) === 'player' ? THEME.valid : teamColors.enemy.hex);
-        if (auraRadius !== null) placeRangeRing(this.battleAuraMesh, a.rx, a.rz, auraRadius);
+        if (auraRadius !== null) {
+            placeRangeRing(this.battleAuraMesh, a.rx, a.rz, auraRadius);
+            pulseAuraRing(this.battleAuraMesh, performance.now());
+        }
     }
 
     /**
@@ -8975,11 +8978,11 @@ export class Game {
      * Currently the ballista Golden Aura (tech `golden`); drives the gold ring.
      */
     private auraRadiusOf(unit: Unit): number | null {
-        // only while the matching tech tile is hovered/peeked in the panel
+        // only while the matching tech tile is hovered/peeked in the panel.
+        // The Golden Aura tile only shows on a ballista, so hovering it is
+        // enough — preview the radius whether or not the tech is bought yet.
         if (this.hoveredTech !== 'golden') return null;
-        if (unit.type.id === 'ballista' && this.unitHasTech(unit.seat, 'ballista', 'golden')) {
-            return GOLDEN_AURA_RADIUS;
-        }
+        if (unit.type.id === 'ballista') return GOLDEN_AURA_RADIUS;
         return null;
     }
 
