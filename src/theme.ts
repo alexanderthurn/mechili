@@ -2639,7 +2639,7 @@ ${materialStyles(u)}
     position: absolute;
     inset: 0;
     background-color: #e8dcc4;
-    background-size: cover;
+    background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     pointer-events: none;
