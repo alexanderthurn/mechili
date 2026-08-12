@@ -69,6 +69,7 @@ import { GROUND_UNIT_Y } from './groundQuality';
 import { cloneUnitModel, hasUnitModel, loadUnitModels, seedUnitVisualHeight } from './unitModels';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
+import { clearDeathFall } from './deathFall';
 
 export type Team = 'player' | 'enemy';
 
@@ -1287,6 +1288,7 @@ export class Unit {
             m.mesh.rotation.x = 0;
             m.mesh.scale.setScalar(this.visualMeshScale()); // un-squash tower rubble (+ level size)
             m.mesh.userData.dead = false;
+            clearDeathFall(m.mesh);
             instances?.setAlive(m.mesh);
         }
         this.seatMembers();

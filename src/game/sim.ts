@@ -43,6 +43,12 @@ import {
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
+import {
+    beginDeathFall,
+    clearDeathFall,
+    tickDeathFall,
+    type DeathFallState,
+} from './deathFall';
 import type { CpuTimings } from '../ui/debug';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
@@ -1712,6 +1718,13 @@ export class BattleSim {
             syncBattleTint(a.mesh, tint, timeSeconds, 1, spawnProgress);
             this.animateActor(a, timeSeconds);
         }
+        // Air wrecks tumble to the lawn (render-only; kill() already marked them dead)
+        for (const a of this.actors) {
+            if (a.alive || a.unit.type.structure) continue;
+            const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
+            if (!fall) continue;
+            if (!tickDeathFall(a.mesh, fall, this.elapsed)) clearDeathFall(a.mesh);
+        }
     }
 
     /**
@@ -1870,9 +1883,15 @@ export class BattleSim {
             }
         } else {
             // tip over and stay as a battlefield wreck until the round resets
-            // (air units crash to the ground)
-            target.mesh.rotation.z = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
-            target.mesh.position.y = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
+            const tipZ = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
+            const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
+            if (target.altitude > 0) {
+                // flyers: tumble down over a short fall (visual only)
+                beginDeathFall(target.mesh, groundY, tipZ, this.elapsed);
+            } else {
+                target.mesh.rotation.z = tipZ;
+                target.mesh.position.y = groundY;
+            }
             target.mesh.userData.dead = true;
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
