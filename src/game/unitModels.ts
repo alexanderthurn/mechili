@@ -14,6 +14,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
+import {
+    attachBuildingSnow,
+    attachBuildingSnowToObject,
+    BUILDING_SNOW_IDS,
+} from './buildingSnow';
 import type { BattleTeam, Team } from './units';
 
 /**
@@ -188,6 +193,8 @@ export function cloneUnitModel(id: string, _team?: BattleTeam): Group | null {
     if (!t) return null;
     const clone = skeletonClone(t) as Group;
     uniquifyMaterials(clone);
+    // Three.js Material.clone() drops onBeforeCompile — re-attach after uniquify
+    if (BUILDING_SNOW_IDS.has(id)) attachBuildingSnowToObject(clone);
     return clone;
 }
 
@@ -198,7 +205,10 @@ function uniquifyMaterials(root: Object3D): void {
         if (!mesh.isMesh) return;
         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         const cloned = mats.map((m) => {
-            const c = (m as MeshStandardMaterial).clone();
+            const src = m as MeshStandardMaterial;
+            const c = src.clone();
+            // clone() resets onBeforeCompile; keep building snow if the template had it
+            if (src.userData.wantsBuildingSnow) attachBuildingSnow(c);
             return c;
         });
         mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]!;
@@ -402,7 +412,12 @@ export async function loadUnitModels(
                 );
             }
             templates.set(id, root);
-            instanceAssets.set(id, bakeInstanceAsset(root));
+            const baked = bakeInstanceAsset(root);
+            if (BUILDING_SNOW_IDS.has(id)) {
+                attachBuildingSnowToObject(root);
+                for (const part of baked.parts) attachBuildingSnow(part.material);
+            }
+            instanceAssets.set(id, baked);
             console.info(
                 `[unitModels] loaded '${id}' from ${spec.url} (height ${visualHeights.get(id)!.toFixed(2)})`,
             );

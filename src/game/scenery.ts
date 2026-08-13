@@ -68,6 +68,7 @@ import {
     updateVegetationSeason,
     type VegetationKind,
 } from './sceneryVegetation';
+import { updateBuildingSnowCover } from './buildingSnow';
 import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
 /** Instance / mesh density for scenery tiers (trees stay InstancedMesh). */
@@ -464,6 +465,11 @@ export class Scenery {
         }
         if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
         setVegetationSnowCover(this.groundSnowCover);
+        updateBuildingSnowCover(
+            dtSeconds,
+            this.groundSnowCover,
+            this.weather?.weatherKind === 'snow',
+        );
         // lakes freeze once snow reaches meadow/board level (same snow-line gate)
         if (this.waterFreezeUniform && this.waterMaterial?.userData.iceReady) {
             const cover = this.groundSnowCover;
