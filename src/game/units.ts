@@ -317,6 +317,12 @@ export interface UnitType {
     hp: number;
     damage: number;
     range: number;
+    /**
+     * Minimum engagement range (dead zone). A ranged unit cannot fire at an
+     * enemy closer than this; it prefers targets it can still hit and backs
+     * away when everything left is too close. Omit / 0 = no dead zone.
+     */
+    minRange?: number;
     /** seconds between shots */
     attackInterval: number;
     speed: number;
@@ -895,6 +901,7 @@ export const UNIT_TYPES: UnitType[] = [
         hp: 500,
         damage: 500,
         range: 84,
+        minRange: 30, // siege dead zone — can't hit foes that close in
         attackInterval: 3.8,
         speed: 2.2,
         build: buildBallista,

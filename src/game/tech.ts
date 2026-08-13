@@ -7,6 +7,8 @@ export interface ResolvedStats {
     hp: number;
     damage: number;
     range: number;
+    /** minimum engagement range / dead zone (0 = none); scales with range mods */
+    minRange: number;
     speed: number;
     attackInterval: number;
     /** projectile splash radius (0 = single-target); tech can multiply the type base */
@@ -107,6 +109,7 @@ export class TechTree {
             hp: type.hp,
             damage: type.damage,
             range: type.range,
+            minRange: type.minRange ?? 0,
             speed: type.speed,
             attackInterval: type.attackInterval,
             splashRadius: type.splashRadius ?? 0,
@@ -121,6 +124,7 @@ export class TechTree {
             stats.hp *= tech.mods.hp ?? 1;
             stats.damage *= tech.mods.damage ?? 1;
             stats.range *= tech.mods.range ?? 1;
+            stats.minRange *= tech.mods.range ?? 1;
             stats.speed *= tech.mods.speed ?? 1;
             stats.attackInterval *= tech.mods.attackInterval ?? 1;
             const splashMod = tech.mods.splashRadius ?? 1;

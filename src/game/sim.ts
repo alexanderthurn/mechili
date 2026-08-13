@@ -2055,7 +2055,8 @@ export class BattleSim {
                     const tdz = target.z - a.z;
                     const tDist = hypot(tdx, tdz) || 1e-6;
                     const reach = stats.range + a.radius + target.radius;
-                    if (tDist <= reach) {
+                    const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
+                    if (tDist <= reach && tDist >= minReach) {
                         if (isMelee) {
                             if (canAttack) a.cooldown -= dt;
                             if (canAttack && a.cooldown <= 0) {
@@ -2112,6 +2113,16 @@ export class BattleSim {
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
             const reach = stats.range + a.radius + target.radius;
+            const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
+
+            // dead zone: the closest enemy is too near and nothing shootable is
+            // left (closestEnemy only returns a too-close foe as a last resort) —
+            // back straight away until it clears the min range and a shot opens
+            if (minReach > 0 && dist < minReach) {
+                this.steerToward(a, -dx / dist, -dz / dist, minReach - dist + a.radius, dt, stats, d, target, bigs);
+                a.mesh.rotation.y = Math.atan2(dx, dz); // keep facing the enemy while retreating
+                continue;
+            }
 
             if (dist <= reach) {
                 // in range: stand and fire (still gets jostled by the crowd)
@@ -3054,12 +3065,20 @@ export class BattleSim {
             !cached.unit.type.extra &&
             (cached.altitude > 0 ? wantAir : wantGround);
 
+        const stats = this.resolved.get(from.unit)!;
+        const minRange = stats.minRange;
         const inWeaponRange = (cached: Actor): boolean => {
-            const stats = this.resolved.get(from.unit)!;
             const reach = stats.range + from.radius + cached.radius;
             const dx = cached.x - from.x;
             const dz = cached.z - from.z;
-            return dx * dx + dz * dz <= reach * reach;
+            const d2 = dx * dx + dz * dz;
+            if (d2 > reach * reach) return false;
+            if (minRange > 0) {
+                // inside the dead zone: not a live engagement — force re-evaluation
+                const minReach = minRange + from.radius + cached.radius;
+                if (d2 < minReach * minReach) return false;
+            }
+            return true;
         };
 
         if (!anyLayer) {
@@ -3076,8 +3095,13 @@ export class BattleSim {
         }
 
         const team = actorTeam(from);
+        // `best` = closest enemy this unit can actually shoot (outside its dead
+        // zone). `bestAny` = closest enemy regardless — the kite fallback when
+        // everything left is too close. For minRange 0 they're always identical.
         let best: Actor | null = null;
         let bestD = Infinity;
+        let bestAny: Actor | null = null;
+        let bestAnyD = Infinity;
         const cx = Math.floor(from.x / HASH_CELL);
         const cz = Math.floor(from.z / HASH_CELL);
 
@@ -3087,6 +3111,14 @@ export class BattleSim {
             const ddx = a.x - from.x;
             const ddz = a.z - from.z;
             const d = ddx * ddx + ddz * ddz;
+            if (d < bestAnyD || (d === bestAnyD && bestAny !== null && a.index < bestAny.index)) {
+                bestAnyD = d;
+                bestAny = a;
+            }
+            if (minRange > 0) {
+                const minReach = minRange + from.radius + a.radius;
+                if (d < minReach * minReach) return; // dead zone — can't shoot it
+            }
             if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
                 bestD = d;
                 best = a;
@@ -3118,7 +3150,10 @@ export class BattleSim {
                 scanCell(cx + ring, cz + dz);
             }
         }
-        if (!anyLayer) from.cachedEnemy = best;
-        return best;
+        // prefer a shootable target; fall back to the closest (too-close) one so
+        // the caller can kite away from it
+        const result = best ?? bestAny;
+        if (!anyLayer) from.cachedEnemy = result;
+        return result;
     }
 }

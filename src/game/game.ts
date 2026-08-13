@@ -374,6 +374,8 @@ export class Game {
     private hpDrawAfterMatchOver = false;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
+    /** inner dead-zone (min-range) ring under the selected battle mech */
+    private readonly battleMinRangeMesh;
     /** gold aura-range ring under a selected battle mech with a special skill */
     private readonly battleAuraMesh;
     /** tech tile currently hovered/peeked in the detail panel (drives aura ring) */
@@ -1194,6 +1196,8 @@ export class Game {
         setUnitInstanceRenderer(this.unitInstances);
         this.applyShadowQuality();
         this.battleRangeMesh = createRangeRing(this.scene);
+        this.battleMinRangeMesh = createRangeRing(this.scene);
+        (this.battleMinRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(0xff6a44);
         this.battleAuraMesh = createRangeRing(this.scene);
         (this.battleAuraMesh.material as import('three').MeshBasicMaterial).color.setHex(0xffcf5a);
 
@@ -1491,6 +1495,7 @@ export class Game {
             this.placement.rotateSelected();
         };
         this.placement.rangeOf = (unit) => this.resolvedStats(unit).range;
+        this.placement.minRangeOf = (unit) => this.resolvedStats(unit).minRange;
         this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
         this.controls.onRightClick = () => {
             if (this.cancelTacticPlacement()) return;
@@ -6015,6 +6020,7 @@ export class Game {
                 hp: type.hp,
                 damage: type.damage,
                 range: type.range,
+                minRange: type.minRange ?? 0,
                 speed: type.speed,
                 attackInterval: type.attackInterval,
                 splashRadius: type.splashRadius ?? 0,
@@ -6041,6 +6047,7 @@ export class Game {
             stats.hp *= mods.hp ?? 1;
             stats.damage *= mods.damage ?? 1;
             stats.range *= mods.range ?? 1;
+            stats.minRange *= mods.range ?? 1;
             stats.speed *= mods.speed ?? 1;
             stats.attackInterval *= mods.attackInterval ?? 1;
         }
@@ -8961,12 +8968,17 @@ export class Game {
         // gold aura ring for a selected mech with a special-ability radius
         const auraRadius = a ? this.auraRadiusOf(a.unit) : null;
         this.battleAuraMesh.visible = a !== null && auraRadius !== null;
+        const minRange = a ? this.resolvedStats(a.unit).minRange : 0;
+        this.battleMinRangeMesh.visible = a !== null && minRange > 0;
         if (!a) return;
         const radius =
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
         placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
         material.color.setHex(actorTeam(a) === 'player' ? THEME.valid : teamColors.enemy.hex);
+        if (minRange > 0) {
+            placeRangeRing(this.battleMinRangeMesh, a.rx, a.rz, minRange + a.unit.type.collisionRadius);
+        }
         if (auraRadius !== null) {
             placeRangeRing(this.battleAuraMesh, a.rx, a.rz, auraRadius);
             pulseAuraRing(this.battleAuraMesh, performance.now());
@@ -9129,6 +9141,7 @@ export class Game {
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,
             range: Math.round(rs.range),
+            minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
             splash: rs.splashRadius || undefined,
@@ -9171,6 +9184,7 @@ export class Game {
             maxHp: rs.hp * lv.statMult,
             damage: rs.damage * lv.statMult,
             range: Math.round(rs.range),
+            minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
             splash: rs.splashRadius || undefined,
