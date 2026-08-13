@@ -86,11 +86,11 @@ class LowHorde extends HordeAlgorithm {
     }
 }
 
-/** Weaver intro through Mother. */
+/** Brood → weaver → farmer → Mother night. */
 class MediumHorde extends HordeAlgorithm {
     readonly id = 'medium';
     describe(): string {
-        return `Medium — waves on 3, 5, 7, and Mother night (${HORDE_FINAL_ROUND})`;
+        return 'Medium — brood on 3, weavers on 5, farmers on 7, Mother night (9 / 18+ Hans)';
     }
     enabled(): boolean {
         return true;
