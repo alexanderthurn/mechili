@@ -1337,8 +1337,18 @@ export class BattleSim {
      */
     private stepProductionReleases(): void {
         for (const [parent, lanes] of this.productionLanes) {
-            const parentAlive = this.actors.some((a) => a.unit === parent && a.alive);
-            if (!parentAlive) continue;
+            // one scan: the parent must be alive AND done spawning — a parent
+            // still riding in on the flank produces nothing yet
+            let parentReady = false;
+            for (const a of this.actors) {
+                if (a.unit !== parent || !a.alive) continue;
+                if (this.isSpawning(a)) {
+                    parentReady = false;
+                    break;
+                }
+                parentReady = true;
+            }
+            if (!parentReady) continue;
             for (const lane of lanes) {
                 if (lane.released >= lane.max) continue;
                 if (this.elapsed < lane.nextAt) continue;
@@ -1901,14 +1911,23 @@ export class BattleSim {
     }
 
     /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden ballista get 30s immunity */
-    private applyBallistaGoldenAura(): void {
+    private applyBallistaGoldenAura(recipient?: Actor, caster?: Actor): void {
         const r2 = GOLDEN_AURA_RADIUS * GOLDEN_AURA_RADIUS;
-        const expires = GOLDEN_AURA_APPLY_AT + GOLDEN_AURA_DURATION;
+        // duration runs from NOW, so a flank unit that arrives late still gets
+        // its full buff instead of the remainder of the opening window
+        const expires = this.elapsed + GOLDEN_AURA_DURATION;
         for (const f of this.actors) {
+            if (caster && f !== caster) continue;
             if (!f.alive || f.unit.type.id !== 'ballista') continue;
+            // a ballista still riding in grants nothing until it has landed
+            if (this.isSpawning(f)) continue;
             if (!this.config.hasTech(f.unit.seat, 'ballista', 'golden')) continue;
             for (const a of this.actors) {
+                if (recipient && a !== recipient) continue;
                 if (!a.alive || actorTeam(a) !== actorTeam(f) || a.unit.type.structure) continue;
+                // and a unit still spawning can't receive it yet — it picks the
+                // aura up when its own spawn completes (see updateFlankSpawning)
+                if (this.isSpawning(a)) continue;
                 const dx = a.x - f.x;
                 const dz = a.z - f.z;
                 if (dx * dx + dz * dz <= r2) a.goldenUntil = Math.max(a.goldenUntil, expires);
@@ -2052,7 +2071,14 @@ export class BattleSim {
             if (a.spawnUntil <= 0) continue;
             if (this.elapsed >= a.spawnUntil) {
                 if (!a.spawnDamaged && a.alive) a.hp = a.maxHp;
-                a.spawnUntil = 0;
+                a.spawnUntil = 0; // must clear BEFORE the aura pass (isSpawning)
+                // Abilities start only now that the unit has actually arrived:
+                // it can receive the golden aura, and — if it IS a golden
+                // ballista — it starts granting to allies around it.
+                if (this.goldenAuraApplied && a.alive) {
+                    this.applyBallistaGoldenAura(a);
+                    this.applyBallistaGoldenAura(undefined, a);
+                }
                 continue;
             }
             const ceiling = 1 + (a.maxHp - 1) * this.spawnProgress(a);
@@ -2514,6 +2540,7 @@ export class BattleSim {
         for (const a of this.actors) {
             const spec = a.unit.type.rocket;
             if (!spec || !a.alive) continue;
+            if (this.isSpawning(a)) continue; // arms only once it has arrived
             if (!a.rocketTarget) {
                 const target = this.closestEnemy(a);
                 if (!target) continue;
