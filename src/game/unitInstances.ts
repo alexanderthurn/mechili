@@ -10,6 +10,7 @@ import {
 } from 'three';
 import { HORDE_COLOR, LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
+import { attachBuildingSnow } from './buildingSnow';
 import { prefs, type Prefs } from './prefs';
 import type { BattleTeam } from './units';
 
@@ -351,6 +352,7 @@ function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
 
 function makeInstanced(part: InstancePart, typeId: string, level: number, team: BattleTeam): InstancedMesh {
     const mat = part.material.clone();
+    if (part.material.userData.wantsBuildingSnow) attachBuildingSnow(mat);
     const hex = level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level] : null;
     if (hex != null) {
         _base.copy(mat.color);

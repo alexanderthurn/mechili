@@ -70,6 +70,7 @@ import { cloneUnitModel, hasUnitModel, loadUnitModels, seedUnitVisualHeight } fr
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import { clearDeathFall } from './deathFall';
+import { preserveBuildingSnow } from './buildingSnow';
 
 export type Team = 'player' | 'enemy';
 
@@ -1389,6 +1390,7 @@ function applyMeshLevelTint(root: Group, level: number): void {
             if (Array.isArray(src)) {
                 child.material = src.map((m) => {
                     const c = (m as MeshStandardMaterial).clone();
+                    preserveBuildingSnow(m as MeshStandardMaterial, c);
                     c.userData.levelBaseColor = c.color.clone();
                     c.userData.levelBaseEmissive = c.emissive.clone();
                     c.userData.levelBaseEmissiveIntensity = c.emissiveIntensity;
@@ -1396,6 +1398,7 @@ function applyMeshLevelTint(root: Group, level: number): void {
                 });
             } else if (src) {
                 const c = (src as MeshStandardMaterial).clone();
+                preserveBuildingSnow(src as MeshStandardMaterial, c);
                 c.userData.levelBaseColor = c.color.clone();
                 c.userData.levelBaseEmissive = c.emissive.clone();
                 c.userData.levelBaseEmissiveIntensity = c.emissiveIntensity;
@@ -1472,6 +1475,7 @@ export function syncBattleTint(
             let tinted = child.userData.goldenMat as MeshStandardMaterial | undefined;
             if (!tinted) {
                 tinted = (child.userData.battleOrigMat as MeshStandardMaterial).clone();
+                preserveBuildingSnow(child.userData.battleOrigMat as MeshStandardMaterial, tinted);
                 // solid gold: drop the diffuse texture so it fully overlaps the
                 // skin, polished metal shine, strong emissive for the pulse glow
                 tinted.map = null;
@@ -1490,7 +1494,10 @@ export function syncBattleTint(
         if (tint === 'debuff') {
             let tinted = child.userData.debuffMat as MeshStandardMaterial | undefined;
             const base = child.userData.battleOrigMat as MeshStandardMaterial;
-            if (!tinted) tinted = base.clone();
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+            }
             const mix = Math.min(0.85, 0.35 + debuffStacks * 0.25);
             const r = 0.55 + 0.45 * Math.sin(debuffT);
             const g = 0.2 + 0.35 * Math.sin(debuffT + 2.4);
@@ -1509,6 +1516,7 @@ export function syncBattleTint(
             const base = child.userData.battleOrigMat as MeshStandardMaterial;
             if (!tinted) {
                 tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
                 child.userData.spawnMat = tinted;
             }
             const pulse = 0.5 + 0.5 * Math.sin(timeSeconds * 6.5);
