@@ -7626,6 +7626,7 @@ export class Game {
             spellIgnites,
             hazardPours,
             summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
+            spawnOnKill: (parent, typeId, x, z) => this.spawnOnKillChild(parent, typeId, x, z),
             boardHalfW: this.map.halfW,
             boardHalfZ: this.map.halfH,
         });
@@ -7774,6 +7775,24 @@ export class Game {
             // meshes at the pack origin every frame, fighting the sim's Y
             unit.setDeployment(false);
         }
+    }
+
+    /**
+     * Mid-battle on-kill spawn: one summoned pack at xz, same team/seat/level
+     * as the killer. Ids come from {@link PlacementController.spawnAtWorld}
+     * so both peers agree.
+     */
+    private spawnOnKillChild(parent: Unit, typeId: string, x: number, z: number): Unit | null {
+        const type = unitTypeById(typeId);
+        if (!type) return null;
+        const child = this.placement.spawnAtWorld(type, x, z, parent.team, parent.seat);
+        child.summoned = true;
+        child.deployedRound = this.round;
+        child.level = parent.level;
+        child.applyLevelLook(child.level);
+        child.marchIn = false;
+        child.setDeployment(false);
+        return child;
     }
 
     /**

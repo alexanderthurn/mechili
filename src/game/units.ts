@@ -103,6 +103,12 @@ export interface TechProduce {
     delay?: number;
 }
 
+/** Battle spawn on kill: each enemy this pack slays raises one `typeId` pack. */
+export interface TechOnKill {
+    /** unit type id to spawn (typically a 1×1 spawn clone) */
+    typeId: string;
+}
+
 export interface TechDef {
     id: string;
     name: string;
@@ -123,6 +129,11 @@ export interface TechDef {
      * timer (shared machinery for spider mothers, future dwarf forges, etc.).
      */
     produce?: TechProduce;
+    /**
+     * On-kill spawn: each enemy this pack kills raises one `typeId` pack
+     * (no cap). Spawn type should not itself own this tech.
+     */
+    onKill?: TechOnKill;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
@@ -161,6 +172,10 @@ export function techDescription(tech: TechDef): string {
         }
         line += '. Offspring match parent level';
         parts.push(line);
+    }
+    if (tech.onKill) {
+        const childName = unitTypeById(tech.onKill.typeId)?.name ?? tech.onKill.typeId;
+        parts.push(`When this unit kills, raise a ${childName}`);
     }
     return parts.length ? parts.join('. ') : tech.name;
 }
@@ -772,8 +787,37 @@ export const HORDE_FARMER: UnitType = {
     collisionRadius: 0.9,
     colliders: [{ y: 0.55, r: 0.95 }],
     sandWeight: 0.25,
+    innateTechs: ['darkHarvest'],
     hp: 200,
     damage: 100,
+    range: 2,
+    attackInterval: 0.7,
+    speed: 12,
+    build: buildDwarf,
+};
+
+/**
+ * On-kill spawn from Dark Harvest — half the Dead Farmer in size and combat
+ * weight, 1×1 so each kill raises one body. No Dark Harvest (no chain).
+ */
+export const HORDE_FARMER_SPAWN: UnitType = {
+    id: 'hordeFarmerSpawn',
+    name: 'Dead Farmhand',
+    cost: 0,
+    hpWithdraw: 4,
+    buyable: false,
+    modelId: 'horde2',
+    footprint: { cols: 2, rows: 2 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 0.85,
+    burn: { takenMult: 0.5 },
+    bloodColor: 0x8cef18,
+    targets: { ground: true, air: false },
+    collisionRadius: 0.45,
+    colliders: [{ y: 0.28, r: 0.48 }],
+    sandWeight: 0.125,
+    hp: 100,
+    damage: 50,
     range: 2,
     attackInterval: 0.7,
     speed: 12,
@@ -987,6 +1031,7 @@ export const UNIT_TYPES: UnitType[] = [
     HORDE_WEBWEAVER,
     HORDE_SPINNE,
     HORDE_FARMER,
+    HORDE_FARMER_SPAWN,
     HORDE_KOMTUR,
 ];
 

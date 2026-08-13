@@ -27,7 +27,7 @@ import {
     type RallyRoute,
 } from './tactics';
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
-import { ownedProduceTechs } from './techCatalog';
+import { ownedOnKillTechs, ownedProduceTechs } from './techCatalog';
 import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
@@ -122,6 +122,12 @@ export interface SimConfig {
      */
     boardHalfW?: number;
     boardHalfZ?: number;
+    /**
+     * Create a summoned pack mid-battle (on-kill spawn). Must be deterministic
+     * across peers — same parent, type, xz → same unit id / mesh. Return null
+     * to skip (unknown type).
+     */
+    spawnOnKill?: (parent: Unit, typeId: string, x: number, z: number) => Unit | null;
 }
 
 /** one scheduled area strike (meteor, hammer, …) */
@@ -570,6 +576,12 @@ export class BattleSim {
             children: Unit[];
         }[]
     >();
+    /** packs that raise a child on each kill — typeId from {@link TechDef.onKill} */
+    private readonly onKillByUnit = new Map<Unit, { typeId: string }[]>();
+    private readonly pendingOnKillSpawns: { parent: Unit; typeId: string; x: number; z: number }[] =
+        [];
+    /** golden-angle counter so stacked corpses don't occupy the same xz */
+    private onKillSpawnSeq = 0;
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -728,6 +740,7 @@ export class BattleSim {
             a.appearAt = 0;
         }
         this.initProductionState();
+        this.initOnKillState();
 
         this.strikes = (config.spellStrikes ?? []).map((s) => ({
             ...s,
@@ -1164,6 +1177,127 @@ export class BattleSim {
                 }),
             );
         }
+    }
+
+    /** Cache on-kill spawn specs per pack (innate + researched). */
+    private initOnKillState(): void {
+        const seen = new Set<Unit>();
+        for (const a of this.actors) {
+            const u = a.unit;
+            if (seen.has(u) || u.productionHeld) continue;
+            seen.add(u);
+            this.cacheOnKillFor(u);
+        }
+    }
+
+    private cacheOnKillFor(unit: Unit): void {
+        const owned = ownedOnKillTechs(unit.type, unit.seat, this.config.hasTech);
+        if (owned.length === 0) return;
+        this.onKillByUnit.set(
+            unit,
+            owned.map(({ onKill }) => ({ typeId: onKill.typeId })),
+        );
+    }
+
+    /**
+     * Raise on-kill children queued during {@link kill}. Runs after combat so
+     * we never mutate `actors` while a step is iterating it.
+     */
+    private flushOnKillSpawns(): void {
+        const spawn = this.config.spawnOnKill;
+        if (!spawn || this.pendingOnKillSpawns.length === 0) {
+            this.pendingOnKillSpawns.length = 0;
+            return;
+        }
+        const queued = this.pendingOnKillSpawns.splice(0);
+        for (const q of queued) {
+            const child = spawn(q.parent, q.typeId, q.x, q.z);
+            if (!child) continue;
+            this.adoptOnKillChild(child, q.parent, q.x, q.z);
+        }
+    }
+
+    /** Wire a mid-battle pack into the sim as living actors (summon VFX). */
+    private adoptOnKillChild(child: Unit, parent: Unit, x: number, z: number): void {
+        if (child.level !== parent.level) {
+            child.level = parent.level;
+            child.applyLevelLook(child.level);
+        }
+        child.world.set(x, 0, z);
+        child.view.position.set(x, child.world.y, z);
+        const stats = this.config.statsOf(child);
+        this.resolved.set(child, stats);
+        const levelMult = this.levelMult(child);
+        const maxHp = stats.hp * levelMult;
+        const shieldMax = hasShieldHp(child, this.config.hasTech) ? maxHp : 0;
+        const alt = effectiveFlying(child.type, child.seat, this.config.hasTech);
+        let nth = 0;
+        for (const m of child.members) {
+            const ax = x + m.home.x;
+            const az = z + m.home.z;
+            const actor: Actor = {
+                unit: child,
+                mesh: m.mesh,
+                x: ax,
+                z: az,
+                prevX: ax,
+                prevZ: az,
+                rx: ax,
+                rz: az,
+                hp: maxHp,
+                maxHp,
+                shieldHp: shieldMax,
+                shieldMaxHp: shieldMax,
+                cooldown: (nth % 5) * (stats.attackInterval / 5),
+                alive: true,
+                radius: child.type.collisionRadius,
+                index: this.actors.length,
+                hurtTimer: 0,
+                altitude: alt,
+                footY: alt,
+                rocketTarget: null,
+                goldenUntil: 0,
+                spawnUntil: 0,
+                spawnDamaged: false,
+                pathDestX: null,
+                pathDestZ: null,
+                pathNextX: null,
+                pathNextZ: null,
+                pathRouteId: null,
+                pathStuck: 0,
+                pathBestDist: Infinity,
+                mvX: 0,
+                mvZ: 0,
+                cachedEnemy: null,
+                burnUntil: 0,
+                burnDps: 0,
+                corrodedUntil: 0,
+                appearAt: 0,
+                appeared: true,
+                allegiance: null,
+                allegianceSeat: child.seat,
+                convertTarget: null,
+                convertProgress: 0,
+                convertBy: null,
+                convertCooldown: 0,
+                convertRayTipX: 0,
+                convertRayTipY: 0,
+                convertRayTipZ: 0,
+                convertRayActive: false,
+            };
+            actor.footY = this.feetY(actor);
+            this.actors.push(actor);
+            m.mesh.visible = true;
+            this.events.push({
+                kind: 'summon',
+                x: ax,
+                y: actor.altitude > 0 ? actor.altitude : simGroundHeightAt(ax, az),
+                z: az,
+                flying: actor.altitude > 0,
+            });
+            nth++;
+        }
+        this.cacheOnKillFor(child);
     }
 
     /**
@@ -1955,6 +2089,21 @@ export class BattleSim {
         // no XP for executing a still-spawning pack — it never fully arrived
         if (killer && !target.unit.type.structure && !this.isSpawning(target)) {
             this.grantXp(killer, target);
+            if (!target.unit.type.extra) {
+                const specs = this.onKillByUnit.get(killer);
+                if (specs) {
+                    for (const spec of specs) {
+                        const n = this.onKillSpawnSeq++;
+                        const ang = n * 2.399963229728653;
+                        this.pendingOnKillSpawns.push({
+                            parent: killer,
+                            typeId: spec.typeId,
+                            x: target.x + detCos(ang) * 1.15,
+                            z: target.z + detSin(ang) * 1.15,
+                        });
+                    }
+                }
+            }
         }
         target.alive = false;
         const t = target.unit.type;
@@ -2247,6 +2396,7 @@ export class BattleSim {
         this.stepProjectiles(dt);
         this.stepHazards(dt);
         add('projectiles');
+        this.flushOnKillSpawns();
         this.prevStepDt = dt;
     }
 

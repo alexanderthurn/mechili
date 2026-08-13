@@ -160,6 +160,18 @@ export const TECHS: Record<string, TechDef> = {
         icon: 'tech-default',
         produce: { typeId: 'hordeBrutSpawn', interval: 0.5, max: 200 },
     },
+    /**
+     * Dead Farmer innate — spawn type is the only per-unit knob.
+     * Child packs should not own this tech (no chain).
+     */
+    darkHarvest: {
+        id: 'darkHarvest',
+        name: 'Dark Harvest',
+        cost: 0,
+        mods: {},
+        icon: 'tech-default',
+        onKill: { typeId: 'hordeFarmerSpawn' },
+    },
 };
 
 /**
@@ -188,6 +200,7 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     ],
     // horde — innate on the type; listed so tooling / future research UI can see it
     hordeSpinne: ['spiderMother'],
+    hordeFarmer: ['darkHarvest'],
 };
 
 /**
@@ -256,6 +269,25 @@ export function ownedProduceTechs(
         const tech = TECHS[id];
         if (!tech?.produce) continue;
         out.push({ tech, produce: tech.produce });
+    }
+    return out;
+}
+
+/**
+ * On-kill spawn techs this pack currently owns (innate + researched allowlist).
+ */
+export function ownedOnKillTechs(
+    type: import('./units').UnitType,
+    seat: import('./seats').SeatId,
+    hasTech: (seat: import('./seats').SeatId, typeId: string, techId: string) => boolean,
+): { tech: TechDef; onKill: NonNullable<TechDef['onKill']> }[] {
+    const ids = new Set<string>([...(type.innateTechs ?? []), ...allowedTechIds(type.id)]);
+    const out: { tech: TechDef; onKill: NonNullable<TechDef['onKill']> }[] = [];
+    for (const id of ids) {
+        if (!hasTech(seat, type.id, id)) continue;
+        const tech = TECHS[id];
+        if (!tech?.onKill) continue;
+        out.push({ tech, onKill: tech.onKill });
     }
     return out;
 }
