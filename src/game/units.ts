@@ -192,6 +192,19 @@ export function bloodColorOf(
     return type.bloodColor;
 }
 
+/**
+ * Local Y above feet that projectiles loft toward (× meshScale at use).
+ * Independent of {@link UnitType.colliders} so hitboxes can stay low while
+ * shots still read as aimed at the body.
+ */
+export function projectileAimY(type: UnitType): number {
+    if (type.aimY !== undefined) return type.aimY;
+    const c = type.colliders[0]?.y ?? 0.5;
+    // Short ground hitboxes (e.g. dwarf 0.35) — aim mid-torso without moving the sphere
+    if (!type.flying && type.colliders.length > 0 && c < 0.55) return 0.65;
+    return c;
+}
+
 /** Shop / unlock / AI buy eligibility — {@link UnitType.buyable}. */
 export function isPlayerBuyable(type: UnitType): boolean {
     return type.buyable !== false;
@@ -246,6 +259,11 @@ export interface UnitType {
      * axis (rotation-proof), offsets and radii scaled by meshScale at use
      */
     colliders: { y: number; r: number }[];
+    /**
+     * Optional local Y above feet that projectiles aim at (× meshScale).
+     * Hit detection still uses {@link colliders} — this only steers loft.
+     */
+    aimY?: number;
     /** ranged mechs fire visible projectiles at this speed (world units/s); melee when absent */
     projectileSpeed?: number;
     /**

@@ -34,6 +34,7 @@ import {
     RESEARCH_CENTER,
     bloodColorOf,
     resolveDeathWear,
+    projectileAimY,
     syncBattleTint,
     type BattleTeam,
     type DeathWear,
@@ -1752,16 +1753,22 @@ export class BattleSim {
             syncBattleTint(a.mesh, tint, timeSeconds, 1, spawnProgress);
             this.animateActor(a, timeSeconds);
         }
-        // Air wrecks tumble to the lawn (render-only; kill() already marked them dead)
+        // Dead wrecks: air units tumble first; settled corpses stay glued to terrain
         const crashLands: CrashLand[] = [];
         for (const a of this.actors) {
             if (a.alive || a.unit.type.structure) continue;
             const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
-            if (!fall) continue;
-            if (!tickDeathFall(a.mesh, fall, this.elapsed, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
-                crashLands.push(crashLandFromFall(fall));
-                clearDeathFall(a.mesh);
+            if (fall) {
+                if (!tickDeathFall(a.mesh, fall, this.elapsed, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
+                    crashLands.push(crashLandFromFall(fall));
+                    clearDeathFall(a.mesh);
+                }
+                continue;
             }
+            // One height sample per wreck — skips mid-fall so flyer crashes stay intact
+            const wx = a.unit.world.x + a.mesh.position.x;
+            const wz = a.unit.world.z + a.mesh.position.z;
+            a.mesh.position.y = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
         }
         return crashLands;
     }
@@ -1932,7 +1939,8 @@ export class BattleSim {
             }
         } else {
             // tip over and stay as a battlefield wreck until the round resets
-            const tipZ = (target.index % 2 ? 1 : -1) * (0.75 + (target.index % 4) * 0.08);
+            // ~1.2 rad ≈ flatter on the lawn (old ~0.75 looked half-standing / floaty)
+            const tipZ = (target.index % 2 ? 1 : -1) * (1.2 + (target.index % 4) * 0.06);
             const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
             if (target.altitude > 0) {
                 // flyers: tumble down; optional knock flings along the killing blow
@@ -2444,12 +2452,12 @@ export class BattleSim {
                 : shooterFeet + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
         const mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
         const mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
-        const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
+        const aimLocalY = projectileAimY(tt);
         let aimX = target.x;
         let aimZ = target.z;
         let dx = aimX - mx;
         let dz = aimZ - mz;
-        let dy = this.feetY(target, aimX, aimZ) + aim.y * tt.meshScale - muzzleY;
+        let dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
 
         let vx: number;
         let vy: number;
@@ -2472,7 +2480,7 @@ export class BattleSim {
                 flatDist = hypot(dx, dz) || 1e-6;
                 flightTime = Math.max(1e-3, flatDist / speed);
             }
-            dy = this.feetY(target, aimX, aimZ) + aim.y * tt.meshScale - muzzleY;
+            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
             gravity = BALLISTIC_GRAVITY;
             vx = (dx / flatDist) * speed;
             vz = (dz / flatDist) * speed;
@@ -2516,9 +2524,9 @@ export class BattleSim {
             // homing shots re-aim at their victim every step — they can't miss
             if (p.target?.alive) {
                 const tt = p.target.unit.type;
-                const aim = tt.colliders[0] ?? { y: 0.5, r: 0.5 };
+                const aimLocalY = projectileAimY(tt);
                 const dx = p.target.x - p.x;
-                const dy = p.target.footY + aim.y * tt.meshScale - p.y;
+                const dy = p.target.footY + aimLocalY * tt.meshScale - p.y;
                 const dz = p.target.z - p.z;
                 const len = hypot(dx, dy, dz) || 1e-6;
                 const speed = hypot(p.vx, p.vy, p.vz);

@@ -371,14 +371,7 @@ html .mechili-suggest .box,
 html .mechili-pause .pause-box,
 html .mechili-resume .resume-box,
 html .mechili-gameover {
-    /* absolute-centered content box — must beat the generic materialStyles
-       position:relative (same html-prefixed specificity) or the overlay
-       stretches full-width (see the .mechili-gameover rule below) */
-    position: absolute;
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
-    width: auto;
+    position: relative;
     color: ${u.cream};
     background: ${leatherFill};
     border: 1px solid ${u.frameLo};
@@ -386,6 +379,16 @@ html .mechili-gameover {
     box-shadow: ${bronzeBevel};
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+}
+/* Gameover must stay absolute-centered — materialStyles' relative chrome
+   otherwise stretches it full-width (worst on 4K). Keep this scoped so menu /
+   pause / suggest keep their own layout widths. */
+html .mechili-gameover {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    width: auto;
 }
 html .mechili-name-edit .box::before,
 html .mechili-suggest .box::before,
@@ -4206,12 +4209,19 @@ ${materialStyles(u)}
     margin-top: auto;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 3px;
     font-size: 15px;
     font-weight: 800;
     letter-spacing: 0.04em;
-    color: ${u.brassDark};
-    text-shadow: 0 1px 0 rgba(255, 240, 210, 0.4);
+    font-variant-numeric: tabular-nums;
+    color: ${u.parchmentInk};
+    background: rgba(90, 60, 30, 0.14);
+    border: 1px solid rgba(70, 45, 20, 0.38);
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.35);
+    text-shadow: none;
 }
 .mechili-cards .c-cost .money-ico.m-icon {
     width: 16px;
@@ -4240,15 +4250,6 @@ ${materialStyles(u)}
     height: 14px;
     margin: 0 0.12em;
     vertical-align: -0.15em;
-}
-.mechili-cards .c-cost.free {
-    color: ${u.parchmentInk};
-    padding: 4px 12px;
-    border-radius: 3px;
-    background: rgba(90, 60, 30, 0.12);
-    border: 1px solid rgba(70, 45, 20, 0.32);
-    box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.35);
-    text-shadow: none;
 }
 .mechili-cards .cards-skip {
     padding: 9px 24px;
