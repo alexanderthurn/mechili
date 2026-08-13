@@ -88,12 +88,12 @@ export const TECHS: Record<string, TechDef> = {
     aegis: {
         id: 'aegis',
         name: 'Aegis',
-        cost: 300,
+        cost: 400,
         mods: {},
         // TODO: placeholder art — wants its own tech icon
         icon: 'ability-ward',
         description:
-            'Shield: every mech gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it.',
+            'Shield: every unit gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it.',
     },
     golden: {
         id: 'golden',

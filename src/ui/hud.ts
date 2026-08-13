@@ -642,7 +642,7 @@ export class Hud {
                 .join(' + ');
             button.title =
                 `${type.name} — ${costOf(type)} supply${type.flying ? ' · FLYING' : ''}\n` +
-                `${mechs > 1 ? `${mechs} mechs, ` : ''}${type.hp} HP each · hits ${hits}\n` +
+                `${mechs > 1 ? `${mechs} units, ` : ''}${type.hp} HP each · hits ${hits}\n` +
                 `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
                 ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
             button.addEventListener('click', () => {
