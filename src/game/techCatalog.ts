@@ -158,7 +158,7 @@ export const TECHS: Record<string, TechDef> = {
         cost: 0,
         mods: {},
         icon: 'tech-default',
-        produce: { typeId: 'hordeBrutSpawn', interval: 0.5, max: 200 },
+        produce: { typeId: 'hordeBrutSpawn', interval: 0.4, max: 70 },
     },
     /**
      * Dead Farmer innate — spawn type is the only per-unit knob.
@@ -288,6 +288,25 @@ export function ownedOnKillTechs(
         const tech = TECHS[id];
         if (!tech?.onKill) continue;
         out.push({ tech, onKill: tech.onKill });
+    }
+    return out;
+}
+
+/**
+ * Cleave techs this pack currently owns (innate + researched allowlist).
+ */
+export function ownedCleaveTechs(
+    type: import('./units').UnitType,
+    seat: import('./seats').SeatId,
+    hasTech: (seat: import('./seats').SeatId, typeId: string, techId: string) => boolean,
+): { tech: TechDef; cleave: NonNullable<TechDef['cleave']> }[] {
+    const ids = new Set<string>([...(type.innateTechs ?? []), ...allowedTechIds(type.id)]);
+    const out: { tech: TechDef; cleave: NonNullable<TechDef['cleave']> }[] = [];
+    for (const id of ids) {
+        if (!hasTech(seat, type.id, id)) continue;
+        const tech = TECHS[id];
+        if (!tech?.cleave) continue;
+        out.push({ tech, cleave: tech.cleave });
     }
     return out;
 }

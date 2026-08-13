@@ -27,7 +27,7 @@ import {
     type RallyRoute,
 } from './tactics';
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
-import { ownedOnKillTechs, ownedProduceTechs } from './techCatalog';
+import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs } from './techCatalog';
 import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
@@ -182,6 +182,25 @@ const SUMMON_STAGGER_SECONDS = 0.12;
 /** render-only entrance: ground summons rise, flyers dive, over this long */
 const SUMMON_RISE_SECONDS = 0.6;
 const SUMMON_DIVE_SECONDS = 0.9;
+/** flying cleave slam: fast drop, plant on the lawn, then rise (fits 0.85s interval) */
+const FLYER_STOMP_DOWN = 0.16;
+const FLYER_STOMP_HOLD = 0.1;
+const FLYER_STOMP_UP = 0.4;
+const FLYER_STOMP_TOTAL = FLYER_STOMP_DOWN + FLYER_STOMP_HOLD + FLYER_STOMP_UP;
+
+function flyerStomp(age: number): { drop: number; squash: number } {
+    if (age < 0 || age >= FLYER_STOMP_TOTAL) return { drop: 0, squash: 0 };
+    if (age < FLYER_STOMP_DOWN) {
+        const t = age / FLYER_STOMP_DOWN;
+        const drop = 1 - (1 - t) * (1 - t);
+        return { drop, squash: t * t };
+    }
+    if (age < FLYER_STOMP_DOWN + FLYER_STOMP_HOLD) {
+        return { drop: 1, squash: 1 };
+    }
+    const t = (age - FLYER_STOMP_DOWN - FLYER_STOMP_HOLD) / FLYER_STOMP_UP;
+    return { drop: 1 - t * t, squash: Math.max(0, 1 - t * 3) };
+}
 
 export interface Actor {
     unit: Unit;
@@ -284,6 +303,16 @@ export interface Actor {
     recoil?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
     prevCooldown?: number;
+    /** render-only: sim elapsed when a flying cleave slam started */
+    stompAt?: number;
+    /** render-only: ram an air target instead of planting on the lawn */
+    stompAir?: boolean;
+    /** render-only: flyer he is ramming (mesh follows while alive) */
+    stompVictim?: Actor;
+    /** render-only: world crash point for an air ram */
+    stompTx?: number;
+    stompTy?: number;
+    stompTz?: number;
 }
 
 /** Combat team for targeting / scoring — honors mid-battle converts. */
@@ -582,6 +611,8 @@ export class BattleSim {
         [];
     /** golden-angle counter so stacked corpses don't occupy the same xz */
     private onKillSpawnSeq = 0;
+    /** pack → cleave disk radius; 0 / missing = single-target melee */
+    private readonly cleaveRadiusByUnit = new Map<Unit, number>();
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -741,6 +772,7 @@ export class BattleSim {
         }
         this.initProductionState();
         this.initOnKillState();
+        this.initCleaveState();
 
         this.strikes = (config.spellStrikes ?? []).map((s) => ({
             ...s,
@@ -1025,6 +1057,102 @@ export class BattleSim {
         return resolveFireProfile(source.type, source.seat, this.config.hasTech);
     }
 
+    /**
+     * One melee swing: a cleave hits every enemy in the disk,
+     * otherwise a single-target poke. Direct damage (shields don't soak).
+     */
+    private strikeMelee(
+        a: Actor,
+        target: Actor,
+        damage: number,
+        dx: number,
+        dz: number,
+        dist: number,
+    ): void {
+        if (damage <= 0) return;
+        const radius = this.cleaveRadiusByUnit.get(a.unit) ?? 0;
+        if (radius > 0) {
+            this.cleaveStrike(a, radius, damage, target);
+            return;
+        }
+        const dealt = damage * this.damageTakenMult(target);
+        this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
+        const nx = dx / dist;
+        const nz = dz / dist;
+        this.events.push({
+            kind: 'impact',
+            x: target.x - nx * target.radius,
+            y: target.footY + target.unit.type.meshScale * 1.1,
+            z: target.z - nz * target.radius,
+            blood: bloodColorOf(target.unit.type),
+            flesh: resolveDeathWear(target.unit.type) === 'blood',
+            dx: nx,
+            dy: 0,
+            dz: nz,
+        });
+    }
+
+    /** XZ disk around the attacker — ground and air, not allies / extras. */
+    private cleaveStrike(a: Actor, radius: number, damage: number, focus: Actor): void {
+        const team = actorTeam(a);
+        const hits: Actor[] = [];
+        for (const t of this.actors) {
+            if (!t.alive || t === a) continue;
+            if (t.unit.type.extra) continue;
+            if (actorTeam(t) === team) continue;
+            const reach = radius + a.radius + t.radius;
+            if (hypot(t.x - a.x, t.z - a.z) <= reach) hits.push(t);
+        }
+        for (const t of hits) {
+            const dx = t.x - a.x;
+            const dz = t.z - a.z;
+            this.applyDamage(a.unit, t, damage * this.damageTakenMult(t), { x: dx, z: dz }, 'direct');
+        }
+        const anyGround =
+            hits.some((t) => t.altitude === 0) || (focus.alive && focus.altitude === 0);
+        if (a.altitude > 0 && !anyGround) {
+            const air =
+                focus.alive && focus.altitude > 0
+                    ? focus
+                    : (hits.find((t) => t.altitude > 0) ?? focus);
+            a.stompAt = this.elapsed;
+            a.stompAir = true;
+            a.stompVictim = air;
+            a.stompTx = air.x;
+            a.stompTz = air.z;
+            a.stompTy = air.footY + air.unit.type.meshScale * 0.55;
+            const adx = air.x - a.x;
+            const adz = air.z - a.z;
+            const ad = hypot(adx, adz) || 1;
+            this.events.push({
+                kind: 'impact',
+                x: air.x,
+                y: a.stompTy,
+                z: air.z,
+                blood: bloodColorOf(air.unit.type),
+                flesh: resolveDeathWear(air.unit.type) === 'blood',
+                dx: adx / ad,
+                dy: 0,
+                dz: adz / ad,
+            });
+            return;
+        }
+        this.events.push({
+            kind: 'explosion',
+            x: a.x,
+            y: simGroundHeightAt(a.x, a.z),
+            z: a.z,
+            radius,
+            heavy: true,
+        });
+        if (a.altitude > 0) {
+            a.stompAt = this.elapsed;
+            a.stompAir = false;
+            a.stompVictim = undefined;
+        }
+        this.applyFireAt(a.unit, a.x, a.z, radius, this.fireProfileOf(a.unit));
+    }
+
     /** burn DoT + standing in ground fire (both friendly-fire) */
     private stepHazards(dt: number): void {
         this.hazards.tickFire(this.elapsed);
@@ -1190,6 +1318,25 @@ export class BattleSim {
         }
     }
 
+    private cacheCleaveFor(unit: Unit): void {
+        const owned = ownedCleaveTechs(unit.type, unit.seat, this.config.hasTech);
+        const fromType = unit.type.cleave?.radius ?? 0;
+        const fromTech = owned.length === 0 ? 0 : Math.max(...owned.map(({ cleave }) => cleave.radius));
+        const radius = Math.max(fromType, fromTech);
+        if (radius > 0) this.cleaveRadiusByUnit.set(unit, radius);
+    }
+
+    /** Cache cleave radii per pack (innate + researched). */
+    private initCleaveState(): void {
+        const seen = new Set<Unit>();
+        for (const a of this.actors) {
+            const u = a.unit;
+            if (seen.has(u) || u.productionHeld) continue;
+            seen.add(u);
+            this.cacheCleaveFor(u);
+        }
+    }
+
     private cacheOnKillFor(unit: Unit): void {
         const owned = ownedOnKillTechs(unit.type, unit.seat, this.config.hasTech);
         if (owned.length === 0) return;
@@ -1298,6 +1445,7 @@ export class BattleSim {
             nth++;
         }
         this.cacheOnKillFor(child);
+        this.cacheCleaveFor(child);
     }
 
     /**
@@ -2024,8 +2172,40 @@ export class BattleSim {
             // immediately, which read as a teleport especially on hills
             const lift = a.unit.flightLift;
             const fromY = worldHeightAt(a.rx, a.rz) + DEPLOY_AIR_Y;
-            const y = fromY + (a.altitude - fromY) * lift;
-            a.mesh.position.y = y + Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
+            const hoverY = fromY + (a.altitude - fromY) * lift;
+            const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
+            // age uses leftover-step alpha so the dive is smooth between 30 Hz ticks.
+            // Do not treat age≈0 as “done” — that used to clear the slam on the
+            // same frame it started, so the mesh never left hover height.
+            const stompAge =
+                a.stompAt == null ? -1 : this.elapsed - a.stompAt + this.alpha * BattleSim.STEP;
+            const stomp = flyerStomp(stompAge);
+            let destX = a.stompTx ?? a.rx;
+            let destZ = a.stompTz ?? a.rz;
+            let destY = a.stompAir ? (a.stompTy ?? hoverY) : groundY;
+            if (a.stompAir && a.stompVictim?.alive) {
+                destX = a.stompVictim.rx;
+                destZ = a.stompVictim.rz;
+                destY = a.stompVictim.footY + a.stompVictim.unit.type.meshScale * 0.55;
+            }
+            a.mesh.position.y =
+                hoverY +
+                (destY - hoverY) * stomp.drop +
+                (stomp.drop < 0.02 ? Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift : 0);
+            if (a.stompAir && stomp.drop > 0.01) {
+                a.mesh.position.x += (destX - a.rx) * stomp.drop;
+                a.mesh.position.z += (destZ - a.rz) * stomp.drop;
+            }
+            if (a.stompAt != null) {
+                a.mesh.rotation.x = (a.stompAir ? -0.4 : -0.22) * stomp.drop;
+                const baseScale = a.unit.visualMeshScale();
+                a.mesh.scale.set(baseScale, baseScale * (1 - 0.12 * stomp.squash), baseScale);
+                if (stompAge >= FLYER_STOMP_TOTAL) {
+                    a.stompAt = undefined;
+                    a.stompAir = false;
+                    a.stompVictim = undefined;
+                }
+            }
         }
 
         // summon entrance (render-only): ground mechs rise out of the soil,
@@ -2044,10 +2224,14 @@ export class BattleSim {
             }
         }
 
-        // recoil kicks the unit backward along its facing, then decays
-        if (recoil > 0.01) {
+        // recoil kicks the unit backward along its facing, then decays.
+        // Skip the shove while a flyer is slamming — the dive is the hit.
+        const stomping = (a.stompAt ?? -1e9) > this.elapsed - FLYER_STOMP_TOTAL;
+        if (recoil > 0.01 && !stomping) {
             a.mesh.position.x += Math.sin(yaw) * recoil * 0.3;
             a.mesh.position.z += Math.cos(yaw) * recoil * 0.3;
+            a.recoil = recoil * 0.8;
+        } else if (recoil > 0.01 && stomping) {
             a.recoil = recoil * 0.8;
         } else {
             a.recoil = 0;
@@ -2299,24 +2483,7 @@ export class BattleSim {
                                 a.cooldown += stats.attackInterval;
                                 const damage =
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                                if (damage > 0) {
-                                    const dealt = damage * this.damageTakenMult(target);
-                                    this.applyDamage(a.unit, target, dealt, { x: tdx, z: tdz }, 'direct');
-                                    const mdx = tdx / tDist;
-                                    const mdz = tdz / tDist;
-                                    this.events.push({
-                                        kind: 'impact',
-                                        // on the struck face, at mid-body height
-                                        x: target.x - mdx * target.radius,
-                                        y: target.footY + target.unit.type.meshScale * 1.1,
-                                        z: target.z - mdz * target.radius,
-                                        blood: bloodColorOf(target.unit.type),
-                                        flesh: resolveDeathWear(target.unit.type) === 'blood',
-                                        dx: mdx,
-                                        dy: 0,
-                                        dz: mdz,
-                                    });
-                                }
+                                this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                             }
                             a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
                             continue;
@@ -2377,22 +2544,7 @@ export class BattleSim {
                         a.cooldown += stats.attackInterval;
                         const damage =
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                        if (damage > 0) {
-                            const dealt = damage * this.damageTakenMult(target);
-                            this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
-                            this.events.push({
-                                kind: 'impact',
-                                // on the struck face, at mid-body height
-                                x: target.x - (dx / dist) * target.radius,
-                                y: target.footY + target.unit.type.meshScale * 1.1,
-                                z: target.z - (dz / dist) * target.radius,
-                                blood: bloodColorOf(target.unit.type),
-                                flesh: resolveDeathWear(target.unit.type) === 'blood',
-                                dx: dx / dist,
-                                dy: 0,
-                                dz: dz / dist,
-                            });
-                        }
+                        this.strikeMelee(a, target, damage, dx, dz, dist);
                     }
                 }
                 a.mesh.rotation.y = Math.atan2(-dx, -dz);

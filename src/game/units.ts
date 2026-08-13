@@ -134,6 +134,11 @@ export interface TechDef {
      * (no cap). Spawn type should not itself own this tech.
      */
     onKill?: TechOnKill;
+    /**
+     * Point-blank disk attack: on each swing, every enemy in this XZ radius
+     * around the attacker takes this pack's damage (no projectile).
+     */
+    cleave?: { radius: number };
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
@@ -176,6 +181,9 @@ export function techDescription(tech: TechDef): string {
     if (tech.onKill) {
         const childName = unitTypeById(tech.onKill.typeId)?.name ?? tech.onKill.typeId;
         parts.push(`When this unit kills, raise a ${childName}`);
+    }
+    if (tech.cleave) {
+        parts.push(`Hits every enemy within ${tech.cleave.radius} (around this unit)`);
     }
     return parts.length ? parts.join('. ') : tech.name;
 }
@@ -329,10 +337,15 @@ export interface UnitType {
      */
     bloodColor?: number;
     /**
-     * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets).
+     * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets, melee).
      * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
      */
     fire?: import('./fire').FireProfile;
+    /**
+     * Melee disk: each swing hits every enemy in this XZ radius (no projectile).
+     * Combined with {@link range} as the engagement distance.
+     */
+    cleave?: { radius: number };
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
     burn?: import('./fire').BurnAffinity;
     /**
@@ -696,8 +709,8 @@ export const HORDE_WEBWEAVER: UnitType = {
     projectileSpeed: 55,
     projectileStyle: 'bolt',
     corrodeOnHit: { seconds: 5 },
-    hp: 55,
-    damage: 12,
+    hp: 150,
+    damage: 50,
     range: 16,
     attackInterval: 0.9,
     speed: 12,
@@ -762,7 +775,7 @@ export const HORDE_SPINNE: UnitType = {
     hp: 4500, // 5× prior
     damage: 200,
     range: 44,
-    attackInterval: 0.2,
+    attackInterval: 0.4,
     speed: 12,
     build: buildDwarf,
 };
@@ -825,8 +838,8 @@ export const HORDE_FARMER_SPAWN: UnitType = {
 };
 
 /**
- * Der Komtur himself — mounted knight on `horde3.glb`. Flying ranged boss,
- * single-mech pack. `buyable: false`.
+ * Der Komtur himself — mounted knight on `horde3.glb`. Flying melee boss:
+ * each swing slams a short disk and lights the lawn. `buyable: false`.
  */
 export const HORDE_KOMTUR: UnitType = {
     id: 'hordeKomtur',
@@ -847,11 +860,13 @@ export const HORDE_KOMTUR: UnitType = {
         { y: 0.8, r: 2.0 },
         { y: 2.4, r: 1.5 },
     ],
-    projectileSpeed: 80,
-    projectileStyle: 'largeArrow',
+    cleave: { radius: 8 },
+    fire: {
+        ground: { radius: 8, duration: 8, intensity: 21 },
+    },
     hp: 12000, // 10× prior boss weight
     damage: 550,
-    range: 24,
+    range: 8,
     attackInterval: 0.85,
     speed: 12,
     build: buildDwarf,
