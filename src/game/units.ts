@@ -761,8 +761,8 @@ export const HORDE_SPINNE: UnitType = {
     innateTechs: ['spiderMother'],
     hp: 4500, // 5× prior
     damage: 200,
-    range: 22,
-    attackInterval: 1.0,
+    range: 44,
+    attackInterval: 0.2,
     speed: 12,
     build: buildDwarf,
 };
