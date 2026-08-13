@@ -1232,6 +1232,7 @@ export class BattleSim {
         const shieldMax = hasShieldHp(child, this.config.hasTech) ? maxHp : 0;
         const alt = effectiveFlying(child.type, child.seat, this.config.hasTech);
         let nth = 0;
+        const firstActorIdx = this.actors.length;
         for (const m of child.members) {
             const ax = x + m.home.x;
             const az = z + m.home.z;
@@ -1296,6 +1297,19 @@ export class BattleSim {
                 flying: actor.altitude > 0,
             });
             nth++;
+        }
+        // Abilities apply as soon as the pack exists: a unit raised mid-battle
+        // next to a golden ballista picks the aura up, same as one finishing a
+        // flank spawn. (Spawn clones are never ballistas today, but grant too
+        // if one ever is, so the rule stays symmetric.)
+        if (this.goldenAuraApplied) {
+            for (let i = firstActorIdx; i < this.actors.length; i++) {
+                const na = this.actors[i]!;
+                this.applyBallistaGoldenAura(na);
+                if (na.unit.type.id === 'ballista') {
+                    this.applyBallistaGoldenAura(undefined, na);
+                }
+            }
         }
         this.cacheOnKillFor(child);
     }
