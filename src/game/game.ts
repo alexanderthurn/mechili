@@ -5185,6 +5185,8 @@ export class Game {
             mix(a.x);
             mix(a.z);
             mix(a.hp);
+            // catches a peer disagreeing about who owns the Aegis tech / Bulwark rune
+            mix(a.shieldHp);
             mix(a.unit.level);
         }
         // shared oil layer — must match on both peers before battle

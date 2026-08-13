@@ -191,6 +191,14 @@ export interface Actor {
     hp: number;
     /** leveled max hp (grows on mid-battle level-ups) */
     maxHp: number;
+    /**
+     * Absorb pool that soaks ranged damage before {@link hp} (Aegis tech /
+     * Bulwark rune). 0 = no shield, or spent. A hit that would overkill the
+     * shield is fully absorbed — HP is only touched by the NEXT hit.
+     */
+    shieldHp: number;
+    /** full shield pool (equals {@link maxHp} when shielded, else 0) */
+    shieldMaxHp: number;
     cooldown: number;
     alive: boolean;
     /** ground collision circle */
@@ -281,6 +289,29 @@ export function actorTeam(a: Actor): BattleTeam {
 export function actorSeat(a: Actor): number {
     return a.allegiance !== null ? a.allegianceSeat : a.unit.seat;
 }
+
+/**
+ * Does this pack get a {@link Actor.shieldHp} pool? Granted by the Bulwark
+ * rune or the Aegis tech (which `hasTech` resolves including innate techs).
+ */
+export function hasShieldHp(
+    unit: Unit,
+    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+): boolean {
+    for (const id of unit.items) {
+        if (ITEMS[id]?.grantsShieldHp) return true;
+    }
+    return hasTech(unit.seat, unit.type.id, 'aegis');
+}
+
+/**
+ * How a hit interacts with {@link Actor.shieldHp}:
+ * - `shielded`: soaked by the shield first (projectiles, splash)
+ * - `direct`: ignores the shield entirely (melee contact, convert ray, and any
+ *   attack from a {@link UnitType.piercesShield} type). DoT never routes
+ *   through applyDamage at all, so burn / acid / poison are direct by nature.
+ */
+export type DamageChannel = 'shielded' | 'direct';
 
 /** how long a hit keeps the HP bar visible */
 export const HURT_BAR_SECONDS = 1.5;
@@ -593,6 +624,10 @@ export class BattleSim {
             }
             const stats = config.statsOf(unit);
             this.resolved.set(unit, stats);
+            // shield pool mirrors the leveled max HP (0 when the pack has none)
+            const shieldMax = hasShieldHp(unit, config.hasTech)
+                ? stats.hp * this.levelMult(unit)
+                : 0;
             for (const m of unit.members) {
                 const x = unit.world.x + m.home.x;
                 const z = unit.world.z + m.home.z;
@@ -607,6 +642,8 @@ export class BattleSim {
                     rz: z,
                     hp: stats.hp * this.levelMult(unit),
                     maxHp: stats.hp * this.levelMult(unit),
+                    shieldHp: shieldMax,
+                    shieldMaxHp: shieldMax,
                     cooldown: 0, // assigned canonically below
                     alive: true,
                     radius: unit.type.collisionRadius,
@@ -872,7 +909,18 @@ export class BattleSim {
         target: Actor,
         amount: number,
         knockDir?: { x: number; z: number },
+        channel: DamageChannel = 'shielded',
     ): void {
+        // Shield soaks the whole hit and breaks — no HP spills over, so the
+        // shield always eats exactly one more attack than its pool covers.
+        if (channel === 'shielded' && target.shieldHp > 0) {
+            source.damageDealt += Math.min(amount, target.shieldHp);
+            this.recordDamage(source, amount);
+            target.shieldHp = Math.max(0, target.shieldHp - amount);
+            target.hurtTimer = HURT_BAR_SECONDS;
+            if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
+            return;
+        }
         source.damageDealt += Math.min(amount, Math.max(0, target.hp));
         target.hp -= amount;
         this.recordDamage(source, amount);
@@ -1207,6 +1255,11 @@ export class BattleSim {
             if (stats) {
                 a.maxHp = stats.hp * levelMult;
                 a.hp = a.maxHp;
+                // shield tracks max HP; a shieldless pack stays at 0
+                if (a.shieldMaxHp > 0) {
+                    a.shieldMaxHp = a.maxHp;
+                    a.shieldHp = a.maxHp;
+                }
             }
             a.appeared = true;
             a.alive = true;
@@ -2073,7 +2126,7 @@ export class BattleSim {
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                                 if (damage > 0) {
                                     const dealt = damage * this.damageTakenMult(target);
-                                    this.applyDamage(a.unit, target, dealt, { x: tdx, z: tdz });
+                                    this.applyDamage(a.unit, target, dealt, { x: tdx, z: tdz }, 'direct');
                                     const mdx = tdx / tDist;
                                     const mdz = tdz / tDist;
                                     this.events.push({
@@ -2151,7 +2204,7 @@ export class BattleSim {
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                         if (damage > 0) {
                             const dealt = damage * this.damageTakenMult(target);
-                            this.applyDamage(a.unit, target, dealt, { x: dx, z: dz });
+                            this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
                             this.events.push({
                                 kind: 'impact',
                                 // on the struck face, at mid-body height
@@ -2599,7 +2652,13 @@ export class BattleSim {
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
-                    this.applyDamage(p.source, hit, dealt, { x: sx, z: sz });
+                    this.applyDamage(
+                        p.source,
+                        hit,
+                        dealt,
+                        { x: sx, z: sz },
+                        p.source.type.piercesShield ? 'direct' : 'shielded',
+                    );
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                     this.events.push({
                         kind: 'impact',
@@ -2668,7 +2727,13 @@ export class BattleSim {
                 shotDir && Math.hypot(shotDir.x, shotDir.z) > 1e-6
                     ? shotDir
                     : { x: a.x - x, z: a.z - z };
-            this.applyDamage(p.source, a, dealt, knock);
+            this.applyDamage(
+                p.source,
+                a,
+                dealt,
+                knock,
+                p.source.type.piercesShield ? 'direct' : 'shielded',
+            );
             this.applyCorrodeOnHit(p.source, a);
         }
         // burn + ground fire (friendly fire) — after kinetic hits
@@ -2944,7 +3009,10 @@ export class BattleSim {
                 // buildings + golden aura: same continuous chew as wards, no convert
                 if (target.convertProgress > 0) target.convertProgress = 0;
                 const dealt = intensity * dt * this.damageTakenMult(target);
-                if (dealt > 0) this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz });
+                // convert ray chews straight through to HP — shields don't stop it
+                if (dealt > 0) {
+                    this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
+                }
                 continue;
             }
 

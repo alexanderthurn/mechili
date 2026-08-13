@@ -45,6 +45,8 @@ export interface ItemDef {
     mods: Partial<{ hp: number; damage: number; range: number; speed: number; attackInterval: number }>;
     /** pack-wide immunity to tower-destruction debuffs for the battle */
     debuffImmune?: boolean;
+    /** grants every mech in the pack a shield pool equal to its max HP */
+    grantsShieldHp?: boolean;
     description: string;
 }
 
@@ -60,6 +62,7 @@ export const ADVANCED_RUNE_IDS = [
     'colossus',
     'wrath',
     'golden',
+    'bulwark',
 ] as const;
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -137,6 +140,16 @@ export const ITEMS: Record<string, ItemDef> = {
         debuffImmune: true,
         description:
             'Immune to tower debuffs and takes 30% less damage for this pack. Wizards cannot convert — the ray deals damage instead.',
+    },
+    bulwark: {
+        id: 'bulwark',
+        name: 'Bulwark',
+        // TODO: placeholder art — wants its own carved shield rune icon
+        icon: 'ability-ward',
+        mods: {},
+        grantsShieldHp: true,
+        description:
+            'Shield: every mech gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it.',
     },
 };
 

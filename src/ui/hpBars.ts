@@ -4,6 +4,14 @@ import { colorForUnit } from '../game/colors';
 import { isSecondarySeat, type SeatDef } from '../game/seats';
 import { groundHeightAt } from '../game/map';
 import { actorSeat, actorTeam, HURT_BAR_SECONDS, type Actor } from '../game/sim';
+import { getUnitVisualHalfWidth } from '../game/unitModels';
+
+/**
+ * The measured mesh box reaches the extremities (a crow rider's wingtips), which
+ * overstates the unit's visual mass — span the body instead. Only matters for
+ * models wider than their collision circle; everything else floors on that.
+ */
+const MODEL_WIDTH_FIT = 0.5;
 import { THEME } from '../theme';
 
 /**
@@ -18,6 +26,9 @@ import { THEME } from '../theme';
 export class HpBars {
     readonly view = new Graphics();
     private readonly tmp = new Vector3();
+    /** scratch for projecting the unit's side edge (bar width = model width) */
+    private readonly tmp2 = new Vector3();
+    private readonly right = new Vector3();
     /** the match roster — secondary seats tint green/orange */
     roster: SeatDef[] = [];
 
@@ -84,8 +95,27 @@ export class HpBars {
         if (sx < -40 || sx > width + 40 || sy < -20 || sy > height + 20) return;
 
         const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp));
-        const w = t.structure ? 42 : selected ? 26 : 18;
-        const h = selected ? 5 : 3;
+        // Span the model: measured mesh half-width (wingspan etc.) when the GLB
+        // has been measured, else the collision circle. Projected to screen so
+        // the bar tracks the mech at any zoom; old pixel widths stay as a floor.
+        const modelKey = t.modelId ?? t.id;
+        const localHalf = getUnitVisualHalfWidth(modelKey);
+        const halfW = Math.max(
+            localHalf > 0 ? localHalf * t.meshScale * MODEL_WIDTH_FIT : 0,
+            t.collisionRadius,
+        );
+        this.right.setFromMatrixColumn(camera.matrixWorld, 0); // camera-right, normalized
+        this.tmp2
+            .set(a.rx + this.right.x * halfW, barY + this.right.y * halfW, a.rz + this.right.z * halfW)
+            .project(camera);
+        const edgeSx = (this.tmp2.x + 1) * 0.5 * width;
+        const modelW = Math.abs(edgeSx - sx) * 2;
+        const minW = t.structure ? 42 : selected ? 26 : 18;
+        const w = Math.min(Math.max(minW, modelW), width * 0.5);
+        // Thickness follows ZOOM, not unit width — otherwise wide units (towers,
+        // ballistae) get chunky bars while small ones stay thin.
+        const pxPerWorld = halfW > 1e-4 ? modelW / (halfW * 2) : 0;
+        const h = Math.max(selected ? 5 : 3, Math.min(9, Math.round(pxPerWorld * 0.5)));
         const team = actorTeam(a);
         const seat = actorSeat(a);
         const color = colorForUnit(team, isSecondarySeat(this.roster, seat)).hex;
@@ -102,6 +132,25 @@ export class HpBars {
         }
         g.rect(left, top, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
         if (ratio > 0) g.rect(left, top, w * ratio, h).fill({ color, alpha });
+
+        // Shield (Aegis / Bulwark): same dimensions as the HP bar, stacked just
+        // above it. The empty track stays visible once depleted, so a shielded
+        // unit keeps reading as shielded (and you can see it broken).
+        if (a.shieldMaxHp > 0) {
+            const sRatio = Math.max(0, Math.min(1, a.shieldHp / a.shieldMaxHp));
+            const sTop = top - h - 1;
+            if (selected) {
+                g.rect(left - 1.5, sTop - 1.5, w + 3, h + 3).stroke({
+                    width: 1.5,
+                    color: THEME.selection,
+                    alpha: 0.8,
+                });
+            }
+            g.rect(left, sTop, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
+            if (sRatio > 0) {
+                g.rect(left, sTop, w * sRatio, h).fill({ color: THEME.shieldBar, alpha });
+            }
+        }
 
         // convert progress overlays the HP fill in the caster's color
         const caster = a.convertBy;

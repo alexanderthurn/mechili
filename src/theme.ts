@@ -53,6 +53,8 @@ export const THEME = {
     hpLow: 0xe83828,
     veteran: 0xffe040,
     barBg: 0x2a3820,
+    /** shield (Aegis / Bulwark) absorb bar above the HP bar */
+    shieldBar: 0x8fd8ff,
     selection: 0xffffff,
 
     // title screen (pixi hex)

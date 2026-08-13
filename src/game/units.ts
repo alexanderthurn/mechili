@@ -341,6 +341,13 @@ export interface UnitType {
      * away when everything left is too close. Omit / 0 = no dead zone.
      */
     minRange?: number;
+    /**
+     * This unit's attacks ignore {@link Actor.shieldHp} and hit HP directly.
+     * Melee contact always pierces (structural) — set this for a RANGED attack
+     * that should also bypass shields. DoT (burn / acid / poison) always
+     * bypasses, since it never routes through applyDamage.
+     */
+    piercesShield?: boolean;
     /** seconds between shots */
     attackInterval: number;
     speed: number;

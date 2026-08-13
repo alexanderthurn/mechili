@@ -85,6 +85,16 @@ export const TECHS: Record<string, TechDef> = {
         mods: { attackInterval: 0.7 },
         icon: 'tech-quick-winch',
     },
+    aegis: {
+        id: 'aegis',
+        name: 'Aegis',
+        cost: 300,
+        mods: {},
+        // TODO: placeholder art — wants its own tech icon
+        icon: 'ability-ward',
+        description:
+            'Shield: every mech gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it.',
+    },
     golden: {
         id: 'golden',
         name: 'Golden Aura',
@@ -160,7 +170,7 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
     archer: ['barrel', 'ap', 'fireArrows'],
     wizard: ['skyBind', 'skyLift'],
-    crowRider: ['engines', 'stingers'],
+    crowRider: ['engines', 'stingers', 'aegis'],
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
         'skyBind',
@@ -188,7 +198,7 @@ export const UNIT_TECH_SLOTS: Record<string, number> = {
     dwarf: 2,
     archer: 3,
     wizard: 2,
-    crowRider: 2,
+    crowRider: 3, // engines + stingers + aegis (slots must cover the allowlist)
     ballista: 12, // match full allowlist — wraps in the details pane
 };
 

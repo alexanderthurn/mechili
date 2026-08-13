@@ -97,6 +97,8 @@ const instanceAssets = new Map<string, InstanceAsset>();
  * Procedural probe first; overwritten with the measured GLB bbox after normalize.
  */
 const visualHeights = new Map<string, number>();
+/** widest horizontal half-extent per model id (local space, before meshScale) */
+const visualHalfWidths = new Map<string, number>();
 
 /**
  * Optional muzzle / ray origins from GLB empties named `AttackNode`, in
@@ -112,6 +114,15 @@ const flagNodes = new Map<string, { x: number; y: number; z: number }>();
 /** Local mesh height for badges / arrows (× meshScale → world). Falls back to 1. */
 export function getUnitVisualHeight(id: string): number {
     return visualHeights.get(id) ?? 1;
+}
+
+/**
+ * Local mesh half-width on the widest horizontal axis (× meshScale → world).
+ * Used to size HP bars to the model — a crow rider's wingspan is far wider
+ * than its collision circle. 0 = unknown (caller falls back).
+ */
+export function getUnitVisualHalfWidth(id: string): number {
+    return visualHalfWidths.get(id) ?? 0;
 }
 
 /** Rest-local AttackNode offset, or null if the GLB has none. */
@@ -360,6 +371,17 @@ export async function loadUnitModels(
             // measure after normalize+offset — real top relative to member origin
             const box = new Box3().setFromObject(root);
             visualHeights.set(id, Math.max(box.max.y, 0.05));
+            // widest horizontal half-extent (x or z) — wings, siege frames, etc.
+            visualHalfWidths.set(
+                id,
+                Math.max(
+                    Math.abs(box.max.x),
+                    Math.abs(box.min.x),
+                    Math.abs(box.max.z),
+                    Math.abs(box.min.z),
+                    0.05,
+                ),
+            );
             root.updateMatrixWorld(true);
             const attack = root.getObjectByName('AttackNode');
             if (attack) {
