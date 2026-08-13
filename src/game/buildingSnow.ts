@@ -90,17 +90,18 @@ vBuildingSnowXZ = (
             shader.fragmentShader.replace(
                 '#include <color_fragment>',
                 `#include <color_fragment>
-  float upSnow = smoothstep(0.38, 0.88, vBuildingSnowUp);
+  // pitched roofs (Garrison etc.) still catch snow — only near-vertical walls stay bare
+  float upSnow = smoothstep(0.12, 0.55, max(vBuildingSnowUp, 0.0));
   float flake = fract(sin(dot(floor(vBuildingSnowXZ * 0.55), vec2(12.9898, 78.233))) * 43758.5453);
   upSnow *= mix(0.72, 1.0, flake);
   float snowF = upSnow * uBuildingSnow;
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF * 0.92);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF * 0.94);
 `,
             );
     };
 
     material.customProgramCacheKey = function () {
-        return (prevKey ? prevKey.call(this) : '') + '|building-snow';
+        return (prevKey ? prevKey.call(this) : '') + '|building-snow-v2';
     };
     material.needsUpdate = true;
 }
