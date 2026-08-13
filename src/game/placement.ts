@@ -59,6 +59,8 @@ const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
 /** gold tint for the special-ability aura ring (Golden Aura) */
 const AURA_RING_COLOR = 0xffcb2e;
+/** red-orange for the inner min-range (dead zone) ring — can't shoot inside */
+const MIN_RANGE_COLOR = 0xff6a44;
 /** two golds the aura ring shimmers between while pulsing */
 const AURA_GOLD_DEEP = new Color(0xf0a808);
 const AURA_GOLD_BRIGHT = new Color(0xfff0a8);
@@ -176,6 +178,8 @@ export class PlacementController {
     selectedUnit: Unit | null = null;
     /** effective attack range of a pack (tech-resolved), for the range circle */
     rangeOf: ((unit: Unit) => number) | null = null;
+    /** min engagement range (dead zone) of a pack, or 0 — drives the inner ring */
+    minRangeOf: ((unit: Unit) => number) | null = null;
     /**
      * Radius of a pack's special-ability aura (e.g. ballista Golden Aura),
      * or null when the pack has no such skill. Drives the gold aura ring.
@@ -248,6 +252,8 @@ export class PlacementController {
     private readonly hoverMaterial: MeshBasicMaterial;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
+    /** inner ring showing a ranged pack's min range (dead zone) */
+    private readonly minRangeMesh: Mesh;
     /** gold ring showing a pack's special-ability aura radius (Golden Aura) */
     private readonly auraMesh: Mesh;
     /** whitish ground plates marking the packs that may still be repositioned */
@@ -324,6 +330,9 @@ export class PlacementController {
 
         // attack range ring for the selected own pack (unit radius, scaled per unit)
         this.rangeMesh = createRangeRing(scene);
+        // inner dead-zone ring (min range)
+        this.minRangeMesh = createRangeRing(scene);
+        (this.minRangeMesh.material as MeshBasicMaterial).color.setHex(MIN_RANGE_COLOR);
         // gold aura ring (Golden Aura and similar special-ability radii)
         this.auraMesh = createRangeRing(scene);
         (this.auraMesh.material as MeshBasicMaterial).color.setHex(AURA_RING_COLOR);
@@ -2007,6 +2016,7 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+        this.minRangeMesh.visible = false;
         this.auraMesh.visible = false;
         this.itemDropHovering = false;
         this.itemDropOnForge = false;
@@ -2154,6 +2164,11 @@ export class PlacementController {
         if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
             placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
+            // inner dead-zone ring for units with a min range
+            const minRange = this.minRangeOf?.(sel) ?? 0;
+            if (minRange > 0) {
+                placeRangeRing(this.minRangeMesh, markerCenter.x, markerCenter.z, minRange + sel.type.collisionRadius);
+            }
         }
         // gold aura ring for packs with a special-ability radius (Golden Aura)
         if (sel.team === 'player' && this.auraRangeOf) {

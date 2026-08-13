@@ -108,6 +108,8 @@ export interface SelectionInfo {
     maxHp: number;
     damage: number;
     range: number;
+    /** minimum engagement range (dead zone); shown as "min - max". Absent = none. */
+    minRange?: number;
     speed: number;
     /** seconds between shots (tech-resolved) */
     attackInterval: number;
@@ -2659,7 +2661,7 @@ export class Hud {
             row('Damage', String(Math.round(info.damage))) +
             row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
             (info.splash ? row('Splash', String(info.splash)) : '') +
-            row('Range', String(info.range)) +
+            row('Range', info.minRange ? `${info.minRange} - ${info.range}` : String(info.range)) +
             row('Speed', String(info.speed)) +
             (info.record
                 ? liveRow('Total dmg', String(Math.round(info.record.damageDealt)), 'dmg') +
