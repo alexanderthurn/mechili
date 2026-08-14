@@ -6,7 +6,7 @@
   "license": "GPL-3.0",
   "steamElectronBuild": {
     "productName": "MELODAN",
-    "appId": "com.feuerware.mechili",
+    "appId": "com.feuerware.melodan",
     "steamAppId": 4987230,
     "executableName": "mechili",
     "lan": true
