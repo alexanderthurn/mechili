@@ -352,6 +352,9 @@ wrapper.appendChild(versionEl);
 
 /** True when Steam launched us as a child appID (playtest/demo) rather than the main game. */
 let isPlaytest = false;
+/** The PLAYTEST wordmark — null until the title sprites are built, which happens
+ *  after this module's top-level await, i.e. possibly after detection resolves. */
+let playtestText: Text | null = null;
 
 /** Menu label: semver · branch · Steam|PeerJS · Online|Offline (transport fixed at launch). */
 async function refreshVersionLabel(): Promise<void> {
@@ -381,8 +384,6 @@ async function refreshVersionLabel(): Promise<void> {
     // ?playtest=1 forces the badge on without a Steam playtest install — the
     // only way to eyeball the layout from `npm run dev`.
     if (new URLSearchParams(location.search).get('playtest') === '1') isPlaytest = true;
-    // Safe despite the sprite being declared further down: every path above
-    // awaits first, so the module body has finished by the time we get here.
     showPlaytestBadge();
     const transport = onSteam ? 'Steam' : 'PeerJS';
     const net = navigator.onLine ? 'Online' : 'Offline';
@@ -569,7 +570,7 @@ const subtitle = new Text({
 });
 subtitle.anchor.set(0.5);
 /** Shown under the logo only when Steam launched us as the playtest appID. */
-const playtestText = new Text({
+playtestText = new Text({
     text: 'PLAYTEST',
     style: {
         fill: THEME.subtitle,
@@ -583,6 +584,11 @@ const playtestText = new Text({
 playtestText.anchor.set(0.5);
 playtestText.visible = false;
 title.addChild(logo, playtestText);
+// Detection may have resolved during the top-level await above, in which case
+// its own showPlaytestBadge() call found nothing to show. Set visibility only:
+// showPlaytestBadge would lay the title out, and layoutTitle reads `menu`,
+// which is still uninitialized this early. The first real layout pass places it.
+playtestText.visible = isPlaytest;
 app.stage.addChild(title);
 
 const MENU_TOP_CHROME = 52;
@@ -633,13 +639,16 @@ function layoutTitle() {
     logo.scale.set(scale);
     logo.position.set(cx, cy);
     subtitle.position.set(cx, cy + logoHalfH + 2);
-    // Track the logo's responsive width so it never dwarfs a shrunken wordmark.
-    playtestText.scale.set(Math.max(0.6, logoDisplayW / 600));
-    playtestText.position.set(cx, cy + logoHalfH + gap + playtestText.height / 2);
+    if (playtestText) {
+        // Track the logo's responsive width so it never dwarfs a shrunken wordmark.
+        playtestText.scale.set(Math.max(0.6, logoDisplayW / 600));
+        playtestText.position.set(cx, cy + logoHalfH + gap + playtestText.height / 2);
+    }
 }
 
 /** Reveal (or hide) the PLAYTEST wordmark once detection has resolved. */
 function showPlaytestBadge(): void {
+    if (!playtestText) return;   // title not built yet — the build site calls us again
     playtestText.visible = isPlaytest;
     if (isPlaytest) layoutTitle();
     app.render();
