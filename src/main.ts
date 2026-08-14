@@ -350,6 +350,9 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
+/** True when Steam launched us as a child appID (playtest/demo) rather than the main game. */
+let isPlaytest = false;
+
 /** Menu label: semver · branch · Steam|PeerJS · Online|Offline (transport fixed at launch). */
 async function refreshVersionLabel(): Promise<void> {
     const onSteam = await steamReady();
@@ -367,20 +370,25 @@ async function refreshVersionLabel(): Promise<void> {
     }
     // A playtest/demo is its own child appID sharing the same depots, so the
     // binary is identical — only the id Steam launched us as tells them apart.
-    let playtest = false;
     if (onSteam) {
         try {
             const launchedAs = await steam.getAppId();
-            playtest = !!launchedAs && !!__STEAM_APP_ID__ && launchedAs !== __STEAM_APP_ID__;
+            isPlaytest = !!launchedAs && !!__STEAM_APP_ID__ && launchedAs !== __STEAM_APP_ID__;
         } catch {
             /* ignore */
         }
     }
+    // ?playtest=1 forces the badge on without a Steam playtest install — the
+    // only way to eyeball the layout from `npm run dev`.
+    if (new URLSearchParams(location.search).get('playtest') === '1') isPlaytest = true;
+    // Safe despite the sprite being declared further down: every path above
+    // awaits first, so the module body has finished by the time we get here.
+    showPlaytestBadge();
     const transport = onSteam ? 'Steam' : 'PeerJS';
     const net = navigator.onLine ? 'Online' : 'Offline';
     const parts = [`v${__APP_VERSION__}`];
     if (branch) parts.push(branch);
-    if (playtest) parts.push('Playtest');
+    if (isPlaytest) parts.push('Playtest');
     parts.push(transport, net);
     versionEl.textContent = parts.join(' · ');
     if (versionEl instanceof HTMLAnchorElement) {
@@ -560,7 +568,21 @@ const subtitle = new Text({
     },
 });
 subtitle.anchor.set(0.5);
-title.addChild(logo);
+/** Shown under the logo only when Steam launched us as the playtest appID. */
+const playtestText = new Text({
+    text: 'PLAYTEST',
+    style: {
+        fill: THEME.subtitle,
+        fontFamily: 'Cinzel',
+        fontSize: 34,
+        fontWeight: '700',
+        letterSpacing: 10,
+        dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
+    },
+});
+playtestText.anchor.set(0.5);
+playtestText.visible = false;
+title.addChild(logo, playtestText);
 app.stage.addChild(title);
 
 const MENU_TOP_CHROME = 52;
@@ -611,6 +633,16 @@ function layoutTitle() {
     logo.scale.set(scale);
     logo.position.set(cx, cy);
     subtitle.position.set(cx, cy + logoHalfH + 2);
+    // Track the logo's responsive width so it never dwarfs a shrunken wordmark.
+    playtestText.scale.set(Math.max(0.6, logoDisplayW / 600));
+    playtestText.position.set(cx, cy + logoHalfH + gap + playtestText.height / 2);
+}
+
+/** Reveal (or hide) the PLAYTEST wordmark once detection has resolved. */
+function showPlaytestBadge(): void {
+    playtestText.visible = isPlaytest;
+    if (isPlaytest) layoutTitle();
+    app.render();
 }
 
 /** place the HTML intro-cover logo exactly where the Pixi menu logo sits */
