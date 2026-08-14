@@ -1,6 +1,77 @@
 # Melodan Steam art style lock
 
-**Style name:** `h4-night-units-aerial-fire`  
+Upload sizes / checklist: see [README.md](./README.md).
+
+---
+
+## Shipping lock (2026-08-14): `a3-wall-moon-storm`
+
+**Status:** landscape + logo capsules promoted into `masters/`, `store_center/`, `library_center/`.  
+**Portrait / vertical / library capsule:** Gemini tall recompose with **baked** fire|lightning wordmark (`portrait_center.png`).  
+**Library hero:** Gemini ultra-wide recompose, **no logo** (`hero_center.png` @ 4K).  
+**General wordmark:** `masters/logo_trimmed.png` (transparent) from `masters/logo_source.jpeg` — Magick overlays when needed.
+
+### Split masters (important)
+
+| Role | Path | Logo? |
+| --- | --- | --- |
+| Scene (no logo) | `masters/landscape_center.png` (= trial `a3_wall_moon_storm_f.png`) | **No** — hero / page bg / LOCKED scene |
+| Logo art | `masters/landscape_center_logo.png` (from `testwithlogo.jpeg`) | **Yes** — O on moon, red→blue letter wash |
+| Trial sources | `store_center/header_ideas/darker_trials_2026-08-14/` | `_f`, `_f_logo` Magick try, `testwithlogo.jpeg`, `_logo_gemini.png` |
+
+**Never** bake the wordmark into `landscape_center`, `hero_center`, or `page_bg_center`.  
+Steam **library hero** and **page background** must stay logo-free. Capsules crop from `landscape_center_logo.png`.
+
+### Visual lock
+
+- Night battlefield; low stone **curtain wall** keep → wizard tower; thin ground; chunky dwarfs vs knights
+- **Full moon CENTER** (mid sky) — logo **O** sits on the moon
+- **Color split:** left warm **red** / right cool **blue-teal**
+- LEFT: keep + dragon edge silhouette (no fire breath)
+- RIGHT: wizard tower + Komtur; **teal storm / lightning** mainly on the **right half** (not deep into red)
+- Logo art: Gemini merge preferred over flat Magick overlay (`testwithlogo` / `landscape_center_logo.png`)
+
+### Regen no-logo Steam sizes (from `_f` / landscape)
+
+```bash
+SCENE=misc/steam/masters/landscape_center.png
+# page bg
+magick "$SCENE" -resize 1438x810^ -gravity center -extent 1438x810 \
+  PNG32:misc/steam/store_center/page_background.png
+# library hero (cover-crop ultra-wide — Gemini recompose later if needed)
+magick "$SCENE" -resize 3840x1240^ -gravity center -extent 3840x1240 \
+  PNG32:misc/steam/library_center/library_hero.png
+```
+
+### Regen logo capsules (from logo art — do not Magick-overlay again)
+
+```bash
+LOGOART=misc/steam/masters/landscape_center_logo.png
+STORE=misc/steam/store_center
+LIB=misc/steam/library_center
+magick "$LOGOART" -resize 920x430^ -gravity center -extent 920x430 PNG32:"$STORE/header_capsule.png"
+cp "$STORE/header_capsule.png" "$LIB/library_header.png"
+magick "$LOGOART" -resize 1232x706^ -gravity center -extent 1232x706 PNG32:"$STORE/main_capsule.png"
+magick "$LOGOART" -resize 462x174^ -gravity center -extent 462x174 PNG32:"$STORE/small_capsule.png"
+```
+
+Or: `bash scripts/export-steam-center.sh` (uses `landscape_center_logo.png` for landscape capsules when present; portrait slots still Magick-south on h4 portrait).
+
+### Rebuild logo art from scene (Gemini)
+
+Input: `…/a3_wall_moon_storm_f.png`. Ask for MELODAN with **O on the moon**, red→blue letter lighting matching the faction wash. Save as `testwithlogo.jpeg` / `landscape_center_logo.png`. Flat Magick overlay (`a3_wall_moon_storm_f_logo.png`) is a fallback only.
+
+### Lessons from this pass
+
+1. Keep **two landscape masters**: no-logo scene vs baked logo art.
+2. Magick left/right **split** (`moon_center` | `storm`) fixed cyan spill without Gemini restyling.
+3. Gemini logo merge can beat Magick for O-on-moon fit and letter lighting.
+4. Portrait / vertical still need a dedicated tall plate — do not cover-crop landscape for library capsule.
+
+---
+
+## Previous shipping lock: `h4-night-units-aerial-fire`
+
 **Locked:** 2026-07-30  
 **Shipping folders:** `store_center/`, `library_center/`  
 **Locked scene:** `store_center/header_ideas/LOCKED_h4_higher_ground_units_scene.png`  
@@ -9,11 +80,9 @@
 **Logo source:** `assets/ui/logo-trimmed.png` (text only — no axe/arrow mark)  
 **Tool:** Gemini via `threejs-image-generator`
 
-Upload sizes / checklist: see [README.md](./README.md).
-
 ---
 
-## Style lock (visual)
+## Style lock (visual) — h4
 
 - Night sky, deep indigo / purple
 - **Full moon on the RIGHT**
@@ -113,13 +182,13 @@ Save as: `masters/page_bg_center.png`
 magick assets/ui/logo-trimmed.png -alpha off \
   \( +clone -colorspace gray -threshold 2% \) \
   -alpha off -compose CopyOpacity -composite -trim +repage \
-  PNG32:assets/marketing/steam/masters/logo_trimmed.png
+  PNG32:misc/steam/masters/logo_trimmed.png
 
-cp assets/marketing/steam/masters/logo_trimmed.png \
-   assets/marketing/steam/masters/logo.png
+cp misc/steam/masters/logo_trimmed.png \
+   misc/steam/masters/logo.png
 
-magick assets/marketing/steam/masters/logo_trimmed.png -resize '1280x720>' \
-  PNG32:assets/marketing/steam/library_center/library_logo.png
+magick misc/steam/masters/logo_trimmed.png -resize '1280x720>' \
+  PNG32:misc/steam/library_center/library_logo.png
 ```
 
 ---
@@ -136,10 +205,10 @@ Or manually (sizes / logo placement locked here):
 
 | Output | Size | Master | Logo |
 | --- | --- | --- | --- |
-| `store_center/header_capsule.png` | 920×430 | landscape | ~680px wide, south +22 |
+| `store_center/header_capsule.png` | 920×430 | `landscape_center_logo` (preferred) or landscape+Magick | crop / south +22 fallback |
 | `library_center/library_header.png` | 920×430 | = header | copy of header |
-| `store_center/main_capsule.png` | 1232×706 | landscape | ~900px, south +32 |
-| `store_center/small_capsule.png` | 462×174 | landscape blurred/darkened | ~400px, center |
+| `store_center/main_capsule.png` | 1232×706 | logo art / Magick fallback | crop / south +32 |
+| `store_center/small_capsule.png` | 462×174 | logo art / Magick fallback | crop / center overlay |
 | `store_center/vertical_capsule.png` | 748×896 | portrait via **library framing** | see script |
 | `store_center/page_background.png` | 1438×810 | page_bg | none |
 | `library_center/library_capsule.png` | 600×900 | portrait center-cover | ~460px, south +22 |

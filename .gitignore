@@ -15,10 +15,13 @@ backend/players/sessions/*.json
 
 # Personal / working dumps (photos, Tripo, Gemini sheets, concepts).
 # Icon masters in misc/icons/src are tracked — TexturePacker packs from them.
+# Steam store/library art in misc/steam is tracked (upload set + masters).
 misc/**
 !misc/icons/
 !misc/icons/src/
 !misc/icons/src/**
+!misc/steam/
+!misc/steam/**
 
 # Claude Code local settings (personal, not shared)
 .claude/settings.local.json
