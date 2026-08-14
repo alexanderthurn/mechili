@@ -1,5 +1,7 @@
 /** Player preferences, persisted in localStorage (not match state). */
 
+import { steam } from 'steam-electron-build/native';
+
 import { touchFirstDevice } from './inputCapabilities';
 import type { UiFontId } from '../theme';
 
@@ -195,7 +197,11 @@ const DEFAULTS: Prefs = {
     antialias: true,
     controlScheme: 'auto',
     uiFont: 'marcellus',
-    multiplayerTransport: 'matchmaking',
+    // Steam builds default to Steam lobbies, the browser to the web backend.
+    // Read once at load: the preload defines window.steam before any renderer
+    // code runs, and resolveMultiplayerTransport never silently falls back, so
+    // a wrong default here strands the player rather than degrading.
+    multiplayerTransport: steam.isAvailable() ? 'steam' : 'matchmaking',
     mobileTuned: false,
 };
 
