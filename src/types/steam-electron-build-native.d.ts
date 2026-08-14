@@ -109,4 +109,15 @@ declare module 'steam-electron-build/native' {
     };
 
     export function openUrl(url: string): void;
+
+    /**
+     * Mirror prefix-matched localStorage keys into the cloud-synced save file.
+     * File wins at startup, memory for the rest of the session. Resolves false
+     * in a browser, where there is no save file. Await before the first read.
+     */
+    export function mirrorLocalStorage(options?: {
+        prefix?: string;
+        exclude?: string[];
+        debounceMs?: number;
+    }): Promise<boolean>;
 }

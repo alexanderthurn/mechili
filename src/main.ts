@@ -34,7 +34,7 @@ import {
     type StarGuestSession,
     type StarRole,
 } from './game/net';
-import { isElectron, lan, lobby as steamLobby, steam, win } from 'steam-electron-build/native';
+import { isElectron, lan, lobby as steamLobby, mirrorLocalStorage, steam, win } from 'steam-electron-build/native';
 import {
     hostOrJoinSteamStar,
     hostSteamRoom,
@@ -55,7 +55,7 @@ import {
 } from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
-import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, wireAvatar } from './game/avatar';
+import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -285,6 +285,13 @@ window.addEventListener('unhandledrejection', (e) => {
     const reason = e.reason as { message?: string; stack?: string } | undefined;
     showFatal(`Unhandled rejection: ${reason?.message ?? String(e.reason)}`, reason?.stack ?? '');
 });
+
+// Pull the Steam-Cloud copy of our localStorage keys in before anything reads
+// them. Every reader (prefs, player, avatar, account, telemetry) is lazy, so
+// "before the first call" is enough — but prefs() caches, and applyUiFont below
+// is the first caller, so this must stay above it. The auth token is deliberately
+// not synced: it is a bearer credential for a name claim, not a setting.
+await mirrorLocalStorage({ prefix: 'mechili-', exclude: ['mechili-open-auth'] });
 
 const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
@@ -1563,8 +1570,10 @@ if (steam.isAvailable()) {
     const steamName = await steam.getUserName();
     if (steamName) setPlayerName(steamName);
     try {
+        // Cached under its own key: overwriting the shared one every launch
+        // silently threw away whatever avatar the player had picked.
         const avatar = await steam.getAvatarDataUrl();
-        if (avatar) setAvatarDataUrl(avatar);
+        if (avatar) setSteamAvatarDataUrl(avatar);
     } catch {
         /* keep cached local avatar if Steam fetch fails (offline) */
     }
