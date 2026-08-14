@@ -350,11 +350,22 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
+/** PLAYTEST wordmark under the logo. HTML rather than a Pixi Text so it can sit
+ *  above the menu panel — the menu is an HTML overlay, so canvas always loses. */
+const playtestEl = document.createElement('div');
+playtestEl.className = 'mechili-playtest';
+playtestEl.textContent = 'PLAYTEST';
+playtestEl.style.display = 'none';
+wrapper.appendChild(playtestEl);
+
 /** True when Steam launched us as a child appID (playtest/demo) rather than the main game. */
 let isPlaytest = false;
-/** The PLAYTEST wordmark — null until the title sprites are built, which happens
- *  after this module's top-level await, i.e. possibly after detection resolves. */
-let playtestText: Text | null = null;
+/** True once `menu` exists, i.e. once layoutTitle() is safe to call. */
+let titleReady = false;
+/** false while the boot splash owns the screen (logo + bar + Feuerware only).
+ *  Declared up here because showPlaytestBadge reads it, and that can run during
+ *  this module's top-level await — anything declared below would still be in TDZ. */
+let menuChromeVisible = false;
 
 /** Menu label: semver · branch · Steam|PeerJS · Online|Offline (transport fixed at launch). */
 async function refreshVersionLabel(): Promise<void> {
@@ -569,26 +580,7 @@ const subtitle = new Text({
     },
 });
 subtitle.anchor.set(0.5);
-/** Shown under the logo only when Steam launched us as the playtest appID. */
-playtestText = new Text({
-    text: 'PLAYTEST',
-    style: {
-        fill: THEME.subtitle,
-        fontFamily: 'Cinzel',
-        fontSize: 34,
-        fontWeight: '700',
-        letterSpacing: 10,
-        dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
-    },
-});
-playtestText.anchor.set(0.5);
-playtestText.visible = false;
-title.addChild(logo, playtestText);
-// Detection may have resolved during the top-level await above, in which case
-// its own showPlaytestBadge() call found nothing to show. Set visibility only:
-// showPlaytestBadge would lay the title out, and layoutTitle reads `menu`,
-// which is still uninitialized this early. The first real layout pass places it.
-playtestText.visible = isPlaytest;
+title.addChild(logo);
 app.stage.addChild(title);
 
 const MENU_TOP_CHROME = 52;
@@ -639,19 +631,19 @@ function layoutTitle() {
     logo.scale.set(scale);
     logo.position.set(cx, cy);
     subtitle.position.set(cx, cy + logoHalfH + 2);
-    if (playtestText) {
-        // Track the logo's responsive width so it never dwarfs a shrunken wordmark.
-        playtestText.scale.set(Math.max(0.6, logoDisplayW / 600));
-        playtestText.position.set(cx, cy + logoHalfH + gap + playtestText.height / 2);
-    }
+    // Same canvas-pixel coordinates the HTML intro logo uses, so it tracks the
+    // wordmark; scaled with the logo so it never dwarfs a shrunken one.
+    playtestEl.style.left = `${cx}px`;
+    playtestEl.style.top = `${cy + logoHalfH + gap}px`;
+    playtestEl.style.fontSize = `${Math.max(20, Math.round(logoDisplayW * 0.075))}px`;
 }
 
 /** Reveal (or hide) the PLAYTEST wordmark once detection has resolved. */
 function showPlaytestBadge(): void {
-    if (!playtestText) return;   // title not built yet — the build site calls us again
-    playtestText.visible = isPlaytest;
-    if (isPlaytest) layoutTitle();
-    app.render();
+    playtestEl.style.display = isPlaytest && menuChromeVisible ? '' : 'none';
+    // layoutTitle reads `menu`, which stays uninitialized until after this
+    // module's top-level await — detection can resolve before that.
+    if (isPlaytest && titleReady) layoutTitle();
 }
 
 /** place the HTML intro-cover logo exactly where the Pixi menu logo sits */
@@ -791,6 +783,7 @@ menu.innerHTML = `
     </div>
 `;
 wrapper.appendChild(menu);
+titleReady = true;
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
 new ResizeObserver(() => {
@@ -867,8 +860,6 @@ const gchatSticky = gchatEl.querySelector<HTMLDivElement>('.g-sticky')!;
 const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
 const gchatInput = gchatEl.querySelector<HTMLInputElement>('.g-input')!;
 let gchatPoll: ReturnType<typeof setInterval> | null = null;
-/** false while the boot splash owns the screen (logo + bar + Feuerware only) */
-let menuChromeVisible = false;
 
 let menuGamepad: GamepadCursor | null = null;
 let menuGamepadRig: CameraRig | null = null;
@@ -879,6 +870,7 @@ function setMenuChromeVisible(visible: boolean): void {
     menu.style.display = display;
     usernameEl.style.display = display;
     versionEl.style.display = display;
+    playtestEl.style.display = visible && isPlaytest ? '' : 'none';
     suggestCornerEl.style.display = display;
     cornerActionsEl.style.display = display;
     // Door only in Electron; settings always when chrome is up.
@@ -2106,6 +2098,7 @@ function finishReturnToMenu(): void {
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
     wrapper.appendChild(versionEl);
+    wrapper.appendChild(playtestEl);
     wrapper.appendChild(cornerActionsEl);
     wrapper.appendChild(suggestCornerEl);
     wrapper.appendChild(gchatEl);
@@ -2233,6 +2226,7 @@ function startGame(
     menu.remove();
     usernameEl.remove();
     versionEl.remove();
+    playtestEl.remove();
     cornerActionsEl.remove();
     suggestCornerEl.remove();
     gchatEl.remove();
