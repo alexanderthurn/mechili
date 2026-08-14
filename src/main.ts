@@ -365,10 +365,22 @@ async function refreshVersionLabel(): Promise<void> {
         const fromUrl = new URLSearchParams(location.search).get('branch')?.trim();
         branch = fromUrl || (typeof __GIT_BRANCH__ === 'string' ? __GIT_BRANCH__.trim() : '');
     }
+    // A playtest/demo is its own child appID sharing the same depots, so the
+    // binary is identical — only the id Steam launched us as tells them apart.
+    let playtest = false;
+    if (onSteam) {
+        try {
+            const launchedAs = await steam.getAppId();
+            playtest = !!launchedAs && !!__STEAM_APP_ID__ && launchedAs !== __STEAM_APP_ID__;
+        } catch {
+            /* ignore */
+        }
+    }
     const transport = onSteam ? 'Steam' : 'PeerJS';
     const net = navigator.onLine ? 'Online' : 'Offline';
     const parts = [`v${__APP_VERSION__}`];
     if (branch) parts.push(branch);
+    if (playtest) parts.push('Playtest');
     parts.push(transport, net);
     versionEl.textContent = parts.join(' · ');
     if (versionEl instanceof HTMLAnchorElement) {
