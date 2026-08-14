@@ -86,6 +86,13 @@ npm run build:mac    # depot-ready build (mac | win | linux)
 Dev URL params: `?hp=100&build=20` overrides starting HP / build timer.  
 Localhost matchmaking defaults to [play.melodan.com](https://play.melodan.com); use `?branch=<name>` for a branch preview backend.
 
+### Further graphics / mesh ideas
+
+Notes for later — not wired into the game yet:
+
+- **[meshoptimizer](https://github.com/zeux/meshoptimizer)** (also via [gltfpack](https://github.com/zeux/meshoptimizer) / [glTF-Transform `simplify`](https://gltf-transform.dev/)) — vertex-cache optimize, meshopt compression, and careful mesh simplify for clean hard-surface GLBs (keeps, units). Already adjacent to our Draco/`@gltf-transform` scripts. Aggressive simplify on Tripo foliage tends to tear UVs / punch holes; prefer authored low-poly trees + billboards for far LOD.
+- **[three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh)** — fast triangle raycasts / spatial queries. Useful if we ever need mesh-accurate picking or many rays against high-poly geometry; combat and most clicks already use sphere colliders / ground planes, so this is not a current FPS bottleneck.
+
 ## About
 
 MELODAN is made by **Alexander Thurn** at [Feuerware](https://feuerware.com/).
