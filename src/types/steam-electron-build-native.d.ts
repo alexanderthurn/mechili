@@ -104,8 +104,9 @@ declare module 'steam-electron-build/native' {
     export function toggleFullscreen(): Promise<void>;
 
     export const storage: {
-        load(): Promise<Record<string, unknown>>;
-        save(data: Record<string, unknown>): Promise<void>;
+        /** `file` names a file in the app-data dir; default save.json */
+        load(file?: string): Promise<Record<string, unknown>>;
+        save(data: Record<string, unknown>, file?: string): Promise<void>;
     };
 
     export function openUrl(url: string): void;
@@ -116,6 +117,8 @@ declare module 'steam-electron-build/native' {
      * in a browser, where there is no save file. Await before the first read.
      */
     export function mirrorLocalStorage(options?: {
+        /** File in the app-data dir (default save.json) — pick one your Auto-Cloud rule matches */
+        file?: string;
         prefix?: string;
         exclude?: string[];
         debounceMs?: number;

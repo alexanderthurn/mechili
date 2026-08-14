@@ -291,7 +291,11 @@ window.addEventListener('unhandledrejection', (e) => {
 // "before the first call" is enough — but prefs() caches, and applyUiFont below
 // is the first caller, so this must stay above it. The auth token is deliberately
 // not synced: it is a bearer credential for a name claim, not a setting.
-await mirrorLocalStorage({ prefix: 'mechili-', exclude: ['mechili-open-auth'] });
+await mirrorLocalStorage({
+    file: 'settings.sav',   // matches the *.sav Steam Auto-Cloud rule
+    prefix: 'mechili-',
+    exclude: ['mechili-open-auth'],
+});
 
 const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
