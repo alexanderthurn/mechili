@@ -22,7 +22,7 @@
     "icons:pack": "printf 'agree\\n' | TexturePacker --format json --sheet misc/icons/icons.png --data assets/icons/icons.json --algorithm MaxRects --max-size 2048 --size-constraints POT --trim-mode None --padding 2 --extrude 1 --disable-rotation misc/icons/src && uv run --with pillow python -c \"from PIL import Image; Image.open('misc/icons/icons.png').save('assets/icons/icons.webp','WEBP',quality=90,method=6)\"",
     "models:draco": "bash scripts/compress-glb-draco.sh",
     "models:textures-1k": "bash scripts/resize-glb-textures.sh 1024",
-    "start:playtest": "SteamAppId=${MELODAN_PLAYTEST_APP_ID:?set MELODAN_PLAYTEST_APP_ID to your playtest app id} steam-electron-build dev"
+    "start:playtest": "SteamAppId=${MELODAN_PLAYTEST_APP_ID:-5115110} steam-electron-build dev"
   },
   "dependencies": {
     "peerjs": "^1.5.5",
