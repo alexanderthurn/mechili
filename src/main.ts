@@ -633,9 +633,12 @@ function layoutTitle() {
     subtitle.position.set(cx, cy + logoHalfH + 2);
     // Same canvas-pixel coordinates the HTML intro logo uses, so it tracks the
     // wordmark; scaled with the logo so it never dwarfs a shrunken one.
+    const badgeFont = Math.max(20, Math.round(logoDisplayW * 0.075));
     playtestEl.style.left = `${cx}px`;
-    playtestEl.style.top = `${cy + logoHalfH + gap}px`;
-    playtestEl.style.fontSize = `${Math.max(20, Math.round(logoDisplayW * 0.075))}px`;
+    playtestEl.style.fontSize = `${badgeFont}px`;
+    // Tucked into the logo's lower edge rather than under it: the menu panel
+    // starts just `gap` px below the logo, so anything there lands on the panel.
+    playtestEl.style.top = `${cy + logoHalfH - badgeFont}px`;
 }
 
 /** Reveal (or hide) the PLAYTEST wordmark once detection has resolved. */
