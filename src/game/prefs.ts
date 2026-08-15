@@ -187,14 +187,7 @@ const KEY = 'mechili-prefs';
 const DEFAULTS: Prefs = {
     combatChat: true,
     globalChat: true,
-    scenery: 'medium',
-    groundEffects: 'high',
-    fireVfx: 'medium',
-    bloodFx: 'high',
-    dprCap: 2,
-    shadows: 'high',
-    renderDeadUnits: true,
-    antialias: true,
+    ...GRAPHICS_PRESETS.high,
     controlScheme: 'auto',
     uiFont: 'marcellus',
     // Steam builds default to Steam lobbies, the browser to the web backend.
