@@ -4047,8 +4047,6 @@ function isMenuBlockingOverlayOpen(): boolean {
 }
 
 function closeMenuSubPanelOnEscape(): boolean {
-    if (isMenuBlockingOverlayOpen()) return false;
-
     // Session (connecting / lobby / waiting): Escape cancels and returns home.
     if (currentMenuView === 'session' || pending || cancelEl.style.display !== 'none') {
         cancelMenuPending();
@@ -4077,6 +4075,10 @@ function closeMenuSubPanelOnEscape(): boolean {
 window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!menuChromeVisible || started) return;
+    // An open overlay owns Escape and closes itself. This must return, not fall
+    // through: "nothing to close in the menu" is otherwise read as "we are at
+    // the root menu" and quits the app out from under the dialog.
+    if (isMenuBlockingOverlayOpen()) return;
     if (closeMenuSubPanelOnEscape()) {
         e.preventDefault();
         e.stopPropagation();
