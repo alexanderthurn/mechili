@@ -7,6 +7,8 @@ import {
     type GraphicsPreset,
     type Prefs,
 } from '../game/prefs';
+import { isElectron, win } from 'steam-electron-build/native';
+
 import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
 
 /**
@@ -46,6 +48,11 @@ export function openSettings(parent: HTMLElement): void {
         `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head">Chat</div>` +
+        // Desktop only: browsers refuse fullscreen without a user gesture, and
+        // the window mode is remembered by the app, not by prefs.
+        (isElectron()
+            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> Fullscreen (F11)</label>`
+            : '') +
         `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
         `<label class="s-row"><input type="checkbox" class="s-global" /> Show global chat (menu)</label>` +
         `</section>` +
@@ -122,6 +129,7 @@ export function openSettings(parent: HTMLElement): void {
         `<div class="actions"><button type="button" class="m-btn-bronze primary" data-act="close">Close</button></div>` +
         `</div>`;
 
+    const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     const global = overlay.querySelector<HTMLInputElement>('.s-global')!;
     const mpSel = overlay.querySelector<HTMLSelectElement>('.s-mp')!;
@@ -170,6 +178,15 @@ export function openSettings(parent: HTMLElement): void {
     };
 
     syncFromPrefs();
+
+    // Window mode is owned by the main process (window-state.json), so read the
+    // live value rather than a pref — they would drift on F11 otherwise.
+    if (fullscreen) {
+        void win.isFullscreen().then((on) => { fullscreen.checked = on; });
+        fullscreen.addEventListener('change', () => {
+            void win.setFullscreen(fullscreen.checked);
+        });
+    }
 
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
     global.addEventListener('change', () => updatePrefs({ globalChat: global.checked }));
