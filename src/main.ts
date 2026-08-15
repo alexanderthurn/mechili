@@ -301,7 +301,7 @@ const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
 wrapper.style.cssText =
     `position:fixed;inset:0;overflow:hidden;` +
-    `background:#b8d4c8 url(${menuBgUrl}) center/cover no-repeat;`;
+    `background:#b8d4c8 url("${menuBgUrl}") center/cover no-repeat;`;
 
 function createThreeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
