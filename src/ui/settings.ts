@@ -2,6 +2,7 @@ import {
     applyGraphicsPreset,
     detectGraphicsPreset,
     prefs,
+    resetSettingsStorage,
     updatePrefs,
     type GraphicsPreset,
     type Prefs,
@@ -110,6 +111,11 @@ export function openSettings(parent: HTMLElement): void {
         `</select> <span class="s-hint">blobs / sun map</span></label>` +
         `<label class="s-row"><input type="checkbox" class="s-dead" /> Show dead units</label>` +
         `<label class="s-row"><input type="checkbox" class="s-aa" /> Antialiasing <span class="s-hint">smoother edges · next match</span></label>` +
+        `</section>` +
+        `<section class="s-section">` +
+        `<div class="s-section-head">Reset</div>` +
+        `<p class="s-hint s-reset-hint">Clears graphics, chat, and other settings. Keeps your name and avatar.</p>` +
+        `<button type="button" class="s-reset" data-act="reset">Reset all settings</button>` +
         `</section>` +
         `</div>` +
         `</div>` +
@@ -222,6 +228,19 @@ export function openSettings(parent: HTMLElement): void {
 
     overlay.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
+        if (target.closest('[data-act="reset"]')) {
+            if (
+                !window.confirm(
+                    'Reset all settings to defaults?\n\nYour name and avatar are kept. Graphics and other options go back to factory defaults.',
+                )
+            ) {
+                return;
+            }
+            resetSettingsStorage();
+            applyUiFont(prefs().uiFont);
+            syncFromPrefs();
+            return;
+        }
         if (target === overlay || target.closest('[data-act="close"]')) overlay.remove();
     });
     window.addEventListener(

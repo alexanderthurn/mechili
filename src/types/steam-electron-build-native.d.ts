@@ -116,6 +116,10 @@ declare module 'steam-electron-build/native' {
      * File wins at startup, memory for the rest of the session. Resolves false
      * in a browser, where there is no save file. Await before the first read.
      */
+    /**
+     * Present in steam-electron-build ≥1.4 — Electron mirrors localStorage into
+     * a cloud .sav. Older installs omit it; callers must feature-detect.
+     */
     export function mirrorLocalStorage(options?: {
         /** File in the app-data dir (default save.json) — pick one your Auto-Cloud rule matches */
         file?: string;

@@ -1,15 +1,14 @@
 /**
  * Player avatar — data-URL in localStorage (web / LAN uploads + cached Steam).
  * Target size matches Steam's large avatar (184×184).
+ * Synced via Steam Auto-Cloud `user.sav` (see userStorage.ts).
  */
+
+import { migrateUserStorage, USER_AVATAR_KEY, USER_AVATAR_STEAM_KEY } from './userStorage';
 
 export const AVATAR_SIZE = 184;
 /** Soft cap so localStorage stays healthy (184² webp/jpeg is usually fine). */
 export const MAX_AVATAR_DATA_URL_CHARS = 200_000;
-/** The player's own pick — wins over Steam's, and only exists if they chose one. */
-const STORAGE_KEY = 'mechili-avatar';
-/** Last avatar seen from Steam, refreshed every launch. Never a user choice. */
-const STEAM_KEY = 'mechili-avatar-steam';
 
 function readAvatar(key: string): string | null {
     try {
@@ -22,19 +21,24 @@ function readAvatar(key: string): string | null {
 }
 
 export function getAvatarDataUrl(): string | null {
-    return readAvatar(STORAGE_KEY) ?? readAvatar(STEAM_KEY);
+    migrateUserStorage();
+    return readAvatar(USER_AVATAR_KEY) ?? readAvatar(USER_AVATAR_STEAM_KEY);
 }
 
 /** True when the player picked their own, i.e. Steam's is being overridden. */
 export function hasCustomAvatar(): boolean {
-    return readAvatar(STORAGE_KEY) !== null;
+    migrateUserStorage();
+    return readAvatar(USER_AVATAR_KEY) !== null;
 }
 
 /** Cache Steam's avatar without touching a custom pick. */
 export function setSteamAvatarDataUrl(dataUrl: string | null): void {
+    migrateUserStorage();
     try {
-        if (!dataUrl) localStorage.removeItem(STEAM_KEY);
-        else if (dataUrl.length <= MAX_AVATAR_DATA_URL_CHARS) localStorage.setItem(STEAM_KEY, dataUrl);
+        if (!dataUrl) localStorage.removeItem(USER_AVATAR_STEAM_KEY);
+        else if (dataUrl.length <= MAX_AVATAR_DATA_URL_CHARS) {
+            localStorage.setItem(USER_AVATAR_STEAM_KEY, dataUrl);
+        }
     } catch {
         /* quota / private browsing */
     }
@@ -50,13 +54,14 @@ export function wireAvatar(raw: unknown): string | null {
 }
 
 export function setAvatarDataUrl(dataUrl: string | null): void {
+    migrateUserStorage();
     try {
         if (!dataUrl) {
-            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(USER_AVATAR_KEY);
             return;
         }
         if (dataUrl.length > MAX_AVATAR_DATA_URL_CHARS) return;
-        localStorage.setItem(STORAGE_KEY, dataUrl);
+        localStorage.setItem(USER_AVATAR_KEY, dataUrl);
     } catch {
         /* quota / private browsing */
     }

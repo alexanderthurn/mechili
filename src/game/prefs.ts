@@ -4,6 +4,7 @@ import { steam } from 'steam-electron-build/native';
 
 import { touchFirstDevice } from './inputCapabilities';
 import type { UiFontId } from '../theme';
+import { isUserStorageKey } from './userStorage';
 
 /** Outer world / forests / terrain detail ('off' also disables all weather FX). */
 export type SceneryQuality = 'ultra' | 'high' | 'medium' | 'low' | 'off';
@@ -484,6 +485,37 @@ export function updatePrefs(patch: Partial<Prefs>): void {
     normalizePrefs(prefs());
     try {
         localStorage.setItem(KEY, JSON.stringify(prefs()));
+    } catch {
+        /* ignore */
+    }
+    for (const listener of [...listeners]) listener();
+}
+
+/**
+ * Wipe settings localStorage (prefs + other mechili-* keys) and restore defaults.
+ * Keeps identity in user.sav (`mechili-user-*`) and the open-track auth token.
+ */
+export function resetSettingsStorage(): void {
+    try {
+        const doomed: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('mechili-') && !isUserStorageKey(key) && key !== 'mechili-open-auth') {
+                doomed.push(key);
+            }
+        }
+        for (const key of doomed) localStorage.removeItem(key);
+    } catch {
+        /* private browsing */
+    }
+    cached = { ...DEFAULTS };
+    if (touchFirstDevice()) {
+        Object.assign(cached, GRAPHICS_PRESETS.low);
+        cached.mobileTuned = true;
+    }
+    normalizePrefs(cached);
+    try {
+        localStorage.setItem(KEY, JSON.stringify(cached));
     } catch {
         /* ignore */
     }

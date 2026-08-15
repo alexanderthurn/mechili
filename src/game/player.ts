@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'mechili-username';
+import { migrateUserStorage, USER_NAME_KEY } from './userStorage';
 
 /** PeerJS id suffix — lowercase alphanumeric, underscore, hyphen. */
 export function roomCodeFromName(name: string): string {
@@ -23,8 +23,9 @@ export function validatePlayerName(raw: string): string | null {
 }
 
 export function getPlayerName(): string {
+    migrateUserStorage();
     try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(USER_NAME_KEY);
         if (saved && validatePlayerName(saved)) return saved;
     } catch {
         /* private browsing */
@@ -38,7 +39,7 @@ export function setPlayerName(name: string): boolean {
     const valid = validatePlayerName(name);
     if (!valid) return false;
     try {
-        localStorage.setItem(STORAGE_KEY, valid);
+        localStorage.setItem(USER_NAME_KEY, valid);
     } catch {
         return false;
     }

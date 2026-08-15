@@ -1920,6 +1920,23 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     font-size: 12px;
     color: ${u.creamMuted};
 }
+.mechili-settings .s-reset-hint {
+    margin: 0 0 8px;
+    line-height: 1.35;
+}
+.mechili-settings .s-reset {
+    width: 100%;
+    border: 1px solid ${u.bronze};
+    border-radius: 6px;
+    background: transparent;
+    color: ${u.brassLight};
+    letter-spacing: 0.06em;
+    cursor: pointer;
+}
+.mechili-settings .s-reset:hover {
+    border-color: ${u.brassLight};
+    background: rgba(160, 56, 40, 0.18);
+}
 .mechili-settings .actions { display: flex; justify-content: flex-end; }
 .mechili-settings button {
     padding: 8px 16px;

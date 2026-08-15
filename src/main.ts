@@ -34,7 +34,7 @@ import {
     type StarGuestSession,
     type StarRole,
 } from './game/net';
-import { isElectron, lan, lobby as steamLobby, mirrorLocalStorage, steam, win } from 'steam-electron-build/native';
+import * as sebNative from 'steam-electron-build/native';
 import {
     hostOrJoinSteamStar,
     hostSteamRoom,
@@ -56,6 +56,7 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
+import { SETTINGS_SAV_EXCLUDE, USER_STORAGE_PREFIX, migrateUserStorage } from './game/userStorage';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -87,6 +88,23 @@ import {
 } from './game/roundCardAlgorithms';
 import { duoSeats, localizeRoster, canonicalClassicSeats, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { THEME, applyUiFont, menuStyles } from './theme';
+
+const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
+/**
+ * Electron/Steam Cloud only. Older steam-electron-build builds omit this export;
+ * web never needs it. Use bracket access so Vite does not rewrite this into a
+ * named import (which crashes when the export is missing).
+ */
+type MirrorLocalStorage = (options?: {
+    file?: string;
+    prefix?: string;
+    exclude?: string[];
+    debounceMs?: number;
+}) => Promise<boolean>;
+const mirrorLocalStorage: MirrorLocalStorage = (() => {
+    const fn = (sebNative as Record<string, unknown>)['mirrorLocalStorage'];
+    return typeof fn === 'function' ? (fn as MirrorLocalStorage) : async () => false;
+})();
 
 // the only mode right now (Single Player / Matchmaking both force this) —
 // PvPvE: a neutral dwarf horde spawns from the forest ring outside the
@@ -286,16 +304,39 @@ window.addEventListener('unhandledrejection', (e) => {
     showFatal(`Unhandled rejection: ${reason?.message ?? String(e.reason)}`, reason?.stack ?? '');
 });
 
-// Pull the Steam-Cloud copy of our localStorage keys in before anything reads
-// them. Every reader (prefs, player, avatar, account, telemetry) is lazy, so
-// "before the first call" is enough — but prefs() caches, and applyUiFont below
-// is the first caller, so this must stay above it. The auth token is deliberately
-// not synced: it is a bearer credential for a name claim, not a setting.
-await mirrorLocalStorage({
-    file: 'settings.sav',   // matches the *.sav Steam Auto-Cloud rule
-    prefix: 'mechili-',
-    exclude: ['mechili-open-auth'],
-});
+// Electron/Steam only: mirror localStorage ↔ cloud .sav files.
+// Web uses localStorage directly — mirrorLocalStorage is a no-op without
+// window.electronStorage (and may be missing on older steam-electron-build).
+//
+// settings.sav = prefs / graphics / misc  ·  user.sav = name + avatar (+ later)
+// Auth (mechili-open-auth) stays local-only: a bearer credential, not a setting.
+if (isElectron()) {
+    // One-shot: older builds stored name/avatar inside settings.sav. Pull those
+    // legacy keys into memory before the settings mirror (which excludes them),
+    // then migrateUserStorage renames them onto the mechili-user-* keys.
+    try {
+        const stored = await storage.load('settings.sav');
+        const mirrored = (stored as { localStorage?: Record<string, unknown> })?.localStorage ?? {};
+        for (const key of ['mechili-username', 'mechili-avatar', 'mechili-avatar-steam'] as const) {
+            const value = mirrored[key];
+            if (typeof value === 'string' && localStorage.getItem(key) == null) {
+                localStorage.setItem(key, value);
+            }
+        }
+    } catch {
+        /* missing / corrupt save */
+    }
+    await mirrorLocalStorage({
+        file: 'settings.sav',
+        prefix: 'mechili-',
+        exclude: [...SETTINGS_SAV_EXCLUDE],
+    });
+    await mirrorLocalStorage({
+        file: 'user.sav',
+        prefix: USER_STORAGE_PREFIX,
+    });
+}
+migrateUserStorage();
 
 const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
