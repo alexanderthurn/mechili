@@ -48,11 +48,6 @@ export function openSettings(parent: HTMLElement): void {
         `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head">Chat</div>` +
-        // Desktop only: browsers refuse fullscreen without a user gesture, and
-        // the window mode is remembered by the app, not by prefs.
-        (isElectron()
-            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> Fullscreen (F11)</label>`
-            : '') +
         `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
         `<label class="s-row"><input type="checkbox" class="s-global" /> Show global chat (menu)</label>` +
         `</section>` +
@@ -69,6 +64,11 @@ export function openSettings(parent: HTMLElement): void {
         `<div class="s-col s-col-graphics">` +
         `<section class="s-section">` +
         `<div class="s-section-head">Graphics</div>` +
+        // Desktop only: browsers refuse fullscreen without a user gesture, and
+        // the window mode is remembered by the app (window-state.json), not prefs.
+        (isElectron()
+            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> Fullscreen <span class="s-hint">F11 / Alt+Enter</span></label>`
+            : '') +
         `<div class="s-presets">` +
         (['low', 'medium', 'high', 'ultra'] as const)
             .map(
@@ -77,7 +77,14 @@ export function openSettings(parent: HTMLElement): void {
                     `${id.charAt(0).toUpperCase()}${id.slice(1)}</button>`,
             )
             .join('') +
+        // Not a button: there is nothing to apply, it only reports that the
+        // individual options no longer match any preset.
+        `<span class="s-preset s-custom-chip">Custom</span>` +
         `</div>` +
+        // Collapsed by default — the presets are the intended control. Opens by
+        // itself once values diverge, so a custom setup is never hidden.
+        `<details class="s-advanced">` +
+        `<summary>Individual settings</summary>` +
         `<label class="s-row">Scenery <select class="s-scenery">` +
         `<option value="ultra">Ultra</option>` +
         `<option value="high">High</option>` +
@@ -118,6 +125,7 @@ export function openSettings(parent: HTMLElement): void {
         `</select> <span class="s-hint">blobs / sun map</span></label>` +
         `<label class="s-row"><input type="checkbox" class="s-dead" /> Show dead units</label>` +
         `<label class="s-row"><input type="checkbox" class="s-aa" /> Antialiasing <span class="s-hint">smoother edges · next match</span></label>` +
+        `</details>` +
         `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head">Reset</div>` +
@@ -144,7 +152,9 @@ export function openSettings(parent: HTMLElement): void {
     const shadows = overlay.querySelector<HTMLSelectElement>('.s-shadows')!;
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
     const aa = overlay.querySelector<HTMLInputElement>('.s-aa')!;
-    const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset')];
+    const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset[data-preset]')];
+    const customChip = overlay.querySelector<HTMLElement>('.s-custom-chip')!;
+    const advanced = overlay.querySelector<HTMLDetailsElement>('.s-advanced')!;
 
     const mpHints: Record<Prefs['multiplayerTransport'], string> = {
         steam: 'Steam lobbies only. Needs Steam running at launch.',
@@ -175,6 +185,10 @@ export function openSettings(parent: HTMLElement): void {
                 button.dataset.preset === active,
             );
         }
+        customChip.classList.toggle('active', active === null);
+        // Only ever open it: closing on a preset click would yank the panel away
+        // while the player is still working in it.
+        if (active === null) advanced.open = true;
     };
 
     syncFromPrefs();

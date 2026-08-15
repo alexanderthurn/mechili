@@ -1896,6 +1896,43 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     border-color: ${u.bronzeLight};
     box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
 }
+/* Reports "your options differ from every preset" — not clickable, so it does
+   not pretend to be something you can apply. */
+.mechili-settings .s-custom-chip {
+    cursor: default;
+    opacity: 0.45;
+}
+.mechili-settings .s-custom-chip:hover {
+    border-color: ${u.slotBorder};
+    color: ${u.creamMuted};
+    transform: none;
+}
+.mechili-settings .s-custom-chip.active {
+    opacity: 1;
+    border-color: ${u.bronze};
+    color: ${u.bronzeLight};
+}
+.mechili-settings .s-advanced {
+    margin-top: 10px;
+    border-top: 1px solid rgba(184, 146, 74, 0.18);
+    padding-top: 6px;
+}
+.mechili-settings .s-advanced > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 4px 0;
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    color: ${u.creamMuted};
+    user-select: none;
+}
+.mechili-settings .s-advanced > summary::-webkit-details-marker { display: none; }
+.mechili-settings .s-advanced > summary::before {
+    content: '▸ ';
+    color: ${u.bronze};
+}
+.mechili-settings .s-advanced[open] > summary::before { content: '▾ '; }
+.mechili-settings .s-advanced > summary:hover { color: ${u.cream}; }
 .mechili-settings .s-row {
     display: flex;
     align-items: center;
