@@ -34,7 +34,7 @@ import {
     type StarGuestSession,
     type StarRole,
 } from './game/net';
-import { isElectron, lan, lobby as steamLobby, steam, win } from 'steam-electron-build/native';
+import { isElectron, lan, lobby as steamLobby, mirrorLocalStorage, steam, win } from 'steam-electron-build/native';
 import {
     hostOrJoinSteamStar,
     hostSteamRoom,
@@ -55,7 +55,7 @@ import {
 } from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
-import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, wireAvatar } from './game/avatar';
+import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -286,11 +286,22 @@ window.addEventListener('unhandledrejection', (e) => {
     showFatal(`Unhandled rejection: ${reason?.message ?? String(e.reason)}`, reason?.stack ?? '');
 });
 
+// Pull the Steam-Cloud copy of our localStorage keys in before anything reads
+// them. Every reader (prefs, player, avatar, account, telemetry) is lazy, so
+// "before the first call" is enough — but prefs() caches, and applyUiFont below
+// is the first caller, so this must stay above it. The auth token is deliberately
+// not synced: it is a bearer credential for a name claim, not a setting.
+await mirrorLocalStorage({
+    file: 'settings.sav',   // matches the *.sav Steam Auto-Cloud rule
+    prefix: 'mechili-',
+    exclude: ['mechili-open-auth'],
+});
+
 const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
 wrapper.style.cssText =
     `position:fixed;inset:0;overflow:hidden;` +
-    `background:#b8d4c8 url(${menuBgUrl}) center/cover no-repeat;`;
+    `background:#b8d4c8 url("${menuBgUrl}") center/cover no-repeat;`;
 
 function createThreeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -350,6 +361,23 @@ if (versionEl instanceof HTMLAnchorElement) {
 }
 wrapper.appendChild(versionEl);
 
+/** PLAYTEST wordmark under the logo. HTML rather than a Pixi Text so it can sit
+ *  above the menu panel — the menu is an HTML overlay, so canvas always loses. */
+const playtestEl = document.createElement('div');
+playtestEl.className = 'mechili-playtest';
+playtestEl.textContent = 'PLAYTEST';
+playtestEl.style.display = 'none';
+wrapper.appendChild(playtestEl);
+
+/** True when Steam launched us as a child appID (playtest/demo) rather than the main game. */
+let isPlaytest = false;
+/** True once `menu` exists, i.e. once layoutTitle() is safe to call. */
+let titleReady = false;
+/** false while the boot splash owns the screen (logo + bar + Feuerware only).
+ *  Declared up here because showPlaytestBadge reads it, and that can run during
+ *  this module's top-level await — anything declared below would still be in TDZ. */
+let menuChromeVisible = false;
+
 /** Menu label: semver · branch · Steam|PeerJS · Online|Offline (transport fixed at launch). */
 async function refreshVersionLabel(): Promise<void> {
     const onSteam = await steamReady();
@@ -365,10 +393,25 @@ async function refreshVersionLabel(): Promise<void> {
         const fromUrl = new URLSearchParams(location.search).get('branch')?.trim();
         branch = fromUrl || (typeof __GIT_BRANCH__ === 'string' ? __GIT_BRANCH__.trim() : '');
     }
+    // A playtest/demo is its own child appID sharing the same depots, so the
+    // binary is identical — only the id Steam launched us as tells them apart.
+    if (onSteam) {
+        try {
+            const launchedAs = await steam.getAppId();
+            isPlaytest = !!launchedAs && !!__STEAM_APP_ID__ && launchedAs !== __STEAM_APP_ID__;
+        } catch {
+            /* ignore */
+        }
+    }
+    // ?playtest=1 forces the badge on without a Steam playtest install — the
+    // only way to eyeball the layout from `npm run dev`.
+    if (new URLSearchParams(location.search).get('playtest') === '1') isPlaytest = true;
+    showPlaytestBadge();
     const transport = onSteam ? 'Steam' : 'PeerJS';
     const net = navigator.onLine ? 'Online' : 'Offline';
     const parts = [`v${__APP_VERSION__}`];
     if (branch) parts.push(branch);
+    if (isPlaytest) parts.push('Playtest');
     parts.push(transport, net);
     versionEl.textContent = parts.join(' · ');
     if (versionEl instanceof HTMLAnchorElement) {
@@ -599,6 +642,22 @@ function layoutTitle() {
     logo.scale.set(scale);
     logo.position.set(cx, cy);
     subtitle.position.set(cx, cy + logoHalfH + 2);
+    // Same canvas-pixel coordinates the HTML intro logo uses, so it tracks the
+    // wordmark; scaled with the logo so it never dwarfs a shrunken one.
+    const badgeFont = Math.max(20, Math.round(logoDisplayW * 0.075));
+    playtestEl.style.left = `${cx}px`;
+    playtestEl.style.fontSize = `${badgeFont}px`;
+    // Tucked into the logo's lower edge rather than under it: the menu panel
+    // starts just `gap` px below the logo, so anything there lands on the panel.
+    playtestEl.style.top = `${cy + logoHalfH - badgeFont}px`;
+}
+
+/** Reveal (or hide) the PLAYTEST wordmark once detection has resolved. */
+function showPlaytestBadge(): void {
+    playtestEl.style.display = isPlaytest && menuChromeVisible ? '' : 'none';
+    // layoutTitle reads `menu`, which stays uninitialized until after this
+    // module's top-level await — detection can resolve before that.
+    if (isPlaytest && titleReady) layoutTitle();
 }
 
 /** place the HTML intro-cover logo exactly where the Pixi menu logo sits */
@@ -738,6 +797,7 @@ menu.innerHTML = `
     </div>
 `;
 wrapper.appendChild(menu);
+titleReady = true;
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
 new ResizeObserver(() => {
@@ -814,8 +874,6 @@ const gchatSticky = gchatEl.querySelector<HTMLDivElement>('.g-sticky')!;
 const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
 const gchatInput = gchatEl.querySelector<HTMLInputElement>('.g-input')!;
 let gchatPoll: ReturnType<typeof setInterval> | null = null;
-/** false while the boot splash owns the screen (logo + bar + Feuerware only) */
-let menuChromeVisible = false;
 
 let menuGamepad: GamepadCursor | null = null;
 let menuGamepadRig: CameraRig | null = null;
@@ -826,6 +884,7 @@ function setMenuChromeVisible(visible: boolean): void {
     menu.style.display = display;
     usernameEl.style.display = display;
     versionEl.style.display = display;
+    playtestEl.style.display = visible && isPlaytest ? '' : 'none';
     suggestCornerEl.style.display = display;
     cornerActionsEl.style.display = display;
     // Door only in Electron; settings always when chrome is up.
@@ -1515,8 +1574,10 @@ if (steam.isAvailable()) {
     const steamName = await steam.getUserName();
     if (steamName) setPlayerName(steamName);
     try {
+        // Cached under its own key: overwriting the shared one every launch
+        // silently threw away whatever avatar the player had picked.
         const avatar = await steam.getAvatarDataUrl();
-        if (avatar) setAvatarDataUrl(avatar);
+        if (avatar) setSteamAvatarDataUrl(avatar);
     } catch {
         /* keep cached local avatar if Steam fetch fails (offline) */
     }
@@ -2053,6 +2114,7 @@ function finishReturnToMenu(): void {
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
     wrapper.appendChild(versionEl);
+    wrapper.appendChild(playtestEl);
     wrapper.appendChild(cornerActionsEl);
     wrapper.appendChild(suggestCornerEl);
     wrapper.appendChild(gchatEl);
@@ -2180,6 +2242,7 @@ function startGame(
     menu.remove();
     usernameEl.remove();
     versionEl.remove();
+    playtestEl.remove();
     cornerActionsEl.remove();
     suggestCornerEl.remove();
     gchatEl.remove();

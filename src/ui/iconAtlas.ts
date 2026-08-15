@@ -48,7 +48,13 @@ export function preloadIconAtlas(): Promise<void> {
     if (atlasImage && atlasPaintUrl.startsWith('data:')) return Promise.resolve();
     if (preloadPromise) return preloadPromise;
     preloadPromise = (async () => {
-        const res = await fetch(atlasUrl);
+        const res = await fetch(atlasUrl).catch((e: unknown) => {
+            // Under file:// (Electron) this is the first thing to suspect when
+            // icons look wrong — log the URL, since the path is the usual cause.
+            console.warn('[iconAtlas] fetch failed, painting from', atlasUrl, e);
+            return null;
+        });
+        if (!res) return;   // keep the plain URL: CSS can still paint from it
         if (!res.ok) throw new Error(`icon atlas fetch failed: ${res.status}`);
         const blob = await res.blob();
         atlasPaintUrl = await new Promise<string>((resolve, reject) => {
@@ -98,7 +104,7 @@ export function iconCss(id: string, fallbackId = 'ui-unknown'): string {
     const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
     const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
     return [
-        `background-image:url(${atlasPaintUrl})`,
+        `background-image:url("${atlasPaintUrl}")`,
         `background-repeat:no-repeat`,
         `background-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
         `background-position:${posX}% ${posY}%`,
@@ -114,11 +120,11 @@ export function iconMaskCss(id: string, fallbackId = 'ui-unknown'): string {
     const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
     const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
     return [
-        `-webkit-mask-image:url(${atlasPaintUrl})`,
+        `-webkit-mask-image:url("${atlasPaintUrl}")`,
         `-webkit-mask-repeat:no-repeat`,
         `-webkit-mask-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
         `-webkit-mask-position:${posX}% ${posY}%`,
-        `mask-image:url(${atlasPaintUrl})`,
+        `mask-image:url("${atlasPaintUrl}")`,
         `mask-repeat:no-repeat`,
         `mask-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
         `mask-position:${posX}% ${posY}%`,
@@ -160,7 +166,7 @@ export function applyIcon(el: HTMLElement, id: string, fallbackId = 'ui-unknown'
     const { x, y, w, h } = f.frame;
     const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
     const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
-    el.style.backgroundImage = `url(${atlasPaintUrl})`;
+    el.style.backgroundImage = `url("${atlasPaintUrl}")`;
     el.style.backgroundRepeat = 'no-repeat';
     el.style.backgroundSize = `${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`;
     el.style.backgroundPosition = `${posX}% ${posY}%`;

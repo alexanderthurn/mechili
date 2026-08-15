@@ -4,7 +4,9 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 const backendDir = resolve('backend');
-const { version: appVersion } = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
+const { version: appVersion, steamElectronBuild } = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
+/** The app id this build is *made for* — Steam launches a playtest/demo under a different one. */
+const steamAppId = Number(steamElectronBuild?.steamAppId) || 0;
 
 /** Current git branch at `vite` / `vite build` time — empty if unknown. */
 function gitBranch() {
@@ -41,6 +43,7 @@ export default defineConfig({
     define: {
         __APP_VERSION__: JSON.stringify(appVersion),
         __GIT_BRANCH__: JSON.stringify(gitBranch()),
+        __STEAM_APP_ID__: JSON.stringify(steamAppId),
     },
     plugins: [copyBackend()],
 });

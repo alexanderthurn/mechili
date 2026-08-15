@@ -265,7 +265,7 @@ const first =
 const app = document.getElementById('app');
 if (!app) throw new Error('#app missing');
 
-app.style.setProperty('--menu-bg', `url(${menuBgUrl})`);
+app.style.setProperty('--menu-bg', `url("${menuBgUrl}")`);
 
 const style = document.createElement('style');
 style.textContent = menuStyles() + hudStyles() + homepageStyles();

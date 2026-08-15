@@ -1572,6 +1572,21 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     text-decoration: none;
     z-index: 30;
 }
+/* Sits above the menu panel (z 30) — positioned from layoutTitle in canvas px.
+   font-size is set there too, so it tracks the logo's responsive width. */
+.mechili-playtest {
+    position: absolute;
+    transform: translate(-50%, 0);
+    color: ${u.brassLight};
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-indent: 0.28em;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.75);
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    z-index: 40;
+}
 .mechili-version.link {
     pointer-events: auto;
     cursor: pointer;

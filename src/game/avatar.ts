@@ -6,16 +6,38 @@
 export const AVATAR_SIZE = 184;
 /** Soft cap so localStorage stays healthy (184² webp/jpeg is usually fine). */
 export const MAX_AVATAR_DATA_URL_CHARS = 200_000;
+/** The player's own pick — wins over Steam's, and only exists if they chose one. */
 const STORAGE_KEY = 'mechili-avatar';
+/** Last avatar seen from Steam, refreshed every launch. Never a user choice. */
+const STEAM_KEY = 'mechili-avatar-steam';
 
-export function getAvatarDataUrl(): string | null {
+function readAvatar(key: string): string | null {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(key);
         if (raw && raw.startsWith('data:image/')) return raw;
     } catch {
         /* private browsing */
     }
     return null;
+}
+
+export function getAvatarDataUrl(): string | null {
+    return readAvatar(STORAGE_KEY) ?? readAvatar(STEAM_KEY);
+}
+
+/** True when the player picked their own, i.e. Steam's is being overridden. */
+export function hasCustomAvatar(): boolean {
+    return readAvatar(STORAGE_KEY) !== null;
+}
+
+/** Cache Steam's avatar without touching a custom pick. */
+export function setSteamAvatarDataUrl(dataUrl: string | null): void {
+    try {
+        if (!dataUrl) localStorage.removeItem(STEAM_KEY);
+        else if (dataUrl.length <= MAX_AVATAR_DATA_URL_CHARS) localStorage.setItem(STEAM_KEY, dataUrl);
+    } catch {
+        /* quota / private browsing */
+    }
 }
 
 /** Accept a peer/handshake avatar only if it looks like our stored data URLs. */

@@ -14,6 +14,8 @@ declare module 'steam-electron-build/native' {
         getAvatarDataUrl(): Promise<string | null>;
         /** Steam beta branch, or null when on the default/public branch */
         getCurrentBetaName(): Promise<string | null>;
+        /** App id we were launched as — a playtest/demo differs from the built-in one; 0 outside Steam */
+        getAppId(): Promise<number>;
         unlockAchievement(id: string): Promise<void>;
         getUnlockedAchievements(ids: string[]): Promise<string[]>;
         getStat(name: string): Promise<number>;
@@ -102,9 +104,23 @@ declare module 'steam-electron-build/native' {
     export function toggleFullscreen(): Promise<void>;
 
     export const storage: {
-        load(): Promise<Record<string, unknown>>;
-        save(data: Record<string, unknown>): Promise<void>;
+        /** `file` names a file in the app-data dir; default save.json */
+        load(file?: string): Promise<Record<string, unknown>>;
+        save(data: Record<string, unknown>, file?: string): Promise<void>;
     };
 
     export function openUrl(url: string): void;
+
+    /**
+     * Mirror prefix-matched localStorage keys into the cloud-synced save file.
+     * File wins at startup, memory for the rest of the session. Resolves false
+     * in a browser, where there is no save file. Await before the first read.
+     */
+    export function mirrorLocalStorage(options?: {
+        /** File in the app-data dir (default save.json) — pick one your Auto-Cloud rule matches */
+        file?: string;
+        prefix?: string;
+        exclude?: string[];
+        debounceMs?: number;
+    }): Promise<boolean>;
 }
