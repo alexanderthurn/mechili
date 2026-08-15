@@ -98,6 +98,7 @@ const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 type MirrorLocalStorage = (options?: {
     file?: string;
     prefix?: string;
+    excludePrefix?: string;
     exclude?: string[];
     debounceMs?: number;
 }) => Promise<boolean>;
@@ -329,6 +330,9 @@ if (isElectron()) {
     await mirrorLocalStorage({
         file: 'settings.sav',
         prefix: 'mechili-',
+        // Whole identity namespace, so a new mechili-user-* key cannot land in
+        // both files; the exact list stays for legacy names and the auth token.
+        excludePrefix: USER_STORAGE_PREFIX,
         exclude: [...SETTINGS_SAV_EXCLUDE],
     });
     await mirrorLocalStorage({

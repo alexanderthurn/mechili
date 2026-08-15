@@ -16,8 +16,8 @@ export function getGltfLoader(): GLTFLoader {
     if (shared) return shared;
     draco = new DRACOLoader();
     draco.setDecoderPath(DRACO_DECODER_PATH);
-    // glTF-flavored decoder build (draco_decoder.js + .wasm + wrapper)
-    draco.setDecoderConfig({ type: 'wasm' });
+    // No setDecoderConfig: it is deprecated (removed in r194) and only ever
+    // restated the default — three picks wasm wherever WebAssembly exists.
     shared = new GLTFLoader();
     shared.setDRACOLoader(draco);
     return shared;

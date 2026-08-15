@@ -124,6 +124,8 @@ declare module 'steam-electron-build/native' {
         /** File in the app-data dir (default save.json) — pick one your Auto-Cloud rule matches */
         file?: string;
         prefix?: string;
+        /** Carves out a whole namespace so a second mirror can own those keys */
+        excludePrefix?: string;
         exclude?: string[];
         debounceMs?: number;
     }): Promise<boolean>;
