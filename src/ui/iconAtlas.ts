@@ -33,6 +33,20 @@ let atlasPaintUrl = atlasUrl;
 let atlasImage: HTMLImageElement | null = null;
 let preloadPromise: Promise<void> | null = null;
 
+/**
+ * `url(...)` that survives every context we paint into.
+ *
+ * Unquoted breaks on Windows install paths — `new URL()` leaves `(` and `)`
+ * literal (`Program Files (x86)`) and those end an unquoted url token. Quoted
+ * with `"` breaks the other way, because these snippets are interpolated into
+ * `style="..."` attributes, where the first `"` closes the attribute. So:
+ * single quotes, with both quote characters percent-encoded, since a folder
+ * name may legally contain an apostrophe.
+ */
+export function cssUrl(url: string): string {
+    return `url('${url.replace(/'/g, '%27').replace(/"/g, '%22')}')`;
+}
+
 function frameKey(id: string): string {
     return id.endsWith('.png') ? id : `${id}.png`;
 }
@@ -104,7 +118,7 @@ export function iconCss(id: string, fallbackId = 'ui-unknown'): string {
     const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
     const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
     return [
-        `background-image:url("${atlasPaintUrl}")`,
+        `background-image:${cssUrl(atlasPaintUrl)}`,
         `background-repeat:no-repeat`,
         `background-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
         `background-position:${posX}% ${posY}%`,
@@ -120,11 +134,11 @@ export function iconMaskCss(id: string, fallbackId = 'ui-unknown'): string {
     const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
     const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
     return [
-        `-webkit-mask-image:url("${atlasPaintUrl}")`,
+        `-webkit-mask-image:${cssUrl(atlasPaintUrl)}`,
         `-webkit-mask-repeat:no-repeat`,
         `-webkit-mask-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
         `-webkit-mask-position:${posX}% ${posY}%`,
-        `mask-image:url("${atlasPaintUrl}")`,
+        `mask-image:${cssUrl(atlasPaintUrl)}`,
         `mask-repeat:no-repeat`,
         `mask-size:${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`,
         `mask-position:${posX}% ${posY}%`,
@@ -166,7 +180,7 @@ export function applyIcon(el: HTMLElement, id: string, fallbackId = 'ui-unknown'
     const { x, y, w, h } = f.frame;
     const posX = sheetW === w ? 0 : (x / (sheetW - w)) * 100;
     const posY = sheetH === h ? 0 : (y / (sheetH - h)) * 100;
-    el.style.backgroundImage = `url("${atlasPaintUrl}")`;
+    el.style.backgroundImage = cssUrl(atlasPaintUrl);
     el.style.backgroundRepeat = 'no-repeat';
     el.style.backgroundSize = `${(sheetW / w) * 100}% ${(sheetH / h) * 100}%`;
     el.style.backgroundPosition = `${posX}% ${posY}%`;

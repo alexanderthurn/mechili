@@ -14,7 +14,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
-import { iconHtml, applyIcon, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
+import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
 import { THEME, hudStyles } from '../theme';
@@ -2202,7 +2202,7 @@ export class Hud {
             const url = icons.get(type.id);
             const art = el.querySelector<HTMLElement>('.art');
             if (!url || !art) continue;
-            art.style.backgroundImage = `url("${url}")`;
+            art.style.backgroundImage = cssUrl(url);
         }
     }
 
@@ -2278,7 +2278,7 @@ export class Hud {
         o: { id: string; name: string; deployCost: number; affordable: boolean },
     ): string {
         const art = this.unitIcons.get(o.id);
-        const artStyle = art ? ` style="background-image:url('${art}')"` : '';
+        const artStyle = art ? ` style="background-image:${cssUrl(art)}"` : '';
         return (
             `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}">` +
             `<span class="title">${escapeAttr(o.name)}</span>` +

@@ -20,7 +20,7 @@ import { MODEL_SPECS } from '../game/unitModels';
 import { hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
-import { iconHtml, moneyHtml } from '../ui/iconAtlas';
+import { cssUrl, iconHtml, moneyHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from './modelViewer';
 import { homepageStyles } from './styles';
@@ -265,7 +265,7 @@ const first =
 const app = document.getElementById('app');
 if (!app) throw new Error('#app missing');
 
-app.style.setProperty('--menu-bg', `url("${menuBgUrl}")`);
+app.style.setProperty('--menu-bg', cssUrl(menuBgUrl));
 
 const style = document.createElement('style');
 style.textContent = menuStyles() + hudStyles() + homepageStyles();
