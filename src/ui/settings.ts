@@ -129,7 +129,6 @@ export function openSettings(parent: HTMLElement): void {
         `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head">Reset</div>` +
-        `<p class="s-hint s-reset-hint">Clears graphics, chat, and other settings. Keeps your name and avatar.</p>` +
         `<button type="button" class="s-reset" data-act="reset">Reset all settings</button>` +
         `</section>` +
         `</div>` +

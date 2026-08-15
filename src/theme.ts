@@ -1957,10 +1957,6 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     font-size: 12px;
     color: ${u.creamMuted};
 }
-.mechili-settings .s-reset-hint {
-    margin: 0 0 8px;
-    line-height: 1.35;
-}
 .mechili-settings .s-reset {
     width: 100%;
     border: 1px solid ${u.bronze};
