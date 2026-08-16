@@ -108,6 +108,13 @@ export interface Prefs {
      */
     multiplayerTransport: 'steam' | 'matchmaking' | 'lan';
     /**
+     * True once the player picks a connection themselves. Until then the boot
+     * check is free to move off an unavailable default — a stored value nobody
+     * chose is a guess, and stranding someone on "Steam" because Steam was not
+     * running at first launch is worse than quietly using what works.
+     */
+    transportChosen: boolean;
+    /**
      * One-shot flag: a touch-first device was dropped to the low preset once
      * (phones crash on desktop-grade settings). Never downgrades again, so
      * the user's own choices stick.
@@ -209,6 +216,7 @@ const DEFAULTS: Prefs = {
     // code runs, and resolveMultiplayerTransport never silently falls back, so
     // a wrong default here strands the player rather than degrading.
     multiplayerTransport: steam.isAvailable() ? 'steam' : 'matchmaking',
+    transportChosen: false,
     mobileTuned: false,
 };
 
@@ -281,6 +289,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     if (![1, 0.75, 0.5, 0.33].includes(p.renderScale)) p.renderScale = DEFAULTS.renderScale;
     if (![0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].includes(p.uiScale)) p.uiScale = DEFAULTS.uiScale;
     if (typeof p.debugOverlay !== 'boolean') p.debugOverlay = DEFAULTS.debugOverlay;
+    if (typeof p.transportChosen !== 'boolean') p.transportChosen = DEFAULTS.transportChosen;
     if (
         p.shadows !== 'off' &&
         p.shadows !== 'low' &&

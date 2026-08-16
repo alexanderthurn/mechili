@@ -46,6 +46,32 @@ export async function resolveMultiplayerTransport(
     return null;
 }
 
+/** Which transports can actually work here, right now. */
+export async function availableTransports(): Promise<MultiplayerTransport[]> {
+    const out: MultiplayerTransport[] = [];
+    if (await steamReady()) out.push('steam');
+    // Matchmaking needs the internet, but connectivity comes and goes — keep it
+    // listed and let the attempt report the failure, rather than hiding the
+    // option from someone whose wifi blinked while the dialog was open.
+    out.push('matchmaking');
+    if (await lanReady()) out.push('lan');
+    return out;
+}
+
+/**
+ * Boot-time correction: move off a default nobody chose when it cannot work.
+ * An explicit pick is never touched — that is the no-silent-fallback rule.
+ */
+export async function resolveStartupTransport(
+    pref: MultiplayerTransportPref,
+    chosen: boolean,
+): Promise<MultiplayerTransportPref | null> {
+    if (chosen) return null;
+    const available = await availableTransports();
+    if (available.includes(pref as MultiplayerTransport)) return null;
+    return available[0] ?? null;
+}
+
 export function transportLookingStatus(t: MultiplayerTransport): string {
     switch (t) {
         case 'steam':

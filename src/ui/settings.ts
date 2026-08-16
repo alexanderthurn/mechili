@@ -9,6 +9,8 @@ import {
 } from '../game/prefs';
 import { isElectron, win } from 'steam-electron-build/native';
 
+import { availableTransports } from '../game/multiplayerTransport';
+
 import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
 
 /**
@@ -55,7 +57,7 @@ export function openSettings(parent: HTMLElement): void {
         `<div class="s-section-head">Multiplayer</div>` +
         `<label class="s-row">Connection <select class="s-mp">` +
         `<option value="steam">Steam</option>` +
-        `<option value="matchmaking">Web</option>` +
+        `<option value="matchmaking">Crossplay (Web)</option>` +
         `<option value="lan">LAN</option>` +
         `</select></label>` +
         `<div class="s-hint s-mp-hint"></div>` +
@@ -179,7 +181,7 @@ export function openSettings(parent: HTMLElement): void {
 
     const mpHints: Record<Prefs['multiplayerTransport'], string> = {
         steam: 'Steam lobbies only. Needs Steam running at launch.',
-        matchmaking: 'Online rooms via PeerJS + server list. Needs internet.',
+        matchmaking: 'Play across Steam, browser and future platforms. Needs internet.',
         lan: 'Local network only (Electron). No internet required.',
     };
 
@@ -239,6 +241,18 @@ export function openSettings(parent: HTMLElement): void {
     });
     dprObserver.observe(document.documentElement);
 
+    // Drop options that cannot work on this build: a browser has neither Steam
+    // nor the LAN host, and a desktop launched without Steam never gets it back
+    // (steam.init runs once at process start). Showing them only produces dead
+    // ends. The player's own stored value is kept even if unavailable, so the
+    // hint can explain rather than silently rewriting their choice.
+    void availableTransports().then((available) => {
+        for (const option of [...mpSel.options]) {
+            const id = option.value as Prefs['multiplayerTransport'];
+            if (!available.includes(id) && id !== prefs().multiplayerTransport) option.remove();
+        }
+    });
+
     syncFromPrefs();
 
     // Window mode is owned by the main process (window-state.json), so read the
@@ -254,7 +268,10 @@ export function openSettings(parent: HTMLElement): void {
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
     global.addEventListener('change', () => updatePrefs({ globalChat: global.checked }));
     mpSel.addEventListener('change', () => {
-        updatePrefs({ multiplayerTransport: mpSel.value as Prefs['multiplayerTransport'] });
+        updatePrefs({
+            multiplayerTransport: mpSel.value as Prefs['multiplayerTransport'],
+            transportChosen: true,
+        });
         syncFromPrefs();
     });
     fontSel.addEventListener('change', () => {

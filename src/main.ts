@@ -48,6 +48,7 @@ import {
 } from './game/net-steam';
 import {
     resolveMultiplayerTransport,
+    resolveStartupTransport,
     steamReady,
     transportLookingStatus,
     transportUnavailableMessage,
@@ -60,7 +61,7 @@ import { SETTINGS_SAV_EXCLUDE, USER_STORAGE_PREFIX, migrateUserStorage } from '.
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
-import { effectiveDpr, onPrefsChange, prefs } from './game/prefs';
+import { effectiveDpr, onPrefsChange, prefs, updatePrefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
@@ -345,6 +346,16 @@ migrateUserStorage();
 // The zoom lives in the main process, so the saved preference has to be pushed
 // there on every launch — otherwise it only takes effect when someone changes it.
 if (isElectron()) void win.setUiScale(prefs().uiScale);
+
+// A default nobody picked must not strand the player: launching without Steam
+// leaves the Steam default unusable for the whole session (steam.init runs once
+// at process start), and the web build has neither Steam nor LAN. An explicit
+// choice is left alone — the transport never switches silently under someone
+// who selected it.
+void resolveStartupTransport(prefs().multiplayerTransport, prefs().transportChosen)
+    .then((next) => {
+        if (next) updatePrefs({ multiplayerTransport: next });
+    });
 
 const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
