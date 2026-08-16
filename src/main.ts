@@ -2051,6 +2051,12 @@ async function refreshRoomList(): Promise<void> {
             return;
         }
         roomListEl.className = 'm-room-list';
+        // Our own record of the match we dropped out of. Trusted ahead of the
+        // published roster because it is available immediately: after a restart
+        // the host has not yet noticed the drop, so its roster still lists us as
+        // connected and the entry would read "Watch" for a poll or two. It is
+        // also the only signal on LAN, whose UDP announce carries no roster.
+        const resumeMarker = loadStarResumeMarker();
         // room names come from the server — build via DOM, never innerHTML
         roomListEl.replaceChildren(
             ...others.map((r) => {
@@ -2064,7 +2070,9 @@ async function refreshRoomList(): Promise<void> {
                 const myDroppedSeat = r.roster?.find(
                     (s) => s.name.toLowerCase() === mine.toLowerCase() && !s.connected,
                 );
-                const resumable = r.kind === 'spectate' && !!myDroppedSeat;
+                const markedByUs =
+                    !!resumeMarker && resumeMarker.hostName.toLowerCase() === r.name.toLowerCase();
+                const resumable = (r.kind === 'spectate' && !!myDroppedSeat) || markedByUs;
                 const roomKind = resumable ? 'resume' : r.kind;
                 button.className =
                     roomKind === 'resume'

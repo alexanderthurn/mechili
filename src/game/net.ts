@@ -2105,11 +2105,18 @@ const STAR_RESUME_KEY = 'mechili-star-resume';
 export interface StarResumeMarker {
     hostName: string;
     names: { local: string; opponent: string };
+    /** epoch ms — a marker outlives the app now, so it needs a freshness bound */
+    savedAt?: number;
 }
+
+/** Beyond this a marker is treated as stale: a crash the player never came
+ *  back from should not label some later room "Resume your match". */
+const STAR_RESUME_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 export function saveStarResumeMarker(marker: StarResumeMarker): void {
     try {
-        sessionStorage.setItem(STAR_RESUME_KEY, JSON.stringify(marker));
+        marker = { ...marker, savedAt: Date.now() };
+        localStorage.setItem(STAR_RESUME_KEY, JSON.stringify(marker));
     } catch {
         /* private browsing */
     }
@@ -2117,8 +2124,16 @@ export function saveStarResumeMarker(marker: StarResumeMarker): void {
 
 export function loadStarResumeMarker(): StarResumeMarker | null {
     try {
-        const raw = sessionStorage.getItem(STAR_RESUME_KEY);
-        return raw ? (JSON.parse(raw) as StarResumeMarker) : null;
+        const raw = localStorage.getItem(STAR_RESUME_KEY);
+        if (!raw) return null;
+        const marker = JSON.parse(raw) as StarResumeMarker;
+        // localStorage, not sessionStorage: the whole point is to survive the
+        // app being killed, which is exactly when sessionStorage is discarded.
+        if (marker.savedAt && Date.now() - marker.savedAt > STAR_RESUME_MAX_AGE_MS) {
+            localStorage.removeItem(STAR_RESUME_KEY);
+            return null;
+        }
+        return marker;
     } catch {
         return null;
     }
@@ -2126,7 +2141,7 @@ export function loadStarResumeMarker(): StarResumeMarker | null {
 
 export function clearStarResumeMarker(): void {
     try {
-        sessionStorage.removeItem(STAR_RESUME_KEY);
+        localStorage.removeItem(STAR_RESUME_KEY);
     } catch {
         /* ignore */
     }

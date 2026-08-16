@@ -21,6 +21,9 @@ export const SETTINGS_SAV_EXCLUDE = [
     'mechili-avatar',
     'mechili-avatar-steam',
     'mechili-open-auth',
+    // Which match this machine dropped out of — transient and machine-specific;
+    // syncing it would offer "Resume" on a device that was never in that match.
+    'mechili-star-resume',
 ] as const;
 
 /**
