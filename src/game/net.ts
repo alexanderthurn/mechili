@@ -1593,13 +1593,16 @@ export type StarRole =
           role: 'host';
           hub: HostHub;
           mySeat: SeatId;
-          /** true for a LAN-discovered room — lets Game.startSpectatorHub()
-           *  skip registering with the public cloud matchmaking backend
-           *  (registerSpectateEndpoint), which would otherwise advertise a
-           *  LAN-only host's identity/peer id globally regardless of the
-           *  player's LAN-only intent. Undefined/false for a normal
-           *  matchmaking or Steam host. */
-          isLan?: boolean;
+          /**
+           * How this match was matched up, which decides whether it is
+           * advertised on the public cloud backend for spectators
+           * (registerSpectateEndpoint). Only a cloud-matchmaking match
+           * belongs there: publishing a LAN or Steam host advertises their
+           * identity globally regardless of the player's intent — a Steam
+           * playtest match would appear in the browser room list as
+           * "Watch <steam name>". Undefined is treated as matchmaking.
+           */
+          discovery?: 'matchmaking' | 'lan' | 'steam';
       }
     | { role: 'guest'; session: GuestSession; mySeat: SeatId };
 

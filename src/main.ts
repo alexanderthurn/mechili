@@ -2891,10 +2891,6 @@ let starHordeFlag = false;
 /** set only by the Custom Game host flow — when present, startStarMatch
  *  applies ALL of it (timers, roundCards, horde), overriding starHordeFlag */
 let starCustomConfig: CustomGameConfig | null = null;
-/** set by beginStarHost right before hosting; read by startStarMatch to tag
- *  the running Game's StarRole so it can skip registering a LAN match's
- *  spectate endpoint with the public cloud backend (see StarRole.isLan) */
-let starDiscovery: 'matchmaking' | 'lan' = 'matchmaking';
 
 /**
  * `waitForJoined`: total participants (host included) to wait for before
@@ -3078,7 +3074,6 @@ async function beginHost(opts: {
 
     starHordeFlag = horde;
     starCustomConfig = customConfig;
-    starDiscovery = transport === 'lan' ? 'lan' : 'matchmaking';
     showMenuView('session');
     setMenuBusy(true);
     setStatus(
@@ -3191,7 +3186,7 @@ function startHostedMatch(): void {
         'a',
         { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) },
         null,
-        { role: 'host', hub, mySeat: 0, isLan: transport === 'lan' },
+        { role: 'host', hub, mySeat: 0, discovery: transport },
     );
     // the room is no longer "waiting to join" — stop the lobby heartbeat
     // and tell the backend it's gone (does NOT touch `hub`/its Peer
@@ -3206,6 +3201,11 @@ function startHostedMatch(): void {
     hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
     hosting?.cleanup?.();   // web/LAN only: stop the lobby heartbeat, tell the backend
     updateSteamPresence('match');   // hub.leaveLobby() above: no longer joinable
+    // Steam's own lobby outlives the match on purpose — leaving it would run
+    // closeNetworking() and drop every P2P socket mid-game. Mark it closed
+    // instead, so a stale invite or a quick-match scan cannot drop someone into
+    // a running match only to be told the room is full.
+    if (transport === 'steam') void steamLobby.setJoinable(false);
     hosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
 }

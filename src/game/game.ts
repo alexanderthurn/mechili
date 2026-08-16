@@ -3606,7 +3606,7 @@ export class Game {
             // id to the PUBLIC cloud matchmaking backend regardless of the
             // player's LAN-only intent — LAN spectators find the match via
             // the LAN discovery mechanism, not this cloud lookup.
-            if (!(this.star?.role === 'host' && this.star.isLan)) {
+            if (this.star?.role === 'host' && (this.star.discovery ?? 'matchmaking') === 'matchmaking') {
                 this.spectateRegistration = registerSpectateEndpoint(
                     hub.peerId,
                     this.playerNames.local,
