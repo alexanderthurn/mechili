@@ -241,15 +241,16 @@ export function openSettings(parent: HTMLElement): void {
     });
     dprObserver.observe(document.documentElement);
 
-    // Drop options that cannot work on this build: a browser has neither Steam
-    // nor the LAN host, and a desktop launched without Steam never gets it back
-    // (steam.init runs once at process start). Showing them only produces dead
-    // ends. The player's own stored value is kept even if unavailable, so the
-    // hint can explain rather than silently rewriting their choice.
+    // Options that cannot work here are disabled rather than hidden: a browser
+    // has neither Steam nor the LAN host, and a desktop launched without Steam
+    // never gets it back (steam.init runs once at process start). Leaving them
+    // visible answers "where is Steam?" instead of raising it.
     void availableTransports().then((available) => {
         for (const option of [...mpSel.options]) {
             const id = option.value as Prefs['multiplayerTransport'];
-            if (!available.includes(id) && id !== prefs().multiplayerTransport) option.remove();
+            if (available.includes(id)) continue;
+            option.disabled = true;
+            if (!option.textContent?.includes('—')) option.textContent += ' — unavailable';
         }
     });
 
