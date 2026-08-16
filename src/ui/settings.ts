@@ -57,7 +57,7 @@ export function openSettings(parent: HTMLElement): void {
         `<div class="s-section-head">Multiplayer</div>` +
         `<label class="s-row">Connection <select class="s-mp">` +
         `<option value="steam">Steam</option>` +
-        `<option value="matchmaking">Crossplay (Web)</option>` +
+        `<option value="matchmaking">Crossplay</option>` +
         `<option value="lan">LAN</option>` +
         `</select></label>` +
         `<div class="s-hint s-mp-hint"></div>` +
