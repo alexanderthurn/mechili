@@ -98,8 +98,9 @@ export class DebugOverlay {
     readonly el: HTMLDivElement;
     private accumulator = 0;
     private enabled = false;
-    /** click both copies the report AND toggles this */
-    private collapsed = false;
+    /** click both copies the report AND toggles this. Starts collapsed: the full
+     *  readout covers a chunk of the board, and the one-liner already carries fps. */
+    private collapsed = true;
     /** last full report — what a click copies */
     private lastReport = '';
     /** full multi-line readout, shown while expanded */
