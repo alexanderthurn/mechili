@@ -89,7 +89,7 @@ export function openSettings(parent: HTMLElement): void {
         // Collapsed by default — the presets are the intended control. Opens by
         // itself once values diverge, so a custom setup is never hidden.
         `<details class="s-advanced">` +
-        `<summary>Individual settings</summary>` +
+        `<summary>Advanced settings</summary>` +
         `<label class="s-row">Scenery <select class="s-scenery">` +
         `<option value="ultra">Ultra</option>` +
         `<option value="high">High</option>` +
