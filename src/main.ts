@@ -342,6 +342,10 @@ migrateUserStorage();
 // there on every launch — otherwise it only takes effect when someone changes it.
 if (isElectron()) void win.setUiScale(prefs().uiScale);
 
+// Steam keeps presence for the session, so a crash mid-lobby can leave friends
+// looking at a Join button for a room that died with it. Start from clean.
+updateSteamPresence('menu');
+
 // Closing the window mid-match is giving up, not a dropped connection: say so
 // over the wire first, so the others resolve immediately instead of waiting out
 // a reconnect grace window for someone who has quit. In a lobby the same click
@@ -2158,6 +2162,7 @@ function clearMatchResumeData(): void {
 function finishReturnToMenu(): void {
     stopSinglePlayerPersist?.();
     stopSinglePlayerPersist = null;
+    updateSteamPresence('menu');
     clearMatchResumeData();
     activeGame?.destroy();
     activeGame = null;
@@ -2873,6 +2878,7 @@ function cancelHost(): void {
         console.error('cancelHost: hub.close() failed', e);
     }
     hosting = null;
+    updateSteamPresence('menu');
     starCustomConfig = null;
     startStarBtn.style.display = 'none';
     clearRosterTable();
@@ -2907,6 +2913,29 @@ let starDiscovery: 'matchmaking' | 'lan' = 'matchmaking';
  * and Custom Game keeps it for both — that screen is exactly where "start
  * now, AI takes whatever's left" belongs.
  */
+/**
+ * What the friends list shows. Only meaningful under Steam, and only a Steam
+ * lobby id gives friends a working Join Game button — a web/LAN room is not
+ * something Steam can launch into, so those advertise presence without one.
+ */
+function updateSteamPresence(
+    state: 'menu' | 'lobby' | 'match',
+    opts: { lobbyId?: string | null; players?: number } = {},
+): void {
+    if (!steam.isAvailable()) return;
+    if (state === 'menu') {
+        void steam.clearPresence();
+        return;
+    }
+    const status =
+        state === 'match'
+            ? 'In a match'
+            : opts.players
+              ? `In a lobby (${opts.players})`
+              : 'In a lobby';
+    void steam.setPresence({ status, lobbyId: opts.lobbyId ?? null, groupSize: opts.players });
+}
+
 /**
  * Lobby wiring for a hosted room: roster table, ready state, kick, AI-fill
  * countdown, auto-start and the join acceptor. Transport-agnostic — it only
@@ -3106,6 +3135,10 @@ async function beginHost(opts: {
     if (openInvite) steamLobby.openInviteDialog();
     setMenuBusy(false);
     hosting = hosted;
+    updateSteamPresence('lobby', {
+        lobbyId: transport === 'steam' ? hosted.id : null,
+        players: waitForJoined,
+    });
     wireHostedHub(hosted.hub, { hostName, waitForJoined, offerAiStart, mode, customConfig });
 }
 
@@ -3172,6 +3205,7 @@ function startHostedMatch(): void {
     // mangoo (2v2)" all listed for the same host at once).
     hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
     hosting?.cleanup?.();   // web/LAN only: stop the lobby heartbeat, tell the backend
+    updateSteamPresence('match');   // hub.leaveLobby() above: no longer joinable
     hosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
 }
@@ -3216,6 +3250,12 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
         });
 }
 
+/** The Steam lobby behind a guest session, when there is one. */
+function steamLobbyIdOf(session: GuestSession): string | null {
+    const lobbyId = (session as GuestSession & { lobbyId?: string }).lobbyId;
+    return typeof lobbyId === 'string' ? lobbyId : null;
+}
+
 /** Drive an already-connected star guest (optional first message already read via once()). */
 function bindGuestSession(session: GuestSession, first?: NetMessage): void {
     let cancelled = false;
@@ -3227,10 +3267,14 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
     };
     setMenuBusy(true);
     setStatus('Connected — waiting for the host to start…');
+    // A guest advertises the same lobby, so a third friend can join through
+    // either player rather than only through the host.
+    updateSteamPresence('lobby', { lobbyId: steamLobbyIdOf(session) });
     session.onClose = () => {
         if (started) return;
         cancelled = true;
         pending = null;
+        updateSteamPresence('menu');   // the lobby we advertised is gone
         setMenuBusy(false);
         clearRosterTable();
         clearLobbySettings();
@@ -3986,6 +4030,10 @@ menu.addEventListener('click', (e) => {
                             } else {
                                 starHordeFlag = horde;
                                 hosting = { hub: result.hub, id: result.lobbyId, transport: 'steam' };
+                                updateSteamPresence('lobby', {
+                                    lobbyId: result.lobbyId,
+                                    players: is2v2 ? 4 : 2,
+                                });
                                 wireHostedHub(result.hub, {
                                     hostName: getPlayerName(),
                                     waitForJoined: is2v2 ? 4 : 2,

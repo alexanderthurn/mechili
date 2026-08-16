@@ -22,6 +22,13 @@ declare module 'steam-electron-build/native' {
         setStat(name: string, value: number): Promise<void>;
         activateOverlay(dialog?: string): Promise<void>;
         openStore(): Promise<void>;
+        /** Electron ≥1.9: friends-list presence. A lobbyId gives friends a Join Game button. */
+        setPresence(presence: {
+            status?: string;
+            lobbyId?: string | null;
+            groupSize?: number;
+        }): Promise<boolean>;
+        clearPresence(): Promise<void>;
         quit(): Promise<void>;
     };
 
