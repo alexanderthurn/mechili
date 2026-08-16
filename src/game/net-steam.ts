@@ -533,7 +533,16 @@ export async function hostOrJoinSteamStar(
     mode: '1v1' | '2v2' = '2v2',
 ): Promise<{ role: 'host'; hub: SteamStarHub; lobbyId: string } | { role: 'guest'; session: SteamGuestSession; lobbyId: string }> {
     const openRooms = await lobby.getLobbies();
-    const open = openRooms.find((r) => r.data.mode === mode && r.memberCount < (r.memberLimit ?? initialRoster.length));
+    // Same filter the browsable room list applies: matching on mode alone let
+    // quick match connect to a lobby running another build, only to be rejected
+    // by the host's version check after the round trip.
+    const open = openRooms.find(
+        (r) =>
+            r.data.game === 'melodan' &&
+            (!r.data.version || r.data.version === String(GAME_VERSION)) &&
+            r.data.mode === mode &&
+            r.memberCount < (r.memberLimit ?? initialRoster.length),
+    );
     if (open) {
         const session = await joinSteamStarRoom(open.id);
         return { role: 'guest', session, lobbyId: open.id };
