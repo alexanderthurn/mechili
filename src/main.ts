@@ -355,13 +355,18 @@ updateSteamPresence('menu');
 // a reconnect grace window for someone who has quit. In a lobby the same click
 // means leaving it — as host that takes the room down, as guest it frees the
 // seat — which is exactly what Cancel already does.
+/** Leave whatever we are in, deliberately, before this client disappears. */
+function sayGoodbye(): void {
+    if (activeGame) activeGame.voluntaryQuit();
+    else if (isSessionBusy()) cancelMenuPending();
+}
+
 if (isElectron()) {
     void win.wantsQuitHook();
     win.onBeforeQuit(() => {
         void (async () => {
             try {
-                if (activeGame) activeGame.voluntaryQuit();
-                else if (isSessionBusy()) cancelMenuPending();
+                sayGoodbye();
                 // Sends are asynchronous (IPC for Steam, a data channel for
                 // PeerJS) — give them a moment to actually leave.
                 await new Promise((resolve) => setTimeout(resolve, 300));
@@ -371,6 +376,15 @@ if (isElectron()) {
         })();
     });
 }
+
+// Closing a tab is as deliberate as closing the window, and without a goodbye
+// the host only learns from the liveness watchdog ~10s later — long enough that
+// reopening the room URL straight away is refused as "Room is full", the seat
+// still being held for a player who has already left and come back.
+// pagehide, not beforeunload: it also fires when a tab is discarded or the page
+// is put into the back/forward cache, and it is the one the browser still runs
+// work from. Nothing can be awaited here — the send is best-effort.
+window.addEventListener('pagehide', () => sayGoodbye());
 
 // A default nobody picked must not strand the player: launching without Steam
 // leaves the Steam default unusable for the whole session (steam.init runs once
