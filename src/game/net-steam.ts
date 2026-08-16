@@ -81,9 +81,21 @@ class SteamChannel {
      */
     onClose: (() => void) | null = null;
 
+    /**
+     * Our own entry in `routes`, kept so `dispose()` can delete it ONLY
+     * while it is still the registered one. `routes` is keyed by remote
+     * steamId64 alone, and a guest redial deliberately opens a SECOND
+     * channel to the same host before the first is torn down — so the
+     * newer channel clobbers the older one's entry. Without this identity
+     * check the older channel's (later) dispose would delete the *newer*
+     * channel's route and silently mute a connection that just
+     * successfully reconnected.
+     */
+    private readonly route: (msg: NetMessage) => void;
+
     constructor(readonly remoteSteamId: string) {
         installDispatcher();
-        routes.set(remoteSteamId, (msg) => {
+        this.route = (msg) => {
             this.liveness.markSeen();
             if (msg.type === 'ping') {
                 this.send({ type: 'pong' });
@@ -92,7 +104,8 @@ class SteamChannel {
             if (msg.type === 'pong') return;
             if (this.handler) this.handler(msg);
             else this.backlog.push(msg);
-        });
+        };
+        routes.set(remoteSteamId, this.route);
         // registered before this assignment, but routes' callback only ever
         // fires asynchronously (via net.onData's IPC dispatch) — never
         // synchronously during registration — so `this.liveness` is always
@@ -127,7 +140,7 @@ class SteamChannel {
 
     dispose(): void {
         this.liveness.stop();
-        routes.delete(this.remoteSteamId);
+        if (routes.get(this.remoteSteamId) === this.route) routes.delete(this.remoteSteamId);
     }
 }
 
@@ -201,7 +214,11 @@ export class SteamGuestSession implements GuestSession {
      * we never left it) and sending starRejoin is the whole reconnection.
      *
      * Returns a fresh session so the caller's own wiring is rebuilt exactly as
-     * it is on the PeerJS path; the old channel is disposed by close().
+     * it is on the PeerJS path. THIS session is retired here (see `handoff`)
+     * rather than by the caller: on success the caller keeps the old `Game`'s
+     * star session deliberately unclosed (`destroy({ keepStarSession: true })`)
+     * — and `close()` would be wrong for it anyway, since its `lobby.leave()`
+     * would drop us straight back out of the lobby we just rejoined.
      */
     async redial(mySeat: SeatId, signal: AbortSignal, delayMs = 3000): Promise<GuestSession> {
         for (;;) {
@@ -210,6 +227,7 @@ export class SteamGuestSession implements GuestSession {
                 const room = await lobby.join(this.lobbyId);
                 if (!room) throw new Error('lobby gone');
                 const next = new SteamGuestSession(room.owner, this.lobbyId);
+                this.handoff();
                 next.send({
                     type: 'starRejoin',
                     seat: mySeat,
@@ -224,10 +242,26 @@ export class SteamGuestSession implements GuestSession {
         }
     }
 
-    close(): void {
+    /**
+     * Everything `close()` does EXCEPT leaving the lobby — for handing this
+     * session's place over to a replacement that lives in the SAME lobby.
+     * Without it the retired session keeps a lobby-chat listener polling
+     * getMembers() for the rest of the process, once more per reconnect,
+     * and its dead channel's onClose could still fire reconnect logic at a
+     * `Game` that has already been torn down and replaced.
+     *
+     * Safe to run before `close()` later does the same work again:
+     * unsubscribing twice is a no-op, and `dispose()` only drops its
+     * `routes` entry while it still owns it.
+     */
+    private handoff(): void {
         this.onClose = null;
         this.unsubscribe();
         this.channel.dispose();
+    }
+
+    close(): void {
+        this.handoff();
         void lobby.leave();
     }
 }
@@ -360,7 +394,18 @@ export class SteamStarHub implements HostHub {
                 }
                 for (const steamId64 of members) {
                     if (steamId64 === this.hostSteamId || this.pending.has(steamId64)) continue;
-                    if ([...this.bySeat.values()].some((v) => v.steamId64 === steamId64)) continue;
+                    // Only a LIVE seat blocks a fresh handshake. A suspended
+                    // seat still holds the id of the player we are waiting for,
+                    // and they come back under that same id — skipping them
+                    // here would leave them in the lobby, never handshaking,
+                    // while their own seat waits to be reclaimed.
+                    if (
+                        [...this.bySeat.values()].some(
+                            (v) => v.channel !== null && v.steamId64 === steamId64,
+                        )
+                    ) {
+                        continue;
+                    }
                     this.pending.add(steamId64);
                     void this.handleNewMember(steamId64, onJoin);
                 }
@@ -425,6 +470,24 @@ export class SteamStarHub implements HostHub {
         if (msg.version === GAME_VERSION) {
             const held = this.findDroppedSeatByName(msg.name);
             if (held !== null && this.reclaimSeat(held, channel, steamId64)) return;
+
+            // Came back after the window elapsed: the seat is AI-controlled but
+            // still carries their name, so it can be handed back with no
+            // deadline (the AI-takeover counterpart, checked after the held-seat
+            // case since such a seat has left bySeat entirely).
+            const fromAi = this.findReclaimableSeatByName(msg.name);
+            if (fromAi !== null) {
+                this.reclaimableSeats.delete(fromAi);
+                this.bySeat.set(fromAi, { steamId64, channel, buffer: [] });
+                channel.attach((m) => this.onMessage?.(fromAi, m));
+                channel.onClose = () => this.dropSeat(fromAi, channel);
+                const entry = this.roster[fromAi];
+                if (entry) this.setRosterEntry(fromAi, { ...entry, controller: 'human' });
+                this.onDebugEvent?.('star.aiReclaimAttempt', { seat: fromAi, name: msg.name, accepted: true });
+                this.onSeatReclaimedFromAi?.(fromAi);
+                this.onRosterChange?.();
+                return;
+            }
         }
 
         const result = onJoin(msg.name, msg.version, msg.avatar);
@@ -435,7 +498,7 @@ export class SteamStarHub implements HostHub {
         }
         const seat = result;
         channel.attach((m) => this.onMessage?.(seat, m));
-        channel.onClose = () => this.dropSeat(seat);
+        channel.onClose = () => this.dropSeat(seat, channel);
         this.bySeat.set(seat, { steamId64, channel, buffer: [] });
         this.onRosterChange?.();
     }
@@ -457,10 +520,30 @@ export class SteamStarHub implements HostHub {
      * for a lobby-phase drop (found live: host still showed a guest in
      * the roster table after that guest clicked Cancel).
      */
-    private dropSeat(seat: SeatId): void {
+    /**
+     * @param via the channel whose close triggered this, when there is one.
+     *  A reclaim is routinely FASTER than this host noticing the original
+     *  drop (the guest redials after ~3s, our liveness watchdog gives up
+     *  after ~10s), so the dead channel's onClose can land after the seat
+     *  already holds a healthy replacement. Without this check that late,
+     *  stale callback would dispose the live channel and suspend a player
+     *  who is right there — the worst possible time, mid-reconnect.
+     *  Omitted by the lobby-membership scan, which speaks for the seat
+     *  itself rather than for any one channel.
+     */
+    private dropSeat(seat: SeatId, via?: SteamChannel): void {
         const viewer = this.bySeat.get(seat);
-        if (!viewer) return;
-        viewer.channel?.dispose();
+        // Already suspended: the lobby-membership scan sees a player who left
+        // as absent on every update, and re-entering here would re-fire
+        // onSeatSuspended and start a second grace timer, orphaning the first.
+        // Leaving the lobby is not final during the window — a restarting
+        // client leaves it too, and coming back is the whole point.
+        if (!viewer || viewer.channel === null) return;
+        if (via !== undefined && viewer.channel !== via) {
+            via.dispose();
+            return;
+        }
+        viewer.channel.dispose();
 
         // Already handed to AI: the seat is reclaimable with no deadline, so
         // there is nothing to hold and nothing to suspend (see StarHub).
@@ -514,11 +597,20 @@ export class SteamStarHub implements HostHub {
         viewer.channel = channel;
         viewer.steamId64 = steamId64;
         channel.attach((m) => this.onMessage?.(seat, m));
-        channel.onClose = () => this.dropSeat(seat);
+        channel.onClose = () => this.dropSeat(seat, channel);
         this.onDebugEvent?.('star.seatReclaimed', { seat });
         this.onSeatReconnected?.(seat);
         this.onRosterChange?.();
         return true;
+    }
+
+    /** An AI-controlled seat still carrying its original player's name — the
+     *  takeover counterpart of findDroppedSeatByName, with no deadline. */
+    private findReclaimableSeatByName(name: string): SeatId | null {
+        for (const seat of this.reclaimableSeats) {
+            if (this.roster[seat]?.name === name) return seat;
+        }
+        return null;
     }
 
     /** A held seat whose roster name matches — the same identity check the
@@ -612,6 +704,12 @@ export class SteamStarHub implements HostHub {
     close(): void {
         this.unsubscribeLobbyUpdate?.();
         this.unsubscribeLobbyUpdate = null;
+        // A suspended seat's grace timer outlives the hub otherwise, firing
+        // onSeatDropped into a torn-down match a minute later (StarHub.close
+        // clears its own for the same reason).
+        for (const timer of this.reconnectTimers.values()) clearTimeout(timer);
+        this.reconnectTimers.clear();
+        this.reclaimableSeats.clear();
         for (const { channel } of this.bySeat.values()) channel?.dispose();
         this.bySeat.clear();
         void lobby.leave();
@@ -653,7 +751,9 @@ export async function advertiseSteamRoom(ad: {
     await lobby.mergeFullData({
         host: getPlayerName(),
         seats: ad.seats ? JSON.stringify(ad.seats) : '',
-        round: ad.round ? String(ad.round) : '',
+        // `!== undefined`, not truthiness: round 0 is a real round (the first
+        // deployment, before any battle) and would otherwise advertise blank
+        round: ad.round !== undefined ? String(ad.round) : '',
         spectate: ad.spectate ?? '',
     });
 }

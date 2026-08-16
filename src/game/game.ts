@@ -565,6 +565,9 @@ export class Game {
     private debugDumpButton: DebugDumpButton | null = null;
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
     private spectateRegistration: SpectateRegistration | null = null;
+    /** our open SpectatorHub's peer id, kept so the transport-level room ad
+     *  can be republished with fresh round/roster (see refreshRoomAd) */
+    private spectatePeerId: string | null = null;
     /** set only for a spectating client — its one connection to the host's
      *  SpectatorHub (mutually exclusive with net/star) */
     private spectateSession: SpectatorSession | null = null;
@@ -3594,6 +3597,28 @@ export class Game {
      * (e.g. offline), spectating just isn't available this match; it never
      * blocks or disrupts play, which only ever depends on `this.net`/`this.star`.
      */
+    /**
+     * Republish "this match is live, watch it here" with the CURRENT round
+     * and roster, on whichever discovery channel this match uses.
+     *
+     * The cloud backend re-reads its snapshot callback on every beat, so the
+     * web path was already self-freshening; Steam and LAN publish a one-shot
+     * record via `onLiveRoomAd`, so without an explicit republish their room
+     * entries kept advertising the round the match STARTED at and a roster
+     * from before anyone dropped. Both now update at the same moments —
+     * that "resume vs. spectate" decision reads the same in the menu no
+     * matter which transport the match is running on.
+     */
+    private refreshRoomAd(): void {
+        this.spectateRegistration?.refreshNow();
+        if (this.spectatePeerId === null) return;
+        this.onLiveRoomAd?.({
+            spectate: this.spectatePeerId,
+            round: this.round,
+            roster: this.backendRosterSnapshot(),
+        });
+    }
+
     private startSpectatorHub(): void {
         void (async () => {
             let hub: SpectatorHub;
@@ -3607,6 +3632,7 @@ export class Game {
                 return;
             }
             this.spectatorHub = hub;
+            this.spectatePeerId = hub.peerId;
             // discoverable under the same room name a "Host Room" match
             // already uses — spectators look it up the same way a joining
             // player would find the room. Skipped entirely for a LAN room:
@@ -3987,7 +4013,7 @@ export class Game {
         // let the room list reflect this seat as disconnected right away,
         // not up to HEARTBEAT_MS late — someone deciding "resume vs.
         // spectate" from the menu is trusting this to be current
-        this.spectateRegistration?.refreshNow();
+        this.refreshRoomAd();
         // a seat dropping mid-collection shrinks connectedSeats(), which can
         // be exactly the seat a sync barrier is still waiting on — recheck
         // so the barrier doesn't stall forever waiting for a hash that will
@@ -4121,7 +4147,7 @@ export class Game {
                 seq,
             });
         }
-        this.spectateRegistration?.refreshNow();
+        this.refreshRoomAd();
     }
 
     /** star host only: a reconnected seat confirmed it finished catching up
@@ -4257,7 +4283,7 @@ export class Game {
         // on knowing promptly: without this, a departed player can still see
         // a stale Resume entry for up to the next periodic heartbeat, which
         // then fails once they actually try to reclaim an AI-driven seat.
-        this.spectateRegistration?.refreshNow();
+        this.refreshRoomAd();
         // this seat was possibly the one thing this.suspended was waiting
         // on — re-check same as starSeatReady does, AND broadcast the
         // resume to every other connected seat (see resumeIfAllClear's own
@@ -4371,7 +4397,7 @@ export class Game {
         this.announceSystem(`${def.name} has taken back their seat.`, def.name);
         this.broadcastRoster();
         this.refreshCommanders();
-        this.spectateRegistration?.refreshNow();
+        this.refreshRoomAd();
     }
 
     /**
