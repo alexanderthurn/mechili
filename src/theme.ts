@@ -1,4 +1,4 @@
-import { HORDE_COLOR, teamColors } from './game/colors';
+import { HORDE_COLOR, shadeCss, teamColors } from './game/colors';
 
 /**
  * Allied blue vs Soviet red on a bright, warm RA2-style green battlefield.
@@ -4883,8 +4883,19 @@ ${hpTubeTrack(u, '.mechili-fightbar .hp-track', 'auto')}
     direction: rtl;
     border-radius: 2px 0 0 2px;
 }
-${hpTubeFill('.mechili-fightbar .fighter.player .hp-fill', `linear-gradient(180deg, #7ec4f0 0%, ${pc} 42%, #2d6a9e 100%)`)}
-${hpTubeFill('.mechili-fightbar .fighter.enemy .hp-fill', `linear-gradient(180deg, #ff8a80 0%, ${ec} 42%, #a02418 100%)`, { origin: 'right center' })}
+${/* Highlight and shadow are derived from the team colour, not hardcoded:
+      these used to be fixed blues around ${pc} and fixed reds around ${ec},
+      which only agreed on the host. A guest (side 'b') has pc=red/ec=blue, so
+      every fighter bar showed both colours at once. */ ''}
+${hpTubeFill(
+    '.mechili-fightbar .fighter.player .hp-fill',
+    `linear-gradient(180deg, ${shadeCss(teamColors.player.hex, 0.45)} 0%, ${pc} 42%, ${shadeCss(teamColors.player.hex, -0.35)} 100%)`,
+)}
+${hpTubeFill(
+    '.mechili-fightbar .fighter.enemy .hp-fill',
+    `linear-gradient(180deg, ${shadeCss(teamColors.enemy.hex, 0.45)} 0%, ${ec} 42%, ${shadeCss(teamColors.enemy.hex, -0.35)} 100%)`,
+    { origin: 'right center' },
+)}
 ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
 /* HP label rides the fill tip — inside when full, in the empty track when space allows */
 .mechili-fightbar .hp-val {

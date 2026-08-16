@@ -25,6 +25,18 @@ export const teamColors: { player: SideColor; enemy: SideColor } = {
     enemy: SIDE_COLORS[1]!,
 };
 
+/** Mix a hex colour toward white (`t > 0`) or black (`t < 0`) — for deriving a
+ *  highlight/shadow from a team colour instead of hardcoding one per side. */
+export function shadeCss(hex: number, t: number): string {
+    const target = t >= 0 ? 255 : 0;
+    const k = Math.abs(t);
+    const ch = (shift: number): number => {
+        const c = (hex >> shift) & 0xff;
+        return Math.round(c + (target - c) * k);
+    };
+    return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
+}
+
 export function assignTeamColors(side: 'a' | 'b'): void {
     teamColors.player = SIDE_COLORS[side === 'a' ? 0 : 1]!;
     teamColors.enemy = SIDE_COLORS[side === 'a' ? 1 : 0]!;

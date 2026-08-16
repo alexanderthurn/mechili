@@ -93,7 +93,7 @@ import {
     type StartCard,
 } from './cards';
 import { roundCardAlgorithmById } from './roundCardAlgorithms';
-import { assignTeamColors, teamColors } from './colors';
+import { assignTeamColors, colorForBattleTeam, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { OilDripFx } from './oilDripFx';
@@ -8631,7 +8631,7 @@ export class Game {
                         // flash + move instanced mesh into the new team's pool
                         this.particles.burst(ev.x, ev.y, ev.z, {
                             count: 22,
-                            color: ev.team === 'player' ? THEME.player : teamColors.enemy.hex,
+                            color: colorForBattleTeam(ev.team).hex,
                             speed: 8,
                             life: 0.55,
                             up: 5,
@@ -9010,7 +9010,7 @@ export class Game {
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
         placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
         const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
-        material.color.setHex(actorTeam(a) === 'player' ? THEME.valid : teamColors.enemy.hex);
+        material.color.setHex(colorForBattleTeam(actorTeam(a)).hex);
         if (minRange > 0) {
             placeRangeRing(this.battleMinRangeMesh, a.rx, a.rz, minRange + a.unit.type.collisionRadius);
         }
