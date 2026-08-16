@@ -3456,12 +3456,25 @@ async function tryAdmitSteamLobby(lobbyId: string): Promise<boolean> {
 // anywhere (menu idle, another screen) — not just while mm-invite/mm-play
 // is open, mirroring the ?room= deep-link handling further down for the
 // web build's invite-link equivalent
-onSteamJoinRequested(({ lobbySteamId }) => {
+function acceptSteamInvite(lobbySteamId: string): void {
     if (started || pending || hosting) return;
     void joinSteamLobby(lobbySteamId)
         .then((result) => runGuestPending(Promise.resolve(result.session)))
         .catch((e: unknown) => setStatus(`Could not join: ${e instanceof Error ? e.message : e}`));
-});
+}
+
+onSteamJoinRequested(({ lobbySteamId }) => acceptSteamInvite(lobbySteamId));
+
+// An invite that LAUNCHED the game arrives before this file has finished
+// starting up, so it cannot be caught by the subscription above — the runtime
+// holds it for us instead. Claiming it here is what makes "accept invite while
+// the game is closed" work, which is the only invite path Steam supports for a
+// game that is not already running.
+if (steam.isAvailable()) {
+    void steamLobby.takePendingJoin?.().then((lobbyId) => {
+        if (lobbyId) acceptSteamInvite(lobbyId);
+    });
+}
 
 /**
  * `?test2v2=4` (4 real players) or `?test2v2=2` (2 real players, AI fills

@@ -49,6 +49,8 @@ declare module 'steam-electron-build/native' {
         setJoinable(flag: boolean): Promise<boolean>;
         openInviteDialog(): Promise<void>;
         getLobbies(): Promise<SteamLobbyInfo[]>;
+        /** lobby id from a "Join Game" invite that launched the app, once (Electron ≥1.8.1) */
+        takePendingJoin(): Promise<string | null>;
         /** fires on any member joining/leaving the CURRENT lobby */
         onChatUpdate(cb: (data: { lobby: string; userChanged: string; memberStateChange: number }) => void): void;
         /** fires when the user accepts a Steam overlay/friends-list "Join Game" invite */
