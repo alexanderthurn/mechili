@@ -799,6 +799,15 @@ export interface HostHub {
      *  as resumable, the same way a mid-grace-window drop already is. */
     isReclaimable(seat: SeatId): boolean;
     close(): void;
+    /** lobby roster changed (join, leave, kick, ready) — re-render */
+    onRosterChange: (() => void) | null;
+    /** accept joiners; see StarHub.listen for the onJoin contract */
+    listen(onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string }): void;
+    /** first seat still free for a human, or null when the room is full */
+    nextOpenSeat(): SeatId | null;
+    kickSeat(seat: SeatId): void;
+    /** stop advertising the room; the hub itself stays alive for the match */
+    leaveLobby(): void;
 }
 
 /**
@@ -911,7 +920,14 @@ export class StarHub implements HostHub {
      * reclaim its (still-reserved, see dropSeat) slot after a drop — that
      * path never calls `onJoin` at all, since it isn't a new join.
      */
-    listen(onJoin: (name: string, version: number, conn: DataConnection, avatar?: string | null) => SeatId | null): void {
+    /**
+     * `onJoin` decides only *whether* and *where* a joiner sits: it returns a
+     * seat, or `{ reject }` and the hub sends starRejected and closes. The
+     * connection handle is deliberately not passed — that is what kept this
+     * signature transport-specific, and forced the menu to carry a second copy
+     * of the whole lobby wiring for Steam.
+     */
+    listen(onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string }): void {
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
                 // A connection that opens but never sends its handshake
@@ -1032,8 +1048,13 @@ export class StarHub implements HostHub {
                         this.onRosterChange?.();
                         return;
                     }
-                    const seat = onJoin(msg.name, msg.version, conn, msg.avatar);
-                    if (seat === null) return; // onJoin already sent starRejected + closed
+                    const decision = onJoin(msg.name, msg.version, msg.avatar);
+                    if (typeof decision !== 'number') {
+                        conn.send({ type: 'starRejected', reason: decision.reject });
+                        conn.close();
+                        return;
+                    }
+                    const seat = decision;
                     this.bySeat.set(seat, { conn, buffer: [], liveness: null });
                     this.wireSeatConn(seat, conn);
                     this.onRosterChange?.();

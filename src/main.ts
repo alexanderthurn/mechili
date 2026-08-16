@@ -40,8 +40,6 @@ import {
     hostSteamStarRoom,
     joinSteamLobby,
     onSteamJoinRequested,
-    type SteamGuestSession,
-    type SteamStarHub,
 } from './game/net-steam';
 import {
     resolveMultiplayerTransport,
@@ -1103,9 +1101,23 @@ const menuViews: Record<MenuViewId, HTMLElement> = {
 };
 let currentMenuView: MenuViewId = 'main';
 let statusClearTimer: ReturnType<typeof setTimeout> | null = null;
-/** Hosting handles — cleared when leaving session unexpectedly. */
-let starHosting: Awaited<ReturnType<typeof hostStarRoom>> | null = null;
-let steamStarHosting: { hub: SteamStarHub; lobbyId: string } | null = null;
+/**
+ * The room this client is hosting, if any — cleared when leaving session
+ * unexpectedly. One slot for every transport: what differs between them is
+ * only how the room was opened and how it is torn down, both captured here,
+ * so the lobby wiring below never asks which transport it is running on.
+ */
+type HostedRoom = {
+    hub: HostHub;
+    /** room name (web/LAN) or Steam lobby id — for status text and rejoin */
+    id: string;
+    transport: 'matchmaking' | 'lan' | 'steam';
+    /** web/LAN: tell the backend the room is gone. Steam lobbies need nothing. */
+    cleanup?: () => void;
+    /** LAN: stop the UDP announce. Deliberately separate from cleanup — see cancelHost. */
+    stopDiscovery?: () => void;
+};
+let hosting: HostedRoom | null = null;
 /** a cancellable in-flight connection attempt (matchmaking probe, star
  *  join/host, Steam join) — only ever cancelled or checked for busyness,
  *  never awaited on directly here */
@@ -1143,7 +1155,7 @@ function showMenuView(view: MenuViewId): void {
 
 /** True while a live host/join wait is still owned by menu chrome. */
 function isSessionBusy(): boolean {
-    return !!(pending || starHosting || steamStarHosting);
+    return !!(pending || hosting);
 }
 /** collapsed by default every time a lobby is (re)entered — see
  *  clearLobbySettings(). Persists across refresh() calls within the
@@ -1394,7 +1406,8 @@ function hostCustomGame(mode: CustomGameMode): void {
         }
         if (transport === 'steam') {
             setStatus('Opening Steam lobby…');
-            await beginSteamStarHost({
+            await beginHost({
+                transport: 'steam',
                 customConfig: cfg,
                 waitForJoined,
                 isPublic: true,
@@ -1408,7 +1421,7 @@ function hostCustomGame(mode: CustomGameMode): void {
         setStatus(
             discovery === 'lan' ? 'Opening LAN room…' : 'Opening room…',
         );
-        await beginStarHost(false, waitForJoined, cfg, buildRoster, layout, true, discovery);
+        await beginHost({ transport: discovery, horde: false, waitForJoined, customConfig: cfg, buildRoster, mode: layout, offerAiStart: true });
     })();
 }
 
@@ -2157,7 +2170,7 @@ function finishReturnToMenu(): void {
     showMenuView('main');
     pending?.cancel();
     pending = null;
-    cancelStarHost();
+    cancelHost();
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
     wrapper.appendChild(versionEl);
@@ -2807,47 +2820,38 @@ function opponentDisplayName(roster: CanonicalSeatDef[], mySeat: SeatId): string
     return roster[mySeat === 0 ? 1 : 0]?.name ?? '2v2';
 }
 
-function cancelStarHost(): void {
-    // .cleanup() alone only does lobby/heartbeat bookkeeping — deliberately
-    // NOT the hub's own Peer connection, since startStarMatch's identical
-    // cleanup() call needs the hub to survive the handoff to the running
-    // Game. Here, though, nobody is ever going to use this hub — abandoning
-    // without closing it left the peer id registered with the PeerJS
-    // broker indefinitely, so hosting again under the same username failed
-    // with "already hosting" until the whole tab was reloaded.
-    //
-    // cleanup() (sends ?action=leave, the externally-visible "room is gone"
-    // signal) runs FIRST and in its own try — previously hub.close() ran
-    // first and unguarded, so if peer.destroy() ever threw (e.g. a
-    // connection mid-negotiation), the whole function aborted right there
-    // and lobbyLeave() never fired; the room then only vanished once the
-    // backend's own 15s TTL lapsed (live-observed: host clicked Cancel,
-    // guest still saw the room in the list for ~10s, even after reload).
+function cancelHost(): void {
+    // cleanup() first, in its own try: it is the externally visible "room is
+    // gone" signal (web/LAN send ?action=leave), and running hub.close() first
+    // meant a throw from peer.destroy() aborted the whole function, leaving the
+    // room listed until the backend's 15s TTL lapsed. Steam lobbies have no
+    // cleanup — closing the hub leaves the lobby.
     try {
-        starHosting?.cleanup();
+        hosting?.cleanup?.();
     } catch (e) {
-        console.error('cancelStarHost: cleanup() failed', e);
+        console.error('cancelHost: cleanup() failed', e);
     }
-    // the real, final teardown (LAN's lan.stopHost() — deliberately NOT
-    // part of cleanup() above, see hostStarRoom's own doc comment on why:
-    // startStarMatch() reuses that same cleanup() at the point ownership
-    // passes to the running Game, and the LAN signaling server must
-    // survive that handoff for guests to be able to redial later)
+    // LAN's lan.stopHost(): deliberately NOT part of cleanup(), because
+    // startHostedMatch reuses cleanup() at the point ownership passes to the
+    // running Game, and the LAN signaling server must survive that handoff for
+    // guests to redial later. Only an abandoned room stops advertising.
     try {
-        starHosting?.stopDiscovery();
+        hosting?.stopDiscovery?.();
     } catch (e) {
-        console.error('cancelStarHost: stopDiscovery() failed', e);
+        console.error('cancelHost: stopDiscovery() failed', e);
     }
     try {
-        starHosting?.hub.close();
+        hosting?.hub.close();
     } catch (e) {
-        console.error('cancelStarHost: hub.close() failed', e);
+        console.error('cancelHost: hub.close() failed', e);
     }
-    starHosting = null;
+    hosting = null;
+    starCustomConfig = null;
     startStarBtn.style.display = 'none';
     clearRosterTable();
     clearLobbySettings();
 }
+
 
 /** set by beginStarHost's caller right before hosting; read by startStarMatch */
 let starHordeFlag = false;
@@ -2876,61 +2880,27 @@ let starDiscovery: 'matchmaking' | 'lan' = 'matchmaking';
  * and Custom Game keeps it for both — that screen is exactly where "start
  * now, AI takes whatever's left" belongs.
  */
-async function beginStarHost(
-    horde = false,
-    waitForJoined = 2,
-    customConfig: CustomGameConfig | null = null,
-    buildRoster: (hostName: string) => CanonicalSeatDef[] = initialStarRoster,
-    mode: '1v1' | '2v2' = '2v2',
-    offerAiStart = true,
-    discovery: 'matchmaking' | 'lan' = 'matchmaking',
-): Promise<void> {
-    starHordeFlag = horde;
-    starCustomConfig = customConfig;
-    starDiscovery = discovery;
-    showMenuView('session');
-    setMenuBusy(true);
-    setStatus(
-        discovery === 'lan'
-            ? mode === '1v1'
-                ? 'Opening LAN room…'
-                : 'Opening LAN 2v2 room…'
-            : mode === '1v1'
-              ? 'Opening room…'
-              : 'Opening 2v2 room…',
-    );
-    const hostName = getPlayerName();
-    // hostStarRoom() itself can't be aborted mid-flight (a real network
-    // round trip: PeerJS signaling plus an HTTP call to the matchmaking
-    // backend) — this only tracks whether Cancel was clicked WHILE it was
-    // pending, so the resolved room can be torn down immediately instead
-    // of reviving a "ghost" room the user already dismissed (starHosting
-    // was still null when cancelStarHost() ran, so it had nothing to do).
-    let cancelled = false;
-    pending?.cancel();
-    pending = {
-        cancel: () => {
-            cancelled = true;
-        },
-    };
-    let hosted: Awaited<ReturnType<typeof hostStarRoom>>;
-    try {
-        hosted = await hostStarRoom(buildRoster(hostName), setStatus, mode, discovery);
-    } catch (e) {
-        pending = null;
-        setMenuBusy(false);
-        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
-        return;
-    }
-    pending = null;
-    if (cancelled) {
-        hosted.hub.close();
-        hosted.cleanup();
-        return;
-    }
-    setMenuBusy(false);
-    starHosting = hosted;
-    const { hub } = hosted;
+/**
+ * Lobby wiring for a hosted room: roster table, ready state, kick, AI-fill
+ * countdown, auto-start and the join acceptor. Transport-agnostic — it only
+ * touches HostHub — so quick-match, which creates its own hub, shares exactly
+ * the same behaviour as beginHost.
+ */
+function wireHostedHub(
+    hub: HostHub,
+    opts: {
+        hostName: string;
+        waitForJoined?: number;
+        offerAiStart?: boolean;
+        mode?: '1v1' | '2v2';
+        customConfig?: CustomGameConfig | null;
+    },
+): void {
+    const hostName = opts.hostName;
+    const waitForJoined = opts.waitForJoined ?? 2;
+    const offerAiStart = opts.offerAiStart ?? true;
+    const mode = opts.mode ?? '2v2';
+    const customConfig = opts.customConfig ?? null;
     if (offerAiStart) {
         // shared with 2v2 (same button) since 1v1 now hosts through the
         // same star path — label it for whichever mode is actually running
@@ -2940,7 +2910,7 @@ async function beginStarHost(
         startStarBtn.style.display = '';
     }
     const refresh = () => {
-        if (!starHosting) return;
+        if (!hosting) return;
         const roster = hub.currentRoster();
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
@@ -2977,7 +2947,7 @@ async function beginStarHost(
         // to kick someone) before committing.
         if (joined >= waitForJoined && !customConfig) {
             setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Starting…`);
-            startStarMatch();
+            startHostedMatch();
             return;
         }
         if (joined >= waitForJoined && customConfig && !allReady) {
@@ -3002,21 +2972,12 @@ async function beginStarHost(
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
         refresh();
     };
-    hub.listen((name, version, conn, avatar) => {
+    hub.listen((name, version, avatar) => {
         if (version !== GAME_VERSION) {
-            conn.send({
-                type: 'starRejected',
-                reason: 'Version mismatch — both players need the same game version.',
-            });
-            conn.close();
-            return null;
+            return { reject: 'Version mismatch — both players need the same game version.' };
         }
         const seat = hub.nextOpenSeat();
-        if (seat === null) {
-            conn.send({ type: 'starRejected', reason: 'Room is full.' });
-            conn.close();
-            return null;
-        }
+        if (seat === null) return { reject: 'Room is full.' };
         hub.setRosterEntry(seat, {
             side: hub.sideOf(seat),
             controller: 'human',
@@ -3028,10 +2989,103 @@ async function beginStarHost(
     refresh();
 }
 
+/**
+ * Open a room and wire the lobby, for every transport.
+ *
+ * Only two things here are transport-specific: how the room is opened, and
+ * whether there is an invite affordance afterwards. Everything below that —
+ * roster table, ready state, AI-fill, auto-start, kick — is one implementation,
+ * because keeping two in step is what let Steam miss fixes the web path had.
+ */
+async function beginHost(opts: {
+    transport: 'matchmaking' | 'lan' | 'steam';
+    horde?: boolean;
+    waitForJoined?: number;
+    customConfig?: CustomGameConfig | null;
+    buildRoster?: (hostName: string) => CanonicalSeatDef[];
+    mode?: '1v1' | '2v2';
+    offerAiStart?: boolean;
+    /** Steam: public lobbies are discoverable by quick match, private are invite-only */
+    isPublic?: boolean;
+    /** Steam: pop the overlay invite picker once the lobby is open */
+    openInvite?: boolean;
+}): Promise<void> {
+    const transport = opts.transport;
+    const horde = opts.horde ?? false;
+    const waitForJoined = opts.waitForJoined ?? 2;
+    const customConfig = opts.customConfig ?? null;
+    const buildRoster = opts.buildRoster ?? initialStarRoster;
+    const mode = opts.mode ?? '2v2';
+    const offerAiStart = opts.offerAiStart ?? true;
+    const isPublic = opts.isPublic ?? true;
+    const openInvite = opts.openInvite ?? false;
+
+    starHordeFlag = horde;
+    starCustomConfig = customConfig;
+    starDiscovery = transport === 'lan' ? 'lan' : 'matchmaking';
+    showMenuView('session');
+    setMenuBusy(true);
+    setStatus(
+        transport === 'steam'
+            ? 'Opening Steam lobby…'
+            : transport === 'lan'
+              ? mode === '1v1'
+                  ? 'Opening LAN room…'
+                  : 'Opening LAN 2v2 room…'
+              : mode === '1v1'
+                ? 'Opening room…'
+                : 'Opening 2v2 room…',
+    );
+    const hostName = getPlayerName();
+    // Opening a room can't be aborted mid-flight (a real round trip: PeerJS
+    // signaling plus an HTTP call, or Steam's lobby create) — this only tracks
+    // whether Cancel was clicked WHILE it was pending, so the resolved room is
+    // torn down immediately instead of reviving a "ghost" room the user already
+    // dismissed (`hosting` is still null then, so cancelHost has nothing to do).
+    let cancelled = false;
+    pending?.cancel();
+    pending = {
+        cancel: () => {
+            cancelled = true;
+        },
+    };
+    let hosted: HostedRoom;
+    try {
+        if (transport === 'steam') {
+            const room = await hostSteamStarRoom(buildRoster(hostName), isPublic, mode);
+            hosted = { hub: room.hub, id: room.lobbyId, transport };
+        } else {
+            const room = await hostStarRoom(buildRoster(hostName), setStatus, mode, transport);
+            hosted = {
+                hub: room.hub,
+                id: room.roomId,
+                transport,
+                cleanup: room.cleanup,
+                stopDiscovery: room.stopDiscovery,
+            };
+        }
+    } catch (e) {
+        pending = null;
+        setMenuBusy(false);
+        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        return;
+    }
+    pending = null;
+    if (cancelled) {
+        hosted.hub.close();
+        hosted.cleanup?.();
+        return;
+    }
+    if (openInvite) steamLobby.openInviteDialog();
+    setMenuBusy(false);
+    hosting = hosted;
+    wireHostedHub(hosted.hub, { hostName, waitForJoined, offerAiStart, mode, customConfig });
+}
+
 /** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
-function startStarMatch(): void {
-    if (!starHosting) return;
-    const { hub } = starHosting;
+function startHostedMatch(): void {
+    if (!hosting) return;
+    const { hub, transport } = hosting;
     const connected = new Set(hub.connectedSeats());
     const currentRoster = hub.currentRoster();
     const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
@@ -3077,7 +3131,7 @@ function startStarMatch(): void {
         'a',
         { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) },
         null,
-        { role: 'host', hub, mySeat: 0, isLan: starDiscovery === 'lan' },
+        { role: 'host', hub, mySeat: 0, isLan: transport === 'lan' },
     );
     // the room is no longer "waiting to join" — stop the lobby heartbeat
     // and tell the backend it's gone (does NOT touch `hub`/its Peer
@@ -3090,8 +3144,8 @@ function startStarMatch(): void {
     // registers separately (repro: "mangoo" AND "mangoo (2v2)" AND "Watch
     // mangoo (2v2)" all listed for the same host at once).
     hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
-    starHosting?.cleanup();
-    starHosting = null; // ownership of `hub` passes to the running Game now
+    hosting?.cleanup?.();   // web/LAN only: stop the lobby heartbeat, tell the backend
+    hosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
 }
 
@@ -3114,7 +3168,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
                 session.close();
                 return;
             }
-            bindStarGuestSession(session);
+            bindGuestSession(session);
         })
         .catch((e: unknown) => {
             pending = null;
@@ -3136,7 +3190,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
 }
 
 /** Drive an already-connected star guest (optional first message already read via once()). */
-function bindStarGuestSession(session: StarGuestSession, first?: NetMessage): void {
+function bindGuestSession(session: GuestSession, first?: NetMessage): void {
     let cancelled = false;
     pending = {
         cancel: () => {
@@ -3315,7 +3369,7 @@ async function tryAdmitStarGuest(
             session.close();
             return false;
         }
-        bindStarGuestSession(session, first);
+        bindGuestSession(session, first);
         return true;
     } catch {
         if (cancelled) return true;
@@ -3323,294 +3377,8 @@ async function tryAdmitStarGuest(
     }
 }
 
-// ---- Steam 2v2 (parallel to beginStarHost/startStarMatch/beginStarJoin/
-// runStarPending above; own state (steamStarHosting) since a PeerJS StarHub
-// and a SteamStarHub are never both active at once) -------------------------
-
-function cancelSteamStarHost(): void {
-    steamStarHosting?.hub.close();
-    steamStarHosting = null;
-    starCustomConfig = null;
-    startStarBtn.style.display = 'none';
-    clearRosterTable();
-    clearLobbySettings();
-}
-
-/** shared setup for a freshly-created SteamStarHub, whichever call site created it */
-function wireSteamStarHub(
-    hub: SteamStarHub,
-    opts: {
-        waitForJoined?: number;
-        offerAiStart?: boolean;
-        mode?: '1v1' | '2v2';
-    } = {},
-): void {
-    const waitForJoined = opts.waitForJoined ?? 2;
-    const offerAiStart = opts.offerAiStart ?? true;
-    const mode = opts.mode ?? '2v2';
-    if (offerAiStart) {
-        startStarBtn.textContent = mode === '1v1' ? 'Start 1v1 Match' : 'Start 2v2 Match';
-        startStarBtn.style.display = '';
-    }
-    const refresh = () => {
-        if (!steamStarHosting) return;
-        const roster = hub.currentRoster();
-        const joined = hub.connectedSeats().length + 1;
-        const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
-        const connectedNames = [0, ...hub.connectedSeats()]
-            .sort((a, b) => a - b)
-            .map((i) => roster[i]?.name ?? '')
-            .join(', ');
-        renderRosterTable(
-            roster,
-            0,
-            waitForJoined,
-            starCustomConfig ? (seat) => hub.kickSeat(seat) : undefined,
-        );
-        hub.broadcast({ type: 'starRoster', roster, waitForJoined });
-        let allReady = true;
-        if (starCustomConfig) {
-            showHostLobbySettings(starCustomConfig, () => {
-                resetReadyOnSettingsChange(hub);
-                refresh();
-            });
-            hub.broadcast({ type: 'lobbySettings', config: starCustomConfig });
-            allReady = allSeatsReady(roster);
-        }
-        startStarBtn.disabled = !!starCustomConfig && !allReady;
-        // same Custom-Game-never-auto-starts rule as beginStarHost's refresh
-        // — starCustomConfig is set by beginSteamStarHost right before this
-        // hub was wired, so it's already correct by the time this runs
-        if (joined >= waitForJoined && !starCustomConfig) {
-            setStatus(`Steam lobby — ${joined}/${roster.length} joined: ${names}. Starting…`);
-            startSteamStarMatch();
-            return;
-        }
-        if (joined >= waitForJoined && starCustomConfig && !allReady) {
-            setStatus(`Steam lobby — ${joined}/${roster.length} joined. Waiting for everyone to ready up.`);
-        } else if (joined >= waitForJoined) {
-            setStatus(`Steam lobby — ${joined}/${roster.length} joined: ${names}. Ready — click Start.`);
-        } else if (offerAiStart) {
-            const modeLabel = mode === '1v1' ? '1vs1' : '2vs2';
-            const remaining = waitForJoined - joined;
-            const namesPart = joined > 1 ? `${connectedNames} - ` : '';
-            setStatus(
-                `Steam lobby ${modeLabel} - ${namesPart}waiting for ${remaining} more player${remaining === 1 ? '' : 's'}. Click Start to play vs AI`,
-            );
-        } else {
-            setStatus('Waiting for an opponent');
-        }
-    };
-    hub.onRosterChange = refresh;
-    hub.onMessage = (seat, msg) => {
-        if (msg.type !== 'lobbyReady') return;
-        const entry = hub.currentRoster()[seat];
-        if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
-        refresh();
-    };
-    hub.listen((name, version, _steamId64, avatar) => {
-        if (version !== GAME_VERSION) {
-            return { reject: 'Version mismatch — both players need the same game version.' };
-        }
-        const seat = hub.nextOpenSeat();
-        if (seat === null) return { reject: 'Room is full.' };
-        hub.setRosterEntry(seat, {
-            side: hub.sideOf(seat),
-            controller: 'human',
-            name,
-            avatar: wireAvatar(avatar) || undefined,
-        });
-        return seat;
-    });
-    refresh();
-}
-
-/** Host a Steam 2v2+ star lobby (Custom Game, or legacy Invite 2v2). */
-async function beginSteamStarHost(
-    opts:
-        | boolean
-        | {
-              horde?: boolean;
-              customConfig?: CustomGameConfig | null;
-              waitForJoined?: number;
-              isPublic?: boolean;
-              offerAiStart?: boolean;
-              openInvite?: boolean;
-              buildRoster?: (hostName: string) => CanonicalSeatDef[];
-              mode?: '1v1' | '2v2';
-          } = {},
-): Promise<void> {
-    // Legacy call site: beginSteamStarHost(horde)
-    const o = typeof opts === 'boolean' ? { horde: opts } : opts;
-    starHordeFlag = !!o.horde;
-    starCustomConfig = o.customConfig ?? null;
-    const waitForJoined = o.waitForJoined ?? 2;
-    const isPublic = o.isPublic ?? false;
-    const offerAiStart = o.offerAiStart ?? true;
-    const openInvite = o.openInvite ?? !isPublic;
-    const buildRoster = o.buildRoster ?? initialStarRoster;
-    // Layout is a property of the match, not of the transport — the web/LAN path
-    // takes the same pair of arguments (see beginStarHost).
-    const mode = o.mode ?? '2v2';
-
-    showMenuView('session');
-    setMenuBusy(true);
-    setStatus('Opening Steam lobby…');
-    // same missing-cancellation-check bug as beginStarHost, same fix: track
-    // whether Cancel was clicked while hostSteamStarRoom() was still
-    // pending (steamStarHosting is still null then, so cancelSteamStarHost
-    // has nothing to close), and tear the lobby down immediately once it
-    // resolves instead of reviving a dismissed "ghost" lobby.
-    let cancelled = false;
-    pending?.cancel();
-    pending = {
-        cancel: () => {
-            cancelled = true;
-        },
-    };
-    let hosted: { hub: SteamStarHub; lobbyId: string };
-    try {
-        hosted = await hostSteamStarRoom(buildRoster(getPlayerName()), isPublic, mode);
-    } catch (e) {
-        pending = null;
-        setMenuBusy(false);
-        starCustomConfig = null;
-        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
-        return;
-    }
-    pending = null;
-    if (cancelled) {
-        hosted.hub.close();
-        return;
-    }
-    setMenuBusy(false);
-    steamStarHosting = hosted;
-    wireSteamStarHub(hosted.hub, { waitForJoined, offerAiStart, mode });
-    if (openInvite) steamLobby.openInviteDialog();
-}
-
-/** host clicks Start: AI-fill empty seats, send each guest its own setup,
- *  launch locally — mirrors startStarMatch */
-function startSteamStarMatch(): void {
-    if (!steamStarHosting) return;
-    const { hub } = steamStarHosting;
-    const connected = new Set(hub.connectedSeats());
-    const currentRoster = hub.currentRoster();
-    const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
-        if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai' as const, name: starAiName(i, currentRoster) };
-        }
-        return s;
-    });
-    // see startStarMatch's identical fix — StarHub/SteamStarHub.nextOpenSeat()
-    // reads this hub's own roster, which must reflect the AI-fill too.
-    finalRoster.forEach((entry, seat) => hub.setRosterEntry(seat, entry));
-    const settings = settingsFromUrl();
-    delete settings.seats;
-    if (starCustomConfig) applyCustomGameConfig(settings, starCustomConfig);
-    else if (starHordeFlag) applyHordeMode(settings);
-    // 2v2 / duo only — 1v1 must keep the standard map width
-    if (finalRoster.length > 2) widenMapForDuo(settings);
-    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-    for (const seat of connected) {
-        hub.send(seat, {
-            type: 'starSetup',
-            version: GAME_VERSION,
-            seed: settings.seed,
-            settings,
-            roster: finalRoster,
-            yourSeat: seat,
-            yourSide: hub.sideOf(seat),
-        });
-    }
-    startStarBtn.style.display = 'none';
-    clearRosterTable();
-    clearLobbySettings();
-    const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
-    startGame(
-        hostSettings,
-        null,
-        'a',
-        { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) },
-        null,
-        {
-            role: 'host',
-            hub,
-            mySeat: 0,
-        },
-    );
-    hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
-    steamStarHosting = null; // ownership passes to the running Game now
-    starCustomConfig = null;
-}
-
-function bindSteamStarGuestSession(session: SteamGuestSession, first?: NetMessage): void {
-    let cancelled = false;
-    pending = {
-        cancel: () => {
-            cancelled = true;
-            session.close();
-        },
-    };
-    setMenuBusy(true);
-    setStatus('Connected — waiting for the host to start…');
-    session.onClose = () => {
-        if (started) return;
-        cancelled = true;
-        pending = null;
-        setMenuBusy(false);
-        clearRosterTable();
-        clearLobbySettings();
-        setStatus('Host closed the room.', 5000);
-    };
-    let mySeat: SeatId | null = null;
-    const handle = (msg: NetMessage): void => {
-        if (cancelled) return;
-        if (msg.type === 'starRoster') {
-            const found = msg.roster.findIndex((s) => s.name === getPlayerName());
-            if (found >= 0) mySeat = found;
-            renderRosterTable(msg.roster, mySeat ?? 1, msg.waitForJoined);
-            if (mySeat !== null) lobbyReadyCheckEl.checked = msg.roster[mySeat]?.ready ?? false;
-            setStatus('Connected — waiting for the host to start…');
-            return;
-        }
-        if (msg.type === 'lobbySettings') {
-            showGuestLobbySettings(msg.config, (ready) => session.send({ type: 'lobbyReady', ready }));
-            return;
-        }
-        pending = null;
-        setMenuBusy(false);
-        if (msg.type === 'starRejected') {
-            clearRosterTable();
-            clearLobbySettings();
-            setStatus(msg.reason, 5000);
-            session.close();
-            return;
-        }
-        if (msg.type !== 'starSetup' || msg.version !== GAME_VERSION) {
-            clearRosterTable();
-            clearLobbySettings();
-            setStatus('Version mismatch — both players need the same game version.', 5000);
-            session.close();
-            return;
-        }
-        const settings = msg.settings;
-        settings.seed = msg.seed;
-        settings.seats = localizeRoster(rosterWithWiredAvatars(msg.roster), msg.yourSide);
-        const myName = msg.roster[msg.yourSeat]?.name ?? getPlayerName();
-        clearRosterTable();
-        clearLobbySettings();
-        startGame(settings, null, msg.yourSide, { local: myName, opponent: '2v2' }, null, {
-            role: 'guest',
-            session,
-            mySeat: msg.yourSeat,
-        });
-    };
-    if (first) handle(first);
-    session.attach(handle);
-}
-
-function runSteamStarPending(p: Promise<SteamGuestSession>): void {
+/** Wait on a guest session that is still connecting, then bind it. */
+function runGuestPending(p: Promise<GuestSession>): void {
     pending?.cancel();
     let cancelled = false;
     pending = {
@@ -3625,7 +3393,7 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
             session.close();
             return;
         }
-        bindSteamStarGuestSession(session);
+        bindGuestSession(session);
     }).catch((e: unknown) => {
         pending = null;
         setMenuBusy(false);
@@ -3650,7 +3418,7 @@ async function tryAdmitSteamLobby(lobbyId: string): Promise<boolean> {
             result.session.close();
             return false;
         }
-        bindSteamStarGuestSession(result.session, first);
+        bindGuestSession(result.session, first);
         return true;
     } catch {
         return false;
@@ -3662,9 +3430,9 @@ async function tryAdmitSteamLobby(lobbyId: string): Promise<boolean> {
 // is open, mirroring the ?room= deep-link handling further down for the
 // web build's invite-link equivalent
 onSteamJoinRequested(({ lobbySteamId }) => {
-    if (started || pending || steamStarHosting) return;
+    if (started || pending || hosting) return;
     void joinSteamLobby(lobbySteamId)
-        .then((result) => runSteamStarPending(Promise.resolve(result.session)))
+        .then((result) => runGuestPending(Promise.resolve(result.session)))
         .catch((e: unknown) => setStatus(`Could not join: ${e instanceof Error ? e.message : e}`));
 });
 
@@ -3790,7 +3558,8 @@ async function hostQuickMatch(
     const offerAiStart = opts.hostOfferAiStart ?? false;
 
     if (transport === 'steam') {
-        await beginSteamStarHost({
+        await beginHost({
+                transport: 'steam',
             horde,
             waitForJoined,
             isPublic: true,
@@ -3802,7 +3571,7 @@ async function hostQuickMatch(
         return;
     }
     const discovery = transport === 'lan' ? 'lan' : 'matchmaking';
-    await beginStarHost(horde, waitForJoined, null, roster, mode, offerAiStart, discovery);
+    await beginHost({ transport: discovery, horde, waitForJoined, customConfig: null, buildRoster: roster, mode, offerAiStart });
 }
 
 /**
@@ -3929,8 +3698,7 @@ function startSpectateGame(hostName: string): void {
 function cancelMenuPending(): void {
     pending?.cancel();
     pending = null;
-    cancelStarHost();
-    cancelSteamStarHost();
+    cancelHost();
     setMenuBusy(false);
     showMenuView('main');
 }
@@ -3960,8 +3728,7 @@ function closeMenuSubPanelOnEscape(): boolean {
     // Any non-main submenu: back out to the root menu.
     if (currentMenuView !== 'main') {
         pending = null;
-        cancelStarHost();
-        cancelSteamStarHost();
+        cancelHost();
         setMenuBusy(false);
         showMenuView('main');
         return true;
@@ -4100,15 +3867,14 @@ menu.addEventListener('click', (e) => {
         case 'mms-back':
             pending?.cancel();
             pending = null;
-            cancelStarHost();
+            cancelHost();
             setMenuBusy(false);
             showMenuView('main');
             break;
         case 'mm-back':
             pending?.cancel();
             pending = null;
-            cancelStarHost();
-            cancelSteamStarHost();
+            cancelHost();
             setMenuBusy(false);
             showMenuView('main');
             break;
@@ -4124,7 +3890,8 @@ menu.addEventListener('click', (e) => {
                     mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
                     mmLinkEl.style.display = '';
                     setStatus(transportLookingStatus('steam'));
-                    void beginSteamStarHost({
+                    void beginHost({
+                        transport: 'steam',
                         horde,
                         waitForJoined: team === '2v2' ? 4 : 2,
                         isPublic: false,
@@ -4140,8 +3907,8 @@ menu.addEventListener('click', (e) => {
                     mmLinkEl.textContent = 'Your room is advertised on the local network. Friends: Settings → Multiplayer → LAN, then Matchmaking.';
                     mmLinkEl.style.display = '';
                     setStatus(transportLookingStatus('lan'));
-                    if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'lan');
-                    else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'lan');
+                    if (team === '2v2') void beginHost({ transport: 'lan', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
+                    else void beginHost({ transport: 'lan', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initial1v1Roster, mode: '1v1', offerAiStart: false });
                     return;
                 }
                 if (transport !== 'matchmaking') {
@@ -4156,8 +3923,8 @@ menu.addEventListener('click', (e) => {
                 mmLinkEl.textContent = `Send this to your friend: ${link}`;
                 mmLinkEl.style.display = '';
                 setStatus(transportLookingStatus('matchmaking'));
-                if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'matchmaking');
-                else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'matchmaking');
+                if (team === '2v2') void beginHost({ transport: 'matchmaking', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
+                else void beginHost({ transport: 'matchmaking', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initial1v1Roster, mode: '1v1', offerAiStart: false });
             })();
             break;
         }
@@ -4175,11 +3942,12 @@ menu.addEventListener('click', (e) => {
                         const roster = is2v2 ? initialStarRoster : initial1v1Roster;
                         void hostOrJoinSteamStar(roster(getPlayerName()), is2v2 ? '2v2' : '1v1').then((result) => {
                             if (result.role === 'guest') {
-                                runSteamStarPending(Promise.resolve(result.session));
+                                runGuestPending(Promise.resolve(result.session));
                             } else {
                                 starHordeFlag = horde;
-                                steamStarHosting = { hub: result.hub, lobbyId: result.lobbyId };
-                                wireSteamStarHub(result.hub, {
+                                hosting = { hub: result.hub, id: result.lobbyId, transport: 'steam' };
+                                wireHostedHub(result.hub, {
+                                    hostName: getPlayerName(),
                                     waitForJoined: is2v2 ? 4 : 2,
                                     offerAiStart: false,
                                     mode: is2v2 ? '2v2' : '1v1',
@@ -4205,8 +3973,8 @@ menu.addEventListener('click', (e) => {
                             });
                             return;
                         }
-                        if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'lan');
-                        else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'lan');
+                        if (team === '2v2') void beginHost({ transport: 'lan', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
+                        else void beginHost({ transport: 'lan', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initial1v1Roster, mode: '1v1', offerAiStart: false });
                     } catch (e) {
                         setStatus(`LAN failed: ${e instanceof Error ? e.message : e}`);
                         mmModeEl.querySelectorAll<HTMLInputElement>('input').forEach((i) => (i.disabled = false));
@@ -4229,8 +3997,8 @@ menu.addEventListener('click', (e) => {
                     const mine = getPlayerName().toLowerCase();
                     const open = rooms.find((r) => r.mode === team && r.name.toLowerCase() !== mine);
                     if (open) beginStarJoin(open.name, null);
-                    else if (team === '2v2') void beginStarHost(horde, 2, null, initialStarRoster, '2v2', true, 'matchmaking');
-                    else void beginStarHost(horde, 2, null, initial1v1Roster, '1v1', false, 'matchmaking');
+                    else if (team === '2v2') void beginHost({ transport: 'matchmaking', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
+                    else void beginHost({ transport: 'matchmaking', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initial1v1Roster, mode: '1v1', offerAiStart: false });
                 });
             })();
             break;
@@ -4254,8 +4022,7 @@ menu.addEventListener('click', (e) => {
             hostCustomGame('2v2ai');
             break;
         case 'startstar':
-            if (steamStarHosting) startSteamStarMatch();
-            else startStarMatch();
+            startHostedMatch();
             break;
     }
 });
