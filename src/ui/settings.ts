@@ -121,10 +121,13 @@ export function openSettings(parent: HTMLElement): void {
         // already applies display scaling there.
         (isElectron()
             ? `<label class="s-row">UI size <select class="s-uiscale">` +
-              `<option value="0.75">Smaller (75%)</option>` +
-              `<option value="1">Normal (100%)</option>` +
-              `<option value="1.25">Larger (125%)</option>` +
-              `<option value="1.5">Largest (150%)</option>` +
+              `<option value="0.25">25%</option>` +
+              `<option value="0.5">50%</option>` +
+              `<option value="0.75">75%</option>` +
+              `<option value="1">100% (normal)</option>` +
+              `<option value="1.25">125%</option>` +
+              `<option value="1.5">150%</option>` +
+              `<option value="2">200%</option>` +
               `</select> <span class="s-hint">menus &amp; HUD only</span></label>`
             : '') +
         `<label class="s-row">Shadows <select class="s-shadows">` +

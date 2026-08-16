@@ -74,7 +74,7 @@ export interface Prefs {
      */
     renderScale: 1 | 0.75 | 0.5 | 0.33;
     /** HTML UI zoom multiplier on top of the automatic high-DPI factor (Electron only). */
-    uiScale: 0.75 | 1 | 1.25 | 1.5;
+    uiScale: 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2;
     /**
      * Sun shadow quality (visual only).
      * - off: no shadows
@@ -276,7 +276,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     }
     delete (p as Prefs & { dprCap?: number }).dprCap;
     if (![1, 0.75, 0.5, 0.33].includes(p.renderScale)) p.renderScale = DEFAULTS.renderScale;
-    if (![0.75, 1, 1.25, 1.5].includes(p.uiScale)) p.uiScale = DEFAULTS.uiScale;
+    if (![0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].includes(p.uiScale)) p.uiScale = DEFAULTS.uiScale;
     if (
         p.shadows !== 'off' &&
         p.shadows !== 'low' &&
