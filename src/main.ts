@@ -3644,7 +3644,15 @@ async function listRoomAds(transport: MultiplayerTransport, waitMs = 900): Promi
                     round: r.data.round ? Number(r.data.round) : undefined,
                     seats: parseAdSeats(r.data.seats),
                     spectate: r.data.spectate || undefined,
-                    hasOpenSeat: r.memberCount < limit,
+                    // A round is only ever advertised once the match itself
+                    // starts, so this is "still in the lobby AND has room" —
+                    // the same rule LAN applies. Membership alone was not
+                    // enough: a running match whose player dropped frees a
+                    // lobby slot while its SEAT stays held for the reconnect,
+                    // so the room offered a Join that the host could only
+                    // answer with "Room is full". Watch is unaffected — it
+                    // keys off `spectate`, not this.
+                    hasOpenSeat: r.memberCount < limit && !r.data.round,
                     join: { transport: 'steam' as const, lobbyId: r.id },
                 };
             })
