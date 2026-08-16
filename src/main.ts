@@ -37,13 +37,10 @@ import {
 import * as sebNative from 'steam-electron-build/native';
 import {
     hostOrJoinSteamStar,
-    hostSteamRoom,
     hostSteamStarRoom,
     joinSteamLobby,
     onSteamJoinRequested,
-    quickSteamMatch,
     type SteamGuestSession,
-    type SteamSession,
     type SteamStarHub,
 } from './game/net-steam';
 import {
@@ -1397,15 +1394,6 @@ function hostCustomGame(mode: CustomGameMode): void {
         }
         if (transport === 'steam') {
             setStatus('Opening Steam lobby…');
-            if (cfg.mode === '1v1') {
-                // Steam 1v1 uses the peer session (same wire as Matchmaking host),
-                // with Custom Game pace/horde/round-card options applied on setup.
-                const hosted = hostSteamRoom(true);
-                pending = hosted;
-                setStatus('Steam lobby open — waiting for a player…');
-                runSteamPending(hosted.session, 'host', (s) => applyCustomGameConfig(s, cfg));
-                return;
-            }
             await beginSteamStarHost({
                 customConfig: cfg,
                 waitForJoined,
@@ -2772,97 +2760,6 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
     location.href = new URL('backend/replays.html', location.href).href;
 }
 
-// ---- Steam 1v1 (PeerJS's NetSession has no equivalent on Steam, so this
-// is its own small orchestration rather than a shared function — see
-// net-steam.ts) --------------------------------------------------------
-
-const STEAM_HANDSHAKE_TIMEOUT_MS = 20_000;
-
-async function beginSteamNetGame(
-    session: SteamSession,
-    role: 'host' | 'guest',
-    applyMode?: (settings: GameSettings) => void,
-): Promise<void> {
-    const localName = getPlayerName();
-    const localAvatar = getAvatarDataUrl();
-    if (role === 'guest') {
-        session.send({ type: 'hello', name: localName, avatar: localAvatar });
-        setStatus('Receiving match setup…');
-        const msg = await Promise.race([
-            session.once(),
-            new Promise<NetMessage>((_, reject) =>
-                setTimeout(
-                    () => reject(new Error('Host did not start the match')),
-                    STEAM_HANDSHAKE_TIMEOUT_MS,
-                ),
-            ),
-        ]);
-        if (msg.type !== 'setup' || msg.version !== GAME_VERSION) {
-            setStatus('Version mismatch — both players need the same game version.');
-            session.close();
-            return;
-        }
-        const settings = msg.settings;
-        settings.seed = msg.seed;
-        settings.seats = localizeRoster(
-            canonicalClassicSeats(
-                msg.hostName,
-                localName,
-                wireAvatar(msg.hostAvatar),
-                wireAvatar(msg.guestAvatar) ?? localAvatar,
-            ),
-            'b',
-        );
-        startGame(settings, session, 'b', { local: localName, opponent: msg.hostName });
-        return;
-    }
-    const helloMsg = await Promise.race([
-        session.once(),
-        new Promise<NetMessage>((_, reject) =>
-            setTimeout(() => reject(new Error('Opponent did not respond')), STEAM_HANDSHAKE_TIMEOUT_MS),
-        ),
-    ]);
-    if (helloMsg.type !== 'hello') throw new Error('Unexpected handshake');
-    const guestName = helloMsg.name;
-    const guestAvatar = wireAvatar(helloMsg.avatar);
-    const settings = settingsFromUrl();
-    applyMode?.(settings);
-    delete settings.seats;
-    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-    settings.seats = localizeRoster(
-        canonicalClassicSeats(localName, guestName, localAvatar, guestAvatar),
-        'a',
-    );
-    session.send({
-        type: 'setup',
-        version: GAME_VERSION,
-        seed: settings.seed,
-        settings: { ...settings, seats: undefined },
-        hostName: localName,
-        guestName,
-        hostAvatar: localAvatar,
-        guestAvatar,
-    });
-    startGame(settings, session, 'a', { local: localName, opponent: guestName });
-}
-
-function runSteamPending(
-    p: Promise<SteamSession>,
-    role: 'host' | 'guest',
-    applyMode?: (settings: GameSettings) => void,
-): void {
-    showMenuView('session');
-    setMenuBusy(true);
-    if (role === 'host') setStatus('Waiting for an opponent…');
-    p.then((session) => {
-        setMenuBusy(false);
-        void beginSteamNetGame(session, role, applyMode);
-    }).catch((e: unknown) => {
-        setMenuBusy(false);
-        setStatus(`Could not connect: ${e instanceof Error ? e.message : e}`);
-    });
-}
-
 // ---- online play (star topology — every mode, 1v1 included) -----------
 
 /** host is always seat 0, side 'a'; the other 3 slots start open for joiners */
@@ -3740,18 +3637,9 @@ function runSteamStarPending(p: Promise<SteamGuestSession>): void {
 /** Steam lobby join + handshake; false = full / dead host / reject (try next). */
 async function tryAdmitSteamLobby(lobbyId: string): Promise<boolean> {
     try {
+        // Layout no longer changes the join: 1v1 is a two-seat star lobby, so
+        // every guest waits for the same starSetup/starRejected handshake.
         const result = await joinSteamLobby(lobbyId);
-        if (result.mode === '1v1') {
-            // Await handshake so a stale lobby (no host answering) falls through
-            // to the next candidate / host path instead of hanging on "Receiving…".
-            try {
-                await beginSteamNetGame(result.session, 'guest', applyHordeMode);
-                return true;
-            } catch {
-                result.session.close();
-                return false;
-            }
-        }
         const first = await Promise.race([
             result.session.once(),
             new Promise<NetMessage>((_, reject) =>
@@ -3776,10 +3664,7 @@ async function tryAdmitSteamLobby(lobbyId: string): Promise<boolean> {
 onSteamJoinRequested(({ lobbySteamId }) => {
     if (started || pending || steamStarHosting) return;
     void joinSteamLobby(lobbySteamId)
-        .then((result) => {
-            if (result.mode === '2v2') runSteamStarPending(Promise.resolve(result.session));
-            else runSteamPending(Promise.resolve(result.session), 'guest');
-        })
+        .then((result) => runSteamStarPending(Promise.resolve(result.session)))
         .catch((e: unknown) => setStatus(`Could not join: ${e instanceof Error ? e.message : e}`));
 });
 
@@ -3905,20 +3790,15 @@ async function hostQuickMatch(
     const offerAiStart = opts.hostOfferAiStart ?? false;
 
     if (transport === 'steam') {
-        if (mode === '2v2') {
-            await beginSteamStarHost({
-                horde,
-                waitForJoined,
-                isPublic: true,
-                offerAiStart,
-                openInvite: false,
-                buildRoster: roster,
-            });
-            return;
-        }
-        const hosted = hostSteamRoom(true);
-        pending = hosted;
-        runSteamPending(hosted.session, 'host', horde ? applyHordeMode : undefined);
+        await beginSteamStarHost({
+            horde,
+            waitForJoined,
+            isPublic: true,
+            offerAiStart,
+            openInvite: false,
+            buildRoster: roster,
+            mode,
+        });
         return;
     }
     const discovery = transport === 'lan' ? 'lan' : 'matchmaking';
@@ -4244,12 +4124,15 @@ menu.addEventListener('click', (e) => {
                     mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
                     mmLinkEl.style.display = '';
                     setStatus(transportLookingStatus('steam'));
-                    if (team === '2v2') void beginSteamStarHost(horde);
-                    else {
-                        const hosted = hostSteamRoom(false, () => steamLobby.openInviteDialog());
-                        pending = hosted;
-                        runSteamPending(hosted.session, 'host', horde ? applyHordeMode : undefined);
-                    }
+                    void beginSteamStarHost({
+                        horde,
+                        waitForJoined: team === '2v2' ? 4 : 2,
+                        isPublic: false,
+                        offerAiStart: false,
+                        openInvite: true,
+                        buildRoster: team === '2v2' ? initialStarRoster : initial1v1Roster,
+                        mode: team === '2v2' ? '2v2' : '1v1',
+                    });
                     return;
                 }
                 if (transport === 'lan') {
@@ -4287,20 +4170,22 @@ menu.addEventListener('click', (e) => {
                 const transport = await resolveMultiplayerTransport();
                 if (transport === 'steam') {
                     setStatus(transportLookingStatus('steam'));
-                    if (team === '2v2') {
-                        void hostOrJoinSteamStar(initialStarRoster(getPlayerName())).then((result) => {
+                    {
+                        const is2v2 = team === '2v2';
+                        const roster = is2v2 ? initialStarRoster : initial1v1Roster;
+                        void hostOrJoinSteamStar(roster(getPlayerName()), is2v2 ? '2v2' : '1v1').then((result) => {
                             if (result.role === 'guest') {
                                 runSteamStarPending(Promise.resolve(result.session));
                             } else {
                                 starHordeFlag = horde;
                                 steamStarHosting = { hub: result.hub, lobbyId: result.lobbyId };
-                                wireSteamStarHub(result.hub);
+                                wireSteamStarHub(result.hub, {
+                                    waitForJoined: is2v2 ? 4 : 2,
+                                    offerAiStart: false,
+                                    mode: is2v2 ? '2v2' : '1v1',
+                                });
                             }
                         });
-                    } else {
-                        void quickSteamMatch().then(({ session, role }) =>
-                            runSteamPending(Promise.resolve(session), role, horde ? applyHordeMode : undefined),
-                        );
                     }
                     return;
                 }

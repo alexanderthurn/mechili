@@ -150,137 +150,9 @@ const onLobbyChatUpdate = multiplexed(lobby.onChatUpdate);
 /** fires when the user accepts a Steam overlay/friends-list "Join Game" invite */
 export const onSteamJoinRequested = multiplexed(lobby.onJoinRequested);
 
-// ── 1v1 ───────────────────────────────────────────────────────────────────────
+// ── star rooms (every layout, 1v1 included) ───────────────────────────────────
 
-/** 1v1 over Steam: a 2-member lobby + P2P to the one other member. */
-export class SteamSession implements Session {
-    onClose: (() => void) | null = null;
-    private readonly channel: SteamChannel;
-    private readonly unsubscribe: () => void;
-
-    constructor(
-        readonly remoteSteamId: string,
-        readonly lobbyId: string,
-    ) {
-        this.channel = new SteamChannel(remoteSteamId);
-        // The watchdog (primary, see SteamChannel) and Steam's own lobby-
-        // membership signal (secondary fast path — catches a hard leave/
-        // kick Steam notices immediately, without waiting for the
-        // watchdog's timeout) can both fire for the same drop; this guard
-        // keeps a double-fire from re-invoking onClose.
-        let closed = false;
-        const fireClose = () => {
-            if (closed) return;
-            closed = true;
-            this.onClose?.();
-        };
-        this.channel.onClose = fireClose;
-        this.unsubscribe = onLobbyChatUpdate(() => {
-            void lobby.getMembers().then((members) => {
-                if (!members.includes(remoteSteamId)) fireClose();
-            });
-        });
-    }
-
-    attach(handler: (msg: NetMessage) => void): void {
-        this.channel.attach(handler);
-    }
-
-    once(): Promise<NetMessage> {
-        return this.channel.once();
-    }
-
-    send(msg: NetMessage): void {
-        this.channel.send(msg);
-    }
-
-    close(): void {
-        this.onClose = null;
-        this.unsubscribe();
-        this.channel.dispose();
-        void lobby.leave();
-    }
-}
-
-/**
- * Host a 1v1 room: opens a lobby and waits for the second member to appear.
- * `onLobbyReady` (if given) fires once the lobby itself exists — before the
- * `session` promise resolves, which only happens once a second member has
- * actually joined — so a caller wanting to show Steam's invite dialog right
- * after hosting isn't racing `lobby.create()` (calling `openInviteDialog()`
- * before that resolves is a silent no-op: `currentLobby` is still null).
- */
-export function hostSteamRoom(isPublic: boolean, onLobbyReady?: (lobbyId: string) => void): SessionPending<SteamSession> {
-    let cancelled = false;
-    let unsubscribe: (() => void) | null = null;
-    const session = (async () => {
-        const room = await lobby.create(isPublic ? 'public' : 'private', 2);
-        if (!room) throw new Error('Could not open a Steam lobby — is Steam running?');
-        // tagged even for a private (invite-only) lobby: `onSteamJoinRequested`
-        // (main.ts) needs this to tell a 1v1 invite from a 2v2 one, and
-        // joining is the only way to read a lobby's data at all (see there)
-        await lobby.mergeFullData({ mode: '1v1', game: 'melodan', version: String(GAME_VERSION) });
-        onLobbyReady?.(room.id);
-        if (cancelled) {
-            void lobby.leave();
-            throw new Error('cancelled');
-        }
-        return await new Promise<SteamSession>((resolve) => {
-            unsubscribe = onLobbyChatUpdate(() => {
-                void lobby.getMembers().then((members) => {
-                    const other = members.find((m) => m !== room.owner);
-                    if (other) {
-                        unsubscribe?.();
-                        resolve(new SteamSession(other, room.id));
-                    }
-                });
-            });
-        });
-    })();
-    return {
-        session,
-        cancel: () => {
-            cancelled = true;
-            unsubscribe?.();
-            void lobby.leave();
-        },
-    };
-}
-
-/** Join a 1v1 room by Steam lobby id (from an invite accept or a getLobbies() scan). */
-export function joinSteamRoom(lobbyId: string): SessionPending<SteamSession> {
-    let cancelled = false;
-    const session = (async () => {
-        const room = await lobby.join(lobbyId);
-        if (!room || cancelled) throw new Error(cancelled ? 'cancelled' : 'Could not join the Steam lobby.');
-        const hostSteamId = room.owner;
-        return new SteamSession(hostSteamId, lobbyId);
-    })();
-    return {
-        session,
-        cancel: () => {
-            cancelled = true;
-        },
-    };
-}
-
-/**
- * Anonymous 1v1 matching: join any open public lobby, or host one if none
- * exists. Tagged with the resulting role — unlike `hostSteamRoom`/
- * `joinSteamRoom` individually (each unambiguous by construction), this
- * convenience wrapper doesn't know in advance which one it'll end up doing,
- * and the caller (`beginSteamNetGame`'s handshake direction) needs to know.
- */
-export async function quickSteamMatch(): Promise<{ session: SteamSession; role: 'host' | 'guest' }> {
-    const openRooms = await lobby.getLobbies();
-    const open = openRooms.find((r) => r.data.mode === '1v1' && r.memberCount < (r.memberLimit ?? 2));
-    if (open) return { session: await joinSteamRoom(open.id).session, role: 'guest' };
-    return { session: await hostSteamRoom(true).session, role: 'host' };
-}
-
-// ── 2v2+ star ─────────────────────────────────────────────────────────────────
-
-/** Guest side of a star (2v2+) room over Steam — same shape as `StarGuestSession`. */
+/** Guest side of a star room over Steam — same shape as `StarGuestSession`. */
 export class SteamGuestSession implements GuestSession {
     onClose: (() => void) | null = null;
     private readonly channel: SteamChannel;
@@ -648,38 +520,35 @@ export async function joinSteamStarRoom(lobbyId: string): Promise<SteamGuestSess
 }
 
 /**
- * Accept a Steam overlay/friends-list "Join Game" invite: the lobby's mode
- * isn't knowable before joining (Steam has no way to read an unjoined
- * lobby's data through this wrapper — unlike a `getLobbies()` scan result,
- * which already carries `.data`), so this joins first and branches on the
- * `mode` tag `hostSteamRoom`/`hostSteamStarRoom` always set.
+ * Accept a Steam overlay/friends-list "Join Game" invite. Every lobby is a
+ * star lobby regardless of layout — 1v1 is just a two-seat roster — so the
+ * guest session is the same either way; `mode` is reported only because the
+ * caller may want it for status text.
  */
 export async function joinSteamLobby(
     lobbySteamId: string,
-): Promise<{ mode: '1v1'; session: SteamSession } | { mode: '2v2'; session: SteamGuestSession }> {
+): Promise<{ mode: '1v1' | '2v2'; session: SteamGuestSession }> {
     const room = await lobby.join(lobbySteamId);
     if (!room) throw new Error('Could not join the Steam lobby.');
-    if (room.data.mode === '2v2') {
-        const session = new SteamGuestSession(room.owner, room.id);
-        session.send({ type: 'starJoin', name: getPlayerName(), version: GAME_VERSION, avatar: getAvatarDataUrl() });
-        return { mode: '2v2', session };
-    }
-    return { mode: '1v1', session: new SteamSession(room.owner, room.id) };
+    const session = new SteamGuestSession(room.owner, room.id);
+    session.send({ type: 'starJoin', name: getPlayerName(), version: GAME_VERSION, avatar: getAvatarDataUrl() });
+    return { mode: room.data.mode === '1v1' ? '1v1' : '2v2', session };
 }
 
-/** anonymous 2v2 matching (the "Play" button): join any open public star
- *  lobby, or host one if none exists — mirrors main.ts's existing PHP-room
- *  discover-or-host logic for the same button. */
+/** anonymous matching (the "Play" button): join any open public star lobby of
+ *  the same layout, or host one if none exists — mirrors main.ts's existing
+ *  PHP-room discover-or-host logic for the same button. */
 export async function hostOrJoinSteamStar(
     initialRoster: CanonicalSeatDef[],
+    mode: '1v1' | '2v2' = '2v2',
 ): Promise<{ role: 'host'; hub: SteamStarHub; lobbyId: string } | { role: 'guest'; session: SteamGuestSession; lobbyId: string }> {
     const openRooms = await lobby.getLobbies();
-    const open = openRooms.find((r) => r.data.mode === '2v2' && r.memberCount < (r.memberLimit ?? initialRoster.length));
+    const open = openRooms.find((r) => r.data.mode === mode && r.memberCount < (r.memberLimit ?? initialRoster.length));
     if (open) {
         const session = await joinSteamStarRoom(open.id);
         return { role: 'guest', session, lobbyId: open.id };
     }
-    const { hub, lobbyId } = await hostSteamStarRoom(initialRoster, true);
+    const { hub, lobbyId } = await hostSteamStarRoom(initialRoster, true, mode);
     return { role: 'host', hub, lobbyId };
 }
 

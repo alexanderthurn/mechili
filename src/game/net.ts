@@ -710,9 +710,9 @@ export class NetworkOpponent implements Opponent {
  * What `Game`/`main.ts` need from a 1v1 connection during actual play and
  * its own recovery — the FULL shared surface, so `main.ts`'s reconnect
  * wiring (`wireReconnect`) never has to know or care which transport this
- * is (`NetSession`/PeerJS, `SteamSession`/Steam, or a future one) — it only
+ * is (`NetSession`/PeerJS, `SteamGuestSession`/Steam, or a future one) — it only
  * ever calls methods declared here. Naming/handshake setup still stays each
- * transport's own concern (`resumeSession`/`hostSteamRoom` etc. construct a
+ * transport's own concern (`resumeSession`/`hostSteamStarRoom` etc. construct a
  * fresh `Session` however they need to).
  */
 export interface Session {
@@ -734,7 +734,7 @@ export interface Session {
      * layer self-heals a brief drop transparently BEFORE its watchdog-
      * driven `onClose` ever fires (see net-steam.ts's own doc comment), so
      * by the time `onClose` fires there, there's nothing left worth
-     * retrying — `SteamSession` simply doesn't implement this method.
+     * retrying — the Steam sessions simply don't implement this method.
      */
     attemptRecovery?(signal: AbortSignal): Promise<Session>;
     /** identity fields behind the (PeerJS-only) cold-reload resume marker —
