@@ -299,12 +299,7 @@ export class SteamStarHub implements HostHub {
      * (acceptable for this trust model: friends playing together).
      */
     listen(
-        onJoin: (
-            name: string,
-            version: number,
-            steamId64: string,
-            avatar?: string | null,
-        ) => SeatId | { reject: string },
+        onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string },
     ): void {
         if (this.accepting) return;
         this.accepting = true;
@@ -339,12 +334,7 @@ export class SteamStarHub implements HostHub {
 
     private async handleNewMember(
         steamId64: string,
-        onJoin: (
-            name: string,
-            version: number,
-            steamId64: string,
-            avatar?: string | null,
-        ) => SeatId | { reject: string },
+        onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string },
     ): Promise<void> {
         const channel = new SteamChannel(steamId64);
         // wired before the handshake resolves — without this, a peer that
@@ -368,7 +358,7 @@ export class SteamStarHub implements HostHub {
             channel.dispose();
             return;
         }
-        const result = onJoin(msg.name, msg.version, steamId64, msg.avatar);
+        const result = onJoin(msg.name, msg.version, msg.avatar);
         if (typeof result !== 'number') {
             channel.send({ type: 'starRejected', reason: result.reject });
             channel.dispose();
