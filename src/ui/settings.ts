@@ -112,10 +112,12 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="off">Off</option>` +
         `</select> <span class="s-hint">spray &amp; fountains</span></label>` +
         `<label class="s-row">Resolution <select class="s-dpr">` +
-        `<option value="2">High</option>` +
-        `<option value="1.5">Medium</option>` +
-        `<option value="1">Low</option>` +
-        `</select> <span class="s-hint">pixel density</span></label>` +
+        `<option value="2">High (2×)</option>` +
+        `<option value="1.5">Medium (1.5×)</option>` +
+        `<option value="1">Native (1×)</option>` +
+        `<option value="0.75">Low (0.75×)</option>` +
+        `<option value="0.5">Lowest (0.5×)</option>` +
+        `</select> <span class="s-hint s-dpr-hint"></span></label>` +
         `<label class="s-row">Shadows <select class="s-shadows">` +
         `<option value="ultra">Ultra</option>` +
         `<option value="high">High</option>` +
@@ -148,6 +150,7 @@ export function openSettings(parent: HTMLElement): void {
     const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
     const blood = overlay.querySelector<HTMLSelectElement>('.s-blood')!;
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;
+    const dprHint = overlay.querySelector<HTMLElement>('.s-dpr-hint')!;
     const shadows = overlay.querySelector<HTMLSelectElement>('.s-shadows')!;
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
     const aa = overlay.querySelector<HTMLInputElement>('.s-aa')!;
@@ -174,6 +177,7 @@ export function openSettings(parent: HTMLElement): void {
         fire.value = p.fireVfx;
         blood.value = p.bloodFx;
         dpr.value = String(p.dprCap);
+        updateDprHint();
         shadows.value = p.shadows;
         dead.checked = p.renderDeadUnits;
         aa.checked = p.antialias;
@@ -189,6 +193,30 @@ export function openSettings(parent: HTMLElement): void {
         // while the player is still working in it.
         if (active === null) advanced.open = true;
     };
+
+    /**
+     * What the 3D canvas will actually render at: the renderer multiplies the
+     * canvas CSS size by effectiveDpr() = min(devicePixelRatio, cap). Shown
+     * because a multiplier means nothing without the window it applies to.
+     */
+    function updateDprHint(): void {
+        const cap = Number(dpr.value) || 1;
+        const ratio = Math.min(window.devicePixelRatio || 1, cap);
+        const w = Math.round(window.innerWidth * ratio);
+        const h = Math.round(window.innerHeight * ratio);
+        dprHint.textContent = `${w} × ${h} px`;
+    }
+
+    // Resizing the window while this is open changes the answer. Self-cleaning:
+    // the dialog is removed from the DOM rather than hidden.
+    const dprObserver = new ResizeObserver(() => {
+        if (!overlay.isConnected) {
+            dprObserver.disconnect();
+            return;
+        }
+        updateDprHint();
+    });
+    dprObserver.observe(document.documentElement);
 
     syncFromPrefs();
 

@@ -65,7 +65,7 @@ export interface Prefs {
      * Cap on `devicePixelRatio` for the WebGL canvas.
      * 2 = current default (retina), 1.5 = medium, 1 = 1:1 CSS pixels.
      */
-    dprCap: 2 | 1.5 | 1;
+    dprCap: 2 | 1.5 | 1 | 0.75 | 0.5;
     /**
      * Sun shadow quality (visual only).
      * - off: no shadows
@@ -257,7 +257,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     ) {
         p.fireVfx = DEFAULTS.fireVfx;
     }
-    if (p.dprCap !== 2 && p.dprCap !== 1.5 && p.dprCap !== 1) p.dprCap = 2;
+    if (![2, 1.5, 1, 0.75, 0.5].includes(p.dprCap)) p.dprCap = 2;
     if (
         p.shadows !== 'off' &&
         p.shadows !== 'low' &&
