@@ -112,12 +112,21 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="off">Off</option>` +
         `</select> <span class="s-hint">spray &amp; fountains</span></label>` +
         `<label class="s-row">Resolution <select class="s-dpr">` +
-        `<option value="2">High (2×)</option>` +
-        `<option value="1.5">Medium (1.5×)</option>` +
-        `<option value="1">Native (1×)</option>` +
-        `<option value="0.75">Low (0.75×)</option>` +
-        `<option value="0.5">Lowest (0.5×)</option>` +
+        `<option value="1">Native (100%)</option>` +
+        `<option value="0.75">75%</option>` +
+        `<option value="0.5">50%</option>` +
+        `<option value="0.33">33%</option>` +
         `</select> <span class="s-hint s-dpr-hint"></span></label>` +
+        // Electron only: a browser has no page zoom we may drive, and the OS
+        // already applies display scaling there.
+        (isElectron()
+            ? `<label class="s-row">UI size <select class="s-uiscale">` +
+              `<option value="0.75">Smaller (75%)</option>` +
+              `<option value="1">Normal (100%)</option>` +
+              `<option value="1.25">Larger (125%)</option>` +
+              `<option value="1.5">Largest (150%)</option>` +
+              `</select> <span class="s-hint">menus &amp; HUD only</span></label>`
+            : '') +
         `<label class="s-row">Shadows <select class="s-shadows">` +
         `<option value="ultra">Ultra</option>` +
         `<option value="high">High</option>` +
@@ -151,6 +160,7 @@ export function openSettings(parent: HTMLElement): void {
     const blood = overlay.querySelector<HTMLSelectElement>('.s-blood')!;
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;
     const dprHint = overlay.querySelector<HTMLElement>('.s-dpr-hint')!;
+    const uiScaleSel = overlay.querySelector<HTMLSelectElement>('.s-uiscale');
     const shadows = overlay.querySelector<HTMLSelectElement>('.s-shadows')!;
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
     const aa = overlay.querySelector<HTMLInputElement>('.s-aa')!;
@@ -176,7 +186,8 @@ export function openSettings(parent: HTMLElement): void {
         ground.value = p.groundEffects;
         fire.value = p.fireVfx;
         blood.value = p.bloodFx;
-        dpr.value = String(p.dprCap);
+        dpr.value = String(p.renderScale);
+        if (uiScaleSel) uiScaleSel.value = String(p.uiScale);
         updateDprHint();
         shadows.value = p.shadows;
         dead.checked = p.renderDeadUnits;
@@ -200,8 +211,8 @@ export function openSettings(parent: HTMLElement): void {
      * because a multiplier means nothing without the window it applies to.
      */
     function updateDprHint(): void {
-        const cap = Number(dpr.value) || 1;
-        const ratio = Math.min(window.devicePixelRatio || 1, cap);
+        const fraction = Number(dpr.value) || 1;
+        const ratio = (window.devicePixelRatio || 1) * fraction;
         const w = Math.round(window.innerWidth * ratio);
         const h = Math.round(window.innerHeight * ratio);
         dprHint.textContent = `${w} × ${h} px`;
@@ -259,7 +270,13 @@ export function openSettings(parent: HTMLElement): void {
         syncFromPrefs();
     });
     dpr.addEventListener('change', () => {
-        updatePrefs({ dprCap: Number(dpr.value) as Prefs['dprCap'] });
+        updatePrefs({ renderScale: Number(dpr.value) as Prefs['renderScale'] });
+        syncFromPrefs();
+    });
+    uiScaleSel?.addEventListener('change', () => {
+        const factor = Number(uiScaleSel.value) as Prefs['uiScale'];
+        updatePrefs({ uiScale: factor });
+        void win.setUiScale(factor);
         syncFromPrefs();
     });
     shadows.addEventListener('change', () => {

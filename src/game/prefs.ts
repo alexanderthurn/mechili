@@ -65,7 +65,16 @@ export interface Prefs {
      * Cap on `devicePixelRatio` for the WebGL canvas.
      * 2 = current default (retina), 1.5 = medium, 1 = 1:1 CSS pixels.
      */
-    dprCap: 2 | 1.5 | 1 | 0.75 | 0.5;
+    /**
+     * 3D/Pixi render resolution as a fraction of the display's own pixels:
+     * effectiveDpr = devicePixelRatio × renderScale. A fraction rather than a
+     * devicePixelRatio cap so it means the same thing on every monitor, and so
+     * the UI-size zoom cannot change it (zoom moves devicePixelRatio and the CSS
+     * viewport in opposite directions, which cancels out here but not for a cap).
+     */
+    renderScale: 1 | 0.75 | 0.5 | 0.33;
+    /** HTML UI zoom multiplier on top of the automatic high-DPI factor (Electron only). */
+    uiScale: 0.75 | 1 | 1.25 | 1.5;
     /**
      * Sun shadow quality (visual only).
      * - off: no shadows
@@ -114,7 +123,7 @@ export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
 
 export type GraphicsPresetValues = Pick<
     Prefs,
-    'scenery' | 'groundEffects' | 'fireVfx' | 'bloodFx' | 'dprCap' | 'shadows' | 'renderDeadUnits' | 'antialias'
+    'scenery' | 'groundEffects' | 'fireVfx' | 'bloodFx' | 'renderScale' | 'shadows' | 'renderDeadUnits' | 'antialias'
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
@@ -123,7 +132,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'low',
         fireVfx: 'low',
         bloodFx: 'low',
-        dprCap: 1,
+        renderScale: 0.5,
         shadows: 'low',
         renderDeadUnits: false,
         antialias: false,
@@ -133,7 +142,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'medium',
         fireVfx: 'medium',
         bloodFx: 'medium',
-        dprCap: 1.5,
+        renderScale: 0.75,
         shadows: 'medium',
         renderDeadUnits: false,
         antialias: false,
@@ -143,7 +152,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'high',
         fireVfx: 'medium',
         bloodFx: 'high',
-        dprCap: 2,
+        renderScale: 1,
         shadows: 'high',
         renderDeadUnits: true,
         antialias: true,
@@ -153,7 +162,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'high',
         fireVfx: 'high',
         bloodFx: 'ultra',
-        dprCap: 2,
+        renderScale: 1,
         shadows: 'ultra',
         renderDeadUnits: true,
         antialias: true,
@@ -169,7 +178,7 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
             p.groundEffects === v.groundEffects &&
             p.fireVfx === v.fireVfx &&
             p.bloodFx === v.bloodFx &&
-            p.dprCap === v.dprCap &&
+            p.renderScale === v.renderScale &&
             p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits &&
             p.antialias === v.antialias
@@ -191,6 +200,7 @@ const DEFAULTS: Prefs = {
     ...GRAPHICS_PRESETS.high,
     controlScheme: 'auto',
     uiFont: 'marcellus',
+    uiScale: 1,
     // Steam builds default to Steam lobbies, the browser to the web backend.
     // Read once at load: the preload defines window.steam before any renderer
     // code runs, and resolveMultiplayerTransport never silently falls back, so
@@ -257,7 +267,16 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     ) {
         p.fireVfx = DEFAULTS.fireVfx;
     }
-    if (![2, 1.5, 1, 0.75, 0.5].includes(p.dprCap)) p.dprCap = 2;
+    // dprCap capped devicePixelRatio; renderScale is a fraction of it. The map is
+    // approximate by nature — a cap of 1 meant native on a 1x monitor but half on
+    // a retina one — so aim for "looks about the same on a HiDPI display".
+    const legacyCap = (p as Prefs & { dprCap?: number }).dprCap;
+    if (p.renderScale === undefined && typeof legacyCap === 'number') {
+        p.renderScale = legacyCap >= 2 ? 1 : legacyCap >= 1.5 ? 0.75 : legacyCap >= 0.75 ? 0.5 : 0.33;
+    }
+    delete (p as Prefs & { dprCap?: number }).dprCap;
+    if (![1, 0.75, 0.5, 0.33].includes(p.renderScale)) p.renderScale = DEFAULTS.renderScale;
+    if (![0.75, 1, 1.25, 1.5].includes(p.uiScale)) p.uiScale = DEFAULTS.uiScale;
     if (
         p.shadows !== 'off' &&
         p.shadows !== 'low' &&
@@ -427,7 +446,7 @@ function legacyPresetOf(p: Prefs): GraphicsPreset | null {
             p.groundEffects === v.groundEffects &&
             p.fireVfx === v.fireVfx &&
             p.bloodFx === v.bloodFx &&
-            p.dprCap === v.dprCap &&
+            p.renderScale === v.renderScale &&
             p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits
         ) {
@@ -531,7 +550,11 @@ export function onPrefsChange(listener: () => void): () => void {
     };
 }
 
-/** Effective WebGL pixel ratio from the current pref + device. */
+/**
+ * Effective WebGL pixel ratio. renderScale is a fraction of the display's own
+ * ratio, so the backing store works out to physicalPixels × renderScale
+ * regardless of window size or UI zoom.
+ */
 export function effectiveDpr(): number {
-    return Math.min(window.devicePixelRatio || 1, prefs().dprCap);
+    return (window.devicePixelRatio || 1) * prefs().renderScale;
 }

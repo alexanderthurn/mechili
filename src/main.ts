@@ -342,6 +342,10 @@ if (isElectron()) {
 }
 migrateUserStorage();
 
+// The zoom lives in the main process, so the saved preference has to be pushed
+// there on every launch — otherwise it only takes effect when someone changes it.
+if (isElectron()) void win.setUiScale(prefs().uiScale);
+
 const wrapper = document.createElement('div');
 const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
 wrapper.style.cssText =

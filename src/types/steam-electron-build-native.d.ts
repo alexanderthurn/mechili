@@ -98,6 +98,9 @@ declare module 'steam-electron-build/native' {
     export const win: {
         setFullscreen(flag: boolean): Promise<void>;
         isFullscreen(): Promise<boolean>;
+        /** Multiplier on the automatic high-DPI zoom (Electron ≥1.7; no-op elsewhere) */
+        setUiScale(factor: number): Promise<void>;
+        getUiScale(): Promise<number>;
         close(): Promise<void>;
     };
 

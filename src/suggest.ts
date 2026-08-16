@@ -46,7 +46,7 @@ export function collectClientSpecs(opts: ClientSpecsOptions = {}): string {
             const p = prefs();
             lines.push(
                 `prefs scenery=${p.scenery} ground=${p.groundEffects}` +
-                    ` fire=${p.fireVfx} dprCap=${p.dprCap} shadows=${p.shadows}`,
+                    ` fire=${p.fireVfx} renderScale=${p.renderScale} shadows=${p.shadows}`,
             );
         } catch {
             /* prefs unavailable */
