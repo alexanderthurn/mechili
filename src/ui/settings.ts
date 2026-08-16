@@ -64,8 +64,8 @@ export function openSettings(parent: HTMLElement): void {
         // Web build only: Steam and LAN show as unavailable there, which invites
         // the question this answers.
         (!isElectron()
-            ? `<div class="s-hint s-mp-note">Steam and LAN need the Steam version — ` +
-              `<a href="https://steam.melodan.com" target="_blank" rel="noopener noreferrer">steam.melodan.com</a></div>`
+            ? `<div class="s-hint s-mp-note">Steam and LAN need the Steam version ` +
+              `<a href="https://steam.melodan.com" target="_blank" rel="noopener noreferrer">https://steam.melodan.com</a></div>`
             : '') +
         `</section>` +
         `<section class="s-section">` +
