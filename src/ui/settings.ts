@@ -60,6 +60,11 @@ export function openSettings(parent: HTMLElement): void {
         `</select></label>` +
         `<div class="s-hint s-mp-hint"></div>` +
         `</section>` +
+        `<section class="s-section">` +
+        `<div class="s-section-head">Debug</div>` +
+        `<label class="s-row"><input type="checkbox" class="s-debug" /> Debug overlay` +
+        ` <span class="s-hint">FPS, timings, sync — in match</span></label>` +
+        `</section>` +
         `</div>` +
         `<div class="s-col s-col-graphics">` +
         `<section class="s-section">` +
@@ -151,6 +156,7 @@ export function openSettings(parent: HTMLElement): void {
         `</div>`;
 
     const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');
+    const debugToggle = overlay.querySelector<HTMLInputElement>('.s-debug')!;
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     const global = overlay.querySelector<HTMLInputElement>('.s-global')!;
     const mpSel = overlay.querySelector<HTMLSelectElement>('.s-mp')!;
@@ -179,6 +185,7 @@ export function openSettings(parent: HTMLElement): void {
 
     const syncFromPrefs = (): void => {
         const p = prefs();
+        debugToggle.checked = p.debugOverlay;
         combat.checked = p.combatChat;
         global.checked = p.globalChat;
         mpSel.value = p.multiplayerTransport;
@@ -243,6 +250,7 @@ export function openSettings(parent: HTMLElement): void {
         });
     }
 
+    debugToggle.addEventListener('change', () => updatePrefs({ debugOverlay: debugToggle.checked }));
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
     global.addEventListener('change', () => updatePrefs({ globalChat: global.checked }));
     mpSel.addEventListener('change', () => {

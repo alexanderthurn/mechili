@@ -73,6 +73,8 @@ export interface Prefs {
      * viewport in opposite directions, which cancels out here but not for a cap).
      */
     renderScale: 1 | 0.75 | 0.5 | 0.33;
+    /** In-match debug overlay (FPS, timings, sync state). Was ?debug only. */
+    debugOverlay: boolean;
     /** HTML UI zoom multiplier on top of the automatic high-DPI factor (Electron only). */
     uiScale: 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2;
     /**
@@ -201,6 +203,7 @@ const DEFAULTS: Prefs = {
     controlScheme: 'auto',
     uiFont: 'marcellus',
     uiScale: 1,
+    debugOverlay: false,
     // Steam builds default to Steam lobbies, the browser to the web backend.
     // Read once at load: the preload defines window.steam before any renderer
     // code runs, and resolveMultiplayerTransport never silently falls back, so
@@ -277,6 +280,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     delete (p as Prefs & { dprCap?: number }).dprCap;
     if (![1, 0.75, 0.5, 0.33].includes(p.renderScale)) p.renderScale = DEFAULTS.renderScale;
     if (![0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].includes(p.uiScale)) p.uiScale = DEFAULTS.uiScale;
+    if (typeof p.debugOverlay !== 'boolean') p.debugOverlay = DEFAULTS.debugOverlay;
     if (
         p.shadows !== 'off' &&
         p.shadows !== 'low' &&
@@ -548,6 +552,19 @@ export function onPrefsChange(listener: () => void): () => void {
         const i = listeners.indexOf(listener);
         if (i >= 0) listeners.splice(i, 1);
     };
+}
+
+/**
+ * True when the in-match debug overlay should show. ?debug stays as an override
+ * so a build can be inspected without touching (and persisting) the setting.
+ */
+export function debugEnabled(): boolean {
+    if (prefs().debugOverlay) return true;
+    try {
+        return new URLSearchParams(location.search).has('debug');
+    } catch {
+        return false;
+    }
 }
 
 /**

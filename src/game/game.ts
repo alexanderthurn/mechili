@@ -116,6 +116,7 @@ import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } f
 import {
     onPrefsChange,
     prefs,
+    debugEnabled,
     effectiveDpr,
     sceneryDetailed,
     sceneryCameraFar,
@@ -1029,7 +1030,7 @@ export class Game {
             spectate ? 'spectator' : star ? (star.role === 'host' ? 'host' : 'star-guest') : side === 'a' ? 'host' : 'guest',
             spectate ? spectate.watcherName : playerNames.local,
             spectate ? false : star ? star.role === 'host' : side === 'a',
-            new URLSearchParams(location.search).has('debug'),
+            debugEnabled(),
         );
         this.debugLog.onThresholdReached = () => this.sendDebugBatch();
         // console-callable dump of the aggregated cross-client timeline —
@@ -1738,10 +1739,7 @@ export class Game {
         this.hud.onTechHover = (techId) => {
             this.hoveredTech = techId;
         };
-        this.debug = new DebugOverlay(
-            wrapper,
-            new URLSearchParams(location.search).has('debug'),
-        );
+        this.debug = new DebugOverlay(wrapper, debugEnabled());
         if (this.debugLog.enabled && this.debugLog.isHost) {
             this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
             this.debugDumpButton.setVisible(!this.debug.isCollapsed);
@@ -2052,6 +2050,9 @@ export class Game {
             p.scenery !== this.appliedScenery ||
             p.groundEffects !== this.appliedGroundEffects ||
             effectiveDpr() !== this.renderer.getPixelRatio();
+        // The overlay can flip live; DebugLog.enabled is readonly, so the
+        // recorded timeline still follows whatever was set when the match began.
+        this.debug?.setEnabled(debugEnabled());
         this.applyRenderPrefs();
         this.applySceneryQuality();
         if (gpuDirty) this.warmGpuPrograms();
