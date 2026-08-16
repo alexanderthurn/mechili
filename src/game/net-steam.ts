@@ -627,11 +627,14 @@ export class SteamStarHub implements HostHub {
 export async function hostSteamStarRoom(
     initialRoster: CanonicalSeatDef[],
     isPublic: boolean,
+    mode: '1v1' | '2v2' = '2v2',
 ): Promise<{ hub: SteamStarHub; lobbyId: string }> {
     const room = await lobby.create(isPublic ? 'public' : 'private', initialRoster.length);
     if (!room) throw new Error('Could not open a Steam lobby — is Steam running?');
-    // tagged even for a private (invite-only) lobby — see hostSteamRoom's note
-    await lobby.mergeFullData({ mode: '2v2', game: 'melodan', version: String(GAME_VERSION) });
+    // tagged even for a private (invite-only) lobby — see hostSteamRoom's note.
+    // The mode is what the room list shows, so it has to be the real one: this
+    // used to be hardcoded '2v2' and mislabelled every 1v1 star room.
+    await lobby.mergeFullData({ mode, game: 'melodan', version: String(GAME_VERSION) });
     return { hub: new SteamStarHub(room.id, room.owner, initialRoster), lobbyId: room.id };
 }
 

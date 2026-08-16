@@ -1380,6 +1380,15 @@ function hostCustomGame(mode: CustomGameMode): void {
     const cfg: CustomGameConfig = { ...loadCustomGameConfig(), mode };
     saveCustomGameConfig(cfg);
     showMenuView('session');
+    // The shape of the match is decided once, before any transport is chosen:
+    // which layout, which roster, how many humans to wait for. Deriving these
+    // inside each transport branch is what let Steam's 1v1ai fall through to a
+    // four-seat 2v2 lobby while web/LAN routed it correctly.
+    const is1v1 = cfg.mode === '1v1' || cfg.mode === '1v1ai';
+    const layout: '1v1' | '2v2' = is1v1 ? '1v1' : '2v2';
+    const buildRoster = is1v1 ? initial1v1Roster : initialStarRoster;
+    const waitForJoined = cfg.mode === '1v1' ? 2 : cfg.mode === '2v2' ? 4 : cfg.mode === '2v2ai' ? 2 : 1;
+
     void (async () => {
         const transport = await resolveMultiplayerTransport();
         if (!transport) {
@@ -1399,9 +1408,11 @@ function hostCustomGame(mode: CustomGameMode): void {
             }
             await beginSteamStarHost({
                 customConfig: cfg,
-                waitForJoined: cfg.mode === '2v2' ? 4 : cfg.mode === '2v2ai' ? 2 : 1,
+                waitForJoined,
                 isPublic: true,
                 offerAiStart: true,
+                buildRoster,
+                mode: layout,
             });
             return;
         }
@@ -1409,19 +1420,7 @@ function hostCustomGame(mode: CustomGameMode): void {
         setStatus(
             discovery === 'lan' ? 'Opening LAN room…' : 'Opening room…',
         );
-        if (cfg.mode === '1v1' || cfg.mode === '1v1ai') {
-            await beginStarHost(false, cfg.mode === '1v1' ? 2 : 1, cfg, initial1v1Roster, '1v1', true, discovery);
-            return;
-        }
-        await beginStarHost(
-            false,
-            cfg.mode === '2v2' ? 4 : 2,
-            cfg,
-            initialStarRoster,
-            '2v2',
-            true,
-            discovery,
-        );
+        await beginStarHost(false, waitForJoined, cfg, buildRoster, layout, true, discovery);
     })();
 }
 
@@ -3541,6 +3540,7 @@ async function beginSteamStarHost(
               offerAiStart?: boolean;
               openInvite?: boolean;
               buildRoster?: (hostName: string) => CanonicalSeatDef[];
+              mode?: '1v1' | '2v2';
           } = {},
 ): Promise<void> {
     // Legacy call site: beginSteamStarHost(horde)
@@ -3552,6 +3552,9 @@ async function beginSteamStarHost(
     const offerAiStart = o.offerAiStart ?? true;
     const openInvite = o.openInvite ?? !isPublic;
     const buildRoster = o.buildRoster ?? initialStarRoster;
+    // Layout is a property of the match, not of the transport — the web/LAN path
+    // takes the same pair of arguments (see beginStarHost).
+    const mode = o.mode ?? '2v2';
 
     showMenuView('session');
     setMenuBusy(true);
@@ -3570,7 +3573,7 @@ async function beginSteamStarHost(
     };
     let hosted: { hub: SteamStarHub; lobbyId: string };
     try {
-        hosted = await hostSteamStarRoom(buildRoster(getPlayerName()), isPublic);
+        hosted = await hostSteamStarRoom(buildRoster(getPlayerName()), isPublic, mode);
     } catch (e) {
         pending = null;
         setMenuBusy(false);
@@ -3585,7 +3588,7 @@ async function beginSteamStarHost(
     }
     setMenuBusy(false);
     steamStarHosting = hosted;
-    wireSteamStarHub(hosted.hub, { waitForJoined, offerAiStart, mode: '2v2' });
+    wireSteamStarHub(hosted.hub, { waitForJoined, offerAiStart, mode });
     if (openInvite) steamLobby.openInviteDialog();
 }
 
