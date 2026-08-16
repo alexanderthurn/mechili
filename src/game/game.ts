@@ -553,6 +553,14 @@ export class Game {
     private readonly debugLog: DebugLog;
     /** seconds accumulated since the last debug-event flush to the host (non-host clients only) */
     private debugFlushAccum = 0;
+    /**
+     * host-only: publish this running match to the transport's own discovery
+     * channel (Steam lobby data, LAN announce). The web backend has its own
+     * registration; this is what gives the other two the same "a match is
+     * running here, watch it at this peer id" advertisement.
+     */
+    onLiveRoomAd: ((ad: { spectate: string; round: number; roster: RoomRosterEntry[] }) => void) | null = null;
+
     /** host-only: click/dblclick-to-copy button for debugLog's aggregated dump */
     private debugDumpButton: DebugDumpButton | null = null;
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
@@ -3606,6 +3614,15 @@ export class Game {
             // id to the PUBLIC cloud matchmaking backend regardless of the
             // player's LAN-only intent — LAN spectators find the match via
             // the LAN discovery mechanism, not this cloud lookup.
+            // Steam and LAN advertise through their own discovery channel
+            // instead (see onLiveRoomAd) — the cloud backend is the web
+            // transport's, and publishing a LAN-only host there would put their
+            // identity on the internet against the point of playing on a LAN.
+            this.onLiveRoomAd?.({
+                spectate: hub.peerId,
+                round: this.round,
+                roster: this.backendRosterSnapshot(),
+            });
             if (this.star?.role !== 'host' || this.star.discovery !== 'lan') {
                 this.spectateRegistration = registerSpectateEndpoint(
                     hub.peerId,

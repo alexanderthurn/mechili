@@ -496,8 +496,32 @@ export async function hostSteamStarRoom(
     // tagged even for a private (invite-only) lobby — see hostSteamRoom's note.
     // The mode is what the room list shows, so it has to be the real one: this
     // used to be hardcoded '2v2' and mislabelled every 1v1 star room.
-    await lobby.mergeFullData({ mode, game: 'melodan', version: String(GAME_VERSION) });
+    await lobby.mergeFullData({
+        mode,
+        game: 'melodan',
+        version: String(GAME_VERSION),
+        host: getPlayerName(),
+    });
     return { hub: new SteamStarHub(room.id, room.owner, initialRoster), lobbyId: room.id };
+}
+
+/**
+ * Publish what the room list shows, for a lobby we host. Same facts the web
+ * backend gets from registerSpectateEndpoint — seats without avatars, since a
+ * lobby data value is a string and the LAN announce that shares this record is
+ * a single UDP datagram. Absent keys simply render a plainer row.
+ */
+export async function advertiseSteamRoom(ad: {
+    seats?: { name: string; side: 'a' | 'b'; connected: boolean }[];
+    round?: number;
+    spectate?: string | null;
+}): Promise<void> {
+    await lobby.mergeFullData({
+        host: getPlayerName(),
+        seats: ad.seats ? JSON.stringify(ad.seats) : '',
+        round: ad.round ? String(ad.round) : '',
+        spectate: ad.spectate ?? '',
+    });
 }
 
 /** Join a 2v2+ star room over Steam by lobby id — same `starJoin` handshake as `joinStarRoom`. */

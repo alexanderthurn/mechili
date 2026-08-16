@@ -157,6 +157,34 @@ export interface RoomRosterEntry {
     aiControlled?: boolean;
 }
 
+/**
+ * One advertised room, however it was discovered. Every field past name/mode
+ * is optional on purpose: a transport publishes what its discovery channel can
+ * carry — the LAN announce is a single UDP datagram, so nothing heavy (avatars)
+ * belongs here — and the UI renders what is present rather than branching on
+ * which transport produced it. Anything richer is exchanged after connecting.
+ */
+export interface RoomAd {
+    /** stable identity for list rendering */
+    key: string;
+    /** host's display name */
+    name: string;
+    mode: '1v1' | '2v2';
+    /** present once a match is running */
+    round?: number;
+    /** seat names + connected flags; never avatars (size) */
+    seats?: RoomRosterEntry[];
+    /** peer id to watch a running match — absent means not watchable */
+    spectate?: string;
+    /** true while a human seat is still open */
+    hasOpenSeat?: boolean;
+    /** how to reach it; opaque to the renderer */
+    join:
+        | { transport: 'matchmaking'; name: string }
+        | { transport: 'lan'; name: string; peerServer: PeerServerConfig }
+        | { transport: 'steam'; lobbyId: string };
+}
+
 export interface LobbyRoom {
     name: string;
     peer: string;

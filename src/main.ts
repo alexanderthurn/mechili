@@ -10,6 +10,9 @@ import {
     clearStarResumeMarker,
     fetchGlobalChat,
     fetchLobbyRooms,
+    setPeerServerConfig,
+    type RoomAd,
+    type RoomRosterEntry,
     GAME_VERSION,
     hostStarRoom,
     isMelodanPlayHost,
@@ -36,6 +39,7 @@ import {
 } from './game/net';
 import * as sebNative from 'steam-electron-build/native';
 import {
+    advertiseSteamRoom,
     hostOrJoinSteamStar,
     hostSteamStarRoom,
     joinSteamLobby,
@@ -2014,6 +2018,10 @@ function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Web'): void {
     customGameLabelEl.textContent = `Custom Game (${tag})`;
 }
 
+/** Ads behind the rendered buttons — the click handler needs the transport
+ *  handle (peer server, lobby id) that a dataset attribute cannot carry. */
+const roomAdsByKey = new Map<string, RoomAd>();
+
 async function refreshRoomList(): Promise<void> {
     let transport: MultiplayerTransport | null = null;
     let foundRooms = false;
@@ -2021,99 +2029,53 @@ async function refreshRoomList(): Promise<void> {
         transport = await resolveMultiplayerTransport();
         const scope = roomListScopeLabel(transport);
         setRoomsListHeading(scope);
-        const mine = getPlayerName();
-
-        if (transport === 'lan') {
-            // Short UDP wait so 1s empty polling stays snappy
-            const others = await lanRoomsExcludingSelf(900);
-            foundRooms = others.length > 0;
-            if (others.length === 0) {
-                roomListEl.className = 'm-room-list empty';
-                roomListEl.textContent = `No open ${scope} Games`;
-                scheduleLayoutTitle();
-                return;
-            }
-            roomListEl.className = 'm-room-list';
-            roomListEl.replaceChildren(
-                ...others.map((r) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'm-room';
-                    button.dataset.room = r.name;
-                    button.dataset.roomMode = '1v1';
-                    button.dataset.roomKind = 'lobby';
-                    button.dataset.lanHost = r.host;
-                    button.dataset.lanPort = String(r.port);
-                    button.dataset.lanPath = r.path;
-                    button.textContent = `${r.name} (LAN)`;
-                    return button;
-                }),
-            );
-            scheduleLayoutTitle();
-            return;
-        }
-
-        if (transport === 'steam') {
+        if (!transport) {
             roomListEl.className = 'm-room-list empty';
             roomListEl.textContent = `No open ${scope} Games`;
             scheduleLayoutTitle();
             return;
         }
 
-        if (transport === null) {
-            roomListEl.className = 'm-room-list empty';
-            roomListEl.textContent = `No open ${scope} Games`;
-            scheduleLayoutTitle();
-            return;
-        }
-
-        const rooms = await fetchLobbyRooms();
-        const others = rooms.filter((r) => r.name.toLowerCase() !== mine.toLowerCase());
-        foundRooms = others.length > 0;
-        if (others.length === 0) {
+        const ads = await listRoomAds(transport);
+        foundRooms = ads.length > 0;
+        if (!foundRooms) {
             roomListEl.className = 'm-room-list empty';
             roomListEl.textContent = `No open ${scope} Games`;
             scheduleLayoutTitle();
             return;
         }
         roomListEl.className = 'm-room-list';
-        // Our own record of the match we dropped out of. Trusted ahead of the
-        // published roster because it is available immediately: after a restart
-        // the host has not yet noticed the drop, so its roster still lists us as
-        // connected and the entry would read "Watch" for a poll or two. It is
-        // also the only signal on LAN, whose UDP announce carries no roster.
+        // Our own record of the match we dropped out of, trusted ahead of the
+        // published seats: right after a restart the host has not yet noticed
+        // the drop, and on a transport whose seats never arrive it is the only
+        // signal there is.
         const resumeMarker = loadStarResumeMarker();
-        // room names come from the server — build via DOM, never innerHTML
+        const mine = getPlayerName().toLowerCase();
+        // names come from other clients — build via DOM, never innerHTML
         roomListEl.replaceChildren(
-            ...others.map((r) => {
+            ...ads.map((ad) => {
                 const button = document.createElement('button');
                 button.type = 'button';
-                // a running match where MY OWN seat is currently
-                // disconnected offers "resume" instead of "spectate" — same
-                // beginStarJoin() flow as any other join, since the host
-                // recognizes our name and reclaims us instead of handing out
-                // a fresh seat (see StarHub.findDroppedSeatByName)
-                const myDroppedSeat = r.roster?.find(
-                    (s) => s.name.toLowerCase() === mine.toLowerCase() && !s.connected,
+                const myDroppedSeat = ad.seats?.find(
+                    (seat) => seat.name.toLowerCase() === mine && !seat.connected,
                 );
                 const markedByUs =
-                    !!resumeMarker && resumeMarker.hostName.toLowerCase() === r.name.toLowerCase();
-                const resumable = (r.kind === 'spectate' && !!myDroppedSeat) || markedByUs;
-                // 'resume' still routes the click to beginStarJoin rather than
-                // spectating — it just no longer announces itself. A room we
-                // believe we can rejoin reads as an ordinary entry, so the list
-                // only ever promises "Watch" or nothing, and can never be wrong.
-                const roomKind = resumable ? 'resume' : r.kind;
-                button.className = roomKind === 'spectate' ? 'm-room m-room-spectate' : 'm-room';
-                button.dataset.room = r.name;
-                button.dataset.roomMode = r.mode;
-                button.dataset.roomKind = roomKind;
-                const modeTag = r.mode === '2v2' ? ' (2v2)' : '';
-                const roundTag = r.round ? ` — round ${r.round}` : '';
-                button.textContent =
-                    roomKind === 'spectate'
-                        ? `Watch ${r.name}${modeTag}${roundTag}`
-                        : `${r.name}${modeTag}${resumable ? roundTag : ''}`;
+                    !!resumeMarker && resumeMarker.hostName.toLowerCase() === ad.name.toLowerCase();
+                const rejoinable = !!myDroppedSeat || markedByUs;
+                // Watchable only when the room says so AND we are not the one
+                // who belongs in it — a rejoin beats spectating our own match.
+                const watch = !!ad.spectate && !rejoinable;
+                button.className = watch ? 'm-room m-room-spectate' : 'm-room';
+                button.dataset.room = ad.name;
+                button.dataset.roomMode = ad.mode;
+                button.dataset.roomKind = watch ? 'spectate' : 'join';
+                button.dataset.roomKey = ad.key;
+                const modeTag = ad.mode === '2v2' ? ' (2v2)' : '';
+                const roundTag = ad.round ? ` — round ${ad.round}` : '';
+                button.textContent = watch
+                    ? `Watch ${ad.name}${modeTag}${roundTag}`
+                    : `${ad.name}${modeTag}${rejoinable ? roundTag : ''}`;
+                roomAdsByKey.set(ad.key, ad);
                 return button;
             }),
         );
@@ -2273,6 +2235,28 @@ function constructGame(
         useIntro,
     );
     activeGame = game;
+    // Steam/LAN have no cloud backend to register with, so the running match
+    // advertises itself through the same channel the lobby used — that is what
+    // makes a match watchable (and its round visible) on those transports.
+    // Captured, not read later: startHostedMatch clears `hosting` as soon as the
+    // Game owns the hub, while the spectator hub opens asynchronously — reading
+    // the variable at fire time would always find null and publish nothing.
+    const adRoom = hosting;
+    game.onLiveRoomAd = (ad) => {
+        if (!adRoom) return;
+        if (adRoom.transport === 'steam') {
+            void advertiseSteamRoom({ seats: ad.roster, round: ad.round, spectate: ad.spectate });
+        } else if (adRoom.transport === 'lan') {
+            void lan.updateHost({
+                data: {
+                    mode: ad.roster.length > 2 ? '2v2' : '1v1',
+                    seats: ad.roster,
+                    round: ad.round,
+                    spectate: ad.spectate,
+                },
+            });
+        }
+    };
     wireGameMenuReturn(game);
     if (net) wireReconnect(game, net);
     else if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
@@ -2933,6 +2917,33 @@ function updateSteamPresence(
 }
 
 /**
+ * Publish the room to whichever discovery channel this transport uses, so the
+ * list, Watch and rejoin work the same everywhere. The web backend is fed by
+ * its own registration/heartbeat; only Steam and LAN need pushing, and both
+ * carry the same small record (never avatars).
+ */
+function advertiseHostedRoom(opts: { round?: number; spectate?: string | null } = {}): void {
+    if (!hosting) return;
+    const seats = hosting.hub.currentRoster().map((seat, i) => ({
+        name: seat.name,
+        side: seat.side,
+        connected: i === 0 || hosting!.hub.connectedSeats().includes(i),
+    }));
+    if (hosting.transport === 'steam') {
+        void advertiseSteamRoom({ seats, round: opts.round, spectate: opts.spectate });
+    } else if (hosting.transport === 'lan') {
+        void lan.updateHost({
+            data: {
+                mode: seats.length > 2 ? '2v2' : '1v1',
+                seats,
+                round: opts.round,
+                spectate: opts.spectate ?? undefined,
+            },
+        });
+    }
+}
+
+/**
  * Lobby wiring for a hosted room: roster table, ready state, kick, AI-fill
  * countdown, auto-start and the join acceptor. Transport-agnostic — it only
  * touches HostHub — so quick-match, which creates its own hub, shares exactly
@@ -3017,7 +3028,10 @@ function wireHostedHub(
             setStatus('Waiting for an opponent');
         }
     };
-    hub.onRosterChange = refresh;
+    hub.onRosterChange = () => {
+        refresh();
+        advertiseHostedRoom();   // seats changed — keep the room list honest
+    };
     hub.onMessage = (seat, msg) => {
         if (msg.type !== 'lobbyReady') return;
         const entry = hub.currentRoster()[seat];
@@ -3500,6 +3514,11 @@ async function tryAdmitSteamLobby(lobbyId: string): Promise<boolean> {
 // anywhere (menu idle, another screen) — not just while mm-invite/mm-play
 // is open, mirroring the ?room= deep-link handling further down for the
 // web build's invite-link equivalent
+/** Join a Steam room picked from the list — same handshake as an invite. */
+function joinSteamAd(lobbyId: string): void {
+    acceptSteamInvite(lobbyId);
+}
+
 function acceptSteamInvite(lobbySteamId: string): void {
     if (started || pending || hosting) return;
     void joinSteamLobby(lobbySteamId)
@@ -3576,54 +3595,101 @@ function sleepMs(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Every room this transport can see, as RoomAds. One enumeration for the
+ * browsable list and for quick match, so the two can never disagree about what
+ * exists — and the only per-transport code is reading each discovery channel.
+ */
+async function listRoomAds(transport: MultiplayerTransport, waitMs = 900): Promise<RoomAd[]> {
+    const mine = getPlayerName().toLowerCase();
+    if (transport === 'steam') {
+        const rooms = await steamLobby.getLobbies();
+        return rooms
+            .filter((r) => r.data.game === 'melodan' && !!r.data.mode)
+            .filter((r) => !r.data.version || r.data.version === String(GAME_VERSION))
+            .map((r) => {
+                const mode = r.data.mode === '2v2' ? ('2v2' as const) : ('1v1' as const);
+                const limit = r.memberLimit ?? (mode === '2v2' ? 4 : 2);
+                return {
+                    key: r.id,
+                    name: r.data.host || 'Steam player',
+                    mode,
+                    round: r.data.round ? Number(r.data.round) : undefined,
+                    seats: parseAdSeats(r.data.seats),
+                    spectate: r.data.spectate || undefined,
+                    hasOpenSeat: r.memberCount < limit,
+                    join: { transport: 'steam' as const, lobbyId: r.id },
+                };
+            })
+            .filter((ad) => ad.name.toLowerCase() !== mine);
+    }
+    if (transport === 'lan') {
+        const rooms = await lanRoomsExcludingSelf(waitMs);
+        return rooms.map((r) => {
+            const data = (r.data ?? {}) as Record<string, unknown>;
+            return {
+                key: `${r.host}:${r.port}:${r.path}:${r.name}`,
+                name: r.name,
+                mode: data.mode === '2v2' ? ('2v2' as const) : ('1v1' as const),
+                round: typeof data.round === 'number' ? data.round : undefined,
+                seats: parseAdSeats(data.seats),
+                spectate: typeof data.spectate === 'string' ? data.spectate : undefined,
+                hasOpenSeat: data.round === undefined,
+                join: {
+                    transport: 'lan' as const,
+                    name: r.name,
+                    peerServer: { host: r.host, port: r.port, path: r.path, secure: false },
+                },
+            };
+        });
+    }
+    const rooms = await fetchLobbyRooms();
+    return rooms
+        .filter((r) => r.name.toLowerCase() !== mine)
+        .map((r) => ({
+            key: `${r.kind}:${r.name}`,
+            name: r.name,
+            mode: r.mode,
+            round: r.round,
+            seats: r.roster,
+            spectate: r.kind === 'spectate' ? r.peer : undefined,
+            hasOpenSeat: r.kind === 'lobby',
+            join: { transport: 'matchmaking' as const, name: r.name },
+        }));
+}
+
+/** Seats survive discovery as JSON (Steam data values and the LAN announce are
+ *  both strings/plain objects) — tolerate anything malformed. */
+function parseAdSeats(raw: unknown): RoomRosterEntry[] | undefined {
+    try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return Array.isArray(parsed) && parsed.length > 0 ? (parsed as RoomRosterEntry[]) : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 async function listMatchCandidates(
     transport: MultiplayerTransport,
     modeFilter?: '1v1' | '2v2',
 ): Promise<MatchCandidate[]> {
-    if (transport === 'steam') {
-        const rooms = await steamLobby.getLobbies();
-        return rooms
-            .filter((r) => {
-                // Only Melodan lobbies we tagged (skips abandoned / other junk).
-                if (r.data.game !== 'melodan') return false;
-                if (r.data.version && r.data.version !== String(GAME_VERSION)) return false;
-                if (modeFilter && r.data.mode && r.data.mode !== modeFilter) return false;
-                if (!r.data.mode) return false;
-                const limit = r.memberLimit ?? (r.data.mode === '2v2' ? 4 : 2);
-                return r.memberCount < limit;
-            })
-            .map((r) => ({ key: r.id, kind: 'steam' as const, lobbyId: r.id }));
-    }
-    if (transport === 'lan') {
-        // Short UDP window — empty → host immediately; room poll uses longer waits.
-        const rooms = await lanRoomsExcludingSelf(400);
-        return rooms.map((r) => ({
-            key: `${r.host}:${r.port}:${r.path}:${r.name}`,
-            kind: 'peer' as const,
-            name: r.name,
-            peerServer: {
-                host: r.host,
-                port: r.port,
-                path: r.path,
-                secure: false,
-            },
-        }));
-    }
-    const mine = getPlayerName().toLowerCase();
-    const rooms = await fetchLobbyRooms();
-    return rooms
-        .filter((r) => {
-            if (r.kind !== 'lobby') return false;
-            if (r.name.toLowerCase() === mine) return false;
-            if (modeFilter && r.mode !== modeFilter) return false;
-            return true;
-        })
-        .map((r) => ({
-            key: r.name,
-            kind: 'peer' as const,
-            name: r.name,
-            peerServer: null,
-        }));
+    // Same enumeration the browsable list uses — quick match only differs in
+    // wanting rooms with a seat free, and in a shorter LAN wait so an empty
+    // network falls through to hosting quickly.
+    const ads = await listRoomAds(transport, 400);
+    return ads
+        .filter((ad) => ad.hasOpenSeat !== false)
+        .filter((ad) => !modeFilter || ad.mode === modeFilter)
+        .map((ad) =>
+            ad.join.transport === 'steam'
+                ? { key: ad.key, kind: 'steam' as const, lobbyId: ad.join.lobbyId }
+                : {
+                      key: ad.key,
+                      kind: 'peer' as const,
+                      name: ad.name,
+                      peerServer: ad.join.transport === 'lan' ? ad.join.peerServer : null,
+                  },
+        );
 }
 
 async function tryJoinMatchCandidate(c: MatchCandidate): Promise<boolean> {
@@ -3737,14 +3803,22 @@ async function startMatchmakingForTransport(): Promise<void> {
  * "👁 Watch <name>" row in the Custom Room list (populated from running,
  * spectatable matches alongside open joinable rooms — see refreshRoomList).
  */
-function startSpectateGame(hostName: string): void {
+function startSpectateGame(
+    hostName: string,
+    known?: { peerId: string; peerServer?: PeerServerConfig | null },
+): void {
     const name = hostName.trim();
     if (!name) return;
     setMenuBusy(true);
     setStatus(`Looking for "${name}"…`);
     void (async () => {
         try {
-            const peerId = await lookupSpectateEndpoint(name);
+            // A room that advertised its own spectate endpoint (Steam lobby
+            // data, LAN announce) needs no cloud lookup — and on LAN there is
+            // nothing in the cloud to find. Point the peer at the room's own
+            // signaling server first, exactly as joining does.
+            if (known?.peerServer !== undefined) setPeerServerConfig(known.peerServer);
+            const peerId = known?.peerId ?? (await lookupSpectateEndpoint(name));
             if (!peerId) {
                 setMenuBusy(false);
                 setStatus(`No live match found for "${name}".`);
@@ -3862,18 +3936,25 @@ menu.addEventListener('click', (e) => {
             setStatus('Still loading — one moment…');
             return;
         }
-        if (roomBtn.dataset.roomKind === 'spectate') startSpectateGame(roomBtn.dataset.room);
-        // every room is star-hosted now (1v1 is just a 2-seat star room),
-        // including 'resume' rows — always beginStarJoin regardless of
-        // roomMode, which is a display label only.
-        else if (roomBtn.dataset.lanHost && roomBtn.dataset.lanPort && roomBtn.dataset.lanPath) {
-            beginStarJoin(roomBtn.dataset.room, {
-                host: roomBtn.dataset.lanHost,
-                port: Number(roomBtn.dataset.lanPort),
-                path: roomBtn.dataset.lanPath,
-                secure: false,
-            });
-        } else beginStarJoin(roomBtn.dataset.room, null);
+        const ad = roomAdsByKey.get(roomBtn.dataset.roomKey ?? '');
+        if (roomBtn.dataset.roomKind === 'spectate') {
+            startSpectateGame(
+                roomBtn.dataset.room,
+                ad?.spectate
+                    ? {
+                          peerId: ad.spectate,
+                          peerServer: ad.join.transport === 'lan' ? ad.join.peerServer : null,
+                      }
+                    : undefined,
+            );
+            return;
+        }
+        // Every room is star-hosted (1v1 is a 2-seat star room), rejoins
+        // included — the join handle carried by the ad is the only difference
+        // between transports here.
+        if (ad?.join.transport === 'steam') void joinSteamAd(ad.join.lobbyId);
+        else if (ad?.join.transport === 'lan') beginStarJoin(ad.join.name, ad.join.peerServer);
+        else beginStarJoin(roomBtn.dataset.room, null);
         return;
     }
 
