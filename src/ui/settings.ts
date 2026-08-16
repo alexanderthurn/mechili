@@ -154,13 +154,12 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><input type="checkbox" class="s-aa" /> Antialiasing <span class="s-hint">smoother edges · next match</span></label>` +
         `</details>` +
         `</section>` +
-        `<section class="s-section">` +
-        `<div class="s-section-head">Reset</div>` +
+        `</div>` +
+        `</div>` +
+        `<div class="actions">` +
         `<button type="button" class="s-reset" data-act="reset">Reset all settings</button>` +
-        `</section>` +
+        `<button type="button" class="m-btn-bronze primary" data-act="close">Close</button>` +
         `</div>` +
-        `</div>` +
-        `<div class="actions"><button type="button" class="m-btn-bronze primary" data-act="close">Close</button></div>` +
         `</div>`;
 
     const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');

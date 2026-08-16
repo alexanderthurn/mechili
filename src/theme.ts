@@ -1970,7 +1970,8 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     border-bottom-color: ${u.cream};
 }
 .mechili-settings .s-reset {
-    width: 100%;
+    padding: 5px 12px;
+    font-size: 12px;
     border: 1px solid ${u.bronze};
     border-radius: 6px;
     background: transparent;
@@ -1982,7 +1983,9 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     border-color: ${u.brassLight};
     background: rgba(160, 56, 40, 0.18);
 }
-.mechili-settings .actions { display: flex; justify-content: flex-end; }
+/* Reset sits far left, away from Close, so the destructive one is never the
+   button your hand is already near. */
+.mechili-settings .actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .mechili-settings button {
     padding: 8px 16px;
 }
