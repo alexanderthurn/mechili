@@ -1971,21 +1971,19 @@ function roomPollDelayMs(transport: string | null, foundRooms: boolean): number 
 /** Room-list wording: LAN / Steam / Web (PeerJS matchmaking). */
 function roomListScopeLabel(
     transport: Awaited<ReturnType<typeof resolveMultiplayerTransport>>,
-): 'LAN' | 'Steam' | 'Crossplay' {
+): 'LAN' | 'Steam' | 'Web' {
     if (transport === 'lan') return 'LAN';
     if (transport === 'steam') return 'Steam';
-    if (transport === 'matchmaking') return 'Crossplay';
+    if (transport === 'matchmaking') return 'Web';
     const pref = prefs().multiplayerTransport;
     if (pref === 'lan') return 'LAN';
     if (pref === 'steam') return 'Steam';
-    return 'Crossplay';
+    return 'Web';
 }
 
-function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Crossplay'): void {
+function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Web'): void {
     roomsLabelEl.textContent = `Open ${scope} Games`;
-    // Mixed case for Crossplay: uppercased it is the longest tag by some way,
-    // and these buttons live in a clamp(264px, 34vw, 324px) panel.
-    const tag = scope === 'Crossplay' ? 'Crossplay' : scope.toUpperCase();
+    const tag = scope === 'Web' ? 'WEB' : scope === 'Steam' ? 'STEAM' : 'LAN';
     matchmakingLabelEl.textContent = `Matchmaking (${tag})`;
     customGameLabelEl.textContent = `Custom Game (${tag})`;
 }

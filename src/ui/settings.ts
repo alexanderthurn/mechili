@@ -57,7 +57,7 @@ export function openSettings(parent: HTMLElement): void {
         `<div class="s-section-head">Multiplayer</div>` +
         `<label class="s-row">Connection <select class="s-mp">` +
         `<option value="steam">Steam</option>` +
-        `<option value="matchmaking">Crossplay</option>` +
+        `<option value="matchmaking">Web</option>` +
         `<option value="lan">LAN</option>` +
         `</select></label>` +
         `<div class="s-hint s-mp-hint"></div>` +
@@ -181,7 +181,7 @@ export function openSettings(parent: HTMLElement): void {
 
     const mpHints: Record<Prefs['multiplayerTransport'], string> = {
         steam: 'Steam lobbies only. Needs Steam running at launch.',
-        matchmaking: 'Play across Steam, browser and future platforms. Needs internet.',
+        matchmaking: 'Online rooms via PeerJS + server list. Needs internet.',
         lan: 'Local network only (Electron). No internet required.',
     };
 
