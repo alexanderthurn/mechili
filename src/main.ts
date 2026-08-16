@@ -10,6 +10,7 @@ import {
     clearStarResumeMarker,
     fetchGlobalChat,
     fetchLobbyRooms,
+    getPeerServerConfig,
     setPeerServerConfig,
     type RoomAd,
     type RoomRosterEntry,
@@ -2350,7 +2351,19 @@ function startGame(
         // needs to survive a reload is the host's name (seat 0 is always
         // the host, canonically, regardless of which side we are).
         const hostName = settings.seats?.[0]?.name;
-        if (hostName) saveStarResumeMarker({ hostName, names });
+        if (hostName) {
+            // Record how we got in, not just who hosted: a fresh process has no
+            // LAN signaling server configured and cannot dial a Steam lobby by
+            // host name at all.
+            const lobbyId = steamLobbyIdOf(star.session);
+            saveStarResumeMarker({
+                hostName,
+                names,
+                transport: lobbyId ? 'steam' : getPeerServerConfig() ? 'lan' : 'matchmaking',
+                lobbyId: lobbyId ?? undefined,
+                peerServer: getPeerServerConfig(),
+            });
+        }
     } else if (!replay && !spectate) {
         // watching a replay/spectating a live match touches neither marker —
         // it isn't a new match of ours, and clearing either here would wipe
@@ -4254,7 +4267,16 @@ if (bulkVerify) {
     // would — no separate dedicated overlay needed here).
     setMenuChromeVisible(true);
     setStatus(`Reconnecting to "${starMpMarker.hostName}"…`);
-    beginStarJoin(starMpMarker.hostName);
+    // Same automatic version of clicking the room, per transport: Steam rejoins
+    // the lobby it recorded, LAN dials the signaling server the room lives on
+    // (a fresh process has none configured), matchmaking dials the room code.
+    if (starMpMarker.transport === 'steam' && starMpMarker.lobbyId) {
+        acceptSteamInvite(starMpMarker.lobbyId);
+    } else if (starMpMarker.transport === 'lan' && starMpMarker.peerServer) {
+        beginStarJoin(starMpMarker.hostName, starMpMarker.peerServer);
+    } else {
+        beginStarJoin(starMpMarker.hostName);
+    }
 } else if (spSave) {
     if (spSave.version !== GAME_VERSION) {
         clearSinglePlayer();

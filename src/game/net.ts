@@ -2138,6 +2138,18 @@ export interface StarResumeMarker {
     names: { local: string; opponent: string };
     /** epoch ms — a marker outlives the app now, so it needs a freshness bound */
     savedAt?: number;
+    /**
+     * How to get back in. The host name alone is only enough on cloud
+     * matchmaking, where a room code is dialled through the public broker:
+     * Steam needs the lobby to rejoin, and LAN needs its own signaling server,
+     * which is not the one a fresh process defaults to. Absent = matchmaking,
+     * for markers written before this existed.
+     */
+    transport?: 'matchmaking' | 'lan' | 'steam';
+    /** steam only: the lobby to rejoin */
+    lobbyId?: string;
+    /** lan only: the local PeerServer the room lives on */
+    peerServer?: PeerServerConfig | null;
 }
 
 /** Beyond this a marker is treated as stale: a crash the player never came
