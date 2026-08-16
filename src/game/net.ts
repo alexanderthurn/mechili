@@ -1594,13 +1594,13 @@ export type StarRole =
           hub: HostHub;
           mySeat: SeatId;
           /**
-           * How this match was matched up, which decides whether it is
-           * advertised on the public cloud backend for spectators
-           * (registerSpectateEndpoint). Only a cloud-matchmaking match
-           * belongs there: publishing a LAN or Steam host advertises their
-           * identity globally regardless of the player's intent — a Steam
-           * playtest match would appear in the browser room list as
-           * "Watch <steam name>". Undefined is treated as matchmaking.
+           * How this match was matched up. Spectating is transport-independent
+           * — a spectator reaches any match over PeerJS through the
+           * SpectatorHub's peer id — so a Steam match is advertised for
+           * spectators like any other. Only 'lan' is excluded: publishing a
+           * LAN-only host's identity to the public cloud backend contradicts
+           * the player's LAN-only intent, and LAN spectators find the match
+           * through LAN discovery instead. Undefined is treated as matchmaking.
            */
           discovery?: 'matchmaking' | 'lan' | 'steam';
       }

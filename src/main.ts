@@ -3200,12 +3200,12 @@ function startHostedMatch(): void {
     // mangoo (2v2)" all listed for the same host at once).
     hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
     hosting?.cleanup?.();   // web/LAN only: stop the lobby heartbeat, tell the backend
-    updateSteamPresence('match');   // hub.leaveLobby() above: no longer joinable
-    // Steam's own lobby outlives the match on purpose — leaving it would run
-    // closeNetworking() and drop every P2P socket mid-game. Mark it closed
-    // instead, so a stale invite or a quick-match scan cannot drop someone into
-    // a running match only to be told the room is full.
-    if (transport === 'steam') void steamLobby.setJoinable(false);
+    // Presence stops advertising a Join button — there is no lobby to join into
+    // any more. The Steam lobby itself deliberately stays open: leaving it would
+    // run closeNetworking() and drop every P2P socket mid-game, and a player who
+    // drops has to be able to rejoin it. The host is what turns strangers away
+    // (every seat is human-or-AI by now, so nextOpenSeat returns null).
+    updateSteamPresence('match');
     hosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
 }
