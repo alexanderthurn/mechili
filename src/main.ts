@@ -342,6 +342,28 @@ migrateUserStorage();
 // there on every launch — otherwise it only takes effect when someone changes it.
 if (isElectron()) void win.setUiScale(prefs().uiScale);
 
+// Closing the window mid-match is giving up, not a dropped connection: say so
+// over the wire first, so the others resolve immediately instead of waiting out
+// a reconnect grace window for someone who has quit. In a lobby the same click
+// means leaving it — as host that takes the room down, as guest it frees the
+// seat — which is exactly what Cancel already does.
+if (isElectron()) {
+    void win.wantsQuitHook();
+    win.onBeforeQuit(() => {
+        void (async () => {
+            try {
+                if (activeGame) activeGame.voluntaryQuit();
+                else if (isSessionBusy()) cancelMenuPending();
+                // Sends are asynchronous (IPC for Steam, a data channel for
+                // PeerJS) — give them a moment to actually leave.
+                await new Promise((resolve) => setTimeout(resolve, 300));
+            } finally {
+                void win.confirmQuit();
+            }
+        })();
+    });
+}
+
 // A default nobody picked must not strand the player: launching without Steam
 // leaves the Steam default unusable for the whole session (steam.init runs once
 // at process start), and the web build has neither Steam nor LAN. An explicit

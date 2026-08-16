@@ -100,6 +100,10 @@ declare module 'steam-electron-build/native' {
         isFullscreen(): Promise<boolean>;
         /** Multiplier on the automatic high-DPI zoom (Electron ≥1.7; no-op elsewhere) */
         setUiScale(factor: number): Promise<void>;
+        /** Electron ≥1.8: hold the window close until confirmQuit() (1.5s cap) */
+        wantsQuitHook(): Promise<void>;
+        onBeforeQuit(cb: () => void): void;
+        confirmQuit(): Promise<void>;
         getUiScale(): Promise<number>;
         close(): Promise<void>;
     };
