@@ -34,13 +34,15 @@ import {
     type PeerServerConfig,
     type Session,
     type SinglePlayerSave,
-    type SpectatorSession,
+    type SpectatorLink,
     type StarGuestSession,
     type StarRole,
 } from './game/net';
 import * as sebNative from 'steam-electron-build/native';
 import {
     advertiseSteamRoom,
+    joinSteamAsSpectator,
+    SteamSpectatorTransport,
     hostOrJoinSteamStar,
     hostSteamStarRoom,
     joinSteamLobby,
@@ -2229,7 +2231,7 @@ function constructGame(
         expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
     } | null,
     spectate: {
-        session: SpectatorSession;
+        session: SpectatorLink;
         watcherName: string;
         initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
     } | null,
@@ -2257,6 +2259,11 @@ function constructGame(
     // Game owns the hub, while the spectator hub opens asynchronously — reading
     // the variable at fire time would always find null and publish nothing.
     const adRoom = hosting;
+    // Spectating rides the same network the match itself is on. Steam matches
+    // must not depend on the PeerJS broker being reachable — that is exactly
+    // the reliability the Steam transport exists to avoid.
+    game.onCreateSpectatorTransport =
+        adRoom?.transport === 'steam' ? () => SteamSpectatorTransport.open() : null;
     game.onLiveRoomAd = (ad) => {
         if (!adRoom) return;
         if (adRoom.transport === 'steam') {
@@ -2307,7 +2314,7 @@ function startGame(
      *  (see game.ts). `watcherName` is the spectator's own name, distinct from
      *  `names` (which holds the two PLAYERS' names, for display). */
     spectate: {
-        session: SpectatorSession;
+        session: SpectatorLink;
         watcherName: string;
         initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
     } | null = null,
@@ -3840,7 +3847,12 @@ async function startMatchmakingForTransport(): Promise<void> {
  */
 function startSpectateGame(
     hostName: string,
-    known?: { peerId: string; peerServer?: PeerServerConfig | null },
+    known?: {
+        /** what to dial: a peer id, or a host steamId64 on the Steam transport */
+        endpoint: string;
+        transport?: MultiplayerTransport;
+        peerServer?: PeerServerConfig | null;
+    },
 ): void {
     const name = hostName.trim();
     if (!name) return;
@@ -3853,14 +3865,22 @@ function startSpectateGame(
             // nothing in the cloud to find. Point the peer at the room's own
             // signaling server first, exactly as joining does.
             if (known?.peerServer !== undefined) setPeerServerConfig(known.peerServer);
-            const peerId = known?.peerId ?? (await lookupSpectateEndpoint(name));
-            if (!peerId) {
+            // The cloud lookup is the WEB transport's directory — a Steam or
+            // LAN room always carries its own endpoint in the ad it was
+            // clicked from, and neither is registered in the cloud at all.
+            const endpoint = known?.endpoint ?? (await lookupSpectateEndpoint(name));
+            if (!endpoint) {
                 setMenuBusy(false);
                 setStatus(`No live match found for "${name}".`);
                 return;
             }
             setStatus('Connecting…');
-            const result = await joinAsSpectator(peerId, getPlayerName());
+            // Watch over the same network the match is running on: `endpoint`
+            // is the host's steamId64 for a Steam room, a peer id otherwise.
+            const result =
+                known?.transport === 'steam'
+                    ? await joinSteamAsSpectator(endpoint, getPlayerName())
+                    : await joinAsSpectator(endpoint, getPlayerName());
             setMenuBusy(false);
             setStatus('');
             // result.roster is the match's actual seat roster now (see
@@ -3977,7 +3997,8 @@ menu.addEventListener('click', (e) => {
                 roomBtn.dataset.room,
                 ad?.spectate
                     ? {
-                          peerId: ad.spectate,
+                          endpoint: ad.spectate,
+                          transport: ad.join.transport,
                           peerServer: ad.join.transport === 'lan' ? ad.join.peerServer : null,
                       }
                     : undefined,

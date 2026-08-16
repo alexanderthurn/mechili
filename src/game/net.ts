@@ -54,7 +54,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 // v26: 'matchCatchUp' gained 'seatSeq' to fix a reconnecting seat losing withheld build actions — REVERTED in v27, see below
 export const GAME_VERSION = 27; // v27: removed v26's 'seatSeq' — it seeded lastSeqSeen too HIGH for a withheld seat (counted the still-buffered content as already delivered), so the later real delivery looked like a stale/duplicate seq and got dropped, live-confirmed. Game.seedSeqTracking's plain local count was already correct (see its own doc comment) — the actual fix is only the backfill (Game.excludedActionsForSeatResume/StarHub.seedBuildBuffer)
 
-const CONNECT_TIMEOUT_MS = 20_000;
+export const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
 /** how long a star seat's connection may stay dropped before the host gives
  *  up and frees it — matches classic 1v1's RECONNECT_GRACE_SECONDS (main.ts) */
@@ -1826,9 +1826,86 @@ export interface SessionPending<T> {
  * object dies with everything else and spectators are dropped — there is no
  * spectator-side reconnect yet.
  */
+/**
+ * The host's end of ONE spectator's connection — the entire surface
+ * `SpectatorHub` needs from a transport. A PeerJS `DataConnection` already
+ * satisfies it structurally; `SteamChannel` implements it explicitly.
+ */
+export interface SpectatorViewerLink {
+    send(msg: NetMessage): void;
+    close(): void;
+}
+
+/**
+ * Where spectators reach a host, and how their connections arrive. Lets the
+ * ONE `SpectatorHub` (all the vision/fog-of-war and buffering logic lives
+ * there, and must not be duplicated per transport) sit on top of either
+ * PeerJS or Steam's own P2P — the same "swap the bottom layer, keep the
+ * behavior" split `HostHub`/`GuestSession` already use for players.
+ */
+export interface SpectatorTransport {
+    /** what a spectator dials: a PeerJS peer id, or the host's steamId64 */
+    readonly endpoint: string;
+    listen(handlers: {
+        /** a connection that has sent a valid `spectate` handshake */
+        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
+        onDrop: (link: SpectatorViewerLink) => void;
+    }): void;
+    close(): void;
+}
+
+/** PeerJS-backed spectator acceptor — the original behavior, lifted out of
+ *  `SpectatorHub.listen` unchanged so the hub itself is transport-free. */
+export class PeerSpectatorTransport implements SpectatorTransport {
+    constructor(private readonly peer: Peer) {}
+
+    get endpoint(): string {
+        return this.peer.id;
+    }
+
+    listen(handlers: {
+        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
+        onDrop: (link: SpectatorViewerLink) => void;
+    }): void {
+        this.peer.on('connection', (conn) => {
+            conn.on('open', () => {
+                // same host-side handshake timeout as StarHub.listen() — a
+                // connection that opens but never sends 'spectate' used to
+                // sit here forever with nothing to time it out.
+                const handshakeTimeout = setTimeout(() => {
+                    conn.off('data', onData);
+                    conn.close();
+                }, CONNECT_TIMEOUT_MS);
+                conn.on('close', () => clearTimeout(handshakeTimeout));
+                conn.on('error', () => clearTimeout(handshakeTimeout));
+                const onData = (data: unknown) => {
+                    clearTimeout(handshakeTimeout);
+                    const msg = data as NetMessage;
+                    if (msg.type !== 'spectate') {
+                        conn.close();
+                        return;
+                    }
+                    conn.off('data', onData);
+                    conn.on('data', (d) => handlers.onData(conn, d as NetMessage));
+                    handlers.onSpectate(msg.name, msg.version, conn);
+                };
+                conn.on('data', onData);
+                conn.on('close', () => handlers.onDrop(conn));
+                conn.on('error', () => handlers.onDrop(conn));
+            });
+        });
+    }
+
+    close(): void {
+        this.peer.destroy();
+    }
+}
+
 export class SpectatorHub {
     private readonly viewers = new Map<
-        DataConnection,
+        SpectatorViewerLink,
         {
             name: string;
             vision: SpectatorVision;
@@ -1852,20 +1929,31 @@ export class SpectatorHub {
     onSpectatorDebugLog: ((events: DebugEvent[]) => void) | null = null;
 
     private constructor(
-        private readonly peer: Peer,
+        private readonly transport: SpectatorTransport,
         /** dev-only (`?debug`): routes through the owning Game's DebugLog
          *  instead of a bare console.info, so these events join the
          *  aggregated cross-client timeline too — see debugLog.ts */
         private readonly debugLog: (category: string, data?: unknown) => void,
     ) {}
 
+    /** PeerJS-backed hub (the web transport's own spectating). */
     static async open(debugLog: (category: string, data?: unknown) => void = () => {}): Promise<SpectatorHub> {
         const peer = await openPeer();
-        return new SpectatorHub(peer, debugLog);
+        return new SpectatorHub(new PeerSpectatorTransport(peer), debugLog);
     }
 
-    get peerId(): string {
-        return this.peer.id;
+    /** Hub on any other transport — see `SteamSpectatorTransport`. */
+    static openWith(
+        transport: SpectatorTransport,
+        debugLog: (category: string, data?: unknown) => void = () => {},
+    ): SpectatorHub {
+        return new SpectatorHub(transport, debugLog);
+    }
+
+    /** What a spectator dials to reach this hub — a peer id on the web
+     *  transport, the host's steamId64 on Steam. */
+    get endpoint(): string {
+        return this.transport.endpoint;
     }
 
     get count(): number {
@@ -1889,48 +1977,26 @@ export class SpectatorHub {
      * (viewer `{kind:'spectator'}`) (or `spectateRejected` + closing the
      * connection).
      */
-    listen(onJoin: (name: string, version: number, conn: DataConnection) => void): void {
-        this.peer.on('connection', (conn) => {
-            conn.on('open', () => {
-                // same host-side handshake timeout as StarHub.listen() — a
-                // connection that opens but never sends 'spectate' used to
-                // sit here forever with nothing to time it out.
-                const handshakeTimeout = setTimeout(() => {
-                    conn.off('data', onData);
-                    conn.close();
-                }, CONNECT_TIMEOUT_MS);
-                conn.on('close', () => clearTimeout(handshakeTimeout));
-                conn.on('error', () => clearTimeout(handshakeTimeout));
-                const onData = (data: unknown) => {
-                    clearTimeout(handshakeTimeout);
-                    const msg = data as NetMessage;
-                    if (msg.type !== 'spectate') {
-                        conn.close();
-                        return;
-                    }
-                    conn.off('data', onData);
-                    conn.on('data', (d) => this.onData(conn, d as NetMessage));
-                    onJoin(msg.name, msg.version, conn);
-                };
-                conn.on('data', onData);
-                conn.on('close', () => this.drop(conn));
-                conn.on('error', () => this.drop(conn));
-            });
+    listen(onJoin: (name: string, version: number, link: SpectatorViewerLink) => void): void {
+        this.transport.listen({
+            onSpectate: onJoin,
+            onData: (link, msg) => this.onData(link, msg),
+            onDrop: (link) => this.drop(link),
         });
     }
 
     /** call once `onJoin` has accepted a spectator (sent `matchCatchUp`) */
-    admit(name: string, conn: DataConnection, vision: SpectatorVision = { mode: 'battle' }): void {
+    admit(name: string, link: SpectatorViewerLink, vision: SpectatorVision = { mode: 'battle' }): void {
         // same app-level liveness watchdog as player connections (see
         // watchLiveness's doc comment) — a spectator's hard browser-close
         // deserves the same fast, consistent detection as a player's,
         // rather than depending on however promptly WebRTC's own
         // 'close'/'error' happens to fire for a non-orderly drop.
         const liveness = watchLiveness(
-            () => conn.send({ type: 'ping' }),
-            () => this.drop(conn),
+            () => link.send({ type: 'ping' }),
+            () => this.drop(link),
         );
-        this.viewers.set(conn, { name, vision, buildBuffer: [], liveness });
+        this.viewers.set(link, { name, vision, buildBuffer: [], liveness });
         this.onRosterChange?.();
         this.onSpectatorJoined?.(name);
     }
@@ -1943,14 +2009,14 @@ export class SpectatorHub {
             grant,
             knownNames: [...this.viewers.values()].map((v) => v.name),
         });
-        for (const [conn, viewer] of this.viewers) {
+        for (const [link, viewer] of this.viewers) {
             if (viewer.name !== spectatorName) continue;
             const seats =
                 viewer.vision.mode === 'live' ? new Set(viewer.vision.seats) : new Set<'a' | 'b'>();
             if (grant) seats.add(seat);
             else seats.delete(seat);
             viewer.vision = seats.size === 0 ? { mode: 'battle' } : { mode: 'live', seats: [...seats] };
-            conn.send({ type: 'visionUpdate', vision: viewer.vision });
+            link.send({ type: 'visionUpdate', vision: viewer.vision });
             this.debugLog('vision.setSeatLiveMatched', {
                 vision: viewer.vision,
                 bufferLenBeforeFlush: viewer.buildBuffer.length,
@@ -1960,7 +2026,7 @@ export class SpectatorHub {
             // checkbox was clicked) would otherwise sit invisible until
             // this seat's next action happens to trigger a flush, which
             // reads as "vision granted but nothing changed" to a spectator.
-            if (grant) this.flushRevealable(conn, viewer, false);
+            if (grant) this.flushRevealable(link, viewer, false);
             this.debugLog('vision.setSeatLiveFlushed', { bufferLenAfterFlush: viewer.buildBuffer.length });
             return viewer.vision;
         }
@@ -1997,7 +2063,7 @@ export class SpectatorHub {
      * actions along with it.
      */
     private flushRevealable(
-        conn: DataConnection,
+        link: SpectatorViewerLink,
         viewer: { vision: SpectatorVision; buildBuffer: NetMessage[] },
         bothLocked: boolean,
     ): void {
@@ -2005,7 +2071,7 @@ export class SpectatorHub {
         const remaining: NetMessage[] = [];
         for (const buffered of viewer.buildBuffer) {
             const m = buffered as Extract<NetMessage, { type: 'action' | 'undo' }>;
-            if (this.isRevealable(viewer, m, bothLocked)) conn.send(buffered);
+            if (this.isRevealable(viewer, m, bothLocked)) link.send(buffered);
             else remaining.push(buffered);
         }
         viewer.buildBuffer = remaining;
@@ -2019,10 +2085,10 @@ export class SpectatorHub {
         return false;
     }
 
-    private onData(conn: DataConnection, msg: NetMessage): void {
-        this.viewers.get(conn)?.liveness.markSeen();
+    private onData(link: SpectatorViewerLink, msg: NetMessage): void {
+        this.viewers.get(link)?.liveness.markSeen();
         if (msg.type === 'ping') {
-            conn.send({ type: 'pong' });
+            link.send({ type: 'pong' });
             return;
         }
         if (msg.type === 'pong') return;
@@ -2032,16 +2098,16 @@ export class SpectatorHub {
             return;
         }
         if (msg.type !== 'chat') return;
-        const viewer = this.viewers.get(conn);
+        const viewer = this.viewers.get(link);
         if (!viewer) return;
         this.onSpectatorChat?.(viewer.name, msg.item);
     }
 
-    private drop(conn: DataConnection): void {
-        const viewer = this.viewers.get(conn);
+    private drop(link: SpectatorViewerLink): void {
+        const viewer = this.viewers.get(link);
         if (!viewer) return;
         viewer.liveness.stop();
-        this.viewers.delete(conn);
+        this.viewers.delete(link);
         this.onRosterChange?.();
         this.onSpectatorLeft?.(viewer.name);
     }
@@ -2051,7 +2117,7 @@ export class SpectatorHub {
      * Build `action`/`undo` use {@link relayBuild} instead.
      */
     broadcast(msg: NetMessage): void {
-        for (const conn of this.viewers.keys()) conn.send(msg);
+        for (const link of this.viewers.keys()) link.send(msg);
     }
 
     /**
@@ -2066,8 +2132,8 @@ export class SpectatorHub {
      * it here means it flushes naturally the next time
      * {@link flushBuildBuffers} runs (both sides lock in, round resolves).
      */
-    seedBuildBuffer(conn: DataConnection, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
-        this.viewers.get(conn)?.buildBuffer.push(msg);
+    seedBuildBuffer(link: SpectatorViewerLink, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void {
+        this.viewers.get(link)?.buildBuffer.push(msg);
     }
 
     /**
@@ -2079,12 +2145,12 @@ export class SpectatorHub {
         msg: Extract<NetMessage, { type: 'action' | 'undo' }>,
         bothLocked: boolean,
     ): void {
-        for (const [conn, viewer] of this.viewers) {
+        for (const [link, viewer] of this.viewers) {
             // flush whatever's newly revealable first (e.g. a seat granted
             // live vision since its last action) — per-message, so a
             // still-fogged OTHER seat's backlog entries never leak along
             // with it (see flushRevealable's doc comment)
-            this.flushRevealable(conn, viewer, bothLocked);
+            this.flushRevealable(link, viewer, bothLocked);
             const revealNow = this.isRevealable(viewer, msg, bothLocked);
             this.debugLog('vision.relayBuild', {
                 viewerName: viewer.name,
@@ -2095,15 +2161,15 @@ export class SpectatorHub {
                 revealNow,
                 bufferLenAfter: revealNow ? viewer.buildBuffer.length : viewer.buildBuffer.length + 1,
             });
-            if (revealNow) conn.send(msg);
+            if (revealNow) link.send(msg);
             else viewer.buildBuffer.push(msg);
         }
     }
 
     /** flush every spectator's build backlog (both players locked / battle start) */
     flushBuildBuffers(): void {
-        for (const [conn, viewer] of this.viewers) {
-            for (const buffered of viewer.buildBuffer) conn.send(buffered);
+        for (const [link, viewer] of this.viewers) {
+            for (const buffered of viewer.buildBuffer) link.send(buffered);
             viewer.buildBuffer.length = 0;
         }
     }
@@ -2116,9 +2182,9 @@ export class SpectatorHub {
         // self-terminating after ~10s of silence, but still a needless
         // leak/ping-churn window on a hub that's already gone).
         for (const viewer of this.viewers.values()) viewer.liveness.stop();
-        for (const conn of this.viewers.keys()) conn.close();
+        for (const link of this.viewers.keys()) link.close();
         this.viewers.clear();
-        this.peer.destroy();
+        this.transport.close();
     }
 }
 
@@ -2387,7 +2453,14 @@ export async function fetchLobbyRooms(): Promise<LobbyRoom[]> {
  * `setup`/`hello` handshake; it's a plain receive-and-occasionally-chat link
  * to whatever the host is mirroring.
  */
-export class SpectatorSession {
+export interface SpectatorLink {
+    onClose: (() => void) | null;
+    attach(handler: (msg: NetMessage) => void): void;
+    send(msg: NetMessage): void;
+    close(): void;
+}
+
+export class SpectatorSession implements SpectatorLink {
     private handler: ((msg: NetMessage) => void) | null = null;
     private readonly backlog: NetMessage[] = [];
     onClose: (() => void) | null = null;
@@ -2439,7 +2512,7 @@ export class SpectatorSession {
 }
 
 export interface SpectateResult {
-    session: SpectatorSession;
+    session: SpectatorLink;
     seed: number;
     settings: GameSettings;
     actions: LoggedAction[];

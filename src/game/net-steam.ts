@@ -1,7 +1,8 @@
-import { lobby, net, type SteamLobbyInfo } from 'steam-electron-build/native';
+import { lobby, net, steam, type SteamLobbyInfo } from 'steam-electron-build/native';
 import { getAvatarDataUrl } from './avatar';
 import { getPlayerName } from './player';
 import {
+    CONNECT_TIMEOUT_MS,
     GAME_VERSION,
     STAR_RECONNECT_GRACE_MS,
     isRevealable,
@@ -12,6 +13,10 @@ import {
     type NetMessage,
     type Session,
     type SessionPending,
+    type SpectateResult,
+    type SpectatorLink,
+    type SpectatorTransport,
+    type SpectatorViewerLink,
 } from './net';
 import type { CanonicalSeatDef, SeatId } from './seats';
 
@@ -49,6 +54,14 @@ import type { CanonicalSeatDef, SeatId } from './seats';
 // model without leaking duplicate listeners.
 
 const routes = new Map<string, (msg: NetMessage) => void>();
+/**
+ * Fallback for a packet from a steamId64 with no channel yet. Players always
+ * announce themselves through the lobby first, so they arrive already routed —
+ * this exists for SPECTATORS, who deliberately never join the lobby (see
+ * `SteamSpectatorTransport`) and so are unknown until their first `spectate`
+ * message lands here.
+ */
+let onUnrouted: ((steamId64: string, msg: NetMessage) => void) | null = null;
 let dispatcherInstalled = false;
 
 function installDispatcher(): void {
@@ -56,7 +69,18 @@ function installDispatcher(): void {
     dispatcherInstalled = true;
     net.onData((packet) => {
         const { steamId64, data } = packet as { steamId64: string; data: NetMessage };
-        routes.get(steamId64)?.(data);
+        // A spectate handshake always goes to the acceptor, even from a sender
+        // we already have a channel for: that is a watcher whose first attempt
+        // timed out and who is trying again, and delivering it to the stale
+        // channel would drop it into the hub as an unknown message and leave
+        // them waiting forever for a catch-up that is never sent.
+        if (data.type === 'spectate' && onUnrouted) {
+            onUnrouted(steamId64, data);
+            return;
+        }
+        const route = routes.get(steamId64);
+        if (route) route(data);
+        else onUnrouted?.(steamId64, data);
     });
 }
 
@@ -141,6 +165,12 @@ class SteamChannel {
     dispose(): void {
         this.liveness.stop();
         if (routes.get(this.remoteSteamId) === this.route) routes.delete(this.remoteSteamId);
+    }
+
+    /** `SpectatorViewerLink`'s half of dispose — same teardown, the name the
+     *  transport-agnostic `SpectatorHub` calls it by. */
+    close(): void {
+        this.dispose();
     }
 }
 
@@ -756,6 +786,145 @@ export async function advertiseSteamRoom(ad: {
         round: ad.round !== undefined ? String(ad.round) : '',
         spectate: ad.spectate ?? '',
     });
+}
+
+// ── spectating ───────────────────────────────────────────────────────────────
+// Spectators do NOT join the Steam lobby. The lobby is sized to the roster and
+// its membership drives seat assignment/suspension, so putting watchers in it
+// would collide with both. They are not needed there either: Steam's P2P layer
+// connects by steamId64 alone, and the runtime accepts every inbound connection
+// request, so the host's own id IS the spectate endpoint — the exact role the
+// PeerJS hub's peer id plays on the web transport.
+
+/**
+ * Steam-backed spectator acceptor for the shared `SpectatorHub`. All the
+ * vision/fog and buffering logic stays in that one hub; this only supplies
+ * connections, so spectating behaves identically on every transport.
+ */
+export class SteamSpectatorTransport implements SpectatorTransport {
+    /** channels handed out to watchers, so close() can tear down any that the
+     *  hub never admitted (rejected version, handshake abandoned mid-flight) */
+    private readonly channels = new Set<SteamChannel>();
+
+    private constructor(readonly endpoint: string) {}
+
+    /** `endpoint` is our own steamId64 — resolved up front so the room ad can
+     *  carry it the moment the match starts. */
+    static async open(): Promise<SteamSpectatorTransport> {
+        const steamId64 = await steam.getSteamId();
+        if (!steamId64 || steamId64 === '0') throw new Error('Steam identity unavailable');
+        return new SteamSpectatorTransport(String(steamId64));
+    }
+
+    /** kept so close() only clears the acceptor while it is still ours — same
+     *  identity discipline as SteamChannel's `routes` entry */
+    private acceptor: ((steamId64: string, msg: NetMessage) => void) | null = null;
+
+    listen(handlers: {
+        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
+        onDrop: (link: SpectatorViewerLink) => void;
+    }): void {
+        installDispatcher();
+        this.acceptor = (steamId64, msg) => {
+            // Anything but the handshake from a stranger is discarded rather
+            // than answered — an unknown sender must not be able to make this
+            // host allocate a channel just by sending noise at it.
+            if (msg.type !== 'spectate') return;
+            const channel = new SteamChannel(steamId64);
+            this.channels.add(channel);
+            channel.attach((m) => handlers.onData(channel, m));
+            channel.onClose = () => {
+                this.channels.delete(channel);
+                channel.dispose();
+                handlers.onDrop(channel);
+            };
+            handlers.onSpectate(msg.name, msg.version, channel);
+        };
+        onUnrouted = this.acceptor;
+    }
+
+    close(): void {
+        if (this.acceptor !== null && onUnrouted === this.acceptor) onUnrouted = null;
+        this.acceptor = null;
+        for (const channel of this.channels) channel.dispose();
+        this.channels.clear();
+    }
+}
+
+/** A spectator's own end of a Steam link to a host's hub — the counterpart of
+ *  `SpectatorSession`, minus PeerJS's peer lifecycle (there is no peer to
+ *  destroy, and no lobby to leave: we never joined one). */
+class SteamSpectatorSession implements SpectatorLink {
+    onClose: (() => void) | null = null;
+
+    constructor(private readonly channel: SteamChannel) {
+        channel.onClose = () => this.onClose?.();
+    }
+
+    attach(handler: (msg: NetMessage) => void): void {
+        this.channel.attach(handler);
+    }
+
+    send(msg: NetMessage): void {
+        this.channel.send(msg);
+    }
+
+    close(): void {
+        this.onClose = null;
+        this.channel.dispose();
+    }
+}
+
+/**
+ * Watch an in-progress Steam match, given the host's steamId64 (carried in the
+ * room ad's `spectate` field). Mirrors `joinAsSpectator` message for message —
+ * only the bytes' path differs.
+ */
+export async function joinSteamAsSpectator(
+    hostSteamId: string,
+    name: string,
+    signal?: AbortSignal,
+): Promise<SpectateResult> {
+    const channel = new SteamChannel(hostSteamId);
+    try {
+        channel.send({ type: 'spectate', name, version: GAME_VERSION });
+        const msg = await new Promise<NetMessage>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
+            const onAbort = () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+            };
+            if (signal?.aborted) {
+                onAbort();
+                return;
+            }
+            signal?.addEventListener('abort', onAbort, { once: true });
+            void channel.once().then((m) => {
+                clearTimeout(timer);
+                signal?.removeEventListener('abort', onAbort);
+                resolve(m);
+            });
+        });
+        if (msg.type === 'spectateRejected') throw new Error(msg.reason);
+        if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
+            throw new Error('Unexpected reply from host');
+        }
+        if (msg.version !== GAME_VERSION) throw new Error('Version mismatch');
+        return {
+            session: new SteamSpectatorSession(channel),
+            seed: msg.seed,
+            settings: msg.settings,
+            actions: msg.actions,
+            battleElapsed: msg.battleElapsed,
+            phaseRemaining: msg.phaseRemaining,
+            roster: msg.roster,
+            vision: msg.viewer.vision,
+        };
+    } catch (e) {
+        channel.dispose();
+        throw e;
+    }
 }
 
 /** Join a 2v2+ star room over Steam by lobby id — same `starJoin` handshake as `joinStarRoom`. */

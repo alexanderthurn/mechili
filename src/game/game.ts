@@ -58,7 +58,8 @@ import {
     type RosterEntry,
     type Session,
     type SpectateRegistration,
-    type SpectatorSession,
+    type SpectatorLink,
+    type SpectatorTransport,
     type SpectatorVision,
     type StarRole,
     type VisionPolicy,
@@ -560,6 +561,13 @@ export class Game {
      * running here, watch it at this peer id" advertisement.
      */
     onLiveRoomAd: ((ad: { spectate: string; round: number; roster: RoomRosterEntry[] }) => void) | null = null;
+    /**
+     * host-only, set by main: build the spectator transport for THIS match's
+     * network. Null (or a null result) means the web/PeerJS default. Exists so
+     * game.ts never has to import a transport module directly — the same
+     * inversion `onLiveRoomAd` uses for discovery.
+     */
+    onCreateSpectatorTransport: (() => Promise<SpectatorTransport | null>) | null = null;
 
     /** host-only: click/dblclick-to-copy button for debugLog's aggregated dump */
     private debugDumpButton: DebugDumpButton | null = null;
@@ -570,7 +578,7 @@ export class Game {
     private spectatePeerId: string | null = null;
     /** set only for a spectating client — its one connection to the host's
      *  SpectatorHub (mutually exclusive with net/star) */
-    private spectateSession: SpectatorSession | null = null;
+    private spectateSession: SpectatorLink | null = null;
     /** spectate mode only: the watcher's own name (see the `spectate` ctor param) */
     private readonly watcherName: string | null;
     /** per-team recruit level for the running round (the once-per-round level-2 switch) */
@@ -1026,7 +1034,7 @@ export class Game {
          *  no build UI ever shows because `this.watching` is true, the same
          *  guard replay playback already relies on throughout this class. */
         spectate: {
-            session: SpectatorSession;
+            session: SpectatorLink;
             /** the watching user's own name — distinct from `playerNames`,
              *  which for spectate mode holds the two PLAYERS' names (for
              *  sideLabel/roster display, not "who is chatting") */
@@ -3623,7 +3631,12 @@ export class Game {
         void (async () => {
             let hub: SpectatorHub;
             try {
-                hub = await SpectatorHub.open((category, data) => this.debugLog.log(category, data));
+                const log = (category: string, data?: unknown) => this.debugLog.log(category, data);
+                // A Steam match spectates over Steam's own P2P, never PeerJS —
+                // main.ts supplies that transport; the hub (and every bit of
+                // vision/fog logic in it) is the same object either way.
+                const transport = await this.onCreateSpectatorTransport?.();
+                hub = transport ? SpectatorHub.openWith(transport, log) : await SpectatorHub.open(log);
             } catch {
                 return;
             }
@@ -3632,26 +3645,26 @@ export class Game {
                 return;
             }
             this.spectatorHub = hub;
-            this.spectatePeerId = hub.peerId;
-            // discoverable under the same room name a "Host Room" match
-            // already uses — spectators look it up the same way a joining
-            // player would find the room. Skipped entirely for a LAN room:
-            // this would otherwise post the LAN-only host's identity/peer
-            // id to the PUBLIC cloud matchmaking backend regardless of the
-            // player's LAN-only intent — LAN spectators find the match via
-            // the LAN discovery mechanism, not this cloud lookup.
-            // Steam and LAN advertise through their own discovery channel
-            // instead (see onLiveRoomAd) — the cloud backend is the web
-            // transport's, and publishing a LAN-only host there would put their
-            // identity on the internet against the point of playing on a LAN.
+            this.spectatePeerId = hub.endpoint;
+            // Every transport advertises through its OWN discovery channel
+            // (Steam lobby data, LAN announce, the cloud backend below) — this
+            // is the one that reaches all three.
             this.onLiveRoomAd?.({
-                spectate: hub.peerId,
+                spectate: hub.endpoint,
                 round: this.round,
                 roster: this.backendRosterSnapshot(),
             });
-            if (this.star?.role !== 'host' || this.star.discovery !== 'lan') {
+            // The cloud backend belongs to the WEB transport alone. A LAN host
+            // registered there would put their identity on the internet against
+            // the whole point of playing on a LAN, and a Steam host would
+            // publish a steamId64 under a field the web room list reads as a
+            // peer id — an endpoint no web spectator could ever dial anyway.
+            // (a classic, non-star 1v1 host is PeerJS by construction)
+            const discovery = this.star?.role === 'host' ? this.star.discovery : undefined;
+            const usesCloudDiscovery = !this.star || discovery === undefined || discovery === 'matchmaking';
+            if (usesCloudDiscovery) {
                 this.spectateRegistration = registerSpectateEndpoint(
-                    hub.peerId,
+                    hub.endpoint,
                     this.playerNames.local,
                     // seat COUNT, not `this.star` truthiness — 1v1 is a 2-seat
                     // star match now too, so `this.star` alone can no longer
@@ -4431,7 +4444,7 @@ export class Game {
      *  arrived (`maybeStartBattleAfterDeploy`) — every build action, real
      *  players' and this spectator's own copy alike, now sends/arrives
      *  immediately, so there's nothing else left to wait for. */
-    private wireSpectateSession(session: SpectatorSession): void {
+    private wireSpectateSession(session: SpectatorLink): void {
         this.spectateSession = session;
         session.attach((msg) => this.onSpectateMessage(msg));
         session.onClose = () => {
