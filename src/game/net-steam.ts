@@ -3,6 +3,7 @@ import { getAvatarDataUrl } from './avatar';
 import { getPlayerName } from './player';
 import {
     GAME_VERSION,
+    STAR_RECONNECT_GRACE_MS,
     isRevealable,
     seatVisionPolicy,
     watchLiveness,
@@ -190,11 +191,37 @@ export class SteamGuestSession implements GuestSession {
         this.channel.send(msg);
     }
 
-    /** Steam star matches have no reconnect story yet (still v1 scope, same
-     *  as `SteamStarHub`'s onSeatSuspended/onSeatReconnected stubs) — always
-     *  fails so callers fall back to today's existing suspend/give-up UX. */
-    async redial(): Promise<GuestSession> {
-        throw new Error('Steam star reconnect is not implemented');
+    /**
+     * Announce ourselves to the host again after a drop, so it hands back the
+     * seat it has been holding.
+     *
+     * Much less work than the PeerJS redial: Steam P2P is connectionless and
+     * relay-backed, so there is no socket to rebuild — what was actually lost
+     * is the host's belief that we are here. Rejoining the lobby (a no-op when
+     * we never left it) and sending starRejoin is the whole reconnection.
+     *
+     * Returns a fresh session so the caller's own wiring is rebuilt exactly as
+     * it is on the PeerJS path; the old channel is disposed by close().
+     */
+    async redial(mySeat: SeatId, signal: AbortSignal, delayMs = 3000): Promise<GuestSession> {
+        for (;;) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            try {
+                const room = await lobby.join(this.lobbyId);
+                if (!room) throw new Error('lobby gone');
+                const next = new SteamGuestSession(room.owner, this.lobbyId);
+                next.send({
+                    type: 'starRejoin',
+                    seat: mySeat,
+                    name: getPlayerName(),
+                    version: GAME_VERSION,
+                });
+                return next;
+            } catch (e) {
+                if (e instanceof DOMException && e.name === 'AbortError') throw e;
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+        }
     }
 
     close(): void {
@@ -215,9 +242,6 @@ export class SteamGuestSession implements GuestSession {
 export class SteamStarHub implements HostHub {
     onMessage: ((seat: SeatId, msg: NetMessage) => void) | null = null;
     onSeatDropped: ((seat: SeatId) => void) | null = null;
-    // Steam star matches have no reconnect story yet (still v1 scope, same
-    // as before) — a drop goes straight to onSeatDropped like it always
-    // has; these three are here only to satisfy HostHub and are never fired.
     onSeatSuspended: ((seat: SeatId) => void) | null = null;
     onSeatReconnected: ((seat: SeatId) => void) | null = null;
     onSeatReclaimedFromAi: ((seat: SeatId) => void) | null = null;
@@ -225,7 +249,16 @@ export class SteamStarHub implements HostHub {
     /** fired whenever a guest joins/leaves before match start (lobby display) */
     onRosterChange: (() => void) | null = null;
 
-    private readonly bySeat = new Map<SeatId, { steamId64: string; channel: SteamChannel; buffer: NetMessage[] }>();
+    /** `channel: null` = seat suspended, held for a rejoin inside the grace
+     *  window (mirrors StarHub's `conn: null`). */
+    private readonly bySeat = new Map<
+        SeatId,
+        { steamId64: string; channel: SteamChannel | null; buffer: NetMessage[] }
+    >();
+    private readonly reconnectTimers = new Map<SeatId, ReturnType<typeof setTimeout>>();
+    /** seats handed to AI after the window elapsed — reclaimable by their
+     *  original player later, with no deadline (see StarHub.markReclaimable) */
+    private readonly reclaimableSeats = new Set<SeatId>();
     /** members currently mid-handshake (joined the lobby, `starJoin` not seen
      *  yet) — without this, a second `onChatUpdate` firing before the first
      *  handshake resolves would open a duplicate `SteamChannel` for the same
@@ -265,9 +298,11 @@ export class SteamStarHub implements HostHub {
 
     // no reconnect story yet (see class doc comment) — nothing to mark
     // reclaimable, this just satisfies HostHub
-    markReclaimable(): void {}
-    isReclaimable(): boolean {
-        return false;
+    markReclaimable(seat: SeatId): void {
+        this.reclaimableSeats.add(seat);
+    }
+    isReclaimable(seat: SeatId): boolean {
+        return this.reclaimableSeats.has(seat);
     }
 
     sideOf(seat: SeatId): 'a' | 'b' {
@@ -283,7 +318,8 @@ export class SteamStarHub implements HostHub {
     }
 
     connectedSeats(): SeatId[] {
-        return [...this.bySeat.keys()];
+        // a suspended seat is still held, but nobody is on the other end
+        return [...this.bySeat].filter(([, v]) => v.channel !== null).map(([seat]) => seat);
     }
 
     /**
@@ -354,10 +390,43 @@ export class SteamStarHub implements HostHub {
         if (settled) return;
         settled = true;
         this.pending.delete(steamId64);
+
+        // Explicit "I was seat N, let me back in". Both seat AND name must
+        // match a seat we are actually holding: the seat number alone is a
+        // small guessable integer, so name is what makes this an identity
+        // check rather than a seat grab.
+        if (msg.type === 'starRejoin') {
+            const holding = this.bySeat.get(msg.seat);
+            if (
+                msg.version === GAME_VERSION &&
+                holding?.channel === null &&
+                this.roster[msg.seat]?.name === msg.name &&
+                this.reclaimSeat(msg.seat, channel, steamId64)
+            ) {
+                return;
+            }
+            channel.send({
+                type: 'starRejoinRejected',
+                reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
+            });
+            channel.dispose();
+            return;
+        }
+
         if (msg.type !== 'starJoin') {
             channel.dispose();
             return;
         }
+
+        // A returning player whose own client forgot the match (reload, crash,
+        // reopened link) sends a plain starJoin — match it against a held seat
+        // before treating them as a newcomer, or they are told the room is
+        // full while their own seat sits waiting for them.
+        if (msg.version === GAME_VERSION) {
+            const held = this.findDroppedSeatByName(msg.name);
+            if (held !== null && this.reclaimSeat(held, channel, steamId64)) return;
+        }
+
         const result = onJoin(msg.name, msg.version, msg.avatar);
         if (typeof result !== 'number') {
             channel.send({ type: 'starRejected', reason: result.reject });
@@ -389,15 +458,77 @@ export class SteamStarHub implements HostHub {
      * the roster table after that guest clicked Cancel).
      */
     private dropSeat(seat: SeatId): void {
-        if (!this.bySeat.has(seat)) return;
-        this.bySeat.get(seat)!.channel.dispose();
-        this.bySeat.delete(seat);
+        const viewer = this.bySeat.get(seat);
+        if (!viewer) return;
+        viewer.channel?.dispose();
+
+        // Already handed to AI: the seat is reclaimable with no deadline, so
+        // there is nothing to hold and nothing to suspend (see StarHub).
+        if (this.reclaimableSeats.has(seat)) {
+            this.bySeat.delete(seat);
+            this.onRosterChange?.();
+            return;
+        }
+
+        // Pre-match a departure is just a departure: free the slot so the next
+        // comer can take it. There is no match state worth holding it for.
         if (this.inLobby) {
+            this.bySeat.delete(seat);
             const entry = this.roster[seat];
             if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
+            this.onRosterChange?.();
+            this.onSeatDropped?.(seat);
+            return;
         }
+
+        // Mid-match: hold the seat for STAR_RECONNECT_GRACE_MS, exactly as the
+        // PeerJS host does — the Game's countdown, AI-takeover and catch-up all
+        // key off these callbacks and were simply never reached before.
+        viewer.channel = null;
+        // moot now: a reclaim gets a fresh authoritative matchCatchUp instead
+        viewer.buffer.length = 0;
+        this.onDebugEvent?.('star.seatSuspended', { seat, graceMs: STAR_RECONNECT_GRACE_MS });
+        this.onSeatSuspended?.(seat);
         this.onRosterChange?.();
-        this.onSeatDropped?.(seat);
+        const timer = setTimeout(() => {
+            this.reconnectTimers.delete(seat);
+            const current = this.bySeat.get(seat);
+            if (!current || current.channel !== null) return;   // reclaimed meanwhile
+            this.bySeat.delete(seat);
+            this.onDebugEvent?.('star.graceWindowElapsed', { seat });
+            this.onRosterChange?.();
+            this.onSeatDropped?.(seat);
+        }, STAR_RECONNECT_GRACE_MS);
+        this.reconnectTimers.set(seat, timer);
+    }
+
+    /** A returning player takes their held seat back. */
+    private reclaimSeat(seat: SeatId, channel: SteamChannel, steamId64: string): boolean {
+        const viewer = this.bySeat.get(seat);
+        if (!viewer || viewer.channel !== null) return false;
+        const timer = this.reconnectTimers.get(seat);
+        if (timer !== undefined) {
+            clearTimeout(timer);
+            this.reconnectTimers.delete(seat);
+        }
+        viewer.channel = channel;
+        viewer.steamId64 = steamId64;
+        channel.attach((m) => this.onMessage?.(seat, m));
+        channel.onClose = () => this.dropSeat(seat);
+        this.onDebugEvent?.('star.seatReclaimed', { seat });
+        this.onSeatReconnected?.(seat);
+        this.onRosterChange?.();
+        return true;
+    }
+
+    /** A held seat whose roster name matches — the same identity check the
+     *  PeerJS host uses; `seat` alone is a guessable integer. */
+    private findDroppedSeatByName(name: string): SeatId | null {
+        for (const [seat, viewer] of this.bySeat) {
+            if (viewer.channel !== null) continue;
+            if (this.roster[seat]?.name === name) return seat;
+        }
+        return null;
     }
 
     /**
@@ -413,8 +544,8 @@ export class SteamStarHub implements HostHub {
         if (seat === 0) return; // the host can't kick themselves
         const viewer = this.bySeat.get(seat);
         if (!viewer) return;
-        viewer.channel.send({ type: 'starRejected', reason: 'Kicked by the host.' });
-        viewer.channel.dispose();
+        viewer.channel?.send({ type: 'starRejected', reason: 'Kicked by the host.' });
+        viewer.channel?.dispose();
         this.bySeat.delete(seat);
         const entry = this.roster[seat];
         if (entry) this.setRosterEntry(seat, { side: entry.side, controller: 'human', name: 'Waiting…' });
@@ -422,13 +553,13 @@ export class SteamStarHub implements HostHub {
     }
 
     send(seat: SeatId, msg: NetMessage): void {
-        this.bySeat.get(seat)?.channel.send(msg);
+        this.bySeat.get(seat)?.channel?.send(msg);
     }
 
     broadcast(msg: NetMessage, exclude?: SeatId): void {
         for (const [seat, { channel }] of this.bySeat) {
             if (seat === exclude) continue;
-            channel.send(msg);
+            channel?.send(msg);
         }
     }
 
@@ -447,13 +578,16 @@ export class SteamStarHub implements HostHub {
                 viewer.buffer.length > 0 &&
                 [...policy.ownSides].every((side) => sideLocked(side))
             ) {
-                for (const buffered of viewer.buffer) viewer.channel.send(buffered);
+                for (const buffered of viewer.buffer) viewer.channel?.send(buffered);
                 viewer.buffer.length = 0;
             }
             if (seat === fromSeat) continue;
-            if (isRevealable(policy, fromSide, sideLocked)) {
+            // A suspended seat buffers regardless of vision: it gets an
+            // authoritative matchCatchUp on reclaim, so this only matters for
+            // the seats still listening.
+            if (viewer.channel && isRevealable(policy, fromSide, sideLocked)) {
                 viewer.channel.send(msg);
-            } else {
+            } else if (viewer.channel) {
                 viewer.buffer.push(msg);
             }
         }
@@ -461,7 +595,7 @@ export class SteamStarHub implements HostHub {
 
     flushAllBuffers(): void {
         for (const viewer of this.bySeat.values()) {
-            for (const buffered of viewer.buffer) viewer.channel.send(buffered);
+            for (const buffered of viewer.buffer) viewer.channel?.send(buffered);
             viewer.buffer.length = 0;
         }
     }
@@ -478,7 +612,7 @@ export class SteamStarHub implements HostHub {
     close(): void {
         this.unsubscribeLobbyUpdate?.();
         this.unsubscribeLobbyUpdate = null;
-        for (const { channel } of this.bySeat.values()) channel.dispose();
+        for (const { channel } of this.bySeat.values()) channel?.dispose();
         this.bySeat.clear();
         void lobby.leave();
     }
