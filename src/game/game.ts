@@ -845,8 +845,20 @@ export class Game {
         this.hpBars.view.visible = !hide;
         this.hordeMarkers.edgeView.visible = !hide;
         this.debug.el.style.visibility = hide ? 'hidden' : '';
+        this.syncDebugDumpButton();
         this.applyCinemaWorld(hide);
         if (hide) this.refreshCinemaHint(500);
+    }
+
+    /**
+     * The dump button belongs to the debug overlay, so it has to follow every
+     * input that hides it: the setting, the collapsed state and cinema mode.
+     * Each of those used to be wired separately, and two of them forgot it.
+     */
+    private syncDebugDumpButton(): void {
+        this.debugDumpButton?.setVisible(
+            debugEnabled() && !this.debug.isCollapsed && !this.hud.isUiHidden,
+        );
     }
 
     /** Cinema footer: `Shift+C — 1/11 Spring morning` (same scene text as the debug overlay). */
@@ -1742,8 +1754,8 @@ export class Game {
         this.debug = new DebugOverlay(wrapper, debugEnabled());
         if (this.debugLog.enabled && this.debugLog.isHost) {
             this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
-            this.debugDumpButton.setVisible(!this.debug.isCollapsed);
-            this.debug.onCollapsedChange = (collapsed) => this.debugDumpButton?.setVisible(!collapsed);
+            this.syncDebugDumpButton();
+            this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
         }
         pixiApp.stage.addChild(this.hpBars.view);
         pixiApp.stage.addChild(this.hordeMarkers.edgeView);
@@ -2053,6 +2065,7 @@ export class Game {
         // The overlay can flip live; DebugLog.enabled is readonly, so the
         // recorded timeline still follows whatever was set when the match began.
         this.debug?.setEnabled(debugEnabled());
+        this.syncDebugDumpButton();
         this.applyRenderPrefs();
         this.applySceneryQuality();
         if (gpuDirty) this.warmGpuPrograms();
