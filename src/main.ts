@@ -2073,24 +2073,21 @@ async function refreshRoomList(): Promise<void> {
                 const markedByUs =
                     !!resumeMarker && resumeMarker.hostName.toLowerCase() === r.name.toLowerCase();
                 const resumable = (r.kind === 'spectate' && !!myDroppedSeat) || markedByUs;
+                // 'resume' still routes the click to beginStarJoin rather than
+                // spectating — it just no longer announces itself. A room we
+                // believe we can rejoin reads as an ordinary entry, so the list
+                // only ever promises "Watch" or nothing, and can never be wrong.
                 const roomKind = resumable ? 'resume' : r.kind;
-                button.className =
-                    roomKind === 'resume'
-                        ? 'm-room m-room-resume'
-                        : roomKind === 'spectate'
-                          ? 'm-room m-room-spectate'
-                          : 'm-room';
+                button.className = roomKind === 'spectate' ? 'm-room m-room-spectate' : 'm-room';
                 button.dataset.room = r.name;
                 button.dataset.roomMode = r.mode;
                 button.dataset.roomKind = roomKind;
                 const modeTag = r.mode === '2v2' ? ' (2v2)' : '';
                 const roundTag = r.round ? ` — round ${r.round}` : '';
                 button.textContent =
-                    roomKind === 'resume'
-                        ? `Resume your match — ${r.name}${modeTag}${roundTag}`
-                        : roomKind === 'spectate'
-                          ? `Watch ${r.name}${modeTag}${roundTag}`
-                          : `${r.name}${modeTag}`;
+                    roomKind === 'spectate'
+                        ? `Watch ${r.name}${modeTag}${roundTag}`
+                        : `${r.name}${modeTag}${resumable ? roundTag : ''}`;
                 return button;
             }),
         );
