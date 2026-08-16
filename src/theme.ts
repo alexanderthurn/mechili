@@ -1957,6 +1957,18 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     font-size: 12px;
     color: ${u.creamMuted};
 }
+.mechili-settings .s-mp-note {
+    margin-top: 4px;
+}
+.mechili-settings .s-hint a {
+    color: ${u.brassLight};
+    text-decoration: none;
+    border-bottom: 1px solid rgba(212, 184, 120, 0.4);
+}
+.mechili-settings .s-hint a:hover {
+    color: ${u.cream};
+    border-bottom-color: ${u.cream};
+}
 .mechili-settings .s-reset {
     width: 100%;
     border: 1px solid ${u.bronze};
