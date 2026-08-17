@@ -768,8 +768,8 @@ export class Game {
         const t = e.target as HTMLElement | null;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
 
-        // cheats / debug hotkeys (visual or single-player only)
-        if (e.code === 'KeyN') {
+        // cheats / debug hotkeys (visual or single-player only) — all Shift+
+        if (e.code === 'KeyN' && e.shiftKey) {
             // year-tour atmosphere scenes + supply/HP/time cheats
             this.weather?.nextScene();
             this.refreshCinemaHint();
@@ -783,17 +783,17 @@ export class Game {
             }
             return;
         }
-        if (e.code === 'KeyX') {
+        if (e.code === 'KeyX' && e.shiftKey) {
             // season only (weather + time unchanged) — left of C on DE
             this.weather?.nextSeason();
             return;
         }
-        if (e.code === 'KeyV') {
+        if (e.code === 'KeyV' && e.shiftKey) {
             // weather only — right of C on DE
             this.weather?.nextWeather();
             return;
         }
-        if (e.code === 'KeyY') {
+        if (e.code === 'KeyY' && e.shiftKey) {
             // time of day only — next to X on DE (was B)
             this.weather?.nextTime();
             return;
@@ -803,7 +803,7 @@ export class Game {
             this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey });
             return;
         }
-        if (e.code === 'KeyH' && !this.net && !this.star) {
+        if (e.code === 'KeyH' && e.shiftKey && !this.net && !this.star) {
             // single-player: extra horde packs right now — stress-test
             // marchIn perf and eyeball the ring spawn/lake-avoidance logic
             // independent of the round's normal budget. Press repeatedly to
@@ -2819,12 +2819,12 @@ export class Game {
     }
 
     /**
-     * SP cheat (H): spawn this round's authored horde plan into the forest
+     * SP cheat (Shift+H): spawn this round's authored horde plan into the forest
      * as two camps (same split as a real wave). Build-phase only.
      */
     private cheatSpawnHordePacks(): void {
         if (this.phase !== 'build') {
-            console.info('[cheat] KeyH only works during build phase (battle actors are already fixed)');
+            console.info('[cheat] Shift+H only works during build phase (battle actors are already fixed)');
             return;
         }
         // Reuse the real wave spawner path by temporarily ensuring the round
@@ -2867,7 +2867,7 @@ export class Game {
             spawned++;
         }
         console.info(
-            `[cheat] KeyH: spawned ${spawned}/${plan.length} packs in 2 camps (big ${nBig})`,
+            `[cheat] Shift+H: spawned ${spawned}/${plan.length} packs in 2 camps (big ${nBig})`,
         );
     }
 
@@ -7134,8 +7134,8 @@ export class Game {
     }
 
     /**
-     * While dragging a rune over the forge, show the same recipe grid as shop /
-     * bag / forge-slot hover (spells using this rune sorted first).
+     * While dragging a rune over the forge, show the recipe grid (spells using
+     * this rune sorted first). Shop / bag hover does not open it.
      */
     private syncArmedRuneForgeGhost(): void {
         if (!this.armedItem || !ITEMS[this.armedItem]) {

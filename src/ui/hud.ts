@@ -726,23 +726,6 @@ export class Hud {
                 const lastSlot = this.deploysLeft <= 1;
                 if (this.onBuyRune?.(itemId) && lastSlot) this.setPhoneTab(null);
             });
-            btn.addEventListener('pointerenter', (e) => {
-                if (e.pointerType === 'touch') return;
-                this.showForgeRecipesHover(btn, itemId);
-            });
-            btn.addEventListener('pointerleave', (e) => {
-                if (e.pointerType === 'touch') return;
-                const to = e.relatedTarget as Node | null;
-                if (
-                    this.forgeSlotPreviewEl &&
-                    !this.forgeSlotPreviewEl.hidden &&
-                    to &&
-                    this.forgeSlotPreviewEl.contains(to)
-                ) {
-                    return;
-                }
-                if (this.forgeSlotPreviewAnchor === btn) this.hideForgeSlotHoverPreview();
-            });
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
         }
@@ -922,31 +905,6 @@ export class Hud {
             if (routeId && tacticBtn.dataset.tactic) {
                 this.onResetPlacedTactic?.(tacticBtn.dataset.tactic, Number(routeId));
             } else this.onCancelTactic?.();
-        });
-        // bag runes: same unlocked-spell recipe grid as empty forge / shop runes
-        this.inventoryEl.addEventListener('pointerover', (e) => {
-            if ((e as PointerEvent).pointerType === 'touch') return;
-            const btn = (e.target as HTMLElement).closest<HTMLElement>('.inv-item[data-item]');
-            if (btn) this.showForgeRecipesHover(btn, btn.dataset.item ?? null);
-        });
-        this.inventoryEl.addEventListener('pointerout', (e) => {
-            if ((e as PointerEvent).pointerType === 'touch') return;
-            const from = (e.target as HTMLElement).closest<HTMLElement>('.inv-item[data-item]');
-            const to = (e.relatedTarget as HTMLElement | null)?.closest?.(
-                '.inv-item[data-item]',
-            );
-            if (from && from !== to && this.forgeSlotPreviewAnchor === from) {
-                const related = e.relatedTarget as Node | null;
-                if (
-                    this.forgeSlotPreviewEl &&
-                    !this.forgeSlotPreviewEl.hidden &&
-                    related &&
-                    this.forgeSlotPreviewEl.contains(related)
-                ) {
-                    return;
-                }
-                this.hideForgeSlotHoverPreview();
-            }
         });
 
         // opponent items not yet placed (right edge; frozen to phase-start intel)
@@ -1764,8 +1722,8 @@ export class Hud {
     }
 
     /**
-     * While dragging a rune over the forge: show the same recipe grid as shop /
-     * bag / empty-forge hover (highlights spells using this rune).
+     * While dragging a rune over the forge: show the recipe grid (highlights
+     * spells using this rune). Shop / bag hover no longer opens this.
      */
     setItemGhostForgePreview(highlightRuneId: string | null): void {
         if (!highlightRuneId || !this.itemGhost) {
@@ -1779,7 +1737,7 @@ export class Hud {
 
     private forgeSlotPreviewEl: HTMLDivElement | null = null;
     private forgeSlotPreviewAnchor: HTMLElement | null = null;
-    /** rune id used while recipes hover is open (shop / bag / drag) */
+    /** rune id used while recipes hover is open (forge slot / drag-over-forge) */
     private forgeRecipesHoverRuneId: string | null = null;
     /** recipe HTML currently written into the popup — skip rewrites when unchanged */
     private forgeRecipesShownHtml: string | null = null;
@@ -1791,7 +1749,7 @@ export class Hud {
         if (!el || el.hidden || !el.classList.contains('recipes')) return;
         const t = e.target as Node | null;
         if (!t) return;
-        // still interacting with the forge/shop/bag anchor — keep open
+        // still interacting with the forge-slot anchor — keep open
         if (this.forgeSlotPreviewAnchor?.contains(t)) return;
         // preview itself or anywhere else → dismiss
         this.dismissForgeRecipesPreview();
@@ -1826,7 +1784,7 @@ export class Hud {
 
     /**
      * Full unlocked-spell recipe grid.
-     * @param highlightRuneId when set (shop / bag hover only), spells that use
+     * @param highlightRuneId when set (drag-over-forge), spells that use
      *   that rune get ready pulse; otherwise tiles use oven ready/partial.
      */
     private showForgeRecipesHover(
@@ -2977,7 +2935,11 @@ export class Hud {
      * screen: the phone tab bar and field-action buttons step aside. The
      * topbar keeps its original cards-only rule (a card pick or the
      * settings panel blocks End Deployment and speed controls; pause does
-     * not — pause already stops everything itself).
+     * not — pause already stops everything itself). Commander HP strips
+     * hide for the same overlays — they sit above `.mechili-cards` so
+     * specialist peek still works, but during an actual pick they only
+     * steal taps / clutter the screen. Specialist-detail peek does NOT
+     * set `cardOverlay`, so the strips stay for that.
      */
     private syncOverlayOpen(): void {
         const blocksTopBar =
@@ -2986,6 +2948,7 @@ export class Hud {
         this.topBar.classList.toggle('overlay-open', blocksTopBar);
         this.phoneBar.classList.toggle('overlay-open', open);
         this.phoneStatusEl.classList.toggle('overlay-open', open);
+        this.fightBar.classList.toggle('overlay-open', open);
     }
 
     hidePauseMenu(): void {
@@ -3064,6 +3027,9 @@ export class Hud {
         overlay: HTMLElement,
         onDone: () => void,
     ): void {
+        // stacks were hidden for the pick (overlay-open); bring them back so
+        // the fly target / land pulse have a real rect to aim at
+        this.fightBar.classList.remove('overlay-open');
         overlay.classList.add('flying');
         const from = card.getBoundingClientRect();
         const chip = this.commanderChips.find((c) => c.seat === this.humanSeat);

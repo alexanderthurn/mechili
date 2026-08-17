@@ -49,6 +49,10 @@ export function openSettings(parent: HTMLElement): void {
         ` <span class="s-hint s-font-hint"></span></label>` +
         `</section>` +
         `<section class="s-section">` +
+        `<div class="s-section-head">Controls</div>` +
+        `<button type="button" class="m-btn-bronze s-help-btn" data-act="controls-help">Help</button>` +
+        `</section>` +
+        `<section class="s-section">` +
         `<div class="s-section-head">Chat</div>` +
         `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
         `<label class="s-row"><input type="checkbox" class="s-global" /> Show global chat (menu)</label>` +
@@ -335,8 +339,16 @@ export function openSettings(parent: HTMLElement): void {
         });
     }
 
+    // Prefer the game wrapper over #match-ui-root (pointer-events:none shell).
+    const host =
+        parent.id === 'match-ui-root' && parent.parentElement ? parent.parentElement : parent;
+
     overlay.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
+        if (target.closest('[data-act="controls-help"]')) {
+            openControlsHelp(host);
+            return;
+        }
         if (target.closest('[data-act="reset"]')) {
             if (
                 !window.confirm(
@@ -356,12 +368,117 @@ export function openSettings(parent: HTMLElement): void {
         'keydown',
         function onKey(e: KeyboardEvent) {
             if (e.key !== 'Escape') return;
+            if (document.querySelector('.mechili-controls-help')) return;
             overlay.remove();
             window.removeEventListener('keydown', onKey);
         },
     );
-    // Prefer the game wrapper over #match-ui-root (pointer-events:none shell).
-    const host =
-        parent.id === 'match-ui-root' && parent.parentElement ? parent.parentElement : parent;
     host.appendChild(overlay);
+}
+
+function row(keys: string, text: string): string {
+    return (
+        `<div class="ch-row">` +
+        `<span class="ch-keys">${keys
+            .split(' · ')
+            .map((k) => `<kbd>${k}</kbd>`)
+            .join('')}</span>` +
+        `<span class="ch-desc">${text}</span>` +
+        `</div>`
+    );
+}
+
+function section(title: string, body: string): string {
+    return `<section class="ch-section"><h2>${title}</h2>${body}</section>`;
+}
+
+/** Full-screen controls reference — opened from Settings → Controls → Help. */
+export function openControlsHelp(parent: HTMLElement): void {
+    if (document.querySelector('.mechili-controls-help')) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'mechili-controls-help';
+    overlay.style.pointerEvents = 'auto';
+    overlay.innerHTML =
+        `<div class="ch-box m-frame">` +
+        `<div class="ch-head">` +
+        `<div class="ch-title">Controls</div>` +
+        `<button type="button" class="m-btn-bronze primary" data-act="close">Close</button>` +
+        `</div>` +
+        `<div class="ch-body">` +
+        section(
+            'Touch',
+            row('1 finger tap', 'Select, place, or buy — same as a left click') +
+                row('2 finger pinch', 'Zoom — spread or pinch in any direction, not only vertical') +
+                row('2 finger drag', 'Both fingers moving together pans the map') +
+                row('3 finger drag', 'Orbit: left/right rotates heading, up/down tilts'),
+        ) +
+        section(
+            'Mouse',
+            row('Left click', 'Select a pack, place a carried pack, or drop a rune/tactic') +
+                row('Left drag', 'Box-select packs') +
+                row('Right click', 'Cancel / deselect (clears a carried pack, armed rune, or tactic)') +
+                row('Right drag', 'Grab the ground and pan') +
+                row('Middle click', 'Rotate the selected pack') +
+                row('Middle drag', 'Orbit — left/right heading, up/down tilt') +
+                row('Scroll wheel', 'Zoom toward the cursor') +
+                row('Screen edges', 'Pan while the cursor sits at the edge of the window') +
+                row('Speed button', 'Click faster, right-click slower (battle)'),
+        ) +
+        section(
+            'Keyboard',
+            row('W A S D · Arrows', 'Pan, relative to camera heading') +
+                row('Q · E', 'Rotate heading') +
+                row('Home', 'Reset rotation, tilt, and zoom') +
+                row('R', 'Rotate the selected pack') +
+                row('Escape', 'Pause menu. In cinema mode, first restores the HUD.') +
+                row('Enter', 'Send chat (match or menu global chat)') +
+                row('F11 · Alt+Enter', 'Fullscreen (desktop app)'),
+        ) +
+        section(
+            'Gamepad',
+            row('Left stick', 'Move the on-screen cursor') +
+                row('A', 'Click. Hold and drag to box-select.') +
+                row('B', 'Cancel / deselect') +
+                row('X', 'Rotate the selected pack') +
+                row('Start', 'Pause menu') +
+                row('Back / Select', 'Reset camera view') +
+                row('Right stick', 'Orbit (heading + tilt)') +
+                row('LB / RB + right stick', 'Pan') +
+                row('LT · RT', 'Zoom toward the cursor'),
+        ) +
+        section(
+            'Cheats &amp; debug',
+            `<p class="ch-note">Most spawn/skip cheats are single-player only. Atmosphere keys work in any match (visual). Typed into the field, not chat.</p>` +
+                row('Shift+N', 'Next atmosphere scene, +1000 supply, +5000 HP both sides, battle timer 500s') +
+                row('Shift+X', 'Next season') +
+                row('Shift+V', 'Next weather') +
+                row('Shift+Y', 'Next time of day') +
+                row('Shift+U', 'Single-player: free-spawn every unit, max supply, tactics, bag runes, and a few techs') +
+                row('Ctrl+Shift+U', 'Same as Shift+U, and scramble pack levels') +
+                row('Shift+H', 'Single-player, deploy phase: extra horde packs (repeat to pile on)') +
+                row('Shift+I', 'Single-player: skip the rest of this round') +
+                row('Shift+C', 'Cinema — hide HUD for screenshots. Escape restores it.') +
+                row('Shift+T', 'Cycle material debug: clay → wireframe → normals → off') +
+                row('Shift+1 … 7', 'Toggle visual layers: clouds, distance fog, height mist, forest fog, rain, snow, stars') +
+                row('Shift+0', 'Turn every visual layer back on'),
+        ) +
+        `</div>` +
+        `</div>`;
+
+    const close = (): void => {
+        overlay.remove();
+        window.removeEventListener('keydown', onKey, true);
+    };
+    const onKey = (e: KeyboardEvent): void => {
+        if (e.key !== 'Escape') return;
+        e.stopImmediatePropagation();
+        close();
+    };
+    overlay.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target === overlay || target.closest('[data-act="close"]')) close();
+    });
+    window.addEventListener('keydown', onKey, true);
+    parent.appendChild(overlay);
 }

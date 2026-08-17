@@ -1986,6 +1986,113 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 .mechili-settings button {
     padding: 8px 16px;
 }
+.mechili-settings .s-help-btn {
+    align-self: flex-start;
+    padding: 6px 16px;
+    font-size: 13px;
+}
+
+.mechili-controls-help {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.62);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    z-index: 82;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+        max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    box-sizing: border-box;
+}
+.mechili-controls-help .ch-box {
+    display: flex;
+    flex-direction: column;
+    width: min(760px, 100%);
+    max-height: 100%;
+    padding: 14px 16px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.mechili-controls-help .ch-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+    padding: 4px 4px 12px;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.08);
+}
+.mechili-controls-help .ch-title {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.mechili-controls-help .ch-head button { padding: 6px 14px; font-size: 13px; }
+.mechili-controls-help .ch-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 4px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.mechili-controls-help .ch-section h2 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: ${u.brassLight};
+}
+.mechili-controls-help .ch-note {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: ${u.creamMuted};
+}
+.mechili-controls-help .ch-row {
+    display: grid;
+    grid-template-columns: minmax(7.5rem, 34%) 1fr;
+    gap: 8px 12px;
+    align-items: start;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(184, 146, 74, 0.12);
+    font-size: 13.5px;
+    color: ${u.cream};
+}
+.mechili-controls-help .ch-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.mechili-controls-help kbd {
+    display: inline-block;
+    padding: 2px 7px;
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    color: ${u.bronzeLight};
+    font: 700 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.mechili-controls-help .ch-desc {
+    line-height: 1.4;
+    color: ${u.cream};
+}
+@media (max-width: 519px) {
+    .mechili-controls-help .ch-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+}
 .mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.bronze}; outline-offset: 1px; }
 /* Desktop: use horizontal space — general left, graphics right */
 @media (min-width: 720px) {
@@ -3952,7 +4059,12 @@ ${materialStyles(u)}
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    /* Do NOT use justify-content: center here. With overflow-y: auto it
+     * clips overflowing content equally top+bottom, but only the bottom
+     * is scrollable — on a short phone (e.g. 320×480) the first commander
+     * cards sit above the scroll range and can never be reached.
+     * ::before/::after spacers center when the list fits, and collapse to
+     * 0 when it overflows so scroll starts at the real top. */
     gap: clamp(10px, 2vw, 26px);
     background: rgba(12, 20, 8, 0.55);
     user-select: none;
@@ -3965,6 +4077,22 @@ ${materialStyles(u)}
      * were ever open at once). */
     z-index: 50;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Top clears the always-visible pick timer (round + seconds in
+     * .mechili-topbar). Without this, overflowing lists pin the title under
+     * the topbar on phone/tablet; desktop already looked lower because a
+     * single horizontal card row + spacers centered the block. */
+    padding:
+        max(52px, calc(48px + env(safe-area-inset-top)))
+        10px
+        max(10px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+}
+/* overflow-safe vertical centering — see .mechili-cards comment above */
+.mechili-cards::before,
+.mechili-cards::after {
+    content: '';
+    flex: 1 0 0;
 }
 .mechili-cards .cards-title {
     font-size: clamp(17px, 2.4vw, 26px);
@@ -3981,12 +4109,48 @@ ${materialStyles(u)}
     margin-top: -8px;
 }
 .mechili-cards .cards-row {
-    display: flex;
-    flex-wrap: wrap;
+    /* 4 → 2 → 1 only — flex-wrap allowed a awkward 3-across band between
+     * "fits three min cards" and "fits four". Default max 2; four-card
+     * offers go 4-across on wide screens; very narrow phones stack.
+     * Columns are fluid (1fr) so leftover horizontal space goes into the
+     * cards instead of empty margins; width caps keep them from ballooning. */
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: center;
-    max-width: 100vw;
+    justify-items: stretch;
+    width: min(100%, 640px);
+    max-width: 100%;
     gap: clamp(10px, 1.4vw, 18px);
     padding: 4px 10px 12px;
+    box-sizing: border-box;
+}
+/* lone card on the last row of a 2-col grid (e.g. 3-card offer) — center it */
+.mechili-cards .cards-row > .card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    width: min(100%, calc((100% - clamp(10px, 1.4vw, 18px)) / 2));
+    justify-self: center;
+}
+@media (min-width: 720px) {
+    .mechili-cards .cards-row:has(> .card:nth-child(4)) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: min(100%, 920px);
+    }
+    .mechili-cards .cards-row:has(> .card:nth-child(4)) > .card:last-child:nth-child(odd) {
+        grid-column: auto;
+        width: auto;
+        justify-self: stretch;
+    }
+}
+@media (max-width: 359px) {
+    .mechili-cards .cards-row {
+        grid-template-columns: minmax(0, 1fr);
+        width: min(100%, 340px);
+    }
+    .mechili-cards .cards-row > .card:last-child:nth-child(odd) {
+        grid-column: auto;
+        width: auto;
+        justify-self: stretch;
+    }
 }
 .mechili-cards.unlock-dialog .unlock-picker {
     display: flex;
@@ -4016,7 +4180,10 @@ ${materialStyles(u)}
     --card-pad-x: clamp(10px, 1.1vw, 14px);
     --card-pad-y: clamp(12px, 1.4vw, 18px);
     position: relative;
-    width: clamp(150px, 22vw, 215px);
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    box-sizing: border-box;
     min-height: 0;
     padding: var(--card-pad-y) var(--card-pad-x);
     display: flex;
@@ -4665,10 +4832,15 @@ ${materialStyles(u)}
     overflow: visible;
     user-select: none;
     pointer-events: none;
-    /* above .mechili-cards (50) so commander HP cards stay under the cursor
+    /* above .mechili-cards (50) so commander HP strips stay under the cursor
        during specialist peek — otherwise the full-screen dim steals hover and
-       the bars flicker */
+       the bars flicker. Pick overlays set .overlay-open to hide the strips
+       (timer topbar stays); peek does not, so this stacking still matters. */
     z-index: 51;
+}
+/* card pick / pause / settings — hide HP strips only (topbar lives in here) */
+.mechili-fightbar.overlay-open .fighter-stack {
+    display: none !important;
 }
 .mechili-fightbar .fighter-stack {
     position: absolute;
