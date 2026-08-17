@@ -4463,6 +4463,24 @@ export class Game {
      *  arrived (`maybeStartBattleAfterDeploy`) — every build action, real
      *  players' and this spectator's own copy alike, now sends/arrives
      *  immediately, so there's nothing else left to wait for. */
+    /**
+     * Replays chat from before this match existed (the lobby — see main.ts's
+     * lobby chat) into the match's own chat panel, so a conversation that
+     * started while waiting does not vanish the moment everyone is in.
+     * Purely presentational: chat is never an action, so nothing here touches
+     * game state, the log or determinism.
+     */
+    seedChatHistory(entries: { name: string; item: ChatItem; role: 'player' | 'system' }[]): void {
+        for (const e of entries) {
+            if (e.role === 'system') {
+                if (e.item.kind === 'text') this.hud.addSystemMessage(e.item.text);
+            } else {
+                const mine = e.name === (this.watcherName ?? this.playerNames.local);
+                this.hud.addChat(e.name, e.item, mine ? 'local' : 'remote');
+            }
+        }
+    }
+
     private wireSpectateSession(session: SpectatorLink): void {
         this.spectateSession = session;
         session.attach((msg) => this.onSpectateMessage(msg));

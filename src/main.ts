@@ -1687,6 +1687,16 @@ const lobbyChatInputEl = menu.querySelector<HTMLInputElement>('.m-lc-input')!;
 let lobbyChatSend: ((item: ChatItem) => void) | null = null;
 let lobbyChatLastSent = -Infinity;
 let lobbyChatLastReceived = -Infinity;
+type LobbyChatEntry = { name: string; item: ChatItem; role: 'player' | 'system' };
+/** what has been said in the room so far */
+let lobbyChatLog: LobbyChatEntry[] = [];
+/**
+ * The room's conversation, handed off when the lobby closes so a match
+ * starting next can seed its own chat panel with it (Game.seedChatHistory).
+ * Cleared without being used when a lobby is abandoned rather than played, so
+ * one room's chat can never surface in an unrelated later match.
+ */
+let lobbyChatCarry: LobbyChatEntry[] = [];
 
 /** Renders an emote as its label — the lobby has no atlas sprites, and a
  *  match-side emote must not arrive here as a blank line. */
@@ -1707,6 +1717,7 @@ function appendLobbyChat(name: string, item: ChatItem, role: 'player' | 'system'
         who.textContent = name;
         line.append(who, document.createTextNode(`: ${chatItemText(item)}`));
     }
+    lobbyChatLog.push({ name, item, role });
     lobbyChatListEl.appendChild(line);
     // keep the DOM bounded on a long wait
     while (lobbyChatListEl.childElementCount > 60) lobbyChatListEl.firstElementChild?.remove();
@@ -1726,6 +1737,26 @@ function clearLobbyChat(): void {
     lobbyChatEl.style.display = 'none';
     lobbyChatListEl.replaceChildren();
     lobbyChatInputEl.value = '';
+    // handed to whatever match starts next, not thrown away — this runs on the
+    // way INTO a match as well as on cancel (see takeLobbyChatCarry)
+    lobbyChatCarry = lobbyChatLog;
+    lobbyChatLog = [];
+}
+
+/** A host-side lobby announcement: shown locally and pushed to every guest as
+ *  a `role: 'system'` chat line, the same shape the running match uses for
+ *  "X disconnected" / "X reconnected". */
+function announceLobbySystem(text: string, hub: HostHub): void {
+    const item: ChatItem = { kind: 'text', text };
+    appendLobbyChat('', item, 'system');
+    hub.broadcast({ type: 'chat', item, from: { name: '', role: 'system' } });
+}
+
+/** the pending hand-off, consumed once */
+function takeLobbyChatCarry(): LobbyChatEntry[] {
+    const carry = lobbyChatCarry;
+    lobbyChatCarry = [];
+    return carry;
 }
 
 /** Incoming rate limit, mirroring the match's own receive-side clamp: the
@@ -2177,6 +2208,7 @@ function runStopHostDiscovery(): void {
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
+    takeLobbyChatCarry();   // nothing pending can belong to a future match
     stopSinglePlayerPersist?.();
     stopSinglePlayerPersist = null;
     updateSteamPresence('menu');
@@ -2296,6 +2328,8 @@ function constructGame(
         useIntro,
     );
     activeGame = game;
+    // a conversation that started while waiting continues into the match
+    game.seedChatHistory(takeLobbyChatCarry());
     // Steam/LAN have no cloud backend to register with, so the running match
     // advertises itself through the same channel the lobby used — that is what
     // makes a match watchable (and its round visible) on those transports.
@@ -2943,6 +2977,7 @@ function cancelHost(): void {
     startStarBtn.style.display = 'none';
     clearRosterTable();
     clearLobbySettings();
+    takeLobbyChatCarry();   // abandoned, not played — drop it
 }
 
 
@@ -3047,9 +3082,32 @@ function wireHostedHub(
         // by accident
         startStarBtn.style.display = '';
     }
+    // Who was in the room at the last refresh, so joins and leaves can be
+    // announced by DIFFING the roster. Deliberately not driven by hub
+    // callbacks: onSeatDropped does not fire on the PeerJS host's lobby-phase
+    // drop path while it does on Steam's, so a diff here is the only version
+    // that reads the same on every transport. Seeded from the starting roster
+    // so the first refresh announces nothing.
+    let lastPresent = hub
+        .currentRoster()
+        .map((seat, i) => (i > 0 && seat.name !== OPEN_SEAT_NAME ? seat.name : null));
+    const announceRosterChanges = (roster: CanonicalSeatDef[]): void => {
+        const present = roster.map((seat, i) => (i > 0 && seat.name !== OPEN_SEAT_NAME ? seat.name : null));
+        for (let i = 1; i < Math.max(present.length, lastPresent.length); i++) {
+            const before = lastPresent[i] ?? null;
+            const now = present[i] ?? null;
+            if (before === now) continue;
+            // a seat swapping occupants outright reports both halves
+            if (before) announceLobbySystem(`${before} left.`, hub);
+            if (now) announceLobbySystem(`${now} joined.`, hub);
+        }
+        lastPresent = present;
+    };
+
     const refresh = () => {
         if (!hosting) return;
         const roster = hub.currentRoster();
+        announceRosterChanges(roster);
         const joined = hub.connectedSeats().length + 1;
         const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
         // only ACTUALLY joined seats (host + currently connected) — the
