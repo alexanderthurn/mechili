@@ -662,6 +662,46 @@ function iconBaseStyles(): string {
 `;
 }
 
+/** Pop-up chat lines. Shared for the same reason as the composer: the same
+ *  ChatFloat renders messages in the match and in the menu's lobby, and a
+ *  component's styling has to live wherever the component can mount. */
+function chatFloatStyles(u: typeof THEME.ui, pc: string, ec: string): string {
+    return `
+@keyframes chat-pop { from { transform: translateX(-50%) scale(0.4); opacity: 0; } }
+@keyframes chat-fade { to { opacity: 0; } }
+.mechili-chat-float {
+    position: absolute;
+    left: 50%;
+    bottom: 130px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    pointer-events: none;
+    z-index: 14;
+}
+.mechili-chat-float .cf-msg {
+    padding: 3px 12px;
+    background: ${u.panelBgDark};
+    border-radius: 4px;
+    color: ${u.text};
+    font-size: 13px;
+    max-width: 460px;
+    animation: chat-pop 0.15s ease-out, chat-fade 0.8s ease-in 6s forwards;
+}
+.mechili-chat-float .cf-name { font-weight: bold; color: ${u.brassLight}; }
+.mechili-chat-float .cf-msg.enemy .cf-name { color: ${ec}; }
+.mechili-chat-float .cf-msg.player .cf-name { color: ${pc}; }
+.mechili-chat-float .cf-msg.system { font-style: italic; color: ${u.textMuted}; }
+.mechili-chat-float .cf-msg.system .cf-body { color: ${u.textMuted}; }
+/* lobby: sits directly above its chat bar inside the positioned container,
+   instead of floating at a fixed height over the board */
+.mechili-chat-float.inline { position: static; transform: none; margin-bottom: 6px; }
+.mechili-chat-float .cf-msg.neutral .cf-name { color: ${u.brassLight}; }
+`;
+}
+
 function chatBarStyles(u: typeof THEME.ui): string {
     return `
 .mechili-chat .c-emote { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
@@ -758,11 +798,15 @@ function chatBarStyles(u: typeof THEME.ui): string {
 export function menuStyles(bars?: BarAssets): string {
     const u = THEME.ui;
     const pc = teamColors.player.css;
+    // only used by the shared chat styles below — a lobby has no teams, but
+    // the same rules serve both sheets
+    const ec = teamColors.enemy.css;
     return `
 ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
 ${chatBarStyles(u)}
+${chatFloatStyles(u, pc, ec)}
 .mechili-menu {
     position: absolute;
     left: 50%;
@@ -933,18 +977,6 @@ ${chatBarStyles(u)}
     color: ${u.text};
     z-index: 30;
 }
-.mechili-chat .m-lc-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-height: 132px;
-    overflow-y: auto;
-    text-align: left;
-}
-.mechili-chat .m-lc-msg { font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.mechili-chat .m-lc-msg .m-lc-name { font-weight: bold; color: ${u.brass}; }
-.mechili-chat .m-lc-msg .m-icon { width: 18px; height: 18px; vertical-align: -3px; }
-.mechili-chat .m-lc-system { color: ${u.textMuted}; font-style: italic; }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .mechili-menu .m-rooms {
     width: 100%;
@@ -2381,6 +2413,7 @@ ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
 ${chatBarStyles(u)}
+${chatFloatStyles(u, pc, ec)}
 .mechili-cinema-hide {
     visibility: hidden !important;
     pointer-events: none !important;
@@ -3998,35 +4031,7 @@ ${chatBarStyles(u)}
     box-shadow: none;
     overflow: visible;
 }
-@keyframes chat-pop { from { transform: translateX(-50%) scale(0.4); opacity: 0; } }
-@keyframes chat-fade { to { opacity: 0; } }
 
-.mechili-chat-float {
-    position: absolute;
-    left: 50%;
-    bottom: 130px;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    pointer-events: none;
-    z-index: 14;
-}
-.mechili-chat-float .cf-msg {
-    padding: 3px 12px;
-    background: ${u.panelBgDark};
-    border-radius: 4px;
-    color: ${u.text};
-    font-size: 13px;
-    max-width: 460px;
-    animation: chat-pop 0.15s ease-out, chat-fade 0.8s ease-in 6s forwards;
-}
-.mechili-chat-float .cf-name { font-weight: bold; color: ${u.brassLight}; }
-.mechili-chat-float .cf-msg.enemy .cf-name { color: ${ec}; }
-.mechili-chat-float .cf-msg.player .cf-name { color: ${pc}; }
-.mechili-chat-float .cf-msg.system { font-style: italic; color: ${u.textMuted}; }
-.mechili-chat-float .cf-msg.system .cf-body { color: ${u.textMuted}; }
 
 .mechili-cards {
     position: absolute;

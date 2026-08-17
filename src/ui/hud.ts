@@ -15,6 +15,7 @@ import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
 import { ChatBar } from './chatBar';
+import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
@@ -1253,12 +1254,11 @@ export class Hud {
 
     // --- in-match chat -----------------------------------------------------
 
-    private readonly chatFloat = document.createElement('div');
+    private readonly chatFloat = new ChatFloat();
     private chatBarWidget!: ChatBar;
 
     private buildChatBar(): void {
-        this.chatFloat.className = 'mechili-chat-float';
-        this.mount(this.chatFloat);
+        this.mount(this.chatFloat.el);
 
         // the composer itself is shared with the lobby's chat — see ChatBar
         const bar = new ChatBar({ onSend: (item) => this.onSendChat?.(item) });
@@ -1283,7 +1283,7 @@ export class Hud {
         const applyVisibility = () => {
             const show = prefs().combatChat;
             bar.el.style.display = show ? '' : 'none';
-            this.chatFloat.style.display = show ? '' : 'none';
+            this.chatFloat.el.style.display = show ? '' : 'none';
             // the phone bar's Chat tab mirrors the pref
             this.phoneBar.classList.toggle('has-chat', show);
         };
@@ -1317,29 +1317,11 @@ export class Hud {
         fighter.appendChild(bubble);
         setTimeout(() => bubble.remove(), 4500);
 
-        // floating line above the chat bar (XSS-safe: textContent only for text)
-        // — colored by the sender's actual TEAM (chip.team), not just
+        // Colored by the sender's actual TEAM (chip.team), not just
         // local/remote: a teammate's message is still "player" green, only
         // a genuine opponent's should read as "enemy" red (previously any
-        // non-self sender, ally included, rendered in the enemy color)
-        const line = document.createElement('div');
-        line.className = `cf-msg ${chip.team}`;
-        const who = document.createElement('span');
-        who.className = 'cf-name';
-        who.textContent = name;
-        const what = document.createElement('span');
-        what.className = 'cf-body';
-        if (iconId) {
-            // icon only — the emote speaks for itself (the label is the
-            // button's tooltip, not something to repeat in every message)
-            what.innerHTML = ` ${iconHtml(iconId, 'chat-emote-ico')}`;
-        } else {
-            what.textContent = ` ${text}`;
-        }
-        line.append(who, what);
-        this.chatFloat.appendChild(line);
-        while (this.chatFloat.children.length > 4) this.chatFloat.firstChild?.remove();
-        setTimeout(() => line.remove(), 7000);
+        // non-self sender, ally included, rendered in the enemy color).
+        this.chatFloat.addMessage(name, item, chip.team);
     }
 
     /** a system-level line in the same floating chat list — a spectator
@@ -1349,15 +1331,7 @@ export class Hud {
      *  plain, neutral-colored text. */
     addSystemMessage(text: string): void {
         if (!prefs().combatChat) return;
-        const line = document.createElement('div');
-        line.className = 'cf-msg system';
-        const what = document.createElement('span');
-        what.className = 'cf-body';
-        what.textContent = text;
-        line.append(what);
-        this.chatFloat.appendChild(line);
-        while (this.chatFloat.children.length > 4) this.chatFloat.firstChild?.remove();
-        setTimeout(() => line.remove(), 7000);
+        this.chatFloat.addSystem(text);
     }
 
     /** one combined team card per side — built once at match start.

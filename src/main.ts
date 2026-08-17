@@ -2,6 +2,7 @@ import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './game/emotes';
 import { ChatBar } from './ui/chatBar';
+import { ChatFloat } from './ui/chatFloat';
 import { Game } from './game/game';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -1683,18 +1684,12 @@ const lobbyChatEl = document.createElement('div');
 lobbyChatEl.className = 'mechili-lobby-chat';
 lobbyChatEl.style.display = 'none';
 wrapper.appendChild(lobbyChatEl);
-// the very same composer the match uses (emotes included) — see ChatBar. The
-// scrollback goes INSIDE its panel, so "Chat" collapses the whole thing to a
-// strip exactly as it does in a match, instead of leaving a list hanging on
-// screen over the menu.
-const lobbyChatListEl = document.createElement('div');
-lobbyChatListEl.className = 'm-lc-list';
-const lobbyChatBar = new ChatBar({
-    onSend: (item) => sendLobbyChat(item),
-    leading: lobbyChatListEl,
-    inline: true,
-});
-lobbyChatEl.appendChild(lobbyChatBar.el);
+// The match's own two pieces, unchanged: lines pop above the bar and fade,
+// and the bar itself collapses to a "Chat" strip. Same components, so a
+// message looks the same whether it arrives while waiting or mid-battle.
+const lobbyChatFloat = new ChatFloat(true);
+const lobbyChatBar = new ChatBar({ onSend: (item) => sendLobbyChat(item), inline: true });
+lobbyChatEl.append(lobbyChatFloat.el, lobbyChatBar.el);
 /** set while a room exists; sends one item over whichever link we hold */
 let lobbyChatSend: ((item: ChatItem) => void) | null = null;
 let lobbyChatLastSent = -Infinity;
@@ -1710,45 +1705,20 @@ let lobbyChatLog: LobbyChatEntry[] = [];
  */
 let lobbyChatCarry: LobbyChatEntry[] = [];
 
-/** Text of a chat item, clamped. Emotes fall back to their label so one
- *  arriving without a usable icon is never a blank line. */
+function appendLobbyChat(name: string, item: ChatItem, role: 'player' | 'system' = 'player'): void {
+    // logged as well as shown: the lines themselves fade, but the match that
+    // starts next is seeded with the whole conversation (see takeLobbyChatCarry)
+    lobbyChatLog.push({ name, item, role });
+    lobbyChatBar.markUnread();
+    if (role === 'system') lobbyChatFloat.addSystem(chatItemText(item));
+    // no teams exist yet in a lobby, so every sender reads the same
+    else lobbyChatFloat.addMessage(name, item, 'neutral');
+}
+
+/** plain text of an item — system lines carry no emotes, but clamp anyway */
 function chatItemText(item: ChatItem): string {
     if (item.kind === 'text') return String(item.text).slice(0, CHAT_TEXT_LIMIT);
     return emoteById(item.id)?.label ?? '…';
-}
-
-/** An emote renders as just its icon — it says what it means on its own, and
- *  a label stapled to it ("Haha") only adds noise. The label survives as the
- *  button's tooltip and as the fallback below. The markup is ours (an atlas id
- *  from EMOTES), never player-supplied. */
-function chatItemBody(item: ChatItem): Node {
-    const body = document.createElement('span');
-    const icon = item.kind === 'emote' ? emoteById(item.id)?.icon : null;
-    if (icon) body.innerHTML = iconHtml(icon, 'chat-emote-ico');
-    // no icon: an emote id we do not know, so fall back to its label rather
-    // than showing an empty line
-    else body.textContent = chatItemText(item);
-    return body;
-}
-
-function appendLobbyChat(name: string, item: ChatItem, role: 'player' | 'system' = 'player'): void {
-    const line = document.createElement('div');
-    line.className = role === 'system' ? 'm-lc-msg m-lc-system' : 'm-lc-msg';
-    if (role === 'system') {
-        line.append(chatItemBody(item));
-    } else {
-        // built via textContent — a name typed by another player never reaches innerHTML
-        const who = document.createElement('span');
-        who.className = 'm-lc-name';
-        who.textContent = name;
-        line.append(who, document.createTextNode(': '), chatItemBody(item));
-    }
-    lobbyChatLog.push({ name, item, role });
-    lobbyChatBar.markUnread();
-    lobbyChatListEl.appendChild(line);
-    // keep the DOM bounded on a long wait
-    while (lobbyChatListEl.childElementCount > 60) lobbyChatListEl.firstElementChild?.remove();
-    lobbyChatListEl.scrollTop = lobbyChatListEl.scrollHeight;
 }
 
 /** Opens the panel for a room we are now part of. `send` is the only
@@ -1762,7 +1732,7 @@ function clearLobbyChat(): void {
     lobbyChatSend = null;
     lobbyChatLastSent = -Infinity;
     lobbyChatEl.style.display = 'none';
-    lobbyChatListEl.replaceChildren();
+    lobbyChatFloat.clear();
     lobbyChatBar.reset();
     // handed to whatever match starts next, not thrown away — this runs on the
     // way INTO a match as well as on cancel (see takeLobbyChatCarry)
