@@ -1005,7 +1005,7 @@ export const UNIT_TYPES: UnitType[] = [
         targets: { ground: false, air: false },
         collisionRadius: 1.3, // only the emitter pylon blocks walking
         colliders: [], // nothing can shoot it — it only absorbs crossings
-        hp: 30000, // the absorb pool; refills between rounds if it survives
+        hp: 3000, // the absorb pool; refills between rounds if it survives
         damage: 0,
         range: 0,
         attackInterval: 1,
