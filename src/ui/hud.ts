@@ -720,7 +720,7 @@ export class Hud {
             btn.innerHTML =
                 `${iconHtml(def.icon, 'shop-rune-ico')}` +
                 `<span class="cost">${this.shopRuneCost}</span>`;
-            btn.title = `${def.name} — ${this.shopRuneCost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
+            this.writeRuneTip(btn, itemId);
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('unaffordable')) return;
                 const lastSlot = this.deploysLeft <= 1;
@@ -729,6 +729,7 @@ export class Hud {
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
         }
+        this.bindCardSpellTips(this.shopRuneRow);
         shopHeader.append(this.deploysEl, this.shopRuneRow);
 
         const shopGrid = document.createElement('div');
@@ -852,6 +853,7 @@ export class Hud {
         this.inventoryEl = document.createElement('div');
         this.inventoryEl.className = 'mechili-sidebar left';
         this.inventoryEl.style.display = 'none';
+        this.bindCardSpellTips(this.inventoryEl);
         this.inventoryEl.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
             if (this.toggleSidebarCollapse(this.inventoryEl, 'player', e)) return;
@@ -920,10 +922,15 @@ export class Hud {
         this.attachLongPress(this.shopColumn, '.shop-tile', (tile) =>
             this.showTouchTooltip((tile as HTMLButtonElement).title),
         );
+        this.attachLongPress(this.shopColumn, '.shop-rune', (btn) =>
+            this.showRuneHoverTip(btn),
+        );
         this.attachLongPress(this.inventoryEl, '.inv-item', (btn) => {
             const routeId = btn.dataset.routeId;
             if (routeId && btn.dataset.tactic) {
                 this.onResetPlacedTactic?.(btn.dataset.tactic, Number(routeId));
+            } else if (btn.dataset.spellTip) {
+                this.showRuneHoverTip(btn);
             } else {
                 this.showTouchTooltip((btn as HTMLButtonElement).title);
             }
@@ -1131,6 +1138,26 @@ export class Hud {
             window.removeEventListener('pointerdown', dismiss, true);
         };
         // defer: the long-press finger lift must not instantly dismiss it
+        setTimeout(() => window.addEventListener('pointerdown', dismiss, true), 50);
+    }
+
+    /** framed rune/spell tip (same window as commander spell hover) */
+    private writeRuneTip(el: HTMLElement, itemId: string, extra?: string): void {
+        const def = ITEMS[itemId];
+        if (!def) return;
+        el.dataset.spellTip = '1';
+        el.dataset.ttitle = def.name;
+        el.dataset.tdesc = extra ? `${def.description}\n${extra}` : def.description;
+        el.dataset.ticon = def.icon;
+        el.removeAttribute('title');
+    }
+
+    private showRuneHoverTip(el: HTMLElement): void {
+        this.cardSpellTips.show(el);
+        const dismiss = () => {
+            this.cardSpellTips.hide();
+            window.removeEventListener('pointerdown', dismiss, true);
+        };
         setTimeout(() => window.addEventListener('pointerdown', dismiss, true), 50);
     }
 
@@ -1639,11 +1666,22 @@ export class Hud {
         const itemHtml = items.length
             ? this.invSectionTitle(DISPLAY.items, items.length, total) +
               items
-                  .map(
-                      (i) =>
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}" title="${i.name}\nPress and drag onto a pack (or click to pick up, then click a pack). Free ${DISPLAY.item.toLowerCase()} slot required.">` +
-                          `${iconHtml(i.icon)}</button>`,
-                  )
+                  .map((i) => {
+                      const def = ITEMS[i.id];
+                      const extra =
+                          `Press and drag onto a pack (or click to pick up, then click a pack). ` +
+                          `Free ${DISPLAY.item.toLowerCase()} slot required.`;
+                      const tip =
+                          def
+                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(def.name)}" ` +
+                                `data-tdesc="${escapeAttr(`${def.description}\n${extra}`)}" ` +
+                                `data-ticon="${escapeAttr(def.icon)}"`
+                              : ` title="${escapeAttr(`${i.name}\n${extra}`)}"`;
+                      return (
+                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}"${tip}>` +
+                          `${iconHtml(i.icon)}</button>`
+                      );
+                  })
                   .join('')
             : '';
         const tacticHtml = tactics.length
@@ -2095,11 +2133,9 @@ export class Hud {
         this.shopRuneCost = cost;
         this.shopRuneBalance = balance;
         for (const { el, itemId } of this.shopRuneButtons) {
-            const def = ITEMS[itemId]!;
             const costEl = el.querySelector('.cost');
             if (costEl) costEl.textContent = String(cost);
-            el.title =
-                `${def.name} — ${cost} supply\n${def.description}\nUses one purchase slot (shared with units).`;
+            this.writeRuneTip(el, itemId);
         }
         this.refreshShopRuneAffordability();
     }
