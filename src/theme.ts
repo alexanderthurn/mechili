@@ -1326,6 +1326,26 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-menu .m-roster-seat.filled:not(.you) { border-color: ${u.hpBar}; }
 .mechili-menu .m-roster-seat.empty { border-style: dashed; color: ${u.textMuted}; font-weight: normal; }
 .mechili-menu .m-roster-seat.ai { border-color: ${u.speedBg}; color: ${u.textMuted}; font-style: italic; }
+/* the "+" on a still-open seat — mirrors the kick button opposite it, in
+   brass rather than undo red: one adds a player, the other removes one */
+.mechili-menu .m-roster-seat.invitable { cursor: pointer; }
+.mechili-menu .m-roster-invite {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    line-height: 16px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid ${u.border};
+    background: none;
+    color: ${u.brass};
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: border-color 0.12s ease, color 0.12s ease;
+}
+.mechili-menu .m-roster-invite:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-menu .m-roster-invite:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-menu .m-roster-kick {
     flex: none;
     width: 18px;

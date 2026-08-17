@@ -1941,6 +1941,8 @@ function renderRosterTable(
     mySeat: SeatId,
     waitForJoined: number,
     onKick?: (seat: SeatId) => void,
+    /** host only: pull someone into a still-open seat (see inviteToHostedRoom) */
+    onInvite?: () => void,
 ): void {
     rosterTableEl.innerHTML = '';
     rosterTableEl.style.display = '';
@@ -2011,6 +2013,29 @@ function renderRosterTable(
                 ready.textContent = '✓';
                 cell.appendChild(ready);
             }
+            // An empty seat is the obvious place to ask "who goes here?", so it
+            // is the invite affordance — the Matchmaking screen already uses a
+            // seat-shaped button for exactly this. Skipped once a seat is
+            // destined for AI: those are the ones Start is about to fill, so
+            // inviting into them promises something the room will not keep.
+            if (!filled && !guaranteedAi && onInvite) {
+                cell.classList.add('invitable');
+                // the whole cell is the target, not just the glyph — the "+"
+                // is the affordance, the seat is the hit area
+                cell.addEventListener('click', () => onInvite());
+                const invite = document.createElement('button');
+                invite.type = 'button';
+                invite.className = 'm-roster-invite';
+                // not "to this seat": an invite reaches the ROOM, and the host
+                // seats whoever accepts in the next opening
+                invite.title = 'Invite a friend';
+                invite.textContent = '+';
+                invite.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    onInvite();
+                });
+                cell.appendChild(invite);
+            }
             if (filled && seat !== 0 && onKick) {
                 const kick = document.createElement('button');
                 kick.type = 'button';
@@ -2028,6 +2053,33 @@ function renderRosterTable(
         cols.appendChild(col);
     });
     rosterTableEl.appendChild(cols);
+}
+
+/**
+ * Bring someone into the room we are hosting, by whatever means this transport
+ * has. Rooms stay public either way — this is an extra door, not a switch to
+ * invite-only (the Matchmaking screen's own "+ Invite a Friend" is the flow
+ * that deliberately hosts privately).
+ */
+function inviteToHostedRoom(): void {
+    if (!hosting) return;
+    if (hosting.transport === 'steam') {
+        // Steam's own overlay picker — the friend gets a real invite and joins
+        // straight into this lobby (acceptSteamInvite on their side)
+        void steamLobby.openInviteDialog();
+        setStatus('Pick a friend in the Steam overlay.', 4000);
+        return;
+    }
+    if (hosting.transport === 'lan') {
+        setStatus('Your room is on the local network — friends: Settings → Multiplayer → LAN, then Matchmaking.', 6000);
+        return;
+    }
+    // web: the room is found by the host's name, so a link is the invite
+    const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(getPlayerName())}`;
+    void navigator.clipboard
+        ?.writeText(link)
+        .then(() => setStatus('Room link copied — send it to your friend.', 5000))
+        .catch(() => setStatus(`Send this to your friend: ${link}`, 8000));
 }
 
 /**
@@ -3108,7 +3160,13 @@ function wireHostedHub(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
-        renderRosterTable(roster, 0, waitForJoined, customConfig ? (seat) => hub.kickSeat(seat) : undefined);
+        renderRosterTable(
+            roster,
+            0,
+            waitForJoined,
+            customConfig ? (seat) => hub.kickSeat(seat) : undefined,
+            inviteToHostedRoom,
+        );
         // let every currently-connected guest see the same live roster
         // preview instead of just a static "waiting for the host" — see
         // runStarPending's 'starRoster' handling
