@@ -1,6 +1,7 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './game/emotes';
+import { ChatBar } from './ui/chatBar';
 import { Game } from './game/game';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -886,10 +887,6 @@ menu.innerHTML = `
                 <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
                 <div class="m-lobby-chat" style="display:none">
                     <div class="m-lc-list"></div>
-                    <div class="m-lc-row">
-                        <input class="m-lc-input" maxlength="${CHAT_TEXT_LIMIT}" placeholder="say something…" spellcheck="false" />
-                        <button type="button" class="m-lc-send">Send</button>
-                    </div>
                 </div>
             </div>
             <div class="m-lobby-settings">
@@ -1682,7 +1679,13 @@ function setStatus(text: string, autoDismissMs?: number): void {
  */
 const lobbyChatEl = menu.querySelector<HTMLDivElement>('.m-lobby-chat')!;
 const lobbyChatListEl = menu.querySelector<HTMLDivElement>('.m-lc-list')!;
-const lobbyChatInputEl = menu.querySelector<HTMLInputElement>('.m-lc-input')!;
+// the very same composer the match uses (emotes included) — see ChatBar
+const lobbyChatBar = new ChatBar({
+    onSend: (item) => sendLobbyChat(item),
+    alwaysOpen: true,
+    inline: true,
+});
+lobbyChatEl.appendChild(lobbyChatBar.el);
 /** set while a room exists; sends one item over whichever link we hold */
 let lobbyChatSend: ((item: ChatItem) => void) | null = null;
 let lobbyChatLastSent = -Infinity;
@@ -1698,24 +1701,38 @@ let lobbyChatLog: LobbyChatEntry[] = [];
  */
 let lobbyChatCarry: LobbyChatEntry[] = [];
 
-/** Renders an emote as its label — the lobby has no atlas sprites, and a
- *  match-side emote must not arrive here as a blank line. */
+/** Text of a chat item, clamped. Emotes fall back to their label so one
+ *  arriving without a usable icon is never a blank line. */
 function chatItemText(item: ChatItem): string {
     if (item.kind === 'text') return String(item.text).slice(0, CHAT_TEXT_LIMIT);
     return emoteById(item.id)?.label ?? '…';
+}
+
+/** Icon + label for an emote, matching how the match's own chat renders one —
+ *  the markup is ours (an atlas id from EMOTES), never player-supplied. */
+function chatItemBody(item: ChatItem): Node {
+    const body = document.createElement('span');
+    const icon = item.kind === 'emote' ? emoteById(item.id)?.icon : null;
+    if (icon) {
+        body.innerHTML = iconHtml(icon, 'chat-emote-ico');
+        body.append(document.createTextNode(` ${chatItemText(item)}`));
+    } else {
+        body.textContent = chatItemText(item);
+    }
+    return body;
 }
 
 function appendLobbyChat(name: string, item: ChatItem, role: 'player' | 'system' = 'player'): void {
     const line = document.createElement('div');
     line.className = role === 'system' ? 'm-lc-msg m-lc-system' : 'm-lc-msg';
     if (role === 'system') {
-        line.textContent = chatItemText(item);
+        line.append(chatItemBody(item));
     } else {
         // built via textContent — a name typed by another player never reaches innerHTML
         const who = document.createElement('span');
         who.className = 'm-lc-name';
         who.textContent = name;
-        line.append(who, document.createTextNode(`: ${chatItemText(item)}`));
+        line.append(who, document.createTextNode(': '), chatItemBody(item));
     }
     lobbyChatLog.push({ name, item, role });
     lobbyChatListEl.appendChild(line);
@@ -1736,7 +1753,7 @@ function clearLobbyChat(): void {
     lobbyChatLastSent = -Infinity;
     lobbyChatEl.style.display = 'none';
     lobbyChatListEl.replaceChildren();
-    lobbyChatInputEl.value = '';
+    lobbyChatBar.reset();
     // handed to whatever match starts next, not thrown away — this runs on the
     // way INTO a match as well as on cancel (see takeLobbyChatCarry)
     lobbyChatCarry = lobbyChatLog;
@@ -1768,29 +1785,17 @@ function acceptLobbyChatFromPeer(): boolean {
     return true;
 }
 
-function sendLobbyChat(): void {
-    const text = lobbyChatInputEl.value.trim().slice(0, CHAT_TEXT_LIMIT);
-    if (!text || !lobbyChatSend) return;
+function sendLobbyChat(item: ChatItem): void {
+    if (!lobbyChatSend) return;
     // same cooldown the match enforces, so the habit carries over
     const now = performance.now();
     if (now - lobbyChatLastSent < CHAT_COOLDOWN_MS) return;
     lobbyChatLastSent = now;
-    lobbyChatInputEl.value = '';
-    const item: ChatItem = { kind: 'text', text };
     // shown locally on send: the host excludes the sender when relaying, so
     // nothing echoes back to whoever typed it
     appendLobbyChat(getPlayerName(), item);
     lobbyChatSend(item);
 }
-
-lobbyChatEl.querySelector('.m-lc-send')!.addEventListener('click', () => sendLobbyChat());
-lobbyChatInputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendLobbyChat();
-    // Typing must not reach the menu's own key handling (letters can hit
-    // shortcuts) — but Escape still has to back out of the lobby, which is
-    // exactly what someone hitting it while focused here expects.
-    if (e.key !== 'Escape') e.stopPropagation();
-});
 
 /** hides the host-waiting-room seat table (see renderRosterTable) — call
  *  whenever hosting stops, whether cancelled or a match actually starts */

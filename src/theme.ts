@@ -815,32 +815,6 @@ ${materialStyles(u)}
 .mechili-menu .m-lc-msg { font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
 .mechili-menu .m-lc-msg .m-lc-name { font-weight: bold; color: ${u.brass}; }
 .mechili-menu .m-lc-system { color: ${u.textMuted}; font-style: italic; }
-.mechili-menu .m-lc-row { display: flex; gap: 6px; }
-.mechili-menu .m-lc-input {
-    flex: 1;
-    min-width: 0;
-    padding: 5px 8px;
-    font: inherit;
-    font-size: 12.5px;
-    color: ${u.text};
-    background: ${u.panelBgDark};
-    border: 1px solid ${u.border};
-    border-radius: 4px;
-}
-.mechili-menu .m-lc-input:focus-visible { outline: none; border-color: ${u.hover}; }
-.mechili-menu .m-lc-send {
-    padding: 5px 10px;
-    font: inherit;
-    font-size: 12px;
-    color: ${u.text};
-    background: ${u.panelBgDark};
-    border: 1px solid ${u.border};
-    border-radius: 4px;
-    cursor: pointer;
-    transition: border-color 0.12s ease;
-}
-.mechili-menu .m-lc-send:hover { border-color: ${u.hover}; }
-.mechili-menu .m-lc-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .mechili-menu .m-rooms {
     width: 100%;
@@ -3005,6 +2979,7 @@ ${materialStyles(u)}
 .mechili-chat .c-emote { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .mechili-chat .c-emote .m-icon { width: 26px; height: 26px; }
 .chat-bubble .m-icon, .cf-body .m-icon { width: 22px; height: 22px; vertical-align: -4px; }
+.mechili-menu .m-lc-msg .m-icon { width: 18px; height: 18px; vertical-align: -3px; }
 .mechili-fightbar .chat-bubble.emote .m-icon { width: 56px; height: 56px; vertical-align: 0; }
 .mechili-fightbar .cf-body .m-icon { width: 28px; height: 28px; vertical-align: -6px; }
 .inv-drag.m-icon { width: 40px; height: 40px; font-size: 0; background-color: ${u.techBuyBg}; }
@@ -3917,6 +3892,23 @@ ${materialStyles(u)}
     width: 360px;
     user-select: none;
     z-index: 15;
+}
+/* lobby variant: in normal flow inside the session panel, and permanently
+   expanded — see ChatBar's inline / alwaysOpen options */
+.mechili-chat.inline {
+    position: static;
+    transform: none;
+    width: 100%;
+    z-index: auto;
+}
+.mechili-chat.no-strip .c-strip { display: none; }
+.mechili-chat.inline.open .c-panel {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 .mechili-chat .c-strip {
     width: 110px;

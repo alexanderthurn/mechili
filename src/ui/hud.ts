@@ -14,6 +14,7 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
+import { ChatBar } from './chatBar';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
@@ -1237,13 +1238,13 @@ export class Hud {
         }
         // the chat's expanded state is shared with desktop hover — only touch
         // the 'open' flag on actual chat-tab transitions (phone-only states)
-        if (tab === 'chat') this.chatBar.classList.add('open');
-        else if (this.phoneTab === 'chat') this.chatBar.classList.remove('open');
+        if (tab === 'chat') this.chatBarWidget.open(false);
+        else if (this.phoneTab === 'chat') this.chatBarWidget.close();
         this.phoneTab = tab;
         this.shopColumn.classList.toggle('phone-open', tab === 'shop');
         this.panel.classList.toggle('phone-open', tab === 'unit');
         this.inventoryEl.classList.toggle('phone-open', tab === 'tactics');
-        this.chatBar.classList.toggle('phone-open', tab === 'chat');
+        this.chatBarWidget.el.classList.toggle('phone-open', tab === 'chat');
         this.phoneBar.querySelector('.pb-shop')?.classList.toggle('active', tab === 'shop');
         this.phoneBar.querySelector('.pb-unit')?.classList.toggle('active', tab === 'unit');
         this.phoneBar.querySelector('.pb-tactics')?.classList.toggle('active', tab === 'tactics');
@@ -1253,71 +1254,27 @@ export class Hud {
     // --- in-match chat -----------------------------------------------------
 
     private readonly chatFloat = document.createElement('div');
-    private chatBar!: HTMLDivElement;
-    private chatInput!: HTMLInputElement;
+    private chatBarWidget!: ChatBar;
 
     private buildChatBar(): void {
         this.chatFloat.className = 'mechili-chat-float';
         this.mount(this.chatFloat);
 
-        const bar = document.createElement('div');
-        this.chatBar = bar;
-        bar.className = 'mechili-chat';
-        const emoteButtons = EMOTES.map(
-            (e) =>
-                `<button type="button" class="c-emote" data-emote="${e.id}" title="${e.label}">${iconHtml(e.icon, 'c-emote-ico')}</button>`,
-        ).join('');
-        bar.innerHTML =
-            `<div class="c-strip">Chat</div>` +
-            `<div class="c-panel">` +
-            `<div class="c-emotes">${emoteButtons}</div>` +
-            `<div class="c-row">` +
-            `<input class="c-input" maxlength="${CHAT_TEXT_LIMIT}" placeholder="message…" spellcheck="false" />` +
-            `<button type="button" class="c-send">Send</button>` +
-            `</div></div>`;
-        this.chatInput = bar.querySelector('.c-input')!;
+        // the composer itself is shared with the lobby's chat — see ChatBar
+        const bar = new ChatBar({ onSend: (item) => this.onSendChat?.(item) });
+        this.chatBarWidget = bar;
+        this.mount(bar.el);
 
-        const submit = () => {
-            const text = this.chatInput.value.trim().slice(0, CHAT_TEXT_LIMIT);
-            if (text) this.onSendChat?.({ kind: 'text', text });
-            this.chatInput.value = '';
-            this.chatInput.focus();
-        };
-        const openChat = (focus: boolean) => {
-            if (bar.classList.contains('open')) return;
-            bar.classList.add('open');
-            if (focus) this.chatInput.focus();
-        };
-        const strip = bar.querySelector('.c-strip')!;
-        strip.addEventListener('click', () => openChat(true));
-        strip.addEventListener('pointerenter', () => openChat(false));
-        bar.addEventListener('click', (e) => {
-            const emote = (e.target as HTMLElement).closest<HTMLButtonElement>('.c-emote');
-            if (emote?.dataset.emote) this.onSendChat?.({ kind: 'emote', id: emote.dataset.emote });
-        });
-        bar.querySelector('.c-send')!.addEventListener('click', submit);
-        this.chatInput.addEventListener('keydown', (e) => {
-            e.stopPropagation(); // don't trigger game hotkeys while typing
-            if (e.key === 'Escape') {
-                bar.classList.remove('open');
-                this.chatInput.blur();
-            }
-            if (e.key === 'Enter') submit();
-        });
-        this.mount(bar);
-
-        // clicking anywhere outside collapses the panel; the input keeps its
-        // text so a half-typed message survives. Self-detaches after teardown.
-        const onDocPointer = (e: PointerEvent) => {
-            if (!bar.isConnected) {
+        // phone: closing the chat by tapping away also releases its bar tab.
+        // ChatBar's own outside-click listener is registered first (in its
+        // constructor), so the bar has already closed by the time this runs.
+        // Self-detaches once this HUD is torn down, like the pref listener.
+        const onDocPointer = (): void => {
+            if (!bar.el.isConnected) {
                 document.removeEventListener('pointerdown', onDocPointer);
                 return;
             }
-            if (bar.classList.contains('open') && !bar.contains(e.target as Node)) {
-                bar.classList.remove('open');
-                // phone: closing the chat also releases its bar tab
-                if (this.phoneTab === 'chat') this.setPhoneTab(null);
-            }
+            if (!bar.isOpen && this.phoneTab === 'chat') this.setPhoneTab(null);
         };
         document.addEventListener('pointerdown', onDocPointer);
 
@@ -1325,14 +1282,14 @@ export class Hud {
         // detaches itself once this HUD is torn down
         const applyVisibility = () => {
             const show = prefs().combatChat;
-            bar.style.display = show ? '' : 'none';
+            bar.el.style.display = show ? '' : 'none';
             this.chatFloat.style.display = show ? '' : 'none';
             // the phone bar's Chat tab mirrors the pref
             this.phoneBar.classList.toggle('has-chat', show);
         };
         applyVisibility();
         const off = onPrefsChange(() => {
-            if (!bar.isConnected) {
+            if (!bar.el.isConnected) {
                 off();
                 return;
             }
@@ -2827,7 +2784,7 @@ export class Hud {
         this.phoneBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         this.phoneStatusEl.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         // battle: the chat leaves the bar and becomes the normal floating bar
-        this.chatBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
+        this.chatBarWidget.el.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         if ((phase === 'battle' || phase === 'hpDraw') && (this.phoneTab === 'shop' || this.phoneTab === 'chat')) {
             this.setPhoneTab(null);
         }
