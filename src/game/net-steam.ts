@@ -28,21 +28,31 @@ import type { CanonicalSeatDef, SeatId } from './seats';
  * `starSetup` handshake for star-mode seat assignment — Steam only replaces
  * *how bytes move*, never what's carried over them.
  *
- * Disconnect DETECTION now matches the PeerJS path (see `SteamChannel`'s
- * `watchLiveness` wiring) — a drop is noticed within a bounded time
- * regardless of transport. Still not covered: an explicit reconnect/resume
- * handshake. Unlike PeerJS's WebRTC, Steam's own P2P layer (Steam Datagram
- * Relay via `ISteamNetworkingMessages`, underneath this wrapper's
- * connectionless `net.send`/`net.onData`) transparently retries/relay-falls-
- * back on its own — a brief drop never tears down the underlying session,
- * so once real connectivity returns, packets simply resume without any
- * application-level "I'm back" step. That means the grace window itself
- * can be much simpler here than PeerJS's redial+`matchCatchUp` dance:
- * there is nothing to reconstruct, since nothing was ever destroyed. A
- * silence that outlasts the watchdog's timeout is instead treated as
- * genuinely, permanently gone — same terminal "give up" treatment as
- * before, just now reliably triggered instead of relying on the coarser,
- * slower lobby-membership signal alone.
+ * Underneath, the runtime speaks `ISteamNetworkingSockets` (NOT
+ * `ISteamNetworkingMessages`): a P2P listen socket, `connectP2P` per remote,
+ * an explicit accept, and a poll group drained on a timer — see
+ * steam-electron-build's `runtime/main.cjs`. `net.send`/`net.onData` hide all
+ * of that behind a steamId64-addressed send and one inbound callback, which
+ * READS connectionless but is not: there are real connection handles with
+ * real state. Two consequences that matter up here:
+ *
+ * - A send to a remote we have no live connection to dials one and queues
+ *   the payload until it is established, so the first message of a
+ *   handshake never needs the connection to exist yet.
+ * - A connection CAN die (`ProblemDetectedLocally`, closed by peer), and
+ *   the runtime forgets it when that happens. Steam Datagram Relay makes
+ *   that rarer than raw WebRTC — it retries and falls back to relays on its
+ *   own — but "the session survives any blip, so packets just resume" is
+ *   NOT a guarantee to build on. The next send simply dials again, which is
+ *   transparent to the sender but is a reconnect, not an unbroken session.
+ *
+ * So reconnection here is explicit, exactly as on the PeerJS path, and for
+ * the same reason: the transport recovering its socket says nothing about
+ * the HOST still believing we hold a seat. Detection is `SteamChannel`'s
+ * `watchLiveness` (the primary signal — Steam surfaces no per-connection
+ * close event to this layer, only the coarser, slower lobby-membership
+ * change), and recovery is the shared `starRejoin` → `matchCatchUp`
+ * handshake against a seat the host suspends for `STAR_RECONNECT_GRACE_MS`.
  */
 
 // ── P2P message routing ──────────────────────────────────────────────────────
@@ -97,11 +107,14 @@ class SteamChannel {
     /**
      * Fires once total silence (ping, pong, or any real message all count
      * as "alive" — see `watchLiveness`) exceeds the liveness timeout. This
-     * is the PRIMARY disconnect signal here, not a fallback: Steam has no
-     * per-connection close/error event the way PeerJS's DataConnection
-     * does — every caller of `SteamChannel` also keeps the coarser,
-     * slower lobby-membership check running alongside this as a secondary
-     * fast path (see `SteamSession`/`SteamGuestSession`/`SteamStarHub`).
+     * is the PRIMARY disconnect signal here, not a fallback: nothing
+     * reaches this layer the way PeerJS's DataConnection 'close'/'error'
+     * does. The runtime DOES watch connection state (it has to, to forget
+     * dead handles) but does not forward it over IPC, so from here a drop
+     * looks like silence and nothing else. Every caller of `SteamChannel`
+     * also keeps the coarser, slower lobby-membership check running
+     * alongside this as a secondary fast path (see `SteamGuestSession`/
+     * `SteamStarHub`).
      */
     onClose: (() => void) | null = null;
 
@@ -238,10 +251,15 @@ export class SteamGuestSession implements GuestSession {
      * Announce ourselves to the host again after a drop, so it hands back the
      * seat it has been holding.
      *
-     * Much less work than the PeerJS redial: Steam P2P is connectionless and
-     * relay-backed, so there is no socket to rebuild — what was actually lost
-     * is the host's belief that we are here. Rejoining the lobby (a no-op when
-     * we never left it) and sending starRejoin is the whole reconnection.
+     * Much less work than the PeerJS redial, though not for the reason an
+     * earlier version of this comment gave: the socket underneath is a real
+     * `ISteamNetworkingSockets` connection, not a connectionless one. What
+     * makes this cheap is that we never have to rebuild it BY HAND — sending
+     * to a steamId64 we have no live connection to dials one and queues the
+     * payload until it is up (see the module header). So what actually needs
+     * repairing is only the host's belief that we are here: rejoining the
+     * lobby (a no-op when we never left it) and sending starRejoin is the
+     * whole reconnection.
      *
      * Returns a fresh session so the caller's own wiring is rebuilt exactly as
      * it is on the PeerJS path. THIS session is retired here (see `handoff`)
