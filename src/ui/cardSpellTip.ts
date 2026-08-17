@@ -72,33 +72,58 @@ export function startCardFaceHtml(c: StartCard): string {
     );
 }
 
-/** Floating tip for `[data-spell-tip]` hits inside a root. */
+/** Floating tip for `[data-spell-tip]` hits. One document listener — HUD
+ *  `stopPropagation` on pointerdown/move must not eat hover. */
 export class CardSpellTips {
     private tip: HTMLDivElement | null = null;
+    private hoverEl: HTMLElement | null = null;
+    private listening = false;
 
-    bind(root: HTMLElement): void {
-        root.addEventListener('pointerover', (e) => {
-            if ((e as PointerEvent).pointerType === 'touch') return;
-            const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-spell-tip]');
-            if (!hit || !root.contains(hit)) return;
-            this.show(hit);
-        });
-        root.addEventListener('pointerout', (e) => {
-            if ((e as PointerEvent).pointerType === 'touch') return;
-            const from = (e.target as HTMLElement).closest<HTMLElement>('[data-spell-tip]');
-            const to = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-spell-tip]');
-            if (from && from !== to) this.hide();
-        });
+    bind(_root?: HTMLElement): void {
+        if (this.listening) return;
+        this.listening = true;
+        document.addEventListener('pointerover', this.onOver, true);
+        document.addEventListener('pointerout', this.onOut, true);
     }
+
+    private onOver = (e: PointerEvent): void => {
+        if (e.pointerType === 'touch') return;
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+        const hit = t.closest<HTMLElement>('[data-spell-tip]');
+        if (!hit) return;
+        this.show(hit);
+    };
+
+    private onOut = (e: PointerEvent): void => {
+        if (e.pointerType === 'touch') return;
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+        const from = t.closest<HTMLElement>('[data-spell-tip]');
+        if (!from) return;
+        const related = e.relatedTarget;
+        // Tip insert / reparent often sends pointerout with relatedTarget null.
+        // Ignore those — a real leave has a Node we moved onto.
+        if (!(related instanceof Element)) return;
+        if (from.contains(related) || this.tip?.contains(related)) return;
+        const next = related.closest<HTMLElement>('[data-spell-tip]');
+        if (next) {
+            this.show(next);
+            return;
+        }
+        this.hide();
+    };
 
     show(el: HTMLElement): void {
         const title = el.dataset.ttitle ?? '';
         const desc = el.dataset.tdesc ?? '';
         const icon = el.dataset.ticon ?? '';
         if (!title && !desc) return;
+        this.hoverEl = el;
         if (!this.tip) {
             this.tip = document.createElement('div');
             this.tip.className = 'mechili-card-spell-tip';
+            this.tip.style.pointerEvents = 'none';
             document.body.appendChild(this.tip);
         }
         this.tip.innerHTML = spellInfoFrameHtml({
@@ -107,28 +132,49 @@ export class CardSpellTips {
             icon,
             ingredientIcons: (el.dataset.forgeIngs ?? '').split(',').filter(Boolean),
         });
-        this.tip.style.display = 'block';
         const rect = el.getBoundingClientRect();
+        const pad = 8;
         const tipW = 280;
-        let left = rect.right + 10;
-        const top = rect.top;
-        if (left + tipW > window.innerWidth - 8) left = Math.max(8, rect.left - tipW - 10);
+        this.tip.style.display = 'block';
+        this.tip.style.visibility = 'hidden';
+        const h = this.tip.offsetHeight;
+        let left: number;
+        let top: number;
+        if (el.classList.contains('shop-rune')) {
+            // Shop runes sit under the cursor at the top of the HUD — park the
+            // window up-left with a wider gap so it does not sit on the mouse.
+            left = rect.left - tipW - 18;
+            top = rect.top - 40;
+            if (left < pad) left = pad;
+            if (top < pad) top = pad;
+            if (top + h > window.innerHeight - pad) {
+                top = Math.max(pad, window.innerHeight - h - pad);
+            }
+        } else {
+            left = rect.right + 14;
+            if (left + tipW > window.innerWidth - pad) {
+                left = Math.max(pad, rect.left - tipW - 14);
+            }
+            top = Math.max(pad, Math.min(rect.top, window.innerHeight - h - pad));
+        }
         this.tip.style.left = `${left}px`;
         this.tip.style.top = `${top}px`;
-        requestAnimationFrame(() => {
-            if (!this.tip) return;
-            const h = this.tip.offsetHeight;
-            const maxTop = window.innerHeight - h - 8;
-            this.tip.style.top = `${Math.max(8, Math.min(top, maxTop))}px`;
-        });
+        this.tip.style.visibility = 'visible';
     }
 
     hide(): void {
+        this.hoverEl = null;
         if (!this.tip) return;
         this.tip.style.display = 'none';
     }
 
     destroy(): void {
+        if (this.listening) {
+            document.removeEventListener('pointerover', this.onOver, true);
+            document.removeEventListener('pointerout', this.onOut, true);
+            this.listening = false;
+        }
+        this.hoverEl = null;
         this.tip?.remove();
         this.tip = null;
     }
