@@ -359,7 +359,6 @@ function handleList(bool $full): void {
                 'id' => $data['id'] ?? '',
                 'ts' => $ts,
                 'mode' => $data['mode'] ?? 'unknown',
-                'patch' => $data['balancePatchId'] ?? '',
                 'gameVersion' => $data['gameVersion'] ?? 0,
                 'result' => $data['result'] ?? 'unknown',
                 'rounds' => $data['rounds'] ?? 0,
@@ -538,7 +537,6 @@ function normalizeRecord(array $data): array {
     $replay = is_array($data['replay'] ?? null) ? $data['replay'] : [];
     $seed = (int)($replay['seed'] ?? $data['seed'] ?? 0);
     $gameVersion = (int)($data['gameVersion'] ?? 0);
-    $patch = (string)($data['balancePatchId'] ?? (string)$gameVersion);
 
     $speciality = is_array($data['speciality'] ?? null) ? $data['speciality'] : [];
     $units = is_array($data['units'] ?? null) ? $data['units'] : [];
@@ -587,7 +585,6 @@ function normalizeRecord(array $data): array {
         'matchKey' => $matchKey,
         'ts' => $ts,
         'gameVersion' => $gameVersion,
-        'balancePatchId' => $patch,
         'mode' => $mode,
         'side' => $side,
         'source' => $source,

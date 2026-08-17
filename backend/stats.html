@@ -94,8 +94,8 @@
         <option value="steam">steam</option>
       </select>
     </label>
-    <label>Patch
-      <input id="patch" size="10" placeholder="any" />
+    <label>Version
+      <select id="version"><option value="all">all</option></select>
     </label>
     <label>Min rounds
       <input id="minRounds" type="number" min="0" value="0" style="width:5em" />
@@ -318,14 +318,14 @@
     function analyze(matches) {
       const mode = document.getElementById('mode').value;
       const channel = document.getElementById('channel').value;
-      const patch = document.getElementById('patch').value.trim();
+      const version = document.getElementById('version').value;
       const minRounds = Math.max(0, Number(document.getElementById('minRounds').value) || 0);
       const excludeAi = document.getElementById('excludeAi').value === '1';
 
       let filtered = dedupeMatches(matches);
       if (mode !== 'all') filtered = filtered.filter((m) => m.mode === mode);
       if (channel !== 'all') filtered = filtered.filter((m) => String(m.channel || '') === channel);
-      if (patch) filtered = filtered.filter((m) => String(m.balancePatchId || '') === patch);
+      if (version !== 'all') filtered = filtered.filter((m) => String(m.gameVersion || '') === version);
       if (minRounds > 0) filtered = filtered.filter((m) => (m.rounds || 0) >= minRounds);
       if (excludeAi) filtered = filtered.filter((m) => m.mode === 'mp' || m.mode === '2v2');
 
@@ -473,6 +473,26 @@
       })[c]);
     }
 
+    /** mirrors encodeGameVersion/formatGameVersion in src/game/net.ts */
+    function formatGameVersion(v) {
+      const n = Number(v) || 0;
+      // values below 1000 predate deriving this from the release version —
+      // they were a hand-counted protocol counter, so show them as-is
+      if (n < 1000) return 'v' + n;
+      return Math.floor(n / 1e6) + '.' + (Math.floor(n / 1e3) % 1e3) + '.' + (n % 1e3);
+    }
+
+    /** Options come from the data, so the list only ever offers versions that
+     *  actually have matches — no guessing at what to type. */
+    function fillVersions(matches) {
+      const sel = document.getElementById('version');
+      const chosen = sel.value;
+      const seen = [...new Set(matches.map((m) => Number(m.gameVersion) || 0))].sort((a, b) => b - a);
+      sel.replaceChildren(new Option('all', 'all'));
+      for (const v of seen) sel.appendChild(new Option(formatGameVersion(v), String(v)));
+      sel.value = seen.some((v) => String(v) === chosen) ? chosen : 'all';
+    }
+
     async function loadAll() {
       const btn = document.getElementById('load');
       btn.disabled = true;
@@ -480,6 +500,7 @@
       try {
         const base = apiInput.value.replace(/\?.*$/, '');
         const [matches, ladder] = await Promise.all([fetchBulk(base), fetchLadder(base)]);
+        fillVersions(matches);
         analyze(matches);
         renderLadder(ladder);
       } finally {

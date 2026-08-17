@@ -17,17 +17,6 @@ import type { SpecialityId } from './cards';
 import type { TechTree } from './tech';
 import type { Team, Unit } from './units';
 
-/**
- * Bumped when economy / unit numbers change, so balance analysis can separate
- * matches played under different tuning (independent of GAME_VERSION).
- *
- * '2': shield absorb pool 30000 -> 3000, rune cost step 50 -> 0, and the forge
- * gained same-element advanced-rune crafts. Left at '1' by the branch that
- * made those changes — like any hand-maintained marker it only moves when
- * someone remembers, so check it whenever units/items/economy move.
- */
-export const BALANCE_PATCH_ID = '2';
-
 /** current submit schema — old files stay at 1; analysis treats new fields as optional */
 export const TELEMETRY_SCHEMA = 2 as const;
 
@@ -60,7 +49,6 @@ export interface MatchTelemetry {
      * `formatGameVersion` turns it back into '0.7.1'.
      */
     gameVersion: number;
-    balancePatchId: string;
     mode: MatchMode;
     side: 'a' | 'b';
     /** open web vs Steam Electron — balance analysis can filter by channel */

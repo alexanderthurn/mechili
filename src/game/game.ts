@@ -66,7 +66,6 @@ import {
     type VisionPolicy,
 } from './net';
 import {
-    BALANCE_PATCH_ID,
     TELEMETRY_SCHEMA,
     accumulateBattleDamage,
     submitMatchTelemetry,
@@ -8476,7 +8475,6 @@ export class Game {
                 schema: TELEMETRY_SCHEMA,
                 ts: Math.floor(Date.now() / 1000),
                 gameVersion: GAME_VERSION,
-                balancePatchId: BALANCE_PATCH_ID,
                 channel: telemetryChannel(),
                 // seat COUNT decides '2v2' vs 'mp' now, not `this.star`
                 // truthiness — 1v1 is a 2-seat star match too, and should
