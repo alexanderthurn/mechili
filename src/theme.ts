@@ -908,8 +908,12 @@ ${chatBarStyles(u)}
     left: 50%;
     bottom: calc(14px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    width: 360px;
-    max-width: calc(100vw - 24px);
+    width: min(360px, calc(100vw - 24px));
+    box-sizing: border-box;
+    /* mounted on the wrapper, not inside .mechili-menu, so it inherits none of
+       the menu's text colour — without this the messages render near-black on
+       the dark panel */
+    color: ${u.text};
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -920,7 +924,7 @@ ${chatBarStyles(u)}
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    z-index: 15;
+    z-index: 30;
 }
 .mechili-lobby-chat .m-lc-list {
     display: flex;
