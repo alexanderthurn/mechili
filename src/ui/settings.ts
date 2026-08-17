@@ -453,13 +453,13 @@ export function openControlsHelp(parent: HTMLElement): void {
         section(
             'Cheats &amp; debug',
             `<p class="ch-note">Most spawn/skip cheats are single-player only. Atmosphere keys work in any match (visual). Typed into the field, not chat.</p>` +
-                row('N', 'Next atmosphere scene, +1000 supply, +5000 HP both sides, battle timer 500s') +
-                row('X', 'Next season') +
-                row('V', 'Next weather') +
-                row('Y', 'Next time of day') +
+                row('Shift+N', 'Next atmosphere scene, +1000 supply, +5000 HP both sides, battle timer 500s') +
+                row('Shift+X', 'Next season') +
+                row('Shift+V', 'Next weather') +
+                row('Shift+Y', 'Next time of day') +
                 row('Shift+U', 'Single-player: free-spawn every unit, max supply, tactics, bag runes, and a few techs') +
                 row('Ctrl+Shift+U', 'Same as Shift+U, and scramble pack levels') +
-                row('H', 'Single-player, deploy phase: extra horde packs (repeat to pile on)') +
+                row('Shift+H', 'Single-player, deploy phase: extra horde packs (repeat to pile on)') +
                 row('Shift+I', 'Single-player: skip the rest of this round') +
                 row('Shift+C', 'Cinema — hide HUD for screenshots. Escape restores it.') +
                 row('Shift+T', 'Cycle material debug: clay → wireframe → normals → off') +
