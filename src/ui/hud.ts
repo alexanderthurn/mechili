@@ -1330,7 +1330,9 @@ export class Hud {
         const what = document.createElement('span');
         what.className = 'cf-body';
         if (iconId) {
-            what.innerHTML = ` ${iconHtml(iconId, 'chat-emote-ico')} ${escapeHtml(text)}`;
+            // icon only — the emote speaks for itself (the label is the
+            // button's tooltip, not something to repeat in every message)
+            what.innerHTML = ` ${iconHtml(iconId, 'chat-emote-ico')}`;
         } else {
             what.textContent = ` ${text}`;
         }

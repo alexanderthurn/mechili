@@ -1714,17 +1714,17 @@ function chatItemText(item: ChatItem): string {
     return emoteById(item.id)?.label ?? '…';
 }
 
-/** Icon + label for an emote, matching how the match's own chat renders one —
- *  the markup is ours (an atlas id from EMOTES), never player-supplied. */
+/** An emote renders as just its icon — it says what it means on its own, and
+ *  a label stapled to it ("Haha") only adds noise. The label survives as the
+ *  button's tooltip and as the fallback below. The markup is ours (an atlas id
+ *  from EMOTES), never player-supplied. */
 function chatItemBody(item: ChatItem): Node {
     const body = document.createElement('span');
     const icon = item.kind === 'emote' ? emoteById(item.id)?.icon : null;
-    if (icon) {
-        body.innerHTML = iconHtml(icon, 'chat-emote-ico');
-        body.append(document.createTextNode(` ${chatItemText(item)}`));
-    } else {
-        body.textContent = chatItemText(item);
-    }
+    if (icon) body.innerHTML = iconHtml(icon, 'chat-emote-ico');
+    // no icon: an emote id we do not know, so fall back to its label rather
+    // than showing an empty line
+    else body.textContent = chatItemText(item);
     return body;
 }
 
