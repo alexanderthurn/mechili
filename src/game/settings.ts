@@ -324,7 +324,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     deploy: {
         unitsPerRound: 2,
         baseRuneCost: 50,
-        runeCostStep: 50,
+        runeCostStep: 0,
         extraSlotCost: 50,
         rangedRangeBoostCost: 100,
         rangeBoost: 5,

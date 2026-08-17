@@ -3728,10 +3728,11 @@ ${chatFloatStyles(u, pc, ec)}
     transform: none;
     align-items: stretch;
     gap: 0;
-    max-height: min(70vh, 440px);
+    max-width: min(96vw, 640px);
+    max-height: min(78vh, 520px);
     overflow-y: auto;
-    overflow-x: hidden;
-    padding: 6px;
+    overflow-x: auto;
+    padding: 8px 10px 10px;
     border-radius: 4px;
     background: linear-gradient(180deg, rgba(44, 36, 28, 0.96), rgba(22, 18, 14, 0.96));
     border: 1.5px solid ${u.border};
@@ -3751,14 +3752,9 @@ ${chatFloatStyles(u, pc, ec)}
     font-weight: 700;
     letter-spacing: 0.04em;
     color: ${u.phase};
-    margin: 0 0 6px;
+    margin: 0 0 8px;
     padding: 0 2px;
     text-align: center;
-}
-.forge-slot-preview.recipes .forge-tile-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
 }
 .forge-slot-preview.recipes .forge-tile {
     padding: 6px 8px;
@@ -3766,8 +3762,8 @@ ${chatFloatStyles(u, pc, ec)}
     row-gap: 2px;
     background: ${u.panelBgDark};
     border-color: ${u.border};
-    min-width: 168px;
-    max-width: 220px;
+    min-width: 0;
+    max-width: none;
 }
 .forge-slot-preview.recipes .forge-tile .forge-spell {
     width: 26px;
@@ -3956,13 +3952,8 @@ ${chatFloatStyles(u, pc, ec)}
         width: auto;
         margin: 0;
         padding: 0;
-        min-width: 168px;
-        max-width: 220px;
-    }
-    .mechili-cards.detail .forge-recipes-block .forge-tile-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+        min-width: 0;
+        max-width: min(72vw, 640px);
     }
     .mechili-cards.detail .forge-tile {
         padding: 6px 8px;
@@ -3985,6 +3976,49 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .forge-panel {
     max-width: min(96vw, 1100px);
+}
+.forge-recipe-groups {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+}
+.forge-recipe-group {
+    flex: 1 1 0;
+    min-width: 168px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.forge-recipe-group + .forge-recipe-group {
+    border-left: 1px solid ${u.divider};
+    padding-left: 10px;
+}
+.forge-recipe-group-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: ${u.brassLight};
+    text-align: center;
+    padding: 0 2px 2px;
+}
+.forge-recipe-group .forge-tile-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+@media (max-width: 599px), (max-height: 540px) {
+    .forge-recipe-groups {
+        flex-direction: column;
+        gap: 12px;
+    }
+    .forge-recipe-group + .forge-recipe-group {
+        border-left: none;
+        padding-left: 0;
+        border-top: 1px solid ${u.divider};
+        padding-top: 10px;
+    }
 }
 .forge-tile-grid {
     display: grid;

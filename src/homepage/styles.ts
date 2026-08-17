@@ -816,36 +816,17 @@ html, body {
     #mh-tactics-grid > .mh-tactic:not(.mh-active) {
         display: none;
     }
+    /* Same 1-col cap as in-match phones — select picks which face is shown */
     #mh-specialists-row,
     #mh-round-cards-row {
-        justify-content: stretch;
-        width: 100%;
+        grid-template-columns: minmax(0, 1fr);
+        width: min(100%, 340px);
     }
-    /* Match the select’s full width — in-game cards are only 215px wide */
-    .melodan-home #mh-specialists-row > .card.mh-active,
-    .melodan-home #mh-round-cards-row > .card.mh-active {
-        width: 100%;
-        max-width: none;
-        min-height: 0;
-        box-sizing: border-box;
-        padding: 22px 18px;
-        gap: 14px;
-    }
-    .melodan-home #mh-specialists-row > .card.mh-active .c-title,
-    .melodan-home #mh-round-cards-row > .card.mh-active .c-title {
-        font-size: 1.2rem;
-    }
-    .melodan-home #mh-specialists-row > .card.mh-active .c-units,
-    .melodan-home #mh-round-cards-row > .card.mh-active .c-units,
-    .melodan-home #mh-specialists-row > .card.mh-active .c-desc,
-    .melodan-home #mh-round-cards-row > .card.mh-active .c-desc {
-        font-size: 0.95rem;
-        line-height: 1.55;
-    }
-    .melodan-home #mh-specialists-row > .card.mh-active .c-hp,
-    .melodan-home #mh-round-cards-row > .card.mh-active .c-hp,
-    .melodan-home #mh-round-cards-row > .card.mh-active .c-cost {
-        font-size: 1.05rem;
+    #mh-specialists-row > .card:last-child:nth-child(odd),
+    #mh-round-cards-row > .card:last-child:nth-child(odd) {
+        grid-column: auto;
+        width: auto;
+        justify-self: stretch;
     }
     #mh-tactics-grid {
         grid-template-columns: 1fr;
@@ -1010,33 +991,19 @@ html, body {
     color: ${u.phase};
 }
 
-/* In-game card chrome, adapted for a scrolling catalog */
+/* Overlay chrome off — card grid/size comes from in-match .mechili-cards */
 .melodan-home .mechili-cards {
     position: relative;
     inset: auto;
     z-index: auto;
     background: transparent;
-    gap: 16px;
-    user-select: text;
-    justify-content: flex-start;
-    align-items: center;
+    padding: 0;
     overflow: visible;
-}
-.melodan-home .mechili-cards .cards-title {
-    letter-spacing: 0.12em;
-    font-size: 1.1rem;
-    text-align: center;
-    text-shadow: none;
-    color: ${u.brassLight};
-}
-.melodan-home .mechili-cards .cards-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
-    justify-content: center;
-}
-.melodan-home .mechili-cards .card.static {
     user-select: text;
+}
+.melodan-home .mechili-cards::before,
+.melodan-home .mechili-cards::after {
+    content: none;
 }
 
 .mh-tactics {

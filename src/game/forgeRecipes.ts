@@ -8,7 +8,9 @@
  * whole table — never the same oven → two different products.
  *
  * Fuel is the four base runes (earth / fire / water / wind).
- * Spell recipes are base-only for now; advanced-rune crafts can be re-added later.
+ * Same-element stacks craft advanced runes (anyone). Mixed recipes craft
+ * specialist-gated spells. Rally Route (one Wind) is always forgeable;
+ * Buyback stays Vanguard-only.
  */
 import type { SeatId } from './seats';
 import {
@@ -20,6 +22,7 @@ import {
     METEOR_SHOWER_ID,
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
+    RALLY_ROUTE_ID,
     SPAWN_CROWS_ID,
     SPAWN_DWARVES_ID,
     STORM_ID,
@@ -88,18 +91,29 @@ export function emptyForgeSlots(capacity = FORGE_SLOTS_PER_PLAYER): (ForgeSlot |
 function tactic(id: string): ForgeProduct {
     return { kind: 'tactic', id };
 }
+function item(id: string): ForgeProduct {
+    return { kind: 'item', id };
+}
 
 /**
  * Spell / rune recipe table — unique ingredient multisets only.
- * Rune products are always available; spells are specialist-gated.
- * Rally / Buyback are not forgeable (Vanguard shop).
- * (No advanced-rune rows right now — add them back when wanted.)
+ * Rune products and Rally Route are always available; other spells are
+ * specialist-gated. Buyback is not forgeable (Vanguard shop).
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
+    // --- advanced runes (anyone) ---
+    { ingredients: ['earth', 'earth'], product: item('addi'), priority: 1 }, // Valor
+    { ingredients: ['fire', 'fire'], product: item('power'), priority: 1 }, // Carnage
+    { ingredients: ['water', 'water'], product: item('vigor'), priority: 1 }, // Giant Blood
+    { ingredients: ['wind', 'wind'], product: item('golden'), priority: 1 }, // Sunstone
+    { ingredients: ['earth', 'earth', 'earth'], product: item('colossus'), priority: 1 }, // Mithril
+    { ingredients: ['fire', 'fire', 'fire'], product: item('wrath'), priority: 1 }, // Berserk
+
     // --- 1 rune ---
     { ingredients: ['earth'], product: tactic(SPAWN_DWARVES_ID), priority: 1 },
     { ingredients: ['fire'], product: tactic(FIRE_SPILL_ID), priority: 1 },
     { ingredients: ['water'], product: tactic(OIL_SPILL_ID), priority: 1 },
+    { ingredients: ['wind'], product: tactic(RALLY_ROUTE_ID), priority: 1 },
 
     // --- 2 runes ---
     { ingredients: ['earth', 'fire'], product: tactic(BIG_METEOR_ID), priority: 1 },
@@ -190,9 +204,10 @@ export function isForgeSpellAllowed(tacticId: string, pool: ForgeSpellPool): boo
     return pool === 'all' || pool.includes(tacticId);
 }
 
-/** Rune products are always allowed; spells respect the specialist pool. */
+/** Rune products and Rally Route are always allowed; other spells respect the specialist pool. */
 export function isForgeRecipeAllowed(recipe: ForgeRecipe, pool: ForgeSpellPool): boolean {
     if (recipe.product.kind === 'item') return true;
+    if (recipe.product.id === RALLY_ROUTE_ID) return true;
     return isForgeSpellAllowed(recipe.product.id, pool);
 }
 
@@ -423,6 +438,8 @@ export interface ForgeHelpRow {
     spellIcon: string;
     spellName: string;
     spellDesc: string;
+    /** 'item' = advanced rune; 'tactic' = spell */
+    productKind: ForgeProduct['kind'];
 }
 
 function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
@@ -437,6 +454,7 @@ function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
         spellIcon: info.icon,
         spellName: info.name,
         spellDesc: info.desc,
+        productKind: recipe.product.kind,
     };
 }
 
@@ -452,13 +470,12 @@ export function forgeIngredientIcons(tacticId: string): string[] {
 }
 
 /**
- * Flat recipe list for the forge help overlay (team-unlocked spells only —
- * rune crafts are shown on rune cards instead).
+ * Flat recipe list for the forge help overlay: team-unlocked spells, Rally,
+ * and advanced-rune crafts.
  */
 export function forgeHelpRows(pool: ForgeSpellPool = 'all'): ForgeHelpRow[] {
     const rows: ForgeHelpRow[] = [];
     for (const recipe of FORGE_RECIPES) {
-        if (recipe.product.kind !== 'tactic') continue;
         if (!isForgeRecipeAllowed(recipe, pool)) continue;
         const row = helpRow(recipe);
         if (row) rows.push(row);
