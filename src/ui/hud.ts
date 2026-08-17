@@ -786,6 +786,9 @@ export class Hud {
                 if (peek) {
                     if (this.actionInfoFor !== peek) {
                         this.showActionInfo(peek);
+                        if (this.isForgePreviewSlot(peek) && peek.classList.contains('empty')) {
+                            this.pinForgeRecipes(peek);
+                        }
                         return;
                     }
                     // second tap on the same tile — drop sticky recipe peek
@@ -804,6 +807,16 @@ export class Hud {
                 if (fill?.dataset.forgeFill) {
                     const itemIds = fill.dataset.forgeFill.split(',').filter(Boolean);
                     if (itemIds.length > 0) this.onForgeFill?.(itemIds);
+                }
+                const emptyForge = (e.target as HTMLElement).closest<HTMLElement>(
+                    '.forge-row .item-sq.empty',
+                );
+                if (
+                    emptyForge &&
+                    !emptyForge.classList.contains('drop-target') &&
+                    !emptyForge.classList.contains('forge-suggest')
+                ) {
+                    this.pinForgeRecipes(emptyForge);
                 }
                 return;
             }
@@ -841,7 +854,13 @@ export class Hud {
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) {
-                if (!from.dataset.spellTip) this.hideActionInfo();
+                if (!from.dataset.spellTip) {
+                    const related = e.relatedTarget as Node | null;
+                    const keepRecipes =
+                        this.forgeRecipesPinned ||
+                        (!!related && !!this.forgeSlotPreviewEl?.contains(related));
+                    this.hideActionInfo({ keepRecipes });
+                }
                 if (from.classList.contains('drop-target') && !to?.classList.contains('drop-target')) {
                     this.setPanelItemDropReady(false);
                 }
@@ -1780,16 +1799,17 @@ export class Hud {
     /** recipe HTML currently written into the popup — skip rewrites when unchanged */
     private forgeRecipesShownHtml: string | null = null;
     private forgeRecipesDismissArmed = false;
+    /** click-open cookbook — stays until click outside, even if the pointer leaves */
+    private forgeRecipesPinned = false;
 
-    /** click outside / on the popup dismisses sticky recipe peeks */
+    /** click outside dismisses sticky recipe peeks; clicks inside the cookbook stay */
     private readonly onForgeRecipesPointerDown = (e: PointerEvent) => {
         const el = this.forgeSlotPreviewEl;
         if (!el || el.hidden || !el.classList.contains('recipes')) return;
         const t = e.target as Node | null;
         if (!t) return;
-        // still interacting with the forge-slot anchor — keep open
         if (this.forgeSlotPreviewAnchor?.contains(t)) return;
-        // preview itself or anywhere else → dismiss
+        if (el.contains(t)) return;
         this.dismissForgeRecipesPreview();
     };
 
@@ -1856,11 +1876,21 @@ export class Hud {
         this.forgeRecipesShownHtml = recipes;
         el.classList.add('recipes');
         el.innerHTML =
-            `<div class="forge-recipes-hint">Drag onto a Stronghold to forge</div>` + recipes;
+            `<div class="forge-recipes-hint">${
+                this.forgeRecipesPinned
+                    ? 'Hover a recipe for details'
+                    : 'Drag onto a Stronghold to forge'
+            }</div>` + recipes;
         el.hidden = false;
-        this.bindCardSpellTips(el);
         this.positionForgeSlotHoverPreview();
         this.armForgeRecipesDismiss();
+    }
+
+    /** click an empty forge slot: cookbook stays until click outside */
+    private pinForgeRecipes(anchor: HTMLElement): void {
+        this.forgeRecipesPinned = true;
+        this.forgeRecipesShownHtml = null;
+        this.showForgeRecipesHover(anchor);
     }
 
     /** outside / popup click dismiss — deferred so the opening tap doesn't close it */
@@ -1881,6 +1911,7 @@ export class Hud {
 
     /** hide recipes (+ action-info peek when it opened them via touch/click) */
     private dismissForgeRecipesPreview(): void {
+        this.forgeRecipesPinned = false;
         this.hideActionInfo();
     }
 
@@ -1902,17 +1933,22 @@ export class Hud {
             this.forgeSlotPreviewEl.className = 'forge-slot-preview';
             this.forgeSlotPreviewEl.setAttribute('aria-hidden', 'true');
             this.forgeSlotPreviewEl.addEventListener('pointerleave', (e) => {
+                if (this.forgeRecipesPinned) return;
                 if (e.pointerType === 'touch') return;
                 const to = e.relatedTarget as Node | null;
                 if (this.forgeSlotPreviewAnchor?.contains(to)) return;
                 this.hideForgeSlotHoverPreview();
             });
-            // click the recipe panel itself to dismiss (touch peek / sticky)
             this.forgeSlotPreviewEl.addEventListener('click', (e) => {
                 if (!this.forgeSlotPreviewEl?.classList.contains('recipes')) return;
-                e.stopPropagation();
-                this.dismissForgeRecipesPreview();
+                const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-spell-tip]');
+                if (hit) {
+                    e.stopPropagation();
+                    this.cardSpellTips.show(hit);
+                    return;
+                }
             });
+            this.bindCardSpellTips(this.forgeSlotPreviewEl);
             document.body.appendChild(this.forgeSlotPreviewEl);
         }
         return this.forgeSlotPreviewEl;
@@ -1951,9 +1987,11 @@ export class Hud {
 
     private hideForgeSlotHoverPreview(): void {
         this.disarmForgeRecipesDismiss();
+        this.forgeRecipesPinned = false;
         this.forgeSlotPreviewAnchor = null;
         this.forgeRecipesHoverRuneId = null;
         this.forgeRecipesShownHtml = null; // popup emptied: next show must rebuild
+        this.hideCardSpellTip();
         if (this.forgeSlotPreviewEl) {
             this.forgeSlotPreviewEl.hidden = true;
             this.forgeSlotPreviewEl.classList.remove('recipes');
@@ -2804,12 +2842,12 @@ export class Hud {
         });
     }
 
-    private hideActionInfo(): void {
+    private hideActionInfo(opts?: { keepRecipes?: boolean }): void {
         const frame = this.panel.querySelector<HTMLDivElement>('.action-info');
         if (frame) frame.style.display = 'none';
         this.actionInfoFor = null;
         this.onTechHover?.(null);
-        this.hideForgeSlotHoverPreview();
+        if (!opts?.keepRecipes && !this.forgeRecipesPinned) this.hideForgeSlotHoverPreview();
     }
 
     setPhase(
@@ -3477,58 +3515,75 @@ export class Hud {
         const forgeCounts = this.countIds(forgeIds);
         // green wobble = every ingredient in bag + forge
         const availableIds = [...bagIds, ...forgeIds];
-        const ranked = [...rows].sort((a, b) => {
-            if (highlightRuneId) {
-                const aHit = a.ingredients.includes(highlightRuneId) ? 0 : 1;
-                const bHit = b.ingredients.includes(highlightRuneId) ? 0 : 1;
-                if (aHit !== bHit) return aHit - bHit;
-            }
-            const rank = (r: (typeof rows)[number]) => {
-                const m = forgeRecipeMatch(r.ingredients, availableIds);
-                return m === 'ready' ? 0 : m === 'partial' ? 1 : 2;
-            };
-            const byMatch = rank(a) - rank(b);
-            if (byMatch !== 0) return byMatch;
-            return a.ingredients.length - b.ingredients.length;
-        });
-        const tiles = ranked
-            .map((r) => {
-                const match = forgeRecipeMatch(r.ingredients, availableIds);
-                // green wobble only when craftable; no brown partial tile effect
-                const matchClass = match === 'ready' ? ' forge-tile-ready' : '';
-                const markOwned = match === 'ready' || match === 'partial';
-                const bagLeft = markOwned ? new Map(bagCounts) : null;
-                const forgeLeft = markOwned ? new Map(forgeCounts) : null;
-                const ings = r.ingredients
-                    .map((id, i) => {
-                        const ico = r.ingredientIcons[i] ?? ITEMS[id]?.icon ?? '?';
-                        let cls = 'forge-ing';
-                        if (forgeLeft && (forgeLeft.get(id) ?? 0) > 0) {
-                            cls += ' in-forge';
-                            forgeLeft.set(id, (forgeLeft.get(id) ?? 0) - 1);
-                        } else if (bagLeft && (bagLeft.get(id) ?? 0) > 0) {
-                            cls += ' owned';
-                            bagLeft.set(id, (bagLeft.get(id) ?? 0) - 1);
-                        }
-                        return iconHtml(ico, cls);
-                    })
-                    .join('');
+        const rankRow = (r: (typeof rows)[number]) => {
+            const m = forgeRecipeMatch(r.ingredients, availableIds);
+            return m === 'ready' ? 0 : m === 'partial' ? 1 : 2;
+        };
+        const sortGroup = (list: typeof rows) =>
+            [...list].sort((a, b) => {
+                if (highlightRuneId) {
+                    const aHit = a.ingredients.includes(highlightRuneId) ? 0 : 1;
+                    const bHit = b.ingredients.includes(highlightRuneId) ? 0 : 1;
+                    if (aHit !== bHit) return aHit - bHit;
+                }
+                const byMatch = rankRow(a) - rankRow(b);
+                if (byMatch !== 0) return byMatch;
+                if (a.productKind !== b.productKind) {
+                    return a.productKind === 'item' ? -1 : 1;
+                }
+                return a.spellName.localeCompare(b.spellName);
+            });
+        const tileHtml = (r: (typeof rows)[number]) => {
+            const match = forgeRecipeMatch(r.ingredients, availableIds);
+            const matchClass = match === 'ready' ? ' forge-tile-ready' : '';
+            const markOwned = match === 'ready' || match === 'partial';
+            const bagLeft = markOwned ? new Map(bagCounts) : null;
+            const forgeLeft = markOwned ? new Map(forgeCounts) : null;
+            const ings = r.ingredients
+                .map((id, i) => {
+                    const ico = r.ingredientIcons[i] ?? ITEMS[id]?.icon ?? '?';
+                    let cls = 'forge-ing';
+                    if (forgeLeft && (forgeLeft.get(id) ?? 0) > 0) {
+                        cls += ' in-forge';
+                        forgeLeft.set(id, (forgeLeft.get(id) ?? 0) - 1);
+                    } else if (bagLeft && (bagLeft.get(id) ?? 0) > 0) {
+                        cls += ' owned';
+                        bagLeft.set(id, (bagLeft.get(id) ?? 0) - 1);
+                    }
+                    return iconHtml(ico, cls);
+                })
+                .join('');
+            return (
+                `<div class="forge-tile${matchClass}" data-spell-tip="1" ` +
+                `data-ttitle="${escapeAttr(r.spellName)}" ` +
+                `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
+                `data-ticon="${escapeAttr(r.spellIcon)}" ` +
+                `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}">` +
+                `<div class="forge-tile-ings">${ings}</div>` +
+                `<span class="forge-arrow">→</span>` +
+                `${iconHtml(r.spellIcon, 'forge-spell')}` +
+                `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
+                `</div>`
+            );
+        };
+        const groups = [
+            { n: 1, title: `1 ${DISPLAY.item}` },
+            { n: 2, title: `2 ${DISPLAY.items}` },
+            { n: 3, title: `3 ${DISPLAY.items}` },
+        ]
+            .map(({ n, title }) => {
+                const list = sortGroup(rows.filter((r) => r.ingredients.length === n));
+                if (list.length === 0) return '';
                 return (
-                    `<div class="forge-tile${matchClass}" data-spell-tip="1" ` +
-                    `data-ttitle="${escapeAttr(r.spellName)}" ` +
-                    `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
-                    `data-ticon="${escapeAttr(r.spellIcon)}" ` +
-                    `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}" ` +
-                    `title="${escapeAttr(r.spellDesc)}">` +
-                    `<div class="forge-tile-ings">${ings}</div>` +
-                    `<span class="forge-arrow">→</span>` +
-                    `${iconHtml(r.spellIcon, 'forge-spell')}` +
-                    `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
+                    `<div class="forge-recipe-group">` +
+                    `<div class="forge-recipe-group-title">${escapeHtml(title)}</div>` +
+                    `<div class="forge-tile-grid">${list.map(tileHtml).join('')}</div>` +
                     `</div>`
                 );
             })
+            .filter(Boolean)
             .join('');
-        return `<div class="forge-recipes-block"><div class="forge-tile-grid">${tiles}</div></div>`;
+        return `<div class="forge-recipes-block"><div class="forge-recipe-groups">${groups}</div></div>`;
     }
 
     /** multiset counts for bag / forge ingredient marks */
