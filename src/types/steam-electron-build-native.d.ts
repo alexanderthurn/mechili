@@ -54,7 +54,10 @@ declare module 'steam-electron-build/native' {
         getFullData(): Promise<Record<string, string>>;
         mergeFullData(data: Record<string, string>): Promise<boolean>;
         setJoinable(flag: boolean): Promise<boolean>;
-        openInviteDialog(): Promise<void>;
+        /** false = no lobby, or the overlay refused */
+        openInviteDialog(): Promise<boolean>;
+        /** direct lobby invite, no overlay; false = could not send */
+        inviteUser(steamId64: string): Promise<boolean>;
         getLobbies(): Promise<SteamLobbyInfo[]>;
         /** lobby id from a "Join Game" invite that launched the app, once (Electron ≥1.8.1) */
         takePendingJoin(): Promise<string | null>;
@@ -62,6 +65,23 @@ declare module 'steam-electron-build/native' {
         onChatUpdate(cb: (data: { lobby: string; userChanged: string; memberStateChange: number }) => void): void;
         /** fires when the user accepts a Steam overlay/friends-list "Join Game" invite */
         onJoinRequested(cb: (data: { lobbySteamId: string }) => void): void;
+    };
+
+    /** A Steam friend, as `friends.list()` reports them. */
+    export interface SteamFriend {
+        steamId64: string;
+        name: string;
+        /** EPersonaState: 0 offline, 1 online, 2 busy, 3 away, 4 snooze, 5 trade, 6 play */
+        state: number;
+        /** playing THIS app right now — Steam exposes no ownership API */
+        inThisGame: boolean;
+    }
+
+    export const friends: {
+        isAvailable(): boolean;
+        list(): Promise<SteamFriend[]>;
+        /** data URL, or null while Steam has not cached it yet */
+        avatar(steamId64: string): Promise<string | null>;
     };
 
     export const net: {

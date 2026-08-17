@@ -3,6 +3,7 @@ import type { LoggedAction } from './game/actions';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './game/emotes';
 import { ChatBar } from './ui/chatBar';
 import { ChatFloat } from './ui/chatFloat';
+import { FriendsPanel } from './ui/friendsPanel';
 import { Game } from './game/game';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -1683,6 +1684,10 @@ function setStatus(text: string, autoDismissMs?: number): void {
  * same place the match puts its chat, so it does not move when the lobby's
  * roster grows or its settings panel opens.
  */
+/** Steam friends + direct invites, opened from an empty seat (see inviteToHostedRoom) */
+const friendsPanel = new FriendsPanel();
+wrapper.appendChild(friendsPanel.el);
+
 const lobbyChatEl = document.createElement('div');
 lobbyChatEl.className = 'mechili-lobby-chat';
 lobbyChatEl.style.display = 'none';
@@ -2064,10 +2069,12 @@ function renderRosterTable(
 function inviteToHostedRoom(): void {
     if (!hosting) return;
     if (hosting.transport === 'steam') {
-        // Steam's own overlay picker — the friend gets a real invite and joins
-        // straight into this lobby (acceptSteamInvite on their side)
-        void steamLobby.openInviteDialog();
-        setStatus('Pick a friend in the Steam overlay.', 4000);
+        // Our own friends list rather than Steam's overlay picker: the picker
+        // shows only what Steam is willing to list (often nobody, on a
+        // playtest) and tells us nothing about whether it opened, so a player
+        // was left staring at a panel that never appeared. The overlay is
+        // still one click away inside the panel.
+        friendsPanel.show();
         return;
     }
     if (hosting.transport === 'lan') {
@@ -2248,6 +2255,7 @@ function runStopHostDiscovery(): void {
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
+    friendsPanel.hide();
     takeLobbyChatCarry();   // nothing pending can belong to a future match
     stopSinglePlayerPersist?.();
     stopSinglePlayerPersist = null;
@@ -2307,6 +2315,7 @@ function finishReturnToMenu(): void {
     wrapper.appendChild(cornerActionsEl);
     wrapper.appendChild(suggestCornerEl);
     wrapper.appendChild(lobbyChatEl);
+    wrapper.appendChild(friendsPanel.el);
     refreshUsernameLabel();
     void refreshOpenProfile();
     setMenuBusy(false);
@@ -2462,6 +2471,7 @@ function startGame(
     cornerActionsEl.remove();
     suggestCornerEl.remove();
     lobbyChatEl.remove();
+    friendsPanel.el.remove();
 
     if (net) {
         // Steam is the only live user of `net` now (classic PeerJS 1v1 runs
@@ -3019,6 +3029,7 @@ function cancelHost(): void {
     startStarBtn.style.display = 'none';
     clearRosterTable();
     clearLobbySettings();
+    friendsPanel.hide();    // nothing left to invite anyone to
     takeLobbyChatCarry();   // abandoned, not played — drop it
 }
 

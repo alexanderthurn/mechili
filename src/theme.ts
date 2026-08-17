@@ -988,6 +988,107 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-menu .m-cancel:hover { opacity: 1; border-color: ${u.hover}; }
 /* Floating bottom-center over the menu, matching where the match keeps its
    chat — the panel chrome lives here so the ChatBar inside can stay bare. */
+/* Steam friends + invite, opened from an empty seat in the lobby roster.
+   Centered over the menu like a small dialog — it is a deliberate detour, not
+   ambient chrome, so it sits above everything until dismissed. */
+.mechili-friends {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(340px, calc(100vw - 32px));
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    color: ${u.text};
+    background: linear-gradient(180deg, rgba(40, 32, 24, 0.96), rgba(20, 16, 12, 0.98));
+    border: 1.5px solid ${u.border};
+    border-radius: 5px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+    z-index: 40;
+}
+.mechili-friends .fr-title {
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: ${u.brass};
+}
+.mechili-friends .fr-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    padding: 0 4px;
+    background: none;
+    border: none;
+    color: ${u.textMuted};
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+.mechili-friends .fr-close:hover { color: ${u.text}; }
+.mechili-friends .fr-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.mechili-friends .fr-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+.mechili-friends .fr-row.in-game { border-color: ${u.techOwned}; }
+.mechili-friends .fr-avatar {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 3px;
+    background: ${u.panelBgDark} center/cover no-repeat;
+}
+.mechili-friends .fr-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+.mechili-friends .fr-state { flex: none; font-size: 11px; color: ${u.textMuted}; }
+.mechili-friends .fr-row.in-game .fr-state { color: ${u.techOwned}; }
+.mechili-friends .fr-invite {
+    flex: none;
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 11.5px;
+    color: ${u.text};
+    background: ${u.techBuyBg};
+    border: 1px solid ${u.border};
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.12s ease;
+}
+.mechili-friends .fr-invite:hover:not(:disabled) { border-color: ${u.hover}; }
+.mechili-friends .fr-invite:disabled { opacity: 0.6; cursor: default; }
+.mechili-friends .fr-empty { font-size: 12.5px; color: ${u.textMuted}; padding: 6px 2px; }
+.mechili-friends .fr-note { font-size: 11.5px; color: ${u.textMuted}; line-height: 1.4; }
+.mechili-friends .fr-overlay-btn {
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 11.5px;
+    color: ${u.textMuted};
+    background: none;
+    border: 1px solid ${u.border};
+    border-radius: 3px;
+    cursor: pointer;
+}
+.mechili-friends .fr-overlay-btn:hover { color: ${u.text}; border-color: ${u.hover}; }
 /* Positioning only. The panel chrome belongs to the ChatBar inside, which
    collapses to a strip — a box drawn out here would stay behind as an empty
    frame around it. Mounted on the wrapper rather than inside .mechili-menu,
