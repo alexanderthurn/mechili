@@ -7125,8 +7125,8 @@ export class Game {
     }
 
     /**
-     * While dragging a rune over the forge, show the same recipe grid as shop /
-     * bag / forge-slot hover (spells using this rune sorted first).
+     * While dragging a rune over the forge, show the recipe grid (spells using
+     * this rune sorted first). Shop / bag hover does not open it.
      */
     private syncArmedRuneForgeGhost(): void {
         if (!this.armedItem || !ITEMS[this.armedItem]) {
