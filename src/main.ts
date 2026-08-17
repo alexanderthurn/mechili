@@ -1,5 +1,6 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import type { LoggedAction } from './game/actions';
+import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './game/emotes';
 import { Game } from './game/game';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -8,7 +9,6 @@ import { CameraRig } from './engine/cameraRig';
 import {
     clearSinglePlayer,
     clearStarResumeMarker,
-    fetchGlobalChat,
     fetchLobbyRooms,
     getPeerServerConfig,
     setPeerServerConfig,
@@ -23,7 +23,6 @@ import {
     loadSinglePlayer,
     loadStarResumeMarker,
     lookupSpectateEndpoint,
-    postGlobalChat,
     saveSinglePlayer,
     saveStarResumeMarker,
     branchSiteUrl,
@@ -885,6 +884,13 @@ menu.innerHTML = `
                 <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
                 <button class="m-btn m-small" data-mode="startstar" style="display:none">Start</button>
                 <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
+                <div class="m-lobby-chat" style="display:none">
+                    <div class="m-lc-list"></div>
+                    <div class="m-lc-row">
+                        <input class="m-lc-input" maxlength="${CHAT_TEXT_LIMIT}" placeholder="say something…" spellcheck="false" />
+                        <button type="button" class="m-lc-send">Send</button>
+                    </div>
+                </div>
             </div>
             <div class="m-lobby-settings">
                 <label class="m-field">Pace
@@ -965,24 +971,6 @@ suggestCornerEl.addEventListener('click', () => {
 });
 wrapper.appendChild(suggestCornerEl);
 
-// --- global menu chat (php-backed: last 10 messages + admin sticky) ---
-const gchatEl = document.createElement('div');
-gchatEl.className = 'mechili-gchat';
-gchatEl.style.display = 'none';
-gchatEl.innerHTML =
-    `<button type="button" class="g-strip">Chat</button>` +
-    `<div class="g-panel">` +
-    `<div class="g-title">Global chat</div>` +
-    `<div class="g-sticky" style="display:none"></div>` +
-    `<div class="g-list"><div class="g-empty">…</div></div>` +
-    `<div class="g-row"><input class="g-input" maxlength="200" placeholder="say something…" spellcheck="false" /><button type="button" class="g-send">Send</button></div>` +
-    `</div>`;
-wrapper.appendChild(gchatEl);
-const gchatSticky = gchatEl.querySelector<HTMLDivElement>('.g-sticky')!;
-const gchatList = gchatEl.querySelector<HTMLDivElement>('.g-list')!;
-const gchatInput = gchatEl.querySelector<HTMLInputElement>('.g-input')!;
-let gchatPoll: ReturnType<typeof setInterval> | null = null;
-
 let menuGamepad: GamepadCursor | null = null;
 let menuGamepadRig: CameraRig | null = null;
 
@@ -998,7 +986,6 @@ function setMenuChromeVisible(visible: boolean): void {
     // Door only in Electron; settings always when chrome is up.
     exitDesktopEl.style.display = visible && isElectron() ? '' : 'none';
     settingsCornerEl.style.display = display;
-    applyGlobalChatVisibility();
     if (visible) {
         ensureMenuGamepadCursor();
         scheduleLayoutTitle();
@@ -1029,89 +1016,9 @@ function destroyMenuGamepadCursor(): void {
     menuGamepadRig = null;
 }
 
-function applyGlobalChatVisibility(): void {
-    gchatEl.style.display = menuChromeVisible && prefs().globalChat ? '' : 'none';
-    if (menuChromeVisible && prefs().globalChat) void refreshGlobalChat();
-}
-
-async function refreshGlobalChat(): Promise<void> {
-    if (!gchatEl.isConnected || !prefs().globalChat) return;
-    try {
-        const state = await fetchGlobalChat();
-        gchatSticky.style.display = state.sticky ? '' : 'none';
-        gchatSticky.textContent = state.sticky ? `📌 ${state.sticky}` : '';
-        gchatList.replaceChildren();
-        if (state.messages.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'g-empty';
-            empty.textContent = 'No messages yet — say hello!';
-            gchatList.appendChild(empty);
-        }
-        for (const m of state.messages) {
-            // built via textContent — server data never reaches innerHTML
-            const line = document.createElement('div');
-            line.className = 'g-msg';
-            const who = document.createElement('span');
-            who.className = 'g-name';
-            who.textContent = m.name;
-            line.append(who, document.createTextNode(`: ${m.text}`));
-            gchatList.appendChild(line);
-        }
-        gchatList.scrollTop = gchatList.scrollHeight;
-    } catch {
-        /* endpoint missing — leave the panel quiet */
-    }
-}
-
-function startGlobalChatPoll(): void {
-    stopGlobalChatPoll();
-    void refreshGlobalChat();
-    gchatPoll = setInterval(() => void refreshGlobalChat(), 5000);
-}
-
-function stopGlobalChatPoll(): void {
-    if (gchatPoll) clearInterval(gchatPoll);
-    gchatPoll = null;
-}
-
-async function sendGlobalChat(): Promise<void> {
-    const text = gchatInput.value.trim().slice(0, 200);
-    if (!text) return;
-    gchatInput.value = '';
-    await postGlobalChat(getPlayerName(), text);
-    void refreshGlobalChat();
-}
-
-gchatEl.querySelector('.g-send')!.addEventListener('click', () => void sendGlobalChat());
-gchatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') void sendGlobalChat();
-});
-
-// starts collapsed as a small "Chat" button; click or hover opens it and
-// it stays open until a click outside (the input keeps whatever was typed)
-function openGlobalChat(): void {
-    if (gchatEl.classList.contains('open')) return;
-    gchatEl.classList.add('open');
-    void refreshGlobalChat();
-    gchatInput.focus();
-}
-const gchatStrip = gchatEl.querySelector('.g-strip')!;
-gchatStrip.addEventListener('click', openGlobalChat);
-gchatStrip.addEventListener('pointerenter', openGlobalChat);
-document.addEventListener('pointerdown', (e) => {
-    if (gchatEl.classList.contains('open') && !gchatEl.contains(e.target as Node)) {
-        gchatEl.classList.remove('open');
-    }
-});
-
-// the "show global chat" setting hides the panel, live; the poll keeps
-// ticking but refreshGlobalChat skips fetching while hidden or in-game
-applyGlobalChatVisibility();
-onPrefsChange(applyGlobalChatVisibility);
 onPrefsChange(() => {
     if (roomPoll) void refreshRoomList();
 });
-startGlobalChatPoll();
 
 const roomListEl = menu.querySelector<HTMLDivElement>('.m-room-list')!;
 const roomsLabelEl = menu.querySelector<HTMLSpanElement>('.m-rooms-label')!;
@@ -1760,6 +1667,100 @@ function setStatus(text: string, autoDismissMs?: number): void {
     }
 }
 
+/**
+ * Lobby chat — the match chat, one step earlier.
+ *
+ * Deliberately the SAME `{type:'chat'}` NetMessage the running match uses, over
+ * the same host connection, so this needs no backend and behaves identically on
+ * every transport (web, LAN, Steam): whoever can play together can talk. It
+ * replaces the old php-backed global chat, which sat in this exact spot in the
+ * menu while showing messages from strangers rather than the people you were
+ * about to play with.
+ *
+ * Available as soon as there is a room at all — the moment a host opens one, or
+ * a guest is admitted — not just once the match starts.
+ */
+const lobbyChatEl = menu.querySelector<HTMLDivElement>('.m-lobby-chat')!;
+const lobbyChatListEl = menu.querySelector<HTMLDivElement>('.m-lc-list')!;
+const lobbyChatInputEl = menu.querySelector<HTMLInputElement>('.m-lc-input')!;
+/** set while a room exists; sends one item over whichever link we hold */
+let lobbyChatSend: ((item: ChatItem) => void) | null = null;
+let lobbyChatLastSent = -Infinity;
+let lobbyChatLastReceived = -Infinity;
+
+/** Renders an emote as its label — the lobby has no atlas sprites, and a
+ *  match-side emote must not arrive here as a blank line. */
+function chatItemText(item: ChatItem): string {
+    if (item.kind === 'text') return String(item.text).slice(0, CHAT_TEXT_LIMIT);
+    return emoteById(item.id)?.label ?? '…';
+}
+
+function appendLobbyChat(name: string, item: ChatItem, role: 'player' | 'system' = 'player'): void {
+    const line = document.createElement('div');
+    line.className = role === 'system' ? 'm-lc-msg m-lc-system' : 'm-lc-msg';
+    if (role === 'system') {
+        line.textContent = chatItemText(item);
+    } else {
+        // built via textContent — a name typed by another player never reaches innerHTML
+        const who = document.createElement('span');
+        who.className = 'm-lc-name';
+        who.textContent = name;
+        line.append(who, document.createTextNode(`: ${chatItemText(item)}`));
+    }
+    lobbyChatListEl.appendChild(line);
+    // keep the DOM bounded on a long wait
+    while (lobbyChatListEl.childElementCount > 60) lobbyChatListEl.firstElementChild?.remove();
+    lobbyChatListEl.scrollTop = lobbyChatListEl.scrollHeight;
+}
+
+/** Opens the panel for a room we are now part of. `send` is the only
+ *  role-specific part: a host broadcasts, a guest tells the host. */
+function showLobbyChat(send: (item: ChatItem) => void): void {
+    lobbyChatSend = send;
+    lobbyChatEl.style.display = '';
+}
+
+function clearLobbyChat(): void {
+    lobbyChatSend = null;
+    lobbyChatLastSent = -Infinity;
+    lobbyChatEl.style.display = 'none';
+    lobbyChatListEl.replaceChildren();
+    lobbyChatInputEl.value = '';
+}
+
+/** Incoming rate limit, mirroring the match's own receive-side clamp: the
+ *  sender's cooldown is enforced by a client we do not control. */
+function acceptLobbyChatFromPeer(): boolean {
+    const now = performance.now();
+    if (now - lobbyChatLastReceived < CHAT_COOLDOWN_MS * 0.5) return false;
+    lobbyChatLastReceived = now;
+    return true;
+}
+
+function sendLobbyChat(): void {
+    const text = lobbyChatInputEl.value.trim().slice(0, CHAT_TEXT_LIMIT);
+    if (!text || !lobbyChatSend) return;
+    // same cooldown the match enforces, so the habit carries over
+    const now = performance.now();
+    if (now - lobbyChatLastSent < CHAT_COOLDOWN_MS) return;
+    lobbyChatLastSent = now;
+    lobbyChatInputEl.value = '';
+    const item: ChatItem = { kind: 'text', text };
+    // shown locally on send: the host excludes the sender when relaying, so
+    // nothing echoes back to whoever typed it
+    appendLobbyChat(getPlayerName(), item);
+    lobbyChatSend(item);
+}
+
+lobbyChatEl.querySelector('.m-lc-send')!.addEventListener('click', () => sendLobbyChat());
+lobbyChatInputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendLobbyChat();
+    // Typing must not reach the menu's own key handling (letters can hit
+    // shortcuts) — but Escape still has to back out of the lobby, which is
+    // exactly what someone hitting it while focused here expects.
+    if (e.key !== 'Escape') e.stopPropagation();
+});
+
 /** hides the host-waiting-room seat table (see renderRosterTable) — call
  *  whenever hosting stops, whether cancelled or a match actually starts */
 function clearRosterTable(): void {
@@ -1847,6 +1848,10 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
  *  starts, connection lost). Collapses the "Advanced settings" toggle
  *  back to its default closed state for the NEXT lobby too. */
 function clearLobbySettings(): void {
+    // The chat belongs to the room, so it ends exactly where the room does —
+    // hooked here rather than at all nine call sites, since this function is
+    // already the "a lobby just ended" signal (see the doc comment above).
+    clearLobbyChat();
     activeLobbyHost = null;
     lobbySettingsAvailable = false;
     lobbySettingsExpanded = false;
@@ -2229,8 +2234,6 @@ function finishReturnToMenu(): void {
     wrapper.appendChild(playtestEl);
     wrapper.appendChild(cornerActionsEl);
     wrapper.appendChild(suggestCornerEl);
-    wrapper.appendChild(gchatEl);
-    startGlobalChatPoll();
     refreshUsernameLabel();
     void refreshOpenProfile();
     setMenuBusy(false);
@@ -2363,7 +2366,6 @@ function startGame(
     if (started) return;
     started = true;
     destroyMenuGamepadCursor();
-    stopGlobalChatPoll();
     // setMenuChromeVisible(false) is never called anywhere (menu.remove()
     // below tears the chrome down permanently instead) — without this, the
     // room-list poll it would otherwise stop just keeps firing every few
@@ -2384,7 +2386,6 @@ function startGame(
     playtestEl.remove();
     cornerActionsEl.remove();
     suggestCornerEl.remove();
-    gchatEl.remove();
 
     if (net) {
         // Steam is the only live user of `net` now (classic PeerJS 1v1 runs
@@ -3114,11 +3115,23 @@ function wireHostedHub(
             setStatus('Waiting for an opponent');
         }
     };
+    showLobbyChat((item) =>
+        hub.broadcast({ type: 'chat', item, from: { name: getPlayerName(), role: 'player' } }),
+    );
     hub.onRosterChange = () => {
         refresh();
         advertiseHostedRoom();   // seats changed — keep the room list honest
     };
     hub.onMessage = (seat, msg) => {
+        if (msg.type === 'chat') {
+            if (!acceptLobbyChatFromPeer()) return;
+            // name comes from the roster entry for the CONNECTION's seat, never
+            // from the message — same authority rule the running match applies
+            const from = { name: hub.currentRoster()[seat]?.name ?? 'Player', role: 'player' as const };
+            appendLobbyChat(from.name, msg.item);
+            hub.broadcast({ type: 'chat', item: msg.item, from }, seat);
+            return;
+        }
         if (msg.type !== 'lobbyReady') return;
         const entry = hub.currentRoster()[seat];
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
@@ -3414,6 +3427,12 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
     const handle = (msg: NetMessage): void => {
         if (cancelled) return;
         if (msg.type === 'starRoster') {
+            showLobbyChat((item) =>
+                // `from` is required by the message, but the host re-stamps the
+                // name from our seat's roster entry — a claimed name is never
+                // trusted, in the lobby or in the match.
+                session.send({ type: 'chat', item, from: { name: getPlayerName(), role: 'player' } }),
+            );
             const found = msg.roster.findIndex((s) => s.name === getPlayerName());
             if (found >= 0) mySeat = found;
             renderRosterTable(msg.roster, mySeat ?? 1, msg.waitForJoined);
@@ -3425,6 +3444,11 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 }
             }
             setStatus('Connected — waiting for the host to start…');
+            return;
+        }
+        if (msg.type === 'chat') {
+            if (msg.from.role === 'system') appendLobbyChat(msg.from.name, msg.item, 'system');
+            else if (acceptLobbyChatFromPeer()) appendLobbyChat(msg.from.name, msg.item);
             return;
         }
         if (msg.type === 'lobbySettings') {
@@ -4079,12 +4103,6 @@ function closeMenuSubPanelOnEscape(): boolean {
     // Session (connecting / lobby / waiting): Escape cancels and returns home.
     if (currentMenuView === 'session' || pending || cancelEl.style.display !== 'none') {
         cancelMenuPending();
-        return true;
-    }
-
-    // Global chat is also a "sub-panel" inside the main menu.
-    if (gchatEl.classList.contains('open')) {
-        gchatEl.classList.remove('open');
         return true;
     }
 

@@ -234,11 +234,6 @@ export interface LobbyRoom {
     data?: unknown;
 }
 
-/** the menu's global chat endpoint — chat.php next to matchmaking.php */
-export function chatUrl(): string {
-    return new URL('chat.php', matchUrl()).href;
-}
-
 /** match telemetry endpoint — stats.php next to matchmaking.php */
 export function statsUrl(): string {
     return new URL('stats.php', matchUrl()).href;
@@ -252,23 +247,6 @@ export function playerUrl(): string {
 /** community suggestions — suggest.php next to matchmaking.php */
 export function suggestUrl(): string {
     return new URL('suggest.php', matchUrl()).href;
-}
-
-export interface GlobalChatState {
-    sticky: string | null;
-    messages: { name: string; text: string; ts: number }[];
-}
-
-export async function fetchGlobalChat(): Promise<GlobalChatState> {
-    const res = await fetch(`${chatUrl()}?action=list`);
-    const data = (await res.json()) as Partial<GlobalChatState>;
-    return { sticky: data.sticky ?? null, messages: data.messages ?? [] };
-}
-
-export async function postGlobalChat(name: string, text: string): Promise<void> {
-    await fetch(
-        `${chatUrl()}?action=post&name=${encodeURIComponent(name)}&text=${encodeURIComponent(text)}`,
-    ).catch(() => undefined);
 }
 
 /** Custom Game lobby config — pure data, shared between the host's

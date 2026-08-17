@@ -59,8 +59,8 @@ const FINGERPRINT_VERSION = 2;
 const TS_BUCKET_SECONDS = 600; // 10 min — coarse enough that both sides' near-simultaneous submissions land in the same bucket
 
 /**
- * Injected at deploy time (same placeholder as chat.php). Alternatively set
- * CHAT_KEY / STATS_KEY env. While unset, stripReplay stays disabled (403).
+ * Injected at deploy time (same placeholder as suggest.php). Alternatively
+ * set STATS_KEY env. While unset, stripReplay stays disabled (403).
  */
 const ADMIN_KEY = '__ADMIN_KEY__';
 

@@ -34,8 +34,6 @@ export type BloodFxQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 export interface Prefs {
     /** show the in-match (combat) chat at all: bar, bubbles, messages */
     combatChat: boolean;
-    /** show the global chat panel in the main menu */
-    globalChat: boolean;
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
      * - ultra: wall of trees just past the board edge (still instanced)
@@ -205,7 +203,6 @@ export function applyGraphicsPreset(preset: GraphicsPreset): void {
 const KEY = 'mechili-prefs';
 const DEFAULTS: Prefs = {
     combatChat: true,
-    globalChat: true,
     ...GRAPHICS_PRESETS.high,
     controlScheme: 'auto',
     uiFont: 'marcellus',

@@ -55,7 +55,6 @@ export function openSettings(parent: HTMLElement): void {
         `<section class="s-section">` +
         `<div class="s-section-head">Chat</div>` +
         `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
-        `<label class="s-row"><input type="checkbox" class="s-global" /> Show global chat (menu)</label>` +
         `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head">Multiplayer</div>` +
@@ -169,7 +168,6 @@ export function openSettings(parent: HTMLElement): void {
     const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');
     const debugToggle = overlay.querySelector<HTMLInputElement>('.s-debug')!;
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
-    const global = overlay.querySelector<HTMLInputElement>('.s-global')!;
     const mpSel = overlay.querySelector<HTMLSelectElement>('.s-mp')!;
     const mpHint = overlay.querySelector<HTMLElement>('.s-mp-hint')!;
     const fontSel = overlay.querySelector<HTMLSelectElement>('.s-font')!;
@@ -198,7 +196,6 @@ export function openSettings(parent: HTMLElement): void {
         const p = prefs();
         debugToggle.checked = p.debugOverlay;
         combat.checked = p.combatChat;
-        global.checked = p.globalChat;
         mpSel.value = p.multiplayerTransport;
         mpHint.textContent = mpHints[p.multiplayerTransport];
         fontSel.value = p.uiFont;
@@ -276,7 +273,6 @@ export function openSettings(parent: HTMLElement): void {
 
     debugToggle.addEventListener('change', () => updatePrefs({ debugOverlay: debugToggle.checked }));
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
-    global.addEventListener('change', () => updatePrefs({ globalChat: global.checked }));
     mpSel.addEventListener('change', () => {
         updatePrefs({
             multiplayerTransport: mpSel.value as Prefs['multiplayerTransport'],
@@ -432,7 +428,7 @@ export function openControlsHelp(parent: HTMLElement): void {
                 row('Home', 'Reset rotation, tilt, and zoom') +
                 row('R', 'Rotate the selected pack') +
                 row('Escape', 'Pause menu. In cinema mode, first restores the HUD.') +
-                row('Enter', 'Send chat (match or menu global chat)') +
+                row('Enter', 'Send chat') +
                 row('F11 · Alt+Enter', 'Fullscreen (desktop app)'),
         ) +
         section(

@@ -415,7 +415,6 @@ html .mechili-sidebar,
 html .mechili-report,
 html .mechili-username,
 html .mechili-replay-controls,
-html .mechili-gchat.open .g-panel,
 html .mechili-chat.open .c-panel,
 html .mechili-panel .action-info,
 html .forge-slot-preview.recipes,
@@ -797,85 +796,51 @@ ${materialStyles(u)}
 }
 .mechili-menu .m-status { font-size: 14px; color: ${u.phase}; max-width: 380px; text-align: center; }
 .mechili-menu .m-cancel { border-color: ${u.undoBorder}; color: ${u.undoText}; }
-
-.mechili-gchat {
-    position: absolute;
-    left: 50%;
-    bottom: calc(14px + env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    width: min(440px, calc(100vw - 32px));
-    box-sizing: border-box;
-    color: ${u.text};
-    z-index: 30;
-}
-.mechili-gchat .g-strip {
-    display: block;
-    width: 130px;
-    margin: 0 auto;
-    padding: 6px 0;
-    text-align: center;
-    font-size: 12px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    background: ${u.panelBg};
-    border: 1px solid ${u.border};
-    border-radius: 3px;
-    color: ${u.textMuted};
-    cursor: pointer;
-    opacity: 0.8;
-}
-.mechili-gchat .g-strip:hover { opacity: 1; border-color: ${u.hover}; color: ${u.text}; }
-.mechili-gchat.open .g-strip { display: none; }
-.mechili-gchat .g-panel { display: none; }
-.mechili-gchat.open .g-panel {
+.mechili-menu .m-lobby-chat {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 10px 12px;
-    background: linear-gradient(180deg, rgba(40, 32, 24, 0.92), rgba(20, 16, 12, 0.95));
-    border: 1.5px solid ${u.border};
-    border-radius: 4px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    gap: 6px;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid ${u.border};
 }
-.mechili-gchat .g-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: ${u.textMuted}; }
-.mechili-gchat .g-sticky {
-    padding: 4px 9px;
-    background: ${u.techBuyBg};
-    border: 1px solid ${u.brassDark};
-    border-radius: 7px;
-    color: ${u.brassLight};
-    font-size: 12.5px;
+.mechili-menu .m-lc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 132px;
+    overflow-y: auto;
+    text-align: left;
 }
-.mechili-gchat .g-list { display: flex; flex-direction: column; gap: 2px; max-height: 150px; overflow-y: auto; }
-.mechili-gchat .g-msg { font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.mechili-gchat .g-msg .g-name { font-weight: bold; color: ${u.brass}; }
-.mechili-gchat .g-empty { font-size: 12px; color: ${u.textMuted}; }
-.mechili-gchat .g-row { display: flex; gap: 6px; }
-.mechili-gchat .g-input {
+.mechili-menu .m-lc-msg { font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.mechili-menu .m-lc-msg .m-lc-name { font-weight: bold; color: ${u.brass}; }
+.mechili-menu .m-lc-system { color: ${u.textMuted}; font-style: italic; }
+.mechili-menu .m-lc-row { display: flex; gap: 6px; }
+.mechili-menu .m-lc-input {
     flex: 1;
-    padding: 6px 9px;
+    min-width: 0;
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 12.5px;
+    color: ${u.text};
     background: ${u.panelBgDark};
     border: 1px solid ${u.border};
-    border-radius: 7px;
-    color: ${u.text};
-    font-size: 13px;
+    border-radius: 4px;
 }
-.mechili-gchat .g-send {
-    padding: 0 14px;
-    background: ${u.techBuyBg};
+.mechili-menu .m-lc-input:focus-visible { outline: none; border-color: ${u.hover}; }
+.mechili-menu .m-lc-send {
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 12px;
+    color: ${u.text};
+    background: ${u.panelBgDark};
     border: 1px solid ${u.border};
-    border-radius: 7px;
-    color: ${u.text};
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 13px;
+    transition: border-color 0.12s ease;
 }
-.mechili-gchat .g-send { transition: border-color 0.12s ease, background 0.12s ease; }
-.mechili-gchat .g-send:hover { border-color: ${u.hover}; }
-.mechili-gchat .g-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
-.mechili-gchat .g-input:focus-visible { outline: none; border-color: ${u.hover}; }
+.mechili-menu .m-lc-send:hover { border-color: ${u.hover}; }
+.mechili-menu .m-lc-send:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35); }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .mechili-menu .m-rooms {
     width: 100%;
@@ -1418,11 +1383,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-username .u-avatar[hidden] { display: none; }
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
-/* narrow screens: the centered chat would collide with the username pill —
-   stack the chat above it */
-@media (max-width: 599px) {
-    .mechili-gchat { bottom: calc(68px + env(safe-area-inset-bottom)); }
-}
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 
 /* Top-right menu chrome: door (Electron quit) + settings gear */
