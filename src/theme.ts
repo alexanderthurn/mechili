@@ -1986,6 +1986,113 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 .mechili-settings button {
     padding: 8px 16px;
 }
+.mechili-settings .s-help-btn {
+    align-self: flex-start;
+    padding: 6px 16px;
+    font-size: 13px;
+}
+
+.mechili-controls-help {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.62);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    z-index: 82;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+        max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    box-sizing: border-box;
+}
+.mechili-controls-help .ch-box {
+    display: flex;
+    flex-direction: column;
+    width: min(760px, 100%);
+    max-height: 100%;
+    padding: 14px 16px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.mechili-controls-help .ch-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+    padding: 4px 4px 12px;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.08);
+}
+.mechili-controls-help .ch-title {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.mechili-controls-help .ch-head button { padding: 6px 14px; font-size: 13px; }
+.mechili-controls-help .ch-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 4px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.mechili-controls-help .ch-section h2 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: ${u.brassLight};
+}
+.mechili-controls-help .ch-note {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: ${u.creamMuted};
+}
+.mechili-controls-help .ch-row {
+    display: grid;
+    grid-template-columns: minmax(7.5rem, 34%) 1fr;
+    gap: 8px 12px;
+    align-items: start;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(184, 146, 74, 0.12);
+    font-size: 13.5px;
+    color: ${u.cream};
+}
+.mechili-controls-help .ch-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.mechili-controls-help kbd {
+    display: inline-block;
+    padding: 2px 7px;
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    color: ${u.bronzeLight};
+    font: 700 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.mechili-controls-help .ch-desc {
+    line-height: 1.4;
+    color: ${u.cream};
+}
+@media (max-width: 519px) {
+    .mechili-controls-help .ch-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+}
 .mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.bronze}; outline-offset: 1px; }
 /* Desktop: use horizontal space — general left, graphics right */
 @media (min-width: 720px) {
