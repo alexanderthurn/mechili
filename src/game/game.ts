@@ -7150,27 +7150,6 @@ export class Game {
         );
     }
 
-    /**
-     * While dragging a rune over the forge, show the recipe grid (spells using
-     * this rune sorted first). Shop / bag hover does not open it.
-     */
-    private syncArmedRuneForgeGhost(): void {
-        if (!this.armedItem || !ITEMS[this.armedItem]) {
-            this.hud.setItemGhostForgePreview(null);
-            return;
-        }
-        const overWorldForge = this.placement.itemDropOnForge;
-        const overPanelForge =
-            this.placement.selectedUnit?.type === STRONGHOLD &&
-            this.hud.isPanelItemDropReady() &&
-            this.canDropForgeOn(this.placement.selectedUnit);
-        if (!overWorldForge && !overPanelForge) {
-            this.hud.setItemGhostForgePreview(null);
-            return;
-        }
-        this.hud.setItemGhostForgePreview(this.armedItem);
-    }
-
     /** a pack whose next level can be bought (XP banked, below max, build phase) */
     private canLevel(unit: Unit): boolean {
         return this.playerCanAct && this.packUpgradeReady(unit, unit.level, unit.xp);
@@ -8883,7 +8862,6 @@ export class Game {
         }
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
-        this.syncArmedRuneForgeGhost();
         const enemyInv = this.enemyInventoryView();
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,

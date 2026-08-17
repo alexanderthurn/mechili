@@ -711,8 +711,6 @@ export class Hud {
             `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
         this.shopRuneRow = document.createElement('div');
         this.shopRuneRow.className = 'shop-runes';
-        this.shopRuneRow.title =
-            'Base runes — always available; each buy uses one purchase slot; price rises after each purchase';
         for (const itemId of BASE_RUNE_IDS) {
             const def = ITEMS[itemId]!;
             const btn = document.createElement('button');
@@ -1685,7 +1683,9 @@ export class Hud {
                 this.itemGhost = null;
                 this.worldItemDropReady = false;
                 this.panelItemDropReady = false;
-                this.setItemGhostForgePreview(null);
+                if (this.forgeSlotPreviewAnchor === this.itemGhost) {
+                    this.hideForgeSlotHoverPreview();
+                }
             } else {
                 this.itemGhost.classList.add('inv-drag');
                 this.itemGhost.classList.remove('unequipping');
@@ -1709,20 +1709,6 @@ export class Hud {
     /** true when an empty forge/pack slot in the details panel is lit as a drop target */
     isPanelItemDropReady(): boolean {
         return this.panelItemDropReady;
-    }
-
-    /**
-     * While dragging a rune over the forge: show the recipe grid (highlights
-     * spells using this rune). Shop / bag hover no longer opens this.
-     */
-    setItemGhostForgePreview(highlightRuneId: string | null): void {
-        if (!highlightRuneId || !this.itemGhost) {
-            if (this.forgeSlotPreviewAnchor === this.itemGhost) {
-                this.hideForgeSlotHoverPreview();
-            }
-            return;
-        }
-        this.showForgeRecipesHover(this.itemGhost, highlightRuneId);
     }
 
     private forgeSlotPreviewEl: HTMLDivElement | null = null;
@@ -1755,11 +1741,11 @@ export class Hud {
         );
     }
 
-    /** recipe grid beside empty / filled forge runes (not forge-bake — that uses spell tip) */
+    /**
+     * Recipe grid beside empty / filled forge runes (not forge-bake — that uses
+     * spell tip). World-drag onto the Stronghold does not open this.
+     */
     private syncForgeSlotHoverPreview(anchor: HTMLElement | null): void {
-        // drag-over forge owns the recipe popup
-        if (this.itemGhost && this.forgeSlotPreviewAnchor === this.itemGhost) return;
-
         if (!anchor || !this.isForgePreviewSlot(anchor)) {
             this.hideForgeSlotHoverPreview();
             return;
