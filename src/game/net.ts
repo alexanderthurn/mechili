@@ -47,12 +47,43 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
     });
 }
 
-/** bumped on any change that affects game logic — mismatched peers refuse to play */
-// v24: 'starRejoin' gains a required 'name' field, checked against the seat's roster entry (closes an unauthenticated seat-hijack path)
-// v24 (melodan, independently bumped): rally routes are three-point (start → mid → end)
-// v25: merge of the above two independent v24 bumps — kept distinct so an old single-fix build can't falsely think it's wire-compatible with this one
-// v26: 'matchCatchUp' gained 'seatSeq' to fix a reconnecting seat losing withheld build actions — REVERTED in v27, see below
-export const GAME_VERSION = 28; // v28: Steam matches advertise a steamId64 as their spectate endpoint, not a PeerJS peer id (spectating moved onto Steam's own P2P). No message shape changed, so a mixed pair could still PLAY — but each would dial the other's spectate endpoint on the wrong transport and just time out. Better a clear "Version mismatch" than spectating that silently never connects. Previously — v27: removed v26's 'seatSeq' — it seeded lastSeqSeen too HIGH for a withheld seat (counted the still-buffered content as already delivered), so the later real delivery looked like a stale/duplicate seq and got dropped, live-confirmed. Game.seedSeqTracking's plain local count was already correct (see its own doc comment) — the actual fix is only the backfill (Game.excludedActionsForSeatResume/StarHub.seedBuildBuffer)
+/**
+ * Which build this is, as one number — peers refuse to play across a
+ * mismatch. Derived from `package.json`'s version, never hand-maintained.
+ *
+ * It used to be a counter bumped by hand "on any change that affects game
+ * logic", which asked the wrong question. This is a deterministic lockstep
+ * simulation: clients exchange actions, replay them locally and compare
+ * per-round state hashes. A unit buff shipped to one side and not the other
+ * does not fail at the handshake — the shapes still match — it desyncs
+ * mid-match, twenty minutes in. The criterion that actually matters is
+ * "same simulation", and the honest proxy for that is "same build", which
+ * the release version already tracks and a hand-bumped counter reliably
+ * did not (it sat at 27 across releases that changed balance).
+ *
+ * Numeric rather than the semver string so telemetry's `gameVersion` keeps
+ * its type and its history stays comparable: the old hand-counted values
+ * topped out at 28 and the smallest value this can produce is 1000
+ * (v0.1.0), so the series stays monotonic straight through the changeover
+ * with no schema bump and no mixed types.
+ */
+export function encodeGameVersion(semver: string): number {
+    // release suffixes ('0.7.1-beta.2') identify the same simulation
+    const [major = 0, minor = 0, patch = 0] = semver.split('-')[0]!.split('.').map(Number);
+    if (minor > 999 || patch > 999) {
+        // 0.7.1000 would encode identically to 0.8.0 and silently let two
+        // different builds play together — the one failure this must not have
+        throw new Error(`Version ${semver} overflows the wire encoding (minor/patch must be < 1000)`);
+    }
+    return major * 1_000_000 + minor * 1_000 + patch;
+}
+
+/** back to '0.7.1', for telling a player which build the other side is on */
+export function formatGameVersion(encoded: number): string {
+    return `${Math.floor(encoded / 1_000_000)}.${Math.floor(encoded / 1_000) % 1_000}.${encoded % 1_000}`;
+}
+
+export const GAME_VERSION = encodeGameVersion(__APP_VERSION__);
 
 export const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;

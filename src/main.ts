@@ -15,6 +15,7 @@ import {
     type RoomAd,
     type RoomRosterEntry,
     GAME_VERSION,
+    formatGameVersion,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
@@ -3074,7 +3075,9 @@ function wireHostedHub(
     };
     hub.listen((name, version, avatar) => {
         if (version !== GAME_VERSION) {
-            return { reject: 'Version mismatch — both players need the same game version.' };
+            return {
+                reject: `Version mismatch — this room runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
+            };
         }
         const seat = hub.nextOpenSeat();
         if (seat === null) return { reject: 'Room is full.' };
@@ -3393,7 +3396,10 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 clearStarResumeMarker();
                 clearRosterTable();
                 clearLobbySettings();
-                setStatus('Version mismatch — both players need the same game version.', 5000);
+                setStatus(
+                    `Version mismatch — the host runs ${formatGameVersion(msg.version)}, you have ${formatGameVersion(GAME_VERSION)}.`,
+                    5000,
+                );
                 session.close();
                 return;
             }
@@ -3425,7 +3431,10 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             clearStarResumeMarker();
             clearRosterTable();
             clearLobbySettings();
-            setStatus('Version mismatch — both players need the same game version.', 5000);
+            setStatus(
+                `Version mismatch — the host runs ${formatGameVersion(msg.version)}, you have ${formatGameVersion(GAME_VERSION)}.`,
+                5000,
+            );
             session.close();
             return;
         }

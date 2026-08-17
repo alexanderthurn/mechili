@@ -45,6 +45,7 @@ import {
     clearSinglePlayer,
     clearStarResumeMarker,
     GAME_VERSION,
+    formatGameVersion,
     isRevealable,
     NetworkOpponent,
     registerSpectateEndpoint,
@@ -3696,7 +3697,10 @@ export class Game {
             hub.onSpectatorLeft = (name) => this.announceSystem(`${name} stopped spectating.`, name);
             hub.listen((claimedName, version, conn) => {
                 if (version !== GAME_VERSION) {
-                    conn.send({ type: 'spectateRejected', reason: 'Version mismatch' });
+                    conn.send({
+                        type: 'spectateRejected',
+                        reason: `Version mismatch — this match runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
+                    });
                     conn.close();
                     return;
                 }

@@ -43,6 +43,14 @@ export interface MatchTelemetry {
     schema: 1 | 2;
     id?: string;
     ts: number;
+    /**
+     * `encodeGameVersion(package.json version)` — 0.7.1 is 7001. Still a
+     * number, and still increasing: records written before this was derived
+     * from the release version carry a hand-counted value that topped out at
+     * 28, well below the smallest this can produce (1000 = v0.1.0), so the
+     * whole series remains ordered and no schema bump was needed.
+     * `formatGameVersion` turns it back into '0.7.1'.
+     */
     gameVersion: number;
     balancePatchId: string;
     mode: MatchMode;
