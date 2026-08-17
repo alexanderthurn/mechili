@@ -159,6 +159,11 @@ const CUSTOM_GAME_KEY = 'mechili-custom-game';
 
 /** localStorage only (never the URL — this is testing-tool state, not a
  *  shareable link) — matches getPlayerName's own storage pattern. */
+function normalizeCustomGameMode(mode: CustomGameMode | '1v1ai' | undefined): CustomGameMode {
+    if (mode === '1v1ai') return '1v1';
+    return mode ?? DEFAULT_CUSTOM_GAME.mode;
+}
+
 function loadCustomGameConfig(): CustomGameConfig {
     try {
         const raw = localStorage.getItem(CUSTOM_GAME_KEY);
@@ -189,7 +194,10 @@ function loadCustomGameConfig(): CustomGameConfig {
         let hordePreset = parsed.hordePreset ?? parsed.horde;
         return {
             ...DEFAULT_CUSTOM_GAME,
-            mode: parsed.mode ?? DEFAULT_CUSTOM_GAME.mode,
+            // '1v1ai' was a Custom Game option once; hosting 1v1 and clicking
+            // "Start with AI" is the same thing, so a stored one lands on 1v1
+            // rather than a mode with no button behind it.
+            mode: normalizeCustomGameMode(parsed.mode),
             pace: customGamePaceById(pace).id,
             hordePreset: hordeAlgorithmById(hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
@@ -856,9 +864,6 @@ menu.innerHTML = `
             <button class="m-btn m-toggle-card" data-mode="cg-host-1v1">
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">1v1</span>
             </button>
-            <button class="m-btn m-toggle-card" data-mode="cg-host-1v1ai">
-                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1vAI</span>
-            </button>
             <button class="m-btn m-toggle-card" data-mode="cg-host-2v2">
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">2v2</span>
             </button>
@@ -878,7 +883,7 @@ menu.innerHTML = `
                     I'm ready
                 </label>
                 <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
-                <button class="m-btn m-small" data-mode="startstar" style="display:none">Start Match</button>
+                <button class="m-btn m-small" data-mode="startstar" style="display:none">Start</button>
                 <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
             </div>
             <div class="m-lobby-settings">
@@ -1321,7 +1326,7 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig): boolean {
     );
 }
 
-/** Custom Game's mode (1v1/1v1ai/2v2/2v2ai) is now fixed at the moment
+/** Custom Game's mode (1v1/2v2/2v2ai) is now fixed at the moment
  *  one of the 4 host buttons is clicked — pace/horde/round-cards are the
  *  only pieces still read from/written to a <select> form, and they now
  *  live in the waiting-room's .m-lobby-settings panel instead of the
@@ -1452,12 +1457,13 @@ function hostCustomGame(mode: CustomGameMode): void {
     showMenuView('session');
     // The shape of the match is decided once, before any transport is chosen:
     // which layout, which roster, how many humans to wait for. Deriving these
-    // inside each transport branch is what let Steam's 1v1ai fall through to a
-    // four-seat 2v2 lobby while web/LAN routed it correctly.
-    const is1v1 = cfg.mode === '1v1' || cfg.mode === '1v1ai';
+    // inside each transport branch is what once let Steam open a four-seat
+    // 2v2 lobby for a one-seat layout while web/LAN routed it correctly.
+    const is1v1 = cfg.mode === '1v1';
     const layout: '1v1' | '2v2' = is1v1 ? '1v1' : '2v2';
     const buildRoster = is1v1 ? initial1v1Roster : initialStarRoster;
-    const waitForJoined = cfg.mode === '1v1' ? 2 : cfg.mode === '2v2' ? 4 : cfg.mode === '2v2ai' ? 2 : 1;
+    // 2v2ai waits for one human ally; the other two seats become AI at Start.
+    const waitForJoined = cfg.mode === '2v2' ? 4 : 2;
 
     void (async () => {
         const transport = await resolveMultiplayerTransport();
@@ -3069,15 +3075,18 @@ function wireHostedHub(
             allReady = allSeatsReady(roster);
         }
         // Label follows the state, not just `disabled`: a greyed-out button
-        // still reading "Start 2v2 Match" looks like it should work and says
-        // nothing about what is missing (reported live: the host could not
-        // tell why Start did nothing while a guest had not readied up).
+        // still reading "Start" looks like it should work and says nothing
+        // about what is missing (reported live: the host could not tell why
+        // Start did nothing while a guest had not readied up). The layout is
+        // already on screen in the roster table, so naming it here too said
+        // nothing — what the player cannot otherwise see is whether pressing
+        // this fills the empty seats with bots.
         startStarBtn.disabled = !!customConfig && !allReady;
         startStarBtn.textContent = startStarBtn.disabled
             ? 'Waiting for players to ready up…'
-            : mode === '1v1'
-              ? 'Start 1v1 Match'
-              : 'Start 2v2 Match';
+            : joined < roster.length
+              ? 'Start with AI'
+              : 'Start';
         // auto-start once `waitForJoined` have joined — EXCEPT for a Custom
         // Game room (customConfig set), which always waits for the host's
         // own explicit Start click instead. Matchmaking/quick-match rooms
@@ -3099,7 +3108,7 @@ function wireHostedHub(
             const remaining = waitForJoined - joined;
             const namesPart = joined > 1 ? `${connectedNames} - ` : '';
             setStatus(
-                `Room "${hostName}" ${modeLabel} - ${namesPart}waiting for ${remaining} more player${remaining === 1 ? '' : 's'}. Click Start to play vs AI`,
+                `Room "${hostName}" ${modeLabel} - ${namesPart}waiting for ${remaining} more player${remaining === 1 ? '' : 's'}. Click "Start with AI" to play the empty seats as bots`,
             );
         } else {
             setStatus('Waiting for an opponent');
@@ -4377,9 +4386,6 @@ menu.addEventListener('click', (e) => {
             break;
         case 'cg-host-1v1':
             hostCustomGame('1v1');
-            break;
-        case 'cg-host-1v1ai':
-            hostCustomGame('1v1ai');
             break;
         case 'cg-host-2v2':
             hostCustomGame('2v2');

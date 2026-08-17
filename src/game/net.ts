@@ -275,7 +275,10 @@ export async function postGlobalChat(name: string, text: string): Promise<void> 
  *  editable form and every guest's read-only preview (see the
  *  'lobbySettings' NetMessage below). Lives here rather than in main.ts
  *  since it now travels over the wire. */
-export type CustomGameMode = '1v1' | '1v1ai' | '2v2' | '2v2ai';
+/** Custom Game layouts. '1v1ai' was removed — hosting '1v1' and pressing
+ *  "Start with AI" is the same match, so it was a second door to one room
+ *  (main.ts's normalizeCustomGameMode migrates any stored one). */
+export type CustomGameMode = '1v1' | '2v2' | '2v2ai';
 export interface CustomGameConfig {
     mode: CustomGameMode;
     /** id into CUSTOM_GAME_PACE_PRESETS */
