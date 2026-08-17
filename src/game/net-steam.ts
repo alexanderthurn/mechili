@@ -72,11 +72,27 @@ const routes = new Map<string, (msg: NetMessage) => void>();
  * message lands here.
  */
 let onUnrouted: ((steamId64: string, msg: NetMessage) => void) | null = null;
+/** the channel currently owning each remote id, for close notifications */
+const liveChannels = new Map<string, SteamChannel>();
 let dispatcherInstalled = false;
 
 function installDispatcher(): void {
     if (dispatcherInstalled) return;
     dispatcherInstalled = true;
+    // Steam telling us a peer is gone, rather than us inferring it from
+    // silence — turns a clean quit into an instant drop instead of one that
+    // takes the full keepalive timeout to notice. Purely an accelerator: the
+    // watchdog stays the authority, since a hard kill reports nothing at all.
+    net.onClosed?.(({ steamId64, graceful }) => {
+        // ONLY a peer-initiated close is final. A locally detected problem
+        // (timeout, unreachable) is exactly the blip Steam Datagram Relay
+        // exists to paper over — the next send dials a fresh connection and
+        // traffic resumes, which the watchdog tolerates silently. Treating
+        // that as a disconnect would turn recoverable hiccups into full
+        // reconnect handshakes, strictly worse than waiting.
+        if (!graceful) return;
+        liveChannels.get(steamId64)?.markClosed();
+    });
     net.onData((packet) => {
         const { steamId64, data } = packet as { steamId64: string; data: NetMessage };
         // A spectate handshake always goes to the acceptor, even from a sender
@@ -129,6 +145,9 @@ class SteamChannel {
      * successfully reconnected.
      */
     private readonly route: (msg: NetMessage) => void;
+    /** onClose already fired, or this channel is disposed — keeps the Steam
+     *  close notification and the watchdog from both firing it */
+    private closed = false;
 
     constructor(readonly remoteSteamId: string) {
         installDispatcher();
@@ -143,13 +162,17 @@ class SteamChannel {
             else this.backlog.push(msg);
         };
         routes.set(remoteSteamId, this.route);
+        liveChannels.set(remoteSteamId, this);
         // registered before this assignment, but routes' callback only ever
         // fires asynchronously (via net.onData's IPC dispatch) — never
         // synchronously during registration — so `this.liveness` is always
         // set by the time any message could actually arrive.
         this.liveness = watchLiveness(
             () => void net.send(this.remoteSteamId, { type: 'ping' }),
-            () => this.onClose?.(),
+            // through markClosed, not straight to onClose, so this and the
+            // Steam-reported close share one "already gone" flag rather than
+            // racing to fire the same callback twice
+            () => this.markClosed(),
         );
     }
 
@@ -175,9 +198,24 @@ class SteamChannel {
         void net.send(this.remoteSteamId, msg);
     }
 
+    /**
+     * Steam reported this peer's connection closed by them. Same outcome the
+     * liveness watchdog would reach on its own after the timeout — just now,
+     * and only once: whichever gets there first wins, and the other finds the
+     * watchdog already stopped.
+     */
+    markClosed(): void {
+        if (this.closed) return;
+        this.closed = true;
+        this.liveness.stop();
+        this.onClose?.();
+    }
+
     dispose(): void {
+        this.closed = true;
         this.liveness.stop();
         if (routes.get(this.remoteSteamId) === this.route) routes.delete(this.remoteSteamId);
+        if (liveChannels.get(this.remoteSteamId) === this) liveChannels.delete(this.remoteSteamId);
     }
 
     /** `SpectatorViewerLink`'s half of dispose — same teardown, the name the

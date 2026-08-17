@@ -69,6 +69,15 @@ declare module 'steam-electron-build/native' {
         /** payload is any JSON-serializable value — this layer only moves bytes */
         send(steamId64: string, payload: unknown): Promise<boolean>;
         onData(cb: (packet: { steamId64: string; data: unknown }) => void): void;
+        /**
+         * A peer's connection ended. `graceful` = closed cleanly by them;
+         * otherwise a locally detected problem (timeout, unreachable), which
+         * Steam may still recover from on the next send.
+         *
+         * Optional: older runtimes do not expose it (see net-steam.ts, which
+         * treats it purely as a speed-up over its own keepalive).
+         */
+        onClosed?(cb: (info: { steamId64: string; graceful: boolean }) => void): void;
     };
 
     /** LAN PeerServer + UDP discovery (opt-in: steamElectronBuild.lan === true) */
