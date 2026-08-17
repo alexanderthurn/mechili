@@ -2977,7 +2977,11 @@ export class Hud {
      * screen: the phone tab bar and field-action buttons step aside. The
      * topbar keeps its original cards-only rule (a card pick or the
      * settings panel blocks End Deployment and speed controls; pause does
-     * not — pause already stops everything itself).
+     * not — pause already stops everything itself). Commander HP strips
+     * hide for the same overlays — they sit above `.mechili-cards` so
+     * specialist peek still works, but during an actual pick they only
+     * steal taps / clutter the screen. Specialist-detail peek does NOT
+     * set `cardOverlay`, so the strips stay for that.
      */
     private syncOverlayOpen(): void {
         const blocksTopBar =
@@ -2986,6 +2990,7 @@ export class Hud {
         this.topBar.classList.toggle('overlay-open', blocksTopBar);
         this.phoneBar.classList.toggle('overlay-open', open);
         this.phoneStatusEl.classList.toggle('overlay-open', open);
+        this.fightBar.classList.toggle('overlay-open', open);
     }
 
     hidePauseMenu(): void {
@@ -3064,6 +3069,9 @@ export class Hud {
         overlay: HTMLElement,
         onDone: () => void,
     ): void {
+        // stacks were hidden for the pick (overlay-open); bring them back so
+        // the fly target / land pulse have a real rect to aim at
+        this.fightBar.classList.remove('overlay-open');
         overlay.classList.add('flying');
         const from = card.getBoundingClientRect();
         const chip = this.commanderChips.find((c) => c.seat === this.humanSeat);
