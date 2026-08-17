@@ -1733,6 +1733,12 @@ function setStatus(text: string, autoDismissMs?: number): void {
         statusEl.style.display = '';
         statusEl.textContent = text;
         cancelEl.style.display = '';
+        // "Cancel" only makes sense while there is something in flight to
+        // cancel. On a terminal message ("Host closed the room.", a version
+        // mismatch, a rejection) the room is already gone and the button is
+        // just a dismiss — offering to cancel it reads as if leaving were
+        // still a choice the player had to make.
+        cancelEl.textContent = isSessionBusy() ? 'Cancel' : 'OK';
         if (autoDismissMs) {
             statusClearTimer = setTimeout(() => {
                 setStatus('');
@@ -3032,7 +3038,6 @@ function wireHostedHub(
         // same star path — label it for whichever mode is actually running
         // instead of the old static "Start 2v2 Match" text 1v1 inherited
         // by accident
-        startStarBtn.textContent = mode === '1v1' ? 'Start 1v1 Match' : 'Start 2v2 Match';
         startStarBtn.style.display = '';
     }
     const refresh = () => {
@@ -3063,7 +3068,16 @@ function wireHostedHub(
             hub.broadcast({ type: 'lobbySettings', config: customConfig });
             allReady = allSeatsReady(roster);
         }
+        // Label follows the state, not just `disabled`: a greyed-out button
+        // still reading "Start 2v2 Match" looks like it should work and says
+        // nothing about what is missing (reported live: the host could not
+        // tell why Start did nothing while a guest had not readied up).
         startStarBtn.disabled = !!customConfig && !allReady;
+        startStarBtn.textContent = startStarBtn.disabled
+            ? 'Waiting for players to ready up…'
+            : mode === '1v1'
+              ? 'Start 1v1 Match'
+              : 'Start 2v2 Match';
         // auto-start once `waitForJoined` have joined — EXCEPT for a Custom
         // Game room (customConfig set), which always waits for the host's
         // own explicit Start click instead. Matchmaking/quick-match rooms
@@ -3374,18 +3388,41 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
     // same pattern the host-reclaim path already relies on — a genuine
     // ambiguity only if two players share a name, an accepted edge case.
     let mySeat: SeatId | null = null;
+    /**
+     * Our own ready state as WE last set it, until the host echoes it back.
+     *
+     * The host rebroadcasts `starRoster` on every refresh — including
+     * refreshes triggered by something else entirely (another guest joining,
+     * a settings edit) — so a broadcast carrying the ready value from BEFORE
+     * our toggle can land just after we ticked the box and silently flip it
+     * back. The next click then reads false→true and sends "ready" a second
+     * time instead of the un-ready the player just asked for, leaving the
+     * host convinced they are ready and its Start button live. Holding our
+     * own value until it is confirmed keeps the checkbox showing what the
+     * player chose.
+     */
+    let pendingReady: boolean | null = null;
     const handle = (msg: NetMessage): void => {
         if (cancelled) return;
         if (msg.type === 'starRoster') {
             const found = msg.roster.findIndex((s) => s.name === getPlayerName());
             if (found >= 0) mySeat = found;
             renderRosterTable(msg.roster, mySeat ?? 1, msg.waitForJoined);
-            if (mySeat !== null) lobbyReadyCheckEl.checked = msg.roster[mySeat]?.ready ?? false;
+            if (mySeat !== null) {
+                const hostSaysReady = msg.roster[mySeat]?.ready ?? false;
+                if (pendingReady === null || pendingReady === hostSaysReady) {
+                    pendingReady = null;
+                    lobbyReadyCheckEl.checked = hostSaysReady;
+                }
+            }
             setStatus('Connected — waiting for the host to start…');
             return;
         }
         if (msg.type === 'lobbySettings') {
-            showGuestLobbySettings(msg.config, (ready) => session.send({ type: 'lobbyReady', ready }));
+            showGuestLobbySettings(msg.config, (ready) => {
+                pendingReady = ready;
+                session.send({ type: 'lobbyReady', ready });
+            });
             return;
         }
         // Anything besides the handshake message types below is only ever
