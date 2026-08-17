@@ -409,12 +409,9 @@ export function openControlsHelp(parent: HTMLElement): void {
         section(
             'Touch',
             row('1 finger tap', 'Select, place, or buy — same as a left click') +
-                row('1 finger drag', 'Pan the map (taps stay taps). While carrying a pack, use two fingers to pan.') +
                 row('2 finger pinch', 'Zoom — spread or pinch in any direction, not only vertical') +
                 row('2 finger drag', 'Both fingers moving together pans the map') +
-                row('3 finger drag', 'Orbit: left/right rotates heading, up/down tilts') +
-                row('Rotate / Pick up', 'Phone bar buttons — rotate the selected pack, or pick it up to move') +
-                row('☰', 'Pause menu (Escape on keyboard)'),
+                row('3 finger drag', 'Orbit: left/right rotates heading, up/down tilts'),
         ) +
         section(
             'Mouse',

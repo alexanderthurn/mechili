@@ -2,6 +2,8 @@ import type { Vector3 } from 'three';
 import type { CameraRig } from './cameraRig';
 
 const EDGE_MARGIN = 24; // px from the viewport edge that triggers edge scrolling
+/** fatter hit band while dragging a pack to the screen edge on a phone */
+const TOUCH_EDGE_MARGIN = 44;
 const ROTATE_SPEED = Math.PI / 2; // rad/s for Q/E
 const ORBIT_HEADING_PER_PX = 0.005; // rad per dragged pixel
 const ORBIT_PITCH_PER_PX = 0.004;
@@ -30,8 +32,8 @@ const THREE_ORBIT_SLOP = 9;
  *
  * Touch (no mouse buttons — gestures instead):
  *  - one-finger drag: grab the ground and pan (taps stay placement clicks;
- *    suppressed while a ghost/carried pack rides the finger — two-finger
- *    drag still pans there, so the map stays reachable mid-carry)
+ *    suppressed while a ghost/carried pack rides the finger — the camera
+ *    edge-scrolls instead when that finger hits the screen edge)
  *  - pinch (spread / close two fingers): zoom at the midpoint
  *  - two fingers dragged together (parallel): pan
  *  - three fingers dragged: left/right rotates heading, up/down tilts
@@ -65,6 +67,8 @@ export class CameraControls {
     private pinchPanGround: Vector3 | null = null;
     private threeLast: { x: number; y: number } | null = null;
     private threeOrbitActive = false;
+    /** screen-local pos of the carry finger — drives edge-pan while aiming */
+    private touchEdgePos: { x: number; y: number } | null = null;
     private readonly disposers: (() => void)[] = [];
 
     constructor(
@@ -186,10 +190,12 @@ export class CameraControls {
             this.touchDown = { x: e.clientX, y: e.clientY };
             this.touchPanGround = this.pickAt(e.clientX, e.clientY);
             this.touchPanActive = false;
+            this.touchEdgePos = null;
         } else if (this.touches.size === 2) {
             // second finger: abandon single-finger panning, start pinch/pan
             this.touchPanGround = null;
             this.touchPanActive = false;
+            this.touchEdgePos = null;
             this.pinchLast = this.pinchState();
             this.pinchStart = this.pinchLast;
             this.pinchMode = 'idle';
@@ -226,9 +232,19 @@ export class CameraControls {
             if (!this.touchPanActive) {
                 const moved = Math.hypot(e.clientX - this.touchDown.x, e.clientY - this.touchDown.y);
                 if (moved <= TOUCH_PAN_SLOP) return; // still a potential tap
-                if (this.suppressTouchPan?.()) return; // finger carries a ghost — placement aims
+                if (this.suppressTouchPan?.()) {
+                    // carry/aim: don't grab-pan; edge-scroll if the finger
+                    // stays against the screen edge
+                    this.touchEdgePos = this.toLocal(e);
+                    return;
+                }
                 this.touchPanActive = true;
             }
+            if (this.suppressTouchPan?.()) {
+                this.touchEdgePos = this.toLocal(e);
+                return;
+            }
+            this.touchEdgePos = null;
             const now = this.pickAt(e.clientX, e.clientY);
             if (now) this.rig.pan(this.touchPanGround.x - now.x, this.touchPanGround.z - now.z, true);
             return;
@@ -322,6 +338,7 @@ export class CameraControls {
             this.touchDown = null;
             this.touchPanGround = null;
             this.touchPanActive = false;
+            this.touchEdgePos = null;
         }
     }
 
@@ -360,6 +377,14 @@ export class CameraControls {
             if (this.pointer.x > rect.width - EDGE_MARGIN) dx += 1;
             if (this.pointer.y < EDGE_MARGIN) dz += 1;
             if (this.pointer.y > rect.height - EDGE_MARGIN) dz -= 1;
+        } else if (this.touchEdgePos && this.touches.size === 1 && this.suppressTouchPan?.()) {
+            const rect = this.surface.getBoundingClientRect();
+            const p = this.touchEdgePos;
+            const m = TOUCH_EDGE_MARGIN;
+            if (p.x < m) dx -= 1;
+            if (p.x > rect.width - m) dx += 1;
+            if (p.y < m) dz += 1;
+            if (p.y > rect.height - m) dz -= 1;
         }
 
         if (dx !== 0 || dz !== 0) {
