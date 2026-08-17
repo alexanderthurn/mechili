@@ -959,7 +959,24 @@ ${chatFloatStyles(u, pc, ec)}
     text-align: center;
 }
 .mechili-menu .m-status { font-size: 14px; color: ${u.phase}; max-width: 380px; text-align: center; }
-.mechili-menu .m-cancel { border-color: ${u.undoBorder}; color: ${u.undoText}; }
+/* Cancel is the way OUT of a lobby, never the thing to do in it — but it
+   inherited .m-btn's full-width leather-and-shadow treatment, which read as
+   the primary action while the real one ("I'm ready", "Start") sat above it
+   looking secondary. Same colours, none of the weight. */
+.mechili-menu .m-cancel {
+    width: auto;
+    align-self: center;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: normal;
+    letter-spacing: 1px;
+    background: none;
+    box-shadow: none;
+    border-color: ${u.undoBorder};
+    color: ${u.undoText};
+    opacity: 0.8;
+}
+.mechili-menu .m-cancel:hover { opacity: 1; border-color: ${u.hover}; }
 /* Floating bottom-center over the menu, matching where the match keeps its
    chat — the panel chrome lives here so the ChatBar inside can stay bare. */
 /* Positioning only. The panel chrome belongs to the ChatBar inside, which
