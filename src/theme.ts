@@ -939,6 +939,15 @@ ${chatFloatStyles(u, pc, ec)}
     transform: translateY(-2px);
     box-shadow: 0 8px 22px rgba(184, 146, 74, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
+/* every joined player is ready — the host's cue to start */
+.mechili-menu .m-btn.is-go {
+    border-color: ${u.techOwned};
+    color: ${u.techOwned};
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(168, 216, 104, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12);
+}
 .mechili-menu .m-small {
     justify-content: center;
     padding: 9px 12px;

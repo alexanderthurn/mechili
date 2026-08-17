@@ -3067,6 +3067,8 @@ function wireHostedHub(
         // same star path — label it for whichever mode is actually running
         // instead of the old static "Start 2v2 Match" text 1v1 inherited
         // by accident
+        // a previous lobby may have left this lit — refresh() below decides
+        startStarBtn.classList.remove('is-go');
         startStarBtn.style.display = '';
     }
     // Who was in the room at the last refresh, so joins and leaves can be
@@ -3133,6 +3135,12 @@ function wireHostedHub(
             : joined < roster.length
               ? 'Start with AI'
               : 'Start';
+        // Everyone who joined has readied up: light the button so the host can
+        // see it is on them now without re-reading the roster. Needs someone to
+        // actually be here (joined > 1) — a room the host is alone in trivially
+        // satisfies "all ready", and glowing at them to start a solo match
+        // against bots would be telling them the wrong thing.
+        startStarBtn.classList.toggle('is-go', !!customConfig && allReady && joined > 1);
         // auto-start once `waitForJoined` have joined — EXCEPT for a Custom
         // Game room (customConfig set), which always waits for the host's
         // own explicit Start click instead. Matchmaking/quick-match rooms
