@@ -879,11 +879,14 @@ menu.innerHTML = `
         <div class="m-session-layout">
             <div class="m-session-primary">
                 <div class="m-roster-table" style="display:none"></div>
+                <!-- settings first: a guest reads what they are agreeing to, THEN
+                     confirms. (The host never sees the ready row — see
+                     showHostLobbySettings — so this ordering only shows up there.) -->
+                <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
                 <label class="m-lobby-ready-row" style="display:none">
                     <input type="checkbox" class="m-lobby-ready-check">
                     I'm ready
                 </label>
-                <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
                 <button class="m-btn m-small" data-mode="startstar" style="display:none">Start</button>
                 <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
             </div>
