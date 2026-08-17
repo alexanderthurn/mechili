@@ -1682,13 +1682,16 @@ function setStatus(text: string, autoDismissMs?: number): void {
 const lobbyChatEl = document.createElement('div');
 lobbyChatEl.className = 'mechili-lobby-chat';
 lobbyChatEl.style.display = 'none';
-lobbyChatEl.innerHTML = `<div class="m-lc-list"></div>`;
 wrapper.appendChild(lobbyChatEl);
-const lobbyChatListEl = lobbyChatEl.querySelector<HTMLDivElement>('.m-lc-list')!;
-// the very same composer the match uses (emotes included) — see ChatBar
+// the very same composer the match uses (emotes included) — see ChatBar. The
+// scrollback goes INSIDE its panel, so "Chat" collapses the whole thing to a
+// strip exactly as it does in a match, instead of leaving a list hanging on
+// screen over the menu.
+const lobbyChatListEl = document.createElement('div');
+lobbyChatListEl.className = 'm-lc-list';
 const lobbyChatBar = new ChatBar({
     onSend: (item) => sendLobbyChat(item),
-    alwaysOpen: true,
+    leading: lobbyChatListEl,
     inline: true,
 });
 lobbyChatEl.appendChild(lobbyChatBar.el);
@@ -1741,6 +1744,7 @@ function appendLobbyChat(name: string, item: ChatItem, role: 'player' | 'system'
         line.append(who, document.createTextNode(': '), chatItemBody(item));
     }
     lobbyChatLog.push({ name, item, role });
+    lobbyChatBar.markUnread();
     lobbyChatListEl.appendChild(line);
     // keep the DOM bounded on a long wait
     while (lobbyChatListEl.childElementCount > 60) lobbyChatListEl.firstElementChild?.remove();

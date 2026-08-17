@@ -18,13 +18,11 @@ import { iconHtml } from './iconAtlas';
 export interface ChatBarOptions {
     onSend: (item: ChatItem) => void;
     /**
-     * Skip the collapsed "Chat" strip and stay open.
-     *
-     * The match keeps it collapsed because the bar sits over the board and
-     * every pixel is play area; the lobby is a waiting screen where chat is
-     * the main thing on offer, so hiding it behind a click would be silly.
+     * Mounted at the top of the panel, above the emotes — the lobby puts its
+     * message scrollback here so the list collapses and expands WITH the bar
+     * rather than floating beside it.
      */
-    alwaysOpen?: boolean;
+    leading?: HTMLElement;
     /** lay out in normal document flow instead of floating bottom-center */
     inline?: boolean;
 }
@@ -32,16 +30,13 @@ export interface ChatBarOptions {
 export class ChatBar {
     readonly el: HTMLDivElement;
     private readonly input: HTMLInputElement;
-    private readonly collapsible: boolean;
     private readonly onDocPointer: (e: PointerEvent) => void;
 
     constructor(private readonly opts: ChatBarOptions) {
-        this.collapsible = !opts.alwaysOpen;
         const bar = document.createElement('div');
         this.el = bar;
         bar.className = 'mechili-chat';
         if (opts.inline) bar.classList.add('inline');
-        if (!this.collapsible) bar.classList.add('open', 'no-strip');
 
         const emoteButtons = EMOTES.map(
             (e) =>
@@ -56,6 +51,7 @@ export class ChatBar {
             `<button type="button" class="c-send">Send</button>` +
             `</div></div>`;
         this.input = bar.querySelector('.c-input')!;
+        if (opts.leading) bar.querySelector('.c-panel')!.prepend(opts.leading);
 
         const strip = bar.querySelector('.c-strip')!;
         strip.addEventListener('click', () => this.open(true));
@@ -72,11 +68,9 @@ export class ChatBar {
                 return;
             }
             if (e.key === 'Escape') {
-                // Collapsible: Escape belongs to the chat — it closes it, and
-                // must not also reach the game's own Escape handling. Always-
-                // open: there is nothing to close, so let it through to
-                // whatever owns the screen (the menu backs out of the lobby).
-                if (!this.collapsible) return;
+                // Escape belongs to the chat while typing in it: it closes the
+                // panel and stops there, rather than also reaching whatever
+                // owns the screen (the game's pause menu, the menu's back).
                 this.close();
                 this.input.blur();
                 e.stopPropagation();
@@ -95,7 +89,7 @@ export class ChatBar {
             }
             if (bar.classList.contains('open') && !bar.contains(e.target as Node)) this.close();
         };
-        if (this.collapsible) document.addEventListener('pointerdown', this.onDocPointer);
+        document.addEventListener('pointerdown', this.onDocPointer);
     }
 
     private submit(): void {
@@ -110,20 +104,30 @@ export class ChatBar {
     }
 
     open(focus = true): void {
+        this.el.classList.remove('unread');
         if (this.isOpen) return;
         this.el.classList.add('open');
         if (focus) this.input.focus();
     }
 
-    /** no-op when this bar was built always-open */
+    /**
+     * Flag the collapsed strip so an arriving message is not simply missed.
+     * Deliberately not auto-opening: a player who just closed the panel should
+     * not have it reopen itself in their face. Cleared when they open it.
+     */
+    markUnread(): void {
+        if (!this.isOpen) this.el.classList.add('unread');
+    }
+
     close(): void {
-        if (!this.collapsible) return;
         this.el.classList.remove('open');
     }
 
-    /** wipes any half-typed text — for reuse across separate rooms */
+    /** back to a clean collapsed bar — for reuse across separate rooms */
     reset(): void {
         this.input.value = '';
+        this.el.classList.remove('unread');
+        this.close();
     }
 
     dispose(): void {

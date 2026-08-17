@@ -641,6 +641,27 @@ button, input, select, textarea { font-family: inherit; }
  *  ChatBar component mounts in the match HUD and in the menu's lobby — the
  *  menu only injects menuStyles(), so leaving this in hudStyles() rendered
  *  the lobby's composer as unstyled markup. */
+/** The atlas icon primitive. Shared because BOTH sheets need it: the menu's
+ *  own buttons carry scoped rules that happen to set these properties
+ *  themselves, but anything relying on the bare class (chat emotes) rendered
+ *  as nothing in the menu until a match injected hudStyles() — after which it
+ *  stayed, so icons "started working" once you had played a round. */
+function iconBaseStyles(): string {
+    return `
+.m-icon {
+    display: inline-block;
+    width: 1.15em;
+    height: 1.15em;
+    vertical-align: middle;
+    flex-shrink: 0;
+    line-height: 0;
+    color: transparent;
+    overflow: hidden;
+    background-repeat: no-repeat;
+}
+`;
+}
+
 function chatBarStyles(u: typeof THEME.ui): string {
     return `
 .mechili-chat .c-emote { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
@@ -662,15 +683,6 @@ function chatBarStyles(u: typeof THEME.ui): string {
     width: 100%;
     z-index: auto;
 }
-.mechili-chat.no-strip .c-strip { display: none; }
-.mechili-chat.inline.open .c-panel {
-    padding: 0;
-    background: none;
-    border: none;
-    box-shadow: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-}
 .mechili-chat .c-strip {
     width: 110px;
     margin: 0 auto;
@@ -688,6 +700,8 @@ function chatBarStyles(u: typeof THEME.ui): string {
     opacity: 0.7;
 }
 .mechili-chat .c-strip:hover { opacity: 1; border-color: ${u.hover}; color: ${u.text}; }
+/* something was said while collapsed */
+.mechili-chat.unread .c-strip { opacity: 1; border-color: ${u.brass}; color: ${u.brassLight}; }
 .mechili-chat .c-panel { display: none; }
 .mechili-chat.open .c-strip { display: none; }
 .mechili-chat.open .c-panel {
@@ -747,6 +761,7 @@ export function menuStyles(bars?: BarAssets): string {
     return `
 ${fontFaceCss()}
 ${materialStyles(u)}
+${iconBaseStyles()}
 ${chatBarStyles(u)}
 .mechili-menu {
     position: absolute;
@@ -903,6 +918,11 @@ ${chatBarStyles(u)}
 .mechili-menu .m-cancel { border-color: ${u.undoBorder}; color: ${u.undoText}; }
 /* Floating bottom-center over the menu, matching where the match keeps its
    chat — the panel chrome lives here so the ChatBar inside can stay bare. */
+/* Positioning only. The panel chrome belongs to the ChatBar inside, which
+   collapses to a strip — a box drawn out here would stay behind as an empty
+   frame around it. Mounted on the wrapper rather than inside .mechili-menu,
+   so it inherits none of the menu's text colour: without the explicit colour
+   the messages render near-black on the dark panel. */
 .mechili-lobby-chat {
     position: absolute;
     left: 50%;
@@ -910,23 +930,10 @@ ${chatBarStyles(u)}
     transform: translateX(-50%);
     width: min(360px, calc(100vw - 24px));
     box-sizing: border-box;
-    /* mounted on the wrapper, not inside .mechili-menu, so it inherits none of
-       the menu's text colour — without this the messages render near-black on
-       the dark panel */
     color: ${u.text};
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px;
-    background: linear-gradient(180deg, rgba(40, 32, 24, 0.92), rgba(20, 16, 12, 0.95));
-    border: 1.5px solid ${u.border};
-    border-radius: 4px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
     z-index: 30;
 }
-.mechili-lobby-chat .m-lc-list {
+.mechili-chat .m-lc-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -934,10 +941,10 @@ ${chatBarStyles(u)}
     overflow-y: auto;
     text-align: left;
 }
-.mechili-lobby-chat .m-lc-msg { font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.mechili-lobby-chat .m-lc-msg .m-lc-name { font-weight: bold; color: ${u.brass}; }
-.mechili-lobby-chat .m-lc-msg .m-icon { width: 18px; height: 18px; vertical-align: -3px; }
-.mechili-lobby-chat .m-lc-system { color: ${u.textMuted}; font-style: italic; }
+.mechili-chat .m-lc-msg { font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.mechili-chat .m-lc-msg .m-lc-name { font-weight: bold; color: ${u.brass}; }
+.mechili-chat .m-lc-msg .m-icon { width: 18px; height: 18px; vertical-align: -3px; }
+.mechili-chat .m-lc-system { color: ${u.textMuted}; font-style: italic; }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 .mechili-menu .m-rooms {
     width: 100%;
@@ -2372,6 +2379,7 @@ export function hudStyles(bars?: BarAssets): string {
     return `
 ${fontFaceCss()}
 ${materialStyles(u)}
+${iconBaseStyles()}
 ${chatBarStyles(u)}
 .mechili-cinema-hide {
     visibility: hidden !important;
@@ -3075,17 +3083,6 @@ ${chatBarStyles(u)}
 }
 .mechili-panel .action-tile:has(.at-cost) { padding-bottom: 12px; }
 .mechili-panel .action-tile .at-icon { font-size: 27px; line-height: 1; }
-.m-icon {
-    display: inline-block;
-    width: 1.15em;
-    height: 1.15em;
-    vertical-align: middle;
-    flex-shrink: 0;
-    line-height: 0;
-    color: transparent;
-    overflow: hidden;
-    background-repeat: no-repeat;
-}
 /* supply / price coin — scales with surrounding text by default */
 .money-ico.m-icon {
     width: 1em;
