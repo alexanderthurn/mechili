@@ -25,13 +25,19 @@ const STATE_OFFLINE = 0;
 const POLL_MS = 2000;
 
 /**
- * steamId64 -> avatar data URL (or null when Steam has none cached).
+ * steamId64 -> avatar data URL, or null when Steam had nothing cached.
  *
- * Module-level and never re-queried, which is what makes polling safe: the
- * lookup falls back to fetching from steamcommunity.com when Steam has not
- * cached the image, and doing THAT every couple of seconds per friend would
- * be abusive. An avatar Steam gains later shows up the next time the panel is
- * opened, which is a fair trade for not hammering anyone.
+ * Caching is what makes 2s polling safe at all: the underlying lookup falls
+ * back to fetching from steamcommunity.com when Steam's own image cache is
+ * cold, and doing THAT every couple of seconds per friend would be abusive.
+ * A hit is therefore kept for the whole session.
+ *
+ * A MISS is kept only until the panel is next opened (see forgetMissingAvatars).
+ * Steam fills its cache in the background, so a friend whose avatar was not
+ * ready the first time usually has one moments later — remembering "no avatar"
+ * forever would leave them permanently blank for a reason that stopped being
+ * true. Retrying on an explicit open, rather than on every poll, keeps the
+ * retry rate tied to something the player did.
  */
 const avatarCache = new Map<string, string | null>();
 
@@ -42,6 +48,11 @@ function avatarFor(steamId64: string): Promise<string | null> {
         avatarCache.set(steamId64, url);
         return url;
     });
+}
+
+/** give avatars Steam had not cached yet one more chance */
+function forgetMissingAvatars(): void {
+    for (const [id, url] of avatarCache) if (url === null) avatarCache.delete(id);
 }
 
 /** What the rendered list actually depends on — re-render only when this moves,
@@ -139,6 +150,7 @@ export class FriendsPanel {
         this.note('');
         this.rendered = null;
         this.invited.clear();
+        forgetMissingAvatars();
         this.listEl.replaceChildren(row('Loading friends…', 'fr-empty'));
         void this.refresh();
         if (this.poll) clearInterval(this.poll);
