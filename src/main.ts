@@ -1166,6 +1166,19 @@ type HostedRoom = {
     stopDiscovery?: () => void;
 };
 let hosting: HostedRoom | null = null;
+/**
+ * The room advertisement teardown that has to OUTLIVE `hosting`.
+ *
+ * `hosting` is cleared the moment a match starts (ownership of the hub passes
+ * to the Game), which is deliberately NOT when discovery should stop — a LAN
+ * room's local PeerServer must survive that handoff so a dropped guest can
+ * redial through it. But nulling `hosting` there also threw away the only
+ * reference to `stopDiscovery`, so nothing stopped the UDP announce when the
+ * match finally ended: the host kept broadcasting a room that no longer
+ * existed, and other LAN players saw a phantom entry they could click but
+ * never join. Kept here so returning to the menu can finish the job.
+ */
+let stopHostDiscovery: (() => void) | null = null;
 /** a cancellable in-flight connection attempt (matchmaking probe, star
  *  join/host, Steam join) — only ever cancelled or checked for busyness,
  *  never awaited on directly here */
@@ -2138,6 +2151,13 @@ function clearMatchResumeData(): void {
     }
 }
 
+/** Stop advertising a room we hosted, once and only once (see stopHostDiscovery). */
+function runStopHostDiscovery(): void {
+    const stop = stopHostDiscovery;
+    stopHostDiscovery = null;
+    stop?.();
+}
+
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
     stopSinglePlayerPersist?.();
@@ -2146,6 +2166,14 @@ function finishReturnToMenu(): void {
     clearMatchResumeData();
     activeGame?.destroy();
     activeGame = null;
+    // The match is over, so the room it was advertising is really gone now —
+    // this is the point the LAN announce (and its local PeerServer, needed
+    // right up until here for redials) should stop.
+    try {
+        runStopHostDiscovery();
+    } catch (e) {
+        console.error('finishReturnToMenu: stopDiscovery() failed', e);
+    }
     // Belt-and-suspenders: Hud.destroy should already clear this, but any
     // orphan (reconnect cards, settings, pause leftovers) must not outlive
     // the match — wipe the dedicated match root before the menu returns.
@@ -2887,7 +2915,7 @@ function cancelHost(): void {
     // running Game, and the LAN signaling server must survive that handoff for
     // guests to redial later. Only an abandoned room stops advertising.
     try {
-        hosting?.stopDiscovery?.();
+        runStopHostDiscovery();
     } catch (e) {
         console.error('cancelHost: stopDiscovery() failed', e);
     }
@@ -3165,6 +3193,7 @@ async function beginHost(opts: {
                 cleanup: room.cleanup,
                 stopDiscovery: room.stopDiscovery,
             };
+            stopHostDiscovery = room.stopDiscovery ?? null;
         }
     } catch (e) {
         pending = null;
