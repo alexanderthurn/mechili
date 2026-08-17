@@ -885,9 +885,6 @@ menu.innerHTML = `
                 <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
                 <button class="m-btn m-small" data-mode="startstar" style="display:none">Start</button>
                 <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
-                <div class="m-lobby-chat" style="display:none">
-                    <div class="m-lc-list"></div>
-                </div>
             </div>
             <div class="m-lobby-settings">
                 <label class="m-field">Pace
@@ -1677,8 +1674,17 @@ function setStatus(text: string, autoDismissMs?: number): void {
  * Available as soon as there is a room at all — the moment a host opens one, or
  * a guest is admitted — not just once the match starts.
  */
-const lobbyChatEl = menu.querySelector<HTMLDivElement>('.m-lobby-chat')!;
-const lobbyChatListEl = menu.querySelector<HTMLDivElement>('.m-lc-list')!;
+/**
+ * Bottom-centered over the menu rather than inside the session panel — the
+ * same place the match puts its chat, so it does not move when the lobby's
+ * roster grows or its settings panel opens.
+ */
+const lobbyChatEl = document.createElement('div');
+lobbyChatEl.className = 'mechili-lobby-chat';
+lobbyChatEl.style.display = 'none';
+lobbyChatEl.innerHTML = `<div class="m-lc-list"></div>`;
+wrapper.appendChild(lobbyChatEl);
+const lobbyChatListEl = lobbyChatEl.querySelector<HTMLDivElement>('.m-lc-list')!;
 // the very same composer the match uses (emotes included) — see ChatBar
 const lobbyChatBar = new ChatBar({
     onSend: (item) => sendLobbyChat(item),
@@ -2271,6 +2277,7 @@ function finishReturnToMenu(): void {
     wrapper.appendChild(playtestEl);
     wrapper.appendChild(cornerActionsEl);
     wrapper.appendChild(suggestCornerEl);
+    wrapper.appendChild(lobbyChatEl);
     refreshUsernameLabel();
     void refreshOpenProfile();
     setMenuBusy(false);
@@ -2425,6 +2432,7 @@ function startGame(
     playtestEl.remove();
     cornerActionsEl.remove();
     suggestCornerEl.remove();
+    lobbyChatEl.remove();
 
     if (net) {
         // Steam is the only live user of `net` now (classic PeerJS 1v1 runs
