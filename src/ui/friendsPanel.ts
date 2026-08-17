@@ -19,6 +19,36 @@ import { friends as steamFriends, lobby as steamLobby, type SteamFriend } from '
 
 /** EPersonaState — anything other than 0 is some flavour of online */
 const STATE_OFFLINE = 0;
+/** How often the open panel re-reads the list. Cheap: getAllFriends and
+ *  getFriendGamePlayed are local reads out of the Steam client's own cache,
+ *  not network calls, so this costs an IPC hop and some FFI, not traffic. */
+const POLL_MS = 2000;
+
+/**
+ * steamId64 -> avatar data URL (or null when Steam has none cached).
+ *
+ * Module-level and never re-queried, which is what makes polling safe: the
+ * lookup falls back to fetching from steamcommunity.com when Steam has not
+ * cached the image, and doing THAT every couple of seconds per friend would
+ * be abusive. An avatar Steam gains later shows up the next time the panel is
+ * opened, which is a fair trade for not hammering anyone.
+ */
+const avatarCache = new Map<string, string | null>();
+
+function avatarFor(steamId64: string): Promise<string | null> {
+    const cached = avatarCache.get(steamId64);
+    if (cached !== undefined) return Promise.resolve(cached);
+    return steamFriends.avatar(steamId64).then((url) => {
+        avatarCache.set(steamId64, url);
+        return url;
+    });
+}
+
+/** What the rendered list actually depends on — re-render only when this moves,
+ *  so a poll does not fight the player's scrolling, hovering or clicking. */
+function listSignature(list: SteamFriend[]): string {
+    return list.map((f) => `${f.steamId64}:${f.state}:${f.inThisGame ? 1 : 0}:${f.name}`).join('|');
+}
 
 function statusLabel(f: SteamFriend): string {
     if (f.inThisGame) return 'In game';
@@ -38,6 +68,13 @@ export class FriendsPanel {
     private readonly listEl = document.createElement('div');
     private readonly noteEl = document.createElement('div');
     private open = false;
+    private poll: ReturnType<typeof setInterval> | null = null;
+    /** last rendered signature, null before the first render — NOT '', which is
+     *  what an empty friends list legitimately signs as (it would match on the
+     *  first poll and leave the panel stuck on "Loading friends…" forever) */
+    private rendered: string | null = null;
+    /** friends already invited this session, so a re-render keeps saying so */
+    private readonly invited = new Set<string>();
     private readonly onDocPointer: (e: PointerEvent) => void;
 
     constructor() {
@@ -90,19 +127,34 @@ export class FriendsPanel {
 
     hide(): void {
         this.open = false;
+        if (this.poll) clearInterval(this.poll);
+        this.poll = null;
         this.el.style.display = 'none';
     }
 
-    /** Show the panel and (re)load the list. */
+    /** Show the panel, load the list, and keep it current while it is open. */
     show(): void {
         this.open = true;
         this.el.style.display = '';
         this.note('');
+        this.rendered = null;
+        this.invited.clear();
         this.listEl.replaceChildren(row('Loading friends…', 'fr-empty'));
-        void steamFriends.list().then((list) => {
-            if (!this.open) return;
-            this.render(sortFriends(list));
-        });
+        void this.refresh();
+        if (this.poll) clearInterval(this.poll);
+        // A friend launching the game is the single most likely thing to happen
+        // while this is open — it should surface on its own rather than needing
+        // the panel closed and reopened.
+        this.poll = setInterval(() => void this.refresh(), POLL_MS);
+    }
+
+    private async refresh(): Promise<void> {
+        const list = sortFriends(await steamFriends.list());
+        if (!this.open) return;
+        const signature = listSignature(list);
+        if (signature === this.rendered) return;   // nothing moved
+        this.rendered = signature;
+        this.render(list);
     }
 
     private render(list: SteamFriend[]): void {
@@ -124,7 +176,7 @@ export class FriendsPanel {
         const avatar = document.createElement('span');
         avatar.className = 'fr-avatar';
         // lazily: Steam may not have this cached yet, and a row must not wait
-        void steamFriends.avatar(f.steamId64).then((url) => {
+        void avatarFor(f.steamId64).then((url) => {
             if (url) avatar.style.backgroundImage = `url('${url.replace(/'/g, '%27')}')`;
         });
 
@@ -138,12 +190,16 @@ export class FriendsPanel {
         const invite = document.createElement('button');
         invite.type = 'button';
         invite.className = 'fr-invite';
-        invite.textContent = 'Invite';
+        const alreadyInvited = this.invited.has(f.steamId64);
+        invite.textContent = alreadyInvited ? 'Invited' : 'Invite';
+        invite.disabled = alreadyInvited;
         invite.addEventListener('click', () => {
             invite.disabled = true;
             void steamLobby.inviteUser(f.steamId64).then((sent) => {
                 invite.textContent = sent ? 'Invited' : 'Failed';
-                if (!sent) {
+                if (sent) {
+                    this.invited.add(f.steamId64);
+                } else {
                     invite.disabled = false;
                     this.note('Could not send that invite — are you still hosting a room?');
                 }
