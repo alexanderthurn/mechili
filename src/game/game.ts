@@ -3638,6 +3638,16 @@ export class Game {
                 const transport = await this.onCreateSpectatorTransport?.();
                 hub = transport ? SpectatorHub.openWith(transport, log) : await SpectatorHub.open(log);
             } catch {
+                // No hub means nobody can watch, but the room must still stop
+                // advertising itself as joinable: a transport's ad marks a
+                // match as started by carrying a round, and without that a
+                // stranger is still offered a seat the host would have to
+                // refuse.
+                this.onLiveRoomAd?.({
+                    spectate: '',
+                    round: this.round,
+                    roster: this.backendRosterSnapshot(),
+                });
                 return;
             }
             if (this.disposed || this.matchOver) {

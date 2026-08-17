@@ -1846,6 +1846,18 @@ export interface SpectatorViewerLink {
 export interface SpectatorTransport {
     /** what a spectator dials: a PeerJS peer id, or the host's steamId64 */
     readonly endpoint: string;
+    /**
+     * True when the transport runs its own keepalive and reports a dead
+     * spectator through `onDrop` itself, so the hub must NOT add a second
+     * watchdog on top.
+     *
+     * This is not just tidiness. A transport that answers ping/pong at its
+     * own layer (Steam does — see `SteamChannel`) never forwards those to
+     * `onData`, so a hub-level watchdog would see total silence from a
+     * spectator who is merely watching quietly and evict them after the
+     * timeout while their connection is perfectly healthy.
+     */
+    readonly managesLiveness?: boolean;
     listen(handlers: {
         /** a connection that has sent a valid `spectate` handshake */
         onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
@@ -1992,10 +2004,15 @@ export class SpectatorHub {
         // deserves the same fast, consistent detection as a player's,
         // rather than depending on however promptly WebRTC's own
         // 'close'/'error' happens to fire for a non-orderly drop.
-        const liveness = watchLiveness(
-            () => link.send({ type: 'ping' }),
-            () => this.drop(link),
-        );
+        // Skipped when the transport already does this itself (see
+        // SpectatorTransport.managesLiveness) — doubling it there would
+        // evict healthy, quiet spectators.
+        const liveness = this.transport.managesLiveness
+            ? { markSeen: () => {}, stop: () => {} }
+            : watchLiveness(
+                  () => link.send({ type: 'ping' }),
+                  () => this.drop(link),
+              );
         this.viewers.set(link, { name, vision, buildBuffer: [], liveness });
         this.onRosterChange?.();
         this.onSpectatorJoined?.(name);

@@ -802,6 +802,11 @@ export async function advertiseSteamRoom(ad: {
  * connections, so spectating behaves identically on every transport.
  */
 export class SteamSpectatorTransport implements SpectatorTransport {
+    /** SteamChannel keeps its own watchdog and reports death through onClose —
+     *  see SpectatorTransport.managesLiveness for why the hub must not add a
+     *  second one on top of it. */
+    readonly managesLiveness = true;
+
     /** channels handed out to watchers, so close() can tear down any that the
      *  hub never admitted (rejected version, handshake abandoned mid-flight) */
     private readonly channels = new Set<SteamChannel>();
@@ -942,14 +947,25 @@ export async function joinSteamStarRoom(lobbyId: string): Promise<SteamGuestSess
  * guest session is the same either way; `mode` is reported only because the
  * caller may want it for status text.
  */
-export async function joinSteamLobby(
-    lobbySteamId: string,
-): Promise<{ mode: '1v1' | '2v2'; session: SteamGuestSession }> {
+export async function joinSteamLobby(lobbySteamId: string): Promise<{
+    mode: '1v1' | '2v2';
+    session: SteamGuestSession;
+    /** the running match's spectate endpoint (host steamId64), if it has
+     *  already started — lets a caller whose seat request is refused fall
+     *  back to watching instead of dead-ending */
+    spectate: string | null;
+    hostName: string;
+}> {
     const room = await lobby.join(lobbySteamId);
     if (!room) throw new Error('Could not join the Steam lobby.');
     const session = new SteamGuestSession(room.owner, room.id);
     session.send({ type: 'starJoin', name: getPlayerName(), version: GAME_VERSION, avatar: getAvatarDataUrl() });
-    return { mode: room.data.mode === '1v1' ? '1v1' : '2v2', session };
+    return {
+        mode: room.data.mode === '1v1' ? '1v1' : '2v2',
+        session,
+        spectate: room.data.spectate || null,
+        hostName: room.data.host || 'Steam player',
+    };
 }
 
 /** anonymous matching (the "Play" button): join any open public star lobby of

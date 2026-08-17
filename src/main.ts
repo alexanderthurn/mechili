@@ -3553,11 +3553,69 @@ function joinSteamAd(lobbyId: string): void {
     acceptSteamInvite(lobbyId);
 }
 
+/**
+ * Accept a Steam invite: take a seat if there is one, otherwise watch.
+ *
+ * A friend who accepts mid-match used to hit a flat "Could not join: Room is
+ * full." — the host holds every seat once play has begun, and an invite is
+ * exactly as likely to be accepted during a match as before one. Asking the
+ * host and falling back on its answer (rather than second-guessing seat
+ * availability from lobby data here) keeps the one seat authority in one
+ * place: a returning player whose seat is still held is reclaimed by that
+ * same handshake and never reaches the fallback at all.
+ */
 function acceptSteamInvite(lobbySteamId: string): void {
     if (started || pending || hosting) return;
-    void joinSteamLobby(lobbySteamId)
-        .then((result) => runGuestPending(Promise.resolve(result.session)))
-        .catch((e: unknown) => setStatus(`Could not join: ${e instanceof Error ? e.message : e}`));
+    showMenuView('session');
+    setMenuBusy(true);
+    let cancelled = false;
+    pending = {
+        cancel: () => {
+            cancelled = true;
+        },
+    };
+    void (async () => {
+        try {
+            const result = await joinSteamLobby(lobbySteamId);
+            if (cancelled) {
+                result.session.close();
+                return;
+            }
+            const first = await Promise.race([
+                result.session.once(),
+                new Promise<NetMessage>((_, reject) =>
+                    setTimeout(() => reject(new Error('Host did not respond')), 12_000),
+                ),
+            ]);
+            if (cancelled) {
+                result.session.close();
+                return;
+            }
+            if (first.type === 'starRejected' || first.type === 'starRejoinRejected') {
+                // close() leaves the lobby too, freeing the slot we took to
+                // ask — a spectator never needs to be in it (see
+                // SteamSpectatorTransport).
+                result.session.close();
+                pending = null;
+                if (result.spectate) {
+                    startSpectateGame(result.hostName, {
+                        endpoint: result.spectate,
+                        transport: 'steam',
+                    });
+                } else {
+                    setMenuBusy(false);
+                    setStatus(`Could not join: ${first.reason}`);
+                }
+                return;
+            }
+            bindGuestSession(result.session, first);
+        } catch (e: unknown) {
+            if (cancelled) return;
+            pending = null;
+            setMenuBusy(false);
+            setStatus(`Could not join: ${e instanceof Error ? e.message : e}`);
+        }
+    })();
 }
 
 onSteamJoinRequested(({ lobbySteamId }) => acceptSteamInvite(lobbySteamId));
