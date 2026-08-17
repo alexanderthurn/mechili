@@ -3808,9 +3808,14 @@ export class Game {
     }
 
     /**
-     * Wires the star (2v2+) transport. No auto-redial/grace-window yet
-     * (documented v1 scope, see TEAM_MODES_PLAN.md) — any drop just pauses
-     * with a "give up" escape hatch, for either role.
+     * Wires the star (2v2+) transport, for either role and every network.
+     *
+     * A drop is not terminal: the host suspends the seat and pauses EVERY
+     * client for `STAR_RECONNECT_GRACE_MS` (beginStarSeatSuspend), the
+     * dropped guest redials underneath (beginStarGuestReconnect), and the
+     * window ends in either a reclaim (starSeatReconnected) or AI takeover /
+     * forfeit (resolveSeatGone). A player who comes back after that can
+     * still take their seat off the AI by name (onSeatReclaimedFromAi).
      */
     private wireStar(star: StarRole): void {
         if (star.role === 'guest') {

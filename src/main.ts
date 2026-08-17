@@ -3251,12 +3251,20 @@ function startHostedMatch(): void {
     // mangoo (2v2)" all listed for the same host at once).
     hub.leaveLobby(); // from here, a drop gets the reconnect grace window instead of an immediate reset
     hosting?.cleanup?.();   // web/LAN only: stop the lobby heartbeat, tell the backend
-    // Presence stops advertising a Join button — there is no lobby to join into
-    // any more. The Steam lobby itself deliberately stays open: leaving it would
-    // run closeNetworking() and drop every P2P socket mid-game, and a player who
-    // drops has to be able to rejoin it. The host is what turns strangers away
-    // (every seat is human-or-AI by now, so nextOpenSeat returns null).
-    updateSteamPresence('match');
+    // Presence keeps advertising the lobby, which is also what every GUEST does
+    // for the whole match (see bindGuestSession) — the host clearing it here
+    // meant a friend could join through a guest but not through the host, for
+    // no reason either of them could see.
+    //
+    // The Steam lobby itself deliberately stays open too: leaving it would run
+    // closeNetworking() and drop every P2P socket mid-game, and a player who
+    // drops has to be able to rejoin it. Nothing here decides who gets in — the
+    // host does, on the handshake: a returning player reclaims their held seat,
+    // and anyone else is refused a seat and falls back to spectating (see
+    // acceptSteamInvite). That is the whole point of keeping the door visible.
+    updateSteamPresence('match', {
+        lobbyId: hosting?.transport === 'steam' ? hosting.id : null,
+    });
     hosting = null; // ownership of `hub` passes to the running Game now
     starCustomConfig = null;
 }
