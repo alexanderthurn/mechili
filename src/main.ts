@@ -367,8 +367,22 @@ if (isElectron()) {
     // game. Keep it that way by putting anything experimental in the settings
     // namespace, which is isolated, rather than under mechili-user-.
     const appId = steam.isAvailable() ? await steam.getAppId() : 0;
+    // The beta branch is part of the identity too. Prefs are read with a plain
+    // Object.assign over the defaults — no per-key validation — so a value
+    // written by a build that knows more settings than this one is adopted
+    // verbatim rather than clamped. Sharing one file between `develop` and the
+    // default branch means a newer build can hand an older one a setting it
+    // cannot interpret. Cheaper to keep them apart than to make every future
+    // setting downgrade-safe; the cost is that switching branches starts from
+    // defaults, which is the honest outcome anyway.
+    // sanitised: a branch name is Steam's string, not ours, and it is going
+    // into a filename (getSavePath only strips directories, so a slash would
+    // silently mangle the name rather than fail)
+    const branch = ((steam.isAvailable() ? await steam.getCurrentBetaName() : null) || 'default')
+        .replace(/[^A-Za-z0-9._-]/g, '-')
+        .slice(0, 32);
     await mirrorLocalStorage({
-        file: `settings-${appId}-${await machineId()}.sav`,
+        file: `settings-${appId}-${branch}-${await machineId()}.sav`,
         prefix: 'mechili-',
         // Whole identity namespace, so a new mechili-user-* key cannot land in
         // both files; the exact list stays for legacy names and the auth token.
