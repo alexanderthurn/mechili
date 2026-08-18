@@ -53,6 +53,7 @@ export interface GameSettings {
     leveling: LevelingSettings;
     sell: SellSettings;
     rallyRoute: RallyRouteSettings;
+    movePack: MovePackSettings;
     deploy: DeploySettings;
     boosts: BoostSettings;
     /**
@@ -212,6 +213,10 @@ export interface RallyRouteSettings {
     abilityCost: number;
 }
 
+export interface MovePackSettings {
+    abilityCost: number;
+}
+
 export interface EconomySettings {
     /** income granted in round 1 */
     startingSupply: number;
@@ -321,6 +326,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
     rallyRoute: {
         abilityCost: 100,
     },
+    movePack: {
+        abilityCost: 200,
+    },
     deploy: {
         unitsPerRound: 2,
         baseRuneCost: 50,
@@ -405,6 +413,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         },
         sell: { ...DEFAULT_SETTINGS.sell, ...settings.sell },
         rallyRoute: { ...DEFAULT_SETTINGS.rallyRoute, ...settings.rallyRoute },
+        movePack: { ...DEFAULT_SETTINGS.movePack, ...settings.movePack },
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
@@ -682,6 +691,16 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: 'Boosts',
                     value: 'Army-wide stat tiers',
+                },
+            ],
+        },
+        {
+            title: 'Move Pack',
+            rows: [
+                {
+                    label: 'Ability cost',
+                    value: `${settings.movePack.abilityCost} supply, one-time`,
+                    note: `Vanguard — grants one move-pack ${DISPLAY.tactic.toLowerCase()} charge`,
                 },
             ],
         },

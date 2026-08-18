@@ -17,6 +17,8 @@ export const RALLY_ROUTE_ID = 'rallyRoute';
 export const OIL_SPILL_ID = 'oilSpill';
 /** selling a pack — charges come from the Research Center's sell ability, not cards */
 export const SELL_UNIT_ID = 'sellUnit';
+/** re-opens ONE older pack for dragging this round (see Placement.canReposition) */
+export const MOVE_UNIT_ID = 'moveUnit';
 /** battle spells: point-targeted stamps that fire seconds into the battle */
 export const SPAWN_DWARVES_ID = 'spawnDwarves';
 export const BIG_METEOR_ID = 'bigMeteor';
@@ -96,7 +98,7 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  *  - 'three-point': start → mid → end path (rally); each leg clamps to maxSpan;
  *  - 'point-yaw': first click locks position, move mouse to rotate, second
  *    click commits (hammer footprint);
- *  - 'own-unit': click one of your packs (sell).
+ *  - 'own-unit': click one of your packs (sell / move).
  */
 export const TACTICS: Record<
     string,
@@ -195,6 +197,16 @@ export const TACTICS: Record<
         cooldownRounds: 0,
         description:
             'Click to arm, then click one of your packs to sell it for a supply refund.',
+    },
+    [MOVE_UNIT_ID]: {
+        id: MOVE_UNIT_ID,
+        name: 'Move Pack',
+        icon: 'ui-move',
+        kind: 'oneShot',
+        targeting: 'own-unit',
+        cooldownRounds: 0,
+        description:
+            'Click to arm, then click one of your packs from an earlier round — it may be dragged and rotated again for the rest of this round.',
     },
     [SPAWN_DWARVES_ID]: {
         id: SPAWN_DWARVES_ID,
@@ -580,6 +592,7 @@ const TACTIC_WORLD_GLYPH: Record<string, string> = {
     [RALLY_ROUTE_ID]: '⚑',
     [OIL_SPILL_ID]: '🛢',
     [SELL_UNIT_ID]: '💰',
+    [MOVE_UNIT_ID]: '🏃',
     [SPAWN_DWARVES_ID]: '⚒',
     [BIG_METEOR_ID]: '☄',
     [SPAWN_CROWS_ID]: '🐦',

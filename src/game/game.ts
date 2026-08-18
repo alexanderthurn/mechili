@@ -191,6 +191,7 @@ import {
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
+    MOVE_UNIT_ID,
     SELL_UNIT_ID,
     TACTICS,
     clampTacticEnd,
@@ -275,6 +276,7 @@ const HORDE_LAKE_HEIGHT = -0.5;
 const CHEAT_TACTIC_GRANTS = [
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
+    MOVE_UNIT_ID,
     SELL_UNIT_ID,
     'spawnDwarves',
     'bigMeteor',
@@ -603,6 +605,7 @@ export class Game {
     private readonly sellState: { owned: boolean[]; used: number[] };
     /** per-SEAT: one-time rally-route purchase (permanent flag) */
     private readonly rallyRouteOwned: boolean[];
+    private readonly movePackOwned: boolean[];
     /** per-SEAT buy limits: `limit` + `runesBought` are permanent; rest resets per round */
     private readonly deployState: {
         limit: number[];
@@ -1340,6 +1343,7 @@ export class Game {
         };
         this.sellState = { owned: this.seats.map(() => false), used: this.seats.map(() => 0) };
         this.rallyRouteOwned = this.seats.map(() => false);
+        this.movePackOwned = this.seats.map(() => false);
         this.boostState = { attack: this.seats.map(() => 0), hp: this.seats.map(() => 0) };
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
         this.unlockedUnits = this.seats.map(() => []);
@@ -1356,11 +1360,13 @@ export class Game {
             towers: settings.towers,
             sellSettings: settings.sell,
             rallyRouteSettings: settings.rallyRoute,
+            movePackSettings: settings.movePack,
             deploySettings: settings.deploy,
             boostSettings: settings.boosts,
             recruitLevel: this.recruitLevel,
             sellState: this.sellState,
             rallyRouteOwned: this.rallyRouteOwned,
+            movePackOwned: this.movePackOwned,
             deployState: this.deployState,
             boostState: this.boostState,
             roundBoosts: this.roundBoosts,
@@ -1728,6 +1734,11 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyRallyRouteAbility', team: 'player' });
+        };
+        this.hud.onBuyMovePackAbility = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            this.dispatchPlayer({ kind: 'buyMovePackAbility', team: 'player' });
         };
         this.hud.onBuyDeploySlot = () => {
             const unit = this.placement.selectedUnit;
@@ -6783,6 +6794,12 @@ export class Game {
                     team: 'player',
                     unitId: target.unit!.id,
                 });
+            case MOVE_UNIT_ID:
+                return this.dispatchPlayer({
+                    kind: 'mobilizeUnit',
+                    team: 'player',
+                    unitId: target.unit!.id,
+                });
             case RALLY_ROUTE_ID:
                 return this.dispatchPlayer({
                     kind: 'placeRallyRoute',
@@ -6834,6 +6851,23 @@ export class Game {
         }
     }
 
+    /**
+     * Which of my own packs an 'own-unit' tactic accepts. Move Pack is the
+     * mirror of the drag rule: only packs the player may NOT currently move
+     * (already-movable ones would waste the charge). Everything else follows
+     * sell's rule — any non-structure pack of mine.
+     */
+    private canTargetOwnUnit(tacticId: string, unit: Unit): boolean {
+        if (unit.seat !== this.humanSeat) return false;
+        if (tacticId === MOVE_UNIT_ID) {
+            return (
+                (!unit.type.structure || !!unit.type.extra) &&
+                !this.placement.canReposition(unit)
+            );
+        }
+        return !unit.type.structure;
+    }
+
     /** swallows map clicks while a tactic is armed; targeting is data-driven */
     private handleTacticGroundClick(x: number, y: number): boolean {
         if (!this.playerCanAct || !this.armedTactic) return false;
@@ -6842,7 +6876,7 @@ export class Game {
 
         if (tactic.targeting === 'own-unit') {
             const unit = this.placement.unitAtPoint(x, y);
-            if (unit && unit.seat === this.humanSeat && !unit.type.structure) {
+            if (unit && this.canTargetOwnUnit(tactic.id, unit)) {
                 if (this.dispatchTacticUse(tactic.id, { unit })) this.cancelTacticPlacement();
             }
             // anything else (enemy, structure, ground): stay armed, swallow the click
@@ -9618,7 +9652,7 @@ export class Game {
      */
     private commandTowerSelection(
         u: Unit,
-    ): Pick<SelectionInfo, 'boosts' | 'sellAbility' | 'rallyRouteAbility'> {
+    ): Pick<SelectionInfo, 'boosts' | 'sellAbility' | 'rallyRouteAbility' | 'movePackAbility'> {
         if (u.type !== COMMAND_TOWER) return {};
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const seat = u.seat;
@@ -9650,6 +9684,11 @@ export class Game {
                 owned: intel.rallyOwned,
                 affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
             },
+            movePackAbility: {
+                cost: this.settings.movePack.abilityCost,
+                owned: intel.movePackOwned,
+                affordable: canBuy && bal >= this.settings.movePack.abilityCost,
+            },
         };
     }
 
@@ -9668,6 +9707,7 @@ export class Game {
                 boostHp: s.boostHp[seat] ?? 0,
                 sellOwned: s.sellOwned[seat] ?? false,
                 rallyOwned: s.rallyOwned[seat] ?? false,
+                movePackOwned: s.movePackOwned[seat] ?? false,
             };
         }
         return {
@@ -9680,6 +9720,7 @@ export class Game {
             boostHp: this.boostState.hp[seat]!,
             sellOwned: this.sellState.owned[seat]!,
             rallyOwned: this.rallyRouteOwned[seat]!,
+            movePackOwned: this.movePackOwned[seat]!,
         };
     }
 
@@ -9694,6 +9735,7 @@ export class Game {
             boostHp: this.boostState.hp.slice(),
             sellOwned: this.sellState.owned.slice(),
             rallyOwned: this.rallyRouteOwned.slice(),
+            movePackOwned: this.movePackOwned.slice(),
             forge: {
                 player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
                 enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
@@ -9809,6 +9851,7 @@ interface BuildingIntelSnapshot {
     boostHp: number[];
     sellOwned: boolean[];
     rallyOwned: boolean[];
+    movePackOwned: boolean[];
     /** Stronghold oven contents (item ids) at phase start — fogged view */
     forge: Record<Team, (string | null)[]>;
 }
@@ -9823,6 +9866,7 @@ interface BuildingIntelSeat {
     boostHp: number;
     sellOwned: boolean;
     rallyOwned: boolean;
+    movePackOwned: boolean;
 }
 
 /** Short label for the details-pane "Hits" row. */

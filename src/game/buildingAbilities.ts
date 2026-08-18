@@ -64,6 +64,13 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
                 description:
                     'Add one rally-route charge to your spells strip. Once per match.',
             },
+            {
+                icon: 'ui-move',
+                name: 'Move Pack',
+                cost: s.movePack.abilityCost,
+                description:
+                    'Add one move-pack charge to your spells strip: one pack from an earlier round becomes movable again. Once per match.',
+            },
         );
     }
 

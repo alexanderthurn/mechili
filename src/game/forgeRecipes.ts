@@ -9,8 +9,8 @@
  *
  * Fuel is the four base runes (earth / fire / water / wind).
  * Same-element stacks craft advanced runes (anyone). Mixed recipes craft
- * specialist-gated spells. Rally Route (one Wind) is always forgeable;
- * Buyback stays Vanguard-only.
+ * specialist-gated spells. Rally Route (one Wind) and Move Pack (Earth +
+ * two Wind) are always forgeable; Buyback stays Vanguard-only.
  */
 import type { SeatId } from './seats';
 import {
@@ -20,6 +20,7 @@ import {
     FIRE_SPILL_ID,
     HAMMER_ID,
     METEOR_SHOWER_ID,
+    MOVE_UNIT_ID,
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
@@ -97,8 +98,8 @@ function item(id: string): ForgeProduct {
 
 /**
  * Spell / rune recipe table — unique ingredient multisets only.
- * Rune products and Rally Route are always available; other spells are
- * specialist-gated. Buyback is not forgeable (Vanguard shop).
+ * Rune products, Rally Route and Move Pack are always available; other spells
+ * are specialist-gated. Buyback is not forgeable (Vanguard shop).
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
     // --- advanced runes (anyone) ---
@@ -126,6 +127,7 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     { ingredients: ['earth', 'fire', 'water'], product: tactic(HAMMER_ID), priority: 1 },
     { ingredients: ['earth', 'fire', 'wind'], product: tactic(METEOR_SHOWER_ID), priority: 1 },
     { ingredients: ['fire', 'fire', 'wind'], product: tactic(DRAGON_ID), priority: 1 },
+    { ingredients: ['earth', 'wind', 'wind'], product: tactic(MOVE_UNIT_ID), priority: 1 },
 ];
 
 function ingredientKey(ingredients: readonly string[]): string {
@@ -204,10 +206,10 @@ export function isForgeSpellAllowed(tacticId: string, pool: ForgeSpellPool): boo
     return pool === 'all' || pool.includes(tacticId);
 }
 
-/** Rune products and Rally Route are always allowed; other spells respect the specialist pool. */
+/** Rune products, Rally Route and Move Pack are always allowed; other spells respect the specialist pool. */
 export function isForgeRecipeAllowed(recipe: ForgeRecipe, pool: ForgeSpellPool): boolean {
     if (recipe.product.kind === 'item') return true;
-    if (recipe.product.id === RALLY_ROUTE_ID) return true;
+    if (recipe.product.id === RALLY_ROUTE_ID || recipe.product.id === MOVE_UNIT_ID) return true;
     return isForgeSpellAllowed(recipe.product.id, pool);
 }
 
