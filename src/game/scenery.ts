@@ -501,6 +501,7 @@ export class Scenery {
         }
         if (this.tuftMaterial?.userData.shader) {
             this.tuftMaterial.userData.shader.uniforms.uTime!.value = this.time;
+            this.tuftMaterial.userData.shader.uniforms.uSnowCover!.value = this.groundSnowCover;
         }
         if (this.sunLight) {
             this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
@@ -629,6 +630,7 @@ export class Scenery {
         });
         this.tuftMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = { value: 0 };
+            shader.uniforms.uSnowCover = { value: 0 };
             this.tuftMaterial!.userData.shader = shader;
             shader.vertexShader =
                 'uniform float uTime;\n' +
@@ -644,8 +646,24 @@ export class Scenery {
     transformed.x += sin(uTime * 1.6 + phase) * 0.14 * sway;
     transformed.z += cos(uTime * 1.1 + phase) * 0.09 * sway;`,
                 );
+            shader.fragmentShader =
+                'uniform float uSnowCover;\n' +
+                shader.fragmentShader.replace(
+                    '#include <color_fragment>',
+                    `#include <color_fragment>
+#ifdef USE_INSTANCING
+    vec3 tuftBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+#else
+    vec3 tuftBase = vec3(0.0);
+#endif
+    float alpineSnow = smoothstep(170.0, 235.0, tuftBase.y);
+    float snowLine = mix(220.0, -15.0, uSnowCover);
+    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, tuftBase.y);
+    float snowF = max(alpineSnow, weatherSnow) * 0.9;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`,
+                );
         };
-        this.tuftMaterial.customProgramCacheKey = () => 'meadow-tuft-wind';
+        this.tuftMaterial.customProgramCacheKey = () => 'meadow-tuft-wind-snow-v1';
         const tufts = new InstancedMesh(tuftGeo, this.tuftMaterial, TUFTS);
         let tuftI = 0;
         for (let i = 0; i < TUFTS; i++) {
@@ -669,6 +687,7 @@ export class Scenery {
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
             STONES,
         );
+        attachVegetationSnow(stones.material as MeshStandardMaterial, { strength: 0.45 });
         let stoneI = 0;
         for (let i = 0; i < STONES; i++) {
             const spot = meadowSpot(40);
@@ -691,6 +710,7 @@ export class Scenery {
             new MeshStandardMaterial({ color: THEME.scenery.trunk, roughness: 0.9 }),
             LOGS,
         );
+        attachVegetationSnow(logs.material as MeshStandardMaterial, { strength: 0.4 });
         let logI = 0;
         for (let i = 0; i < LOGS; i++) {
             const spot = meadowSpot(24);
@@ -714,6 +734,7 @@ export class Scenery {
             new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
             MUSHROOMS,
         );
+        attachVegetationSnow(mushrooms.material as MeshStandardMaterial, { strength: 0.82 });
         let mushI = 0;
         while (mushI < MUSHROOMS) {
             const spot = meadowSpot(36);
@@ -744,6 +765,7 @@ export class Scenery {
             opacity: 0,
             depthWrite: false,
         });
+        attachVegetationSnow(litterMaterial, { strength: 0.65 });
         const litter = new InstancedMesh(litterGeo, litterMaterial, LITTER);
         litter.visible = false;
         const litterTones = [0xc86a2c, 0xd8902c, 0xb84824, 0xe0b840];

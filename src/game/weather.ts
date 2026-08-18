@@ -459,7 +459,7 @@ const SNOW_TERRAIN_CHECK_BELOW = 28;
 /** ground snow builds up while it's snowing and melts (slower) once it stops.
  *  Seconds for an exponential ease — lower = faster. Production ~45 / 100;
  *  use ~8 / 20 while testing the look. */
-const SNOW_COVER_GROW_TAU = 8;
+const SNOW_COVER_GROW_TAU = 2;
 const SNOW_COVER_MELT_TAU = 20;
 
 /** hooks into the scene/scenery objects the weather drives */
