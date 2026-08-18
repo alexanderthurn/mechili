@@ -466,6 +466,85 @@ function legacyPresetOf(p: Prefs): GraphicsPreset | null {
     return null;
 }
 
+/**
+ * Per-key sanitising for whatever the save file happens to contain.
+ *
+ * Deliberately LENIENT: the goal is that a setting is never lost to a
+ * recoverable difference, and never crashes the game either way. A number that
+ * arrived as a string is still that number; a value from a build with finer
+ * steps than this one clamps to the nearest step we do have, rather than
+ * snapping back to the default and throwing the player's choice away. Only a
+ * genuinely unusable value — null, NaN, an object where a scalar belongs, a
+ * word matching no option — falls back.
+ *
+ * Returning `undefined` means "keep the default". A key with no entry here is
+ * ignored entirely, so forgetting to add one for a NEW setting fails safe:
+ * the default stands instead of an unchecked value being adopted.
+ *
+ * Runs AFTER the migrations below, on their output — validating first would
+ * discard the very shapes they exist to rescue.
+ */
+type Sanitizer = (v: unknown) => unknown;
+
+function asBool(v: unknown): boolean | undefined {
+    if (typeof v === 'boolean') return v;
+    // tolerate the shapes JSON round-trips and hand-edits produce
+    if (v === 'true' || v === 1) return true;
+    if (v === 'false' || v === 0) return false;
+    return undefined;
+}
+
+/** nearest allowed number — a finer step from a newer build lands next door */
+function asNearest(allowed: readonly number[]): Sanitizer {
+    return (v) => {
+        const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+        if (!Number.isFinite(n)) return undefined;
+        return allowed.reduce((best, o) => (Math.abs(o - n) < Math.abs(best - n) ? o : best));
+    };
+}
+
+/** one of a fixed set of words, matched loosely (case, stray whitespace) */
+function asWord(allowed: readonly string[]): Sanitizer {
+    return (v) => {
+        if (typeof v !== 'string') return undefined;
+        const want = v.trim().toLowerCase();
+        return allowed.find((o) => o.toLowerCase() === want);
+    };
+}
+
+const QUALITY_5 = ['off', 'low', 'medium', 'high', 'ultra'] as const;
+const QUALITY_4 = ['off', 'low', 'medium', 'high'] as const;
+
+const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
+    combatChat: asBool,
+    debugOverlay: asBool,
+    renderDeadUnits: asBool,
+    antialias: asBool,
+    transportChosen: asBool,
+    mobileTuned: asBool,
+    renderScale: asNearest([1, 0.75, 0.5, 0.33]),
+    uiScale: asNearest([0.25, 0.5, 0.75, 1, 1.25, 1.5, 2]),
+    scenery: asWord(['ultra', 'high', 'medium', 'low', 'off']),
+    groundEffects: asWord(QUALITY_4),
+    fireVfx: asWord(QUALITY_4),
+    bloodFx: asWord(QUALITY_5),
+    shadows: asWord(QUALITY_5),
+    controlScheme: asWord(['auto', 'mouse', 'touch', 'gamepad']),
+    uiFont: asWord(['cinzel', 'exo2', 'marcellus']),
+    multiplayerTransport: asWord(['steam', 'matchmaking', 'lan']),
+};
+
+/** Copy `candidate` over `into`, one key at a time, keeping the existing value
+ *  wherever the stored one cannot be made sense of. */
+function applySanitized(into: Prefs, candidate: Record<string, unknown>): void {
+    for (const [key, raw] of Object.entries(candidate)) {
+        const check = SANITIZERS[key as keyof Prefs];
+        if (!check) continue;               // unknown / unvalidated key: ignore
+        const ok = check(raw);
+        if (ok !== undefined) (into as unknown as Record<string, unknown>)[key] = ok;
+    }
+}
+
 export function prefs(): Prefs {
     if (!cached) {
         cached = { ...DEFAULTS };
@@ -477,19 +556,27 @@ export function prefs(): Prefs {
                     scenery?: unknown;
                     unitShadows?: unknown;
                 };
-                Object.assign(cached, stored);
-                cached.scenery = migrateScenery(stored.scenery);
-                cached.groundEffects = migrateGroundEffects(stored.groundEffects);
-                cached.fireVfx = migrateFireVfx(stored.fireVfx);
+                // Migrations first, sanitising second. They rescue shapes the
+                // sanitisers would rightly reject ('full' scenery, unitShadows,
+                // muteChat), so running them the other way round would discard
+                // exactly the data they exist to carry forward.
+                const candidate: Record<string, unknown> = { ...stored };
+                candidate.scenery = migrateScenery(stored.scenery);
+                candidate.groundEffects = migrateGroundEffects(stored.groundEffects);
+                candidate.fireVfx = migrateFireVfx(stored.fireVfx);
                 if (stored.shadows === undefined && stored.unitShadows !== undefined) {
-                    cached.shadows = migrateShadowQuality(stored.unitShadows);
+                    candidate.shadows = migrateShadowQuality(stored.unitShadows);
                 }
                 // migrate the old "mute opponent chat" flag
                 if (stored.muteChat !== undefined && stored.combatChat === undefined) {
-                    cached.combatChat = !stored.muteChat;
+                    candidate.combatChat = !stored.muteChat;
                 }
+                // the one gate into `cached`: anything unusable leaves the
+                // default in place instead of being adopted
+                applySanitized(cached, candidate);
                 // prefs saved before the antialias field: keep the user's
-                // preset intact if they were on one, otherwise stay smooth
+                // preset intact if they were on one, otherwise stay smooth.
+                // Last, because it reads the finished `cached`.
                 if (stored.antialias === undefined) {
                     const legacy = legacyPresetOf(cached);
                     if (legacy) cached.antialias = GRAPHICS_PRESETS[legacy].antialias;
