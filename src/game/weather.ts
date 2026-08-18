@@ -401,6 +401,14 @@ export interface AtmosphereScene {
     atmosphere: Atmosphere;
 }
 
+/** Stash/restore across scenery rebuilds — includes snow that atmosphere doesn't. */
+export interface WeatherSnapshot {
+    atmosphere: Atmosphere;
+    sceneIndex: number;
+    /** raw accumulator (visual cover is this squared) */
+    snowCover: number;
+}
+
 /**
  * Linear showcase tour (no snow in warm seasons). Hotkey N advances;
  * hotkey X cycles season alone (Y = time, V = weather — clustered by C).
@@ -484,7 +492,9 @@ export interface WeatherHandles {
     map: BattleMap;
     renderer: WebGLRenderer;
     /** fired whenever the season changes, so scenery can retint vegetation */
-    onSeasonChange?: (season: Season) => void;
+    /** fired whenever the season changes, so scenery can retint vegetation.
+     *  `immediate` skips the ease (scenery rebuild / hydrate). */
+    onSeasonChange?: (season: Season, immediate?: boolean) => void;
     /** dev hotkeys Shift+1…9 — when absent every layer stays on */
     effectToggles?: EffectToggles;
     /** low/off scenery keep the atmosphere logic, but suppress cloud/precip visuals */
@@ -818,9 +828,25 @@ export class Weather {
         return windFromAtmosphere(this.atmosphere);
     }
 
-    /** immutable copy of the current atmosphere — stash it, then `setAtmosphere` it back later */
-    get snapshot(): Atmosphere {
-        return { ...this.atmosphere };
+    /** immutable copy — stash it, then {@link restore} it after a scenery rebuild */
+    get snapshot(): WeatherSnapshot {
+        return {
+            atmosphere: { ...this.atmosphere },
+            sceneIndex: this.sceneIndex,
+            snowCover: this.snowCover,
+        };
+    }
+
+    /**
+     * Snap sky, season, and ground snow to a saved snapshot (no grow-from-zero).
+     * Used when scenery quality rebuilds the Weather instance mid-match.
+     */
+    restore(snap: WeatherSnapshot): void {
+        this.atmosphere = { ...snap.atmosphere };
+        this.sceneIndex = snap.sceneIndex;
+        this.target = composeTarget(this.atmosphere);
+        this.snowCover = snap.snowCover;
+        this.settle(true);
     }
 
     /**
@@ -871,12 +897,18 @@ export class Weather {
      * Apply a full named scene (season + weather + time). Used by the N carousel;
      * keeps {@link sceneIndex} in sync when `index` is passed.
      */
-    setScene(scene: Atmosphere, index?: number): void {
+    setScene(scene: Atmosphere, index?: number, immediate = false): void {
         if (index !== undefined) this.sceneIndex = index;
         else this.sceneIndex = -1;
         const prevSeason = this.atmosphere.season;
         this.atmosphere = { ...scene };
         this.target = composeTarget(this.atmosphere);
+        if (immediate) {
+            this.snowCover =
+                this.atmosphere.weatherKind === 'snow' ? this.atmosphere.weatherIntensity : 0;
+            this.settle(true);
+            return;
+        }
         if (this.atmosphere.season !== prevSeason) this.h.onSeasonChange?.(this.atmosphere.season);
     }
 
@@ -919,11 +951,18 @@ export class Weather {
      * so peers stay in sync. Cheat keys (N / X / V / Y) still override live
      * for debugging; the next deploy start snaps back to the round's scene.
      */
-    onRound(round: number): void {
+    onRound(round: number, immediate = false): void {
         const n = ATMOSPHERE_SCENES.length;
         const i = ((round - 1) % n + n) % n;
         const scene = ATMOSPHERE_SCENES[i]!;
-        this.setScene(scene.atmosphere, i);
+        this.setScene(scene.atmosphere, i, immediate);
+    }
+
+    /** Jump visual state to the current target (sky + season callback). */
+    private settle(notifySeason: boolean): void {
+        this.state.set(this.target);
+        this.skyDirty = true;
+        if (notifySeason) this.h.onSeasonChange?.(this.atmosphere.season, true);
     }
 
     update(dtSeconds: number, cameraPos: Vector3): void {

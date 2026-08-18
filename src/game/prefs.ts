@@ -80,7 +80,7 @@ export interface Prefs {
      * Sun shadow quality (visual only).
      * - off: no shadows
      * - low: blob discs under units (no shadow-map pass)
-     * - medium: 1024 hard map, structures only
+     * - medium: 1024 PCF map, structures only
      * - high: 2048 soft map, all units
      * - ultra: up to 4096 soft map, all units, wider penumbra
      */
@@ -422,9 +422,14 @@ export function shadowSoftRadius(tier: ShadowQuality = prefs().shadows): number 
     return tier === 'ultra' ? 4 : 2;
 }
 
-/** Shadow-map refresh stride — medium updates every other frame to save GPU. */
-export function shadowUpdateStride(tier: ShadowQuality = prefs().shadows): number {
-    return tier === 'medium' ? 2 : 1;
+/**
+ * Shadow-map refresh stride. Always 1: the sun direction lerps every frame
+ * (weather), so a stale map vs live lighting made structures flicker. Medium
+ * is a 1024 hard map with structure casters only — cheap enough to refresh
+ * every frame.
+ */
+export function shadowUpdateStride(_tier: ShadowQuality = prefs().shadows): number {
+    return 1;
 }
 
 /**

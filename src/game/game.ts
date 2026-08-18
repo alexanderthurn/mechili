@@ -1,7 +1,6 @@
 import type { Application } from 'pixi.js';
 import {
     ACESFilmicToneMapping,
-    BasicShadowMap,
     Color,
     DirectionalLight,
     Fog,
@@ -9,6 +8,7 @@ import {
     MeshBasicMaterial,
     MeshLambertMaterial,
     MeshNormalMaterial,
+    PCFShadowMap,
     PCFSoftShadowMap,
     PMREMGenerator,
     Scene,
@@ -2138,8 +2138,10 @@ export class Game {
         this.shadowMapFrame = 0;
 
         if (useMap) {
+            // Medium: PCF (cheap 3×3) — BasicShadowMap turned wall acne into
+            // crawling zebra stripes as the sun lerped. High/ultra keep soft PCF.
             const type: ShadowMapType =
-                tier === 'medium' ? BasicShadowMap : PCFSoftShadowMap;
+                tier === 'medium' ? PCFShadowMap : PCFSoftShadowMap;
             this.renderer.shadowMap.type = type;
 
             const res = shadowMapSize(tier, scenery);
@@ -2154,6 +2156,12 @@ export class Game {
             // stronger than the constructor default so unit shadows read
             // clearly on the bright grass (blob discs set the reference look)
             this.sun.shadow.intensity = 1.85;
+            // Ortho frustum is huge (~texel 0.8wu on medium) so default bias 0
+            // self-shadows building walls. Push along the normal by ~half a texel.
+            const extent = Math.max(this.map.halfW, this.map.halfH) + 280;
+            const texel = (2 * extent) / res;
+            this.sun.shadow.bias = -0.0004;
+            this.sun.shadow.normalBias = Math.max(0.1, texel * 0.5);
             this.sun.shadow.autoUpdate = shadowUpdateStride(tier) === 1;
             this.sun.shadow.needsUpdate = true;
         }
@@ -2283,7 +2291,7 @@ export class Game {
                 seedFrom(this.seed, 'weather'),
                 this.effectToggles,
             );
-            if (weatherSnapshot) this.weather.setAtmosphere(weatherSnapshot);
+            if (weatherSnapshot) this.weather.restore(weatherSnapshot);
             this.scenery.attachSun(this.sun);
         } else {
             // weather off: no fog and the default calm daylight
@@ -2598,7 +2606,7 @@ export class Game {
         // of snapping back to 1x every round — nothing live to reset for
         if (!this.watching) this.resetSpeed();
         this.round++;
-        this.weather?.onRound(this.round);
+        this.weather?.onRound(this.round, this.hydrating);
         this.phase = 'build';
         this.phaseRemaining = this.deploySeconds();
         // scars fade each round so the field heals over a few battles

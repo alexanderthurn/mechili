@@ -264,6 +264,14 @@ export function setVegetationSeason(season: Season): void {
     beginBillboardSeasonFade(season);
 }
 
+/** Instant foliage look (scenery rebuild / hydrate) — no crossfade. */
+export function snapVegetationSeason(season: Season): void {
+    const [r, g, b] = tintForSeason(season);
+    seasonTintTarget.set(r, g, b);
+    seasonTintCurrent.copy(seasonTintTarget);
+    commitBillboardSeason(season);
+}
+
 /** @deprecated use {@link setVegetationSeason} */
 export function setVegetationSeasonTint(season: Season): void {
     setVegetationSeason(season);

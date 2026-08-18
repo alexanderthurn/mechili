@@ -63,12 +63,13 @@ import {
     NEAR_TREE_DIST,
     placeVegetationInstance,
     sceneryHqVegetation,
+    snapVegetationSeason,
     setVegetationSeason,
     setVegetationSnowCover,
     updateVegetationSeason,
     type VegetationKind,
 } from './sceneryVegetation';
-import { updateBuildingSnowCover } from './buildingSnow';
+import { updateBuildingSnowCover, snapBuildingSnowCover } from './buildingSnow';
 import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
 /** Instance / mesh density for scenery tiers (trees stay InstancedMesh). */
@@ -433,7 +434,7 @@ export class Scenery {
                 skyGroup: this.skyGroup,
                 worldGroup: this.group,
                 map: this.map,
-                onSeasonChange: (season) => this.setSeason(season),
+                onSeasonChange: (season, immediate) => this.setSeason(season, immediate),
                 effectToggles,
                 suppressVisualWeatherFx: !this.detailed,
             },
@@ -457,11 +458,21 @@ export class Scenery {
      * Begin easing foliage toward a season (tint, billboard maps, flowers, litter).
      * Atmosphere already lerps on its own clock; foliage uses the same {@link TRANSITION_TAU}.
      */
-    setSeason(season: Season): void {
-        setVegetationSeason(season);
+    setSeason(season: Season, immediate = false): void {
+        if (immediate) snapVegetationSeason(season);
+        else setVegetationSeason(season);
         this.flowerOpacityTarget =
             season === 'spring' ? 1 : season === 'summer' ? 0.85 : season === 'autumn' ? 0.45 : 0.15;
         this.litterOpacityTarget = season === 'autumn' ? 1 : 0;
+        if (!immediate) return;
+        for (const m of this.flowerMaterials) m.opacity = this.flowerOpacityTarget;
+        if (this.leafLitter) {
+            const mat = this.leafLitter.material as MeshStandardMaterial;
+            mat.opacity = this.litterOpacityTarget;
+            this.leafLitter.visible = mat.opacity > 0.02;
+        }
+        setVegetationSnowCover(this.groundSnowCover);
+        snapBuildingSnowCover(this.groundSnowCover, this.weather?.weatherKind === 'snow');
     }
 
     update(dtSeconds: number, cameraPos: Vector3): void {
@@ -1001,7 +1012,8 @@ export class Scenery {
             beach[i] = Math.min(1, Math.max(shore, patch)) * smooth01((dOut - 15) / 25);
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
-            const staticSnow = smooth01((h - 162) / 48) * this.snowRetentionAt(x, z, h);
+            if (h > 35) rockVar.multiplyScalar(0.68 + 0.32 * (1 - smooth01((h - 35) / 130)));
+            const staticSnow = smooth01((h - 155) / 42) * this.snowRetentionAt(x, z, h);
             c.copy(meadow)
                 .lerp(rockVar, smooth01((h - 12) / 45))
                 .lerp(snow, staticSnow);
@@ -1044,19 +1056,20 @@ export class Scenery {
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
 
             shader.vertexShader =
-                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
 
             const inject = `
 ${OUTER_MOUNTAIN_SNOW_GLSL}
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
+${OUTER_MOUNTAIN_LIGHTING_GLSL}
             `;
 
             let frag =
-                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 'uniform float uSnowCover;\n' +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
 
@@ -1065,7 +1078,7 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v3-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v6-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -1187,10 +1200,10 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
             shader.vertexShader =
-                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
@@ -1231,8 +1244,10 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     float rockF = 0.0;`;
             if (rock) {
                 inject += `
-    rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF) * (1.0 - deepWinter * 0.72);
-    vec3 rockCol = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;`;
+    rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH));
+    rockF = max(rockF * (1.0 - snowF), cliffStrip * (0.22 + breakup * 0.62) * mix(0.12, 0.85, deepWinter));
+    vec3 rockCol = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;
+    rockCol *= mix(vec3(1.0), vec3(0.42, 0.4, 0.38), deepWinter * mountainZone);`;
                 if (rockPhoto1) {
                     const rk = PHOTO_BLEND.rock;
                     inject += `
@@ -1251,14 +1266,16 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
                 inject += `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
     // same snow tint as the board (see map.ts) so the field edge matches
-    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
+${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             } else {
                 inject += `
-    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
+${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
-                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
@@ -1288,7 +1305,7 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v18${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v21${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -1974,21 +1991,38 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
 }
 
 /**
- * Shared outer-mountain snow: slope retention + peak height boost + winter-depth amp.
- * `uSnowCover` ~0.8 = first snow (little extra); ~1.0 = deep winter (much whiter).
+ * Shared outer snow. Meadow (low) matches the board (`map.ts`: snowMask * 0.82
+ * toward 0.92/0.95/0.98). Mountains keep extra winter density + rock ribs.
  */
 const OUTER_MOUNTAIN_SNOW_GLSL = `
+    float mountainZone = smoothstep(16.0, 55.0, vTerrainH);
     float slopeHold = 1.0 - smoothstep(0.24, 0.74, vSlope) * 0.72;
     float peakBoost = smoothstep(120.0, 240.0, vTerrainH);
     float snowHold = min(1.0, slopeHold + peakBoost * 0.75);
     float deepWinter = smoothstep(0.82, 1.0, uSnowCover);
-    float alpineSnow = smoothstep(155.0, 220.0, vTerrainH) * snowHold;
-    float snowLine = mix(220.0, -15.0, min(1.0, uSnowCover + deepWinter * 0.18));
-    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * snowHold;
-    float winterAmp = mix(1.08, 1.85, smoothstep(0.72, 1.0, uSnowCover));
-    float mountainLift = smoothstep(28.0, 150.0, vTerrainH) * deepWinter * 0.48;
-    float snowF = min(1.0, max(alpineSnow, weatherSnow * 0.92) * winterAmp + mountainLift);
-    vec3 snowCol = mix(vec3(0.92, 0.95, 0.98), vec3(0.98, 0.99, 1.0), deepWinter);`;
+    float alpineSnow = smoothstep(148.0, 215.0, vTerrainH) * snowHold;
+    float snowLine = mix(220.0, -15.0, uSnowCover);
+    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
+    float meadowSnow = weatherSnow * 0.82;
+    float winterAmp = mix(1.05, 1.42, smoothstep(0.72, 1.0, uSnowCover));
+    float mountainLift = smoothstep(40.0, 170.0, vTerrainH) * deepWinter * 0.32;
+    float mountainSnow = min(1.0, max(alpineSnow, weatherSnow * snowHold * 0.92) * winterAmp + mountainLift);
+    float macroN = fract(sin(dot(floor(vWorldXZ * 0.04), vec2(127.1, 311.7))) * 43758.5453);
+    float mesoN = fract(sin(dot(vWorldXZ * 0.13, vec2(269.5, 183.3))) * 43758.5453);
+    float breakup = macroN * 0.62 + mesoN * 0.38;
+    float cliffStrip = smoothstep(0.38, 0.78, vSlope) * smoothstep(28.0, 160.0, vTerrainH);
+    mountainSnow = clamp(mountainSnow - cliffStrip * (0.28 + breakup * 0.55), 0.0, 1.0);
+    float snowF = mix(meadowSnow, mountainSnow, mountainZone);
+    vec3 meadowCol = vec3(0.92, 0.95, 0.98);
+    vec3 snowHi = mix(meadowCol, vec3(1.0, 1.0, 1.0), deepWinter);
+    vec3 snowLo = mix(meadowCol, vec3(0.86, 0.9, 0.96), deepWinter);
+    float sunLit = clamp(dot(normalize(vWorldN), normalize(vec3(0.4, 0.82, 0.25))) * 0.5 + 0.5, 0.0, 1.0);
+    vec3 snowCol = mix(meadowCol, mix(snowLo, snowHi, sunLit), mountainZone);`;
+
+/** Directional contrast on mountain relief only — leave the meadow/board edge alone. */
+const OUTER_MOUNTAIN_LIGHTING_GLSL = `
+    float contrast = mix(0.18, 0.62, deepWinter);
+    diffuseColor.rgb *= mix(1.0, mix(0.62, 1.22, sunLit), mountainZone * contrast);`;
 
 /** a handful of tapered grass blades, white — tinted green per instance */
 function makeTuftTexture(): CanvasTexture {

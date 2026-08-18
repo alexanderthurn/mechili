@@ -27,6 +27,19 @@ export function setBuildingSnowCover(v: number): void {
     buildingSnowUniform.value = buildingCover;
 }
 
+/** Instant roof snow from current ground cover (scenery rebuild / hydrate). */
+export function snapBuildingSnowCover(groundSnow: number, snowing: boolean): void {
+    let target = 0;
+    if (snowing) {
+        const t =
+            (groundSnow - BUILDING_SNOW_GROUND_START) /
+            (BUILDING_SNOW_GROUND_FULL - BUILDING_SNOW_GROUND_START);
+        target = Math.min(1, Math.max(0, t));
+        target = target * target;
+    }
+    setBuildingSnowCover(target);
+}
+
 /**
  * Building snow lags the ground while accumulating, and clears quickly when
  * it stops snowing — opposite of the lingering ground melt.
