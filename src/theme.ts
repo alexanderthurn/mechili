@@ -5602,8 +5602,10 @@ ${gamepadCursorStyles(u)}
         border-right: 1.5px solid ${u.border};
         border-radius: 4px;
     }
+    /* Keep the 78px 2-row tiles — stretching 3×1fr across the sheet
+       made each unit huge (width:100% + aspect-ratio:1). */
     .mechili-shop-col.phone-open .shop-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: none;
     }
     .mechili-shop-col.phone-open .mechili-extras { flex-wrap: wrap; justify-content: flex-end; }
     .mechili-sidebar.left.phone-open {
