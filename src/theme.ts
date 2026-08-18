@@ -3039,7 +3039,15 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-shop .shop-grid,
 .mechili-cards .unlock-picker .shop-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    /* 2 vertical tiles per column; add columns as needed. */
+    grid-template-rows: repeat(2, 78px);
+    grid-auto-flow: column;
+    /* Keep tile size stable. */
+    grid-auto-columns: 78px;
+    /* Fill columns from the right edge inward. */
+    direction: rtl;
+    width: 100%;
+    box-sizing: border-box;
     gap: 6px;
 }
 .mechili-shop-col .shop-tile,

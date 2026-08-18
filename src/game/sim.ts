@@ -46,12 +46,16 @@ import { getUnitInstanceRenderer } from './unitInstances';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import {
     beginDeathFall,
+    beginDeathTip,
     clearDeathFall,
+    clearDeathTip,
     crashDriftFromKnock,
     crashLandFromFall,
     tickDeathFall,
+    tickDeathTip,
     type CrashLand,
     type DeathFallState,
+    type DeathTipState,
 } from './deathFall';
 import type { CpuTimings } from '../ui/debug';
 
@@ -2133,6 +2137,11 @@ export class BattleSim {
                 }
                 continue;
             }
+            const tip = a.mesh.userData.deathTip as DeathTipState | undefined;
+            if (tip) {
+                if (!tickDeathTip(a.mesh, tip, this.elapsed)) clearDeathTip(a.mesh);
+                continue;
+            }
             // One height sample per wreck — skips mid-fall so flyer crashes stay intact
             const wx = a.unit.world.x + a.mesh.position.x;
             const wz = a.unit.world.z + a.mesh.position.z;
@@ -2388,8 +2397,7 @@ export class BattleSim {
                     driftZ,
                 );
             } else {
-                target.mesh.rotation.z = tipZ;
-                target.mesh.position.y = groundY;
+                beginDeathTip(target.mesh, tipZ, groundY, this.elapsed);
             }
             target.mesh.userData.dead = true;
             getUnitInstanceRenderer()?.setDead(target.mesh);

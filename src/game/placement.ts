@@ -562,6 +562,14 @@ export class PlacementController {
      */
     visibleMemberWorldPositions(unit: Unit): Vector3[] {
         if (unit.destroyed || unit.consumed || !this.enemyIntelVisible(unit)) return [];
+        // Blob shadows are only meant to appear while placement is actively
+        // rendering units (build+deployment). During HP-draw / cinema / pause
+        // the 3D meshes may be intentionally hidden, but the logical
+        // `unit.view.position` can still exist — so don't generate shadows.
+        if (!this.enabled) return [];
+        // Some phases intentionally hide 3D meshes while still updating logical
+        // poses/centers. Low-tier blob shadows should not render in that case.
+        if (!unit.view.visible) return [];
         const world = this.isFogged(unit)
             ? this.intelWorldOf(unit)
             : _blobCenter.set(unit.view.position.x, 0, unit.view.position.z);
@@ -1217,7 +1225,11 @@ export class PlacementController {
 
         for (const unit of this.units) {
             if (!this.enemyIntelVisible(unit)) continue;
-            const world = this.intelWorldOf(unit);
+            // During build-phase dragging, `unit.world` is updated only on drop
+            // (see `visibleMemberWorldPositions` comment). Status-strip badges
+            // need to follow the live pose, so use `view.position` when the
+            // unit is not fogged.
+            const world = this.isFogged(unit) ? this.intelWorldOf(unit) : unit.view.position;
             // forge spell badge is deploy-only (battle shows chimney sparks instead)
             const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
             if (forge) {

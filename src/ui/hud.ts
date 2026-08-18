@@ -3349,9 +3349,10 @@ export class Hud {
         const colsHtml = teamChips
             .map((chip) => {
                 const card = chip.card;
-                const forgeHtml = card
-                    ? this.forgeRecipesBlockHtml(card.forgeSpells, bagIds, forgeIds)
-                    : '';
+                // Top-bar hover is already dense: avoid embedding the full rune
+                // recipe grid there (we show recipes elsewhere).
+                const forgeHtml =
+                    card && !viaHover ? this.forgeRecipesBlockHtml(card.forgeSpells, bagIds, forgeIds) : '';
                 const specHtml = card
                     ? `<div class="spec-card-row">` +
                       `<div class="card static">${this.startCardFace(card)}</div>` +

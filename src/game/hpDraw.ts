@@ -268,7 +268,12 @@ export function scheduleHpDrawParticles(
 
     for (let wi = 0; wi < presentWaves.length; wi++) {
         const tier = presentWaves[wi]!;
-        const group = byTier[tier].sort((a, b) => a.index - b.index);
+        // Smallest units launch first within a wave; largest leave/hit last.
+        const group = byTier[tier].sort((a, b) => {
+            if (a.meshScale !== b.meshScale) return a.meshScale - b.meshScale;
+            if (a.withdraw !== b.withdraw) return a.withdraw - b.withdraw;
+            return a.index - b.index;
+        });
         const dur = waveDur[wi]!;
         const flight = Math.max(
             MIN_FLIGHT_BY_TIER[tier],
