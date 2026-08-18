@@ -87,6 +87,7 @@ import {
     FREE_ARCHER_ROUND,
     SPECIALITY_TACTIC_ROUND,
     SPEED_COMMANDER_BONUS,
+    unlockCostForSpeciality,
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
@@ -194,6 +195,7 @@ import {
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
     MOVE_UNIT_ID,
+    TUTOR_ID,
     SELL_UNIT_ID,
     TACTICS,
     clampTacticEnd,
@@ -279,6 +281,7 @@ const CHEAT_TACTIC_GRANTS = [
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
     MOVE_UNIT_ID,
+    TUTOR_ID,
     SELL_UNIT_ID,
     'spawnDwarves',
     'bigMeteor',
@@ -1583,6 +1586,8 @@ export class Game {
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
+        this.hud.unlockCostOf = (typeId) =>
+            unlockCostForSpeciality(typeId, this.speciality[this.humanSeat] ?? null);
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
@@ -2702,9 +2707,9 @@ export class Game {
             // Same log-free reasoning as the archer gift below: it must run on
             // every peer, hydrating included, or the two sides disagree about
             // how many charges exist and one accepts a cast the other rejects
-            if (this.round === SPECIALITY_TACTIC_ROUND) {
-                const gift = this.starterCardOfSeat(seat)?.tactics;
-                if (gift) this.tacticInventory[seat]!.push(...gift);
+            const card = this.starterCardOfSeat(seat);
+            if (card?.tactics && this.round === (card.tacticsRound ?? SPECIALITY_TACTIC_ROUND)) {
+                this.tacticInventory[seat]!.push(...card.tactics);
             }
             // NOTE: must also run while hydrating — the gift is never in the
             // action log, so a rebuild that skipped it would produce a
@@ -3147,6 +3152,7 @@ export class Game {
         techTree: TechTree;
         unlockedUnits: string[][];
         unlockUsedThisRound: boolean[];
+        speciality: (SpecialityId | null)[];
         items: string[][];
         tactics: string[][];
         rng: () => number;
@@ -3174,6 +3180,7 @@ export class Game {
             techTree: this.techTree,
             unlockedUnits: this.unlockedUnits,
             unlockUsedThisRound: this.unlockUsedThisRound,
+            speciality: this.speciality,
             items: this.itemInventory,
             tactics: this.tacticInventory,
             rng,
@@ -6389,17 +6396,19 @@ export class Game {
                         ? `${tactic.name} — used this round.\nUndo gives it back. ${ready}`
                         : `${tactic.name} — cooling down.\n${ready}`;
                 };
+                // A spent one-shot has NO per-entry revert: its effect is already
+                // applied to a pack, and only the global undo can take it back.
+                // So it never shows the cancel badge — that badge is reserved for
+                // entries carrying a routeId, i.e. a placement this strip can
+                // actually clear. See the generic rule in `badge` above.
                 placedEntries = [
                     ...Array.from({ length: ability.used }, () => ({
-                        badge: 'cancel' as const,
-                        hint: `${tactic.name} — used this round.\nUndo gives it back.`,
+                        badge: 1,
+                        hint: `${tactic.name} — used this round.\nUndo gives it back. Ready again next round.`,
                     })),
                     ...useRounds.map((r) => {
                         const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        return {
-                            badge: (r === this.round ? 'cancel' : readyIn) as 'cancel' | number,
-                            hint: coolingHint(r, readyIn),
-                        };
+                        return { badge: readyIn, hint: coolingHint(r, readyIn) };
                     }),
                 ];
                 avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
@@ -6806,6 +6815,12 @@ export class Game {
                     team: 'player',
                     unitId: target.unit!.id,
                 });
+            case TUTOR_ID:
+                return this.dispatchPlayer({
+                    kind: 'tutorUnit',
+                    team: 'player',
+                    unitId: target.unit!.id,
+                });
             case RALLY_ROUTE_ID:
                 return this.dispatchPlayer({
                     kind: 'placeRallyRoute',
@@ -6869,6 +6884,15 @@ export class Game {
             return (
                 (!unit.type.structure || !!unit.type.extra) &&
                 !this.placement.canReposition(unit)
+            );
+        }
+        if (tacticId === TUTOR_ID) {
+            // mirrors the action guard: a maxed pack has nothing left to learn
+            // and a full bar would waste the charge
+            if (unit.type.structure || unit.level >= this.settings.leveling.maxLevel) return false;
+            return (
+                unit.xp <
+                xpThresholdFor(unit.type, unit.level, this.economy, this.settings.leveling)
             );
         }
         return !unit.type.structure;

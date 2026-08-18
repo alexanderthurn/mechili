@@ -26,7 +26,9 @@ import {
     SPAWN_DWARVES_ID,
     STORM_ID,
     TACTICS,
+    TUTOR_ID,
 } from './tactics';
+import { unitUnlockCost } from './units';
 import { forgeIngredientIcons } from './forgeRecipes';
 
 export type SpecialityId =
@@ -37,7 +39,9 @@ export type SpecialityId =
     | 'addi'
     | 'flanky'
     | 'meteor'
-    | 'speed';
+    | 'speed'
+    | 'giant'
+    | 'tutor';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
@@ -53,6 +57,30 @@ export const SPECIALITY_TACTIC_ROUND = 2;
  * very end, so runes cannot multiply it.
  */
 export const SPEED_COMMANDER_BONUS = 3;
+/**
+ * Countess Chonk: shop unlocks priced at or above this threshold are cut by
+ * {@link GIANT_UNLOCK_DISCOUNT}. Today that is exactly the two 200-cost
+ * giants (Wizard, Ballista) — she unlocks them for nothing.
+ */
+export const GIANT_UNLOCK_THRESHOLD = 200;
+export const GIANT_UNLOCK_DISCOUNT = 200;
+
+/**
+ * Shop unlock fee for a seat, after commander discounts. The dispatcher, the
+ * shop UI and the AI all price through this — they must agree or a seat sees
+ * a price it cannot pay (or the AI hoards for a fee it no longer owes).
+ */
+export function unlockCostForSpeciality(
+    typeId: string,
+    speciality: SpecialityId | null,
+): number {
+    const base = unitUnlockCost(typeId);
+    if (!Number.isFinite(base)) return base;
+    if (speciality === 'giant' && base >= GIANT_UNLOCK_THRESHOLD) {
+        return Math.max(0, base - GIANT_UNLOCK_DISCOUNT);
+    }
+    return base;
+}
 export const FREE_ARCHER_LEVEL = 3;
 export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
 /** flank spawn duration multiplier when the Flanky card/speciality is owned */
@@ -290,6 +318,8 @@ export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
     flanky: 'dwarf',
     meteor: 'wizard',
     speed: 'crowRider',
+    giant: 'ballista',
+    tutor: 'wizard',
 };
 
 export interface StartCard {
@@ -307,10 +337,11 @@ export interface StartCard {
     items?: string[];
     /**
      * Tactic charges this commander is gifted — NOT at pick time: they arrive
-     * at the start of round {@link SPECIALITY_TACTIC_ROUND}, like the archer's
-     * free unit. Round 1 stays clean of commander spells.
+     * at the start of a round, like the archer's free unit.
      */
     tactics?: string[];
+    /** which round {@link tactics} lands in (default {@link SPECIALITY_TACTIC_ROUND}) */
+    tacticsRound?: number;
     /**
      * Stronghold forge spells this specialist unlocks (tactic ids).
      * Teammates share the union. One 1-rune, one 2-rune, one 3-rune spell.
@@ -404,7 +435,7 @@ export const START_CARDS: StartCard[] = [
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
         forgeSpells: [OIL_SPILL_ID, ACID_ID, HAMMER_ID],
-        description: '3× Valor rune: +15% attack and HP for one pack each.',
+        description: 'Gets 3× Valor rune in round 1.',
     },
     {
         id: 'meteor',
@@ -428,6 +459,30 @@ export const START_CARDS: StartCard[] = [
         speciality: 'speed',
         forgeSpells: [OIL_SPILL_ID, SPAWN_CROWS_ID, DRAGON_ID],
         description: `All units move +${SPEED_COMMANDER_BONUS} faster.`,
+    },
+    {
+        id: 'giant',
+        title: 'Countess Chonk',
+        portrait: 'spec-giant',
+        units: ['ballista', 'dwarf'],
+        unitsLabel: '1× Ballista · 1× Dwarves',
+        startingHp: 2600,
+        speciality: 'giant',
+        forgeSpells: [SPAWN_DWARVES_ID, BIG_METEOR_ID, HAMMER_ID],
+        description: `Shop unlocks of ${GIANT_UNLOCK_THRESHOLD}+ cost ${GIANT_UNLOCK_DISCOUNT} less.`,
+    },
+    {
+        id: 'tutor',
+        title: 'Lady Lecture',
+        portrait: 'spec-tutor',
+        units: ['crowRider', 'archer', 'archer', 'archer'],
+        unitsLabel: '1× Crow Riders · 3× Archers',
+        startingHp: 3000,
+        speciality: 'tutor',
+        tactics: [TUTOR_ID],
+        tacticsRound: 1,
+        forgeSpells: [FIRE_SPILL_ID, STORM_ID, METEOR_SHOWER_ID],
+        description: 'Starts with one Field Lesson.',
     },
     {
         id: 'flanky',
