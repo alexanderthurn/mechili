@@ -77,7 +77,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     shield: { url: new URL('../../assets/models/shield-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 0.5 }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
-    'command-tower': { url: new URL('../../assets/models/command-tower-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower
+    'command-tower': { url: new URL('../../assets/models/command-tower.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower
     stronghold: { url: new URL('../../assets/models/stronghold.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep + Flag empty for the mast
     'research-center': { url: new URL('../../assets/models/research-center-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 1.25 }, // wizard tower
 };

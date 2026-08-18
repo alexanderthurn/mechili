@@ -294,12 +294,19 @@ export class Scenery {
                 noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
             const ridge = detPow01(Math.max(0, n - 0.32) / 0.68, POW_1_35);
             const mountain = rise * (28 + 280 * ridge);
+            const base = rolling + mountain;
+            // Surface wrinkles on the original big shapes — stronger the higher
+            // you climb, not extra summits. ~15wu / ~8wu so the mesh can hold them.
+            const climb = smooth01((base - 12) / 90);
+            const wrinkles =
+                (noise(x / 15 + 14.2, z / 15 + 3.6) - 0.5) * 10 * climb +
+                (noise(x / 8 + 27.1, z / 8 + 41.8) - 0.5) * 4 * climb;
 
             // lakes win over everything: where the basin noise runs high the
             // ground is pressed to -7, well below the water table at -1.1
             const lake = this.lakeAt(x, z);
             const depth = -7 * smooth01((d - 25) / 45);
-            return (rolling + mountain) * (1 - lake) + depth * lake;
+            return (base + wrinkles) * (1 - lake) + depth * lake;
         };
 
         // NOTE: terrainHeight/lakeAt stay real at every quality tier (including
