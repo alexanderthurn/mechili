@@ -8154,6 +8154,12 @@ export class Game {
         this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
         if (this.pendingHpDrawPlan && this.pendingHpDrawPlan.sources.length > 0) {
             this.hpDrawSettleRemaining = HP_DRAW_BATTLE_SETTLE;
+            // Show the pre-battle HP during the settle beat so the bar doesn't
+            // flash down-then-up when beginHpDrawPhase sets its display values.
+            const pre = this.pendingHpDrawPreHp!;
+            this.phase = 'hpDraw';
+            this.hpDrawDisplayPlayer = pre.player;
+            this.hpDrawDisplayEnemy = pre.enemy;
             return;
         }
         this.proceedAfterHpDraw();
