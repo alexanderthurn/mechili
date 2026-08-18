@@ -27,6 +27,8 @@ import {
     loadStarResumeMarker,
     lookupSpectateEndpoint,
     saveSinglePlayer,
+    STAR_RESUME_AUTO_MS,
+    STAR_RESUME_HEARTBEAT_MS,
     saveStarResumeMarker,
     branchSiteUrl,
     type CustomGameConfig,
@@ -1482,6 +1484,8 @@ let roomPoll: ReturnType<typeof setTimeout> | null = null;
 let resumeOverlay: HTMLDivElement | null = null;
 let activeGame: Game | null = null;
 let stopSinglePlayerPersist: (() => void) | null = null;
+/** stops the star resume marker's heartbeat (see the guest branch of constructGame) */
+let stopStarResumeHeartbeat: (() => void) | null = null;
 /** guards `rebuildStarGuestGame` against firing twice before the
  *  replacement Game exists and `activeGame` is reassigned — see that
  *  function's own doc comment. */
@@ -2314,6 +2318,7 @@ function stopRoomPoll(): void {
 }
 
 function clearMatchResumeData(): void {
+    stopStarResumeHeartbeat?.();
     clearStarResumeMarker();
     clearSinglePlayer();
     try {
@@ -2568,13 +2573,28 @@ function startGame(
             // LAN signaling server configured and cannot dial a Steam lobby by
             // host name at all.
             const lobbyId = steamLobbyIdOf(star.session);
-            saveStarResumeMarker({
+            const marker = {
                 hostName,
                 names,
-                transport: lobbyId ? 'steam' : getPeerServerConfig() ? 'lan' : 'matchmaking',
+                transport: (lobbyId ? 'steam' : getPeerServerConfig() ? 'lan' : 'matchmaking') as
+                    'steam' | 'lan' | 'matchmaking',
                 lobbyId: lobbyId ?? undefined,
                 peerServer: getPeerServerConfig(),
-            });
+            };
+            saveStarResumeMarker(marker);
+            // Re-stamped while the match runs so `savedAt` means "last seen
+            // alive". Written once, it recorded when the match STARTED, which
+            // says nothing about how long ago the tab went away — a twenty
+            // minute match looks twenty minutes stale a second after a reload.
+            // A heartbeat makes the age usable for deciding whether an
+            // automatic rejoin still makes sense, and it covers a crash, which
+            // gets no chance to say goodbye.
+            stopStarResumeHeartbeat?.();
+            const heartbeat = setInterval(() => saveStarResumeMarker(marker), STAR_RESUME_HEARTBEAT_MS);
+            stopStarResumeHeartbeat = () => {
+                clearInterval(heartbeat);
+                stopStarResumeHeartbeat = null;
+            };
         }
     } else if (!replay && !spectate) {
         // watching a replay/spectating a live match touches neither marker —
@@ -4653,7 +4673,14 @@ if (bulkVerify) {
     // outranks any resume marker/single-player save — a replay link should
     // never be silently preempted by stale local state
     void startReplayWatch(watchId, watchSide);
-} else if (starMpMarker) {
+} else if (starMpMarker && Date.now() - (starMpMarker.savedAt ?? 0) <= STAR_RESUME_AUTO_MS) {
+    // Fresh enough that the host may still be holding the seat. Reopening the
+    // tab minutes later and watching it announce "Reconnecting…" before failing
+    // is worse than staying quiet — the marker is left in place either way, so
+    // the room list still offers the room, and a seat already handed to AI can
+    // still be taken back by name for as long as the match runs.
+    // `savedAt` is refreshed on a heartbeat while playing, so this is time
+    // since the tab stopped running, not time since the match began.
     // joinStarRoom always dials the room code fresh and the host's own
     // name-matched
     // implicit reclaim (StarHub.findDroppedSeatByName) does the rest, so

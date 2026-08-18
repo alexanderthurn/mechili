@@ -2251,6 +2251,27 @@ export interface StarResumeMarker {
  *  back from should not label some later room "Resume your match". */
 const STAR_RESUME_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
+/**
+ * How long after leaving a rejoin is attempted AUTOMATICALLY on startup.
+ *
+ * The host holds a dropped seat for STAR_RECONNECT_GRACE_MS (60s); past that
+ * it goes to AI and the match carries on without you. Dialling straight back
+ * in is only worth doing silently inside that window plus enough slack to
+ * cover a browser restart — reopening the tab minutes later and watching it
+ * announce "Reconnecting…" before failing is worse than saying nothing.
+ *
+ * The marker itself is NOT cleared at this point: a seat handed to AI can
+ * still be taken back by name for as long as the match runs, so the room list
+ * keeps offering the room as resumable. This governs only whether we do it
+ * without being asked.
+ */
+export const STAR_RESUME_AUTO_MS = STAR_RECONNECT_GRACE_MS + 30_000;
+
+/** How often a running match refreshes its marker, so `savedAt` means "last
+ *  seen alive" rather than "match started" — the difference between knowing a
+ *  tab died ten seconds ago and knowing the match began twenty minutes ago. */
+export const STAR_RESUME_HEARTBEAT_MS = 15_000;
+
 export function saveStarResumeMarker(marker: StarResumeMarker): void {
     try {
         marker = { ...marker, savedAt: Date.now() };
