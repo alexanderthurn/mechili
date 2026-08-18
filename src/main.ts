@@ -368,7 +368,15 @@ if (isElectron()) {
     // follow the player to a new machine and from the playtest into the full
     // game. Keep it that way by putting anything experimental in the settings
     // namespace, which is isolated, rather than under mechili-user-.
-    const appId = steam.isAvailable() ? await steam.getAppId() : 0;
+    // Steam reports 0 when Steamworks did not initialise — the client is not
+    // running, or the app was started straight from the folder. Falling back to
+    // the id this build was MADE for keeps those launches on the same settings
+    // file as a normal one; without it the same install silently swaps to
+    // `settings-0-…` whenever Steam is closed, so settings would look reset and
+    // then drift apart. A playtest binary started outside Steam lands on the
+    // configured id too — the playtest id only ever arrives from Steam, and
+    // there is nothing else to tell them apart by.
+    const appId = (steam.isAvailable() ? await steam.getAppId() : 0) || __STEAM_APP_ID__;
     // The beta branch is part of the identity too. Prefs are read with a plain
     // Object.assign over the defaults — no per-key validation — so a value
     // written by a build that knows more settings than this one is adopted
