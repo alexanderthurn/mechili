@@ -2,6 +2,7 @@
 
 import { steam } from 'steam-electron-build/native';
 
+import { probeHardware, type HardwareProbe } from './hardwareTier';
 import { touchFirstDevice } from './inputCapabilities';
 import type { UiFontId } from '../theme';
 import { isUserStorageKey } from './userStorage';
@@ -201,6 +202,14 @@ export function applyGraphicsPreset(preset: GraphicsPreset): void {
 }
 
 const KEY = 'mechili-prefs';
+
+/** What the first-run probe decided, or null when prefs were already stored.
+ *  Surfaced for the debug overlay and for answering "why does it look like
+ *  that on my machine". */
+let lastHardwareProbe: HardwareProbe | null = null;
+export function hardwareProbe(): HardwareProbe | null {
+    return lastHardwareProbe;
+}
 const DEFAULTS: Prefs = {
     combatChat: true,
     ...GRAPHICS_PRESETS.high,
@@ -548,8 +557,10 @@ function applySanitized(into: Prefs, candidate: Record<string, unknown>): void {
 export function prefs(): Prefs {
     if (!cached) {
         cached = { ...DEFAULTS };
+        let hadStoredPrefs = false;
         try {
             const raw = localStorage.getItem(KEY);
+            hadStoredPrefs = !!raw;
             if (raw) {
                 const stored = JSON.parse(raw) as Partial<Prefs> & {
                     muteChat?: boolean;
@@ -590,6 +601,15 @@ export function prefs(): Prefs {
         if (touchFirstDevice() && !cached.mobileTuned) {
             Object.assign(cached, GRAPHICS_PRESETS.low);
             cached.mobileTuned = true;
+        } else if (!hadStoredPrefs) {
+            // Fresh profile only — a first launch, or straight after Reset.
+            // Gated on "nothing was stored" rather than a flag so it can never
+            // overrule a preference that already exists: the moment prefs are
+            // saved, this stops running. It also means Reset re-probes, which
+            // is what someone asking for defaults back would expect.
+            const probe = probeHardware();
+            if (probe.preset !== 'high') Object.assign(cached, GRAPHICS_PRESETS[probe.preset]);
+            lastHardwareProbe = probe;
         }
         normalizePrefs(cached);
     }
