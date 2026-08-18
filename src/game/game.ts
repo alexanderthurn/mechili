@@ -96,6 +96,7 @@ import {
     type SpecialityId,
     type StartCard,
 } from './cards';
+import { iconCursorCss } from '../ui/iconAtlas';
 import { roundCardAlgorithmById } from './roundCardAlgorithms';
 import { assignTeamColors, colorForBattleTeam, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
@@ -6426,12 +6427,21 @@ export class Game {
                 slot++;
             }
             for (let i = 0; i < avail; i++) {
+                // duplicates share an id: this is exactly the clicked slot
+                const armed = this.armedTactic === tactic.id && this.armedTacticIndex === slot;
+                if (armed) {
+                    // picked up: the charge is on the cursor, not in the strip.
+                    // `slot` still advances so every other entry keeps its index
+                    // (armedTacticIndex is a slot number), and cancelling puts it
+                    // straight back.
+                    slot++;
+                    continue;
+                }
                 out.push({
                     id: tactic.id,
                     icon: tactic.icon,
                     name: `${tactic.name} — ${tactic.description}`,
-                    // duplicates share an id: highlight exactly the clicked slot
-                    armed: this.armedTactic === tactic.id && this.armedTacticIndex === slot,
+                    armed: false,
                     index: slot,
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
@@ -6569,8 +6579,11 @@ export class Game {
     }
 
     private syncTacticVisuals(): void {
-        // any armed tactic reads as a targeting cursor over the whole board
-        this.pixiApp.canvas.style.cursor = this.armedTactic ? 'crosshair' : '';
+        // an armed tactic is "picked up": the pointer becomes the spell's own
+        // icon (and its strip entry hides — see tacticsView)
+        this.pixiApp.canvas.style.cursor = this.armedTactic
+            ? iconCursorCss(TACTICS[this.armedTactic]?.icon ?? 'ui-unknown')
+            : '';
         this.syncRallyVisuals();
         this.syncSpellVisuals();
         const pointer = this.placement.lastPointer;
