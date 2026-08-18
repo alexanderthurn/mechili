@@ -6,6 +6,7 @@ import type { Economy } from './settings';
 import {
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
+    MOVE_UNIT_ID,
     SELL_UNIT_ID,
     TACTICS,
     usesSpellPlacement,
@@ -204,7 +205,10 @@ export class AiOpponent implements Opponent {
 
         // shuffle held tactics, place at most two so the field stays readable
         const MAX_TACTICS = 2;
-        const pool = [...new Set(tactics[this.seat])].filter((id) => id !== SELL_UNIT_ID);
+        // own-unit tactics have no ground target for the placer to aim at
+        const pool = [...new Set(tactics[this.seat])].filter(
+            (id) => id !== SELL_UNIT_ID && id !== MOVE_UNIT_ID,
+        );
         for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(rng() * (i + 1));
             [pool[i], pool[j]] = [pool[j]!, pool[i]!];

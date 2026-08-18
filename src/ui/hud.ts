@@ -229,6 +229,7 @@ export interface SelectionInfo {
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** one-time rally-route charge purchase (Research Center only) */
     rallyRouteAbility?: { cost: number; owned: boolean; affordable: boolean };
+    movePackAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
     /** gift supply to your ally (Stronghold only, team modes) */
@@ -255,6 +256,7 @@ export class Hud {
     onUpgradeTower: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
+    onBuyMovePackAbility: (() => void) | null = null;
     onBuyDeploySlot: (() => void) | null = null;
     onBuyRoundRangeBoost: (() => void) | null = null;
     onBuyRoundSpeedBoost: (() => void) | null = null;
@@ -829,6 +831,7 @@ export class Hud {
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
+            else if (button.dataset.movepack) this.onBuyMovePackAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
             else if (button.dataset.speedboost) this.onBuyRoundSpeedBoost?.();
@@ -2477,6 +2480,20 @@ export class Hud {
                 state: info.rallyRouteAbility.owned
                     ? 'owned'
                     : info.rallyRouteAbility.affordable
+                      ? 'buy'
+                      : 'locked',
+            });
+        }
+        if (info.movePackAbility) {
+            tiles.push({
+                data: 'data-movepack="1"',
+                icon: 'ui-move',
+                title: 'Buy Move Pack',
+                desc: `Add one move-pack charge to your ${DISPLAY.tactics.toLowerCase()}: re-open one pack from an earlier round for repositioning. Once per match.`,
+                cost: info.movePackAbility.cost,
+                state: info.movePackAbility.owned
+                    ? 'owned'
+                    : info.movePackAbility.affordable
                       ? 'buy'
                       : 'locked',
             });

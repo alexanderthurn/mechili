@@ -19,6 +19,7 @@ import {
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
+    MOVE_UNIT_ID,
     SELL_UNIT_ID,
     SPAWN_CROWS_ID,
     SPAWN_DWARVES_ID,
@@ -157,6 +158,14 @@ export const ROUND_EXTRA_CARDS: RoundCard[] = [
         cost: 50,
         tactics: [SELL_UNIT_ID],
         description: 'One-shot spell: sell one of your packs for a supply refund.',
+    },
+    {
+        id: 'movePack',
+        title: 'Marching Orders',
+        cost: 50,
+        tactics: [MOVE_UNIT_ID],
+        description:
+            'One-shot spell: one pack from an earlier round may be repositioned again this round.',
     },
 ];
 

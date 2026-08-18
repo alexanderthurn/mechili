@@ -23,6 +23,7 @@ import {
     DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
+    MOVE_UNIT_ID,
     SELL_UNIT_ID,
     TACTICS,
     clampTacticEnd,
@@ -39,6 +40,7 @@ import type {
     DeploySettings,
     Economy,
     LevelingSettings,
+    MovePackSettings,
     RallyRouteSettings,
     SellSettings,
     TowerSettings,
@@ -130,10 +132,23 @@ export interface BuyRallyRouteAbilityAction {
     kind: 'buyRallyRouteAbility';
     team: Team;
 }
+/** grants one move-pack charge (Vanguard, once per match) */
+export interface BuyMovePackAbilityAction {
+    kind: 'buyMovePackAbility';
+    team: Team;
+}
 /** sells a pack for its refund — spends an ability charge (per-round) or a
  *  card-granted sell tactic (one-shot) */
 export interface SellUnitAction {
     kind: 'sellUnit';
+    team: Team;
+    unitId: number;
+}
+/** re-opens one older pack for dragging this round — spends a card-granted
+ *  move tactic (one-shot). Does NOT move the pack itself: the normal drag/
+ *  rotate actions do that once Placement.canReposition() lets them through. */
+export interface MobilizeUnitAction {
+    kind: 'mobilizeUnit';
     team: Team;
     unitId: number;
 }
@@ -313,7 +328,9 @@ type ActionVariant =
     | UpgradeTowerAction
     | BuySellAbilityAction
     | BuyRallyRouteAbilityAction
+    | BuyMovePackAbilityAction
     | SellUnitAction
+    | MobilizeUnitAction
     | BuyDeploySlotAction
     | BuyRoundRangeBoostAction
     | BuyRoundSpeedBoostAction
@@ -372,6 +389,8 @@ interface LogEntry extends LoggedAction {
     grantedTactics?: string[];
     /** the one-shot tactic charge this action consumed, if any (see consumeTacticCharge) */
     usedTactic?: string;
+    /** mobilizeUnit: the pack's deployedRound before the stamp (for undo) */
+    deployedRoundBefore?: number;
     /** applyItem / removeItem / forgeInsert: slot index on the pack or oven */
     itemSlot?: number;
     /** forgeFill: oven slots written (for undo) */
@@ -394,6 +413,7 @@ export interface ActionContext {
     towers: TowerSettings;
     sellSettings: SellSettings;
     rallyRouteSettings: RallyRouteSettings;
+    movePackSettings: MovePackSettings;
     deploySettings: DeploySettings;
     boostSettings: BoostSettings;
     /** the match roster — actions resolve their acting seat against it */
@@ -404,6 +424,8 @@ export interface ActionContext {
     sellState: { owned: boolean[]; used: number[] };
     /** per-SEAT Research Center: one-time rally-route purchase (permanent flag) */
     rallyRouteOwned: boolean[];
+    /** per-SEAT Vanguard: one-time move-pack purchase (permanent flag) */
+    movePackOwned: boolean[];
     /**
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
@@ -828,6 +850,16 @@ export class ActionDispatcher {
                 entry.grantedTactics = [RALLY_ROUTE_ID];
                 return true;
             }
+            case 'buyMovePackAbility': {
+                if (this.ctx.movePackOwned[seat]) return false; // once per match, per seat
+                const cost = this.ctx.movePackSettings.abilityCost;
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                this.ctx.movePackOwned[seat] = true;
+                this.ctx.tactics[seat]!.push(MOVE_UNIT_ID);
+                entry.grantedTactics = [MOVE_UNIT_ID];
+                return true;
+            }
             case 'sellUnit': {
                 // per-round ability charges first, then one-shot card tactics
                 const sell = this.ctx.sellState;
@@ -849,6 +881,23 @@ export class ActionDispatcher {
                 entry.paid = refund;
                 placement.removeUnit(unit);
                 economy.credit(seat, refund);
+                return true;
+            }
+            case 'mobilizeUnit': {
+                const unit = placement.unitById(action.unitId);
+                // own packs only — same scoping as sellUnit/applyItem
+                if (!unit || unit.team !== action.team || unit.seat !== seat) return false;
+                // structures stay put ('extra' siege buildings may move), and a
+                // pack that is already draggable would burn the charge for free
+                if (unit.type.structure && !unit.type.extra) return false;
+                if (placement.canReposition(unit)) return false;
+                if (!this.consumeTacticCharge(entry, seat, MOVE_UNIT_ID)) return false;
+                entry.unit = unit;
+                entry.deployedRoundBefore = unit.deployedRound;
+                // canReposition() reads exactly this — restamping the pack to
+                // the running round IS the unlock, and it expires by itself
+                // when the round advances
+                unit.deployedRound = placement.currentRound;
                 return true;
             }
             case 'buyDeploySlot': {
@@ -1410,6 +1459,19 @@ export class ActionDispatcher {
                 // entry (its use record IS the log entry) — only the per-round
                 // ability counter needs rolling back by hand
                 if (e.usedTactic === undefined) this.ctx.sellState.used[seat]!--;
+                break;
+            case 'buyMovePackAbility': {
+                this.ctx.movePackOwned[seat] = false;
+                for (const id of e.grantedTactics ?? []) {
+                    const i = this.ctx.tactics[seat]!.lastIndexOf(id);
+                    if (i >= 0) this.ctx.tactics[seat]!.splice(i, 1);
+                }
+                economy.credit(seat, e.paid!);
+                break;
+            }
+            case 'mobilizeUnit':
+                // the spent charge frees up with the log entry (see sellUnit)
+                e.unit!.deployedRound = e.deployedRoundBefore!;
                 break;
             case 'buyDeploySlot':
                 this.ctx.deployState.extra[seat] = (this.ctx.deployState.extra[seat] ?? 0) - 1;
