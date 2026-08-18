@@ -219,6 +219,9 @@ export class Scenery {
     private waterFreezeUniform: { value: number } | null = null;
     /** drives the outer meadow's weather-driven snow blend (see `applyMeadowTexture`) */
     private outerGroundSnowUniform: { value: number } | null = null;
+    /** 1 = alpine cap on, 0 = summer — peaks go to bare rock */
+    private readonly outerGroundAlpineUniform: { value: number } = { value: 1 };
+    private alpineCapTarget = 1;
 
     /** wildflower materials (meadow clumps + lake blossoms) — opacity-boosted in spring */
     private readonly flowerMaterials: MeshStandardMaterial[] = [];
@@ -471,6 +474,8 @@ export class Scenery {
         this.flowerOpacityTarget =
             season === 'spring' ? 1 : season === 'summer' ? 0.85 : season === 'autumn' ? 0.45 : 0.15;
         this.litterOpacityTarget = season === 'autumn' ? 1 : 0;
+        this.alpineCapTarget = season === 'summer' ? 0 : 1;
+        if (immediate) this.outerGroundAlpineUniform.value = this.alpineCapTarget;
         if (!immediate) return;
         for (const m of this.flowerMaterials) m.opacity = this.flowerOpacityTarget;
         if (this.leafLitter) {
@@ -495,6 +500,8 @@ export class Scenery {
             mat.opacity += (this.litterOpacityTarget - mat.opacity) * seasonK;
             this.leafLitter.visible = mat.opacity > 0.02;
         }
+        this.outerGroundAlpineUniform.value +=
+            (this.alpineCapTarget - this.outerGroundAlpineUniform.value) * seasonK;
         if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
         setVegetationSnowCover(this.groundSnowCover);
         updateBuildingSnowCover(
@@ -999,7 +1006,6 @@ export class Scenery {
         // vertex tint only adds large-scale light/dark variation
         const rock = new Color(0xf2efe9);
         const rockDark = new Color(0xf2efe9).multiplyScalar(0.75);
-        const snow = new Color(s.snow);
         const c = new Color();
         const rockVar = new Color();
         for (let i = 0; i < pos.count; i++) {
@@ -1020,10 +1026,7 @@ export class Scenery {
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
             if (h > 35) rockVar.multiplyScalar(0.68 + 0.32 * (1 - smooth01((h - 35) / 130)));
-            const staticSnow = smooth01((h - 155) / 42) * this.snowRetentionAt(x, z, h);
-            c.copy(meadow)
-                .lerp(rockVar, smooth01((h - 12) / 45))
-                .lerp(snow, staticSnow);
+            c.copy(meadow).lerp(rockVar, smooth01((h - 12) / 45));
 
             colors[i * 3] = c.r;
             colors[i * 3 + 1] = c.g;
@@ -1061,6 +1064,7 @@ export class Scenery {
             // Drive this uniform from the weather system (see update loop).
             shader.uniforms.uSnowCover = { value: 0 };
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
+            shader.uniforms.uAlpineCap = this.outerGroundAlpineUniform;
 
             shader.vertexShader =
                 'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
@@ -1077,7 +1081,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
 
             let frag =
                 'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
-                'uniform float uSnowCover;\n' +
+                'uniform float uSnowCover;\nuniform float uAlpineCap;\n' +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
 
             // Keep Three's chunk boundaries stable; only assign once so the compiler
@@ -1085,7 +1089,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v9-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v11-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -1180,6 +1184,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             if (shore) shader.uniforms.uShore = { value: shore };
             shader.uniforms.uSnowCover = { value: 0 };
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
+            shader.uniforms.uAlpineCap = this.outerGroundAlpineUniform;
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
@@ -1291,7 +1296,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
-                'uniform float uSnowCover;\n' +
+                'uniform float uSnowCover;\nuniform float uAlpineCap;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
             if (useDetail && normal) {
@@ -1314,7 +1319,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v24${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v26${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -2009,7 +2014,7 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     float peakBoost = smoothstep(120.0, 240.0, vTerrainH);
     float snowHold = min(1.0, slopeHold + peakBoost * 0.85);
     float deepWinter = smoothstep(0.82, 1.0, uSnowCover);
-    float alpineSnow = smoothstep(148.0, 215.0, vTerrainH) * snowHold;
+    float alpineSnow = smoothstep(148.0, 215.0, vTerrainH) * snowHold * uAlpineCap;
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
     float meadowSnow = weatherSnow * 0.82;
