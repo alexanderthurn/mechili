@@ -144,7 +144,7 @@ export class CardSpellTips {
             // Shop runes sit under the cursor at the top of the HUD — park the
             // window up-left with a wider gap so it does not sit on the mouse.
             left = rect.left - tipW - 18;
-            top = rect.top - 40;
+            top = rect.top - 110;
             if (left < pad) left = pad;
             if (top < pad) top = pad;
             if (top + h > window.innerHeight - pad) {

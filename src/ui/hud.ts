@@ -3340,19 +3340,13 @@ export class Hud {
         const teamChips = this.commanderChips.filter((c) => c.team === team);
 
         const picks = team === 'player' ? this.playerRoundPicks : this.enemyRoundPicks;
-        const bagIds = team === 'player' ? this.lastBagItemIds : this.lastEnemyBagItemIds;
-        const forgeIds = team === 'player' ? this.lastForgeOvenIds : this.lastEnemyForgeOvenIds;
-        const hasContent =
-            teamChips.some((c) => c.card !== null) ||
-            picks.length > 0 ||
-            teamChips.some((c) => (c.card?.forgeSpells?.length ?? 0) > 0);
+        const hasContent = teamChips.some((c) => c.card !== null) || picks.length > 0;
         if (!hasContent) return;
 
         const contentKey =
             `${seat}|${viaHover ? 1 : 0}|` +
             teamChips.map((c) => `${c.seat}:${c.card?.id ?? ''}:${c.name}`).join(',') +
-            `|${picks.map((p) => `${p.round}:${p.title}:${p.body}`).join(';')}` +
-            `|${bagIds.join(',')}|${forgeIds.join(',')}`;
+            `|${picks.map((p) => `${p.round}:${p.title}:${p.body}`).join(';')}`;
         // Remounting every refresh flashes the full-screen dim over the HP bars.
         if (this.specDetailOverlay && this.lastSpecDetailKey === contentKey) return;
         this.lastSpecDetailKey = contentKey;
@@ -3366,14 +3360,9 @@ export class Hud {
         const colsHtml = teamChips
             .map((chip) => {
                 const card = chip.card;
-                // Top-bar hover is already dense: avoid embedding the full rune
-                // recipe grid there (we show recipes elsewhere).
-                const forgeHtml =
-                    card && !viaHover ? this.forgeRecipesBlockHtml(card.forgeSpells, bagIds, forgeIds) : '';
                 const specHtml = card
                     ? `<div class="spec-card-row">` +
                       `<div class="card static">${this.startCardFace(card)}</div>` +
-                      forgeHtml +
                       `</div>`
                     : '';
                 const picksHtml =
