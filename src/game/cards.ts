@@ -41,7 +41,9 @@ export type SpecialityId =
     | 'meteor'
     | 'speed'
     | 'giant'
-    | 'tutor';
+    | 'tutor'
+    | 'money'
+    | 'cursed';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
@@ -83,6 +85,15 @@ export function unlockCostForSpeciality(
 }
 export const FREE_ARCHER_LEVEL = 3;
 export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
+/** Money Queen's one-off round-1 purse (see the round-1 hook in game.ts) */
+export const MONEY_ROUND1_BONUS = 200;
+
+/**
+ * Cursed Christine — the curse hands her one of The Komtur's own spiders each
+ * round. This is the SINGLE-spider brood ({@link HORDE_BRUT_SPAWN}, 1x1
+ * formation), not the 48-strong swarm pack that shares the "Black Brood" name.
+ */
+export const CURSED_BROOD_TYPE_ID = 'hordeBrutSpawn';
 /** flank spawn duration multiplier when the Flanky card/speciality is owned */
 export const FLANK_SPAWN_HALF_MULT = 0.5;
 
@@ -320,6 +331,8 @@ export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
     speed: 'crowRider',
     giant: 'ballista',
     tutor: 'wizard',
+    money: 'ballista',
+    cursed: 'dwarf',
 };
 
 export interface StartCard {
@@ -483,6 +496,28 @@ export const START_CARDS: StartCard[] = [
         tacticsRound: 1,
         forgeSpells: [FIRE_SPILL_ID, STORM_ID, METEOR_SHOWER_ID],
         description: 'Starts with one Field Lesson.',
+    },
+    {
+        id: 'money',
+        title: 'Money Queen',
+        portrait: 'spec-money',
+        units: ['crowRider', 'crowRider', 'archer'],
+        unitsLabel: '2× Crow Riders · 1× Archers',
+        startingHp: 2700,
+        speciality: 'money',
+        forgeSpells: [OIL_SPILL_ID, STORM_ID, DRAGON_ID],
+        description: `+${MONEY_ROUND1_BONUS} supply in round 1.`,
+    },
+    {
+        id: 'cursed',
+        title: 'Cursed Christine',
+        portrait: 'spec-cursed',
+        units: ['dwarf', 'dwarf', 'archer', 'archer'],
+        unitsLabel: '2× Dwarves · 2× Archers',
+        startingHp: 3000,
+        speciality: 'cursed',
+        forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, HAMMER_ID],
+        description: 'Gets one free Black Brood spider each round.',
     },
     {
         id: 'flanky',

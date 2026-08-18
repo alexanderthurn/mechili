@@ -42,6 +42,7 @@ import {
     type Team,
     type Unit,
     type UnitType,
+    levelBasisOf,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
@@ -2322,9 +2323,11 @@ export class BattleSim {
     private grantXp(killer: Unit, victim: Actor): void {
         const { leveling, costOf } = this.config;
         if (killer.level >= leveling.maxLevel) return;
-        const value = costOf(victim.unit.type) / victim.unit.members.length;
+        const value =
+            victim.unit.type.xpValue ?? costOf(victim.unit.type) / victim.unit.members.length;
         if (value <= 0) return;
-        const threshold = costOf(killer.type) * leveling.xpThresholdFactor * killer.level;
+        // must match actions.ts xpThresholdFor, or a pack banks XP it can never spend
+        const threshold = levelBasisOf(killer.type) * leveling.xpThresholdFactor * killer.level;
         killer.xp = Math.min(killer.xp + value, threshold);
     }
 

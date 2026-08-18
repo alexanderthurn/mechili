@@ -83,6 +83,8 @@ import {
     COST_CONTROL_INCOME,
     COST_CONTROL_PENALTY,
     ELITE_ROUND1_BONUS,
+    MONEY_ROUND1_BONUS,
+    CURSED_BROOD_TYPE_ID,
     FREE_ARCHER_LEVEL,
     FREE_ARCHER_ROUND,
     SPECIALITY_TACTIC_ROUND,
@@ -2711,6 +2713,21 @@ export class Game {
             // the elite's round-1 top-up: exactly two level-2 units at 150
             if (this.speciality[seat] === 'elite' && this.round === 1) {
                 this.economy.credit(seat, ELITE_ROUND1_BONUS);
+            }
+            // Money Queen's one-off purse — same log-free round-1 hook
+            if (this.speciality[seat] === 'money' && this.round === 1) {
+                this.economy.credit(seat, MONEY_ROUND1_BONUS);
+            }
+            // Cursed Christine: one Komtur spider a round. Log-free, so it
+            // must run while hydrating too (see the archer gift's NOTE below)
+            // — a peer that skipped the spawn would rebuild a different board
+            // with shifted unit ids.
+            if (this.speciality[seat] === 'cursed') {
+                const brood = unitTypeById(CURSED_BROOD_TYPE_ID);
+                const anchor = brood ? this.placement.findStartSpot(team, brood, seat) : null;
+                if (brood && anchor) {
+                    this.placement.spawn(brood, anchor, team, false, true, seat);
+                }
             }
             // a commander's gifted spell charges (Lord Hitzkopf's meteors).
             // Same log-free reasoning as the archer gift below: it must run on
