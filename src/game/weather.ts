@@ -487,6 +487,8 @@ export interface WeatherHandles {
     onSeasonChange?: (season: Season) => void;
     /** dev hotkeys Shift+1…9 — when absent every layer stays on */
     effectToggles?: EffectToggles;
+    /** low/off scenery keep the atmosphere logic, but suppress cloud/precip visuals */
+    suppressVisualWeatherFx?: boolean;
 }
 
 /** a fully numeric/lerpable copy of a composed target, used as the live state */
@@ -764,6 +766,15 @@ export class Weather {
      * match start — first N-key weather swap otherwise pays a shader hitch.
      */
     primeForCompile(): void {
+        if (this.h.suppressVisualWeatherFx) {
+            this.starsMesh.visible = true;
+            this.starMaterial.opacity = 0.5;
+            this.sunDisc.visible = true;
+            this.sunDisc.material.opacity = 0.5;
+            this.moon.visible = true;
+            this.moon.material.opacity = 0.5;
+            return;
+        }
         this.rainGroup.visible = true;
         this.rainMaterial.opacity = 0.3;
         this.snowGroup.visible = true;
@@ -974,8 +985,11 @@ export class Weather {
         this.starMaterial.opacity = stars;
         this.starsMesh.visible = stars > 0.02;
 
-        h.cloudMaterial.color.copy(s.cloudTint);
-        h.cloudMaterial.opacity = s.cloudOpacity;
+        const allowVisualWeatherFx = !h.suppressVisualWeatherFx;
+        if (h.cloudMaterial) {
+            h.cloudMaterial.color.copy(s.cloudTint);
+            h.cloudMaterial.opacity = allowVisualWeatherFx ? s.cloudOpacity : 0;
+        }
 
         if (h.forestFogMaterial) {
             // fog cards blend toward the horizon/fog color of the scenario
@@ -984,7 +998,7 @@ export class Weather {
             h.forestFogMaterial.color.copy(s.skyHorizon);
         }
 
-        const nearClouds = this.fx('nearClouds') ? s.nearCloudOpacity : 0;
+        const nearClouds = allowVisualWeatherFx && this.fx('nearClouds') ? s.nearCloudOpacity : 0;
         this.nearCloudMaterial.opacity = nearClouds;
         for (const c of this.nearClouds) {
             c.mesh.visible = nearClouds > 0.02;
@@ -1008,6 +1022,11 @@ export class Weather {
     }
 
     private updateRain(dt: number, cameraPos: Vector3): void {
+        if (this.h.suppressVisualWeatherFx) {
+            this.rainMaterial.opacity = 0;
+            this.rainGroup.visible = false;
+            return;
+        }
         const rain = this.fx('rain') ? this.state.rain : 0;
         this.rainMaterial.opacity = rain * 0.55;
         const active = rain > 0.02;
@@ -1049,6 +1068,11 @@ export class Weather {
     }
 
     private updateSnow(dt: number, cameraPos: Vector3): void {
+        if (this.h.suppressVisualWeatherFx) {
+            this.snowMaterial.opacity = 0;
+            this.snowGroup.visible = false;
+            return;
+        }
         const snow = this.fx('snow') ? this.state.snow : 0;
         this.snowMaterial.opacity = snow * 0.8;
         const active = snow > 0.02;

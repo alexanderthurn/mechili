@@ -325,7 +325,8 @@ export class Scenery {
             this.createForest(map, rng);
             this.createMeadowDetails(map, rng);
         }
-        this.createHorizonClouds(map, rng);
+        this.createCloudAssets(rng);
+        if (this.detailed) this.createHorizonCloudMeshes(map, rng);
         if (this.detailed) this.createForestFog(map, rng);
         if (this.quality === 'off') {
             for (const c of this.clouds) c.mesh.visible = false;
@@ -422,6 +423,7 @@ export class Scenery {
                 map: this.map,
                 onSeasonChange: (season) => this.setSeason(season),
                 effectToggles,
+                suppressVisualWeatherFx: !this.detailed,
             },
             seed,
         );
@@ -989,7 +991,55 @@ export class Scenery {
         mesh.position.y = -0.05;
         mesh.receiveShadow = true;
         if (this.detailed) void this.applyMeadowTexture(material, map, SIZE);
+        else this.applyOuterGroundSnowOnly(material);
         return mesh;
+    }
+
+    /**
+     * Low/medium quality: keep the coarse (vertex-tinted) outer ground mesh,
+     * but still apply weather-driven snow whitening.
+     *
+     * This intentionally avoids loading the HQ meadow textures; we only need
+     * the same `uSnowCover` mix that `applyMeadowTexture` injects.
+     */
+    private applyOuterGroundSnowOnly(material: MeshStandardMaterial): void {
+        material.onBeforeCompile = (shader) => {
+            // Drive this uniform from the weather system (see update loop).
+            shader.uniforms.uSnowCover = { value: 0 };
+            this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
+
+            shader.vertexShader =
+                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;',
+                );
+
+            const inject = `
+    // permanent alpine snowcap — always on, independent of weather
+    float alpineSnow = smoothstep(170.0, 235.0, vTerrainH);
+    // weather-driven cover: soft snow line descending from the peaks
+    float snowLine = mix(220.0, -15.0, uSnowCover);
+    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
+    // alpine stays bright; weather frost on meadow/board is softer (matches map.ts)
+    float snowF = max(alpineSnow, weatherSnow * 0.82);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);
+            `;
+
+            let frag =
+                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\n' +
+                'uniform float uSnowCover;\n' +
+                shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
+
+            // Keep Three's chunk boundaries stable; only assign once so the compiler
+            // sees a single coherent shader.
+            shader.fragmentShader = frag;
+        };
+
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v1-${groundDetailCacheKey(
+            groundMaterialProfile(),
+        )}`;
+        material.needsUpdate = true;
     }
 
     /**
@@ -1823,8 +1873,8 @@ export class Scenery {
         }
     }
 
-    /** flat puffs on the horizon + summit wisps — tinted by the weather system */
-    private createHorizonClouds(map: BattleMap, rng: () => number): void {
+    /** Shared cloud puff texture — always built so Weather can wire near-cloud FX. */
+    private createCloudAssets(rng: () => number): void {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 128;
@@ -1845,13 +1895,17 @@ export class Scenery {
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         this.cloudTexture = texture;
-        const material = new MeshBasicMaterial({
+        this.cloudMaterial = new MeshBasicMaterial({
             map: texture,
             transparent: true,
             opacity: THEME.scenery.cloudOpacity,
             depthWrite: false,
         });
-        this.cloudMaterial = material;
+    }
+
+    /** flat puffs on the horizon + summit wisps — tinted by the weather system */
+    private createHorizonCloudMeshes(map: BattleMap, rng: () => number): void {
+        const material = this.cloudMaterial;
         const geometry = new PlaneGeometry(1, 0.5);
         geometry.rotateX(-Math.PI / 2);
 
