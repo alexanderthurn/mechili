@@ -382,14 +382,13 @@ if (isElectron()) {
     // configured id too — the playtest id only ever arrives from Steam, and
     // there is nothing else to tell them apart by.
     const appId = (steam.isAvailable() ? await steam.getAppId() : 0) || __STEAM_APP_ID__;
-    // The beta branch is part of the identity too. Prefs are read with a plain
-    // Object.assign over the defaults — no per-key validation — so a value
-    // written by a build that knows more settings than this one is adopted
-    // verbatim rather than clamped. Sharing one file between `develop` and the
-    // default branch means a newer build can hand an older one a setting it
-    // cannot interpret. Cheaper to keep them apart than to make every future
-    // setting downgrade-safe; the cost is that switching branches starts from
-    // defaults, which is the honest outcome anyway.
+    // The beta branch is part of the identity too. Prefs now sanitise every key
+    // on load, so a value from a build that knows more settings than this one
+    // is clamped rather than adopted — but clamping is lossy: `develop` writing
+    // a finer render scale comes back as the nearest one the release build has,
+    // and then gets written back at that value. Keeping the branches apart lets
+    // each keep its own answer. The cost is that a branch starts from defaults
+    // the first time it is used, and remembers from then on.
     // sanitised: a branch name is Steam's string, not ours, and it is going
     // into a filename (getSavePath only strips directories, so a slash would
     // silently mangle the name rather than fail)
@@ -404,8 +403,20 @@ if (isElectron()) {
         excludePrefix: USER_STORAGE_PREFIX,
         exclude: [...SETTINGS_SAV_EXCLUDE],
     });
+    // Identity is scoped by app and branch, but NOT by machine: a custom avatar
+    // should still follow the player to another PC.
+    //
+    // The app id is what actually ends the conflicts. Both app ids wrote one
+    // user.sav in one folder while Steam tracked change numbers per app, so
+    // each app's write looked like tampering to the other — and one conflicted
+    // file blocks that app's entire upload, settings included.
+    //
+    // It costs almost nothing here, because under Steam identity is re-derived
+    // every launch anyway: the display name is overwritten from the Steam
+    // persona (see below) and the avatar is re-fetched. Only a custom uploaded
+    // avatar fails to carry from the playtest into the full game.
     await mirrorLocalStorage({
-        file: 'user.sav',
+        file: `user-${appId}-${branch}.sav`,
         prefix: USER_STORAGE_PREFIX,
         // The cached Steam avatar stays local. It is ~120 KB of base64 that
         // Steam hands us again on request, so syncing it bought nothing and
