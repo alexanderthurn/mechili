@@ -23,7 +23,7 @@
     "models:draco": "bash scripts/compress-glb-draco.sh",
     "models:textures-1k": "bash scripts/resize-glb-textures.sh 1024",
     "start:playtest": "SteamAppId=5115110 steam-electron-build dev",
-    "start:playtest:win": "set SteamAppId=5115110 && steam-electron-build dev"
+    "start:playtest:win": "set \"SteamAppId=5115110\" && steam-electron-build dev"
   },
   "dependencies": {
     "peerjs": "^1.5.5",
