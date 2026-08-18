@@ -18,6 +18,7 @@ import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from
 import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
+    BIG_METEOR_ID,
     HAMMER_ID,
     HAMMER_ZONE,
     METEOR_SHARD_FALL_SEC,
@@ -398,7 +399,18 @@ export type SimEvent =
           dy?: number;
           dz?: number;
       }
-    | { kind: 'explosion'; x: number; y: number; z: number; radius: number; heavy?: boolean }
+    | {
+          kind: 'explosion';
+          x: number;
+          y: number;
+          z: number;
+          radius: number;
+          heavy?: boolean;
+          /** hot flash + embers on top of the dust (meteor) */
+          fire?: boolean;
+          /** camera kick strength; omitted/0 = no shake (most explosions) */
+          shake?: number;
+      }
     | {
           kind: 'death';
           x: number;
@@ -1874,6 +1886,7 @@ export class BattleSim {
         }
         const y = simGroundHeightAt(s.x, s.z);
         const hammer = s.tacticId === HAMMER_ID;
+        const meteor = s.tacticId === BIG_METEOR_ID;
         // particles/scorch: cover the hammer footprint (approx half-diagonal)
         const visualRadius = hammer
             ? Math.sqrt(HAMMER_ZONE.halfWidth * HAMMER_ZONE.halfWidth + HAMMER_ZONE.halfDepth * HAMMER_ZONE.halfDepth)
@@ -1884,13 +1897,16 @@ export class BattleSim {
             y: y + 0.6,
             z: s.z,
             radius: visualRadius,
-            heavy: hammer,
+            // both big stamps throw the heavier dust; only the meteor burns
+            heavy: hammer || meteor,
+            fire: meteor,
+            shake: meteor ? 1 : 0,
         });
         this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
     }
 
     /**
-     * Direct disc (or strike footprint) damage with Great Meteor shield rules:
+     * Direct disc (or strike footprint) damage with Meteor shield rules:
      * units under a living ward are spared; the dome takes the hit instead.
      * Pass `strike` for hammer rectangles / exact strike hit tests; otherwise
      * a plain circle of `radius` around (x, z) is used (dragon breath drips).

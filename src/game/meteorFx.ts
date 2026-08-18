@@ -28,10 +28,27 @@ function setRootCastShadow(root: Group, cast: boolean): void {
 
 /** fall time so impact lines up with the sim strike */
 export const GREAT_METEOR_FALL_SEC = 1.1;
-const GREAT_HOLD = 0.35;
-const GREAT_EXIT = 0.7;
 const GREAT_DROP = 140;
-const GREAT_SCALE = 22;
+/**
+ * The rock does not survive the landing: it is removed on the frame it lands
+ * and replaced by fragments. (It used to squash on the ground for 0.35s and
+ * then fade out over 0.7s, which read as the meteor deflating rather than
+ * breaking.)
+ */
+const FRAG_COUNT = 9;
+const FRAG_LIFE = 0.95;
+/** last slice of the life spent fading out */
+const FRAG_FADE = 0.35;
+/** world units / s^2 — tuned for a readable arc, not real gravity */
+const FRAG_GRAVITY = 260;
+const FRAG_SPEED_MIN = 26;
+const FRAG_SPEED_MAX = 54;
+const FRAG_UP_MIN = 28;
+const FRAG_UP_MAX = 62;
+const FRAG_SCALE_MIN = 1.6;
+const FRAG_SCALE_MAX = 3.4;
+const FRAG_SPIN = 7;
+const GREAT_SCALE = 19.8; // 10% smaller than the original 22 (visual only)
 
 const SHARD_DROP = 90;
 const SHARD_SCALE = 8;
@@ -50,7 +67,29 @@ type GreatActive = {
     root: Group;
     materials: MeshStandardMaterial[];
     groundY: number;
-    phase: 'fall' | 'hold' | 'exit';
+    phase: 'fall';
+};
+
+/** one piece of a shattered meteor — closed-form ballistic, visual only */
+type FragActive = {
+    root: Group;
+    materials: MeshStandardMaterial[];
+    bornAt: number;
+    x: number;
+    z: number;
+    groundY: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    scale: number;
+    /** tumble is closed-form too: rot = rot0 + spin * age */
+    rot0x: number;
+    rot0y: number;
+    rot0z: number;
+    spinX: number;
+    spinZ: number;
+    /** true once it has settled on the ground (stops integrating) */
+    landed: boolean;
 };
 
 type ShardActive = {
@@ -68,7 +107,7 @@ type ShardActive = {
 };
 
 /**
- * Great Meteor drop (scheduled) + Meteor Shower shards (from sim events).
+ * Meteor drop (scheduled) + Meteor Shower shards (from sim events).
  * Shards are pooled — cloning the ~3MB GLB every impact was a major hitch.
  */
 export class MeteorFx {
@@ -77,6 +116,7 @@ export class MeteorFx {
     private shardTpl: Group | null = null;
     private readonly great: GreatActive[] = [];
     private readonly shards: ShardActive[] = [];
+    private readonly frags: FragActive[] = [];
     private readonly shardPool: { root: Group; materials: MeshStandardMaterial[] }[] = [];
     private readonly loadPromise: Promise<void>;
 
@@ -136,6 +176,7 @@ export class MeteorFx {
 
     update(simElapsed: number, shields: readonly ShieldDisk[] = []): void {
         this.updateGreat(simElapsed, shields);
+        this.updateFrags(simElapsed);
         this.updateShards(simElapsed, shields);
     }
 
@@ -154,6 +195,11 @@ export class MeteorFx {
             disposeObject(s.root);
         }
         this.great.length = 0;
+        for (const f of this.frags) {
+            this.group.remove(f.root);
+            this.shardPool.push({ root: f.root, materials: f.materials });
+        }
+        this.frags.length = 0;
     }
 
     private clearShards(): void {
@@ -189,30 +235,94 @@ export class MeteorFx {
                 shieldAtPoint(s.cue.x, s.cue.z, shields) !== null
                     ? s.groundY + SHIELD_HEIGHT
                     : s.groundY;
-            if (s.phase === 'fall') {
-                const u = MathUtils.clamp((t - fallStart) / GREAT_METEOR_FALL_SEC, 0, 1);
-                const e = u * u * u;
-                s.root.position.y = landY + GREAT_DROP * (1 - e);
-                s.root.rotation.x = 0.55 + u * 0.4;
-                if (u >= 1) {
-                    s.phase = 'hold';
-                    s.root.position.y = landY;
-                }
-            } else if (s.phase === 'hold') {
-                const holdT = MathUtils.clamp((t - s.cue.at) / GREAT_HOLD, 0, 1);
-                const squash = 1 - 0.18 * Math.sin(holdT * Math.PI);
-                s.root.scale.set(GREAT_SCALE * (2 - squash), GREAT_SCALE * squash, GREAT_SCALE * (2 - squash));
-                if (holdT >= 1) s.phase = 'exit';
-            } else {
-                const exitT = MathUtils.clamp((t - s.cue.at - GREAT_HOLD) / GREAT_EXIT, 0, 1);
-                setSpellOpacity(s.materials, 1 - exitT);
-                s.root.scale.setScalar(GREAT_SCALE * (1 - 0.4 * exitT));
-                if (exitT >= 1) {
-                    this.group.remove(s.root);
-                    disposeObject(s.root);
-                    this.great.splice(i, 1);
+            const u = MathUtils.clamp((t - fallStart) / GREAT_METEOR_FALL_SEC, 0, 1);
+            const e = u * u * u;
+            s.root.position.y = landY + GREAT_DROP * (1 - e);
+            s.root.rotation.x = 0.55 + u * 0.4;
+            if (u >= 1) {
+                // shatter: the rock is gone on this frame, the pieces carry
+                // the moment (no ground squash, no fade-out)
+                this.spawnFragments(s.cue.x, landY, s.cue.z, t);
+                this.group.remove(s.root);
+                disposeObject(s.root);
+                this.great.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * Burst the impact point into rock pieces. Reuses the pooled Meteor Shower
+     * shard mesh (already a chunk of rock) so no new asset is loaded, and runs
+     * closed-form off sim time — `update` only gets an absolute clock, and
+     * these are cosmetic, so there is no dt to integrate.
+     */
+    private spawnFragments(x: number, groundY: number, z: number, now: number): void {
+        if (!this.shardTpl) return;
+        for (let n = 0; n < FRAG_COUNT; n++) {
+            const inst = this.shardPool.pop() ?? cloneSpellInstance(this.shardTpl);
+            const { root, materials } = inst;
+            setRootCastShadow(root, shardCastsShadow());
+            setSpellOpacity(materials, 1);
+            const scale = MathUtils.lerp(FRAG_SCALE_MIN, FRAG_SCALE_MAX, Math.random());
+            const bearing = (n / FRAG_COUNT) * Math.PI * 2 + Math.random() * 0.6;
+            const speed = MathUtils.lerp(FRAG_SPEED_MIN, FRAG_SPEED_MAX, Math.random());
+            const rot0x = Math.random() * Math.PI;
+            const rot0y = Math.random() * Math.PI;
+            const rot0z = Math.random() * Math.PI;
+            root.scale.setScalar(scale);
+            root.position.set(x, groundY + 1.5, z);
+            root.rotation.set(rot0x, rot0y, rot0z);
+            root.visible = true;
+            this.group.add(root);
+            this.frags.push({
+                root,
+                materials,
+                bornAt: now,
+                x,
+                z,
+                groundY,
+                vx: Math.cos(bearing) * speed,
+                vz: Math.sin(bearing) * speed,
+                vy: MathUtils.lerp(FRAG_UP_MIN, FRAG_UP_MAX, Math.random()),
+                scale,
+                rot0x,
+                rot0y,
+                rot0z,
+                spinX: (Math.random() * 2 - 1) * FRAG_SPIN,
+                spinZ: (Math.random() * 2 - 1) * FRAG_SPIN,
+                landed: false,
+            });
+        }
+    }
+
+    private updateFrags(t: number): void {
+        for (let i = this.frags.length - 1; i >= 0; i--) {
+            const f = this.frags[i]!;
+            const age = t - f.bornAt;
+            // scrubbing backwards (replay/seek) must not strand pieces
+            if (age < 0 || age >= FRAG_LIFE) {
+                this.group.remove(f.root);
+                this.shardPool.push({ root: f.root, materials: f.materials });
+                this.frags.splice(i, 1);
+                continue;
+            }
+            if (!f.landed) {
+                const y = f.groundY + 1.5 + f.vy * age - 0.5 * FRAG_GRAVITY * age * age;
+                if (y <= f.groundY + 0.4 * f.scale) {
+                    // settle where it fell and stop tumbling
+                    f.landed = true;
+                    f.root.position.y = f.groundY + 0.4 * f.scale;
+                } else {
+                    f.root.position.set(f.x + f.vx * age, y, f.z + f.vz * age);
+                    f.root.rotation.set(
+                        f.rot0x + f.spinX * age,
+                        f.rot0y,
+                        f.rot0z + f.spinZ * age,
+                    );
                 }
             }
+            const fadeT = (age - (FRAG_LIFE - FRAG_FADE)) / FRAG_FADE;
+            setSpellOpacity(f.materials, fadeT <= 0 ? 1 : 1 - fadeT);
         }
     }
 

@@ -224,13 +224,13 @@ export const TACTICS: Record<
     },
     [BIG_METEOR_ID]: {
         id: BIG_METEOR_ID,
-        name: 'Great Meteor',
+        name: 'Meteor',
         icon: 'tactic-meteor',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 3,
+        cooldownRounds: 2,
         radius: 3 * CELL,
-        spell: { delaySeconds: 4, strike: { damage: 3000, radius: 3 * CELL } },
+        spell: { delaySeconds: 4, strike: { damage: 200, radius: 3 * CELL } },
         description:
             'Mark a small circle anywhere. Seconds into the battle a meteor obliterates everything there — only ward domes protect (and pay for it).',
     },

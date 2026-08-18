@@ -19,6 +19,7 @@ import {
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
+    BIG_METEOR_ID,
     MOVE_UNIT_ID,
     SELL_UNIT_ID,
     SPAWN_CROWS_ID,
@@ -28,13 +29,22 @@ import {
 } from './tactics';
 import { forgeIngredientIcons } from './forgeRecipes';
 
-export type SpecialityId = 'air' | 'costControl' | 'elite' | 'archer' | 'addi' | 'flanky';
+export type SpecialityId =
+    | 'air'
+    | 'costControl'
+    | 'elite'
+    | 'archer'
+    | 'addi'
+    | 'flanky'
+    | 'meteor';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
 export const COST_CONTROL_PENALTY = 0.12; // all units: −12% attack & hp ...
 export const COST_CONTROL_INCOME = 100; // ... but +100 supply every round
 export const FREE_ARCHER_ROUND = 2; // the archer specialist's gift arrives here
+/** round a commander's gifted tactic charges (StartCard.tactics) land in */
+export const SPECIALITY_TACTIC_ROUND = 2;
 export const FREE_ARCHER_LEVEL = 3;
 export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
 /** flank spawn duration multiplier when the Flanky card/speciality is owned */
@@ -270,6 +280,7 @@ export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
     archer: 'archer',
     addi: 'crowRider',
     flanky: 'dwarf',
+    meteor: 'wizard',
 };
 
 export interface StartCard {
@@ -285,6 +296,12 @@ export interface StartCard {
     speciality: SpecialityId;
     /** pack items granted into the player's inventory */
     items?: string[];
+    /**
+     * Tactic charges this commander is gifted — NOT at pick time: they arrive
+     * at the start of round {@link SPECIALITY_TACTIC_ROUND}, like the archer's
+     * free unit. Round 1 stays clean of commander spells.
+     */
+    tactics?: string[];
     /**
      * Stronghold forge spells this specialist unlocks (tactic ids).
      * Teammates share the union. One 1-rune, one 2-rune, one 3-rune spell.
@@ -379,6 +396,18 @@ export const START_CARDS: StartCard[] = [
         items: ['addi', 'addi', 'addi'],
         forgeSpells: [OIL_SPILL_ID, ACID_ID, HAMMER_ID],
         description: '3× Valor rune: +15% attack and HP for one pack each.',
+    },
+    {
+        id: 'meteor',
+        title: 'Lord Hitzkopf',
+        portrait: 'spec-meteor',
+        units: ['wizard', 'dwarf'],
+        unitsLabel: '1× Wizard · 1× Dwarves',
+        startingHp: 2500,
+        speciality: 'meteor',
+        tactics: [BIG_METEOR_ID, BIG_METEOR_ID],
+        forgeSpells: [FIRE_SPILL_ID, BIG_METEOR_ID, METEOR_SHOWER_ID],
+        description: 'Gets 2 Meteor charges in round 2.',
     },
     {
         id: 'flanky',

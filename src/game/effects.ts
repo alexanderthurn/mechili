@@ -1,3 +1,4 @@
+import { screenShake } from './screenShake';
 import {
     AdditiveBlending,
     BoxGeometry,
@@ -255,6 +256,41 @@ export class Particles {
                             speed: 22,
                             life: 0.85,
                             up: 3,
+                        });
+                    }
+                    if (e.fire) {
+                        // the dust above is deliberately cold; a burning rock
+                        // needs a hot core FIRST (short + bright, additive
+                        // sparks pool), then embers riding the dust up
+                        this.burst(e.x, e.y + 0.4, e.z, {
+                            count: Math.round(26 * s),
+                            color: 0xfff0c0,
+                            speed: 26 * s,
+                            life: 0.16,
+                            up: 4,
+                        });
+                        this.burst(e.x, e.y + 0.5, e.z, {
+                            count: Math.round(34 * s),
+                            color: 0xff9a3c,
+                            speed: 19 * s,
+                            life: 0.4,
+                            up: 9,
+                        });
+                        this.burst(e.x, e.y + 0.8, e.z, {
+                            count: Math.round(20 * s),
+                            color: 0xd8431a,
+                            speed: 11 * s,
+                            life: 0.85,
+                            up: 14,
+                        });
+                    }
+                    if (e.shake) {
+                        // heavier + longer than a unit hit, but well under the
+                        // post-battle HP-draw kicks (see tickHpDraw)
+                        screenShake({
+                            intensity: 0.5 * e.shake,
+                            duration: 0.5,
+                            frequency: 46,
                         });
                     }
                     break;

@@ -85,6 +85,7 @@ import {
     ELITE_ROUND1_BONUS,
     FREE_ARCHER_LEVEL,
     FREE_ARCHER_ROUND,
+    SPECIALITY_TACTIC_ROUND,
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
@@ -2695,6 +2696,14 @@ export class Game {
             // the elite's round-1 top-up: exactly two level-2 units at 150
             if (this.speciality[seat] === 'elite' && this.round === 1) {
                 this.economy.credit(seat, ELITE_ROUND1_BONUS);
+            }
+            // a commander's gifted spell charges (Lord Hitzkopf's meteors).
+            // Same log-free reasoning as the archer gift below: it must run on
+            // every peer, hydrating included, or the two sides disagree about
+            // how many charges exist and one accepts a cast the other rejects
+            if (this.round === SPECIALITY_TACTIC_ROUND) {
+                const gift = this.starterCardOfSeat(seat)?.tactics;
+                if (gift) this.tacticInventory[seat]!.push(...gift);
             }
             // NOTE: must also run while hydrating — the gift is never in the
             // action log, so a rebuild that skipped it would produce a
@@ -7571,7 +7580,7 @@ export class Game {
                 return { x: s.x, z: s.z, at, yaw: s.yaw ?? 0 };
             });
         this.hammerFx.schedule(hammerCues);
-        // Great Meteor drop
+        // Meteor drop
         this.meteorFx.scheduleGreat(
             pendingSpells
                 .filter((s) => s.tacticId === BIG_METEOR_ID)
