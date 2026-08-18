@@ -392,6 +392,18 @@ export class Scenery {
         return Math.max(heightRock, slopeRock) * (1 - snowF);
     }
 
+    /** 0..1 how well this spot holds snow — slope sheds it, altitude adds it back on peaks. */
+    private snowRetentionAt(x: number, z: number, h = this.terrainHeight(x, z)): number {
+        const eps = 2;
+        const dhdx = (this.terrainHeight(x + eps, z) - this.terrainHeight(x - eps, z)) / (2 * eps);
+        const dhdz = (this.terrainHeight(x, z + eps) - this.terrainHeight(x, z - eps)) / (2 * eps);
+        const ny = 1 / Math.hypot(dhdx, 1, dhdz);
+        const slope = 1 - ny;
+        const slopeHold = 1 - smooth01((slope - 0.24) / 0.5) * 0.72;
+        const peakBoost = smooth01((h - 120) / 100);
+        return Math.min(1, slopeHold + peakBoost * 0.75);
+    }
+
     /** True where the meadow texture still reads green (not mountain stone). */
     private isGrassy(x: number, z: number): boolean {
         return this.rockFactorAt(x, z) < 0.32;
@@ -989,9 +1001,10 @@ export class Scenery {
             beach[i] = Math.min(1, Math.max(shore, patch)) * smooth01((dOut - 15) / 25);
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
+            const staticSnow = smooth01((h - 162) / 48) * this.snowRetentionAt(x, z, h);
             c.copy(meadow)
                 .lerp(rockVar, smooth01((h - 12) / 45))
-                .lerp(snow, smooth01((h - 180) / 55));
+                .lerp(snow, staticSnow);
 
             colors[i * 3] = c.r;
             colors[i * 3 + 1] = c.g;
@@ -1038,14 +1051,8 @@ export class Scenery {
                 );
 
             const inject = `
-    // permanent alpine snowcap — always on, independent of weather
-    float alpineSnow = smoothstep(170.0, 235.0, vTerrainH);
-    // weather-driven cover: soft snow line descending from the peaks
-    float snowLine = mix(220.0, -15.0, uSnowCover);
-    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
-    // alpine stays bright; weather frost on meadow/board is softer (matches map.ts)
-    float snowF = max(alpineSnow, weatherSnow * 0.82);
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);
+${OUTER_MOUNTAIN_SNOW_GLSL}
+    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
             `;
 
             let frag =
@@ -1058,7 +1065,7 @@ export class Scenery {
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v1-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v3-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -1220,18 +1227,11 @@ export class Scenery {
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uShore, vWorldXZ / ${shoreTile.toFixed(1)}).rgb, vBeach);`;
             }
             inject += `
-    // permanent alpine snowcap — always on, independent of weather
-    float alpineSnow = smoothstep(170.0, 235.0, vTerrainH);
-    // weather-driven cover: soft snow line descending from the peaks
-    // (full white at meadow level — matches the board wash).
-    float snowLine = mix(220.0, -15.0, uSnowCover);
-    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
-    // alpine stays bright; weather frost on meadow/board is softer (matches map.ts)
-    float snowF = max(alpineSnow, weatherSnow * 0.82);
+${OUTER_MOUNTAIN_SNOW_GLSL}
     float rockF = 0.0;`;
             if (rock) {
                 inject += `
-    rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF);
+    rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH)) * (1.0 - snowF) * (1.0 - deepWinter * 0.72);
     vec3 rockCol = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;`;
                 if (rockPhoto1) {
                     const rk = PHOTO_BLEND.rock;
@@ -1251,10 +1251,10 @@ export class Scenery {
                 inject += `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
     // same snow tint as the board (see map.ts) so the field edge matches
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);`;
             } else {
                 inject += `
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
@@ -1288,7 +1288,7 @@ export class Scenery {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v16${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v18${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -1972,6 +1972,23 @@ export class Scenery {
         }
     }
 }
+
+/**
+ * Shared outer-mountain snow: slope retention + peak height boost + winter-depth amp.
+ * `uSnowCover` ~0.8 = first snow (little extra); ~1.0 = deep winter (much whiter).
+ */
+const OUTER_MOUNTAIN_SNOW_GLSL = `
+    float slopeHold = 1.0 - smoothstep(0.24, 0.74, vSlope) * 0.72;
+    float peakBoost = smoothstep(120.0, 240.0, vTerrainH);
+    float snowHold = min(1.0, slopeHold + peakBoost * 0.75);
+    float deepWinter = smoothstep(0.82, 1.0, uSnowCover);
+    float alpineSnow = smoothstep(155.0, 220.0, vTerrainH) * snowHold;
+    float snowLine = mix(220.0, -15.0, min(1.0, uSnowCover + deepWinter * 0.18));
+    float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH) * snowHold;
+    float winterAmp = mix(1.08, 1.85, smoothstep(0.72, 1.0, uSnowCover));
+    float mountainLift = smoothstep(28.0, 150.0, vTerrainH) * deepWinter * 0.48;
+    float snowF = min(1.0, max(alpineSnow, weatherSnow * 0.92) * winterAmp + mountainLift);
+    vec3 snowCol = mix(vec3(0.92, 0.95, 0.98), vec3(0.98, 0.99, 1.0), deepWinter);`;
 
 /** a handful of tapered grass blades, white — tinted green per instance */
 function makeTuftTexture(): CanvasTexture {
