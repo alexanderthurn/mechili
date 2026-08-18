@@ -86,6 +86,7 @@ import {
     FREE_ARCHER_LEVEL,
     FREE_ARCHER_ROUND,
     SPECIALITY_TACTIC_ROUND,
+    SPEED_COMMANDER_BONUS,
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
@@ -6231,6 +6232,10 @@ export class Game {
             stats.attackInterval *= mods.attackInterval ?? 1;
         }
         const rb = this.settings.deploy;
+        // flat, and after the item loop on purpose — a speed rune multiplies
+        // the unit's own speed, not the commander's gift (same rule as the
+        // one-round Vanguard boost below)
+        if (spec === 'speed' && !type.structure) stats.speed += SPEED_COMMANDER_BONUS;
         if (this.roundBoosts.speed[unit.seat]) stats.speed += rb.speedBoost;
         if (this.roundBoosts.range[unit.seat] && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;

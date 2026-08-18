@@ -36,7 +36,8 @@ export type SpecialityId =
     | 'archer'
     | 'addi'
     | 'flanky'
-    | 'meteor';
+    | 'meteor'
+    | 'speed';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
@@ -45,6 +46,13 @@ export const COST_CONTROL_INCOME = 100; // ... but +100 supply every round
 export const FREE_ARCHER_ROUND = 2; // the archer specialist's gift arrives here
 /** round a commander's gifted tactic charges (StartCard.tactics) land in */
 export const SPECIALITY_TACTIC_ROUND = 2;
+/**
+ * Madam Speed: flat movement bonus for every non-structure pack, permanently.
+ * Same magnitude as the Vanguard's one-round speed boost
+ * ({@link DeploySettings.speedBoost}) and applied the same way — added at the
+ * very end, so runes cannot multiply it.
+ */
+export const SPEED_COMMANDER_BONUS = 3;
 export const FREE_ARCHER_LEVEL = 3;
 export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
 /** flank spawn duration multiplier when the Flanky card/speciality is owned */
@@ -281,6 +289,7 @@ export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
     addi: 'crowRider',
     flanky: 'dwarf',
     meteor: 'wizard',
+    speed: 'crowRider',
 };
 
 export interface StartCard {
@@ -408,6 +417,17 @@ export const START_CARDS: StartCard[] = [
         tactics: [BIG_METEOR_ID, BIG_METEOR_ID],
         forgeSpells: [FIRE_SPILL_ID, BIG_METEOR_ID, METEOR_SHOWER_ID],
         description: 'Gets 2 Meteor charges in round 2.',
+    },
+    {
+        id: 'speed',
+        title: 'Madam Speed',
+        portrait: 'spec-speed',
+        units: ['crowRider', 'archer', 'dwarf', 'dwarf'],
+        unitsLabel: '1× Crow Riders · 1× Archers · 2× Dwarves',
+        startingHp: 3000,
+        speciality: 'speed',
+        forgeSpells: [OIL_SPILL_ID, SPAWN_CROWS_ID, DRAGON_ID],
+        description: `All units move +${SPEED_COMMANDER_BONUS} faster.`,
     },
     {
         id: 'flanky',
