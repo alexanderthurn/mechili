@@ -26,10 +26,10 @@ const MAX_HP_DRAW = 256;
 /** Distance along the view ray for the HP-portrait anchor in world space. */
 const CORNER_RAY_DIST = 42;
 /** Arrive when within this many world units of the moving target. */
-const HIT_RADIUS = 1.8;
+const HIT_RADIUS = 2.2;
 /** Extra seconds past scheduled hitTime before forcing a hit. */
 const HIT_GRACE_SECONDS = 0.45;
-/** Hold launch heading briefly before homing toward the HP portrait. */
+/** Hold launch heading briefly before steering toward the HP portrait. */
 const BOOST_SECONDS = 0.07;
 
 // --- flight feel (tune these) ---
@@ -37,12 +37,17 @@ const BOOST_SECONDS = 0.07;
 const SPEED_START = 50;
 /** Constant acceleration — far souls fly longer, so they end up faster. */
 const ACCEL = 150;
-/** Homing turn rate (rad/s). */
-const TURN_RATE = 5;
-/** Within this distance, turn ramps up toward CLOSE_TURN_MULT. */
-const CLOSE_TURN_DIST = 22;
-/** Peak turn multiplier at the HP corner. */
-const CLOSE_TURN_MULT = 100;
+/** Homing turn rate (rad/s) — moderate; close range uses direct lerp instead. */
+const TURN_RATE = 4.5;
+/** Within this distance, steer blends into a straight lerp (no tight orbits). */
+const DIRECT_APPROACH_DIST = 20;
+/** Reference distance for sprite shrink as souls near the portrait. */
+const APPROACH_REF_DIST = 22;
+/** Screen-space finish: soul portrait center within this 0..1 distance → done. */
+const FINISH_SCREEN_DIST = 0.09;
+/** Also finish once the soul reaches the top band near its portrait X. */
+const FINISH_TOP_BAND_Y = 0.11;
+const FINISH_TOP_BAND_X = 0.18;
 /**
  * Camera distance used as “normal” sprite size. Closer than this → scale down
  * so sizeAttenuation doesn’t blow the soul across the whole HUD.
@@ -176,6 +181,7 @@ export class HpDrawFx {
     private readonly ndc = new Vector2();
     private readonly cornerPlayer = new Vector3();
     private readonly cornerEnemy = new Vector3();
+    private readonly proj = new Vector3();
     private particles: LiveProjectile[] = [];
     private elapsed = 0;
     private readonly pendingMatBinds: SpriteMaterial[] = [];
@@ -297,6 +303,7 @@ export class HpDrawFx {
 
         for (const p of this.particles) {
             const target = p.victim === 'player' ? this.cornerPlayer : this.cornerEnemy;
+            const aim = p.victim === 'player' ? playerAim : enemyAim;
             let appear = 1;
 
             if (this.elapsed < p.launchTime) {
@@ -328,39 +335,63 @@ export class HpDrawFx {
 
                 appear = 1;
                 const dist = p.pos.distanceTo(target);
+                const screen = this.worldToScreenNorm(p.pos, camera);
+                const reachedPortrait = screen
+                    ? soulReachedPortrait(screen, aim)
+                    : false;
 
                 if (
                     !p.hit &&
-                    (dist <= HIT_RADIUS || this.elapsed >= p.hitTime + HIT_GRACE_SECONDS)
+                    (dist <= HIT_RADIUS ||
+                        reachedPortrait ||
+                        this.elapsed >= p.hitTime + HIT_GRACE_SECONDS)
                 ) {
                     p.hit = true;
                     hits.push({ victim: p.victim, damage: p.damage, tier: p.tier });
                 } else if (!p.hit) {
                     p.speed = SPEED_START + ACCEL * flightAge;
-                    const closeT = 1 - MathUtils.clamp(dist / CLOSE_TURN_DIST, 0, 1);
-                    const turn =
-                        TURN_RATE * (1 + closeT * closeT * (CLOSE_TURN_MULT - 1));
 
-                    if (flightAge < BOOST_SECONDS) {
-                        // Keep the ground-toward-camera heading for a beat
+                    this.desired.subVectors(target, p.pos);
+                    const toTargetLen = this.desired.length();
+                    if (toTargetLen > 1e-8) this.desired.multiplyScalar(1 / toTargetLen);
+
+                    // Overshot the corner while close — count it, don't orbit back.
+                    if (
+                        toTargetLen < DIRECT_APPROACH_DIST * 1.4 &&
+                        p.vel.dot(this.desired) < 0
+                    ) {
+                        p.hit = true;
+                        hits.push({ victim: p.victim, damage: p.damage, tier: p.tier });
+                    } else if (toTargetLen <= DIRECT_APPROACH_DIST) {
+                        // Glide straight into the portrait — no homing missile spirals.
+                        const t = MathUtils.clamp(
+                            dtSeconds * (4 + (1 - toTargetLen / DIRECT_APPROACH_DIST) * 12),
+                            0,
+                            1,
+                        );
+                        p.pos.lerp(target, t);
+                        if (toTargetLen > 1e-8) {
+                            p.vel.copy(this.desired).multiplyScalar(p.speed);
+                        }
+                    } else if (flightAge < BOOST_SECONDS) {
                         this.velDir.copy(p.vel);
                         if (this.velDir.lengthSq() < 1e-8) this.velDir.copy(this.launchDir);
                         else this.velDir.normalize();
                         p.vel.copy(this.velDir).multiplyScalar(p.speed);
+                        p.pos.addScaledVector(p.vel, dtSeconds);
                     } else {
-                        this.desired.subVectors(target, p.pos);
-                        if (this.desired.lengthSq() < 1e-8) this.desired.set(0, 1, 0);
-                        else this.desired.normalize();
-
                         this.velDir.copy(p.vel);
                         if (this.velDir.lengthSq() < 1e-8) this.velDir.set(0, 1, 0);
                         else this.velDir.normalize();
 
-                        steerDirection(this.velDir, this.desired, turn * dtSeconds);
+                        steerDirection(
+                            this.velDir,
+                            this.desired,
+                            TURN_RATE * dtSeconds,
+                        );
                         p.vel.copy(this.velDir).multiplyScalar(p.speed);
+                        p.pos.addScaledVector(p.vel, dtSeconds);
                     }
-
-                    p.pos.addScaledVector(p.vel, dtSeconds);
                 }
             }
 
@@ -379,8 +410,8 @@ export class HpDrawFx {
             // Counter sizeAttenuation near the camera + shrink into the portrait
             const distCam = p.pos.distanceTo(camera.position);
             const camScale = MathUtils.clamp(distCam / SOUL_REF_CAM_DIST, 0.08, 1.35);
-            const toTarget = p.flying ? p.pos.distanceTo(target) : CLOSE_TURN_DIST;
-            const approach = MathUtils.clamp(toTarget / CLOSE_TURN_DIST, 0.1, 1);
+            const toTarget = p.flying ? p.pos.distanceTo(target) : APPROACH_REF_DIST;
+            const approach = MathUtils.clamp(toTarget / APPROACH_REF_DIST, 0.1, 1);
             const sizeMul = camScale * (0.35 + 0.65 * approach);
             const base = p.meshScale * SOUL_SPRITE_MULT[p.tier] * appear * sizeMul;
             p.sprite.scale.set(base * 0.65, base, 1);
@@ -431,6 +462,20 @@ export class HpDrawFx {
         this.root.removeFromParent();
         this.root.clear();
     }
+
+    /** World position → 0..1 screen (top-left origin), or null if behind camera. */
+    private worldToScreenNorm(
+        pos: Vector3,
+        camera: PerspectiveCamera,
+    ): { x: number; y: number } | null {
+        this.proj.copy(pos);
+        this.proj.project(camera);
+        if (this.proj.z > 1) return null;
+        return {
+            x: MathUtils.clamp(this.proj.x * 0.5 + 0.5, 0, 1),
+            y: MathUtils.clamp(0.5 - this.proj.y * 0.5, 0, 1),
+        };
+    }
 }
 
 function steerDirection(current: Vector3, desired: Vector3, maxRad: number): void {
@@ -441,6 +486,19 @@ function steerDirection(current: Vector3, desired: Vector3, maxRad: number): voi
         return;
     }
     current.lerp(desired, Math.min(1, maxRad / angle)).normalize();
+}
+
+/** Screen-space finish — close to portrait or risen into the top HUD band. */
+function soulReachedPortrait(
+    screen: { x: number; y: number },
+    aim: { x: number; y: number },
+): boolean {
+    const dx = screen.x - aim.x;
+    const dy = screen.y - aim.y;
+    if (Math.hypot(dx, dy) <= FINISH_SCREEN_DIST) return true;
+    return (
+        screen.y <= aim.y + FINISH_TOP_BAND_Y && Math.abs(dx) <= FINISH_TOP_BAND_X
+    );
 }
 
 /** Center of a fightbar portrait in 0..1 view coords (origin top-left), or null. */
