@@ -1217,7 +1217,11 @@ export class PlacementController {
 
         for (const unit of this.units) {
             if (!this.enemyIntelVisible(unit)) continue;
-            const world = this.intelWorldOf(unit);
+            // During build-phase dragging, `unit.world` is updated only on drop
+            // (see `visibleMemberWorldPositions` comment). Status-strip badges
+            // need to follow the live pose, so use `view.position` when the
+            // unit is not fogged.
+            const world = this.isFogged(unit) ? this.intelWorldOf(unit) : unit.view.position;
             // forge spell badge is deploy-only (battle shows chimney sparks instead)
             const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
             if (forge) {
