@@ -79,7 +79,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     // the two base buildings — distinct castles instead of the shared procedural tower
     'command-tower': { url: new URL('../../assets/models/command-tower.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower
     stronghold: { url: new URL('../../assets/models/stronghold.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep + Flag empty for the mast
-    'research-center': { url: new URL('../../assets/models/research-center-fantasy.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 1.25 }, // wizard tower
+    'research-center': { url: new URL('../../assets/models/research-center.glb', import.meta.url).href, yaw: MODEL_FWD_YAW-70, scale: 1.0 }, // wizard tower
 };
 
 type Template = Group;

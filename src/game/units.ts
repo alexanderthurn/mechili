@@ -642,7 +642,7 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
     };
 }
 
-export const COMMAND_TOWER = makeTower('command-tower', 'Vanguard', 2.0, 3);
+export const COMMAND_TOWER = makeTower('command-tower', 'Vanguard', 3.0, 3);
 export const RESEARCH_CENTER = makeTower('research-center', 'Garrison');
 /** each side's main castle at the back of its territory — bigger and sturdier */
 export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 1600);
