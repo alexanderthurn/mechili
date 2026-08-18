@@ -465,14 +465,17 @@ if (isElectron()) {
     });
 }
 
-// Closing a tab is as deliberate as closing the window, and without a goodbye
-// the host only learns from the liveness watchdog ~10s later — long enough that
-// reopening the room URL straight away is refused as "Room is full", the seat
-// still being held for a player who has already left and come back.
+// A tab going away is NOT necessarily deliberate: `pagehide` fires for a reload
+// exactly as it does for a close, so this must not report a quit — see
+// Game.leaveForPageHide, which drops a guest's link (fast suspend, seat held)
+// instead of forfeiting the match on F5.
 // pagehide, not beforeunload: it also fires when a tab is discarded or the page
 // is put into the back/forward cache, and it is the one the browser still runs
 // work from. Nothing can be awaited here — the send is best-effort.
-window.addEventListener('pagehide', () => sayGoodbye());
+window.addEventListener('pagehide', () => {
+    if (activeGame) activeGame.leaveForPageHide();
+    else if (isSessionBusy()) cancelMenuPending();
+});
 
 // A default nobody picked must not strand the player: launching without Steam
 // leaves the Steam default unusable for the whole session (steam.init runs once

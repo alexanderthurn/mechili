@@ -4649,6 +4649,34 @@ export class Game {
      * whole match is ending (no host migration — nothing can continue
      * without it).
      */
+    /**
+     * The page is going away — a tab close, a discard, or a RELOAD.
+     *
+     * Deliberately not voluntaryQuit(): `pagehide` cannot tell a reload from a
+     * close, and a reload is precisely the case the resume marker exists for.
+     * Reporting it as a quit made the host hand the seat to AI — or, in 1v1
+     * where that seat is the side's only human, forfeit it outright, so
+     * pressing reload lost the match instantly.
+     *
+     * A guest therefore just drops its link. The host still sees it at once
+     * (a closed connection suspends the seat immediately, rather than waiting
+     * out the ~10s liveness watchdog, which was the point of saying goodbye at
+     * all) and holds the seat for the grace window, which is long enough to
+     * reload into and reclaim.
+     *
+     * A host, or a classic 1v1 peer, keeps announcing the quit: neither can be
+     * resumed after the page goes away, so leaving the other side hoping for a
+     * reconnect that can never arrive would be worse than ending it cleanly.
+     */
+    leaveForPageHide(): void {
+        if (this.matchOver || this.disposed) return;
+        if (this.star?.role === 'guest') {
+            this.star.session.close();
+            return;
+        }
+        this.voluntaryQuit();
+    }
+
     voluntaryQuit(): void {
         if (!this.matchOver && !this.disposed) {
             if (this.net) {
