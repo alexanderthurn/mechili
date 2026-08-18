@@ -62,7 +62,12 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
-import { SETTINGS_SAV_EXCLUDE, USER_STORAGE_PREFIX, migrateUserStorage } from './game/userStorage';
+import {
+    SETTINGS_SAV_EXCLUDE,
+    USER_AVATAR_STEAM_KEY,
+    USER_STORAGE_PREFIX,
+    migrateUserStorage,
+} from './game/userStorage';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -402,6 +407,14 @@ if (isElectron()) {
     await mirrorLocalStorage({
         file: 'user.sav',
         prefix: USER_STORAGE_PREFIX,
+        // The cached Steam avatar stays local. It is ~120 KB of base64 that
+        // Steam hands us again on request, so syncing it bought nothing and
+        // cost plenty: user.sav is shared by every app id on purpose, and a
+        // quarter-megabyte rewritten whenever the avatar is re-read is exactly
+        // the kind of frequent, shared write that produces cloud conflicts. A
+        // CUSTOM avatar (USER_AVATAR_KEY) still syncs — that one is the
+        // player's own and cannot be recovered from anywhere else.
+        exclude: [USER_AVATAR_STEAM_KEY],
     });
 }
 migrateUserStorage();

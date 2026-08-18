@@ -47,10 +47,30 @@ export function migrateUserStorageKey(legacyKey: string, nextKey: string): void 
     }
 }
 
+/**
+ * Drop a "custom" avatar that is really just a copy of the Steam one.
+ *
+ * The pre-split key held whichever avatar was in use, so migrating it forward
+ * left players whose avatar came FROM Steam looking like they had picked their
+ * own — hasCustomAvatar() said yes, and ~120 KB of duplicate base64 went to the
+ * cloud on every write. The Steam cache covers that case by itself.
+ */
+function dropRedundantCustomAvatar(): void {
+    try {
+        const custom = localStorage.getItem(USER_AVATAR_KEY);
+        if (custom && custom === localStorage.getItem(USER_AVATAR_STEAM_KEY)) {
+            localStorage.removeItem(USER_AVATAR_KEY);
+        }
+    } catch {
+        /* private browsing */
+    }
+}
+
 export function migrateUserStorage(): void {
     migrateUserStorageKey('mechili-username', USER_NAME_KEY);
     migrateUserStorageKey('mechili-avatar', USER_AVATAR_KEY);
     migrateUserStorageKey('mechili-avatar-steam', USER_AVATAR_STEAM_KEY);
+    dropRedundantCustomAvatar();
 }
 
 /** True for identity keys that must survive a settings reset. */
