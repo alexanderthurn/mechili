@@ -299,8 +299,8 @@ export class Scenery {
             // you climb, not extra summits. ~15wu / ~8wu so the mesh can hold them.
             const climb = smooth01((base - 12) / 90);
             const wrinkles =
-                (noise(x / 15 + 14.2, z / 15 + 3.6) - 0.5) * 10 * climb +
-                (noise(x / 8 + 27.1, z / 8 + 41.8) - 0.5) * 4 * climb;
+                (noise(x / 22 + 14.2, z / 22 + 3.6) - 0.5) * 6 * climb +
+                (noise(x / 12 + 27.1, z / 12 + 41.8) - 0.5) * 2.2 * climb;
 
             // lakes win over everything: where the basin noise runs high the
             // ground is pressed to -7, well below the water table at -1.1
@@ -1085,7 +1085,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v6-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v8-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -1252,8 +1252,10 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
             if (rock) {
                 inject += `
     rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH));
-    rockF = max(rockF * (1.0 - snowF), cliffStrip * (0.22 + breakup * 0.62) * mix(0.12, 0.85, deepWinter));
-    vec3 rockCol = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;
+    rockF = max(rockF * (1.0 - snowF), cliffStrip * (0.1 + breakup * 0.32) * mix(0.08, 0.5, deepWinter));
+    vec3 rockTop = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;
+    vec3 rockSide = texture2D(uRock, vec2(length(vWorldXZ), vTerrainH) / ${rockTile.toFixed(1)}).rgb;
+    vec3 rockCol = mix(rockTop, rockSide, smoothstep(0.3, 0.72, vSlope));
     rockCol *= mix(vec3(1.0), vec3(0.42, 0.4, 0.38), deepWinter * mountainZone);`;
                 if (rockPhoto1) {
                     const rk = PHOTO_BLEND.rock;
@@ -1312,7 +1314,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v21${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v23${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -2003,22 +2005,22 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
  */
 const OUTER_MOUNTAIN_SNOW_GLSL = `
     float mountainZone = smoothstep(16.0, 55.0, vTerrainH);
-    float slopeHold = 1.0 - smoothstep(0.24, 0.74, vSlope) * 0.72;
+    float slopeHold = 1.0 - smoothstep(0.34, 0.88, vSlope) * 0.5;
     float peakBoost = smoothstep(120.0, 240.0, vTerrainH);
-    float snowHold = min(1.0, slopeHold + peakBoost * 0.75);
+    float snowHold = min(1.0, slopeHold + peakBoost * 0.85);
     float deepWinter = smoothstep(0.82, 1.0, uSnowCover);
     float alpineSnow = smoothstep(148.0, 215.0, vTerrainH) * snowHold;
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
     float meadowSnow = weatherSnow * 0.82;
-    float winterAmp = mix(1.05, 1.42, smoothstep(0.72, 1.0, uSnowCover));
-    float mountainLift = smoothstep(40.0, 170.0, vTerrainH) * deepWinter * 0.32;
+    float winterAmp = mix(1.05, 1.68, smoothstep(0.72, 1.0, uSnowCover));
+    float mountainLift = smoothstep(40.0, 170.0, vTerrainH) * deepWinter * 0.48;
     float mountainSnow = min(1.0, max(alpineSnow, weatherSnow * snowHold * 0.92) * winterAmp + mountainLift);
     float macroN = fract(sin(dot(floor(vWorldXZ * 0.04), vec2(127.1, 311.7))) * 43758.5453);
     float mesoN = fract(sin(dot(vWorldXZ * 0.13, vec2(269.5, 183.3))) * 43758.5453);
     float breakup = macroN * 0.62 + mesoN * 0.38;
-    float cliffStrip = smoothstep(0.38, 0.78, vSlope) * smoothstep(28.0, 160.0, vTerrainH);
-    mountainSnow = clamp(mountainSnow - cliffStrip * (0.28 + breakup * 0.55), 0.0, 1.0);
+    float cliffStrip = smoothstep(0.5, 0.9, vSlope) * smoothstep(40.0, 170.0, vTerrainH);
+    mountainSnow = clamp(mountainSnow - cliffStrip * (0.12 + breakup * 0.28), 0.0, 1.0);
     float snowF = mix(meadowSnow, mountainSnow, mountainZone);
     vec3 meadowCol = vec3(0.92, 0.95, 0.98);
     vec3 snowHi = mix(meadowCol, vec3(1.0, 1.0, 1.0), deepWinter);
