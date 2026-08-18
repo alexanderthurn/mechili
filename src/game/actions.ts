@@ -48,7 +48,7 @@ import type {
 } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
-import { unitTypeById, unitUnlockCost, isPlayerBuyable, type Team, type Unit, type UnitType } from './units';
+import { levelBasisOf, unitTypeById, unitUnlockCost, isPlayerBuyable, type Team, type Unit, type UnitType } from './units';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -527,7 +527,8 @@ export interface ActionContext {
 
 /** supply price of raising a pack of this type by one level */
 export function levelCost(type: UnitType, economy: Economy, leveling: LevelingSettings): number {
-    return Math.round(economy.costOf(type) * leveling.levelCostFactor);
+    // levelBasisOf, not costOf: a spawn-only unit is free but must not level free
+    return Math.round(levelBasisOf(type) * leveling.levelCostFactor);
 }
 
 /** banked XP needed to buy the next level at a given veterancy */
@@ -537,7 +538,7 @@ export function xpThresholdFor(
     economy: Economy,
     leveling: LevelingSettings,
 ): number {
-    return economy.costOf(type) * leveling.xpThresholdFactor * level;
+    return levelBasisOf(type) * leveling.xpThresholdFactor * level;
 }
 
 /** banked XP a pack needs before its next level can be bought */

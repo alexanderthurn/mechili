@@ -249,6 +249,21 @@ export interface UnitType {
      * types set this — omit for towers / board extras / unlisted types.
      */
     unlockCost?: number;
+    /**
+     * Supply value used for LEVEL price and XP thresholds when it must differ
+     * from {@link cost}. Spawn-only units are free (`cost: 0`), which made both
+     * the level price and the XP threshold 0 — i.e. instant, free, repeatable
+     * level-ups. Money (buy price, sell refund) still uses `cost`, so raising
+     * this cannot be farmed for supply.
+     */
+    levelBasis?: number;
+    /**
+     * XP granted to the killer per member of this pack killed. Defaults to
+     * `cost / memberCount`, which is 0 for spawn-only (free) units and scales
+     * oddly for very large or very small packs — set it when the kill should
+     * simply be worth a fixed amount.
+     */
+    xpValue?: number;
     /** tiles this unit occupies on the grid (width x depth) */
     footprint: GridExtent;
     /** how many individual mechs stand inside the footprint (width x depth) */
@@ -673,8 +688,9 @@ export const HORDE_BRUT: UnitType = {
     collisionRadius: 0.45,
     colliders: [{ y: 0.3, r: 0.5 }],
     sandWeight: 0.15,
-    hp: 24,
-    damage: 5,
+    hp: 42,
+    xpValue: 1,
+    damage: 10,
     range: 2,
     attackInterval: 0.65,
     speed: 12,
@@ -709,8 +725,8 @@ export const HORDE_WEBWEAVER: UnitType = {
     projectileSpeed: 55,
     projectileStyle: 'bolt',
     corrodeOnHit: { seconds: 5 },
-    hp: 150,
-    damage: 50,
+    hp: 210,
+    damage: 100,
     range: 16,
     attackInterval: 0.9,
     speed: 12,
@@ -725,6 +741,7 @@ export const HORDE_BRUT_SPAWN: UnitType = {
     id: 'hordeBrutSpawn',
     name: 'Black Brood',
     cost: 0,
+    levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
     hpWithdraw: 2,
     buyable: false,
     modelId: 'horde',
@@ -737,8 +754,9 @@ export const HORDE_BRUT_SPAWN: UnitType = {
     collisionRadius: 0.45,
     colliders: [{ y: 0.3, r: 0.5 }],
     sandWeight: 0.15,
-    hp: 24,
-    damage: 5,
+    hp: 42,
+    xpValue: 1,
+    damage: 10,
     range: 2,
     attackInterval: 0.65,
     speed: 12,
@@ -817,6 +835,7 @@ export const HORDE_FARMER_SPAWN: UnitType = {
     id: 'hordeFarmerSpawn',
     name: 'Dead Farmhand',
     cost: 0,
+    levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
     hpWithdraw: 4,
     buyable: false,
     modelId: 'horde2',
@@ -1678,6 +1697,11 @@ export function unitTypeById(id: string): UnitType | null {
 }
 
 /** once-per-deployment shop unlock fee — {@link UnitType.unlockCost} */
+/** what one level costs / how much XP it needs, in supply terms */
+export function levelBasisOf(type: UnitType): number {
+    return type.levelBasis ?? type.cost;
+}
+
 export function unitUnlockCost(typeId: string): number {
     const type = unitTypeById(typeId);
     if (!type || !isPlayerBuyable(type)) return Number.POSITIVE_INFINITY;
