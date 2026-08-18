@@ -2,7 +2,7 @@
 
 import { steam } from 'steam-electron-build/native';
 
-import { probeHardware, type HardwareProbe } from './hardwareTier';
+import { probeHardware, probeMobile, type HardwareProbe } from './hardwareTier';
 import { touchFirstDevice } from './inputCapabilities';
 import type { UiFontId } from '../theme';
 import { isUserStorageKey } from './userStorage';
@@ -114,9 +114,10 @@ export interface Prefs {
      */
     transportChosen: boolean;
     /**
-     * One-shot flag: a touch-first device was dropped to the low preset once
-     * (phones crash on desktop-grade settings). Never downgrades again, so
-     * the user's own choices stick.
+     * One-shot flag: a touch-first device has had its starting preset chosen
+     * (see probeMobile — 'medium' on a modern phone, 'low' on older hardware,
+     * which desktop-grade settings can exhaust). Never re-applied, so the
+     * player's own choices stick.
      */
     mobileTuned: boolean;
 }
@@ -599,8 +600,13 @@ export function prefs(): Prefs {
         // phones/tablets get the low preset once — first run, and also for
         // prefs stored back when only desktop-grade settings existed
         if (touchFirstDevice() && !cached.mobileTuned) {
-            Object.assign(cached, GRAPHICS_PRESETS.low);
+            // Not a flat 'low' any more: modern phones handle more than that
+            // (tested on current iPhones and Androids), so probeMobile() reads
+            // what the GPU can actually do and starts those at 'medium'.
+            const probe = probeMobile();
+            Object.assign(cached, GRAPHICS_PRESETS[probe.preset]);
             cached.mobileTuned = true;
+            lastHardwareProbe = probe;
         } else if (!hadStoredPrefs) {
             // Fresh profile only — a first launch, or straight after Reset.
             // Gated on "nothing was stored" rather than a flag so it can never

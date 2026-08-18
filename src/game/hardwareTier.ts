@@ -25,21 +25,62 @@ export interface HardwareProbe {
     reason: string;
 }
 
-function probeRenderer(): string | null {
+interface GlProbe {
+    /** null on iOS, where Safari strips WEBGL_debug_renderer_info entirely */
+    renderer: string | null;
+    /** a decent age/capability proxy: ~4096 on old parts, 16384 on modern ones */
+    maxTexture: number;
+    webgl2: boolean;
+}
+
+function probeGl(): GlProbe {
+    const out: GlProbe = { renderer: null, maxTexture: 0, webgl2: false };
     try {
         const canvas = document.createElement('canvas');
+        out.webgl2 = !!canvas.getContext('webgl2');
         const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-        if (!gl || !(gl instanceof WebGLRenderingContext)) return null;
+        if (!gl || !(gl instanceof WebGLRenderingContext)) return out;
+        out.maxTexture = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || 0;
         const ext = gl.getExtension('WEBGL_debug_renderer_info');
-        if (!ext) return null;
-        return String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) ?? '') || null;
+        if (ext) out.renderer = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) ?? '') || null;
     } catch {
-        return null;
+        /* no WebGL at all — the caller's floor applies */
     }
+    return out;
+}
+
+/**
+ * Starting preset for a phone or tablet.
+ *
+ * Model detection is not available where it would matter most: Safari strips
+ * the renderer string, so every iPhone reports the same thing, and iOS has no
+ * deviceMemory. What IS readable is what the GPU can actually do — WebGL2
+ * support and the maximum texture size — and that separates hardware from
+ * roughly 2018 onward from what came before, on both platforms, without
+ * needing to know the model at all.
+ *
+ * Tested on modern iPhones and Androids, which handled 'high' comfortably;
+ * 'medium' is the deliberate step below that, since a phone sustains far less
+ * than it peaks at and the texture budget is what keeps these devices from
+ * running out of memory.
+ */
+export function probeMobile(): HardwareProbe {
+    const gl = probeGl();
+    const cores = typeof navigator.hardwareConcurrency === 'number' ? navigator.hardwareConcurrency : null;
+    const modern = gl.webgl2 && gl.maxTexture >= 8192 && (cores === null || cores >= 4);
+    return {
+        preset: modern ? 'medium' : 'low',
+        renderer: gl.renderer,
+        cores,
+        memoryGb: null,
+        reason: modern
+            ? `modern mobile GPU (WebGL2, ${gl.maxTexture}px textures)`
+            : `older mobile GPU (WebGL2=${gl.webgl2}, ${gl.maxTexture}px textures)`,
+    };
 }
 
 export function probeHardware(): HardwareProbe {
-    const renderer = probeRenderer();
+    const renderer = probeGl().renderer;
     const gpu = (renderer ?? '').toLowerCase();
     const cores = typeof navigator.hardwareConcurrency === 'number' ? navigator.hardwareConcurrency : null;
     const memoryGb = typeof (navigator as { deviceMemory?: number }).deviceMemory === 'number'
