@@ -1,6 +1,6 @@
 {
   "name": "melodan",
-  "version": "0.8.0",
+  "version": "0.8.3",
   "description": "MELODAN — a fantasy auto-battler.",
   "type": "module",
   "license": "GPL-3.0",
@@ -22,7 +22,8 @@
     "icons:pack": "printf 'agree\\n' | TexturePacker --format json --sheet misc/icons/icons.png --data assets/icons/icons.json --algorithm MaxRects --max-size 2048 --size-constraints POT --trim-mode None --padding 2 --extrude 1 --disable-rotation misc/icons/src && uv run --with pillow python -c \"from PIL import Image; Image.open('misc/icons/icons.png').save('assets/icons/icons.webp','WEBP',quality=90,method=6)\"",
     "models:draco": "bash scripts/compress-glb-draco.sh",
     "models:textures-1k": "bash scripts/resize-glb-textures.sh 1024",
-    "start:playtest": "SteamAppId=${MELODAN_PLAYTEST_APP_ID:-5115110} steam-electron-build dev"
+    "start:playtest": "SteamAppId=5115110 steam-electron-build dev",
+    "start:playtest:win": "set \"SteamAppId=5115110\" && steam-electron-build dev"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

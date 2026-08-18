@@ -62,7 +62,12 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
-import { SETTINGS_SAV_EXCLUDE, USER_STORAGE_PREFIX, migrateUserStorage } from './game/userStorage';
+import {
+    SETTINGS_SAV_EXCLUDE,
+    USER_AVATAR_STEAM_KEY,
+    USER_STORAGE_PREFIX,
+    migrateUserStorage,
+} from './game/userStorage';
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -320,38 +325,107 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 // Electron/Steam only: mirror localStorage ↔ cloud .sav files.
+/**
+ * A stable id for THIS machine, kept in a file Steam never syncs.
+ *
+ * `machine.json` is deliberately not a `.sav`, so Auto-Cloud's `*.sav` rule
+ * skips it — which is the whole point: an id that travelled with the cloud
+ * would identify the account, not the device.
+ */
+async function machineId(): Promise<string> {
+    const FILE = 'machine.json';
+    try {
+        const stored = (await storage.load(FILE)) as { id?: unknown };
+        if (typeof stored?.id === 'string' && stored.id) return stored.id;
+    } catch {
+        /* first run, or unreadable */
+    }
+    const id = Math.random().toString(36).slice(2, 10);
+    try {
+        await storage.save({ id }, FILE);
+    } catch {
+        /* unwritable: a fresh id each launch is still better than colliding */
+    }
+    return id;
+}
+
 // Web uses localStorage directly — mirrorLocalStorage is a no-op without
 // window.electronStorage (and may be missing on older steam-electron-build).
 //
-// settings.sav = prefs / graphics / misc  ·  user.sav = name + avatar (+ later)
+// settings = prefs / graphics / misc  ·  user.sav = name + avatar
 // Auth (mechili-open-auth) stays local-only: a bearer credential, not a setting.
 if (isElectron()) {
-    // One-shot: older builds stored name/avatar inside settings.sav. Pull those
-    // legacy keys into memory before the settings mirror (which excludes them),
-    // then migrateUserStorage renames them onto the mechili-user-* keys.
-    try {
-        const stored = await storage.load('settings.sav');
-        const mirrored = (stored as { localStorage?: Record<string, unknown> })?.localStorage ?? {};
-        for (const key of ['mechili-username', 'mechili-avatar', 'mechili-avatar-steam'] as const) {
-            const value = mirrored[key];
-            if (typeof value === 'string' && localStorage.getItem(key) == null) {
-                localStorage.setItem(key, value);
-            }
-        }
-    } catch {
-        /* missing / corrupt save */
-    }
+    // settings-<appid>-<machine>-<branch>.sav — every combination keeps its own
+    // file, so switching branches or machines restores what that one had rather
+    // than losing it. Scoped this way because Steam Cloud
+    // otherwise has several writers fighting over one filename: the playtest
+    // and the full app share cloud storage but track changes independently, and
+    // a second device adds another. Both discriminators earn their place —
+    // the app id keeps a playtest's settings out of the release, and the
+    // machine id is what stops a desktop's render scale, a laptop's UI scale
+    // and a Steam Deck's fullscreen from overwriting each other. They are
+    // per-device settings by nature, so this is also just correct.
+    //
+    // Still a `.sav`, so each machine's file is still backed up to the cloud —
+    // it simply cannot collide with anyone else's.
+    //
+    // Identity (user.sav) is deliberately NOT scoped: a name and avatar should
+    // follow the player to a new machine and from the playtest into the full
+    // game. Keep it that way by putting anything experimental in the settings
+    // namespace, which is isolated, rather than under mechili-user-.
+    // Steam reports 0 when Steamworks did not initialise — the client is not
+    // running, or the app was started straight from the folder. Falling back to
+    // the id this build was MADE for keeps those launches on the same settings
+    // file as a normal one; without it the same install silently swaps to
+    // `settings-0-…` whenever Steam is closed, so settings would look reset and
+    // then drift apart. A playtest binary started outside Steam lands on the
+    // configured id too — the playtest id only ever arrives from Steam, and
+    // there is nothing else to tell them apart by.
+    const appId = (steam.isAvailable() ? await steam.getAppId() : 0) || __STEAM_APP_ID__;
+    // The beta branch is part of the identity too. Prefs now sanitise every key
+    // on load, so a value from a build that knows more settings than this one
+    // is clamped rather than adopted — but clamping is lossy: `develop` writing
+    // a finer render scale comes back as the nearest one the release build has,
+    // and then gets written back at that value. Keeping the branches apart lets
+    // each keep its own answer. The cost is that a branch starts from defaults
+    // the first time it is used, and remembers from then on.
+    // sanitised: a branch name is Steam's string, not ours, and it is going
+    // into a filename (getSavePath only strips directories, so a slash would
+    // silently mangle the name rather than fail)
+    const branch = ((steam.isAvailable() ? await steam.getCurrentBetaName() : null) || 'default')
+        .replace(/[^A-Za-z0-9._-]/g, '-')
+        .slice(0, 32);
     await mirrorLocalStorage({
-        file: 'settings.sav',
+        file: `settings-${appId}-${await machineId()}-${branch}.sav`,
         prefix: 'mechili-',
         // Whole identity namespace, so a new mechili-user-* key cannot land in
         // both files; the exact list stays for legacy names and the auth token.
         excludePrefix: USER_STORAGE_PREFIX,
         exclude: [...SETTINGS_SAV_EXCLUDE],
     });
+    // Identity is scoped by app and branch, but NOT by machine: a custom avatar
+    // should still follow the player to another PC.
+    //
+    // The app id is what actually ends the conflicts. Both app ids wrote one
+    // user.sav in one folder while Steam tracked change numbers per app, so
+    // each app's write looked like tampering to the other — and one conflicted
+    // file blocks that app's entire upload, settings included.
+    //
+    // It costs almost nothing here, because under Steam identity is re-derived
+    // every launch anyway: the display name is overwritten from the Steam
+    // persona (see below) and the avatar is re-fetched. Only a custom uploaded
+    // avatar fails to carry from the playtest into the full game.
     await mirrorLocalStorage({
-        file: 'user.sav',
+        file: `user-${appId}-${branch}.sav`,
         prefix: USER_STORAGE_PREFIX,
+        // The cached Steam avatar stays local. It is ~120 KB of base64 that
+        // Steam hands us again on request, so syncing it bought nothing and
+        // cost plenty: user.sav is shared by every app id on purpose, and a
+        // quarter-megabyte rewritten whenever the avatar is re-read is exactly
+        // the kind of frequent, shared write that produces cloud conflicts. A
+        // CUSTOM avatar (USER_AVATAR_KEY) still syncs — that one is the
+        // player's own and cannot be recovered from anywhere else.
+        exclude: [USER_AVATAR_STEAM_KEY],
     });
 }
 migrateUserStorage();
