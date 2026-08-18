@@ -193,6 +193,17 @@ function detHypot(x: number, z: number): number {
 }
 
 /**
+ * How far past the board AABB the outer ground covers.
+ * Mountains rise from ~d=110, peak ~470, outer slope ~640–900.
+ * This keeps a short back-slope without a second countryside behind the ring.
+ */
+const OUTER_PAST_BOARD = 780;
+
+function outerWorldSize(halfW: number, halfH: number): number {
+    return 2 * (Math.max(halfW, halfH) + OUTER_PAST_BOARD);
+}
+
+/**
  * Everything around and above the battlefield, generated in code: sky dome,
  * sun glow, the outer world (ground, trees), horizon clouds, forest fog, rain/snow.
  */
@@ -209,6 +220,8 @@ export class Scenery {
     private forestFogMaterial: MeshBasicMaterial | null = null;
     private time = 0;
     private readonly cloudBoundsX: number;
+    /** Square outer-ground size (world units) — mountain ring plus a short skirt. */
+    private readonly worldSize: number;
     private readonly map: BattleMap;
     private weather: Weather | null = null;
     /** far-card contact shadows (sun-aligned); built when billboards are placed */
@@ -255,6 +268,7 @@ export class Scenery {
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
         this.map = map;
+        this.worldSize = outerWorldSize(map.halfW, map.halfH);
         this.cloudBoundsX = map.halfW + 600;
 
         const noise = makeValueNoise(31337);
@@ -290,8 +304,10 @@ export class Scenery {
                 noise(x / 48 + 22.1, z / 48 + 9.3) * 0.32 +
                 noise(x / 22 + 8.8, z / 22 + 55.5) * 0.18;
             const knoll = detPow01(Math.max(0, hN - 0.45) / 0.55, POW_1_3);
-            // real rolling hills — mountains still carry the big drama farther out
-            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn;
+            // Foothills die as the high range takes over — don't resume a
+            // second meadow behind the mountain ring.
+            const foothill = 1 - smooth01((d - 400) / 280);
+            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill;
 
             const rise = smooth01((d - 110) / 360) * (1 - smooth01((d - 640) / 260));
             const n =
@@ -312,7 +328,9 @@ export class Scenery {
             // ground is pressed to -7, well below the water table at -1.1
             const lake = this.lakeAt(x, z);
             const depth = -7 * smooth01((d - 25) / 45);
-            return (base + wrinkles) * (1 - lake) + depth * lake;
+            // Short skirt on the outer slope, then the world ends (no hinterland).
+            const beyond = smooth01((d - 740) / 160);
+            return (base + wrinkles) * (1 - lake) * (1 - beyond) + depth * lake;
         };
 
         // NOTE: terrainHeight/lakeAt stay real at every quality tier (including
@@ -593,9 +611,9 @@ export class Scenery {
         this.waterTexture = new CanvasTexture(canvas);
         this.waterTexture.colorSpace = SRGBColorSpace;
         this.waterTexture.wrapS = this.waterTexture.wrapT = RepeatWrapping;
-        this.waterTexture.repeat.set(215, 215); // one ripple tile per ~14 world units
+        this.waterTexture.repeat.set(this.worldSize / 14, this.worldSize / 14);
 
-        const geometry = new PlaneGeometry(3000, 3000);
+        const geometry = new PlaneGeometry(this.worldSize, this.worldSize);
         geometry.rotateX(-Math.PI / 2);
         const freezeUniform = { value: 0 };
         const iceUniform: { value: import('three').Texture | null } = { value: null };
@@ -848,8 +866,9 @@ export class Scenery {
         /** random point where the lake factor and height match the given band */
         const lakeSpot = (minLake: number, hMin: number, hMax: number) => {
             for (let attempt = 0; attempt < 400; attempt++) {
-                const x = (rng() * 2 - 1) * 1300;
-                const z = (rng() * 2 - 1) * 1300;
+                const span = this.worldSize * 0.5;
+                const x = (rng() * 2 - 1) * span;
+                const z = (rng() * 2 - 1) * span;
                 if (this.lakeAt(x, z) < minLake) continue;
                 const h = this.terrainHeight(x, z);
                 if (h < hMin || h > hMax) continue;
@@ -998,13 +1017,19 @@ export class Scenery {
      */
     private createOuterGround(map: BattleMap): Mesh {
         const s = THEME.scenery;
-        const SIZE = 3000;
+        const SIZE = this.worldSize;
         // 'low'/'off' skip decoration (trees, lake props, meadow texture) but
         // still get a real, if coarse, heightmapped ground — terrainHeight is
         // no longer flattened at these tiers (see the constructor), so a flat
         // 1-segment quad would visibly float/sink units against the relief
         // they and the deterministic horde spawn logic both see.
-        const SEGS = this.detailed ? this.density.segs : 96;
+        // `density.segs` was tuned for a 3000-wide plane; scale so spacing
+        // stays ~7.5 wu/quad now that the mesh only covers the mountain ring.
+        const REF_WORLD = 3000;
+        const SEGS = Math.max(
+            24,
+            Math.round((this.detailed ? this.density.segs : 96) * (SIZE / REF_WORLD)),
+        );
         const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
         geometry.rotateX(-Math.PI / 2);
 
@@ -1994,8 +2019,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const peakCap = this.density.peakClouds;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {
-            const x = (rng() * 2 - 1) * 1300;
-            const z = (rng() * 2 - 1) * 1300;
+            const span = this.worldSize * 0.5;
+            const x = (rng() * 2 - 1) * span;
+            const z = (rng() * 2 - 1) * span;
             const h = this.terrainHeight(x, z);
             if (h < 165) continue;
             if (this.peakClouds.some((p) => Math.hypot(p.mesh.position.x - x, p.mesh.position.z - z) < 90)) {

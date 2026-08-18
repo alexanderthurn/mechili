@@ -433,8 +433,8 @@ export function shadowUpdateStride(_tier: ShadowQuality = prefs().shadows): numb
 }
 
 /**
- * Camera far plane — outer meadow is 3000 across; high/ultra must see the
- * full mountain ring without hard clip.
+ * Camera far plane — outer ground covers the mountain ring plus a short
+ * skirt; high/ultra must see the ring without hard clip.
  */
 export function sceneryCameraFar(quality: SceneryQuality = prefs().scenery): number {
     if (quality === 'ultra' || quality === 'high') return 4800;
