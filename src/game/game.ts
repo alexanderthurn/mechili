@@ -4179,7 +4179,14 @@ export class Game {
             roster: this.canonicalRosterSnapshot(),
             actions: this.actionsForSeatResume(seat),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
-            phaseRemaining: this.phaseRemaining,
+            // Only meaningful while WE are in the build phase. A rejoiner
+            // replays the log and lands at the start of the next build phase,
+            // then adopts this number — so sending our live clock during
+            // 'hpDraw' handed them whatever was left of the finished BATTLE.
+            // Reloading while the souls were still flying gave a five-second
+            // deployment, observed live. Outside build, send the duration the
+            // phase they are about to enter actually gets.
+            phaseRemaining: this.phase === 'build' ? this.phaseRemaining : this.deploySeconds(),
             viewer: { kind: 'seat', seat },
         });
         // backfill whatever the snapshot just excluded (see
