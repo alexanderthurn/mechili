@@ -218,6 +218,13 @@ export class PlacementController {
      * packs this returns true for. Null / false = no drop highlight.
      */
     itemDropValid: ((unit: Unit) => boolean) | null = null;
+    /**
+     * An armed own-unit tactic (Field Lesson / Move Pack / Buyback) asking
+     * "would this pack be a legal target?". Drives the same green hover plate
+     * as a rune drop, but is NOT an item drop — it must not set
+     * {@link itemDropHovering}, which feeds the HUD's rune-ghost state.
+     */
+    tacticTargetValid: ((unit: Unit) => boolean) | null = null;
     /** true this frame while the item cursor is over a pack that can take it */
     itemDropHovering = false;
     /** true when {@link itemDropHovering} is over the Stronghold forge */
@@ -2023,6 +2030,25 @@ export class PlacementController {
         return cells;
     }
 
+    /** green footprint plate over a pack that an armed thing may be applied to */
+    private paintPackHoverPlate(over: Unit, timeSeconds: number): void {
+        const snap = this.isFogged(over) ? this.intelSnapshot.get(over.id) : undefined;
+        const cell = snap?.cell ?? over.cell;
+        const plateFp = snap
+            ? this.footprintOf(over.type, snap.rotated)
+            : this.footprintOf(over.type, over.rotated);
+        const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
+        this.placeFootprintPlate(
+            this.hoverMesh,
+            this.hoverMaterial,
+            center,
+            plateFp,
+            VALID_COLOR,
+            timeSeconds,
+            true,
+        );
+    }
+
     private updateMarkers(timeSeconds: number): void {
         const sel = this.selectedUnit;
         this.hoverMesh.visible = false;
@@ -2090,21 +2116,16 @@ export class PlacementController {
                 this.itemDropHovering = true;
                 this.itemDropOnForge = over.type.id === 'stronghold';
                 this.targetPreview.clear();
-                const snap = this.isFogged(over) ? this.intelSnapshot.get(over.id) : undefined;
-                const cell = snap?.cell ?? over.cell;
-                const plateFp = snap
-                    ? this.footprintOf(over.type, snap.rotated)
-                    : this.footprintOf(over.type, over.rotated);
-                const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
-                this.placeFootprintPlate(
-                    this.hoverMesh,
-                    this.hoverMaterial,
-                    center,
-                    plateFp,
-                    VALID_COLOR,
-                    timeSeconds,
-                    true,
-                );
+                this.paintPackHoverPlate(over, timeSeconds);
+                return;
+            }
+        }
+        // armed own-unit tactic: same affordance as a rune drop
+        if (this.tacticTargetValid && this.enabled && this.pointer) {
+            const over = this.pickUnitAt(this.pointer.x, this.pointer.y);
+            if (over && !over.destroyed && this.tacticTargetValid(over)) {
+                this.targetPreview.clear();
+                this.paintPackHoverPlate(over, timeSeconds);
                 return;
             }
         }

@@ -1551,6 +1551,11 @@ export class Game {
         };
         this.placement.itemDropValid = (unit) =>
             this.canDropArmedItemOn(unit) || this.canDropForgeOn(unit);
+        this.placement.tacticTargetValid = (unit) => {
+            const armed = this.armedTactic;
+            if (!armed || TACTICS[armed]?.targeting !== 'own-unit') return false;
+            return this.canTargetOwnUnit(armed, unit);
+        };
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
         this.controls.onMiddleClick = () => {
             if (this.armedTactic) return;
