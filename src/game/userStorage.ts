@@ -1,6 +1,8 @@
 /**
  * Identity / profile keys that sync via Steam Auto-Cloud `user.sav`.
- * Settings (prefs, custom game, etc.) stay in `settings.sav`.
+ * Settings (prefs, custom game, etc.) live in the per-app, per-machine
+ * settings file instead — see main.ts. Identity stays global on purpose, so
+ * anything experimental belongs in the settings namespace, not this one.
  *
  * Shared `mechili-user-` prefix so one mirrorLocalStorage call can own the file.
  */
@@ -11,7 +13,7 @@ export const USER_NAME_KEY = `${USER_STORAGE_PREFIX}name`;
 export const USER_AVATAR_KEY = `${USER_STORAGE_PREFIX}avatar`;
 export const USER_AVATAR_STEAM_KEY = `${USER_STORAGE_PREFIX}avatar-steam`;
 
-/** Keys excluded from settings.sav (identity + auth credential). */
+/** Keys excluded from the settings save (identity + auth credential). */
 export const SETTINGS_SAV_EXCLUDE = [
     USER_NAME_KEY,
     USER_AVATAR_KEY,

@@ -320,29 +320,55 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 // Electron/Steam only: mirror localStorage ↔ cloud .sav files.
+/**
+ * A stable id for THIS machine, kept in a file Steam never syncs.
+ *
+ * `machine.json` is deliberately not a `.sav`, so Auto-Cloud's `*.sav` rule
+ * skips it — which is the whole point: an id that travelled with the cloud
+ * would identify the account, not the device.
+ */
+async function machineId(): Promise<string> {
+    const FILE = 'machine.json';
+    try {
+        const stored = (await storage.load(FILE)) as { id?: unknown };
+        if (typeof stored?.id === 'string' && stored.id) return stored.id;
+    } catch {
+        /* first run, or unreadable */
+    }
+    const id = Math.random().toString(36).slice(2, 10);
+    try {
+        await storage.save({ id }, FILE);
+    } catch {
+        /* unwritable: a fresh id each launch is still better than colliding */
+    }
+    return id;
+}
+
 // Web uses localStorage directly — mirrorLocalStorage is a no-op without
 // window.electronStorage (and may be missing on older steam-electron-build).
 //
-// settings.sav = prefs / graphics / misc  ·  user.sav = name + avatar (+ later)
+// settings = prefs / graphics / misc  ·  user.sav = name + avatar
 // Auth (mechili-open-auth) stays local-only: a bearer credential, not a setting.
 if (isElectron()) {
-    // One-shot: older builds stored name/avatar inside settings.sav. Pull those
-    // legacy keys into memory before the settings mirror (which excludes them),
-    // then migrateUserStorage renames them onto the mechili-user-* keys.
-    try {
-        const stored = await storage.load('settings.sav');
-        const mirrored = (stored as { localStorage?: Record<string, unknown> })?.localStorage ?? {};
-        for (const key of ['mechili-username', 'mechili-avatar', 'mechili-avatar-steam'] as const) {
-            const value = mirrored[key];
-            if (typeof value === 'string' && localStorage.getItem(key) == null) {
-                localStorage.setItem(key, value);
-            }
-        }
-    } catch {
-        /* missing / corrupt save */
-    }
+    // Settings are scoped to the app AND the machine, because Steam Cloud
+    // otherwise has several writers fighting over one filename: the playtest
+    // and the full app share cloud storage but track changes independently, and
+    // a second device adds another. Both discriminators earn their place —
+    // the app id keeps a playtest's settings out of the release, and the
+    // machine id is what stops a desktop's render scale, a laptop's UI scale
+    // and a Steam Deck's fullscreen from overwriting each other. They are
+    // per-device settings by nature, so this is also just correct.
+    //
+    // Still a `.sav`, so each machine's file is still backed up to the cloud —
+    // it simply cannot collide with anyone else's.
+    //
+    // Identity (user.sav) is deliberately NOT scoped: a name and avatar should
+    // follow the player to a new machine and from the playtest into the full
+    // game. Keep it that way by putting anything experimental in the settings
+    // namespace, which is isolated, rather than under mechili-user-.
+    const appId = steam.isAvailable() ? await steam.getAppId() : 0;
     await mirrorLocalStorage({
-        file: 'settings.sav',
+        file: `settings-${appId}-${await machineId()}.sav`,
         prefix: 'mechili-',
         // Whole identity namespace, so a new mechili-user-* key cannot land in
         // both files; the exact list stays for legacy names and the auth token.
