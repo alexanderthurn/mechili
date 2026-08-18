@@ -350,7 +350,9 @@ async function machineId(): Promise<string> {
 // settings = prefs / graphics / misc  ·  user.sav = name + avatar
 // Auth (mechili-open-auth) stays local-only: a bearer credential, not a setting.
 if (isElectron()) {
-    // Settings are scoped to the app AND the machine, because Steam Cloud
+    // settings-<appid>-<machine>-<branch>.sav — every combination keeps its own
+    // file, so switching branches or machines restores what that one had rather
+    // than losing it. Scoped this way because Steam Cloud
     // otherwise has several writers fighting over one filename: the playtest
     // and the full app share cloud storage but track changes independently, and
     // a second device adds another. Both discriminators earn their place —
@@ -382,7 +384,7 @@ if (isElectron()) {
         .replace(/[^A-Za-z0-9._-]/g, '-')
         .slice(0, 32);
     await mirrorLocalStorage({
-        file: `settings-${appId}-${branch}-${await machineId()}.sav`,
+        file: `settings-${appId}-${await machineId()}-${branch}.sav`,
         prefix: 'mechili-',
         // Whole identity namespace, so a new mechili-user-* key cannot land in
         // both files; the exact list stays for legacy names and the auth token.
