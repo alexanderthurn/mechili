@@ -47,7 +47,7 @@ export const FREE_ARCHER_ROUND = 2; // the archer specialist's gift arrives here
 /** round a commander's gifted tactic charges (StartCard.tactics) land in */
 export const SPECIALITY_TACTIC_ROUND = 2;
 /**
- * Madam Speed: flat movement bonus for every non-structure pack, permanently.
+ * Speedy Widow: flat movement bonus for every non-structure pack, permanently.
  * Same magnitude as the Vanguard's one-round speed boost
  * ({@link DeploySettings.speedBoost}) and applied the same way — added at the
  * very end, so runes cannot multiply it.
@@ -420,7 +420,7 @@ export const START_CARDS: StartCard[] = [
     },
     {
         id: 'speed',
-        title: 'Madam Speed',
+        title: 'Speedy Widow',
         portrait: 'spec-speed',
         units: ['crowRider', 'archer', 'dwarf', 'dwarf'],
         unitsLabel: '1× Crow Riders · 1× Archers · 2× Dwarves',
