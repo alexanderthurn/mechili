@@ -38,6 +38,7 @@ import {
     makeValueNoise,
     mulberry32,
     registerOuterHeight,
+    summerDryUniform,
     type BattleMap,
 } from './map';
 import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND } from './groundQuality';
@@ -222,6 +223,8 @@ export class Scenery {
     /** 1 = alpine cap on, 0 = summer — peaks go to bare rock */
     private readonly outerGroundAlpineUniform: { value: number } = { value: 1 };
     private alpineCapTarget = 1;
+    /** 0 = lush grass, ~0.72 = summer-dry straw (shared `summerDryUniform`) */
+    private summerDryTarget = 0;
 
     /** wildflower materials (meadow clumps + lake blossoms) — opacity-boosted in spring */
     private readonly flowerMaterials: MeshStandardMaterial[] = [];
@@ -475,7 +478,11 @@ export class Scenery {
             season === 'spring' ? 1 : season === 'summer' ? 0.85 : season === 'autumn' ? 0.45 : 0.15;
         this.litterOpacityTarget = season === 'autumn' ? 1 : 0;
         this.alpineCapTarget = season === 'summer' ? 0 : 1;
-        if (immediate) this.outerGroundAlpineUniform.value = this.alpineCapTarget;
+        this.summerDryTarget = season === 'summer' ? 0.72 : 0;
+        if (immediate) {
+            this.outerGroundAlpineUniform.value = this.alpineCapTarget;
+            summerDryUniform.value = this.summerDryTarget;
+        }
         if (!immediate) return;
         for (const m of this.flowerMaterials) m.opacity = this.flowerOpacityTarget;
         if (this.leafLitter) {
@@ -502,6 +509,7 @@ export class Scenery {
         }
         this.outerGroundAlpineUniform.value +=
             (this.alpineCapTarget - this.outerGroundAlpineUniform.value) * seasonK;
+        summerDryUniform.value += (this.summerDryTarget - summerDryUniform.value) * seasonK;
         if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
         setVegetationSnowCover(this.groundSnowCover);
         updateBuildingSnowCover(
@@ -668,6 +676,7 @@ export class Scenery {
         this.tuftMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = { value: 0 };
             shader.uniforms.uSnowCover = { value: 0 };
+            shader.uniforms.uDryGrass = summerDryUniform;
             this.tuftMaterial!.userData.shader = shader;
             shader.vertexShader =
                 'uniform float uTime;\n' +
@@ -684,7 +693,7 @@ export class Scenery {
     transformed.z += cos(uTime * 1.1 + phase) * 0.09 * sway;`,
                 );
             shader.fragmentShader =
-                'uniform float uSnowCover;\n' +
+                'uniform float uSnowCover;\nuniform float uDryGrass;\n' +
                 shader.fragmentShader.replace(
                     '#include <color_fragment>',
                     `#include <color_fragment>
@@ -693,6 +702,8 @@ export class Scenery {
 #else
     vec3 tuftBase = vec3(0.0);
 #endif
+    vec3 tuftDry = mix(diffuseColor.rgb * vec3(1.22, 1.08, 0.50), vec3(0.78, 0.68, 0.28), 0.2);
+    diffuseColor.rgb = mix(diffuseColor.rgb, tuftDry, uDryGrass);
     float alpineSnow = smoothstep(170.0, 235.0, tuftBase.y);
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, tuftBase.y);
@@ -700,7 +711,7 @@ export class Scenery {
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`,
                 );
         };
-        this.tuftMaterial.customProgramCacheKey = () => 'meadow-tuft-wind-snow-v1';
+        this.tuftMaterial.customProgramCacheKey = () => 'meadow-tuft-wind-snow-dry-v2';
         const tufts = new InstancedMesh(tuftGeo, this.tuftMaterial, TUFTS);
         let tuftI = 0;
         for (let i = 0; i < TUFTS; i++) {
@@ -1065,6 +1076,7 @@ export class Scenery {
             shader.uniforms.uSnowCover = { value: 0 };
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
             shader.uniforms.uAlpineCap = this.outerGroundAlpineUniform;
+            shader.uniforms.uDryGrass = summerDryUniform;
 
             shader.vertexShader =
                 'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
@@ -1081,7 +1093,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
 
             let frag =
                 'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
-                'uniform float uSnowCover;\nuniform float uAlpineCap;\n' +
+                'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
 
             // Keep Three's chunk boundaries stable; only assign once so the compiler
@@ -1089,7 +1101,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v11-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v12-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -1185,6 +1197,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.uniforms.uSnowCover = { value: 0 };
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
             shader.uniforms.uAlpineCap = this.outerGroundAlpineUniform;
+            shader.uniforms.uDryGrass = summerDryUniform;
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
@@ -1296,7 +1309,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
-                'uniform float uSnowCover;\nuniform float uAlpineCap;\n' +
+                'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
             if (useDetail && normal) {
@@ -1319,7 +1332,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v26${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v27${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -2010,6 +2023,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
  */
 const OUTER_MOUNTAIN_SNOW_GLSL = `
     float mountainZone = smoothstep(16.0, 55.0, vTerrainH);
+    float dryPatch = 0.52 + 0.48 * fract(sin(dot(vWorldXZ * 0.068, vec2(12.9898, 78.233))) * 43758.5453);
+    vec3 dryCol = mix(diffuseColor.rgb * vec3(1.18, 1.05, 0.55), vec3(0.72, 0.64, 0.28), 0.16);
+    diffuseColor.rgb = mix(diffuseColor.rgb, dryCol, uDryGrass * (1.0 - mountainZone) * (1.0 - vBeach) * dryPatch);
     float slopeHold = 1.0 - smoothstep(0.28, 0.82, vSlope) * 0.62;
     float peakBoost = smoothstep(120.0, 240.0, vTerrainH);
     float snowHold = min(1.0, slopeHold + peakBoost * 0.85);

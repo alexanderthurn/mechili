@@ -28,6 +28,12 @@ import {
 export const DETAIL_TILE = 20;
 export { grassAlbedoUrl, grassNormalUrl, sandAlbedoUrl };
 
+/**
+ * Shared 0–1 summer-dry grass amount (board + outer meadow + tufts).
+ * Driven by scenery season changes; shaders bind this same object.
+ */
+export const summerDryUniform = { value: 0 };
+
 /** world units per grid tile */
 export const CELL = 4;
 
@@ -862,6 +868,7 @@ export class BattleMap {
             this.hazardTimeUniform = shader.uniforms.uHazardTime as { value: number };
             shader.uniforms.uSnowCover = { value: 0 };
             this.snowCoverUniform = shader.uniforms.uSnowCover as { value: number };
+            shader.uniforms.uDryGrass = summerDryUniform;
             shader.uniforms.uBoardHalf = { value: new Vector2(this.halfW, this.halfH) };
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
@@ -875,7 +882,7 @@ export class BattleMap {
                 );
             let inject = '';
             let extraUniforms =
-                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n';
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n';
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
@@ -954,7 +961,11 @@ export class BattleMap {
             // (macro after snow was tinting the board frost green again).
             inject +=
                 '\tvec3 macroTex = texture2D(uMacro, vMacroUv).rgb / max(uMacroBase, vec3(1e-3));\n' +
-                '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n';
+                '\tdiffuseColor.rgb *= mix( vec3( 1.0 ), macroTex, uMacroStrength );\n' +
+                // Summer drought: keep lawn texture, pull chroma toward straw (before mud/snow).
+                '\tfloat dryPatch = 0.52 + 0.48 * fract( sin( dot( vBoardXZ * 0.072, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
+                '\tvec3 dryCol = mix( diffuseColor.rgb * vec3( 1.18, 1.05, 0.55 ), vec3( 0.72, 0.64, 0.28 ), 0.16 );\n' +
+                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, dryCol, uDryGrass * dryPatch );\n';
             if (sand && (baseSandMask || sandMask)) {
                 shader.uniforms.uSand = { value: sand };
                 extraUniforms += 'uniform sampler2D uSand;\n';
@@ -1053,7 +1064,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v32${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-gs${
+            `ground-hazard-v33${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}`;
     }

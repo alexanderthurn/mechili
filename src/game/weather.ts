@@ -298,7 +298,9 @@ function applySeasonBias(p: TimePreset, season: Season): void {
             p.hemiGround = lerpHex(p.hemiGround, 0x7c8c82, 0.18);
             break;
         case 'summer':
-            break; // current THEME greens — no bias
+            // Warm bounce so the dried lawn isn't still lit by lush spring green.
+            p.hemiGround = lerpHex(p.hemiGround, 0xb8a44a, 0.22);
+            break;
     }
 }
 
