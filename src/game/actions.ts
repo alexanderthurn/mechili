@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, type SpecialityId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unlockCostForSpeciality, type SpecialityId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -24,6 +24,7 @@ import {
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
     MOVE_UNIT_ID,
+    TUTOR_ID,
     SELL_UNIT_ID,
     TACTICS,
     clampTacticEnd,
@@ -149,6 +150,13 @@ export interface SellUnitAction {
  *  rotate actions do that once Placement.canReposition() lets them through. */
 export interface MobilizeUnitAction {
     kind: 'mobilizeUnit';
+    team: Team;
+    unitId: number;
+}
+/** fills one pack's XP bar to its next-level threshold — spends a forge-granted
+ *  tutor charge. Does NOT level the pack: buyLevel still charges supply. */
+export interface TutorUnitAction {
+    kind: 'tutorUnit';
     team: Team;
     unitId: number;
 }
@@ -331,6 +339,7 @@ type ActionVariant =
     | BuyMovePackAbilityAction
     | SellUnitAction
     | MobilizeUnitAction
+    | TutorUnitAction
     | BuyDeploySlotAction
     | BuyRoundRangeBoostAction
     | BuyRoundSpeedBoostAction
@@ -900,6 +909,22 @@ export class ActionDispatcher {
                 unit.deployedRound = placement.currentRound;
                 return true;
             }
+            case 'tutorUnit': {
+                const unit = placement.unitById(action.unitId);
+                // own packs only — same scoping as sellUnit/mobilizeUnit
+                if (!unit || unit.team !== action.team || unit.seat !== seat) return false;
+                if (unit.type.structure) return false;
+                if (unit.level >= leveling.maxLevel) return false; // nothing left to teach
+                const threshold = xpForNextLevel(unit, economy, leveling);
+                if (unit.xp >= threshold) return false; // already full — don't burn the charge
+                if (!this.consumeTacticCharge(entry, seat, TUTOR_ID)) return false;
+                entry.unit = unit;
+                entry.xpBefore = unit.xp;
+                // fill the bar exactly; buyLevel still gates on supply, and it
+                // subtracts the threshold again so the pack is not left banked
+                unit.xp = threshold;
+                return true;
+            }
             case 'buyDeploySlot': {
                 if (this.ctx.deployState.extra[seat]! >= 1) return false; // once per round
                 if (!economy.spend(seat, this.ctx.deploySettings.extraSlotCost)) return false;
@@ -1173,7 +1198,7 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
-                const cost = unitUnlockCost(action.typeId);
+                const cost = unlockCostForSpeciality(action.typeId, this.ctx.speciality[seat] ?? null);
                 if (!Number.isFinite(cost)) return false;
                 if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[seat]!.push(action.typeId);
@@ -1469,6 +1494,10 @@ export class ActionDispatcher {
                 economy.credit(seat, e.paid!);
                 break;
             }
+            case 'tutorUnit':
+                // the spent charge frees up with the log entry (see sellUnit)
+                e.unit!.xp = e.xpBefore!;
+                break;
             case 'mobilizeUnit':
                 // the spent charge frees up with the log entry (see sellUnit)
                 e.unit!.deployedRound = e.deployedRoundBefore!;

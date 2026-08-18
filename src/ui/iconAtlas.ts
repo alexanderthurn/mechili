@@ -108,6 +108,36 @@ export function drawIcon(
     return true;
 }
 
+/** memoised `cursor` values — one canvas + toDataURL per icon, not per frame */
+const cursorCss = new Map<string, string>();
+
+/**
+ * `cursor` value that paints one atlas icon as the pointer, centred on the
+ * hotspot, so an armed spell reads as "carried" rather than as a generic aim
+ * cursor.
+ *
+ * Always ends in `, crosshair`: browsers drop the whole declaration if the
+ * image exceeds their cursor size cap (128px in Chrome), and the atlas may not
+ * have decoded yet on the first call — either way the old behaviour is the
+ * fallback rather than no cursor at all.
+ */
+export function iconCursorCss(id: string, size = 28, fallbackId = 'ui-unknown'): string {
+    if (!atlasImage) return 'crosshair';
+    const key = `${id}:${size}`;
+    let url = cursorCss.get(key);
+    if (url === undefined) {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        url = ctx && drawIcon(ctx, id, 0, 0, size, fallbackId) ? canvas.toDataURL('image/png') : '';
+        cursorCss.set(key, url);
+    }
+    if (!url) return 'crosshair';
+    const hot = Math.round(size / 2);
+    return `${cssUrl(url)} ${hot} ${hot}, crosshair`;
+}
+
 /** CSS background snippet for an HTML icon element (fills the element's box). */
 export function iconCss(id: string, fallbackId = 'ui-unknown'): string {
     const key = hasIcon(id) ? frameKey(id) : frameKey(fallbackId);

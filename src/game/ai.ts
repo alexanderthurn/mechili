@@ -1,12 +1,14 @@
 import { quantizeWorld, quantizeYaw, type Action } from './actions';
 import { SHOP_UNIT_IDS } from './cards';
-import type { RoundCard, StartCard } from './cards';
+import { unlockCostForSpeciality } from './cards';
+import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
 import type { Economy } from './settings';
 import {
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
     MOVE_UNIT_ID,
+    TUTOR_ID,
     SELL_UNIT_ID,
     TACTICS,
     usesSpellPlacement,
@@ -55,6 +57,8 @@ export class AiOpponent implements Opponent {
             items: string[][];
             /** per-SEAT — never shared */
             tactics: string[][];
+            /** per-SEAT chosen commander — prices its own shop unlocks */
+            speciality: (SpecialityId | null)[];
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
         },
@@ -90,14 +94,19 @@ export class AiOpponent implements Opponent {
     }
 
     private runBuildActions(): void {
-        const { dispatch, placement, economy, rng, unlockedUnits, unlockUsedThisRound } = this.ctx;
+        const { dispatch, placement, economy, rng, unlockedUnits, unlockUsedThisRound, speciality } =
+            this.ctx;
         const team = this.team;
         const unlocked = unlockedUnits[this.seat]!;
 
         // one unlock per round — pick an affordable locked type when possible
         if (!unlockUsedThisRound[this.seat]) {
             const locked = SHOP_UNIT_IDS.filter((id) => !unlocked.includes(id));
-            const affordable = locked.filter((id) => unitUnlockCost(id) <= economy.balance(this.seat));
+            const affordable = locked.filter(
+                (id) =>
+                    unlockCostForSpeciality(id, speciality[this.seat] ?? null) <=
+                    economy.balance(this.seat),
+            );
             const pool = affordable.length > 0 ? affordable : locked;
             if (pool.length > 0 && rng() < 0.85) {
                 const typeId = pool[Math.floor(rng() * pool.length)]!;
@@ -207,7 +216,7 @@ export class AiOpponent implements Opponent {
         const MAX_TACTICS = 2;
         // own-unit tactics have no ground target for the placer to aim at
         const pool = [...new Set(tactics[this.seat])].filter(
-            (id) => id !== SELL_UNIT_ID && id !== MOVE_UNIT_ID,
+            (id) => id !== SELL_UNIT_ID && id !== MOVE_UNIT_ID && id !== TUTOR_ID,
         );
         for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(rng() * (i + 1));

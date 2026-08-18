@@ -19,6 +19,8 @@ export const OIL_SPILL_ID = 'oilSpill';
 export const SELL_UNIT_ID = 'sellUnit';
 /** re-opens ONE older pack for dragging this round (see Placement.canReposition) */
 export const MOVE_UNIT_ID = 'moveUnit';
+/** tops one pack's XP bar up to its next-level threshold (Lady Lecture) */
+export const TUTOR_ID = 'tutor';
 /** battle spells: point-targeted stamps that fire seconds into the battle */
 export const SPAWN_DWARVES_ID = 'spawnDwarves';
 export const BIG_METEOR_ID = 'bigMeteor';
@@ -98,7 +100,7 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  *  - 'three-point': start → mid → end path (rally); each leg clamps to maxSpan;
  *  - 'point-yaw': first click locks position, move mouse to rotate, second
  *    click commits (hammer footprint);
- *  - 'own-unit': click one of your packs (sell / move).
+ *  - 'own-unit': click one of your packs (sell / move / tutor).
  */
 export const TACTICS: Record<
     string,
@@ -208,6 +210,17 @@ export const TACTICS: Record<
         description:
             'Click to arm, then click one of your packs from an earlier round — it may be dragged and rotated again for the rest of this round.',
     },
+    [TUTOR_ID]: {
+        id: TUTOR_ID,
+        name: 'Field Lesson',
+        icon: 'ability-plus-l2',
+        kind: 'oneShot',
+        targeting: 'own-unit',
+        // used this round -> badge reads cooldownRounds + 1, so 1 here shows "2"
+        cooldownRounds: 1,
+        description:
+            'Click to arm, then click one of your packs — its XP bar fills to the next level. Buying the level still costs supply.',
+    },
     [SPAWN_DWARVES_ID]: {
         id: SPAWN_DWARVES_ID,
         name: 'Summon Dwarves',
@@ -224,13 +237,13 @@ export const TACTICS: Record<
     },
     [BIG_METEOR_ID]: {
         id: BIG_METEOR_ID,
-        name: 'Great Meteor',
+        name: 'Meteor',
         icon: 'tactic-meteor',
         kind: 'placement',
         targeting: 'point',
-        cooldownRounds: 3,
+        cooldownRounds: 2,
         radius: 3 * CELL,
-        spell: { delaySeconds: 4, strike: { damage: 3000, radius: 3 * CELL } },
+        spell: { delaySeconds: 4, strike: { damage: 200, radius: 3 * CELL } },
         description:
             'Mark a small circle anywhere. Seconds into the battle a meteor obliterates everything there — only ward domes protect (and pay for it).',
     },
@@ -593,6 +606,7 @@ const TACTIC_WORLD_GLYPH: Record<string, string> = {
     [OIL_SPILL_ID]: '🛢',
     [SELL_UNIT_ID]: '💰',
     [MOVE_UNIT_ID]: '🏃',
+    [TUTOR_ID]: '📖',
     [SPAWN_DWARVES_ID]: '⚒',
     [BIG_METEOR_ID]: '☄',
     [SPAWN_CROWS_ID]: '🐦',

@@ -85,6 +85,9 @@ import {
     ELITE_ROUND1_BONUS,
     FREE_ARCHER_LEVEL,
     FREE_ARCHER_ROUND,
+    SPECIALITY_TACTIC_ROUND,
+    SPEED_COMMANDER_BONUS,
+    unlockCostForSpeciality,
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
@@ -93,6 +96,7 @@ import {
     type SpecialityId,
     type StartCard,
 } from './cards';
+import { iconCursorCss } from '../ui/iconAtlas';
 import { roundCardAlgorithmById } from './roundCardAlgorithms';
 import { assignTeamColors, colorForBattleTeam, teamColors } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
@@ -192,6 +196,7 @@ import {
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
     MOVE_UNIT_ID,
+    TUTOR_ID,
     SELL_UNIT_ID,
     TACTICS,
     clampTacticEnd,
@@ -277,6 +282,7 @@ const CHEAT_TACTIC_GRANTS = [
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
     MOVE_UNIT_ID,
+    TUTOR_ID,
     SELL_UNIT_ID,
     'spawnDwarves',
     'bigMeteor',
@@ -1581,6 +1587,8 @@ export class Game {
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
+        this.hud.unlockCostOf = (typeId) =>
+            unlockCostForSpeciality(typeId, this.speciality[this.humanSeat] ?? null);
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         // a spectator has no seat of its own to grant vision from
@@ -2704,6 +2712,14 @@ export class Game {
             if (this.speciality[seat] === 'elite' && this.round === 1) {
                 this.economy.credit(seat, ELITE_ROUND1_BONUS);
             }
+            // a commander's gifted spell charges (Lord Hitzkopf's meteors).
+            // Same log-free reasoning as the archer gift below: it must run on
+            // every peer, hydrating included, or the two sides disagree about
+            // how many charges exist and one accepts a cast the other rejects
+            const card = this.starterCardOfSeat(seat);
+            if (card?.tactics && this.round === (card.tacticsRound ?? SPECIALITY_TACTIC_ROUND)) {
+                this.tacticInventory[seat]!.push(...card.tactics);
+            }
             // NOTE: must also run while hydrating — the gift is never in the
             // action log, so a rebuild that skipped it would produce a
             // different board (and shifted unit ids → guaranteed desync)
@@ -3145,6 +3161,7 @@ export class Game {
         techTree: TechTree;
         unlockedUnits: string[][];
         unlockUsedThisRound: boolean[];
+        speciality: (SpecialityId | null)[];
         items: string[][];
         tactics: string[][];
         rng: () => number;
@@ -3172,6 +3189,7 @@ export class Game {
             techTree: this.techTree,
             unlockedUnits: this.unlockedUnits,
             unlockUsedThisRound: this.unlockUsedThisRound,
+            speciality: this.speciality,
             items: this.itemInventory,
             tactics: this.tacticInventory,
             rng,
@@ -6230,6 +6248,10 @@ export class Game {
             stats.attackInterval *= mods.attackInterval ?? 1;
         }
         const rb = this.settings.deploy;
+        // flat, and after the item loop on purpose — a speed rune multiplies
+        // the unit's own speed, not the commander's gift (same rule as the
+        // one-round Vanguard boost below)
+        if (spec === 'speed' && !type.structure) stats.speed += SPEED_COMMANDER_BONUS;
         if (this.roundBoosts.speed[unit.seat]) stats.speed += rb.speedBoost;
         if (this.roundBoosts.range[unit.seat] && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;
@@ -6383,17 +6405,19 @@ export class Game {
                         ? `${tactic.name} — used this round.\nUndo gives it back. ${ready}`
                         : `${tactic.name} — cooling down.\n${ready}`;
                 };
+                // A spent one-shot has NO per-entry revert: its effect is already
+                // applied to a pack, and only the global undo can take it back.
+                // So it never shows the cancel badge — that badge is reserved for
+                // entries carrying a routeId, i.e. a placement this strip can
+                // actually clear. See the generic rule in `badge` above.
                 placedEntries = [
                     ...Array.from({ length: ability.used }, () => ({
-                        badge: 'cancel' as const,
-                        hint: `${tactic.name} — used this round.\nUndo gives it back.`,
+                        badge: 1,
+                        hint: `${tactic.name} — used this round.\nUndo gives it back. Ready again next round.`,
                     })),
                     ...useRounds.map((r) => {
                         const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        return {
-                            badge: (r === this.round ? 'cancel' : readyIn) as 'cancel' | number,
-                            hint: coolingHint(r, readyIn),
-                        };
+                        return { badge: readyIn, hint: coolingHint(r, readyIn) };
                     }),
                 ];
                 avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
@@ -6411,12 +6435,21 @@ export class Game {
                 slot++;
             }
             for (let i = 0; i < avail; i++) {
+                // duplicates share an id: this is exactly the clicked slot
+                const armed = this.armedTactic === tactic.id && this.armedTacticIndex === slot;
+                if (armed) {
+                    // picked up: the charge is on the cursor, not in the strip.
+                    // `slot` still advances so every other entry keeps its index
+                    // (armedTacticIndex is a slot number), and cancelling puts it
+                    // straight back.
+                    slot++;
+                    continue;
+                }
                 out.push({
                     id: tactic.id,
                     icon: tactic.icon,
                     name: `${tactic.name} — ${tactic.description}`,
-                    // duplicates share an id: highlight exactly the clicked slot
-                    armed: this.armedTactic === tactic.id && this.armedTacticIndex === slot,
+                    armed: false,
                     index: slot,
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
@@ -6554,8 +6587,11 @@ export class Game {
     }
 
     private syncTacticVisuals(): void {
-        // any armed tactic reads as a targeting cursor over the whole board
-        this.pixiApp.canvas.style.cursor = this.armedTactic ? 'crosshair' : '';
+        // an armed tactic is "picked up": the pointer becomes the spell's own
+        // icon (and its strip entry hides — see tacticsView)
+        this.pixiApp.canvas.style.cursor = this.armedTactic
+            ? iconCursorCss(TACTICS[this.armedTactic]?.icon ?? 'ui-unknown')
+            : '';
         this.syncRallyVisuals();
         this.syncSpellVisuals();
         const pointer = this.placement.lastPointer;
@@ -6800,6 +6836,12 @@ export class Game {
                     team: 'player',
                     unitId: target.unit!.id,
                 });
+            case TUTOR_ID:
+                return this.dispatchPlayer({
+                    kind: 'tutorUnit',
+                    team: 'player',
+                    unitId: target.unit!.id,
+                });
             case RALLY_ROUTE_ID:
                 return this.dispatchPlayer({
                     kind: 'placeRallyRoute',
@@ -6863,6 +6905,15 @@ export class Game {
             return (
                 (!unit.type.structure || !!unit.type.extra) &&
                 !this.placement.canReposition(unit)
+            );
+        }
+        if (tacticId === TUTOR_ID) {
+            // mirrors the action guard: a maxed pack has nothing left to learn
+            // and a full bar would waste the charge
+            if (unit.type.structure || unit.level >= this.settings.leveling.maxLevel) return false;
+            return (
+                unit.xp <
+                xpThresholdFor(unit.type, unit.level, this.economy, this.settings.leveling)
             );
         }
         return !unit.type.structure;
@@ -7579,7 +7630,7 @@ export class Game {
                 return { x: s.x, z: s.z, at, yaw: s.yaw ?? 0 };
             });
         this.hammerFx.schedule(hammerCues);
-        // Great Meteor drop
+        // Meteor drop
         this.meteorFx.scheduleGreat(
             pendingSpells
                 .filter((s) => s.tacticId === BIG_METEOR_ID)

@@ -257,6 +257,12 @@ export class Hud {
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
+    /**
+     * Shop unlock fee as THIS seat pays it (Countess Chonk discounts giants).
+     * Game overwrites it with a seat-aware pricer; the raw fee is the fallback
+     * so the picker never shows a price the dispatcher would reject.
+     */
+    unlockCostOf: (typeId: string) => number = (typeId) => unitUnlockCost(typeId);
     onBuyDeploySlot: (() => void) | null = null;
     onBuyRoundRangeBoost: (() => void) | null = null;
     onBuyRoundSpeedBoost: (() => void) | null = null;
@@ -1597,7 +1603,8 @@ export class Hud {
             placed?: boolean;
             routeId?: number;
             /**
-             * Corner badge: omit when ready; `'cancel'` while placed/used this
+             * Corner badge: omit when ready; `'cancel'` (only ever honoured
+             * together with a `routeId` — see the render rule) while placed this
              * deploy; a positive number = rounds until ready again.
              */
             badge?: 'cancel' | number;
@@ -1642,7 +1649,11 @@ export class Hud {
               tactics
                   .map((t) => {
                       const routeAttr = t.routeId !== undefined ? ` data-route-id="${t.routeId}"` : '';
-                      const cancel = t.badge === 'cancel';
+                      // Generic rule: the cancel affordance requires something
+                      // this strip can actually clear, i.e. a routeId. A spent
+                      // one-shot has no per-entry revert (only the global undo),
+                      // so it must never advertise a button that does nothing.
+                      const cancel = t.badge === 'cancel' && t.routeId !== undefined;
                       const waitRounds = typeof t.badge === 'number' ? t.badge : null;
                       const cls =
                           `inv-item tactic` +
@@ -2211,7 +2222,7 @@ export class Hud {
         if (!this.shopUnlockAvailable || this.shopUnlocked.length === 0) return;
         const locked = SHOP_UNIT_IDS.filter((id) => !this.shopUnlocked.includes(id)).map((id) => {
             const type = UNIT_TYPES.find((t) => t.id === id)!;
-            const unlockCost = unitUnlockCost(id);
+            const unlockCost = this.unlockCostOf(id);
             return {
                 id,
                 name: type.name,

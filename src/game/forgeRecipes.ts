@@ -9,8 +9,9 @@
  *
  * Fuel is the four base runes (earth / fire / water / wind).
  * Same-element stacks craft advanced runes (anyone). Mixed recipes craft
- * specialist-gated spells. Rally Route (one Wind) and Move Pack (Earth +
- * two Wind) are always forgeable; Buyback stays Vanguard-only.
+ * specialist-gated spells. The pack-utility spells are open to everyone:
+ * Rally Route (one Wind), Field Lesson (Fire + Wind), Move Pack (Earth + two
+ * Wind) and Buyback (Water + two Wind).
  */
 import type { SeatId } from './seats';
 import {
@@ -21,6 +22,8 @@ import {
     HAMMER_ID,
     METEOR_SHOWER_ID,
     MOVE_UNIT_ID,
+    SELL_UNIT_ID,
+    TUTOR_ID,
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
@@ -98,8 +101,8 @@ function item(id: string): ForgeProduct {
 
 /**
  * Spell / rune recipe table — unique ingredient multisets only.
- * Rune products, Rally Route and Move Pack are always available; other spells
- * are specialist-gated. Buyback is not forgeable (Vanguard shop).
+ * Rune products and the pack-utility spells (Rally Route, Field Lesson, Move
+ * Pack, Buyback) are always available; other spells are specialist-gated.
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
     // --- advanced runes (anyone) ---
@@ -123,11 +126,14 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     { ingredients: ['earth', 'wind'], product: tactic(STORM_ID), priority: 1 },
     { ingredients: ['water', 'wind'], product: tactic(SPAWN_CROWS_ID), priority: 1 },
 
+    { ingredients: ['fire', 'wind'], product: tactic(TUTOR_ID), priority: 1 },
+
     // --- 3 runes ---
     { ingredients: ['earth', 'fire', 'water'], product: tactic(HAMMER_ID), priority: 1 },
     { ingredients: ['earth', 'fire', 'wind'], product: tactic(METEOR_SHOWER_ID), priority: 1 },
     { ingredients: ['fire', 'fire', 'wind'], product: tactic(DRAGON_ID), priority: 1 },
     { ingredients: ['earth', 'wind', 'wind'], product: tactic(MOVE_UNIT_ID), priority: 1 },
+    { ingredients: ['water', 'wind', 'wind'], product: tactic(SELL_UNIT_ID), priority: 1 },
 ];
 
 function ingredientKey(ingredients: readonly string[]): string {
@@ -206,10 +212,17 @@ export function isForgeSpellAllowed(tacticId: string, pool: ForgeSpellPool): boo
     return pool === 'all' || pool.includes(tacticId);
 }
 
-/** Rune products, Rally Route and Move Pack are always allowed; other spells respect the specialist pool. */
+/** Rune products + pack-utility spells are always allowed; other spells respect the specialist pool. */
 export function isForgeRecipeAllowed(recipe: ForgeRecipe, pool: ForgeSpellPool): boolean {
     if (recipe.product.kind === 'item') return true;
-    if (recipe.product.id === RALLY_ROUTE_ID || recipe.product.id === MOVE_UNIT_ID) return true;
+    if (
+        recipe.product.id === RALLY_ROUTE_ID ||
+        recipe.product.id === MOVE_UNIT_ID ||
+        recipe.product.id === TUTOR_ID ||
+        recipe.product.id === SELL_UNIT_ID
+    ) {
+        return true;
+    }
     return isForgeSpellAllowed(recipe.product.id, pool);
 }
 
