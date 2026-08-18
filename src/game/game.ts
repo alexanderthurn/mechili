@@ -141,6 +141,15 @@ import {
     type HpDrawPlan,
 } from './hpDraw';
 import { HpDrawFx } from './hpDrawFx';
+import {
+    clearDeathFall,
+    clearDeathTip,
+    tickDeathFall,
+    tickDeathTip,
+    type DeathFallState,
+    type DeathTipState,
+} from './deathFall';
+import { GROUND_UNIT_Y } from './groundQuality';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
@@ -243,6 +252,8 @@ const MATCH_INTRO_PITCH = (48 * Math.PI) / 180;
 const PLAY_START_ZOOM = 110;
 /** post-battle HP damage VFX — hard cap even with huge survivor counts */
 const HP_DRAW_MAX_SECONDS = 8;
+/** Let the last death tip / air crash finish before souls launch. */
+const HP_DRAW_BATTLE_SETTLE = 0.52;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the
@@ -374,6 +385,11 @@ export class Game {
     private hpDrawPrePlayer = 0;
     private hpDrawPreEnemy = 0;
     private hpDrawAfterMatchOver = false;
+    /** Seconds left before HP-draw souls launch (death settle beat). */
+    private hpDrawSettleRemaining = 0;
+    /** Sim elapsed when battle ended — keeps death anims on the same clock. */
+    private postBattleDeathElapsed = 0;
+    private postBattleDeathTimeBase = 0;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
     /** inner dead-zone (min-range) ring under the selected battle mech */
@@ -8050,6 +8066,8 @@ export class Game {
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
             const built = buildHpDrawSources(this.sim, this.economy);
+            this.postBattleDeathElapsed = this.sim.elapsed;
+            this.postBattleDeathTimeBase = this.time;
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
@@ -8135,10 +8153,42 @@ export class Game {
         }
         this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
         if (this.pendingHpDrawPlan && this.pendingHpDrawPlan.sources.length > 0) {
-            this.beginHpDrawPhase();
+            this.hpDrawSettleRemaining = HP_DRAW_BATTLE_SETTLE;
             return;
         }
         this.proceedAfterHpDraw();
+    }
+
+    /** Keep render-only death falls / ground tips moving after the sim is torn down. */
+    private tickPlacementDeathVisuals(): void {
+        const elapsed = this.postBattleDeathElapsed + (this.time - this.postBattleDeathTimeBase);
+        for (const unit of this.placement.allUnits()) {
+            for (const m of unit.members) {
+                const mesh = m.mesh;
+                const fall = mesh.userData.deathFall as DeathFallState | undefined;
+                if (fall) {
+                    if (
+                        !tickDeathFall(mesh, fall, elapsed, (wx, wz) =>
+                            worldHeightAt(wx, wz) + GROUND_UNIT_Y,
+                        )
+                    ) {
+                        clearDeathFall(mesh);
+                    }
+                    continue;
+                }
+                const tip = mesh.userData.deathTip as DeathTipState | undefined;
+                if (tip && !tickDeathTip(mesh, tip, elapsed)) clearDeathTip(mesh);
+            }
+        }
+    }
+
+    private hasPendingDeathVisuals(): boolean {
+        for (const unit of this.placement.allUnits()) {
+            for (const m of unit.members) {
+                if (m.mesh.userData.deathFall || m.mesh.userData.deathTip) return true;
+            }
+        }
+        return false;
     }
 
     private beginHpDrawPhase(): void {
@@ -8206,6 +8256,7 @@ export class Game {
     /** Continues the round after HP-draw VFX (or when skipped). */
     private proceedAfterHpDraw(): void {
         this.flushHpDrawDisplay();
+        this.hpDrawSettleRemaining = 0;
         if (this.hpDrawAfterMatchOver) {
             this.finishMatch();
             return;
@@ -8647,6 +8698,16 @@ export class Game {
                 ? trueDtSeconds * this.speedSteps[this.speedIndex]!
                 : trueDtSeconds;
         this.time += gameDt;
+
+        if (this.hpDrawSettleRemaining > 0 || this.hasPendingDeathVisuals()) {
+            this.tickPlacementDeathVisuals();
+        }
+        if (this.hpDrawSettleRemaining > 0) {
+            this.hpDrawSettleRemaining -= dtSeconds;
+            if (this.hpDrawSettleRemaining <= 0 && this.pendingHpDrawPlan) {
+                this.beginHpDrawPhase();
+            }
+        }
 
         let simSteps = 0;
         let simCpu: Record<string, number> | undefined;

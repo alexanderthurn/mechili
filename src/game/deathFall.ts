@@ -21,8 +21,18 @@ export type DeathFallState = {
 /** World point where a crash just hit the lawn. */
 export type CrashLand = { x: number; y: number; z: number };
 
+/** Ground mech tip-over after death (render-only). */
+export type DeathTipState = {
+    startAt: number;
+    dur: number;
+    tipZ: number;
+    startRotZ: number;
+    groundY: number;
+};
+
 const MIN_DUR = 0.45;
 const MAX_DUR = 0.9;
+const DEATH_TIP_DUR = 0.38;
 /** Full-power (heavy overkill) horizontal fling in world units. */
 const MAX_CRASH_DRIFT = 36;
 
@@ -102,6 +112,41 @@ export function tickDeathFall(
 
 export function clearDeathFall(mesh: Group): void {
     delete mesh.userData.deathFall;
+}
+
+/** Tip a ground mech onto its side over a short beat (render-only). */
+export function beginDeathTip(
+    mesh: Group,
+    tipZ: number,
+    groundY: number,
+    startAt: number,
+): DeathTipState {
+    const state: DeathTipState = {
+        startAt,
+        dur: DEATH_TIP_DUR,
+        tipZ,
+        startRotZ: mesh.rotation.z,
+        groundY,
+    };
+    mesh.userData.deathTip = state;
+    return state;
+}
+
+/** Apply tip pose. Returns false when finished. */
+export function tickDeathTip(mesh: Group, state: DeathTipState, elapsed: number): boolean {
+    const u = Math.min(1, Math.max(0, (elapsed - state.startAt) / state.dur));
+    const e = u * u * (3 - 2 * u);
+    mesh.rotation.z = state.startRotZ + (state.tipZ - state.startRotZ) * e;
+    mesh.position.y = state.groundY;
+    if (u >= 1) {
+        mesh.rotation.z = state.tipZ;
+        return false;
+    }
+    return true;
+}
+
+export function clearDeathTip(mesh: Group): void {
+    delete mesh.userData.deathTip;
 }
 
 export function crashLandFromFall(state: DeathFallState): CrashLand {
