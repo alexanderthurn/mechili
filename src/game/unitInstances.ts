@@ -16,9 +16,13 @@ import {
     randomWingPhase,
     setCrowWingPhase,
     setCrowWingRate,
+    setCrowWingRest,
+    setCrowWingBodyRoll,
     setupCrowWingInstanceAttributes,
     swapCrowWingPhase,
     swapCrowWingRate,
+    swapCrowWingRest,
+    swapCrowWingBodyRoll,
     updateCrowWingFlap,
 } from './crowWingFlap';
 import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
@@ -293,9 +297,12 @@ export class UnitInstanceRenderer {
                     : randomWingPhase();
             proxy.userData.wingPhase = phase;
             proxy.userData.wingFlapRate = 0;
+            proxy.userData.wingRest = 0;
             for (const mesh of pool.parts) {
                 setCrowWingPhase(mesh, index, phase);
                 setCrowWingRate(mesh, index, 0);
+                setCrowWingRest(mesh, index, 0);
+                setCrowWingBodyRoll(mesh, index, 0);
             }
         }
         this.ownerPool.set(proxy, {
@@ -335,6 +342,8 @@ export class UnitInstanceRenderer {
                 if (meta.typeId === CROW_RIDER_MODEL_ID) {
                     swapCrowWingPhase(mesh, last, meta.index);
                     swapCrowWingRate(mesh, last, meta.index);
+                    swapCrowWingRest(mesh, last, meta.index);
+                    swapCrowWingBodyRoll(mesh, last, meta.index);
                 }
             }
         }
@@ -355,7 +364,13 @@ export class UnitInstanceRenderer {
         for (const mesh of pool.parts) mesh.setMatrixAt(index, proxy.matrixWorld);
         if (typeId === CROW_RIDER_MODEL_ID) {
             const rate = typeof proxy.userData.wingFlapRate === 'number' ? proxy.userData.wingFlapRate : 0;
-            for (const mesh of pool.parts) setCrowWingRate(mesh, index, rate);
+            const rest = typeof proxy.userData.wingRest === 'number' ? proxy.userData.wingRest : 0;
+            const roll = proxy.rotation.z;
+            for (const mesh of pool.parts) {
+                setCrowWingRate(mesh, index, rate);
+                setCrowWingRest(mesh, index, rest);
+                setCrowWingBodyRoll(mesh, index, roll);
+            }
         }
     }
 

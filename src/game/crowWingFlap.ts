@@ -31,12 +31,16 @@ interface WingUniforms {
 const materialUniforms = new WeakMap<MeshStandardMaterial, WingUniforms>();
 const attached = new WeakSet<MeshStandardMaterial>();
 
-/** Per-pool instanced wing attributes (phase + speed). */
+/** Per-pool instanced wing attributes (phase + speed + rest pose). */
 const phaseAttributes = new WeakMap<InstancedMesh, InstancedBufferAttribute>();
 const rateAttributes = new WeakMap<InstancedMesh, InstancedBufferAttribute>();
+const restAttributes = new WeakMap<InstancedMesh, InstancedBufferAttribute>();
+const rollAttributes = new WeakMap<InstancedMesh, InstancedBufferAttribute>();
 
 const WING_PHASE = 'aWingPhase';
 const WING_RATE = 'aWingRate';
+const WING_REST = 'aWingRest';
+const WING_BODY_ROLL = 'aWingBodyRoll';
 
 /** Hovering in air — fraction of full {@link CROW_WING_FLY_RATE}. */
 export const CROW_WING_HOVER_RATE = 0.42;
@@ -44,6 +48,8 @@ export const CROW_WING_HOVER_RATE = 0.42;
 export const CROW_WING_FLY_RATE = 1;
 /** Ground / not airborne below this flight-lift fraction. */
 export const CROW_WING_AIR_MIN = 0.06;
+/** Fixed wing splay when dead — wings lay out instead of upright rest pose. */
+export const CROW_WING_LAY_REST = 1.65;
 
 export interface CrowWingRateInput {
     dead?: boolean;
@@ -77,13 +83,40 @@ export function setCrowWingRateOnProxy(proxy: { userData: Record<string, unknown
     proxy.userData.wingFlapRate = rate;
 }
 
+/** Fixed wing angle offset (0 = model rest; {@link CROW_WING_LAY_REST} = splayed on ground). */
+export function setCrowWingRestOnProxy(proxy: { userData: Record<string, unknown> }, rest: number): void {
+    proxy.userData.wingRest = rest;
+}
+
+/** 0→1 splay progress for an in-flight crash or ground tip. */
+export function crowWingDeathSplay(
+    renderTime: number,
+    fall?: { startAt: number; dur: number },
+    tip?: { startAt: number; dur: number },
+): number {
+    const state = fall ?? tip;
+    if (!state) return 1;
+    if (state.startAt < 0) return 0;
+    return Math.min(1, (renderTime - state.startAt) / state.dur);
+}
+
+/** Stop flapping and splay wings for a corpse (splay 0..1). */
+export function setCrowWingDeathSplay(proxy: { userData: Record<string, unknown> }, splay: number): void {
+    setCrowWingRateOnProxy(proxy, 0);
+    setCrowWingRestOnProxy(proxy, CROW_WING_LAY_REST * Math.min(1, Math.max(0, splay)));
+}
+
 /** Stop all crow-rider wing motion (battle end, souls phase — like deployment). */
 export function freezeAllCrowWingRates(
     units: Iterable<{ members: { mesh: Group }[]; type: { modelId?: string; id: string } }>,
 ): void {
     for (const unit of units) {
         if ((unit.type.modelId ?? unit.type.id) !== CROW_RIDER_MODEL_ID) continue;
-        for (const m of unit.members) setCrowWingRateOnProxy(m.mesh, 0);
+        for (const m of unit.members) {
+            if (m.mesh.userData.dead) continue;
+            setCrowWingRateOnProxy(m.mesh, 0);
+            setCrowWingRestOnProxy(m.mesh, 0);
+        }
     }
 }
 
@@ -138,6 +171,8 @@ export function attachCrowWingFlap(material: MeshStandardMaterial, geometry: Buf
         shader.vertexShader =
             `attribute float ${WING_PHASE};
 attribute float ${WING_RATE};
+attribute float ${WING_REST};
+attribute float ${WING_BODY_ROLL};
 uniform float uWingTime;
 uniform float uWingPivotR;
 uniform float uWingPivotY;
@@ -169,11 +204,20 @@ uniform float uTipPower;
   float tipWeight = mix(uTipFloor, 1.0, pow(tipT, uTipPower));
   // Mirror flap sign so both wings move up/down together (Z-rot is mirrored on −X).
   float wingSide = transformed.x >= 0.0 ? 1.0 : -1.0;
-  float flap = sin(uWingTime * uFlapSpeed + ${WING_PHASE}) * uFlapAmp * tipWeight * wingSide * ${WING_RATE};
   vec3 rel = transformed - pivot;
-  float cz = cos(flap);
-  float sz = sin(flap);
-  vec3 bent = pivot + vec3(cz * rel.x - sz * rel.y, sz * rel.x + cz * rel.y, rel.z);
+  // Body death tip rolls on local Z — blend lay axis from flap (Z) to pitch (X) as |roll| grows.
+  float rollW = clamp(abs(${WING_BODY_ROLL}) / 1.35, 0.0, 1.0);
+  float rest = ${WING_REST} * tipWeight;
+  float restX = -rest * rollW;
+  float restZ = rest * (1.0 - rollW);
+  float flapAnim = sin(uWingTime * uFlapSpeed + ${WING_PHASE}) * uFlapAmp * tipWeight * wingSide * ${WING_RATE};
+  // Lay on side: pitch wings down around X; upright / early tip: fold in flap plane (Z).
+  float cx = cos(restX);
+  float sx = sin(restX);
+  vec3 r1 = vec3(rel.x, cx * rel.y - sx * rel.z, sx * rel.y + cx * rel.z);
+  float cz = cos(restZ + flapAnim);
+  float sz = sin(restZ + flapAnim);
+  vec3 bent = pivot + vec3(cz * r1.x - sz * r1.y, sz * r1.x + cz * r1.y, r1.z);
   transformed = mix(transformed, bent, wingMask);
 }
 #endif
@@ -182,7 +226,7 @@ uniform float uTipPower;
     };
 
     material.customProgramCacheKey = function () {
-        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v9';
+        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v12';
     };
     material.needsUpdate = true;
 }
@@ -198,6 +242,16 @@ export function setupCrowWingInstanceAttributes(mesh: InstancedMesh, capacity: n
     rates.setUsage(DynamicDrawUsage);
     mesh.geometry.setAttribute(WING_RATE, rates);
     rateAttributes.set(mesh, rates);
+
+    const rests = new InstancedBufferAttribute(new Float32Array(capacity), 1);
+    rests.setUsage(DynamicDrawUsage);
+    mesh.geometry.setAttribute(WING_REST, rests);
+    restAttributes.set(mesh, rests);
+
+    const rolls = new InstancedBufferAttribute(new Float32Array(capacity), 1);
+    rolls.setUsage(DynamicDrawUsage);
+    mesh.geometry.setAttribute(WING_BODY_ROLL, rolls);
+    rollAttributes.set(mesh, rolls);
 }
 
 /** @deprecated use {@link setupCrowWingInstanceAttributes} */
@@ -219,8 +273,36 @@ export function setCrowWingRate(mesh: InstancedMesh, index: number, rate: number
     attr.needsUpdate = true;
 }
 
+export function setCrowWingRest(mesh: InstancedMesh, index: number, rest: number): void {
+    const attr = restAttributes.get(mesh);
+    if (!attr) return;
+    attr.setX(index, rest);
+    attr.needsUpdate = true;
+}
+
+export function setCrowWingBodyRoll(mesh: InstancedMesh, index: number, roll: number): void {
+    const attr = rollAttributes.get(mesh);
+    if (!attr) return;
+    attr.setX(index, roll);
+    attr.needsUpdate = true;
+}
+
 export function swapCrowWingRate(mesh: InstancedMesh, from: number, to: number): void {
     const attr = rateAttributes.get(mesh);
+    if (!attr) return;
+    attr.setX(to, attr.getX(from));
+    attr.needsUpdate = true;
+}
+
+export function swapCrowWingRest(mesh: InstancedMesh, from: number, to: number): void {
+    const attr = restAttributes.get(mesh);
+    if (!attr) return;
+    attr.setX(to, attr.getX(from));
+    attr.needsUpdate = true;
+}
+
+export function swapCrowWingBodyRoll(mesh: InstancedMesh, from: number, to: number): void {
+    const attr = rollAttributes.get(mesh);
     if (!attr) return;
     attr.setX(to, attr.getX(from));
     attr.needsUpdate = true;

@@ -4,6 +4,7 @@ import type { Group } from 'three';
 export type DeathFallState = {
     startY: number;
     groundY: number;
+    /** Render clock at fall start; negative until first tick. */
     startAt: number;
     dur: number;
     tipZ: number;
@@ -23,6 +24,7 @@ export type CrashLand = { x: number; y: number; z: number };
 
 /** Ground mech tip-over after death (render-only). */
 export type DeathTipState = {
+    /** Render clock at tip start; negative until first tick. */
     startAt: number;
     dur: number;
     tipZ: number;
@@ -60,8 +62,8 @@ export function beginDeathFall(
     originZ: number,
     driftX = 0,
     driftZ = 0,
+    startY = mesh.position.y,
 ): DeathFallState {
-    const startY = mesh.position.y;
     const driftLen = Math.hypot(driftX, driftZ);
     const state: DeathFallState = {
         startY,
@@ -87,10 +89,11 @@ export function beginDeathFall(
 export function tickDeathFall(
     mesh: Group,
     state: DeathFallState,
-    elapsed: number,
+    renderTime: number,
     sampleGroundY: (worldX: number, worldZ: number) => number,
 ): boolean {
-    const u = Math.min(1, Math.max(0, (elapsed - state.startAt) / state.dur));
+    if (state.startAt < 0) state.startAt = renderTime;
+    const u = Math.min(1, Math.max(0, (renderTime - state.startAt) / state.dur));
     // Gravity-ish drop; horizontal ease-out so the fling reads early
     const e = u * u;
     const h = 1 - (1 - u) * (1 - u);
@@ -143,8 +146,9 @@ export function beginDeathTip(
 }
 
 /** Apply tip pose. Returns false when finished. */
-export function tickDeathTip(mesh: Group, state: DeathTipState, elapsed: number): boolean {
-    const u = Math.min(1, Math.max(0, (elapsed - state.startAt) / state.dur));
+export function tickDeathTip(mesh: Group, state: DeathTipState, renderTime: number): boolean {
+    if (state.startAt < 0) state.startAt = renderTime;
+    const u = Math.min(1, Math.max(0, (renderTime - state.startAt) / state.dur));
     const e = u * u * (3 - 2 * u);
     mesh.rotation.z = state.startRotZ + (state.tipZ - state.startRotZ) * e;
     mesh.position.y = state.groundY;

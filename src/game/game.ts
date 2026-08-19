@@ -155,7 +155,7 @@ import {
     type DeathFallState,
     type DeathTipState,
 } from './deathFall';
-import { freezeAllCrowWingRates } from './crowWingFlap';
+import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, CROW_RIDER_MODEL_ID } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
@@ -8322,23 +8322,25 @@ export class Game {
 
     /** Keep render-only death falls / ground tips moving after the sim is torn down. */
     private tickPlacementDeathVisuals(): void {
-        const elapsed = this.postBattleDeathElapsed + (this.time - this.postBattleDeathTimeBase);
         for (const unit of this.placement.allUnits()) {
             for (const m of unit.members) {
                 const mesh = m.mesh;
                 const fall = mesh.userData.deathFall as DeathFallState | undefined;
+                const tip = mesh.userData.deathTip as DeathTipState | undefined;
                 if (fall) {
                     if (
-                        !tickDeathFall(mesh, fall, elapsed, (wx, wz) =>
+                        !tickDeathFall(mesh, fall, this.time, (wx, wz) =>
                             worldHeightAt(wx, wz) + GROUND_UNIT_Y,
                         )
                     ) {
                         clearDeathFall(mesh);
                     }
-                    continue;
+                } else if (tip && !tickDeathTip(mesh, tip, this.time)) {
+                    clearDeathTip(mesh);
                 }
-                const tip = mesh.userData.deathTip as DeathTipState | undefined;
-                if (tip && !tickDeathTip(mesh, tip, elapsed)) clearDeathTip(mesh);
+                if ((unit.type.modelId ?? unit.type.id) === CROW_RIDER_MODEL_ID && mesh.userData.instanced) {
+                    setCrowWingDeathSplay(mesh, crowWingDeathSplay(this.time, fall, tip));
+                }
             }
         }
     }

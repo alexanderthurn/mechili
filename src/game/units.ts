@@ -71,6 +71,7 @@ import {
     computeCrowWingRate,
     CROW_RIDER_MODEL_ID,
     setCrowWingRateOnProxy,
+    setCrowWingRestOnProxy,
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -1413,6 +1414,10 @@ export class Unit {
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
+            if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
+                setCrowWingRateOnProxy(m.mesh, 0);
+                setCrowWingRestOnProxy(m.mesh, 0);
+            }
             instances?.setAlive(m.mesh);
         }
         this.seatMembers();
@@ -1493,6 +1498,7 @@ export class Unit {
                     moving,
                 }),
             );
+            if (!m.mesh.userData.dead) setCrowWingRestOnProxy(m.mesh, 0);
         }
     }
 }
