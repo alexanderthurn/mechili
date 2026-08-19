@@ -270,6 +270,11 @@ export interface Actor {
     mvZ: number;
     /** sticky attack target — held while in range; closest search when not */
     cachedEnemy: Actor | null;
+    /** approach lane: world offset from {@link cachedEnemy} center after a same-target crowd push */
+    approachOx: number;
+    approachOz: number;
+    /** sim time until the approach lane expires (0 = none) */
+    approachOffsetUntil: number;
     /** burn DoT: sim time when it expires (0 = not burning) */
     burnUntil: number;
     /** burn damage per second while burnUntil > elapsed */
@@ -530,6 +535,10 @@ const AVOID_STRENGTH = 2.4;
 const SEPARATION_GAP = 1.0; // soft personal space between mechs
 const SEPARATION_STRENGTH = 1.1;
 const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers, ballistas)
+/** seconds a crowd-push lane offset is kept as the approach goal */
+const APPROACH_OFFSET_HOLD = 0.85;
+/** max world offset from target center while lane-holding */
+const APPROACH_OFFSET_MAX = 4.0;
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
 /** expanding-ring cap for closest-enemy search (map diagonal ≪ this × cell) */
 const TARGET_MAX_RING = 48;
@@ -541,6 +550,9 @@ const CROWD_EVERY_STEPS = 1;
 const CROWD_OVERLOAD_EVERY_STEPS = 6;
 /** re-run closestEnemy only every N steps (staggered by actor index) */
 const TARGET_REFRESH_STEPS = 30;
+
+/** Fixed battle sim tick rate (StarCraft II uses 16; was 30). */
+export const SIM_HZ = 16;
 
 /**
  * The real-time battle: every mech acts individually — it walks toward the
@@ -554,7 +566,7 @@ const TARGET_REFRESH_STEPS = 30;
  * produces the same battle.
  */
 export class BattleSim {
-    private static readonly STEP = 1 / 30;
+    private static readonly STEP = 1 / SIM_HZ;
 
     readonly actors: Actor[] = [];
     readonly projectiles: Projectile[] = [];
@@ -593,7 +605,7 @@ export class BattleSim {
     /** ballista Golden Aura is a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
     private goldenAuraApplied = false;
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
-    private prevStepDt = 1 / 30;
+    private prevStepDt = 1 / SIM_HZ;
     /** when true, step() accumulates timings into {@link lastProfile} */
     profileEnabled = false;
     /** ms spent in the last {@link update} call (summed across catch-up steps) */
@@ -727,6 +739,9 @@ export class BattleSim {
                     mvX: 0,
                     mvZ: 0,
                     cachedEnemy: null,
+                    approachOx: 0,
+                    approachOz: 0,
+                    approachOffsetUntil: 0,
                     burnUntil: 0,
                     burnDps: 0,
                     corrodedUntil: 0,
@@ -1436,6 +1451,9 @@ export class BattleSim {
                 mvX: 0,
                 mvZ: 0,
                 cachedEnemy: null,
+                approachOx: 0,
+                approachOz: 0,
+                approachOffsetUntil: 0,
                 burnUntil: 0,
                 burnDps: 0,
                 corrodedUntil: 0,
@@ -2216,7 +2234,7 @@ export class BattleSim {
             const fromY = worldHeightAt(a.rx, a.rz) + DEPLOY_AIR_Y;
             const hoverY = fromY + (a.altitude - fromY) * lift;
             const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
-            // age uses leftover-step alpha so the dive is smooth between 30 Hz ticks.
+            // age uses leftover-step alpha so the dive is smooth between sim ticks.
             // Do not treat age≈0 as “done” — that used to clear the slam on the
             // same frame it started, so the mesh never left hover height.
             const stompAge =
@@ -2553,9 +2571,9 @@ export class BattleSim {
 
             if (!target) continue;
 
-            const dx = target.x - a.x;
-            const dz = target.z - a.z;
-            const dist = hypot(dx, dz) || 1e-6;
+            const tdx = target.x - a.x;
+            const tdz = target.z - a.z;
+            const tDist = hypot(tdx, tdz) || 1e-6;
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
             const reach = stats.range + a.radius + target.radius;
@@ -2564,13 +2582,13 @@ export class BattleSim {
             // dead zone: the closest enemy is too near and nothing shootable is
             // left (closestEnemy only returns a too-close foe as a last resort) —
             // back straight away until it clears the min range and a shot opens
-            if (minReach > 0 && dist < minReach) {
-                this.steerToward(a, -dx / dist, -dz / dist, minReach - dist + a.radius, dt, stats, d, target, bigs);
-                a.mesh.rotation.y = Math.atan2(dx, dz); // keep facing the enemy while retreating
+            if (minReach > 0 && tDist < minReach) {
+                this.steerToward(a, -tdx / tDist, -tdz / tDist, minReach - tDist + a.radius, dt, stats, d, target, bigs);
+                a.mesh.rotation.y = Math.atan2(tdx, tdz); // keep facing the enemy while retreating
                 continue;
             }
 
-            if (dist <= reach) {
+            if (tDist <= reach) {
                 // in range: stand and fire (still gets jostled by the crowd)
                 if (a.unit.type.projectileSpeed) {
                     if (canAttack) a.cooldown -= dt;
@@ -2587,13 +2605,17 @@ export class BattleSim {
                         a.cooldown += stats.attackInterval;
                         const damage =
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                        this.strikeMelee(a, target, damage, dx, dz, dist);
+                        this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                     }
                 }
-                a.mesh.rotation.y = Math.atan2(-dx, -dz);
+                a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
                 continue;
             }
 
+            const goal = this.approachGoal(a, target);
+            const dx = goal.x - a.x;
+            const dz = goal.z - a.z;
+            const dist = hypot(dx, dz) || 1e-6;
             this.steerToward(a, dx / dist, dz / dist, dist, dt, stats, d, target, bigs, reach * 0.95);
         }
         add('ai');
@@ -3157,10 +3179,55 @@ export class BattleSim {
         const massA = a.radius * a.radius;
         const massB = b.radius * b.radius;
         const shareA = massB / (massA + massB);
-        a.x += nx * overlap * shareA;
-        a.z += nz * overlap * shareA;
-        b.x -= nx * overlap * (1 - shareA);
-        b.z -= nz * overlap * (1 - shareA);
+        const pushAx = nx * overlap * shareA;
+        const pushAz = nz * overlap * shareA;
+        const pushBx = -nx * overlap * (1 - shareA);
+        const pushBz = -nz * overlap * (1 - shareA);
+        a.x += pushAx;
+        a.z += pushAz;
+        b.x += pushBx;
+        b.z += pushBz;
+        this.noteCrowdApproachOffset(a, b, pushAx, pushAz, pushBx, pushBz);
+    }
+
+    /** both mechs share a live attack target — remember the push as a lane offset */
+    private noteCrowdApproachOffset(
+        a: Actor,
+        b: Actor,
+        pushAx: number,
+        pushAz: number,
+        pushBx: number,
+        pushBz: number,
+    ): void {
+        const target = a.cachedEnemy;
+        if (!target || !target.alive || target !== b.cachedEnemy) return;
+        this.refreshApproachOffset(a, pushAx, pushAz);
+        this.refreshApproachOffset(b, pushBx, pushBz);
+    }
+
+    private refreshApproachOffset(a: Actor, pushX: number, pushZ: number): void {
+        if (Math.abs(pushX) < 1e-6 && Math.abs(pushZ) < 1e-6) return;
+        let ox = a.approachOx + pushX;
+        let oz = a.approachOz + pushZ;
+        const len = hypot(ox, oz);
+        if (len > APPROACH_OFFSET_MAX) {
+            ox = (ox / len) * APPROACH_OFFSET_MAX;
+            oz = (oz / len) * APPROACH_OFFSET_MAX;
+        }
+        a.approachOx = ox;
+        a.approachOz = oz;
+        a.approachOffsetUntil = this.elapsed + APPROACH_OFFSET_HOLD;
+    }
+
+    /** seek point while approaching — target center plus any active crowd lane */
+    private approachGoal(a: Actor, target: Actor): { x: number; z: number } {
+        if (a.cachedEnemy !== target || a.approachOffsetUntil <= this.elapsed) {
+            a.approachOx = 0;
+            a.approachOz = 0;
+            a.approachOffsetUntil = 0;
+            return { x: target.x, z: target.z };
+        }
+        return { x: target.x + a.approachOx, z: target.z + a.approachOz };
     }
 
     /** leftover fraction of a step not yet simulated — the interpolation weight */
@@ -3170,7 +3237,7 @@ export class BattleSim {
 
     /**
      * Called once per RENDERED frame (not per step): places meshes at
-     * positions interpolated between the last two sim steps, so 30 Hz
+     * positions interpolated between the last two sim steps, so low sim Hz
      * simulation renders smoothly at any display rate and any game speed.
      */
     syncMeshes(): void {
@@ -3602,7 +3669,14 @@ export class BattleSim {
         // prefer a shootable target; fall back to the closest (too-close) one so
         // the caller can kite away from it
         const result = best ?? bestAny;
-        if (!anyLayer) from.cachedEnemy = result;
+        if (!anyLayer) {
+            if (from.cachedEnemy !== result) {
+                from.approachOx = 0;
+                from.approachOz = 0;
+                from.approachOffsetUntil = 0;
+            }
+            from.cachedEnemy = result;
+        }
         return result;
     }
 }
