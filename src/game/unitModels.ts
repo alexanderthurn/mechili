@@ -19,6 +19,7 @@ import {
     attachBuildingSnowToObject,
     BUILDING_SNOW_IDS,
 } from './buildingSnow';
+import { CROW_RIDER_MODEL_ID, markCrowWingFlapMaterial } from './crowWingFlap';
 import type { BattleTeam, Team } from './units';
 
 /**
@@ -47,7 +48,7 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
     dwarf: {
         url: new URL('../../assets/models/dwarf.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
+        yaw: MODEL_FWD_YAW+ MathUtils.degToRad(90),
         scale: 3,
         // soles sit a hair above the bbox floor — nudge feet into the lawn
         offset: { y: -0.04 },
@@ -416,6 +417,9 @@ export async function loadUnitModels(
             if (BUILDING_SNOW_IDS.has(id)) {
                 attachBuildingSnowToObject(root);
                 for (const part of baked.parts) attachBuildingSnow(part.material);
+            }
+            if (id === CROW_RIDER_MODEL_ID) {
+                for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
             }
             instanceAssets.set(id, baked);
             console.info(

@@ -9014,7 +9014,7 @@ export class Game {
         if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();
         if (profile) cpu.end('world/ui');
         if (profile) cpu.begin();
-        this.unitInstances.sync();
+        this.unitInstances.sync(dtSeconds);
         if (profile) cpu.end('instances');
         if (profile) cpu.begin();
         this.updateBlobShadows();
