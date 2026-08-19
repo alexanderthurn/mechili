@@ -45,6 +45,7 @@ import {
     levelBasisOf,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
+import { computeCrowWingRate, CROW_RIDER_MODEL_ID, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import {
     beginDeathFall,
@@ -53,6 +54,7 @@ import {
     clearDeathTip,
     crashDriftFromKnock,
     crashLandFromFall,
+    snapFlyerForDeathFall,
     tickDeathFall,
     tickDeathTip,
     type CrashLand,
@@ -2167,22 +2169,27 @@ export class BattleSim {
         for (const a of this.actors) {
             if (a.alive || a.unit.type.structure) continue;
             const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
+            const tip = a.mesh.userData.deathTip as DeathTipState | undefined;
             if (fall) {
-                if (!tickDeathFall(a.mesh, fall, this.elapsed, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
+                if (!tickDeathFall(a.mesh, fall, timeSeconds, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
                     crashLands.push(crashLandFromFall(fall));
                     clearDeathFall(a.mesh);
                 }
-                continue;
+            } else if (tip) {
+                if (!tickDeathTip(a.mesh, tip, timeSeconds)) clearDeathTip(a.mesh);
+            } else {
+                // One height sample per wreck — skips mid-fall so flyer crashes stay intact
+                const wx = a.unit.world.x + a.mesh.position.x;
+                const wz = a.unit.world.z + a.mesh.position.z;
+                a.mesh.position.y = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
             }
-            const tip = a.mesh.userData.deathTip as DeathTipState | undefined;
-            if (tip) {
-                if (!tickDeathTip(a.mesh, tip, this.elapsed)) clearDeathTip(a.mesh);
-                continue;
+            if ((a.unit.type.modelId ?? a.unit.type.id) === CROW_RIDER_MODEL_ID && a.mesh.userData.instanced) {
+                setCrowWingDeathSplay(
+                    a.mesh,
+                    crowWingDeathSplay(timeSeconds, fall, tip),
+                );
             }
-            // One height sample per wreck — skips mid-fall so flyer crashes stay intact
-            const wx = a.unit.world.x + a.mesh.position.x;
-            const wz = a.unit.world.z + a.mesh.position.z;
-            a.mesh.position.y = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
+            if (fall || tip) continue;
         }
         return crashLands;
     }
@@ -2295,6 +2302,20 @@ export class BattleSim {
             a.recoil = recoil * 0.8;
         } else {
             a.recoil = 0;
+        }
+
+        if ((a.unit.type.modelId ?? a.unit.type.id) === CROW_RIDER_MODEL_ID && a.mesh.userData.instanced) {
+            setCrowWingRestOnProxy(a.mesh, 0);
+            setCrowWingRateOnProxy(
+                a.mesh,
+                computeCrowWingRate({
+                    dead: !a.alive || !!a.mesh.userData.dead,
+                    inDeployment: false,
+                    flightLift: a.unit.flightLift,
+                    altitude: a.altitude,
+                    moving,
+                }),
+            );
         }
     }
 
@@ -2416,7 +2437,20 @@ export class BattleSim {
             // ~1.2 rad ≈ flatter on the lawn (old ~0.75 looked half-standing / floaty)
             const tipZ = (target.index % 2 ? 1 : -1) * (1.2 + (target.index % 4) * 0.06);
             const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
-            if (target.altitude > 0) {
+            const dropHeight = target.mesh.position.y - groundY;
+            const isAirFlyer = !!t.flying && target.altitude > 0;
+            const shouldCrashFall = isAirFlyer || (!!t.flying && dropHeight > 0.45);
+            let fallStartY = target.mesh.position.y;
+            if (shouldCrashFall) {
+                if (isAirFlyer) {
+                    const fromY = worldHeightAt(target.x, target.z) + DEPLOY_AIR_Y;
+                    const hoverY = fromY + (target.altitude - fromY) * target.unit.flightLift;
+                    snapFlyerForDeathFall(target.mesh, hoverY, target.unit.visualMeshScale());
+                    fallStartY = hoverY;
+                    target.stompAt = undefined;
+                    target.stompAir = false;
+                    target.stompVictim = undefined;
+                }
                 // flyers: tumble down; optional knock flings along the killing blow
                 let driftX = 0;
                 let driftZ = 0;
@@ -2429,16 +2463,18 @@ export class BattleSim {
                     target.mesh,
                     groundY,
                     tipZ,
-                    this.elapsed,
+                    -1,
                     target.unit.world.x,
                     target.unit.world.z,
                     driftX,
                     driftZ,
+                    fallStartY,
                 );
             } else {
-                beginDeathTip(target.mesh, tipZ, groundY, this.elapsed);
+                beginDeathTip(target.mesh, tipZ, groundY, -1);
             }
             target.mesh.userData.dead = true;
+            if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
     }

@@ -1769,6 +1769,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     cursor: pointer;
 }
 .mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-replay-controls .rc-speed-hint { font-size: 11px; color: ${u.textMuted}; white-space: nowrap; }
 
 /* suggest chip, top-left of the main menu (same feel as username) */
 .mechili-suggest-btn {
