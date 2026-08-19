@@ -967,7 +967,7 @@ export const UNIT_TYPES: UnitType[] = [
         flying: 18,
         burn: { takenMult: 1 }, // air: burn status ignored while aloft
         targets: { ground: true, air: true },
-        collisionRadius: 0.75,
+        collisionRadius: 3,
         colliders: [{ y: 0.1, r: 0.75 }],
         projectileSpeed: 70,
         projectileStyle: 'stone',
