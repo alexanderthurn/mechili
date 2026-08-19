@@ -48,8 +48,8 @@ export const CROW_WING_HOVER_RATE = 0.42;
 export const CROW_WING_FLY_RATE = 1;
 /** Ground / not airborne below this flight-lift fraction. */
 export const CROW_WING_AIR_MIN = 0.06;
-/** Fixed wing splay when dead — wings lay out instead of upright rest pose. */
-export const CROW_WING_LAY_REST = 1.65;
+/** Extra fold after span reorient — main lay is the ±90° span twist keyed to body roll. */
+export const CROW_WING_LAY_REST = 0.85;
 
 export interface CrowWingRateInput {
     dead?: boolean;
@@ -205,20 +205,26 @@ uniform float uTipPower;
   // Mirror flap sign so both wings move up/down together (Z-rot is mirrored on −X).
   float wingSide = transformed.x >= 0.0 ? 1.0 : -1.0;
   vec3 rel = transformed - pivot;
-  // Body death tip rolls on local Z — blend lay axis from flap (Z) to pitch (X) as |roll| grows.
-  float rollW = clamp(abs(${WING_BODY_ROLL}) / 1.35, 0.0, 1.0);
+  float dead = step(0.001, ${WING_REST});
   float rest = ${WING_REST} * tipWeight;
-  float restX = -rest * rollW;
-  float restZ = rest * (1.0 - rollW);
   float flapAnim = sin(uWingTime * uFlapSpeed + ${WING_PHASE}) * uFlapAmp * tipWeight * wingSide * ${WING_RATE};
-  // Lay on side: pitch wings down around X; upright / early tip: fold in flap plane (Z).
-  float cx = cos(restX);
-  float sx = sin(restX);
-  vec3 r1 = vec3(rel.x, cx * rel.y - sx * rel.z, sx * rel.y + cx * rel.z);
-  float cz = cos(restZ + flapAnim);
-  float sz = sin(restZ + flapAnim);
-  vec3 bent = pivot + vec3(cz * r1.x - sz * r1.y, sz * r1.x + cz * r1.y, r1.z);
-  transformed = mix(transformed, bent, wingMask);
+  // Living: flap in XY (local Z rot).
+  float cz0 = cos(flapAnim);
+  float sz0 = sin(flapAnim);
+  vec3 bentAlive = vec3(cz0 * rel.x - sz0 * rel.y, sz0 * rel.x + cz0 * rel.y, rel.z);
+  // Dead: wingspan is ±X — body death roll (local Z) swings X toward world up.
+  // Pre-rotate span toward local −Y (±90° scaled by roll) so tips land on the lawn.
+  float rollN = clamp(-${WING_BODY_ROLL} / 1.2, -1.0, 1.0);
+  float spanZ = rollN * 1.5707963;
+  float cz1 = cos(spanZ);
+  float sz1 = sin(spanZ);
+  vec3 r1 = vec3(cz1 * rel.x - sz1 * rel.y, sz1 * rel.x + cz1 * rel.y, rel.z);
+  float foldX = -rest * abs(rollN);
+  float cx = cos(foldX);
+  float sx = sin(foldX);
+  vec3 bentDead = vec3(r1.x, cx * r1.y - sx * r1.z, sx * r1.y + cx * r1.z);
+  vec3 bent = mix(bentAlive, bentDead, dead);
+  transformed = mix(transformed, pivot + bent, wingMask);
 }
 #endif
 `,
@@ -226,7 +232,7 @@ uniform float uTipPower;
     };
 
     material.customProgramCacheKey = function () {
-        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v12';
+        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v13';
     };
     material.needsUpdate = true;
 }

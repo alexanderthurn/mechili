@@ -980,7 +980,7 @@ export const UNIT_TYPES: UnitType[] = [
         // wide blast vs packed dwarves (3× the ballista's old splash radius of 3)
         splashRadius: 3,
         hp: 45,
-        damage: 18,
+        damage: 35,
         range: 12,
         attackInterval: 1.1,
         speed: 8,
@@ -1003,7 +1003,7 @@ export const UNIT_TYPES: UnitType[] = [
         // cradle sits high on the siege frame — not at the chassis collider mid
         projectileLaunchHeight: 5.8,
         projectileBallistic: true,
-        splashRadius: 3, // bolts shatter — everything near the impact takes the hit
+        splashRadius: 5, // bolts shatter — everything near the impact takes the hit
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
