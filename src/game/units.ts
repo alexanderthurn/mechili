@@ -685,7 +685,7 @@ export const HORDE_BRUT: UnitType = {
     burn: { takenMult: 0.5 },
     bloodColor: 0x8cef18,
     targets: { ground: true, air: false },
-    collisionRadius: 0.45,
+    collisionRadius: 0.6,
     colliders: [{ y: 0.3, r: 0.5 }],
     sandWeight: 0.15,
     hp: 42,
@@ -902,7 +902,7 @@ export const UNIT_TYPES: UnitType[] = [
         meshScale: 1,
         burn: { takenMult: 0.5 }, // tough infantry — resists fire better
         targets: { ground: true, air: false }, // can't reach the sky
-        collisionRadius: 0.5,
+        collisionRadius: 0.6,
         colliders: [{ y: 0.35, r: 0.55 }],
         hp: 40,
         damage: 8,
