@@ -411,12 +411,12 @@ export class Game {
     /** tech tile currently hovered/peeked in the detail panel (drives aura ring) */
     private hoveredTech: string | null = null;
 
-    /** ascending — the speed button steps up (click) or down (right click), wrapping */
-    private static readonly SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8];
+    /** ascending — click: faster, right click: slower; clamps at each end */
+    private static readonly SPEED_STEPS = [0, 0.25, 0.5, 1, 2, 4, 8];
     /** replay-only — much wider range since nothing live needs to stay near
      *  real-time; a separate array so the live-match button/range is
      *  untouched */
-    static readonly REPLAY_SPEED_STEPS = [0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
+    static readonly REPLAY_SPEED_STEPS = [0, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
     private phase: Phase = 'build';
     private round = 0;
@@ -745,6 +745,8 @@ export class Game {
         | null = null;
     /** throttled hook for persisting single-player state to session storage */
     onStateCheckpoint: (() => void) | null = null;
+    /** replay panel keeps its speed <select> in sync with keyboard shortcuts */
+    onSpeedIndexChange: ((index: number) => void) | null = null;
     /** 0..1 while the 3D camera fly-in runs (main fades the brightness flash) */
     onMatchIntroProgress: ((t: number) => void) | null = null;
     /** fired once when the fly-in finishes (main clears the flash overlay) */
@@ -868,6 +870,23 @@ export class Game {
         if (e.code === 'KeyC' && e.shiftKey) {
             this.toggleUiHidden();
             return;
+        }
+
+        // battle / replay speed: 1 = Pause, then each step up; replay's top
+        // speed (32×) is key 0 when it doesn't fit in 1–9
+        if (
+            !e.shiftKey &&
+            !e.ctrlKey &&
+            !e.metaKey &&
+            !e.altKey &&
+            e.code.startsWith('Digit')
+        ) {
+            const digit = parseInt(e.code.slice(5), 10);
+            const index = this.speedShortcutIndex(digit);
+            if (index !== null && this.speedShortcutsActive()) {
+                this.applySpeedIndex(index);
+                return;
+            }
         }
 
         // R: rotate selected pack (same as middle-click / touch Rotate)
@@ -2382,6 +2401,7 @@ export class Game {
         this.deferredRoundOffer = false;
         this.introCardsRevealed = false;
         this.onStateCheckpoint = null;
+        this.onSpeedIndexChange = null;
         this.onReturnToMenu = null;
         this.onConnectionLost = null;
         // network/backend teardown FIRST, before any rendering/HUD disposal
@@ -5477,9 +5497,43 @@ export class Game {
      *  live cycleSpeed() button handler */
     setReplaySpeedIndex(index: number): void {
         if (!this.watching) return;
+        this.applySpeedIndex(index);
+    }
+
+    private speedShortcutsActive(): boolean {
+        return (
+            (this.phase === 'battle' || this.watching) &&
+            !this.matchOver &&
+            !this.suspended &&
+            !this.introActive &&
+            !this.outroActive
+        );
+    }
+
+    /** digit key → speedSteps index; null if unmapped for the current range */
+    private speedShortcutIndex(digit: number): number | null {
+        if (digit >= 1 && digit <= 9) {
+            const index = digit - 1;
+            return index < this.speedSteps.length ? index : null;
+        }
+        // replay/watch has 10 steps — 1–9 cover the first nine, 0 = fastest
+        if (digit === 0 && this.watching && this.speedSteps.length > 9) {
+            return this.speedSteps.length - 1;
+        }
+        return null;
+    }
+
+    private applySpeedIndex(index: number): void {
         const clamped = Math.max(0, Math.min(index, this.speedSteps.length - 1));
+        if (clamped === this.speedIndex) return;
         this.speedIndex = clamped;
-        this.hud.setSpeed(this.speedSteps[clamped]!);
+        const multiplier = this.speedSteps[clamped]!;
+        this.hud.setSpeed(multiplier);
+        if (this.watching) {
+            this.onSpeedIndexChange?.(clamped);
+        } else if (!this.hydrating) {
+            this.broadcast({ type: 'speed', multiplier });
+        }
     }
 
     /**
@@ -7435,12 +7489,9 @@ export class Game {
     }
 
     private cycleSpeed(direction: number): void {
-        const n = this.speedSteps.length;
-        this.speedIndex = (this.speedIndex + direction + n) % n;
-        const multiplier = this.speedSteps[this.speedIndex]!;
-        this.hud.setSpeed(multiplier);
-        // both players (and spectators) watch at the same pace and finish together
-        this.broadcast({ type: 'speed', multiplier });
+        const next = this.speedIndex + direction;
+        if (next < 0 || next >= this.speedSteps.length) return;
+        this.applySpeedIndex(next);
     }
 
     /** battle speed returns to 1× at the start of every deployment phase

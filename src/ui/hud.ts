@@ -1001,7 +1001,8 @@ export class Hud {
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
-        this.speedEl.title = 'Battle speed — click: faster, right click: slower';
+        this.speedEl.title =
+            'Battle speed — click: faster, right click: slower; keys 1–7 (1 = Pause)';
         this.speedEl.addEventListener('click', () => this.onSpeedUp?.());
         this.speedEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -2855,7 +2856,7 @@ export class Hud {
     }
 
     setSpeed(multiplier: number): void {
-        this.speedEl.textContent = `${multiplier}×`;
+        this.speedEl.textContent = multiplier === 0 ? 'Pause' : `${multiplier}×`;
     }
 
     /** watch mode replaces this with its own wider-range speed control

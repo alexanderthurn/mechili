@@ -2492,6 +2492,9 @@ function constructGame(
     wireGameMenuReturn(game);
     if (net) wireReconnect(game, net);
     else if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    if (replayControlsPanel) {
+        game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
+    }
     return game;
 }
 

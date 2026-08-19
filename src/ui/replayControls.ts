@@ -40,8 +40,15 @@ export class ReplayControls {
             `</div>` +
             `<div class="rc-row">` +
             `<label>Speed <select class="rc-speed">` +
-            speedSteps.map((s, i) => `<option value="${i}">${s}×</option>`).join('') +
+            speedSteps
+                .map((s, i) => {
+                    const key = i === 9 ? '0' : String(i + 1);
+                    const label = s === 0 ? 'Pause' : `${s}×`;
+                    return `<option value="${i}">${key} · ${label}</option>`;
+                })
+                .join('') +
             `</select></label>` +
+            `<span class="rc-speed-hint">Keys 1–9, 0 = 32×</span>` +
             `</div>`;
 
         this.roundSelect = this.root.querySelector<HTMLSelectElement>('.rc-round')!;
@@ -72,6 +79,10 @@ export class ReplayControls {
      *  for "what speed did the viewer pick", since it survives reconstruction */
     getSpeedIndex(): number {
         return Number(this.speedSelect.value);
+    }
+
+    setSpeedIndex(index: number): void {
+        this.speedSelect.value = String(index);
     }
 
     remove(): void {
