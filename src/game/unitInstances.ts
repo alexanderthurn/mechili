@@ -15,8 +15,10 @@ import {
     preserveCrowWingFlap,
     randomWingPhase,
     setCrowWingPhase,
-    setupCrowWingPhaseAttribute,
+    setCrowWingRate,
+    setupCrowWingInstanceAttributes,
     swapCrowWingPhase,
+    swapCrowWingRate,
     updateCrowWingFlap,
 } from './crowWingFlap';
 import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
@@ -193,8 +195,8 @@ export class UnitInstanceRenderer {
     }
 
     /** Push proxy world matrices into every alive/dead InstancedMesh. */
-    sync(dtSeconds = 0): void {
-        if (dtSeconds > 0) updateCrowWingFlap(dtSeconds);
+    sync(dtSeconds = 0, wingFlapActive = true): void {
+        if (dtSeconds > 0 && wingFlapActive) updateCrowWingFlap(dtSeconds);
         const showDead = prefs().renderDeadUnits;
         for (const [key, pool] of this.pools) {
             if (key.endsWith(':dead') && !showDead) {
@@ -207,7 +209,9 @@ export class UnitInstanceRenderer {
                 continue;
             }
             for (let i = 0; i < pool.owners.length; i++) {
-                this.writeMatrix(pool.owners[i]!, pool, i);
+                const proxy = pool.owners[i]!;
+                const meta = this.ownerPool.get(proxy);
+                this.writeMatrix(proxy, pool, i, meta?.typeId);
             }
             for (const mesh of pool.parts) {
                 mesh.count = pool.owners.length;
@@ -288,7 +292,11 @@ export class UnitInstanceRenderer {
                     ? proxy.userData.wingPhase
                     : randomWingPhase();
             proxy.userData.wingPhase = phase;
-            for (const mesh of pool.parts) setCrowWingPhase(mesh, index, phase);
+            proxy.userData.wingFlapRate = 0;
+            for (const mesh of pool.parts) {
+                setCrowWingPhase(mesh, index, phase);
+                setCrowWingRate(mesh, index, 0);
+            }
         }
         this.ownerPool.set(proxy, {
             key: poolKey(typeId, team, level, life),
@@ -324,7 +332,10 @@ export class UnitInstanceRenderer {
                     mesh.getColorAt(last, _color);
                     mesh.setColorAt(meta.index, _color);
                 }
-                if (meta.typeId === CROW_RIDER_MODEL_ID) swapCrowWingPhase(mesh, last, meta.index);
+                if (meta.typeId === CROW_RIDER_MODEL_ID) {
+                    swapCrowWingPhase(mesh, last, meta.index);
+                    swapCrowWingRate(mesh, last, meta.index);
+                }
             }
         }
         pool.owners.pop();
@@ -335,13 +346,17 @@ export class UnitInstanceRenderer {
         }
     }
 
-    private writeMatrix(proxy: Group, pool: Pool, index: number): void {
+    private writeMatrix(proxy: Group, pool: Pool, index: number, typeId?: string): void {
         if (!isRenderable(proxy)) {
             for (const mesh of pool.parts) mesh.setMatrixAt(index, HIDE);
             return;
         }
         proxy.updateWorldMatrix(true, false);
         for (const mesh of pool.parts) mesh.setMatrixAt(index, proxy.matrixWorld);
+        if (typeId === CROW_RIDER_MODEL_ID) {
+            const rate = typeof proxy.userData.wingFlapRate === 'number' ? proxy.userData.wingFlapRate : 0;
+            for (const mesh of pool.parts) setCrowWingRate(mesh, index, rate);
+        }
     }
 
     private pool(typeId: string, team: BattleTeam, life: 'alive' | 'dead', level: number): Pool {
@@ -390,7 +405,7 @@ function makeInstanced(part: InstancePart, typeId: string, level: number, team: 
         applyLevelTintColor(mat, _base, HORDE_COLOR.hex, 0.55);
     }
     const mesh = new InstancedMesh(part.geometry.clone(), mat, POOL_CAPACITY);
-    if (typeId === CROW_RIDER_MODEL_ID) setupCrowWingPhaseAttribute(mesh, POOL_CAPACITY);
+    if (typeId === CROW_RIDER_MODEL_ID) setupCrowWingInstanceAttributes(mesh, POOL_CAPACITY);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
     mesh.castShadow = unitShadowCast(typeId, prefs().shadows);

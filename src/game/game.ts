@@ -155,6 +155,7 @@ import {
     type DeathFallState,
     type DeathTipState,
 } from './deathFall';
+import { freezeAllCrowWingRates } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
@@ -8224,6 +8225,7 @@ export class Game {
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
+            freezeAllCrowWingRates(this.placement.allUnits());
             if (
                 !this.hydrating &&
                 built.sources.length > 0 &&
@@ -9014,7 +9016,7 @@ export class Game {
         if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();
         if (profile) cpu.end('world/ui');
         if (profile) cpu.begin();
-        this.unitInstances.sync(dtSeconds);
+        this.unitInstances.sync(gameDt, this.phase === 'battle');
         if (profile) cpu.end('instances');
         if (profile) cpu.begin();
         this.updateBlobShadows();

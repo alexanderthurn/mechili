@@ -1,6 +1,7 @@
 import {
     BufferGeometry,
     DynamicDrawUsage,
+    Group,
     InstancedBufferAttribute,
     InstancedMesh,
     MeshStandardMaterial,
@@ -30,12 +31,63 @@ interface WingUniforms {
 const materialUniforms = new WeakMap<MeshStandardMaterial, WingUniforms>();
 const attached = new WeakSet<MeshStandardMaterial>();
 
-/** Per-pool instanced phase attribute (desync flap across riders). */
+/** Per-pool instanced wing attributes (phase + speed). */
 const phaseAttributes = new WeakMap<InstancedMesh, InstancedBufferAttribute>();
+const rateAttributes = new WeakMap<InstancedMesh, InstancedBufferAttribute>();
 
 const WING_PHASE = 'aWingPhase';
+const WING_RATE = 'aWingRate';
 
-/** Advance the global wing clock — call once per frame from the instance sync. */
+/** Hovering in air — fraction of full {@link CROW_WING_FLY_RATE}. */
+export const CROW_WING_HOVER_RATE = 0.42;
+/** Full flap while moving in air. */
+export const CROW_WING_FLY_RATE = 1;
+/** Ground / not airborne below this flight-lift fraction. */
+export const CROW_WING_AIR_MIN = 0.06;
+
+export interface CrowWingRateInput {
+    dead?: boolean;
+    inDeployment?: boolean;
+    /** 0 on ground (deployment), 0→1 climb at battle start. */
+    flightLift: number;
+    /** Sim combat altitude (>0 = flyer in air layer). */
+    altitude?: number;
+    /** 0 still, ~1 at cruise speed (per-frame xz delta). */
+    moving: number;
+}
+
+/** Per-instance flap speed multiplier (0 = rest pose, 1 = full cruise flap). */
+export function computeCrowWingRate(input: CrowWingRateInput): number {
+    if (input.dead) return 0;
+
+    let airborne = input.flightLift;
+    if (!input.inDeployment && (input.altitude ?? 0) > 0) {
+        // Once the sim has the rider in the air layer, keep wings alive through the visual climb.
+        airborne = Math.max(airborne, 0.28);
+    }
+    if (airborne < CROW_WING_AIR_MIN) return 0;
+
+    const move = Math.min(1, Math.max(0, input.moving));
+    const base = CROW_WING_HOVER_RATE + (CROW_WING_FLY_RATE - CROW_WING_HOVER_RATE) * move;
+    return base * Math.min(1, airborne);
+}
+
+/** Store rate on the instanced proxy — picked up by {@link UnitInstanceRenderer.sync}. */
+export function setCrowWingRateOnProxy(proxy: { userData: Record<string, unknown> }, rate: number): void {
+    proxy.userData.wingFlapRate = rate;
+}
+
+/** Stop all crow-rider wing motion (battle end, souls phase — like deployment). */
+export function freezeAllCrowWingRates(
+    units: Iterable<{ members: { mesh: Group }[]; type: { modelId?: string; id: string } }>,
+): void {
+    for (const unit of units) {
+        if ((unit.type.modelId ?? unit.type.id) !== CROW_RIDER_MODEL_ID) continue;
+        for (const m of unit.members) setCrowWingRateOnProxy(m.mesh, 0);
+    }
+}
+
+/** Advance the global wing clock — pass sim-scaled dt (gameDt), not raw frame dt. */
 export function updateCrowWingFlap(dtSeconds: number): void {
     wingTimeUniform.value += dtSeconds;
 }
@@ -85,6 +137,7 @@ export function attachCrowWingFlap(material: MeshStandardMaterial, geometry: Buf
 
         shader.vertexShader =
             `attribute float ${WING_PHASE};
+attribute float ${WING_RATE};
 uniform float uWingTime;
 uniform float uWingPivotR;
 uniform float uWingPivotY;
@@ -116,7 +169,7 @@ uniform float uTipPower;
   float tipWeight = mix(uTipFloor, 1.0, pow(tipT, uTipPower));
   // Mirror flap sign so both wings move up/down together (Z-rot is mirrored on −X).
   float wingSide = transformed.x >= 0.0 ? 1.0 : -1.0;
-  float flap = sin(uWingTime * uFlapSpeed + ${WING_PHASE}) * uFlapAmp * tipWeight * wingSide;
+  float flap = sin(uWingTime * uFlapSpeed + ${WING_PHASE}) * uFlapAmp * tipWeight * wingSide * ${WING_RATE};
   vec3 rel = transformed - pivot;
   float cz = cos(flap);
   float sz = sin(flap);
@@ -129,23 +182,47 @@ uniform float uTipPower;
     };
 
     material.customProgramCacheKey = function () {
-        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v8';
+        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v9';
     };
     material.needsUpdate = true;
 }
 
-/** Add per-instance phase attribute to a crow-rider InstancedMesh. */
-export function setupCrowWingPhaseAttribute(mesh: InstancedMesh, capacity: number): void {
+/** Add per-instance wing phase + rate attributes to a crow-rider InstancedMesh. */
+export function setupCrowWingInstanceAttributes(mesh: InstancedMesh, capacity: number): void {
     const phases = new InstancedBufferAttribute(new Float32Array(capacity), 1);
     phases.setUsage(DynamicDrawUsage);
     mesh.geometry.setAttribute(WING_PHASE, phases);
     phaseAttributes.set(mesh, phases);
+
+    const rates = new InstancedBufferAttribute(new Float32Array(capacity), 1);
+    rates.setUsage(DynamicDrawUsage);
+    mesh.geometry.setAttribute(WING_RATE, rates);
+    rateAttributes.set(mesh, rates);
+}
+
+/** @deprecated use {@link setupCrowWingInstanceAttributes} */
+export function setupCrowWingPhaseAttribute(mesh: InstancedMesh, capacity: number): void {
+    setupCrowWingInstanceAttributes(mesh, capacity);
 }
 
 export function setCrowWingPhase(mesh: InstancedMesh, index: number, phase: number): void {
     const attr = phaseAttributes.get(mesh);
     if (!attr) return;
     attr.setX(index, phase);
+    attr.needsUpdate = true;
+}
+
+export function setCrowWingRate(mesh: InstancedMesh, index: number, rate: number): void {
+    const attr = rateAttributes.get(mesh);
+    if (!attr) return;
+    attr.setX(index, rate);
+    attr.needsUpdate = true;
+}
+
+export function swapCrowWingRate(mesh: InstancedMesh, from: number, to: number): void {
+    const attr = rateAttributes.get(mesh);
+    if (!attr) return;
+    attr.setX(to, attr.getX(from));
     attr.needsUpdate = true;
 }
 

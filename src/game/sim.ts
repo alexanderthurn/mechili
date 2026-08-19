@@ -45,6 +45,7 @@ import {
     levelBasisOf,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
+import { computeCrowWingRate, CROW_RIDER_MODEL_ID, setCrowWingRateOnProxy } from './crowWingFlap';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import {
     beginDeathFall,
@@ -53,6 +54,7 @@ import {
     clearDeathTip,
     crashDriftFromKnock,
     crashLandFromFall,
+    snapFlyerForDeathFall,
     tickDeathFall,
     tickDeathTip,
     type CrashLand,
@@ -2296,6 +2298,19 @@ export class BattleSim {
         } else {
             a.recoil = 0;
         }
+
+        if ((a.unit.type.modelId ?? a.unit.type.id) === CROW_RIDER_MODEL_ID && a.mesh.userData.instanced) {
+            setCrowWingRateOnProxy(
+                a.mesh,
+                computeCrowWingRate({
+                    dead: !a.alive || !!a.mesh.userData.dead,
+                    inDeployment: false,
+                    flightLift: a.unit.flightLift,
+                    altitude: a.altitude,
+                    moving,
+                }),
+            );
+        }
     }
 
     isSpawning(a: Actor): boolean {
@@ -2416,7 +2431,18 @@ export class BattleSim {
             // ~1.2 rad ≈ flatter on the lawn (old ~0.75 looked half-standing / floaty)
             const tipZ = (target.index % 2 ? 1 : -1) * (1.2 + (target.index % 4) * 0.06);
             const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
-            if (target.altitude > 0) {
+            const dropHeight = target.mesh.position.y - groundY;
+            const isAirFlyer = !!t.flying && target.altitude > 0;
+            const shouldCrashFall = isAirFlyer || (!!t.flying && dropHeight > 0.45);
+            if (shouldCrashFall) {
+                if (isAirFlyer) {
+                    const fromY = worldHeightAt(target.x, target.z) + DEPLOY_AIR_Y;
+                    const hoverY = fromY + (target.altitude - fromY) * target.unit.flightLift;
+                    snapFlyerForDeathFall(target.mesh, hoverY, target.unit.visualMeshScale());
+                    target.stompAt = undefined;
+                    target.stompAir = false;
+                    target.stompVictim = undefined;
+                }
                 // flyers: tumble down; optional knock flings along the killing blow
                 let driftX = 0;
                 let driftZ = 0;
@@ -2439,6 +2465,7 @@ export class BattleSim {
                 beginDeathTip(target.mesh, tipZ, groundY, this.elapsed);
             }
             target.mesh.userData.dead = true;
+            setCrowWingRateOnProxy(target.mesh, 0);
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
     }

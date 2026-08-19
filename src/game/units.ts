@@ -67,6 +67,11 @@ import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { cloneUnitModel, hasUnitModel, loadUnitModels, seedUnitVisualHeight } from './unitModels';
+import {
+    computeCrowWingRate,
+    CROW_RIDER_MODEL_ID,
+    setCrowWingRateOnProxy,
+} from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import { clearDeathFall, clearDeathTip } from './deathFall';
@@ -1163,6 +1168,9 @@ export class Unit {
      */
     techFlying: number | null = null;
     inDeployment = true;
+    /** Pack origin xz — tracks movement for crow-rider wing flap during deployment. */
+    private wingLastOx = 0;
+    private wingLastOz = 0;
 
     constructor(
         readonly type: UnitType,
@@ -1241,6 +1249,8 @@ export class Unit {
         this.view.position.copy(this.world);
         this.seatMembers();
         this.applyLevelLook(this.level);
+        this.wingLastOx = this.view.position.x;
+        this.wingLastOz = this.view.position.z;
     }
 
     /** Effective combat flight altitude (tech override or type default). */
@@ -1343,6 +1353,7 @@ export class Unit {
             m.mesh.scale.y *= 0.3;
             m.mesh.rotation.z = 0.12;
             m.mesh.userData.dead = true;
+            setCrowWingRateOnProxy(m.mesh, 0);
             instances?.setDead(m.mesh);
         }
     }
@@ -1459,6 +1470,29 @@ export class Unit {
             if (m.mesh.userData.dead) continue;
             const ground = worldHeightAt(ox + m.home.x, oz + m.home.z);
             m.mesh.position.y = ground + base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;
+        }
+        this.updateCrowWingRates(
+            Math.min(1, Math.hypot(ox - this.wingLastOx, oz - this.wingLastOz) / 0.1),
+        );
+        this.wingLastOx = ox;
+        this.wingLastOz = oz;
+    }
+
+    /** Instanced crow-rider wing flap speed from deployment pose / movement. */
+    private updateCrowWingRates(moving: number, altitude = 0): void {
+        if ((this.type.modelId ?? this.type.id) !== CROW_RIDER_MODEL_ID) return;
+        for (const m of this.members) {
+            if (!m.mesh.userData.instanced) continue;
+            setCrowWingRateOnProxy(
+                m.mesh,
+                computeCrowWingRate({
+                    dead: !!m.mesh.userData.dead,
+                    inDeployment: this.inDeployment,
+                    flightLift: this.flightLift,
+                    altitude,
+                    moving,
+                }),
+            );
         }
     }
 }

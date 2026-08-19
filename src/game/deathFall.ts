@@ -114,6 +114,16 @@ export function clearDeathFall(mesh: Group): void {
     delete mesh.userData.deathFall;
 }
 
+/**
+ * Stomp / dive can pin the mesh to the lawn while sim altitude is still air.
+ * Lift back to hover and clear stomp tilt so the crash arc always reads.
+ */
+export function snapFlyerForDeathFall(mesh: Group, hoverY: number, visualScale: number): void {
+    if (mesh.position.y < hoverY - 0.5) mesh.position.y = hoverY;
+    mesh.rotation.x = 0;
+    mesh.scale.setScalar(visualScale);
+}
+
 /** Tip a ground mech onto its side over a short beat (render-only). */
 export function beginDeathTip(
     mesh: Group,
