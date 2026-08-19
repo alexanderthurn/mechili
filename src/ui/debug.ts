@@ -218,7 +218,7 @@ export class DebugOverlay {
             (stats.mobile !== undefined
                 ? `  mobile ${stats.mobile}` +
                   (stats.softCrowdLimit !== undefined
-                      ? `/${stats.softCrowdLimit}${stats.softCrowd === false ? ' off' : ''}`
+                      ? `/${stats.softCrowdLimit}${stats.softCrowd === false ? ' throttled' : ''}`
                       : '')
                 : '') +
             `  objs ${sceneStats.drawables}\n` +
@@ -245,7 +245,7 @@ export class DebugOverlay {
             `units ${stats.units}  mechs ${stats.mechs}` +
             (stats.mobile !== undefined ? `  mobile ${stats.mobile}` : '') +
             (stats.softCrowdLimit !== undefined
-                ? `  softCrowd ${stats.softCrowd ? 'on' : 'off'} (limit ${stats.softCrowdLimit})`
+                ? `  softCrowd ${stats.softCrowd ? 'on' : 'throttled'} (limit ${stats.softCrowdLimit})`
                 : ''),
             `draw  calls=${info.render.calls}  tris=${info.render.triangles}  points=${info.render.points}  lines=${info.render.lines}`,
             `mem3  geo=${info.memory.geometries}  tex=${info.memory.textures}`,

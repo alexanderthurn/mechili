@@ -533,10 +533,12 @@ const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers,
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
 /** expanding-ring cap for closest-enemy search (map diagonal ≪ this × cell) */
 const TARGET_MAX_RING = 48;
-/** above this many living mobile mechs, drop soft crowd separation entirely */
+/** above this many living mobile mechs, throttle crowd checks to {@link CROWD_OVERLOAD_EVERY_STEPS} */
 export const SOFT_CROWD_LIMIT = 2000;
 /** soft crowd runs every N steps per mech (staggered by index), like retargeting */
-const CROWD_EVERY_STEPS = 6;
+const CROWD_EVERY_STEPS = 1;
+/** throttled cadence once {@link SOFT_CROWD_LIMIT} is exceeded */
+const CROWD_OVERLOAD_EVERY_STEPS = 6;
 /** re-run closestEnemy only every N steps (staggered by actor index) */
 const TARGET_REFRESH_STEPS = 30;
 
@@ -600,11 +602,11 @@ export class BattleSim {
     lastProfileSteps = 0;
     /** increments every step — used to stagger target refresh */
     private stepIndex = 0;
-    /** soft mech-vs-mech separation enabled this step */
-    private softCrowd = true;
+    /** mobile count exceeded {@link SOFT_CROWD_LIMIT} — crowd checks throttled */
+    private softCrowdOverload = false;
     /** living non-structure mechs — last computed in step() / readable for debug */
     lastMobileCount = 0;
-    /** whether soft crowd was enabled on the last step */
+    /** true when crowd runs every step; false when throttled to {@link CROWD_OVERLOAD_EVERY_STEPS} */
     lastSoftCrowd = true;
     /** routes passed at battle start — used by {@link activeRallyRoutes} */
     private rallyRoutes: readonly RallyRoute[] = [];
@@ -837,8 +839,8 @@ export class BattleSim {
             if (a.alive && !a.unit.type.structure && !a.unit.marchIn) mobile++;
         }
         this.lastMobileCount = mobile;
-        this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
-        this.lastSoftCrowd = this.softCrowd;
+        this.softCrowdOverload = mobile > SOFT_CROWD_LIMIT;
+        this.lastSoftCrowd = !this.softCrowdOverload;
     }
 
     /** snapshot at battle start: mechs inside a route's start circle march to a
@@ -2476,8 +2478,8 @@ export class BattleSim {
             if (a.alive && !a.unit.type.structure && !a.unit.marchIn) mobile++;
         }
         this.lastMobileCount = mobile;
-        this.softCrowd = mobile <= SOFT_CROWD_LIMIT;
-        this.lastSoftCrowd = this.softCrowd;
+        this.softCrowdOverload = mobile > SOFT_CROWD_LIMIT;
+        this.lastSoftCrowd = !this.softCrowdOverload;
 
         const d = this.config.towers.debuffPerLostTower;
         mark();
@@ -3132,9 +3134,10 @@ export class BattleSim {
         }
     }
 
-    /** soft crowd on for this mech this step (limit + stagger — deterministic). */
+    /** soft crowd on for this mech this step (cadence + stagger — deterministic). */
     private softCrowdActive(a: Actor): boolean {
-        return this.softCrowd && (this.stepIndex + a.index) % CROWD_EVERY_STEPS === 0;
+        const every = this.softCrowdOverload ? CROWD_OVERLOAD_EVERY_STEPS : CROWD_EVERY_STEPS;
+        return (this.stepIndex + a.index) % every === 0;
     }
 
     private pushApart(a: Actor, b: Actor): void {
