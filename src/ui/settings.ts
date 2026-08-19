@@ -450,8 +450,8 @@ export function openControlsHelp(parent: HTMLElement): void {
                 row('Shift+X', 'Next season') +
                 row('Shift+V', 'Next weather') +
                 row('Shift+Y', 'Next time of day') +
-                row('Shift+U', 'Single-player: free-spawn every unit, max supply, tactics, bag runes, and a few techs') +
-                row('Ctrl+Shift+U', 'Same as Shift+U, and scramble pack levels') +
+                row('Shift+U', 'Single-player: free-spawn every shop unit, max supply, tactics, and bag runes') +
+                row('Ctrl+Shift+U', 'Same as Shift+U, plus horde units, pack-level scramble, and up to 3 techs per press') +
                 row('Shift+H', 'Single-player, deploy phase: extra horde packs (repeat to pile on)') +
                 row('Shift+I', 'Single-player: skip the rest of this round') +
                 row('Shift+C', 'Cinema — hide HUD for screenshots. Escape restores it.') +

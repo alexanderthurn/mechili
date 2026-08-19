@@ -218,6 +218,7 @@ import {
     RESEARCH_CENTER,
     STRONGHOLD,
     UNIT_TYPES,
+    isPlayerBuyable,
     techDescription,
     techIcon,
     unitTypeById,
@@ -825,8 +826,8 @@ export class Game {
             return;
         }
         if (e.code === 'KeyU' && e.shiftKey && !this.net && !this.star) {
-            // Shift+U = SP deploy cheat; Ctrl+Shift+U also scrambles pack levels
-            this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey });
+            // Shift+U = SP deploy cheat (shop units only); Ctrl+Shift+U adds horde + level scramble
+            this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey, includeHorde: e.ctrlKey });
             return;
         }
         if (e.code === 'KeyH' && e.shiftKey && !this.net && !this.star) {
@@ -2547,14 +2548,15 @@ export class Game {
     }
 
     /**
-     * SP cheat (Shift+U): free-spawn every unit type on both sides during
-     * deployment, bump HP sky-high, +10000 supply to both seats, +1 of each
-     * item and 1 of each test spell for the human (resets uses so they
-     * can be placed again), grant up to 3 new techs per press, then let the
-     * AI re-spend. Ctrl+Shift+U also scrambles levels. Enemy moves stay
-     * behind intel fog; newly granted enemy packs are snapshotted at land pose.
+     * SP cheat (Shift+U): free-spawn every shop-buyable unit type on both sides
+     * during deployment, bump HP sky-high, +10000 supply to both seats, +1 of
+     * each item and 1 of each test spell for the human (resets uses so they
+     * can be placed again), then let the AI re-spend. Ctrl+Shift+U also grants
+     * up to 3 new techs per press, spawns horde types, and scrambles pack
+     * levels. Enemy moves stay behind intel fog; newly granted enemy packs are
+     * snapshotted at land pose.
      */
-    private cheatSpawnAllUnits(opts: { scrambleLevels?: boolean } = {}): void {
+    private cheatSpawnAllUnits(opts: { scrambleLevels?: boolean; includeHorde?: boolean } = {}): void {
         if (this.phase !== 'build' || this.matchOver) return;
 
         const CHEAT_HP = 999_999;
@@ -2564,7 +2566,7 @@ export class Game {
         this.cheatGrantSupply(10_000);
         this.cheatGrantAllTactics();
         this.cheatGrantAllItems();
-        this.cheatGrantTechs(3);
+        if (opts.scrambleLevels) this.cheatGrantTechs(3);
         // sidebar intel: enemy bag unchanged by human-only item/tactic grants
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
@@ -2577,6 +2579,7 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             for (const type of UNIT_TYPES) {
                 if (type.id === 'shield' || type.id === 'rocket') continue; // extras clutter the test field
+                if (!opts.includeHorde && !isPlayerBuyable(type)) continue; // horde roster only on Ctrl+Shift+U
                 const copies = type.id === 'dwarf' ? 3 : 1;
                 for (let i = 0; i < copies; i++) {
                     const spot = this.placement.findStartSpot(team, type);
@@ -2622,7 +2625,7 @@ export class Game {
         this.opponent.rerunBuildActions?.();
         for (const e of this.extraAis) e.ai.rerunBuildActions?.();
         console.info(
-            `[cheat] Shift+U${opts.scrambleLevels ? ' (Ctrl: levels)' : ''}: supply/items/techs/spawns`,
+            `[cheat] Shift+U${opts.scrambleLevels ? ' (Ctrl: horde + levels + techs)' : ''}: supply/items/spawns`,
         );
     }
 
