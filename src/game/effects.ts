@@ -36,6 +36,7 @@ import {
     type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
 import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap, prefs } from './prefs';
@@ -1014,8 +1015,10 @@ const CROW_STONE_LINGER = 2.4;
 const COLLAPSE_GROUND_LINGER = 2.1 * 5;
 
 /** Lift so the stone rests on the lawn instead of intersecting it (z-fight). */
-function chipRestY(terrainY: number, scale: number): number {
-    return terrainY + CROW_STONE_GEO_R * scale * 0.72;
+const BRICK_GEO_H = 0.48; // BoxGeometry height — used for rest offset
+function chipRestY(terrainY: number, scaleY: number, shape: 'round' | 'brick'): number {
+    const half = shape === 'brick' ? BRICK_GEO_H * 0.5 : CROW_STONE_GEO_R;
+    return terrainY + half * scaleY * 0.85;
 }
 
 /**
@@ -1041,7 +1044,11 @@ type StoneChip = {
     landed: boolean;
     /** Fully at rest — skip motion so matrices stay stable (no ground z-fight flicker). */
     settled: boolean;
-    scale: number;
+    shape: 'round' | 'brick';
+    /** Uniform (round) or brick axis scales. */
+    sx: number;
+    sy: number;
+    sz: number;
     rx: number;
     ry: number;
     rz: number;
@@ -1054,8 +1061,13 @@ type StoneChip = {
     shade: number;
 };
 
+/** Cool masonry gray for collapse / hit bricks (not the greenish crow rock). */
+const BRICK_COLOR = 0xa09c92;
+
 export class StoneChipRenderer {
-    private readonly mesh: InstancedMesh;
+    private readonly roundMesh: InstancedMesh;
+    private readonly brickMesh: InstancedMesh;
+    private readonly brickGeo: RoundedBoxGeometry;
     private readonly matrix = new Matrix4();
     private readonly pos = new Vector3();
     private readonly quat = new Quaternion();
@@ -1065,21 +1077,26 @@ export class StoneChipRenderer {
     private readonly tmpColor = new Color();
 
     constructor(scene: Scene) {
-        // Same mesh as crow-rider flight stones; smooth shade so settled piles don't sparkle
-        const rock = new MeshLambertMaterial({
-            color: THEME.scenery.rock,
-            flatShading: false,
-            polygonOffset: true,
-            polygonOffsetFactor: -2,
-            polygonOffsetUnits: -2,
-        });
-        this.mesh = new InstancedMesh(getCrowStoneGeometry(), rock, MAX_STONE_CHIPS);
-        this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-        this.mesh.frustumCulled = false;
-        this.mesh.castShadow = false;
-        this.mesh.count = 0;
-        this.mesh.renderOrder = 1;
-        scene.add(this.mesh);
+        const mkMat = (hex: number, flat: boolean) =>
+            new MeshLambertMaterial({
+                color: hex,
+                flatShading: flat,
+                polygonOffset: true,
+                polygonOffsetFactor: -2,
+                polygonOffsetUnits: -2,
+            });
+        this.roundMesh = new InstancedMesh(getCrowStoneGeometry(), mkMat(THEME.scenery.rock, false), MAX_STONE_CHIPS);
+        // Soft-edged ashlar blocks — RoundedBox reads less low-poly than a raw cube
+        this.brickGeo = new RoundedBoxGeometry(1.15, BRICK_GEO_H, 0.7, 3, 0.06);
+        this.brickMesh = new InstancedMesh(this.brickGeo, mkMat(BRICK_COLOR, false), MAX_STONE_CHIPS);
+        for (const mesh of [this.roundMesh, this.brickMesh]) {
+            mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+            mesh.frustumCulled = false;
+            mesh.castShadow = false;
+            mesh.count = 0;
+            mesh.renderOrder = 1;
+            scene.add(mesh);
+        }
     }
 
     spawnFromEvents(
@@ -1094,13 +1111,11 @@ export class StoneChipRenderer {
         }
     }
 
-    /** Facade chips kicked off a single hit. */
+    /** Facade chips kicked off a single hit — small gray bricks. */
     private spawnHitChips(
         e: Extract<SimEvent, { kind: 'impact' }>,
         groundHeightAt: (x: number, z: number) => number,
     ): void {
-        // Prefer outward from building center through the hit (stable for lobbed
-        // air stones). Fall back to opposite horizontal shot dir.
         let ox = e.cx !== undefined ? e.x - e.cx : -(e.dx ?? 0);
         let oz = e.cz !== undefined ? e.z - (e.cz ?? 0) : -(e.dz ?? 0);
         const olen = Math.hypot(ox, oz);
@@ -1119,7 +1134,6 @@ export class StoneChipRenderer {
             ox /= olen;
             oz /= olen;
         }
-        // Sit just outside the facade at the real contact point
         const sx0 = e.x + ox * 0.35;
         const sy0 = e.y;
         const sz0 = e.z + oz * 0.35;
@@ -1131,48 +1145,51 @@ export class StoneChipRenderer {
             const outSpeed = 2.2 + Math.random() * 3.5;
             const px = sx0 + (Math.random() * 2 - 1) * 0.2;
             const pz = sz0 + (Math.random() * 2 - 1) * 0.2;
+            const s = 0.28 + Math.random() * 0.4;
             this.pushChip({
+                shape: 'brick',
                 x: px,
                 y: sy0 + (Math.random() * 2 - 1) * 0.15,
                 z: pz,
                 vx: tx * outSpeed,
                 vy: 0.2 + Math.random() * 1.4,
                 vz: tz * outSpeed,
-                scale: 0.18 + Math.random() * 0.32,
+                sx: s * (0.9 + Math.random() * 0.5),
+                sy: s * (0.75 + Math.random() * 0.4),
+                sz: s * (0.85 + Math.random() * 0.45),
                 groundY: groundHeightAt(px, pz),
                 groundLinger: HIT_GROUND_LINGER * (0.85 + Math.random() * 0.3),
             });
         }
     }
 
-    /** Crow-rider projectile — same visual size, short rest on the lawn. */
+    /** Crow-rider projectile — same round rock, short rest on the lawn. */
     private spawnCrowStone(
         e: Extract<SimEvent, { kind: 'impact' }>,
         groundHeightAt: (x: number, z: number) => number,
     ): void {
         const terrain = groundHeightAt(e.x, e.z);
-        // Match in-flight crow stone size (geo already CROW_STONE_GEO_R)
-        const scale = 0.92 + Math.random() * 0.16;
+        const s = 0.92 + Math.random() * 0.16;
         const dx = e.dx ?? 0;
         const dz = e.dz ?? 0;
         const hlen = Math.hypot(dx, dz) || 1;
         this.pushChip({
+            shape: 'round',
             x: e.x,
-            y: Math.max(e.y, chipRestY(terrain, scale) + 0.4),
+            y: Math.max(e.y, chipRestY(terrain, s, 'round') + 0.4),
             z: e.z,
             vx: (dx / hlen) * (1.2 + Math.random() * 2) + (Math.random() * 2 - 1) * 0.8,
             vy: 1.5 + Math.random() * 2.5,
             vz: (dz / hlen) * (1.2 + Math.random() * 2) + (Math.random() * 2 - 1) * 0.8,
-            scale,
+            sx: s,
+            sy: s,
+            sz: s,
             groundY: terrain,
             groundLinger: CROW_STONE_LINGER * (0.85 + Math.random() * 0.35),
         });
     }
 
-    /**
-     * Big masonry rain through the whole building volume on destroy —
-     * sells the collapse more than the mesh squash alone.
-     */
+    /** Collapse rubble — gray rectangular masonry blocks. */
     private spawnCollapseChips(
         e: Extract<SimEvent, { kind: 'death' }>,
         groundHeightAt: (x: number, z: number) => number,
@@ -1187,17 +1204,20 @@ export class StoneChipRenderer {
             const px = e.x + Math.cos(ang) * r;
             const pz = e.z + Math.sin(ang) * r;
             const terrain = groundHeightAt(px, pz);
-            // bias toward upper floors so stones cascade down the silhouette
             const py = terrain + height * (0.2 + Math.random() * 0.85);
             const out = 1.5 + Math.random() * 5.5;
+            const s = 0.7 + Math.random() * 1.1;
             this.pushChip({
+                shape: 'brick',
                 x: px,
                 y: py,
                 z: pz,
                 vx: Math.cos(ang) * out * (0.35 + Math.random()),
                 vy: -1 + Math.random() * 3.5,
                 vz: Math.sin(ang) * out * (0.35 + Math.random()),
-                scale: 0.55 + Math.random() * 0.9,
+                sx: s * (0.95 + Math.random() * 0.55),
+                sy: s * (0.65 + Math.random() * 0.45),
+                sz: s * (0.8 + Math.random() * 0.5),
                 groundY: terrain,
                 groundLinger: collapseGroundLinger() * (0.85 + Math.random() * 0.3),
             });
@@ -1205,13 +1225,16 @@ export class StoneChipRenderer {
     }
 
     private pushChip(partial: {
+        shape: 'round' | 'brick';
         x: number;
         y: number;
         z: number;
         vx: number;
         vy: number;
         vz: number;
-        scale: number;
+        sx: number;
+        sy: number;
+        sz: number;
         groundY: number;
         groundLinger: number;
     }): void {
@@ -1221,7 +1244,7 @@ export class StoneChipRenderer {
             life: partial.groundLinger,
             landed: false,
             settled: false,
-            shade: 0.42 + Math.random() * 0.38,
+            shade: partial.shape === 'brick' ? 0.78 + Math.random() * 0.22 : 0.42 + Math.random() * 0.38,
             rx: Math.random() * Math.PI,
             ry: Math.random() * Math.PI,
             rz: Math.random() * Math.PI,
@@ -1263,7 +1286,7 @@ export class StoneChipRenderer {
                 c.rx += c.spinX * dt;
                 c.ry += c.spinY * dt;
                 c.rz += c.spinZ * dt;
-                const rest = chipRestY(c.groundY, c.scale);
+                const rest = chipRestY(c.groundY, c.sy, c.shape);
                 if (c.y < rest) {
                     c.y = rest;
                     c.landed = true;
@@ -1276,7 +1299,6 @@ export class StoneChipRenderer {
                     c.spinZ *= 0.2;
                 }
             } else {
-                // brief slide then lock — continuous micro-motion vs terrain flickers
                 c.x += c.vx * dt;
                 c.z += c.vz * dt;
                 c.vx *= 0.88;
@@ -1285,7 +1307,7 @@ export class StoneChipRenderer {
                 c.rz += c.spinZ * dt;
                 c.spinX *= 0.9;
                 c.spinZ *= 0.9;
-                c.y = chipRestY(c.groundY, c.scale);
+                c.y = chipRestY(c.groundY, c.sy, c.shape);
                 if (c.vx * c.vx + c.vz * c.vz < 0.04 && c.spinX * c.spinX + c.spinZ * c.spinZ < 0.15) {
                     c.vx = 0;
                     c.vz = 0;
@@ -1296,30 +1318,45 @@ export class StoneChipRenderer {
                 }
             }
         }
-        const n = this.chips.length;
-        for (let i = 0; i < n; i++) {
-            const c = this.chips[i]!;
-            const fade =
-                c.landed && Number.isFinite(c.life) ? Math.min(1, c.life / 0.45) : 1;
-            const drawScale = c.scale * (0.85 + 0.15 * fade);
-            // Keep rest height matched to drawn scale so fade-out doesn't clip the lawn
-            this.pos.set(c.x, c.landed ? chipRestY(c.groundY, drawScale) : c.y, c.z);
+        this.writeMeshes();
+    }
+
+    private writeMeshes(): void {
+        let ri = 0;
+        let bi = 0;
+        for (const c of this.chips) {
+            const fade = c.landed && Number.isFinite(c.life) ? Math.min(1, c.life / 0.45) : 1;
+            const f = 0.85 + 0.15 * fade;
+            const sy = c.sy * f;
+            this.pos.set(c.x, c.landed ? chipRestY(c.groundY, sy, c.shape) : c.y, c.z);
             this.euler.set(c.rx, c.ry, c.rz);
             this.quat.setFromEuler(this.euler);
-            this.scale.setScalar(drawScale);
+            this.scale.set(c.sx * f, sy, c.sz * f);
             this.matrix.compose(this.pos, this.quat, this.scale);
-            this.mesh.setMatrixAt(i, this.matrix);
-            this.tmpColor.setHex(THEME.scenery.rock).multiplyScalar(c.shade);
-            this.mesh.setColorAt(i, this.tmpColor);
+            if (c.shape === 'brick') {
+                this.brickMesh.setMatrixAt(bi, this.matrix);
+                this.tmpColor.setHex(BRICK_COLOR).multiplyScalar(c.shade);
+                this.brickMesh.setColorAt(bi, this.tmpColor);
+                bi++;
+            } else {
+                this.roundMesh.setMatrixAt(ri, this.matrix);
+                this.tmpColor.setHex(THEME.scenery.rock).multiplyScalar(c.shade);
+                this.roundMesh.setColorAt(ri, this.tmpColor);
+                ri++;
+            }
         }
-        this.mesh.count = n;
-        this.mesh.instanceMatrix.needsUpdate = true;
-        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+        this.roundMesh.count = ri;
+        this.brickMesh.count = bi;
+        this.roundMesh.instanceMatrix.needsUpdate = true;
+        this.brickMesh.instanceMatrix.needsUpdate = true;
+        if (this.roundMesh.instanceColor) this.roundMesh.instanceColor.needsUpdate = true;
+        if (this.brickMesh.instanceColor) this.brickMesh.instanceColor.needsUpdate = true;
     }
 
     clear(): void {
         this.chips.length = 0;
-        this.mesh.count = 0;
+        this.roundMesh.count = 0;
+        this.brickMesh.count = 0;
     }
 
     /** Drop timed chips (hits + medium/low collapse); keep high-setting rubble. */
@@ -1327,14 +1364,16 @@ export class StoneChipRenderer {
         for (let i = this.chips.length - 1; i >= 0; i--) {
             if (Number.isFinite(this.chips[i]!.groundLinger)) this.chips.splice(i, 1);
         }
-        this.mesh.count = this.chips.length;
-        this.mesh.instanceMatrix.needsUpdate = true;
+        this.writeMeshes();
     }
 
     dispose(): void {
-        this.mesh.removeFromParent();
-        // geometry is shared with projectile stones — do not dispose here
-        (this.mesh.material as MeshLambertMaterial).dispose();
+        this.roundMesh.removeFromParent();
+        this.brickMesh.removeFromParent();
+        // round geo shared with projectile stones — do not dispose
+        this.brickGeo.dispose();
+        (this.roundMesh.material as MeshLambertMaterial).dispose();
+        (this.brickMesh.material as MeshLambertMaterial).dispose();
     }
 }
 
