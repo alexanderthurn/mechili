@@ -289,6 +289,8 @@ export interface Actor {
     hurtTimer: number;
     /** flight altitude (0 for ground units) — air collides with nothing on the ground */
     altitude: number;
+    /** altitude one sim step ago — Fire Bolt / flyer render lerp */
+    prevAltitude: number;
     /**
      * world Y of the actor's feet this step: terrain support for ground units,
      * absolute air altitude for flyers. Projectiles aim at / hit relative to this.
@@ -825,6 +827,7 @@ export class BattleSim {
                     index: 0,
                     hurtTimer: 0,
                     altitude: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    prevAltitude: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
                     footY: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
                     rocketTarget: null,
                     goldenUntil: 0,
@@ -1715,6 +1718,7 @@ export class BattleSim {
                 index: this.actors.length,
                 hurtTimer: 0,
                 altitude: alt,
+                prevAltitude: alt,
                 footY: alt,
                 rocketTarget: null,
                 goldenUntil: 0,
@@ -2842,6 +2846,7 @@ export class BattleSim {
             a.mvZ = a.z - a.prevZ;
             a.prevX = a.x;
             a.prevZ = a.z;
+            a.prevAltitude = a.altitude;
             a.prevFacing = a.facing;
         }
         for (const p of this.projectiles) {
@@ -3806,6 +3811,15 @@ export class BattleSim {
     }
 
     /**
+     * Continuous sim clock for render-only FX (dragon flight, meteors, …).
+     * {@link elapsed} jumps per step; this includes the in-progress fraction
+     * so motion stays smooth at low {@link SIM_HZ}.
+     */
+    get renderElapsed(): number {
+        return this.elapsed + this.accumulator;
+    }
+
+    /**
      * Called once per RENDERED frame (not per step): places meshes at
      * positions interpolated between the last two sim steps, so low sim Hz
      * simulation renders smoothly at any display rate and any game speed.
@@ -3813,12 +3827,18 @@ export class BattleSim {
     syncMeshes(): void {
         const alpha = this.alpha;
         for (const a of this.actors) {
-            if (!a.alive || a.unit.type.structure) continue;
+            // Structures stay snap-placed — except Fire Bolt rockets, which fly
+            // like mechs and need the same xz lerp or they stutter at low SIM_HZ.
+            if (!a.alive) continue;
+            if (a.unit.type.structure && !a.unit.type.rocket) continue;
             a.rx = a.prevX + (a.x - a.prevX) * alpha;
             a.rz = a.prevZ + (a.z - a.prevZ) * alpha;
             a.mesh.position.x = a.rx - a.unit.world.x;
             a.mesh.position.z = a.rz - a.unit.world.z;
-            if (!a.unit.type.rocket) {
+            if (a.unit.type.rocket) {
+                a.mesh.position.y =
+                    a.prevAltitude + (a.altitude - a.prevAltitude) * alpha;
+            } else {
                 a.mesh.rotation.y = lerpAngle(a.prevFacing, a.facing, alpha);
             }
         }

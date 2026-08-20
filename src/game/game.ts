@@ -9082,18 +9082,23 @@ export class Game {
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
                 const battleShields = livingShieldDisks(this.placement.allUnits());
-                this.hammerFx.update(this.sim.elapsed, battleShields);
-                this.meteorFx.update(this.sim.elapsed, battleShields);
-                this.cloudFx.update(this.sim.elapsed);
-                this.dragonFx.update(this.sim.elapsed);
-                this.conversionFx.update(this.sim.actors, this.sim.elapsed);
-                this.oilDripFx.update(this.sim.elapsed);
+                this.hammerFx.update(this.sim.renderElapsed, battleShields);
+                this.meteorFx.update(this.sim.renderElapsed, battleShields);
+                this.cloudFx.update(this.sim.renderElapsed);
+                this.dragonFx.update(this.sim.renderElapsed);
+                this.conversionFx.update(this.sim.actors, this.sim.renderElapsed);
+                this.oilDripFx.update(this.sim.renderElapsed);
                 // acid/poison/storm/meteor-shower zones + hammer charge rings
-                this.spellVisuals.syncBattleMarkers(
-                    this.sim.activeZoneMarkers(),
-                    this.spellChargeMarkers,
-                    this.sim.elapsed,
-                );
+                // (hidden in cinema — same clean battle look as deploy stamps)
+                if (this.hud.isUiHidden) {
+                    this.spellVisuals.syncBattleMarkers([], [], this.sim.elapsed);
+                } else {
+                    this.spellVisuals.syncBattleMarkers(
+                        this.sim.activeZoneMarkers(),
+                        this.spellChargeMarkers,
+                        this.sim.elapsed,
+                    );
+                }
                 // the battle clock is the sim's own fixed-step time; the sim
                 // itself stops at the deciding step, identically on any peer
                 this.phaseRemaining = this.battleSeconds() - this.sim.elapsed;
@@ -9211,8 +9216,12 @@ export class Game {
         );
         // rally sync is folded into syncTacticVisuals during build; in battle
         // keep a route visible while any living mech is still marching on it
+        // (cinema hides these with the other spell ground chrome)
         if (this.phase === 'battle') {
-            this.rallyVisuals.sync(this.sim?.activeRallyRoutes() ?? [], null);
+            this.rallyVisuals.sync(
+                this.hud.isUiHidden ? [] : (this.sim?.activeRallyRoutes() ?? []),
+                null,
+            );
         }
         this.hud.setSupply(this.economy.balance(this.humanSeat));
         this.hud.setLevelAllGlobal(this.playerCanAct ? this.globalLevelUpInfo() : null);
