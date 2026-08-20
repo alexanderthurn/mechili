@@ -22,6 +22,8 @@ interface WingUniforms {
     uWingMaxY: { value: number };
     uFlapAmp: { value: number };
     uFlapSpeed: { value: number };
+    /** Negative = center the stroke below the baked rest pose (more downstroke). */
+    uFlapBias: { value: number };
     /** Shoulder motion as a fraction of tip motion (small, not zero). */
     uTipFloor: { value: number };
     /** Curve exponent — lower = mid-wing moves more; higher = tip-only whip. */
@@ -43,9 +45,9 @@ const WING_REST = 'aWingRest';
 const WING_BODY_ROLL = 'aWingBodyRoll';
 
 /** Hovering in air — fraction of full {@link CROW_WING_FLY_RATE}. */
-export const CROW_WING_HOVER_RATE = 0.42;
+export const CROW_WING_HOVER_RATE = 0.25;
 /** Full flap while moving in air. */
-export const CROW_WING_FLY_RATE = 1;
+export const CROW_WING_FLY_RATE = 0.5;
 /** Ground / not airborne below this flight-lift fraction. */
 export const CROW_WING_AIR_MIN = 0.06;
 /** Extra fold after span reorient — main lay is the ±90° span twist keyed to body roll. */
@@ -156,6 +158,7 @@ export function attachCrowWingFlap(material: MeshStandardMaterial, geometry: Buf
         uWingMaxY: { value: params.maxY },
         uFlapAmp: { value: params.flapAmp },
         uFlapSpeed: { value: params.flapSpeed },
+        uFlapBias: { value: params.flapBias },
         uTipFloor: { value: params.tipFloor },
         uTipPower: { value: params.tipPower },
     };
@@ -182,6 +185,7 @@ uniform float uWingMinY;
 uniform float uWingMaxY;
 uniform float uFlapAmp;
 uniform float uFlapSpeed;
+uniform float uFlapBias;
 uniform float uTipFloor;
 uniform float uTipPower;
 ` +
@@ -207,7 +211,10 @@ uniform float uTipPower;
   vec3 rel = transformed - pivot;
   float dead = step(0.001, ${WING_REST});
   float rest = ${WING_REST} * tipWeight;
-  float flapAnim = sin(uWingTime * uFlapSpeed + ${WING_PHASE}) * uFlapAmp * tipWeight * wingSide * ${WING_RATE};
+  // Bias shifts the stroke center below the baked rest pose so tips dip more than they rise.
+  float flapAnim =
+    (sin(uWingTime * uFlapSpeed + ${WING_PHASE}) * uFlapAmp + uFlapBias) *
+    tipWeight * wingSide * ${WING_RATE};
   // Living: flap in XY (local Z rot).
   float cz0 = cos(flapAnim);
   float sz0 = sin(flapAnim);
@@ -232,7 +239,7 @@ uniform float uTipPower;
     };
 
     material.customProgramCacheKey = function () {
-        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v13';
+        return (prevKey ? prevKey.call(this) : '') + '|crow-wing-flap-v14';
     };
     material.needsUpdate = true;
 }
@@ -334,6 +341,7 @@ interface WingParams {
     maxY: number;
     flapAmp: number;
     flapSpeed: number;
+    flapBias: number;
     tipFloor: number;
     tipPower: number;
 }
@@ -371,10 +379,12 @@ function measureWingParams(geometry: BufferGeometry): WingParams {
         outerR: outerR * 0.98,
         minY,
         maxY,
-        flapAmp: 0.58,
+        flapAmp: 0.88,
         flapSpeed: 10.5,
+        // Model rest is already fairly high — bias down so the outer wing dips ~as far as it rises.
+        flapBias: -0.28,
         // mix(floor, 1, pow(t, power)) — more mid-wing, softer tips (lower amp + gentler power).
-        tipFloor: 0.16,
+        tipFloor: 0.36,
         tipPower: 1.32,
     };
 }
