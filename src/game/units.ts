@@ -66,7 +66,7 @@ function makeWardRuneTexture(): CanvasTexture {
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { cloneUnitModel, hasUnitModel, loadUnitModels, seedUnitVisualHeight } from './unitModels';
+import { cloneUnitModel, getUnitVisualHeight, hasUnitModel, loadUnitModels, seedUnitVisualHeight } from './unitModels';
 import {
     computeCrowWingRate,
     CROW_RIDER_MODEL_ID,
@@ -229,10 +229,12 @@ export function bloodColorOf(
  */
 export function projectileAimY(type: UnitType): number {
     if (type.aimY !== undefined) return type.aimY;
+    // Mid-body of the rendered mesh — collider centers are often near the feet.
+    const visualH = getUnitVisualHeight(type.modelId ?? type.id);
+    if (visualH > 0.15) return visualH * 0.5;
     const c = type.colliders[0]?.y ?? 0.5;
-    // Short ground hitboxes (e.g. dwarf 0.35) — aim mid-torso without moving the sphere
     if (!type.flying && type.colliders.length > 0 && c < 0.55) return 0.65;
-    return c;
+    return Math.max(c, 0.55);
 }
 
 /** Shop / unlock / AI buy eligibility — {@link UnitType.buyable}. */
