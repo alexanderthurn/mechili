@@ -1,13 +1,14 @@
 import {
     AdditiveBlending,
+    BufferGeometry,
     Color,
-    CylinderGeometry,
     DoubleSide,
     DynamicDrawUsage,
     Group,
     InstancedMesh,
     Matrix4,
     MeshBasicMaterial,
+    PlaneGeometry,
     Quaternion,
     RepeatWrapping,
     SRGBColorSpace,
@@ -16,16 +17,18 @@ import {
     type Scene,
     type Texture,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { colorForUnit } from './colors';
 import { isSecondarySeat, type SeatDef } from './seats';
 import { actorSeat, actorTeam, type Actor } from './sim';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
+import { projectileAimY } from './units';
 import { THEME } from '../theme';
 
 const MAX_RAYS = 64;
-/** world-space tube radius before instance width scale */
-const CORE_RADIUS = 0.42;
-const GLOW_RADIUS = 0.95;
+/** half-width of each lightning card (world units before instance scale) */
+const CORE_HALF_W = 0.28;
+const GLOW_HALF_W = 0.55;
 const TEX_URL = new URL('../../assets/textures/fx/convert-ray-lightning.png', import.meta.url).href;
 
 const _pos = new Vector3();
@@ -34,26 +37,53 @@ const _quat = new Quaternion();
 const _scale = new Vector3();
 const _mat = new Matrix4();
 const _up = new Vector3(0, 1, 0);
+const _axis = new Vector3();
 const _color = new Color();
 const _white = new Color(0xffffff);
 const _orb = new Color(THEME.projectileOrb);
 
-function makeBeamGeo(radius: number, vRepeat: number): CylinderGeometry {
-    const geo = new CylinderGeometry(radius, radius * 1.15, 1, 10, 6, true);
-    geo.translate(0, 0.5, 0);
-    const uv = geo.attributes.uv;
-    if (uv) {
-        for (let i = 0; i < uv.count; i++) {
-            // V along the beam; multiply so the lightning tiles along long shots
-            uv.setY(i, uv.getY(i) * vRepeat);
+/**
+ * Two planes crossed at 90° along +Y (beam length). The convert texture is a
+ * flat bolt sprite — a tube wraps it into mush; crossed cards read from every
+ * camera angle (DoubleSide).
+ */
+function makeBeamCardGeo(halfWidth: number, vRepeat: number): BufferGeometry {
+    const mk = (): PlaneGeometry => {
+        const g = new PlaneGeometry(halfWidth * 2, 1, 1, 4);
+        g.translate(0, 0.5, 0);
+        const uv = g.attributes.uv;
+        if (uv) {
+            for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i)! * vRepeat);
+            uv.needsUpdate = true;
         }
-        uv.needsUpdate = true;
+        return g;
+    };
+    const a = mk();
+    const b = mk();
+    b.rotateY(Math.PI / 2);
+    const merged = mergeGeometries([a, b], false);
+    a.dispose();
+    b.dispose();
+    if (!merged) throw new Error('[conversionFx] failed to merge beam cards');
+    return merged;
+}
+
+/** Stable +Y → dir rotation (setFromUnitVectors alone blows up when nearly parallel). */
+function quatFromUpTo(dir: Vector3, out: Quaternion): void {
+    const d = dir.dot(_up);
+    if (d > 0.999) {
+        out.identity();
+        return;
     }
-    return geo;
+    if (d < -0.999) {
+        out.setFromAxisAngle(_axis.set(1, 0, 0), Math.PI);
+        return;
+    }
+    out.setFromUnitVectors(_up, dir);
 }
 
 /**
- * Sustained conversion beams — textured lightning tube + soft glow.
+ * Sustained conversion beams — textured lightning cards + soft glow.
  * Visual-only; sim owns progress / allegiance.
  */
 export class ConversionFx {
@@ -63,7 +93,6 @@ export class ConversionFx {
     private readonly coreMat: MeshBasicMaterial;
     private readonly glowMat: MeshBasicMaterial;
     private readonly texture: Texture;
-    private readonly t0 = performance.now();
     roster: SeatDef[] = [];
 
     constructor(scene: Scene) {
@@ -98,8 +127,8 @@ export class ConversionFx {
             toneMapped: false,
         });
 
-        this.core = new InstancedMesh(makeBeamGeo(CORE_RADIUS, 2.5), this.coreMat, MAX_RAYS);
-        this.glow = new InstancedMesh(makeBeamGeo(GLOW_RADIUS, 1.8), this.glowMat, MAX_RAYS);
+        this.core = new InstancedMesh(makeBeamCardGeo(CORE_HALF_W, 2.5), this.coreMat, MAX_RAYS);
+        this.glow = new InstancedMesh(makeBeamCardGeo(GLOW_HALF_W, 1.8), this.glowMat, MAX_RAYS);
         for (const mesh of [this.core, this.glow]) {
             mesh.instanceMatrix.setUsage(DynamicDrawUsage);
             mesh.frustumCulled = false;
@@ -118,13 +147,13 @@ export class ConversionFx {
      * Draw a beam from every living caster with an active convert ray.
      * Tip comes from the sim (`convertRayTip*`) so ward blocks clip the beam.
      * Origin prefers GLB `AttackNode` (else chest height); uses interpolated rx/rz.
+     * `simTime` is battle elapsed seconds so scroll/pulse freeze when the sim pauses.
      */
-    update(actors: readonly Actor[]): void {
-        const t = (performance.now() - this.t0) * 0.001;
-        // scroll lightning along the beam
-        this.texture.offset.y = (t * 1.8) % 1;
+    update(actors: readonly Actor[], simTime = 0): void {
+        // scroll lightning along the beam (sim clock — not wall clock)
+        this.texture.offset.y = (simTime * 1.8) % 1;
 
-        const pulse = 0.92 + 0.08 * Math.sin(t * 12);
+        const pulse = 0.92 + 0.08 * Math.sin(simTime * 12);
         this.coreMat.opacity = pulse;
         this.glowMat.opacity = 0.55 + 0.2 * pulse;
 
@@ -154,7 +183,8 @@ export class ConversionFx {
             const victim = caster.convertTarget;
             // unblocked: stick tip to the victim mesh; blocked: sim tip on the ward skin
             if (victim?.alive && victim.convertBy === caster) {
-                const toY = victim.footY + Math.max(1.0, victim.unit.type.meshScale * 0.9);
+                const vt = victim.unit.type;
+                const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
                 _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
             } else {
                 _dir.set(
@@ -165,14 +195,14 @@ export class ConversionFx {
             }
             const len = Math.max(_dir.length(), 0.35);
             _dir.multiplyScalar(1 / len);
-            _quat.setFromUnitVectors(_up, _dir);
+            quatFromUpTo(_dir, _quat);
 
-            const width = 1.05 + 0.12 * Math.sin(t * 10 + caster.index);
+            const width = 1.05 + 0.12 * Math.sin(simTime * 10 + caster.index);
             _scale.set(width, len, width);
             _mat.compose(_pos, _quat, _scale);
             this.core.setMatrixAt(n, _mat);
 
-            _scale.set(width * 1.9, len, width * 1.9);
+            _scale.set(width * 1.85, len, width * 1.85);
             _mat.compose(_pos, _quat, _scale);
             this.glow.setMatrixAt(n, _mat);
 

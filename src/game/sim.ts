@@ -2729,8 +2729,12 @@ export class BattleSim {
                       };
             const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
             const dropHeight = target.mesh.position.y - groundY;
-            const isAirFlyer = !!t.flying && target.altitude > 0;
-            const shouldCrashFall = isAirFlyer || (!!t.flying && dropHeight > 0.45);
+            // Any unit currently aloft (crow, rocket, Sky Lift wizard, …) tumbles
+            // down — do not key only on UnitType.flying or Sky Lift deaths snap
+            // to the lawn via beginDeathTip.
+            const isAirFlyer = target.altitude > 0;
+            const shouldCrashFall =
+                isAirFlyer || (target.unit.flightCeiling() > 0 && dropHeight > 0.45);
             let fallStartY = target.mesh.position.y;
             if (shouldCrashFall) {
                 if (isAirFlyer) {
@@ -3898,7 +3902,8 @@ export class BattleSim {
                 stats.damage * this.levelMult(caster.unit) * this.debuff(caster, d.attackMult);
 
             const from = this.convertRayOrigin(caster);
-            const toY = target.footY + Math.max(1.0, target.unit.type.meshScale * 0.9);
+            const tt = target.unit.type;
+            const toY = target.footY + projectileAimY(tt) * tt.meshScale;
             const sx = target.x - from.x;
             const sy = toY - from.y;
             const sz = target.z - from.z;

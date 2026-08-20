@@ -9046,7 +9046,7 @@ export class Game {
                 this.meteorFx.update(this.sim.elapsed, battleShields);
                 this.cloudFx.update(this.sim.elapsed);
                 this.dragonFx.update(this.sim.elapsed);
-                this.conversionFx.update(this.sim.actors);
+                this.conversionFx.update(this.sim.actors, this.sim.elapsed);
                 this.oilDripFx.update(this.sim.elapsed);
                 // acid/poison/storm/meteor-shower zones + hammer charge rings
                 this.spellVisuals.syncBattleMarkers(
