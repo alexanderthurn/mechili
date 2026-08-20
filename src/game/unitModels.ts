@@ -41,6 +41,8 @@ export interface ModelSpec {
     roll?: number;
     offset?: { x?: number; y?: number; z?: number };
     scale?: number;
+    /** Rigged GLB — keep SkinnedMesh; battle anim is {@link unitAnimated}. */
+    skinned?: boolean;
 }
 
 export const MODEL_SPECS: Record<string, ModelSpec> = {
@@ -71,7 +73,12 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
         scale: 3,
         offset: { y: -0.04 },
     },
-    archer: { url: new URL('../../assets/models/archer.glb', import.meta.url).href, yaw: MODEL_FWD_YAW+ MathUtils.degToRad(90) },
+    // Static bind-pose template for icons / fallback. Battle uses mixer via unitAnimated.
+    archer: {
+        url: new URL('../../assets/models/archera.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        skinned: true,
+    },
     wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
     crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },
@@ -413,17 +420,24 @@ export async function loadUnitModels(
                 );
             }
             templates.set(id, root);
-            const baked = bakeInstanceAsset(root);
-            if (BUILDING_SNOW_IDS.has(id)) {
+            // Rigged units stay on SkinnedMesh + mixer — baking would freeze bind pose.
+            if (!spec.skinned) {
+                const baked = bakeInstanceAsset(root);
+                if (BUILDING_SNOW_IDS.has(id)) {
+                    attachBuildingSnowToObject(root);
+                    for (const part of baked.parts) attachBuildingSnow(part.material);
+                }
+                if (id === CROW_RIDER_MODEL_ID) {
+                    for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
+                }
+                instanceAssets.set(id, baked);
+            } else if (BUILDING_SNOW_IDS.has(id)) {
                 attachBuildingSnowToObject(root);
-                for (const part of baked.parts) attachBuildingSnow(part.material);
             }
-            if (id === CROW_RIDER_MODEL_ID) {
-                for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
-            }
-            instanceAssets.set(id, baked);
             console.info(
-                `[unitModels] loaded '${id}' from ${spec.url} (height ${visualHeights.get(id)!.toFixed(2)})`,
+                `[unitModels] loaded '${id}' from ${spec.url} (height ${visualHeights.get(id)!.toFixed(2)}` +
+                    (spec.skinned ? ', skinned — no InstancedMesh' : '') +
+                    ')',
             );
         } catch (e) {
             console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);

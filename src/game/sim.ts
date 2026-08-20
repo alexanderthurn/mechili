@@ -46,6 +46,7 @@ import {
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 import { computeCrowWingRate, CROW_RIDER_MODEL_ID, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
+import { playUnitFireAnim } from './unitAnimated';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import {
     beginDeathFall,
@@ -2203,7 +2204,10 @@ export class BattleSim {
         // fire detection: the sim bumps cooldown UP by attackInterval on a shot,
         // otherwise it counts down — so an increase means "just fired".
         const prevCd = a.prevCooldown ?? a.cooldown;
-        if (a.cooldown > prevCd + 1e-4) a.recoil = 1;
+        if (a.cooldown > prevCd + 1e-4) {
+            a.recoil = 1;
+            if (a.mesh.userData.animated) playUnitFireAnim(a.mesh);
+        }
         a.prevCooldown = a.cooldown;
         const recoil = a.recoil ?? 0;
 

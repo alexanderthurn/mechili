@@ -19,6 +19,12 @@ import {
     updateCrowWingFlap,
 } from '../game/crowWingFlap';
 import {
+    cloneAnimatedModel,
+    hasAnimatedModel,
+    lockAnimatedWalk,
+    updateAnimatedUnits,
+} from '../game/unitAnimated';
+import {
     ensureSpellTemplate,
     type SpellAssetId,
 } from '../game/spellAssets';
@@ -96,6 +102,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     let lastY = 0;
     let resumeTimer = 0;
     let wingFlapActive = false;
+    let animActive = false;
     let lastTickMs = performance.now();
     /** Ignores stale spell loads if the user clicked another pick mid-fetch. */
     let spellLoadGen = 0;
@@ -150,7 +157,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
 
     function present(
         next: Group,
-        opts: { yaw: number; wingFlap: boolean; meshScale?: number; spell?: boolean },
+        opts: { yaw: number; wingFlap: boolean; meshScale?: number; spell?: boolean; anim?: boolean },
     ): void {
         clearCurrent();
         next.scale.setScalar(opts.meshScale ?? 1);
@@ -160,6 +167,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         zoom = 1;
         autoRotate = true;
         wingFlapActive = opts.wingFlap;
+        animActive = !!opts.anim;
         framingIsSpell = !!opts.spell;
         current = next;
         scene.add(current);
@@ -172,6 +180,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         const dt = Math.min(0.05, Math.max(0, (now - lastTickMs) * 0.001));
         lastTickMs = now;
         if (wingFlapActive) updateCrowWingFlap(dt);
+        if (animActive) updateAnimatedUnits(dt);
         if (current && autoRotate) {
             spherical.theta += AUTO_ROTATE_SPEED;
             updateCamera();
@@ -242,12 +251,20 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
 
     return {
         show(unitId: string, meshScale = 1) {
-            if (disposed || !hasUnitModel(unitId)) return;
+            if (disposed) return;
             spellLoadGen++;
+            const flap = unitId === CROW_RIDER_MODEL_ID;
+            if (hasAnimatedModel(unitId)) {
+                const next = cloneAnimatedModel(unitId, 'player');
+                if (!next) return;
+                lockAnimatedWalk(next, 1);
+                present(next, { yaw: Math.PI, wingFlap: false, meshScale, anim: true });
+                return;
+            }
+            if (!hasUnitModel(unitId)) return;
             const next = cloneUnitModel(unitId, 'player');
             if (!next) return;
             // Game models face −Z; default camera is on +Z — flip so the face shows first.
-            const flap = unitId === CROW_RIDER_MODEL_ID;
             if (flap) attachCrowShowcaseWingFlap(next);
             present(next, { yaw: Math.PI, wingFlap: flap, meshScale });
         },
