@@ -149,6 +149,47 @@ export function getUnitFlagNodeLocal(id: string): { x: number; y: number; z: num
 }
 
 /**
+ * Fingerprint of the model-derived geometry the SIM reads — {@link
+ * getUnitVisualHeight} feeds `projectileAimY`, {@link getUnitAttackNodeLocal}
+ * feeds the muzzle in `fire()` — so both decide where projectiles spawn and
+ * fly, i.e. what they hit.
+ *
+ * Model loading is fault-tolerant per model: a failed GLB logs and keeps the
+ * procedural probe height with no AttackNode. That is fine for looks and fatal
+ * for lockstep — one peer would compute different muzzles from the same action
+ * log and desync silently, surfacing a round later as a position mismatch. A
+ * deterministic fallback can't fix that on its own (the failure is asymmetric:
+ * the healthy peer never takes the fallback), so the values ride in the
+ * battle-start state hash instead. A mismatch is then caught on the first
+ * check, and the guest's resync reload re-fetches the model it missed.
+ */
+export function modelGeometryFingerprint(): number {
+    let h = 0x811c9dc5;
+    const buffer = new DataView(new ArrayBuffer(8));
+    const mix = (v: number) => {
+        buffer.setFloat64(0, v);
+        h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
+        h = Math.imul(h ^ buffer.getUint32(4), 0x9e3779b1);
+    };
+    const mixStr = (s: string) => {
+        for (let i = 0; i < s.length; i++) mix(s.charCodeAt(i));
+    };
+    // sorted so map insertion order (load completion order) can't shift the hash
+    for (const id of [...visualHeights.keys()].sort()) {
+        mixStr(id);
+        mix(visualHeights.get(id)!);
+    }
+    for (const id of [...attackNodes.keys()].sort()) {
+        const n = attackNodes.get(id)!;
+        mixStr(id);
+        mix(n.x);
+        mix(n.y);
+        mix(n.z);
+    }
+    return h >>> 0;
+}
+
+/**
  * Transform a rest-local AttackNode into world space.
  * `yaw` is {@link Object3D.rotation.y} (rest forward −Z → yaw 0).
  */
