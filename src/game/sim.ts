@@ -47,7 +47,7 @@ import {
 import { getUnitInstanceRenderer } from './unitInstances';
 import { computeCrowWingRate, CROW_RIDER_MODEL_ID, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { playUnitFireAnim } from './unitAnimated';
-import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHeight } from './unitModels';
+import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight } from './unitModels';
 import {
     beginDeathFall,
     beginDeathTip,
@@ -578,6 +578,13 @@ export function detSin(a: number): number {
 
 export function detCos(a: number): number {
     return detSin(a + Math.PI / 2);
+}
+
+/** Deterministic 0..1 from an integer seed (lockstep-safe; no Math.sin). */
+function detHash01(n: number): number {
+    let x = Math.imul(n | 0, 1664525) + 1013904223;
+    x = Math.imul(x ^ (x >>> 13), 1274126177);
+    return ((x >>> 0) % 1_000_000) / 1_000_000;
 }
 
 /** circle (default) or hammer rectangle footprint — includes actor radius as padding */
@@ -3278,6 +3285,7 @@ export class BattleSim {
         const aimLocalY = projectileAimY(tt);
         let aimX = target.x;
         let aimZ = target.z;
+        let aimYOff = 0;
         let dx = aimX - mx;
         let dz = aimZ - mz;
         let dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
@@ -3303,12 +3311,33 @@ export class BattleSim {
                 flatDist = hypot(dx, dz) || 1e-6;
                 flightTime = Math.max(1e-3, flatDist / speed);
             }
-            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
+            // scatter after lead so successive arrows don't stack on the same rivet
+            if (at.projectileStyle === 'arrow' && !at.homing) {
+                const spread = this.aimSpread(a, target, flatDist);
+                aimX += spread.ox;
+                aimZ += spread.oz;
+                aimYOff = spread.oy;
+                dx = aimX - mx;
+                dz = aimZ - mz;
+                flatDist = hypot(dx, dz) || 1e-6;
+                flightTime = Math.max(1e-3, flatDist / speed);
+            }
+            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
             gravity = BALLISTIC_GRAVITY;
             vx = (dx / flatDist) * speed;
             vz = (dz / flatDist) * speed;
             vy = dy / flightTime + 0.5 * gravity * flightTime;
         } else {
+            if (at.projectileStyle === 'arrow' && !at.homing) {
+                const flatDist = hypot(dx, dz) || 1e-6;
+                const spread = this.aimSpread(a, target, flatDist);
+                aimX += spread.ox;
+                aimZ += spread.oz;
+                aimYOff = spread.oy;
+                dx = aimX - mx;
+                dz = aimZ - mz;
+            }
+            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
             const len = hypot(dx, dy, dz) || 1e-6;
             vx = (dx / len) * speed;
             vy = (dy / len) * speed;
@@ -3334,6 +3363,51 @@ export class BattleSim {
             ttl: PROJECTILE_TTL,
         });
         this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
+    }
+
+    /**
+     * Deterministic archer aim scatter: grows with range and target size so a
+     * pack doesn't pin ten shafts on the same tower rivet / chest pixel.
+     */
+    private aimSpread(
+        shooter: Actor,
+        target: Actor,
+        flatDist: number,
+    ): { ox: number; oz: number; oy: number } {
+        const at = shooter.unit.type;
+        const tt = target.unit.type;
+        const modelKey = tt.modelId ?? tt.id;
+        const visualHalf =
+            getUnitVisualHalfWidth(modelKey) * target.unit.visualMeshScale();
+        const visualH = getUnitVisualHeight(modelKey) * target.unit.visualMeshScale();
+        let colliderR = target.radius;
+        for (const c of tt.colliders) {
+            colliderR = Math.max(colliderR, c.r * tt.meshScale);
+        }
+        const sizeR = Math.max(colliderR, visualHalf * 0.85, 0.4);
+        const range = Math.max(8, at.range);
+        const distF = Math.min(1.5, flatDist / range);
+        // towers (big sizeR) fan across the facade; dwarves stay tight
+        const sizeF = Math.min(2.4, 0.5 + sizeR / 2.8);
+        const spreadLat = (0.28 + distF * 1.15) * sizeF;
+        const spreadY = (0.2 + distF * 0.85) * Math.min(2.1, 0.35 + visualH / 5);
+
+        const seed = shooter.index * 100003 + this.stepIndex;
+        const r1 = detHash01(seed) * 2 - 1;
+        const r2 = detHash01(seed + 17) * 2 - 1;
+        const r3 = detHash01(seed + 41) * 2 - 1;
+
+        const flat = hypot(target.x - shooter.x, target.z - shooter.z) || 1e-6;
+        const fwdX = (target.x - shooter.x) / flat;
+        const fwdZ = (target.z - shooter.z) / flat;
+        const rightX = fwdZ;
+        const rightZ = -fwdX;
+
+        return {
+            ox: rightX * r1 * spreadLat + fwdX * r2 * spreadLat * 0.4,
+            oz: rightZ * r1 * spreadLat + fwdZ * r2 * spreadLat * 0.4,
+            oy: r3 * spreadY,
+        };
     }
 
     /**
