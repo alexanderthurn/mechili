@@ -1390,6 +1390,8 @@ export class BattleSim {
         attach?: Actor,
     ): void {
         if (style !== 'arrow' && style !== 'largeArrow') return;
+        // Ballista stakes the earth only — never rides a unit mesh
+        if (style === 'largeArrow') attach = undefined;
         const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
         this.events.push({
             kind: 'stuckBolt',
@@ -1402,6 +1404,67 @@ export class BattleSim {
             style,
             attachIndex: attach?.index,
         });
+    }
+
+    /**
+     * March a ballista/arrow ray down onto the lawn for a world-fixed stake.
+     * Keeps shot direction so the shaft still reads the lob angle.
+     */
+    private groundPlantAlongRay(
+        x: number,
+        y: number,
+        z: number,
+        sx: number,
+        sy: number,
+        sz: number,
+    ): { x: number; y: number; z: number; sx: number; sy: number; sz: number } {
+        const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+        let dx = sx / slen;
+        let dy = sy / slen;
+        let dz = sz / slen;
+        let px = x;
+        let py = y;
+        let pz = z;
+        // Flat / rising shots: drop from impact xz so the stake still reads
+        if (dy > -0.08) {
+            dy = Math.min(dy, -0.35);
+            const n = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+            dx /= n;
+            dy /= n;
+            dz /= n;
+        }
+        for (let i = 0; i < 14; i++) {
+            const g = simGroundHeightAt(px, pz);
+            if (py <= g + 0.12) {
+                return { x: px, y: g + 0.08, z: pz, sx: dx, sy: dy, sz: dz };
+            }
+            const drop = py - g;
+            const step = Math.min(4, Math.max(0.2, drop / Math.max(0.08, -dy)));
+            px += dx * step;
+            py += dy * step;
+            pz += dz * step;
+        }
+        const g = simGroundHeightAt(px, pz);
+        return { x: px, y: g + 0.08, z: pz, sx: dx, sy: dy, sz: dz };
+    }
+
+    /** Stuck bolt for an impact — ballista always stakes ground along the shot. */
+    private emitStuckAtImpact(
+        style: Projectile['style'],
+        x: number,
+        y: number,
+        z: number,
+        sx: number,
+        sy: number,
+        sz: number,
+        hit?: Actor,
+    ): void {
+        if (style === 'largeArrow') {
+            const plant = this.groundPlantAlongRay(x, y, z, sx, sy, sz);
+            this.emitStuckBolt(style, plant.x, plant.y, plant.z, plant.sx, plant.sy, plant.sz);
+            return;
+        }
+        this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit);
     }
 
     /** dormant summons materialize one by one at their appearAt time */
@@ -3333,7 +3396,7 @@ export class BattleSim {
                 if (splash > 0) {
                     this.explode(p, ix, iz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
-                    this.emitStuckBolt(p.style, ix, iy, iz, sx, sy, sz, hit);
+                    this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(
@@ -3355,7 +3418,7 @@ export class BattleSim {
                         dy: sy / slen,
                         dz: sz / slen,
                     });
-                    this.emitStuckBolt(p.style, ix, iy, iz, sx, sy, sz, hit);
+                    this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
                     this.applyCorrodeOnHit(p.source, hit);
                 }
@@ -3368,7 +3431,7 @@ export class BattleSim {
                 if (splash > 0) {
                     this.explode(p, nx, nz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
-                    this.emitStuckBolt(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
+                    this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
                 } else {
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                     const bolt =
@@ -3383,7 +3446,7 @@ export class BattleSim {
                         dz: sz / slen,
                         sod: bolt,
                     });
-                    this.emitStuckBolt(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
+                    this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));
                 }
                 continue;

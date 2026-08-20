@@ -48,17 +48,18 @@ export function deathFallDuration(drop: number): number {
 
 /**
  * Knock intensity 0..1 from killing blow vs victim max HP.
- * Fair/~1× kills (archer into crow) stay mild; big overkill (ballista) → 1.
+ * Fair/chip kills (archer into crow) barely fling; big overkill (ballista) → 1.
  */
 export function crashKnockPower(dealt: number, maxHp: number): number {
     const r = dealt / Math.max(1, maxHp);
-    // archer ~1.4× → ~0.14 (~5u); ballista overkill → 1 (~36u)
-    return Math.min(1, Math.max(0.08, (r - 0.9) / 4));
+    // Sub-overkill: no forced minimum — arrows used to shove crows sideways
+    if (r < 1.2) return Math.min(0.18, Math.max(0, (r - 0.85) / 2.5));
+    return Math.min(1, Math.max(0.18, (r - 0.9) / 4));
 }
 
 /** Tip-over magnitude (radians) — ballista overkill lays them flatter. */
 export function deathTipAmount(dealt: number, maxHp: number): number {
-    return 1.1 + crashKnockPower(dealt, maxHp) * 0.55;
+    return 0.7 + crashKnockPower(dealt, maxHp) * 0.95;
 }
 
 /**
