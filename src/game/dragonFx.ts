@@ -70,8 +70,8 @@ const TUBE_MOUTH_BIAS = 5.4;
 /** Stretch past the ground hit so the beam sinks into the terrain. */
 const TUBE_LENGTH_SCALE = 1.35;
 /** Spacing along the beam for flame-tongue anchors (scenery high/ultra). */
-const BREATH_TONGUE_STEP = 0.55;
-const BREATH_TONGUE_MAX = 280;
+const BREATH_TONGUE_STEP = 0.4;
+const BREATH_TONGUE_MAX = 360;
 
 function breathTonguesEnabled(quality: SceneryQuality = prefs().scenery): boolean {
     return quality === 'high' || quality === 'ultra';
@@ -415,9 +415,11 @@ function appendBreathTongueSamples(out: BreathTongueSample[], tube: Mesh): void 
         const cz = tube.position.z + _dir.z * along;
         const spread = Math.pow(u, 1.55) * maxSpread;
         // Density grows with width, but never so fast that we run out of slots mid-beam.
+        // Mouth end stays multi-sample so the column doesn’t look hollow near the source.
         const remainingSteps = steps - s + 1;
         const remainingBudget = BREATH_TONGUE_MAX - out.length;
-        const want = spread < 0.4 ? 1 : Math.min(5, 2 + Math.floor(spread * 0.22));
+        const want =
+            spread < 0.5 ? 3 : Math.min(6, 2 + Math.floor(spread * 0.22));
         const count = Math.min(want, Math.max(1, Math.floor(remainingBudget / remainingSteps)));
         for (let k = 0; k < count && out.length < BREATH_TONGUE_MAX; k++) {
             const h1 =
@@ -426,8 +428,9 @@ function appendBreathTongueSamples(out: BreathTongueSample[], tube: Mesh): void 
             const h2 =
                 Math.abs(Math.sin(cx * 39.346 + cz * 11.135 + along * 9.7 + k * 47.3) * 24634.6345) %
                 1;
-            const lateral = spread < 0.4 ? 0 : (h1 * 2 - 1) * spread;
-            // Small along-beam jitter breaks the “ladder rung” banding.
+            // Near the mouth: small random cluster; farther: full left↔right wash.
+            const mouthCluster = Math.max(spread, TUBE_RADIUS_SKY * 2.8);
+            const lateral = (h1 * 2 - 1) * mouthCluster;
             const alongJit = (h2 - 0.5) * BREATH_TONGUE_STEP * 0.85;
             out.push({
                 x: cx + _side.x * lateral + _dir.x * alongJit,

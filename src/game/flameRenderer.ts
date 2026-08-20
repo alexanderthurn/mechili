@@ -15,9 +15,9 @@ import type { FireVfxQuality } from './prefs';
 /** allocate once at the high-tier ceiling so tier switches don't rebuild the mesh */
 const POOL_MAX = 2048;
 /** max world anchors from dragon breath (× tongues-per-anchor below) */
-const BREATH_ANCHOR_MAX = 280;
+const BREATH_ANCHOR_MAX = 360;
 /** billboards per breath anchor */
-const BREATH_TONGUES_PER = 2;
+const BREATH_TONGUES_PER = 3;
 const BREATH_POOL = BREATH_ANCHOR_MAX * BREATH_TONGUES_PER;
 /** Breath tongue billboard size vs ground tongues */
 const BREATH_SIZE_MUL = 2.1;
