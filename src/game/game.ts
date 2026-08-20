@@ -414,11 +414,11 @@ export class Game {
     private hoveredTech: string | null = null;
 
     /** ascending — click: faster, right click: slower; clamps at each end */
-    private static readonly SPEED_STEPS = [0, 0.25, 0.5, 1, 2, 4, 8];
+    private static readonly SPEED_STEPS = [0, 0.25, 0.5, 1, 2, 8];
     /** replay-only — much wider range since nothing live needs to stay near
      *  real-time; a separate array so the live-match button/range is
      *  untouched */
-    static readonly REPLAY_SPEED_STEPS = [0, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
+    static readonly REPLAY_SPEED_STEPS = [0, 0.125, 0.25, 0.5, 1, 2, 8, 16, 32];
 
     private phase: Phase = 'build';
     private round = 0;
@@ -767,8 +767,8 @@ export class Game {
      * survivor, having no intro of its own to wait through, would resume
      * ticking immediately, racing ahead for exactly that fly-in's
      * duration. At normal speed a second or two goes unnoticed; at battle
-     * fast-forward (4x) it becomes a very real, reproducible gap between
-     * what the two sides show (confirmed live: reconnecting during a 4x
+     * fast-forward (8x) it becomes a very real, reproducible gap between
+     * what the two sides show (confirmed live: reconnecting during an 8x
      * battle left the two sides' clocks about 20 in-game seconds apart).
      */
     private pendingReadyOnIntroFinish: (() => void) | null = null;
@@ -5528,7 +5528,7 @@ export class Game {
             const index = digit - 1;
             return index < this.speedSteps.length ? index : null;
         }
-        // replay/watch has 10 steps — 1–9 cover the first nine, 0 = fastest
+        // reserved: if the ladder ever exceeds 9 steps again, 0 = fastest
         if (digit === 0 && this.watching && this.speedSteps.length > 9) {
             return this.speedSteps.length - 1;
         }
