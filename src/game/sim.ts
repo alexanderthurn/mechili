@@ -961,19 +961,19 @@ export class BattleSim {
         this.lastSoftCrowd = !this.softCrowdOverload;
     }
 
-    /** snapshot at battle start: mechs inside a route's start circle march to a
-     *  matching offset at mid, then the same offset at end. Overlapping zones:
-     *  last-placed route wins. */
+    /** snapshot at battle start: mechs whose collision circle touches a
+     *  route's start circle march to a matching offset at mid, then the same
+     *  offset at end. Overlapping zones: last-placed route wins. */
     private assignRallyRoutes(routes: readonly RallyRoute[]): void {
         this.rallyRoutes = routes;
-        const r2 = RALLY_ROUTE_RADIUS * RALLY_ROUTE_RADIUS;
         for (const route of routes) {
             for (const a of this.actors) {
                 if (!a.alive || a.unit.type.structure || a.unit.team !== route.team) continue;
                 if (a.spawnUntil > BATTLE_START_FREEZE + 1e-9) continue;
                 const dx = a.x - route.startX;
                 const dz = a.z - route.startZ;
-                if (dx * dx + dz * dz > r2) continue;
+                const reach = RALLY_ROUTE_RADIUS + a.radius;
+                if (dx * dx + dz * dz > reach * reach) continue;
                 a.pathDestX = route.midX + dx;
                 a.pathDestZ = route.midZ + dz;
                 a.pathNextX = route.endX + dx;

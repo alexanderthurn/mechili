@@ -25,8 +25,11 @@ import {
     Quaternion,
     Ray,
     Raycaster,
+    RepeatWrapping,
     ShaderMaterial,
     SphereGeometry,
+    SRGBColorSpace,
+    TextureLoader,
     Vector2,
     Vector3,
     type Intersection,
@@ -36,7 +39,6 @@ import {
     type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
 import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap, prefs } from './prefs';
@@ -1061,13 +1063,15 @@ type StoneChip = {
     shade: number;
 };
 
-/** Cool masonry gray for collapse / hit bricks (not the greenish crow rock). */
-const BRICK_COLOR = 0xa09c92;
+/** Untinted white — masonry albedo carries color; instance shade adds variety. */
+const BRICK_COLOR = 0xffffff;
+const STONE_ALBEDO_URL = new URL('../../assets/textures/stone.webp', import.meta.url).href;
 
 export class StoneChipRenderer {
     private readonly roundMesh: InstancedMesh;
     private readonly brickMesh: InstancedMesh;
-    private readonly brickGeo: RoundedBoxGeometry;
+    private readonly brickGeo: BoxGeometry;
+    private brickMap: Texture | null = null;
     private readonly matrix = new Matrix4();
     private readonly pos = new Vector3();
     private readonly quat = new Quaternion();
@@ -1086,9 +1090,18 @@ export class StoneChipRenderer {
                 polygonOffsetUnits: -2,
             });
         this.roundMesh = new InstancedMesh(getCrowStoneGeometry(), mkMat(THEME.scenery.rock, false), MAX_STONE_CHIPS);
-        // Soft-edged ashlar blocks — RoundedBox reads less low-poly than a raw cube
-        this.brickGeo = new RoundedBoxGeometry(1.15, BRICK_GEO_H, 0.7, 3, 0.06);
-        this.brickMesh = new InstancedMesh(this.brickGeo, mkMat(BRICK_COLOR, false), MAX_STONE_CHIPS);
+        // Simple box — stone albedo carries the masonry detail
+        this.brickGeo = new BoxGeometry(1.15, BRICK_GEO_H, 0.7);
+        const brickMat = mkMat(BRICK_COLOR, false);
+        this.brickMesh = new InstancedMesh(this.brickGeo, brickMat, MAX_STONE_CHIPS);
+        new TextureLoader().load(STONE_ALBEDO_URL, (tex) => {
+            tex.colorSpace = SRGBColorSpace;
+            tex.wrapS = tex.wrapT = RepeatWrapping;
+            tex.repeat.set(0.5, 0.5); // ~4× larger stone grain on brick faces
+            this.brickMap = tex;
+            brickMat.map = tex;
+            brickMat.needsUpdate = true;
+        });
         for (const mesh of [this.roundMesh, this.brickMesh]) {
             mesh.instanceMatrix.setUsage(DynamicDrawUsage);
             mesh.frustumCulled = false;
@@ -1372,6 +1385,8 @@ export class StoneChipRenderer {
         this.brickMesh.removeFromParent();
         // round geo shared with projectile stones — do not dispose
         this.brickGeo.dispose();
+        this.brickMap?.dispose();
+        this.brickMap = null;
         (this.roundMesh.material as MeshLambertMaterial).dispose();
         (this.brickMesh.material as MeshLambertMaterial).dispose();
     }

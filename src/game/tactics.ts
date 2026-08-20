@@ -60,7 +60,7 @@ export const HAMMER_ZONE = {
  */
 export const TACTIC_MAX_SPAN = 14 * CELL;
 
-/** capture radius around each rally point (world units) */
+/** capture radius around each rally point (world units; unit collision radius is added at assign) */
 export const RALLY_ROUTE_RADIUS = 5 * CELL;
 
 /** extra clearance around enemy base buildings for safe-zone tactics */
