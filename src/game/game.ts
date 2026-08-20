@@ -1620,6 +1620,7 @@ export class Game {
         // replaces this button entirely — watching never changes for a
         // Game instance's lifetime, so this is a one-time hide, not a toggle
         if (this.watching) this.hud.setSpeedButtonVisible(false);
+        this.hud.setSpeedSteps(this.speedSteps);
         this.hud.onMenuToggle = () => this.togglePauseMenu();
         // touch stand-in for middle-click (rotate)
         this.hud.onTouchRotate = () => this.placement.rotateSelected();

@@ -151,8 +151,12 @@ export function getUnitFlagNodeLocal(id: string): { x: number; y: number; z: num
 /**
  * Fingerprint of the model-derived geometry the SIM reads — {@link
  * getUnitVisualHeight} feeds `projectileAimY`, {@link getUnitAttackNodeLocal}
- * feeds the muzzle in `fire()` — so both decide where projectiles spawn and
- * fly, i.e. what they hit.
+ * feeds the muzzle in `fire()`, and both plus {@link getUnitVisualHalfWidth}
+ * size the archer scatter in `aimSpread` — so they decide where projectiles
+ * spawn and fly, i.e. what they hit.
+ *
+ * Everything the sim reads out of a model belongs in here. Adding a sim read
+ * of model data without adding it below re-opens the hole this closes.
  *
  * Model loading is fault-tolerant per model: a failed GLB logs and keeps the
  * procedural probe height with no AttackNode. That is fine for looks and fatal
@@ -178,6 +182,10 @@ export function modelGeometryFingerprint(): number {
     for (const id of [...visualHeights.keys()].sort()) {
         mixStr(id);
         mix(visualHeights.get(id)!);
+    }
+    for (const id of [...visualHalfWidths.keys()].sort()) {
+        mixStr(id);
+        mix(visualHalfWidths.get(id)!);
     }
     for (const id of [...attackNodes.keys()].sort()) {
         const n = attackNodes.get(id)!;
