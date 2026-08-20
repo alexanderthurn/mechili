@@ -471,6 +471,8 @@ export type SimEvent =
           dz?: number;
           /** Ground bolt / heavy debris — denser dirt spray (arrow, ballista, stones). */
           sod?: boolean;
+          /** Crow-rider (etc.) stone projectile — leave a brief grounded rock. */
+          dropStone?: boolean;
       }
     /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
      *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
@@ -3553,22 +3555,21 @@ export class BattleSim {
                 if (splash > 0) {
                     this.explode(p, ix, iz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
-                    // splash path skips the normal impact event — still emit masonry
-                    // chips/dust when the blast lands on a structure facade
-                    if (hit.unit.type.structure) {
-                        const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+                    const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+                    if (hit.unit.type.structure || p.style === 'stone') {
                         this.events.push({
                             kind: 'impact',
                             x: ix,
                             y: iy,
                             z: iz,
                             flesh: false,
-                            masonry: true,
-                            cx: hit.x,
-                            cz: hit.z,
+                            masonry: !!hit.unit.type.structure,
+                            cx: hit.unit.type.structure ? hit.x : undefined,
+                            cz: hit.unit.type.structure ? hit.z : undefined,
                             dx: sx / slen,
                             dy: sy / slen,
                             dz: sz / slen,
+                            dropStone: p.style === 'stone',
                         });
                     }
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
@@ -3595,6 +3596,7 @@ export class BattleSim {
                         dx: sx / slen,
                         dy: sy / slen,
                         dz: sz / slen,
+                        dropStone: p.style === 'stone',
                     });
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
@@ -3609,6 +3611,20 @@ export class BattleSim {
                 if (splash > 0) {
                     this.explode(p, nx, nz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
+                    if (p.style === 'stone') {
+                        const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+                        this.events.push({
+                            kind: 'impact',
+                            x: nx,
+                            y: groundY + 0.15,
+                            z: nz,
+                            dx: sx / slen,
+                            dy: sy / slen,
+                            dz: sz / slen,
+                            sod: true,
+                            dropStone: true,
+                        });
+                    }
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
                 } else {
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
@@ -3623,6 +3639,7 @@ export class BattleSim {
                         dy: sy / slen,
                         dz: sz / slen,
                         sod: bolt,
+                        dropStone: p.style === 'stone',
                     });
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));

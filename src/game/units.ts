@@ -1392,13 +1392,18 @@ export class Unit {
         this.destroyed = true;
         const instances = getUnitInstanceRenderer();
         const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
-        const tipZ = klen > 1e-6 ? Math.sign(knock!.z || 1) * 0.24 : 0.22;
-        const tipX = klen > 1e-6 ? Math.sign(knock!.x || 1) * 0.1 : 0.08;
+        // Wide bases (Stronghold) tip very little — a big lean lifts one side into the air
+        const wide = this.type.collisionRadius >= 4 || this.type.id === 'stronghold';
+        const tipAmp = wide ? 0.045 : 0.09;
+        const tipZ = klen > 1e-6 ? Math.sign(knock!.z || 1) * tipAmp : tipAmp * 0.85;
+        const tipX = klen > 1e-6 ? Math.sign(knock!.x || 1) * tipAmp * 0.35 : tipAmp * 0.3;
+        const halfW = Math.max(1.2, this.type.collisionRadius * 0.55);
+        const sink = halfW * Math.sin(Math.hypot(tipX, tipZ)) * (wide ? 1.15 : 0.85);
         for (const m of this.members) {
             m.mesh.userData.dead = true;
             setCrowWingRateOnProxy(m.mesh, 0);
             instances?.setDead(m.mesh);
-            beginBuildingCollapse(m.mesh, { tipX, tipZ });
+            beginBuildingCollapse(m.mesh, { tipX, tipZ, sink });
         }
     }
 

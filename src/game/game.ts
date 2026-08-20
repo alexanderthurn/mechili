@@ -2672,6 +2672,7 @@ export class Game {
         this.phaseRemaining = this.deploySeconds();
         // scars fade each round so the field heals over a few battles
         if (this.round > 1) this.map.fadeWear(0.68);
+        this.stoneChips.clear(); // high-setting collapse rubble lives until here
         this.placement.beginDeployment();
         this.placement.enabled = true;
         this.placement.hiddenPlacements = true;
@@ -8319,7 +8320,8 @@ export class Game {
         this.selectedActor = null;
         this.projectileRenderer.clear();
         this.stuckBolts.clear();
-        this.stoneChips.clear();
+        // high collapse rubble persists into build; timed chips do not
+        this.stoneChips.clearTimed();
         this.fireFx.clear(); // instanced flame tongues are battle-only
         this.towerDebuffFx.clear();
         this.hammerFx.clear();

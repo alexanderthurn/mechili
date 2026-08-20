@@ -15,13 +15,16 @@ export type BuildingCollapseState = {
     startRotZ: number;
     endRotX: number;
     endRotZ: number;
+    /** Local Y at collapse start — tip can lift a wide base, so we sink to compensate. */
+    startY: number;
+    sink: number;
 };
 
 const COLLAPSE_DUR = 0.72;
-/** Squash height as a fraction of the live building scale — keep some mass, not a pancake. */
-const RUBBLE_Y = 0.55;
-/** Almost no footprint bulge (bulge read as a balloon deflating). */
-const RUBBLE_XZ = 1.02;
+/** Squash height — about half the previous rubble height. */
+const RUBBLE_Y = 0.28;
+/** Slight footprint shrink so the wreck reads smaller, not ballooned. */
+const RUBBLE_XZ = 0.92;
 
 /**
  * Animate a structure into the rubble pose (squash + lean).
@@ -29,13 +32,13 @@ const RUBBLE_XZ = 1.02;
  */
 export function beginBuildingCollapse(
     mesh: Group,
-    opts?: { tipX?: number; tipZ?: number; startAt?: number },
+    opts?: { tipX?: number; tipZ?: number; startAt?: number; sink?: number },
 ): BuildingCollapseState {
     const sx = mesh.scale.x;
     const sy = mesh.scale.y;
     const sz = mesh.scale.z;
-    const tipZ = opts?.tipZ ?? 0.22;
-    const tipX = opts?.tipX ?? 0.08;
+    const tipZ = opts?.tipZ ?? 0.08;
+    const tipX = opts?.tipX ?? 0.03;
     const state: BuildingCollapseState = {
         startAt: opts?.startAt ?? -1,
         dur: COLLAPSE_DUR,
@@ -49,6 +52,8 @@ export function beginBuildingCollapse(
         startRotZ: mesh.rotation.z,
         endRotX: tipX,
         endRotZ: tipZ,
+        startY: mesh.position.y,
+        sink: opts?.sink ?? 0,
     };
     mesh.userData.buildingCollapse = state;
     return state;
@@ -71,10 +76,13 @@ export function tickBuildingCollapse(
     );
     mesh.rotation.x = state.startRotX + (state.endRotX - state.startRotX) * e;
     mesh.rotation.z = state.startRotZ + (state.endRotZ - state.startRotZ) * e;
+    // Pull the pivot down as it tips so a wide footprint doesn't hang in the air
+    mesh.position.y = state.startY - state.sink * e;
     if (u >= 1) {
         mesh.scale.set(state.endScaleX, state.endScaleY, state.endScaleZ);
         mesh.rotation.x = state.endRotX;
         mesh.rotation.z = state.endRotZ;
+        mesh.position.y = state.startY - state.sink;
         return false;
     }
     return true;
