@@ -39,6 +39,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
 import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap, prefs } from './prefs';
+import type { SceneryQuality } from './prefs';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import {
     getUnitInstanceAsset,
@@ -420,6 +421,122 @@ export async function preloadDebrisBrick(): Promise<void> {
 
 export function getDebrisBrickAsset(): BrickAsset | null {
     return brickAsset;
+}
+
+const ROCK_URL = new URL('../../assets/models/rock.glb', import.meta.url).href;
+
+interface RockAsset {
+    geometry: BufferGeometry;
+    material: MeshStandardMaterial;
+    height: number;
+}
+
+let rockAsset: RockAsset | null = null;
+let rockLoad: Promise<RockAsset | null> | null = null;
+/** Half-extent for grounded crow stones; icosahedron radius until rock.glb loads. */
+let crowStoneHalfExtentY = CROW_STONE_GEO_R;
+
+/** High/ultra scenery gets rock.glb; medium/low/off keep the cheap icosahedron. */
+export function crowRockGlbEnabled(quality: SceneryQuality = prefs().scenery): boolean {
+    return quality === 'high' || quality === 'ultra';
+}
+
+/** Bake rock.glb to crow-stone size (longest axis ≈ 2× icosahedron radius). */
+function prepareRockFromScene(scene: Group): RockAsset | null {
+    const budget = modelTextureBudget();
+    if (budget) applyTextureBudget(scene, budget);
+
+    scene.updateMatrixWorld(true);
+    const geos: BufferGeometry[] = [];
+    let material: MeshStandardMaterial | null = null;
+    const scratch = new Matrix4();
+
+    scene.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as Material;
+        if (mat instanceof MeshStandardMaterial && !material) {
+            material = mat.clone();
+            if (typeof material.metalness === 'number') material.metalness = Math.min(material.metalness, 0.35);
+            material.envMapIntensity = 1.0;
+            material.flatShading = false;
+            material.polygonOffset = true;
+            material.polygonOffsetFactor = -2;
+            material.polygonOffsetUnits = -2;
+        }
+        const geo = dequantizeGeometry(mesh.geometry);
+        scratch.copy(mesh.matrixWorld);
+        geo.applyMatrix4(scratch);
+        geos.push(geo);
+    });
+
+    if (geos.length === 0) return null;
+    const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos)!;
+    for (let i = 1; i < geos.length; i++) geos[i]!.dispose();
+
+    merged.computeBoundingBox();
+    const box = merged.boundingBox!;
+    const size = new Vector3();
+    box.getSize(size);
+    const center = new Vector3();
+    box.getCenter(center);
+    merged.translate(-center.x, -center.y, -center.z);
+    const longest = Math.max(size.x, size.y, size.z, 1e-3);
+    const target = CROW_STONE_GEO_R * 2;
+    const s = target / longest;
+    merged.scale(s, s, s);
+    merged.computeBoundingBox();
+    const box2 = merged.boundingBox!;
+    merged.translate(
+        -(box2.min.x + box2.max.x) * 0.5,
+        -(box2.min.y + box2.max.y) * 0.5,
+        -(box2.min.z + box2.max.z) * 0.5,
+    );
+    merged.computeBoundingBox();
+    merged.computeVertexNormals();
+
+    if (!material) {
+        material = new MeshStandardMaterial({
+            color: THEME.scenery.rock,
+            roughness: 0.92,
+            metalness: 0.05,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+        });
+    }
+
+    const height = Math.max(merged.boundingBox!.max.y - merged.boundingBox!.min.y, 0.05);
+    return { geometry: merged, material, height };
+}
+
+/** Load crow-rider rock.glb when scenery is high/ultra. Safe to call repeatedly. */
+export async function preloadCrowRock(): Promise<void> {
+    if (!crowRockGlbEnabled()) return;
+    if (rockAsset) return;
+    if (!rockLoad) {
+        rockLoad = (async () => {
+            try {
+                const gltf = await getGltfLoader().loadAsync(ROCK_URL);
+                const prepared = prepareRockFromScene(gltf.scene);
+                if (!prepared) throw new Error('no meshes in rock.glb');
+                rockAsset = prepared;
+                crowStoneHalfExtentY = prepared.height * 0.5;
+                console.info(
+                    `[effects] rock.glb ready (${prepared.geometry.getAttribute('position')?.count ?? 0} verts, h=${prepared.height.toFixed(3)})`,
+                );
+                return prepared;
+            } catch (e) {
+                console.error('[effects] rock.glb failed — icosahedron crow stones', e);
+                return null;
+            }
+        })();
+    }
+    await rockLoad;
+}
+
+export function getCrowRockAsset(): RockAsset | null {
+    return rockAsset;
 }
 
 /** pulsing additive magic orb — hot core + cyan rim (visual only) */
@@ -1125,7 +1242,7 @@ const COLLAPSE_GROUND_LINGER = 2.1 * 5;
 /** Lift so the stone rests on the lawn instead of intersecting it (z-fight). */
 const BRICK_GEO_H = 0.48; // BoxGeometry fallback height — used for rest offset
 function chipRestY(terrainY: number, scaleY: number, shape: 'round' | 'brick'): number {
-    const half = shape === 'brick' ? brickHalfExtentY : CROW_STONE_GEO_R;
+    const half = shape === 'brick' ? brickHalfExtentY : crowStoneHalfExtentY;
     return terrainY + half * scaleY * 0.85;
 }
 
@@ -1177,6 +1294,8 @@ export class StoneChipRenderer {
     private readonly brickMesh: InstancedMesh;
     private readonly sharedBrickGeo: BufferGeometry | null;
     private readonly sharedBrickMat: MeshStandardMaterial | null;
+    private readonly sharedRockGeo: BufferGeometry | null;
+    private readonly sharedRockMat: MeshStandardMaterial | null;
     private readonly matrix = new Matrix4();
     private readonly pos = new Vector3();
     private readonly quat = new Quaternion();
@@ -1184,6 +1303,7 @@ export class StoneChipRenderer {
     private readonly euler = new Euler();
     private readonly chips: StoneChip[] = [];
     private readonly tmpColor = new Color();
+    private readonly roundBaseColor: number;
 
     constructor(scene: Scene) {
         const mkMat = (hex: number, flat: boolean) =>
@@ -1194,7 +1314,14 @@ export class StoneChipRenderer {
                 polygonOffsetFactor: -2,
                 polygonOffsetUnits: -2,
             });
-        this.roundMesh = new InstancedMesh(getCrowStoneGeometry(), mkMat(THEME.scenery.rock, false), MAX_STONE_CHIPS);
+        const rock = rockAsset;
+        this.sharedRockGeo = rock?.geometry ?? null;
+        this.sharedRockMat = rock?.material ?? null;
+        if (rock) crowStoneHalfExtentY = rock.height * 0.5;
+        this.roundBaseColor = rock ? 0xffffff : THEME.scenery.rock;
+        const roundGeo = rock?.geometry ?? getCrowStoneGeometry();
+        const roundMat = rock?.material ?? mkMat(THEME.scenery.rock, false);
+        this.roundMesh = new InstancedMesh(roundGeo, roundMat, MAX_STONE_CHIPS);
         const brick = brickAsset;
         this.sharedBrickGeo = brick?.geometry ?? null;
         this.sharedBrickMat = brick?.material ?? null;
@@ -1460,7 +1587,7 @@ export class StoneChipRenderer {
                 bi++;
             } else {
                 this.roundMesh.setMatrixAt(ri, this.matrix);
-                this.tmpColor.setHex(THEME.scenery.rock).multiplyScalar(c.shade);
+                this.tmpColor.setHex(this.roundBaseColor).multiplyScalar(c.shade);
                 this.roundMesh.setColorAt(ri, this.tmpColor);
                 ri++;
             }
@@ -1490,14 +1617,20 @@ export class StoneChipRenderer {
     dispose(): void {
         this.roundMesh.removeFromParent();
         this.brickMesh.removeFromParent();
-        // round geo shared with projectile stones — do not dispose
+        if (this.roundMesh.geometry !== this.sharedRockGeo && this.roundMesh.geometry !== getCrowStoneGeometry()) {
+            this.roundMesh.geometry.dispose();
+        }
+        const roundMat = this.roundMesh.material;
+        if (roundMat !== this.sharedRockMat) {
+            if (Array.isArray(roundMat)) for (const m of roundMat) m.dispose();
+            else roundMat.dispose();
+        }
         if (this.brickMesh.geometry !== this.sharedBrickGeo) this.brickMesh.geometry.dispose();
         const brickMat = this.brickMesh.material;
         if (brickMat !== this.sharedBrickMat) {
             if (Array.isArray(brickMat)) for (const m of brickMat) m.dispose();
             else brickMat.dispose();
         }
-        (this.roundMesh.material as MeshLambertMaterial).dispose();
     }
 }
 
@@ -1650,10 +1783,12 @@ export class ProjectileRenderer {
     /** Shared bolt.glb geo — dispose once even if used by two pools. */
     private readonly sharedBoltGeo: BufferGeometry | null;
     private readonly sharedBoltMat: MeshStandardMaterial | null;
+    private readonly sharedRockGeo: BufferGeometry | null;
+    private readonly sharedRockMat: MeshStandardMaterial | null;
 
     constructor(scene: Scene) {
         const wood = new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
-        const rock = new MeshLambertMaterial({ color: THEME.scenery.rock, flatShading: true });
+        const rockFallback = new MeshLambertMaterial({ color: THEME.scenery.rock, flatShading: true });
         this.orbMaterial = makeOrbMaterial();
 
         const bolt = boltAsset;
@@ -1664,6 +1799,13 @@ export class ProjectileRenderer {
         const arrowMat = bolt?.material ?? wood;
         const largeMat = bolt?.material ?? wood;
 
+        const rock = rockAsset;
+        this.sharedRockGeo = rock?.geometry ?? null;
+        this.sharedRockMat = rock?.material ?? null;
+        if (rock) crowStoneHalfExtentY = rock.height * 0.5;
+        const stoneGeo = rock?.geometry ?? getCrowStoneGeometry();
+        const stoneMat = rock?.material ?? rockFallback;
+
         this.pools = {
             bolt: new InstancedMesh(
                 new SphereGeometry(0.28, 6, 5),
@@ -1672,7 +1814,7 @@ export class ProjectileRenderer {
             ),
             arrow: new InstancedMesh(arrowGeo, arrowMat, MAX_PROJECTILES),
             largeArrow: new InstancedMesh(largeGeo, largeMat, MAX_PROJECTILES),
-            stone: new InstancedMesh(getCrowStoneGeometry(), rock, MAX_PROJECTILES),
+            stone: new InstancedMesh(stoneGeo, stoneMat, MAX_PROJECTILES),
             orb: new InstancedMesh(new IcosahedronGeometry(0.85, 2), this.orbMaterial, MAX_PROJECTILES),
         };
         for (const mesh of Object.values(this.pools)) {
@@ -1686,6 +1828,9 @@ export class ProjectileRenderer {
             console.info(
                 `[effects] projectile pools using bolt.glb (arrow×${ARROW_SCALE}, ballista×${LARGE_ARROW_SCALE}, cap ${MAX_PROJECTILES})`,
             );
+        }
+        if (rock) {
+            console.info('[effects] crow stones using rock.glb');
         }
     }
 
@@ -1747,12 +1892,17 @@ export class ProjectileRenderer {
     dispose(): void {
         const sharedGeo = this.sharedBoltGeo;
         const sharedMat = this.sharedBoltMat;
+        const rockGeo = this.sharedRockGeo;
+        const rockMat = this.sharedRockMat;
+        const crowGeo = getCrowStoneGeometry();
         for (const mesh of Object.values(this.pools)) {
             mesh.removeFromParent();
-            // Shared bolt geo/mat live in the module cache — don't dispose those.
-            if (mesh.geometry !== sharedGeo) mesh.geometry.dispose();
+            // Shared bolt/rock geo/mat live in the module cache — don't dispose those.
+            if (mesh.geometry !== sharedGeo && mesh.geometry !== rockGeo && mesh.geometry !== crowGeo) {
+                mesh.geometry.dispose();
+            }
             const mat = mesh.material;
-            if (mat !== sharedMat) {
+            if (mat !== sharedMat && mat !== rockMat) {
                 if (Array.isArray(mat)) for (const m of mat) m.dispose();
                 else mat.dispose();
             }
