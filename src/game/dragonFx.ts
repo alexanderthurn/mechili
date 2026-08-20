@@ -1,4 +1,5 @@
 import {
+    AdditiveBlending,
     CanvasTexture,
     CylinderGeometry,
     DoubleSide,
@@ -12,8 +13,9 @@ import {
     Vector3,
     type MeshStandardMaterial,
     type Scene,
+    type Texture,
 } from 'three';
-import { groundHeightAt } from './map';
+import { groundHeightAt, CELL } from './map';
 import { ensureSpellTemplate } from './spellAssets';
 import {
     cloneSpellInstance,
@@ -23,7 +25,7 @@ import {
 import {
     attachDragonWingFlap,
 } from './crowWingFlap';
-import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC } from './tactics';
+import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC, DRAGON_ID, TACTICS } from './tactics';
 
 /** authored empty in dragon.glb — fire tube origin in the mouth */
 const MOUTH_SPAWN_NAME = 'MouthFireSpawn';
@@ -54,8 +56,17 @@ const AIM_AHEAD_MAX = 36;
 const AIM_AHEAD_HEIGHT_FRAC = 0.72;
 
 const MESH_SCALE = 36;
-const TUBE_RADIUS_GROUND = 1.6;
-const TUBE_RADIUS_SKY = 0.55;
+/** Match dragon ground-fire disc (~tactic radius), visually ~75%. */
+const DRAGON_FIRE_R = TACTICS[DRAGON_ID]?.radius ?? 5 * CELL;
+/** Former outer sheath radius — kept as reference for the inner-core fraction. */
+const OUTER_RADIUS_GROUND = DRAGON_FIRE_R * 0.75;
+/** Single tube = former bright core (~38% of the outer sheath). */
+const TUBE_RADIUS_GROUND = OUTER_RADIUS_GROUND * 0.38;
+const TUBE_RADIUS_SKY = Math.max(0.22, TUBE_RADIUS_GROUND * 0.045);
+/** Push tube origin along mouth→hit so it reads ahead of the mouth empty. */
+const TUBE_MOUTH_BIAS = 5.4;
+/** Stretch past the ground hit so the beam sinks into the terrain. */
+const TUBE_LENGTH_SCALE = 1.2;
 
 export type DragonCue = {
     x: number;
@@ -74,6 +85,7 @@ type Active = {
     materials: MeshStandardMaterial[];
     /** MouthFireSpawn marker, or null if the model has none */
     mouthSpawn: Object3D | null;
+    /** Single bright breath tube (former “core” look) */
     tube: Mesh;
     len: number;
     ux: number;
@@ -87,26 +99,18 @@ const _mouth = new Vector3();
 const _hit = new Vector3();
 const _dir = new Vector3();
 const _up = new Vector3(0, 1, 0);
-const _mouthActual = new Vector3();
+const _fallbackMouth = new Vector3();
 
 /**
- * Constant-speed flight along the capsule axis. Fire tube aims forward from
- * MouthFireSpawn (dragon mouth) to a ground hit ahead. The model is shifted so
- * that empty sits on the tube’s sky end. Shrink stays planted at path end while
- * the dragon keeps going.
+ * Constant-speed flight along the capsule axis. Fire tube aims from
+ * MouthFireSpawn (or a forward fallback) to the ground hit ahead.
  */
 export class DragonFx {
     private readonly group = new Group();
     private template: Group | null = null;
-    private readonly tubeGeo = makeUnitPipe(TUBE_RADIUS_GROUND, TUBE_RADIUS_SKY);
+    private readonly tubeGeo = makeUnitPipe(TUBE_RADIUS_GROUND, TUBE_RADIUS_SKY, 14);
     private readonly flameTex = makeFlameTexture();
-    private readonly tubeMat = new MeshBasicMaterial({
-        map: this.flameTex,
-        transparent: true,
-        opacity: 0.88,
-        depthWrite: false,
-        side: DoubleSide,
-    });
+    private readonly tubeMat = makeBreathMaterial(this.flameTex, 0.95);
     private readonly active: Active[] = [];
     private readonly loadPromise: Promise<void>;
 
@@ -131,7 +135,8 @@ export class DragonFx {
     }
 
     update(simElapsed: number): void {
-        this.flameTex.offset.y = (performance.now() * 0.0011) % 1;
+        const t = performance.now() * 0.001;
+        this.flameTex.offset.y = (t * 2.6) % 1;
 
         for (let i = this.active.length - 1; i >= 0; i--) {
             const a = this.active[i]!;
@@ -141,7 +146,6 @@ export class DragonFx {
             const tPath0 = a.cue.at;
             const tPath1 = a.cue.at + pourDur;
             const speed = a.len / pourDur;
-            // fire cursor along the path (matches sim pour progress)
             const hitDist = speed * (simElapsed - tPath0);
             const tDone = tPath1 + SHRINK_SEC + EXIT_SEC;
 
@@ -160,7 +164,6 @@ export class DragonFx {
                 AIM_AHEAD_MIN,
                 AIM_AHEAD_MAX,
             );
-            // dragon flies behind the ground hit so the breath shoots forward
             const dragonDist = hitDist - aimAhead;
             const height = heightForDist(dragonDist, a.len, speed, tPath0);
 
@@ -191,28 +194,9 @@ export class DragonFx {
                 );
             }
 
-            // Flight mouth follows the dragon; tube may plant separately during shrink.
-            const flightMouthX = dx + a.ux * MESH_SCALE * 0.35;
-            const flightMouthY = skyY - height * 0.08;
-            const flightMouthZ = dz + a.uz * MESH_SCALE * 0.35;
-            _mouth.set(flightMouthX, flightMouthY, flightMouthZ);
-
-            if (mode === 'shrink') {
-                _hit.set(a.cue.x2, groundHeightAt(a.cue.x2, a.cue.z2) + 0.3, a.cue.z2);
-                // tube stays planted at path end while the dragon keeps flying
-                _mouth.set(
-                    a.cue.x2 - a.ux * aimAhead * 0.35,
-                    groundHeightAt(a.cue.x2, a.cue.z2) + HEIGHT_BREATH * 0.85,
-                    a.cue.z2 - a.uz * aimAhead * 0.35,
-                );
-            } else {
-                _hit.set(hx, hitGy + 0.3, hz);
-            }
-
             a.root.visible = true;
             a.root.position.set(dx, skyY, dz);
             a.root.rotation.order = 'YZX';
-            // Template is baked −Z forward (crow space); align −Z with flight direction.
             a.root.rotation.y = Math.atan2(-a.ux, -a.uz);
             a.root.rotation.x = 0;
             const low = MathUtils.clamp(
@@ -220,18 +204,25 @@ export class DragonFx {
                 0,
                 1,
             );
-            // tip nose toward the ground hit ahead
             a.root.rotation.z = -0.12 - low * 0.2;
             a.root.scale.setScalar(MESH_SCALE);
+            a.root.updateMatrixWorld(true);
 
-            // Always pin to the *flight* mouth so the path stays continuous.
-            // Shrink only redirects the tube — it must not freeze the model.
             if (a.mouthSpawn) {
-                a.root.updateMatrixWorld(true);
-                a.mouthSpawn.getWorldPosition(_mouthActual);
-                a.root.position.x += flightMouthX - _mouthActual.x;
-                a.root.position.y += flightMouthY - _mouthActual.y;
-                a.root.position.z += flightMouthZ - _mouthActual.z;
+                a.mouthSpawn.getWorldPosition(_mouth);
+            } else {
+                _fallbackMouth.set(
+                    dx + a.ux * MESH_SCALE * 0.28,
+                    skyY - height * 0.06,
+                    dz + a.uz * MESH_SCALE * 0.28,
+                );
+                _mouth.copy(_fallbackMouth);
+            }
+
+            if (mode === 'shrink') {
+                _hit.set(a.cue.x2, groundHeightAt(a.cue.x2, a.cue.z2) + 0.25, a.cue.z2);
+            } else {
+                _hit.set(hx, hitGy + 0.25, hz);
             }
 
             placeBreathTube(a.tube, mode, _mouth, _hit, spitU, shrinkU);
@@ -246,7 +237,11 @@ export class DragonFx {
                 fade = 1 - exitU * exitU;
             }
             setSpellOpacity(a.materials, fade);
-            if (fade <= 0.02) a.root.visible = false;
+            (a.tube.material as MeshBasicMaterial).opacity = 0.95 * fade;
+            if (fade <= 0.02) {
+                a.root.visible = false;
+                a.tube.visible = false;
+            }
         }
     }
 
@@ -256,7 +251,6 @@ export class DragonFx {
         this.tubeMat.dispose();
         this.flameTex.dispose();
         this.group.removeFromParent();
-        // shared boot template — do not dispose
         this.template = null;
     }
 
@@ -292,7 +286,6 @@ export class DragonFx {
     }
 
     private async load(): Promise<void> {
-        // Dragon template is baked to −Z forward / ±X wings (see spellAssets).
         this.template = await ensureSpellTemplate('dragon');
         if (!this.template) return;
         console.info('[dragonFx] template ready');
@@ -310,8 +303,19 @@ export class DragonFx {
     }
 }
 
+function makeBreathMaterial(map: Texture, opacity: number): MeshBasicMaterial {
+    return new MeshBasicMaterial({
+        map,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        side: DoubleSide,
+        blending: AdditiveBlending,
+    });
+}
+
 /**
- * Unit pipe [0→1] on +Y, oriented mouth → ground hit (forward breath).
+ * Unit pipe [0→1] on +Y, oriented mouth → ground hit.
  * Spit grows from the mouth; shrink collapses onto the ground hit.
  */
 function placeBreathTube(
@@ -329,46 +333,43 @@ function placeBreathTube(
     tube.visible = true;
 
     _dir.copy(hit).sub(mouth);
-    const fullLen = Math.max(_dir.length(), 0.05);
-    _dir.multiplyScalar(1 / fullLen);
+    const mouthToHit = Math.max(_dir.length(), 0.05);
+    _dir.multiplyScalar(1 / mouthToHit);
+    const bias = Math.min(TUBE_MOUTH_BIAS, mouthToHit * 0.35);
+    const origin = _fallbackMouth.copy(mouth).addScaledVector(_dir, bias);
+    const fullLen = Math.max((mouthToHit - bias) * TUBE_LENGTH_SCALE, 0.05);
 
     if (mode === 'spit') {
         const u = 1 - (1 - spitU) * (1 - spitU);
         const len = Math.max(fullLen * u, 0.05);
-        tube.position.copy(mouth);
+        tube.position.copy(origin);
         tube.scale.set(1, len, 1);
         tube.quaternion.setFromUnitVectors(_up, _dir);
         return;
     }
 
     if (mode === 'full') {
-        tube.position.copy(mouth);
+        tube.position.copy(origin);
         tube.scale.set(1, fullLen, 1);
         tube.quaternion.setFromUnitVectors(_up, _dir);
         return;
     }
 
-    // shrink toward the ground hit — tip falls along the breath line
     const u = shrinkU * shrinkU;
     const remain = Math.max(1 - u, 0);
     const len = fullLen * remain;
-    const width = Math.max(0.2, remain);
+    const width = Math.max(0.15, remain);
     if (len < 0.08) {
         tube.visible = false;
         return;
     }
-    // base stays on the ground; mouth end retracts toward hit
     tube.position.copy(hit).addScaledVector(_dir, -len);
     tube.scale.set(width, len, width);
     tube.quaternion.setFromUnitVectors(_up, _dir);
 }
 
-/**
- * Height from distance along the axis (constant horizontal speed).
- * Smooth linear blends — no holds.
- */
 function heightForDist(dist: number, pathLen: number, speed: number, tPath0: number): number {
-    const leadIn = speed * tPath0; // distance covered from battle start → path start
+    const leadIn = speed * tPath0;
     const exitDist = speed * (SHRINK_SEC + EXIT_SEC);
 
     if (dist < 0) {
@@ -383,19 +384,21 @@ function heightForDist(dist: number, pathLen: number, speed: number, tPath0: num
     return MathUtils.lerp(HEIGHT_BREATH * 1.05, HEIGHT_EXIT, u);
 }
 
-function makeUnitPipe(radiusTop: number, radiusBottom: number): CylinderGeometry {
-    const geo = new CylinderGeometry(radiusTop, radiusBottom, 1, 12, 8, true);
+/** Open tapered pipe; V=0 at mouth (y=0), V increases toward ground. */
+function makeUnitPipe(radiusGround: number, radiusMouth: number, segments: number): CylinderGeometry {
+    const geo = new CylinderGeometry(radiusGround, radiusMouth, 1, segments, 10, true);
     geo.translate(0, 0.5, 0);
     const uv = geo.attributes.uv;
     if (uv) {
         for (let i = 0; i < uv.count; i++) {
-            uv.setY(i, uv.getY(i) * 4);
+            uv.setY(i, (1 - uv.getY(i)) * 3.2);
         }
         uv.needsUpdate = true;
     }
     return geo;
 }
 
+/** Hot orange / yellow additive sheet — former inner-core look. */
 function makeFlameTexture(): CanvasTexture {
     const w = 64;
     const h = 256;
@@ -404,29 +407,25 @@ function makeFlameTexture(): CanvasTexture {
     c.height = h;
     const ctx = c.getContext('2d')!;
 
-    // dragon breath — orange with deep blue base (icea = full icy; see FIRE_TINT_DRAGON)
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, 'rgba(255, 240, 180, 0.25)');
-    g.addColorStop(0.18, 'rgba(255, 190, 70, 0.88)');
-    g.addColorStop(0.4, 'rgba(255, 100, 25, 0.95)');
-    g.addColorStop(0.62, 'rgba(200, 45, 30, 0.9)');
-    g.addColorStop(0.82, 'rgba(50, 40, 140, 0.75)');
-    g.addColorStop(1, 'rgba(15, 12, 55, 0.4)');
+    g.addColorStop(0, 'rgba(255, 252, 230, 0.95)');
+    g.addColorStop(0.2, 'rgba(255, 230, 120, 0.9)');
+    g.addColorStop(0.5, 'rgba(255, 160, 40, 0.85)');
+    g.addColorStop(0.8, 'rgba(255, 90, 20, 0.55)');
+    g.addColorStop(1, 'rgba(180, 40, 10, 0.15)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 32; i++) {
         const x = Math.random() * w;
         const y = Math.random() * h;
-        const ww = 2 + Math.random() * 6;
-        const hh = 12 + Math.random() * 40;
-        const alpha = 0.12 + Math.random() * 0.32;
-        const deepBlue = Math.random() > 0.7;
-        if (deepBlue) {
-            ctx.fillStyle = `rgba(${(20 + Math.random() * 40) | 0}, ${(25 + Math.random() * 50) | 0}, ${(120 + Math.random() * 100) | 0}, ${alpha})`;
-        } else {
-            ctx.fillStyle = `rgba(255, ${(150 + Math.random() * 80) | 0}, ${(30 + Math.random() * 50) | 0}, ${alpha})`;
-        }
+        const ww = 1.5 + Math.random() * 5;
+        const hh = 10 + Math.random() * 48;
+        const alpha = 0.1 + Math.random() * 0.35;
+        const hot = Math.random() > 0.45;
+        ctx.fillStyle = hot
+            ? `rgba(255, ${(200 + Math.random() * 55) | 0}, ${(80 + Math.random() * 100) | 0}, ${alpha})`
+            : `rgba(255, ${(90 + Math.random() * 80) | 0}, ${(10 + Math.random() * 40) | 0}, ${alpha})`;
         ctx.fillRect(x, y, ww, hh);
     }
 
@@ -434,7 +433,7 @@ function makeFlameTexture(): CanvasTexture {
     tex.colorSpace = SRGBColorSpace;
     tex.wrapS = RepeatWrapping;
     tex.wrapT = RepeatWrapping;
-    tex.repeat.set(2, 1);
+    tex.repeat.set(2.2, 1);
     tex.needsUpdate = true;
     return tex;
 }
