@@ -25,11 +25,8 @@ import {
     Quaternion,
     Ray,
     Raycaster,
-    RepeatWrapping,
     ShaderMaterial,
     SphereGeometry,
-    SRGBColorSpace,
-    TextureLoader,
     Vector2,
     Vector3,
     type Intersection,
@@ -44,7 +41,6 @@ import type { Projectile, SimEvent } from './sim';
 import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap, prefs } from './prefs';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import {
-    getUnitAlbedoMap,
     getUnitInstanceAsset,
     getUnitVisualHalfWidth,
     getUnitVisualHeight,
@@ -315,6 +311,115 @@ export async function preloadProjectileBolt(): Promise<void> {
 
 export function getProjectileBoltAsset(): BoltAsset | null {
     return boltAsset;
+}
+
+const BRICK_URL = new URL('../../assets/models/brick.glb', import.meta.url).href;
+
+interface BrickAsset {
+    geometry: BufferGeometry;
+    material: MeshStandardMaterial;
+    /** Local Y size after normalize (unit longest axis) — for ground rest. */
+    height: number;
+}
+
+let brickAsset: BrickAsset | null = null;
+let brickLoad: Promise<BrickAsset | null> | null = null;
+/** Half-height used by {@link chipRestY}; updated when brick.glb loads. */
+let brickHalfExtentY = 0.24;
+
+/** Bake brick.glb into a centered unit-size chip with its own albedo. */
+function prepareBrickFromScene(scene: Group): BrickAsset | null {
+    const budget = modelTextureBudget();
+    if (budget) applyTextureBudget(scene, budget);
+
+    scene.updateMatrixWorld(true);
+    const geos: BufferGeometry[] = [];
+    let material: MeshStandardMaterial | null = null;
+    const scratch = new Matrix4();
+
+    scene.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as Material;
+        if (mat instanceof MeshStandardMaterial && !material) {
+            material = mat.clone();
+            if (typeof material.metalness === 'number') material.metalness = Math.min(material.metalness, 0.35);
+            material.envMapIntensity = 1.0;
+            material.flatShading = false;
+            material.polygonOffset = true;
+            material.polygonOffsetFactor = -2;
+            material.polygonOffsetUnits = -2;
+        }
+        const geo = dequantizeGeometry(mesh.geometry);
+        scratch.copy(mesh.matrixWorld);
+        geo.applyMatrix4(scratch);
+        geos.push(geo);
+    });
+
+    if (geos.length === 0) return null;
+    const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos)!;
+    for (let i = 1; i < geos.length; i++) geos[i]!.dispose();
+
+    merged.computeBoundingBox();
+    const box = merged.boundingBox!;
+    const size = new Vector3();
+    box.getSize(size);
+    const center = new Vector3();
+    box.getCenter(center);
+    merged.translate(-center.x, -center.y, -center.z);
+    const longest = Math.max(size.x, size.y, size.z, 1e-3);
+    merged.scale(1 / longest, 1 / longest, 1 / longest);
+    merged.computeBoundingBox();
+    const box2 = merged.boundingBox!;
+    merged.translate(
+        -(box2.min.x + box2.max.x) * 0.5,
+        -(box2.min.y + box2.max.y) * 0.5,
+        -(box2.min.z + box2.max.z) * 0.5,
+    );
+    merged.computeBoundingBox();
+    merged.computeVertexNormals();
+
+    if (!material) {
+        material = new MeshStandardMaterial({
+            color: 0xa09c92,
+            roughness: 0.9,
+            metalness: 0.05,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+        });
+    }
+
+    const height = Math.max(merged.boundingBox!.max.y - merged.boundingBox!.min.y, 0.05);
+    return { geometry: merged, material, height };
+}
+
+/** Load shared masonry chip mesh. Safe to call repeatedly. */
+export async function preloadDebrisBrick(): Promise<void> {
+    if (brickAsset) return;
+    if (!brickLoad) {
+        brickLoad = (async () => {
+            try {
+                const gltf = await getGltfLoader().loadAsync(BRICK_URL);
+                const prepared = prepareBrickFromScene(gltf.scene);
+                if (!prepared) throw new Error('no meshes in brick.glb');
+                brickAsset = prepared;
+                brickHalfExtentY = prepared.height * 0.5;
+                console.info(
+                    `[effects] brick.glb ready (${prepared.geometry.getAttribute('position')?.count ?? 0} verts, h=${prepared.height.toFixed(3)})`,
+                );
+                return prepared;
+            } catch (e) {
+                console.error('[effects] brick.glb failed — box debris fallback', e);
+                return null;
+            }
+        })();
+    }
+    await brickLoad;
+}
+
+export function getDebrisBrickAsset(): BrickAsset | null {
+    return brickAsset;
 }
 
 /** pulsing additive magic orb — hot core + cyan rim (visual only) */
@@ -1018,9 +1123,9 @@ const CROW_STONE_LINGER = 2.4;
 const COLLAPSE_GROUND_LINGER = 2.1 * 5;
 
 /** Lift so the stone rests on the lawn instead of intersecting it (z-fight). */
-const BRICK_GEO_H = 0.48; // BoxGeometry height — used for rest offset
+const BRICK_GEO_H = 0.48; // BoxGeometry fallback height — used for rest offset
 function chipRestY(terrainY: number, scaleY: number, shape: 'round' | 'brick'): number {
-    const half = shape === 'brick' ? BRICK_GEO_H * 0.5 : CROW_STONE_GEO_R;
+    const half = shape === 'brick' ? brickHalfExtentY : CROW_STONE_GEO_R;
     return terrainY + half * scaleY * 0.85;
 }
 
@@ -1064,21 +1169,14 @@ type StoneChip = {
     shade: number;
 };
 
-/** Untinted white — masonry albedo carries color; instance shade adds variety. */
+/** Untinted white — brick.glb albedo carries color; instance shade adds variety. */
 const BRICK_COLOR = 0xffffff;
-/** Fallback if building models aren't loaded yet. */
-const STONE_ALBEDO_URL = new URL('../../assets/textures/stone.webp', import.meta.url).href;
-/** Zoom into albedo so grain reads large on small chips (shared maps keep their own repeat). */
-const BRICK_UV_SCALE = 1;
 
 export class StoneChipRenderer {
     private readonly roundMesh: InstancedMesh;
     private readonly brickMesh: InstancedMesh;
-    private readonly brickGeo: BoxGeometry;
-    private brickMap: Texture | null = null;
-    /** True only for the standalone stone.webp fallback — never dispose shared building maps. */
-    private ownsBrickMap = false;
-    private brickMapLoading = false;
+    private readonly sharedBrickGeo: BufferGeometry | null;
+    private readonly sharedBrickMat: MeshStandardMaterial | null;
     private readonly matrix = new Matrix4();
     private readonly pos = new Vector3();
     private readonly quat = new Quaternion();
@@ -1097,15 +1195,20 @@ export class StoneChipRenderer {
                 polygonOffsetUnits: -2,
             });
         this.roundMesh = new InstancedMesh(getCrowStoneGeometry(), mkMat(THEME.scenery.rock, false), MAX_STONE_CHIPS);
-        // Simple box — Vanguard (command-tower) albedo so rubble matches that masonry
-        this.brickGeo = new BoxGeometry(1.15, BRICK_GEO_H, 0.7);
-        const uv = this.brickGeo.attributes.uv!;
-        for (let i = 0; i < uv.count; i++) {
-            uv.setXY(i, uv.getX(i)! * BRICK_UV_SCALE, uv.getY(i)! * BRICK_UV_SCALE);
-        }
-        uv.needsUpdate = true;
-        this.brickMesh = new InstancedMesh(this.brickGeo, mkMat(BRICK_COLOR, false), MAX_STONE_CHIPS);
-        this.tryBindBrickMap();
+        const brick = brickAsset;
+        this.sharedBrickGeo = brick?.geometry ?? null;
+        this.sharedBrickMat = brick?.material ?? null;
+        if (brick) brickHalfExtentY = brick.height * 0.5;
+        const brickGeo = brick?.geometry ?? new BoxGeometry(1.15, BRICK_GEO_H, 0.7);
+        const brickMat =
+            brick?.material ??
+            new MeshLambertMaterial({
+                color: 0xa09c92,
+                polygonOffset: true,
+                polygonOffsetFactor: -2,
+                polygonOffsetUnits: -2,
+            });
+        this.brickMesh = new InstancedMesh(brickGeo, brickMat, MAX_STONE_CHIPS);
         for (const mesh of [this.roundMesh, this.brickMesh]) {
             mesh.instanceMatrix.setUsage(DynamicDrawUsage);
             mesh.frustumCulled = false;
@@ -1116,53 +1219,10 @@ export class StoneChipRenderer {
         }
     }
 
-    /** Prefer Vanguard (command-tower) albedo; otherwise load stone.webp. */
-    private tryBindBrickMap(): void {
-        const mat = this.brickMesh.material as MeshLambertMaterial;
-        const shared = getUnitAlbedoMap('command-tower');
-        if (shared && this.brickMap !== shared) {
-            if (this.ownsBrickMap) this.brickMap?.dispose();
-            this.brickMap = shared;
-            this.ownsBrickMap = false;
-            mat.map = shared;
-            mat.needsUpdate = true;
-            return;
-        }
-        if (this.brickMap) return;
-        if (this.brickMapLoading) return;
-        this.brickMapLoading = true;
-        new TextureLoader().load(STONE_ALBEDO_URL, (tex) => {
-            this.brickMapLoading = false;
-            // Prefer Vanguard if it arrived while we were loading
-            const now = getUnitAlbedoMap('command-tower');
-            if (now) {
-                tex.dispose();
-                this.brickMap = now;
-                this.ownsBrickMap = false;
-                mat.map = now;
-                mat.needsUpdate = true;
-                return;
-            }
-            if (this.brickMap) {
-                tex.dispose();
-                return;
-            }
-            tex.colorSpace = SRGBColorSpace;
-            tex.wrapS = tex.wrapT = RepeatWrapping;
-            this.brickMap = tex;
-            this.ownsBrickMap = true;
-            mat.map = tex;
-            mat.needsUpdate = true;
-        }, undefined, () => {
-            this.brickMapLoading = false;
-        });
-    }
-
     spawnFromEvents(
         events: readonly SimEvent[],
         groundHeightAt: (x: number, z: number) => number,
     ): void {
-        this.tryBindBrickMap();
         for (const e of events) {
             if (e.kind !== 'impact' && !(e.kind === 'death' && e.structure)) continue;
             if (e.kind === 'impact' && e.masonry) this.spawnHitChips(e, groundHeightAt);
@@ -1431,11 +1491,13 @@ export class StoneChipRenderer {
         this.roundMesh.removeFromParent();
         this.brickMesh.removeFromParent();
         // round geo shared with projectile stones — do not dispose
-        this.brickGeo.dispose();
-        if (this.ownsBrickMap) this.brickMap?.dispose();
-        this.brickMap = null;
+        if (this.brickMesh.geometry !== this.sharedBrickGeo) this.brickMesh.geometry.dispose();
+        const brickMat = this.brickMesh.material;
+        if (brickMat !== this.sharedBrickMat) {
+            if (Array.isArray(brickMat)) for (const m of brickMat) m.dispose();
+            else brickMat.dispose();
+        }
         (this.roundMesh.material as MeshLambertMaterial).dispose();
-        (this.brickMesh.material as MeshLambertMaterial).dispose();
     }
 }
 

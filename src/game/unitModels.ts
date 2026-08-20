@@ -9,7 +9,6 @@ import {
     MeshStandardMaterial,
     Vector3,
     type Object3D,
-    type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
@@ -237,17 +236,6 @@ export function hasUnitInstanceAsset(id: string): boolean {
 
 export function getUnitInstanceAsset(id: string): InstanceAsset | null {
     return instanceAssets.get(id) ?? null;
-}
-
-/** Shared base-color map from a loaded model (textures stay owned by the asset). */
-export function getUnitAlbedoMap(id: string): Texture | null {
-    const asset = instanceAssets.get(id);
-    if (!asset) return null;
-    for (const part of asset.parts) {
-        const map = part.material.map;
-        if (map) return map;
-    }
-    return null;
 }
 
 /**
