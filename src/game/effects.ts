@@ -38,7 +38,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
-import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap } from './prefs';
+import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap, prefs } from './prefs';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import {
     getUnitInstanceAsset,
@@ -993,12 +993,20 @@ function seatStuckBoltCenter(
  * Tiny crow-rider-style rock chips kicked off masonry hits.
  * Same icosahedron + rock material language as thrown stones, just smaller.
  */
-const MAX_STONE_CHIPS = 192;
+const MAX_STONE_CHIPS = 256;
 const CHIP_GRAVITY = 38;
 /** How long hit chips sit after landing (~5× prior brief rest). */
 const HIT_GROUND_LINGER = 1.35 * 5;
-/** How long collapse masonry sits after landing. */
+/** Base collapse masonry rest — scaled up on high ground-effects. */
 const COLLAPSE_GROUND_LINGER = 2.1 * 5;
+
+/** High ground-effects keeps the ruin pile around much longer. */
+function collapseGroundLinger(): number {
+    const q = prefs().groundEffects;
+    if (q === 'high') return COLLAPSE_GROUND_LINGER * 5; // ~50s — showcase rubble
+    if (q === 'medium') return COLLAPSE_GROUND_LINGER;
+    return COLLAPSE_GROUND_LINGER * 0.55;
+}
 
 type StoneChip = {
     x: number;
@@ -1135,7 +1143,7 @@ export class StoneChipRenderer {
                 vz: Math.sin(ang) * out * (0.35 + Math.random()),
                 scale: 1.1 + Math.random() * 1.7,
                 groundY: groundHeightAt(px, pz) + 0.12,
-                groundLinger: COLLAPSE_GROUND_LINGER * (0.85 + Math.random() * 0.3),
+                groundLinger: collapseGroundLinger() * (0.85 + Math.random() * 0.3),
             });
         }
     }
