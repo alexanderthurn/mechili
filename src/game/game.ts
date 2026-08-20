@@ -139,7 +139,7 @@ import {
     type SceneryQuality,
     type ShadowQuality,
 } from './prefs';
-import { Particles, ProjectileRenderer } from './effects';
+import { Particles, ProjectileRenderer, StuckBoltRenderer } from './effects';
 import {
     buildHpDrawSources,
     hpDrawShakeIntensity,
@@ -335,6 +335,7 @@ export class Game {
     private readonly hpBars = new HpBars();
     private readonly hpDrawFx: HpDrawFx;
     private readonly projectileRenderer: ProjectileRenderer;
+    private readonly stuckBolts: StuckBoltRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly forgeFx = new ForgeFx();
@@ -1261,6 +1262,7 @@ export class Game {
         this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
+        this.stuckBolts = new StuckBoltRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
         this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
@@ -8298,6 +8300,7 @@ export class Game {
         this.sim = null;
         this.selectedActor = null;
         this.projectileRenderer.clear();
+        this.stuckBolts.clear();
         this.fireFx.clear(); // instanced flame tongues are battle-only
         this.towerDebuffFx.clear();
         this.hammerFx.clear();
@@ -8962,6 +8965,14 @@ export class Game {
                 }
                 const battleEvents = this.sim.consumeEvents();
                 this.particles.spawnFromEvents(battleEvents);
+                this.stuckBolts.spawnFromEvents(battleEvents, (i) => {
+                    const a = this.sim?.actors[i];
+                    if (!a) return null;
+                    return {
+                        mesh: a.mesh,
+                        modelId: a.unit.type.modelId ?? a.unit.type.id,
+                    };
+                });
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
@@ -9016,6 +9027,7 @@ export class Game {
                     });
                 }
                 if (profile) cpu.end('battleVisuals');
+                this.stuckBolts.sync();
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
