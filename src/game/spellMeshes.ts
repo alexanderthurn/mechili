@@ -110,10 +110,13 @@ export function cloneSpellInstance(template: Group): {
 export function setSpellOpacity(materials: MeshStandardMaterial[], opacity: number): void {
     const o = Math.max(0, Math.min(1, opacity));
     for (const m of materials) {
+        const nextTransparent = o < 0.99;
         m.opacity = o;
-        m.transparent = o < 0.99;
+        if (m.transparent !== nextTransparent) {
+            m.transparent = nextTransparent;
+            m.needsUpdate = true;
+        }
         m.depthWrite = o > 0.2;
-        m.needsUpdate = true;
     }
 }
 

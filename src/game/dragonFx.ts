@@ -212,7 +212,8 @@ export class DragonFx {
             a.root.visible = true;
             a.root.position.set(dx, skyY, dz);
             a.root.rotation.order = 'YZX';
-            a.root.rotation.y = Math.atan2(-a.uz, a.ux);
+            // Template is baked −Z forward (crow space); align −Z with flight direction.
+            a.root.rotation.y = Math.atan2(-a.ux, -a.uz);
             a.root.rotation.x = 0;
             const low = MathUtils.clamp(
                 1 - (height - HEIGHT_BREATH) / Math.max(HEIGHT_FAR - HEIGHT_BREATH, 1),
@@ -291,7 +292,7 @@ export class DragonFx {
     }
 
     private async load(): Promise<void> {
-        // asset is authored with +X forward — no bake flip
+        // Dragon template is baked to −Z forward / ±X wings (see spellAssets).
         this.template = await ensureSpellTemplate('dragon');
         if (!this.template) return;
         console.info('[dragonFx] template ready');

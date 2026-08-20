@@ -21,6 +21,12 @@ interface WingUniforms {
     uWingOuterR: { value: number };
     uWingMinY: { value: number };
     uWingMaxY: { value: number };
+    /** XZ center of the wing radial measure (bbox mid — not always mesh origin). */
+    uWingCx: { value: number };
+    uWingCz: { value: number };
+    /** Soft fade width outside [minY, maxY] — tips at bbox extremes stay full-strength. */
+    uWingSoftY: { value: number };
+    uWingSoftR: { value: number };
     uFlapAmp: { value: number };
     uFlapSpeed: { value: number };
     /** Negative = center the stroke below the baked rest pose (more downstroke). */
@@ -60,6 +66,10 @@ export interface WingParams {
     outerR: number;
     minY: number;
     maxY: number;
+    cx: number;
+    cz: number;
+    softY: number;
+    softR: number;
     flapAmp: number;
     flapSpeed: number;
     flapBias: number;
@@ -67,6 +77,14 @@ export interface WingParams {
     tipPower: number;
     /** Fraction of outerR used as hinge (default 0.22). */
     innerRFrac?: number;
+    /** Wing mask starts this fraction up from bbox floor (default 0.22). */
+    minYFrac?: number;
+    /** Wing mask cuts this fraction off bbox top (default 0.04). */
+    maxYCutFrac?: number;
+    /** Scale measured outer radius (default 0.98; >1 includes drooping tips). */
+    outerRScale?: number;
+    /** Soft Y fade as a fraction of bbox height (default 0.03), applied *outside* the band. */
+    softYFrac?: number;
 }
 
 export interface WingFlapAttachOpts {
@@ -77,17 +95,22 @@ export interface WingFlapAttachOpts {
     params?: Partial<WingParams>;
 }
 
-/** Dragon spell: +X forward, wings along ±Z. */
+/** Dragon spell: baked to crow orientation (−Z forward, wings ±X) then same Z-flap. */
 export const DRAGON_WING_FLAP: WingFlapAttachOpts = {
     mode: 'mesh',
-    flapAxis: 'x',
+    flapAxis: 'z',
     params: {
-        flapAmp: 0.72,
+        flapAmp: 0.85,
         flapSpeed: 7.5,
-        flapBias: -0.32,
-        tipFloor: 0.28,
-        tipPower: 1.2,
-        innerRFrac: 0.18,
+        flapBias: -0.35,
+        tipFloor: 0.22,
+        tipPower: 1.05,
+        innerRFrac: 0.14,
+        // Glide pose: tips sit at bbox Y extremes — keep the full height band.
+        minYFrac: 0,
+        maxYCutFrac: 0,
+        outerRScale: 1.06,
+        softYFrac: 0.02,
     },
 };
 
@@ -216,6 +239,10 @@ export function attachWingFlap(
         uWingOuterR: { value: params.outerR },
         uWingMinY: { value: params.minY },
         uWingMaxY: { value: params.maxY },
+        uWingCx: { value: params.cx },
+        uWingCz: { value: params.cz },
+        uWingSoftY: { value: params.softY },
+        uWingSoftR: { value: params.softR },
         uFlapAmp: { value: params.flapAmp },
         uFlapSpeed: { value: params.flapSpeed },
         uFlapBias: { value: params.flapBias },
@@ -236,7 +263,7 @@ export function attachWingFlap(
     const rateExpr = mode === 'mesh' ? 'uWingRate' : WING_RATE;
     const restExpr = mode === 'mesh' ? 'uWingRest' : WING_REST;
     const rollExpr = mode === 'mesh' ? 'uWingBodyRoll' : WING_BODY_ROLL;
-    const sideAxis = flapAxis === 'x' ? 'transformed.z' : 'transformed.x';
+    const sideAxis = flapAxis === 'x' ? '(transformed.z - uWingCz)' : '(transformed.x - uWingCx)';
     // Z-axis flap: bend in XY (wings ±X). X-axis flap: bend in YZ (wings ±Z).
     const aliveBend =
         flapAxis === 'x'
@@ -294,6 +321,10 @@ uniform float uWingInnerR;
 uniform float uWingOuterR;
 uniform float uWingMinY;
 uniform float uWingMaxY;
+uniform float uWingCx;
+uniform float uWingCz;
+uniform float uWingSoftY;
+uniform float uWingSoftR;
 uniform float uFlapAmp;
 uniform float uFlapSpeed;
 uniform float uFlapBias;
@@ -305,13 +336,14 @@ uniform float uTipPower;
         shader.vertexShader = shader.vertexShader.replace(
             '#include <begin_vertex>',
             `#include <begin_vertex>
-${wrapBegin}  vec2 xz = transformed.xz;
+${wrapBegin}  vec2 xz = transformed.xz - vec2(uWingCx, uWingCz);
   float dist = length(xz);
+  // Soft fades OUTSIDE [minY, maxY] so verts at bbox extremes (dragon tips) stay full-strength.
   float wingMask =
-    smoothstep(uWingInnerR, uWingInnerR + 0.025, dist) *
-    smoothstep(uWingMinY, uWingMinY + 0.04, transformed.y) *
-    (1.0 - smoothstep(uWingMaxY - 0.04, uWingMaxY, transformed.y));
-  vec3 pivot = vec3(0.0, uWingPivotY, 0.0);
+    smoothstep(uWingInnerR, uWingInnerR + uWingSoftR, dist) *
+    smoothstep(uWingMinY - uWingSoftY, uWingMinY, transformed.y) *
+    (1.0 - smoothstep(uWingMaxY, uWingMaxY + uWingSoftY, transformed.y));
+  vec3 pivot = vec3(uWingCx, uWingPivotY, uWingCz);
   float tipT = smoothstep(uWingInnerR, uWingOuterR, dist);
   float tipWeight = mix(uTipFloor, 1.0, pow(tipT, uTipPower));
   float wingSide = ${sideAxis} >= 0.0 ? 1.0 : -1.0;
@@ -334,7 +366,7 @@ ${wrapEnd}`,
     material.customProgramCacheKey = function () {
         return (
             (prevKey ? prevKey.call(this) : '') +
-            `|wing-flap-v15|${mode}|${flapAxis}`
+            `|wing-flap-v18|${mode}|${flapAxis}`
         );
     };
     material.needsUpdate = true;
@@ -486,11 +518,16 @@ function measureWingParams(
     if (!geometry.boundingBox) geometry.computeBoundingBox();
     const b = geometry.boundingBox!;
     const pos = geometry.getAttribute('position');
-    const cx = (b.min.x + b.max.x) * 0.5;
-    const cz = (b.min.z + b.max.z) * 0.5;
+    const cx = overrides.cx ?? (b.min.x + b.max.x) * 0.5;
+    const cz = overrides.cz ?? (b.min.z + b.max.z) * 0.5;
     const height = Math.max(b.max.y - b.min.y, 0.05);
-    const minY = b.min.y + height * 0.22;
-    const maxY = b.max.y - height * 0.04;
+    const minYFrac = overrides.minYFrac ?? 0.22;
+    const maxYCutFrac = overrides.maxYCutFrac ?? 0.04;
+    const softYFrac = overrides.softYFrac ?? 0.03;
+    const minY = b.min.y + height * minYFrac;
+    const maxY = b.max.y - height * maxYCutFrac;
+    const softY = overrides.softY ?? Math.max(height * softYFrac, 0.008);
+    const softR = overrides.softR ?? Math.max(height * 0.045, 0.012);
 
     let outerR = 0;
     for (let i = 0; i < pos.count; i++) {
@@ -503,6 +540,7 @@ function measureWingParams(
     if (outerR < 0.05) outerR = Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * 0.45;
 
     const innerRFrac = overrides.innerRFrac ?? 0.22;
+    const outerRScale = overrides.outerRScale ?? 0.98;
     const innerR = outerR * innerRFrac;
     const pivotR = 0;
     const pivotY = b.min.y + height * 0.44;
@@ -511,9 +549,13 @@ function measureWingParams(
         pivotR: overrides.pivotR ?? pivotR,
         pivotY: overrides.pivotY ?? pivotY,
         innerR: overrides.innerR ?? innerR,
-        outerR: overrides.outerR ?? outerR * 0.98,
+        outerR: overrides.outerR ?? outerR * outerRScale,
         minY: overrides.minY ?? minY,
         maxY: overrides.maxY ?? maxY,
+        cx,
+        cz,
+        softY,
+        softR,
         flapAmp: overrides.flapAmp ?? 0.88,
         flapSpeed: overrides.flapSpeed ?? 10.5,
         // Model rest is already fairly high — bias down so the outer wing dips ~as far as it rises.
@@ -522,5 +564,9 @@ function measureWingParams(
         tipFloor: overrides.tipFloor ?? 0.36,
         tipPower: overrides.tipPower ?? 1.32,
         innerRFrac,
+        minYFrac,
+        maxYCutFrac,
+        outerRScale,
+        softYFrac,
     };
 }

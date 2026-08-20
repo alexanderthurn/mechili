@@ -54,8 +54,8 @@ const STAGE_REF_MESH_SCALE = 2.2;
 
 /** Spell GLBs use different rest forwards than army units (−Z). */
 function spellShowcaseYaw(id: SpellAssetId): number {
-    // Dragon / most Tripo spells: +X forward → turn so forward faces the camera (+Z).
-    if (id === 'dragon') return -Math.PI / 2;
+    // Dragon is baked to −Z forward (see spellAssets) — same flip as units.
+    if (id === 'dragon') return Math.PI;
     if (id === 'hammer') return 0;
     return -Math.PI / 2;
 }
