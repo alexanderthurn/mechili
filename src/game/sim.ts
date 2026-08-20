@@ -55,6 +55,8 @@ import {
     clearDeathTip,
     crashDriftFromKnock,
     crashLandFromFall,
+    deathTipAmount,
+    deathTipFromKnock,
     snapFlyerForDeathFall,
     tickDeathFall,
     tickDeathTip,
@@ -439,8 +441,9 @@ export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     /** `blood` = victim gore tint when hitting flesh (omit = default red).
      *  `flesh` = the hit target bleeds (else gray debris — towers, ground, shields).
-     *  `dx/dy/dz` = normalized hit direction (bullet/strike travel) so blood
-     *  sprays out the far side; omit for undirected (ground / shield) impacts. */
+     *  `dx/dy/dz` = normalized hit direction (bullet/strike travel) so spray
+     *  exits the far side; omit for undirected (shield / dome) impacts.
+     *  `sod` = denser dirt kick for ground-stuck bolts / stones. */
     | {
           kind: 'impact';
           x: number;
@@ -451,6 +454,8 @@ export type SimEvent =
           dx?: number;
           dy?: number;
           dz?: number;
+          /** Ground bolt / heavy debris — denser dirt spray (arrow, ballista, stones). */
+          sod?: boolean;
       }
     | {
           kind: 'explosion';
@@ -2485,9 +2490,15 @@ export class BattleSim {
                 });
             }
         } else {
-            // tip over and stay as a battlefield wreck until the round resets
-            // ~1.2 rad ≈ flatter on the lawn (old ~0.75 looked half-standing / floaty)
-            const tipZ = (target.index % 2 ? 1 : -1) * (1.2 + (target.index % 4) * 0.06);
+            // tip over along the killing blow (fallback: slight random lean)
+            const amount = dealt > 0 ? deathTipAmount(dealt, target.maxHp) : 1.2;
+            const tips =
+                knockDir && hypot(knockDir.x, knockDir.z) > 1e-6
+                    ? deathTipFromKnock(target.facing, knockDir.x, knockDir.z, amount)
+                    : {
+                          tipX: amount * 0.28,
+                          tipZ: (target.index % 2 ? 1 : -1) * (amount + (target.index % 4) * 0.05),
+                      };
             const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
             const dropHeight = target.mesh.position.y - groundY;
             const isAirFlyer = !!t.flying && target.altitude > 0;
@@ -2514,16 +2525,17 @@ export class BattleSim {
                 beginDeathFall(
                     target.mesh,
                     groundY,
-                    tipZ,
+                    tips.tipZ,
                     -1,
                     target.unit.world.x,
                     target.unit.world.z,
                     driftX,
                     driftZ,
                     fallStartY,
+                    tips.tipX,
                 );
             } else {
-                beginDeathTip(target.mesh, tipZ, groundY, -1);
+                beginDeathTip(target.mesh, tips.tipZ, groundY, -1, tips.tipX);
             }
             target.mesh.userData.dead = true;
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
@@ -3216,7 +3228,19 @@ export class BattleSim {
                     this.explode(p, nx, nz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
                 } else {
-                    this.events.push({ kind: 'impact', x: nx, y: groundY + 0.15, z: nz });
+                    const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+                    const bolt =
+                        p.style === 'arrow' || p.style === 'largeArrow' || p.style === 'stone';
+                    this.events.push({
+                        kind: 'impact',
+                        x: nx,
+                        y: groundY + 0.15,
+                        z: nz,
+                        dx: sx / slen,
+                        dy: sy / slen,
+                        dz: sz / slen,
+                        sod: bolt,
+                    });
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));
                 }
                 continue;

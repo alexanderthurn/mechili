@@ -414,14 +414,36 @@ export class Particles {
                     const dir = e.dx !== undefined ? { x: e.dx, y: e.dy ?? 0, z: e.dz ?? 0 } : undefined;
                     if (!e.flesh) {
                         // towers / ground / shields: gray stone-and-metal debris, not blood
+                        const sod = !!e.sod;
                         this.burst(e.x, e.y, e.z, {
-                            count: 9,
-                            color: 0x9a938a,
-                            speed: 11,
-                            life: 0.35,
-                            up: 2,
+                            count: sod ? 16 : 9,
+                            color: sod ? 0x8a6a42 : 0x9a938a,
+                            speed: sod ? 14 : 11,
+                            life: sod ? 0.45 : 0.35,
+                            up: sod ? 3.5 : 2,
                             dir,
                         });
+                        if (sod) {
+                            // pale grit + a few heavier clods kicked along the shot
+                            this.burst(e.x, e.y + 0.05, e.z, {
+                                count: 10,
+                                color: 0xc4b89a,
+                                speed: 8,
+                                life: 0.55,
+                                up: 4,
+                                dir,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y, e.z, {
+                                count: 5,
+                                color: 0x5c4a30,
+                                speed: 6,
+                                life: 0.7,
+                                up: 2.5,
+                                dir,
+                                blood: true,
+                            });
+                        }
                         break;
                     }
                     this.burst(e.x, e.y, e.z, {
