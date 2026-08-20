@@ -9,6 +9,7 @@ import {
     Color,
     ConeGeometry,
     CylinderGeometry,
+    DoubleSide,
     DynamicDrawUsage,
     Group,
     IcosahedronGeometry,
@@ -21,19 +22,28 @@ import {
     NormalBlending,
     Points,
     Quaternion,
+    Ray,
+    Raycaster,
     ShaderMaterial,
     SphereGeometry,
     Vector2,
     Vector3,
+    type Intersection,
     type Material,
+    type Object3D,
     type Scene,
     type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
-import { bloodParticleScale, bloodIntensityScale } from './prefs';
+import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap } from './prefs';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
+import {
+    getUnitInstanceAsset,
+    getUnitVisualHalfWidth,
+    getUnitVisualHeight,
+} from './unitModels';
 import { THEME } from '../theme';
 
 /** Per-style flight pool — plenty for rapid-fire archers later. */
@@ -806,6 +816,254 @@ class ParticlePool {
         this.geometry.attributes.aColor!.needsUpdate = true;
         this.geometry.attributes.aSize!.needsUpdate = true;
         this.geometry.attributes.aOpacity!.needsUpdate = true;
+    }
+}
+
+const MAX_STUCK_BOLTS = 128;
+/** How far before the hitbox contact we start the visual-seat ray. */
+const STUCK_SEAT_BACK = 10;
+/** Max travel past the backtracked origin when hunting for mesh. */
+const STUCK_SEAT_FAR = 28;
+
+type StuckSlot = {
+    /** Local to {@link attach}, or world matrix when unattached (dirt). */
+    local: Matrix4;
+    attach: Object3D | null;
+};
+
+export type StuckAttachRef = {
+    mesh: Object3D;
+    /** model id for shared instance geo / visual bbox */
+    modelId: string;
+};
+
+const _seatRay = new Raycaster();
+const _seatProbe = new Mesh(
+    undefined,
+    new MeshBasicMaterial({ side: DoubleSide }),
+);
+const _seatHits: Intersection[] = [];
+const _seatOrigin = new Vector3();
+const _seatDir = new Vector3();
+const _seatLocalO = new Vector3();
+const _seatLocalD = new Vector3();
+const _seatInv = new Matrix4();
+const _seatBox = new Box3();
+const _seatBoxHit = new Vector3();
+const _seatRayLocal = new Ray();
+
+/**
+ * First visual surface along the shot past an oversized hitbox contact.
+ * Prefers real triangles (instance bake or GLB children); falls back to the
+ * measured visual AABB so empty proxies still seat into the model volume.
+ */
+function visualSeatDistance(
+    attach: Object3D,
+    modelId: string,
+    origin: Vector3,
+    dir: Vector3,
+    far: number,
+): number | null {
+    _seatRay.ray.origin.copy(origin);
+    _seatRay.ray.direction.copy(dir);
+    _seatRay.near = 0;
+    _seatRay.far = far;
+    let best = Infinity;
+
+    const asset = getUnitInstanceAsset(modelId);
+    if (asset) {
+        attach.updateMatrixWorld(true);
+        for (const part of asset.parts) {
+            _seatHits.length = 0;
+            _seatProbe.geometry = part.geometry;
+            _seatProbe.matrixWorld.copy(attach.matrixWorld);
+            _seatProbe.raycast(_seatRay, _seatHits);
+            for (const h of _seatHits) {
+                if (h.distance > 1e-4 && h.distance < best) best = h.distance;
+            }
+        }
+        if (best < Infinity) return best;
+    } else if (attach.children.length > 0) {
+        const hits = _seatRay.intersectObject(attach, true);
+        if (hits.length > 0 && hits[0]!.distance > 1e-4) return hits[0]!.distance;
+    }
+
+    // AABB fallback (local visual extents × proxy matrixWorld)
+    const h = getUnitVisualHeight(modelId);
+    const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
+    if (h <= 0.05) return null;
+    _seatBox.min.set(-hw, 0, -hw);
+    _seatBox.max.set(hw, h, hw);
+    _seatInv.copy(attach.matrixWorld).invert();
+    _seatLocalO.copy(origin).applyMatrix4(_seatInv);
+    _seatLocalD.copy(dir).transformDirection(_seatInv).normalize();
+    _seatRayLocal.origin.copy(_seatLocalO);
+    _seatRayLocal.direction.copy(_seatLocalD);
+    if (!_seatRayLocal.intersectBox(_seatBox, _seatBoxHit)) return null;
+    _seatBoxHit.applyMatrix4(attach.matrixWorld);
+    const dist = origin.distanceTo(_seatBoxHit);
+    return dist > 1e-4 && dist <= far ? dist : null;
+}
+
+/**
+ * World point for the bolt *center*: follow the shot from before the hitbox
+ * contact until the first visual intersection (then a tiny dig-in).
+ */
+function seatStuckBoltCenter(
+    hitX: number,
+    hitY: number,
+    hitZ: number,
+    dir: Vector3,
+    attach: Object3D | null,
+    modelId: string | undefined,
+    dig: number,
+): void {
+    // Result written to `_seatOrigin` for the caller to copy.
+    if (!attach || !modelId) {
+        _seatOrigin.set(hitX, hitY, hitZ).addScaledVector(dir, dig);
+        return;
+    }
+    attach.updateMatrixWorld(true);
+    _seatDir.copy(dir);
+    _seatOrigin.set(hitX, hitY, hitZ).addScaledVector(_seatDir, -STUCK_SEAT_BACK);
+    const t = visualSeatDistance(attach, modelId, _seatOrigin, _seatDir, STUCK_SEAT_FAR);
+    if (t != null) {
+        _seatOrigin.addScaledVector(_seatDir, t + dig);
+        return;
+    }
+    // No visual hit (grazing sphere): keep hitbox point so we still plant something
+    _seatOrigin.set(hitX, hitY, hitZ).addScaledVector(_seatDir, dig);
+}
+
+/**
+ * Arrows / ballista shafts left in flesh or dirt after a hit.
+ * Pref-capped ring buffer; shafts on units stay parented in local space so
+ * walk / tip-over / crash-fall carry them. Cleared each battle.
+ */
+export class StuckBoltRenderer {
+    private readonly mesh: InstancedMesh;
+    private readonly matrix = new Matrix4();
+    private readonly inv = new Matrix4();
+    private readonly pos = new Vector3();
+    private readonly dir = new Vector3();
+    private readonly quat = new Quaternion();
+    private readonly fwd = new Vector3(0, 0, 1);
+    private readonly arrowScale = new Vector3(ARROW_SCALE, ARROW_SCALE, ARROW_SCALE);
+    private readonly largeScale = new Vector3(LARGE_ARROW_SCALE, LARGE_ARROW_SCALE, LARGE_ARROW_SCALE);
+    private readonly sharedBoltGeo: BufferGeometry | null;
+    private readonly sharedBoltMat: MeshStandardMaterial | null;
+    private readonly slots: StuckSlot[] = [];
+    private write = 0;
+    private filled = 0;
+
+    constructor(scene: Scene) {
+        const bolt = boltAsset;
+        this.sharedBoltGeo = bolt?.geometry ?? null;
+        this.sharedBoltMat = bolt?.material ?? null;
+        const geo = bolt?.geometry ?? makeArrowGeometry(2);
+        const mat = bolt?.material ?? new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
+        this.mesh = new InstancedMesh(geo, mat, MAX_STUCK_BOLTS);
+        this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+        this.mesh.frustumCulled = false;
+        this.mesh.castShadow = true;
+        this.mesh.count = 0;
+        scene.add(this.mesh);
+        for (let i = 0; i < MAX_STUCK_BOLTS; i++) {
+            this.slots.push({ local: new Matrix4(), attach: null });
+        }
+    }
+
+    /**
+     * Plant new shafts from sim events. Pass `resolveAttach` so flesh hits can
+     * bind to the victim mesh (follows tip / fall). Seats the shaft center on
+     * the first visual surface along the shot (past oversized hitboxes).
+     */
+    spawnFromEvents(
+        events: readonly SimEvent[],
+        resolveAttach?: (actorIndex: number) => StuckAttachRef | null | undefined,
+    ): void {
+        const cap = Math.min(MAX_STUCK_BOLTS, stuckProjectileCap());
+        if (cap <= 0) {
+            if (this.mesh.count !== 0) {
+                this.mesh.count = 0;
+                this.filled = 0;
+                this.write = 0;
+            }
+            return;
+        }
+        if (this.filled > cap) this.filled = cap;
+        if (this.write >= cap) this.write %= cap;
+        for (const e of events) {
+            if (e.kind !== 'stuckBolt') continue;
+            this.dir.set(e.dx, e.dy, e.dz);
+            if (this.dir.lengthSq() < 1e-8) this.dir.set(0, -0.2, -1).normalize();
+            else this.dir.normalize();
+
+            const ref =
+                e.attachIndex !== undefined ? (resolveAttach?.(e.attachIndex) ?? null) : null;
+            const dig = e.style === 'largeArrow' ? 0.22 : 0.1;
+            seatStuckBoltCenter(e.x, e.y, e.z, this.dir, ref?.mesh ?? null, ref?.modelId, dig);
+            this.pos.copy(_seatOrigin);
+
+            this.quat.setFromUnitVectors(this.fwd, this.dir);
+            const scale = e.style === 'largeArrow' ? this.largeScale : this.arrowScale;
+            this.matrix.compose(this.pos, this.quat, scale);
+
+            const slot = this.slots[this.write]!;
+            const attach = ref?.mesh ?? null;
+            if (attach) {
+                attach.updateMatrixWorld(true);
+                this.inv.copy(attach.matrixWorld).invert();
+                slot.local.multiplyMatrices(this.inv, this.matrix);
+                slot.attach = attach;
+            } else {
+                slot.local.copy(this.matrix);
+                slot.attach = null;
+            }
+            this.write = (this.write + 1) % cap;
+            if (this.filled < cap) this.filled++;
+        }
+        this.sync();
+    }
+
+    /** Recompute instance matrices so attached shafts follow tip / fall / walk. */
+    sync(): void {
+        const cap = Math.min(MAX_STUCK_BOLTS, stuckProjectileCap());
+        if (cap <= 0 || this.filled <= 0) {
+            this.mesh.count = 0;
+            return;
+        }
+        const n = Math.min(this.filled, cap);
+        const start = this.filled < cap ? 0 : this.write;
+        for (let i = 0; i < n; i++) {
+            const slot = this.slots[(start + i) % cap]!;
+            if (slot.attach) {
+                slot.attach.updateMatrixWorld(true);
+                this.matrix.multiplyMatrices(slot.attach.matrixWorld, slot.local);
+                this.mesh.setMatrixAt(i, this.matrix);
+            } else {
+                this.mesh.setMatrixAt(i, slot.local);
+            }
+        }
+        this.mesh.count = n;
+        this.mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    clear(): void {
+        this.filled = 0;
+        this.write = 0;
+        this.mesh.count = 0;
+        for (const slot of this.slots) slot.attach = null;
+    }
+
+    dispose(): void {
+        this.mesh.removeFromParent();
+        if (this.mesh.geometry !== this.sharedBoltGeo) this.mesh.geometry.dispose();
+        const mat = this.mesh.material;
+        if (mat !== this.sharedBoltMat) {
+            if (Array.isArray(mat)) for (const m of mat) m.dispose();
+            else mat.dispose();
+        }
     }
 }
 

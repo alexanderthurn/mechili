@@ -15,6 +15,8 @@ export type GroundEffectsQuality = 'high' | 'medium' | 'low' | 'off';
 export type FireVfxQuality = 'high' | 'medium' | 'low' | 'off';
 /** Blood spray / gib particle volume (visual only; ground stains are groundEffects). */
 export type BloodFxQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
+/** Stuck arrow / ballista shafts left in units & dirt after hits (visual only). */
+export type StuckProjectilesQuality = 'off' | 'low' | 'high';
 
 /**
  * Fire VFX tiers (for tuning):
@@ -60,6 +62,13 @@ export interface Prefs {
      * - low → ultra: rising particle counts; ultra throws full fountains
      */
     bloodFx: BloodFxQuality;
+    /**
+     * Arrows / ballista bolts that remain stuck after a hit (visual only).
+     * - off: none
+     * - low: up to 32
+     * - high: up to 128
+     */
+    stuckProjectiles: StuckProjectilesQuality;
     /**
      * Cap on `devicePixelRatio` for the WebGL canvas.
      * 2 = current default (retina), 1.5 = medium, 1 = 1:1 CSS pixels.
@@ -132,7 +141,15 @@ export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
 
 export type GraphicsPresetValues = Pick<
     Prefs,
-    'scenery' | 'groundEffects' | 'fireVfx' | 'bloodFx' | 'renderScale' | 'shadows' | 'renderDeadUnits' | 'antialias'
+    | 'scenery'
+    | 'groundEffects'
+    | 'fireVfx'
+    | 'bloodFx'
+    | 'stuckProjectiles'
+    | 'renderScale'
+    | 'shadows'
+    | 'renderDeadUnits'
+    | 'antialias'
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
@@ -141,6 +158,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'low',
         fireVfx: 'low',
         bloodFx: 'low',
+        stuckProjectiles: 'off',
         renderScale: 0.5,
         shadows: 'low',
         renderDeadUnits: false,
@@ -151,6 +169,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'medium',
         fireVfx: 'medium',
         bloodFx: 'medium',
+        stuckProjectiles: 'off',
         renderScale: 0.75,
         shadows: 'medium',
         renderDeadUnits: false,
@@ -161,6 +180,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'high',
         fireVfx: 'medium',
         bloodFx: 'high',
+        stuckProjectiles: 'low',
         renderScale: 1,
         shadows: 'high',
         renderDeadUnits: true,
@@ -171,6 +191,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         groundEffects: 'high',
         fireVfx: 'high',
         bloodFx: 'ultra',
+        stuckProjectiles: 'high',
         renderScale: 1,
         shadows: 'ultra',
         renderDeadUnits: true,
@@ -187,6 +208,7 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
             p.groundEffects === v.groundEffects &&
             p.fireVfx === v.fireVfx &&
             p.bloodFx === v.bloodFx &&
+            p.stuckProjectiles === v.stuckProjectiles &&
             p.renderScale === v.renderScale &&
             p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits &&
@@ -196,6 +218,15 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
         }
     }
     return null;
+}
+
+/** Max stuck bolt instances for the current graphics setting. */
+export function stuckProjectileCap(
+    quality: StuckProjectilesQuality = prefs().stuckProjectiles,
+): number {
+    if (quality === 'high') return 128;
+    if (quality === 'low') return 32;
+    return 0;
 }
 
 export function applyGraphicsPreset(preset: GraphicsPreset): void {
@@ -272,6 +303,9 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.groundEffects = migrateGroundEffects(p.groundEffects);
     p.fireVfx = migrateFireVfx(p.fireVfx);
     p.bloodFx = migrateBloodFx(p.bloodFx);
+    if (p.stuckProjectiles !== 'off' && p.stuckProjectiles !== 'low' && p.stuckProjectiles !== 'high') {
+        p.stuckProjectiles = DEFAULTS.stuckProjectiles;
+    }
     if (p.shadows === undefined && p.unitShadows !== undefined) {
         p.shadows = migrateShadowQuality(p.unitShadows);
     }
@@ -471,6 +505,7 @@ function legacyPresetOf(p: Prefs): GraphicsPreset | null {
             p.groundEffects === v.groundEffects &&
             p.fireVfx === v.fireVfx &&
             p.bloodFx === v.bloodFx &&
+            p.stuckProjectiles === v.stuckProjectiles &&
             p.renderScale === v.renderScale &&
             p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits
@@ -543,6 +578,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     groundEffects: asWord(QUALITY_4),
     fireVfx: asWord(QUALITY_4),
     bloodFx: asWord(QUALITY_5),
+    stuckProjectiles: asWord(['off', 'low', 'high']),
     shadows: asWord(QUALITY_5),
     controlScheme: asWord(['auto', 'mouse', 'touch', 'gamepad']),
     uiFont: asWord(['cinzel', 'exo2', 'marcellus']),

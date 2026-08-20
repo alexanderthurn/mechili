@@ -127,6 +127,11 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="low">Low</option>` +
         `<option value="off">Off</option>` +
         `</select> <span class="s-hint">spray &amp; fountains</span></label>` +
+        `<label class="s-row">Stuck bolts <select class="s-stuck">` +
+        `<option value="high">High (128)</option>` +
+        `<option value="low">Low (32)</option>` +
+        `<option value="off">Off</option>` +
+        `</select> <span class="s-hint">arrows left in dirt / flesh</span></label>` +
         `<label class="s-row">Resolution <select class="s-dpr">` +
         `<option value="1">Native (100%)</option>` +
         `<option value="0.75">75%</option>` +
@@ -176,6 +181,7 @@ export function openSettings(parent: HTMLElement): void {
     const ground = overlay.querySelector<HTMLSelectElement>('.s-ground')!;
     const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
     const blood = overlay.querySelector<HTMLSelectElement>('.s-blood')!;
+    const stuck = overlay.querySelector<HTMLSelectElement>('.s-stuck')!;
     const dpr = overlay.querySelector<HTMLSelectElement>('.s-dpr')!;
     const dprHint = overlay.querySelector<HTMLElement>('.s-dpr-hint')!;
     const uiScaleSel = overlay.querySelector<HTMLSelectElement>('.s-uiscale');
@@ -204,6 +210,7 @@ export function openSettings(parent: HTMLElement): void {
         ground.value = p.groundEffects;
         fire.value = p.fireVfx;
         blood.value = p.bloodFx;
+        stuck.value = p.stuckProjectiles;
         dpr.value = String(p.renderScale);
         if (uiScaleSel) uiScaleSel.value = String(p.uiScale);
         updateDprHint();
@@ -301,6 +308,10 @@ export function openSettings(parent: HTMLElement): void {
     });
     blood.addEventListener('change', () => {
         updatePrefs({ bloodFx: blood.value as Prefs['bloodFx'] });
+        syncFromPrefs();
+    });
+    stuck.addEventListener('change', () => {
+        updatePrefs({ stuckProjectiles: stuck.value as Prefs['stuckProjectiles'] });
         syncFromPrefs();
     });
     dpr.addEventListener('change', () => {

@@ -361,6 +361,9 @@ export interface Actor {
     convertRayActive: boolean;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
+    /** render-only: blast shove xz (stones / meteor / hammer), decays each frame */
+    impulseX?: number;
+    impulseZ?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
     prevCooldown?: number;
     /** render-only: sim elapsed when a flying cleave slam started */
@@ -456,6 +459,19 @@ export type SimEvent =
           dz?: number;
           /** Ground bolt / heavy debris — denser dirt spray (arrow, ballista, stones). */
           sod?: boolean;
+      }
+    /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
+     *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
+    | {
+          kind: 'stuckBolt';
+          x: number;
+          y: number;
+          z: number;
+          dx: number;
+          dy: number;
+          dz: number;
+          style: 'arrow' | 'largeArrow';
+          attachIndex?: number;
       }
     | {
           kind: 'explosion';
@@ -1289,13 +1305,103 @@ export class BattleSim {
         }
     }
 
-    /** DoT damage: no pack XP attribution (environmental) */
-    private applyBurnDamage(target: Actor, amount: number): void {
+    /** DoT / environmental damage: no pack XP attribution */
+    private applyBurnDamage(
+        target: Actor,
+        amount: number,
+        knockDir?: { x: number; z: number },
+    ): void {
         if (amount <= 0 || !target.alive) return;
         target.hp -= amount;
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
-        if (target.hp <= 0) this.kill(target, null);
+        if (target.hp <= 0) this.kill(target, null, amount, knockDir);
+    }
+
+    /**
+     * Shared blast shove (render-only): stones, ballista splash, meteor, hammer.
+     * Alive units get a decaying mesh kick; wrecks get drift / slide.
+     */
+    private applyBlastImpulse(
+        x: number,
+        z: number,
+        radius: number,
+        strength: number,
+        shotDir?: { x: number; z: number },
+    ): void {
+        if (strength <= 0 || radius <= 0) return;
+        const r = Math.max(0.5, radius);
+        for (const a of this.actors) {
+            if (a.unit.type.structure || a.unit.type.extra) continue;
+            const dist = hypot(a.x - x, a.z - z);
+            const reach = r + a.radius;
+            if (dist > reach) continue;
+            const t = 1 - dist / reach;
+            const power = strength * t * t;
+            let nx: number;
+            let nz: number;
+            if (shotDir && hypot(shotDir.x, shotDir.z) > 1e-6) {
+                const len = hypot(shotDir.x, shotDir.z);
+                const sx = shotDir.x / len;
+                const sz = shotDir.z / len;
+                const rx = dist > 1e-6 ? (a.x - x) / dist : sx;
+                const rz = dist > 1e-6 ? (a.z - z) / dist : sz;
+                nx = sx * 0.65 + rx * 0.35;
+                nz = sz * 0.65 + rz * 0.35;
+                const nlen = hypot(nx, nz) || 1;
+                nx /= nlen;
+                nz /= nlen;
+            } else if (dist > 1e-6) {
+                nx = (a.x - x) / dist;
+                nz = (a.z - z) / dist;
+            } else {
+                nx = 0;
+                nz = 1;
+            }
+            if (a.alive) {
+                a.impulseX = (a.impulseX ?? 0) + nx * power;
+                a.impulseZ = (a.impulseZ ?? 0) + nz * power;
+            } else {
+                this.nudgeWreck(a, nx * power, nz * power);
+            }
+        }
+    }
+
+    /** Slide a corpse with a blast (bumps mid-fall drift or settled mesh). */
+    private nudgeWreck(a: Actor, dx: number, dz: number): void {
+        const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
+        if (fall) {
+            fall.driftX += dx * 2.2;
+            fall.driftZ += dz * 2.2;
+            return;
+        }
+        a.impulseX = (a.impulseX ?? 0) + dx;
+        a.impulseZ = (a.impulseZ ?? 0) + dz;
+    }
+
+    private emitStuckBolt(
+        style: Projectile['style'],
+        x: number,
+        y: number,
+        z: number,
+        sx: number,
+        sy: number,
+        sz: number,
+        attach?: Actor,
+    ): void {
+        if (style !== 'arrow' && style !== 'largeArrow') return;
+        const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+        this.events.push({
+            kind: 'stuckBolt',
+            x,
+            y,
+            z,
+            dx: sx / slen,
+            dy: sy / slen,
+            dz: sz / slen,
+            style,
+            attachIndex: attach?.index,
+        });
     }
 
     /** dormant summons materialize one by one at their appearAt time */
@@ -1980,6 +2086,12 @@ export class BattleSim {
             shake: meteor ? 1 : 0,
         });
         this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+        this.applyBlastImpulse(
+            s.x,
+            s.z,
+            visualRadius,
+            meteor ? 2.6 : hammer ? 2.2 : 1.5,
+        );
     }
 
     /**
@@ -2013,7 +2125,7 @@ export class BattleSim {
                 hitDomes.add(dome);
                 continue;
             }
-            this.applyBurnDamage(a, damage);
+            this.applyBurnDamage(a, damage, { x: a.x - x, z: a.z - z });
         }
         for (const d of domes) {
             const domeHit = strike
@@ -2237,6 +2349,20 @@ export class BattleSim {
                 const wz = a.unit.world.z + a.mesh.position.z;
                 a.mesh.position.y = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
             }
+            // Settled / tipping wrecks still slide from later blasts
+            if (!fall) {
+                const ix = a.impulseX ?? 0;
+                const iz = a.impulseZ ?? 0;
+                if (Math.hypot(ix, iz) > 0.008) {
+                    a.mesh.position.x += ix;
+                    a.mesh.position.z += iz;
+                    a.impulseX = ix * 0.88;
+                    a.impulseZ = iz * 0.88;
+                } else {
+                    a.impulseX = 0;
+                    a.impulseZ = 0;
+                }
+            }
             if ((a.unit.type.modelId ?? a.unit.type.id) === CROW_RIDER_MODEL_ID && a.mesh.userData.instanced) {
                 setCrowWingDeathSplay(
                     a.mesh,
@@ -2359,6 +2485,19 @@ export class BattleSim {
             a.recoil = recoil * 0.8;
         } else {
             a.recoil = 0;
+        }
+
+        // blast impulse (stones / meteor / hammer) — radial shove, frame-decayed
+        const ix = a.impulseX ?? 0;
+        const iz = a.impulseZ ?? 0;
+        if (Math.hypot(ix, iz) > 0.008) {
+            a.mesh.position.x += ix;
+            a.mesh.position.z += iz;
+            a.impulseX = ix * 0.82;
+            a.impulseZ = iz * 0.82;
+        } else {
+            a.impulseX = 0;
+            a.impulseZ = 0;
         }
 
         if ((a.unit.type.modelId ?? a.unit.type.id) === CROW_RIDER_MODEL_ID && a.mesh.userData.instanced) {
@@ -3194,6 +3333,7 @@ export class BattleSim {
                 if (splash > 0) {
                     this.explode(p, ix, iz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
+                    this.emitStuckBolt(p.style, ix, iy, iz, sx, sy, sz, hit);
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(
@@ -3215,6 +3355,7 @@ export class BattleSim {
                         dy: sy / slen,
                         dz: sz / slen,
                     });
+                    this.emitStuckBolt(p.style, ix, iy, iz, sx, sy, sz, hit);
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
                     this.applyCorrodeOnHit(p.source, hit);
                 }
@@ -3227,6 +3368,7 @@ export class BattleSim {
                 if (splash > 0) {
                     this.explode(p, nx, nz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
+                    this.emitStuckBolt(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
                 } else {
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                     const bolt =
@@ -3241,6 +3383,7 @@ export class BattleSim {
                         dz: sz / slen,
                         sod: bolt,
                     });
+                    this.emitStuckBolt(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));
                 }
                 continue;
@@ -3292,6 +3435,13 @@ export class BattleSim {
             );
             this.applyCorrodeOnHit(p.source, a);
         }
+        const blastStrength =
+            p.source.type.projectileStyle === 'stone'
+                ? 1.45
+                : p.source.type.projectileStyle === 'largeArrow'
+                  ? 1.85
+                  : 1.1;
+        this.applyBlastImpulse(x, z, radius, blastStrength, shotDir);
         // burn + ground fire (friendly fire) — after kinetic hits
         this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source));
     }
