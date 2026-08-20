@@ -323,6 +323,12 @@ export interface UnitType {
      */
     projectileLaunchHeight?: number;
     /**
+     * Muzzle height as a fraction of visual mesh height (0..1), above feet.
+     * Easier than absolute units — e.g. `0.75` ≈ upper chest / bow. Ignored when
+     * {@link projectileLaunchHeight} is set.
+     */
+    projectileLaunchHeightFrac?: number;
+    /**
      * lobbed shot: aims upward and falls under gravity so long-range bolts arc.
      * `projectileSpeed` is the horizontal speed toward the target.
      */
@@ -954,6 +960,7 @@ export const UNIT_TYPES: UnitType[] = [
         projectileSpeed: 100,
         projectileStyle: 'arrow',
         projectileBallistic: true, // bow lob — lead-aimed so moving targets still get clipped
+        projectileLaunchHeightFrac: 0.75,
         hp: 130,
         damage: 65,
         range: 45,

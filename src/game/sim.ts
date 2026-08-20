@@ -47,7 +47,7 @@ import {
 import { getUnitInstanceRenderer } from './unitInstances';
 import { computeCrowWingRate, CROW_RIDER_MODEL_ID, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { playUnitFireAnim } from './unitAnimated';
-import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
+import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHeight } from './unitModels';
 import {
     beginDeathFall,
     beginDeathTip,
@@ -3006,12 +3006,37 @@ export class BattleSim {
         // arrows spawn from the unit center so they don't pop out ahead of the mesh
         const fromCenter = at.projectileStyle === 'arrow' || at.projectileStyle === 'largeArrow';
         const shooterFeet = this.feetY(a);
-        const muzzleY =
-            at.projectileLaunchHeight !== undefined
-                ? shooterFeet + at.projectileLaunchHeight
-                : shooterFeet + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
-        const mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
-        const mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
+        const modelKey = at.modelId ?? at.id;
+        const attackLocal = getUnitAttackNodeLocal(modelKey);
+        let mx: number;
+        let mz: number;
+        let muzzleY: number;
+        if (attackLocal) {
+            const muzz = attackNodeWorld(
+                attackLocal,
+                a.x,
+                shooterFeet,
+                a.z,
+                a.facing,
+                a.unit.visualMeshScale(),
+            );
+            mx = muzz.x;
+            mz = muzz.z;
+            muzzleY = muzz.y;
+        } else {
+            mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
+            mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
+            if (at.projectileLaunchHeight !== undefined) {
+                muzzleY = shooterFeet + at.projectileLaunchHeight;
+            } else if (at.projectileLaunchHeightFrac != null) {
+                muzzleY =
+                    shooterFeet +
+                    getUnitVisualHeight(modelKey) * a.unit.visualMeshScale() * at.projectileLaunchHeightFrac;
+            } else {
+                muzzleY =
+                    shooterFeet + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
+            }
+        }
         const aimLocalY = projectileAimY(tt);
         let aimX = target.x;
         let aimZ = target.z;
