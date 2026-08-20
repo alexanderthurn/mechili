@@ -421,12 +421,19 @@ export class PlacementController {
             const wasRect = this.rectActive;
             this.hideRect();
             const up = this.toLocal(e);
-            this.pointer = up;
-            // tactic placement: single clicks only, no drag-select
+            // tactic placement: single clicks only, no drag-select — but still
+            // require a canvas pointerdown. Arming a spell removes its strip
+            // button, so the same gesture's pointerup can retarget onto this
+            // canvas under the sidebar; without `down` that would stamp a point.
             if (this.inputLocked) {
-                if (this.enabled && !wasRect) this.handleClick(up.x, up.y);
+                if (!this.enabled || !down || wasRect) return;
+                const slop = e.pointerType === 'touch' ? 12 : 6;
+                if (Math.hypot(up.x - down.x, up.y - down.y) > slop) return;
+                this.pointer = up;
+                this.handleClick(up.x, up.y);
                 return;
             }
+            this.pointer = up;
             if (!this.enabled || !down) return;
             if (wasRect) {
                 this.finishRectSelect(down, up);
@@ -2009,6 +2016,11 @@ export class PlacementController {
     setPointerFromClient(clientX: number, clientY: number): void {
         const rect = this.surface.getBoundingClientRect();
         this.pointer = { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    /** drop hover so an armed tactic does not stamp a preview from a stale / strip click */
+    clearPointer(): void {
+        this.pointer = null;
     }
 
     /** canvas-local point from a client-space event */

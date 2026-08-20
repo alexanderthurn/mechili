@@ -1692,11 +1692,26 @@ export class Game {
             }
         };
         this.hud.onInventoryDragMove = (clientX, clientY) => {
+            // strip coords must not project onto the terrain while a tactic is
+            // armed. Use the sidebar's layout box — after pick-up the armed
+            // button is removed, so elementFromPoint sees the canvas underneath.
+            if (this.armedTactic && this.hud.clientOverPlayerInventory(clientX, clientY)) {
+                return;
+            }
             this.placement.setPointerFromClient(clientX, clientY);
         };
         this.hud.onInventoryDragEnd = ({ clientX, clientY, moved, target }) => {
             if (!this.armedItem) {
-                if (this.armedTactic && moved) this.tryPlaceArmedTacticAtClient(clientX, clientY);
+                // click-to-arm stays armed. Drag-to-place only when the release
+                // leaves the left strip's box (not merely "over canvas" — the
+                // armed entry vanishes and punches through to the board).
+                if (
+                    this.armedTactic &&
+                    moved &&
+                    !this.hud.clientOverPlayerInventory(clientX, clientY)
+                ) {
+                    this.tryPlaceArmedTacticAtClient(clientX, clientY);
+                }
                 return;
             }
             // press-drag release: drop on details panel or 3D pack
@@ -1742,6 +1757,9 @@ export class Game {
             this.tacticDraftStart = null;
             this.tacticDraftMid = null;
             this.placement.inputLocked = true;
+            // ignore last map hover / strip press — preview starts when the
+            // pointer enters the board
+            this.placement.clearPointer();
             this.syncTacticVisuals();
         };
         this.hud.onCancelTactic = () => {

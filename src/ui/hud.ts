@@ -3806,6 +3806,17 @@ export class Hud {
     }
 
     /**
+     * True when client coords sit in the left inventory strip's layout box.
+     * Prefer this over elementFromPoint while a tactic is armed — pick-up
+     * removes that strip entry, so the board canvas shows through the hole.
+     */
+    clientOverPlayerInventory(clientX: number, clientY: number): boolean {
+        if (this.inventoryEl.style.display === 'none') return false;
+        const r = this.inventoryEl.getBoundingClientRect();
+        return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    }
+
+    /**
      * Soft-hide match chrome for the menu→match cinematic (opacity fade).
      * Unlike {@link setUiHidden}, this does not show the cinema keyboard hint.
      */
