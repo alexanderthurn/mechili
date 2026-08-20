@@ -1,6 +1,7 @@
 import { screenShake } from './screenShake';
 import {
     AdditiveBlending,
+    Box3,
     BoxGeometry,
     BufferAttribute,
     BufferGeometry,
@@ -9,11 +10,14 @@ import {
     ConeGeometry,
     CylinderGeometry,
     DynamicDrawUsage,
+    Group,
     IcosahedronGeometry,
     InstancedMesh,
     Matrix4,
+    Mesh,
     MeshBasicMaterial,
     MeshLambertMaterial,
+    MeshStandardMaterial,
     NormalBlending,
     Points,
     Quaternion,
@@ -21,19 +25,36 @@ import {
     SphereGeometry,
     Vector2,
     Vector3,
+    type Material,
     type Scene,
     type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
 import { bloodParticleScale, bloodIntensityScale } from './prefs';
+import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { THEME } from '../theme';
 
-const MAX_PROJECTILES = 512;
+/** Per-style flight pool — plenty for rapid-fire archers later. */
+const MAX_PROJECTILES = 1024;
 const MAX_PARTICLES = 6144;
 const GRAVITY = -14;
 /** wizard orb visual scale vs unit sphere (sim hit radius unchanged) */
 const ORB_SCALE = 2.4;
+/** Unit-length bolt.glb → world length for archer / ballista. */
+const ARROW_SCALE = 3.2;
+const LARGE_ARROW_SCALE = 9.5; // between prior 8.5 and the too-small 5.95
+
+const BOLT_URL = new URL('../../assets/models/bolt.glb', import.meta.url).href;
+
+interface BoltAsset {
+    geometry: BufferGeometry;
+    material: MeshStandardMaterial;
+}
+
+let boltAsset: BoltAsset | null = null;
+let boltLoad: Promise<BoltAsset | null> | null = null;
 
 /** Brighter sibling burst for oversized death gore. */
 function lightenBlood(hex: number): number {
@@ -47,6 +68,7 @@ type ProjectileStyle = Projectile['style'];
 /**
  * Shaft + tip + flat fletching along +Z (nose forward).
  * Fletching is thin vanes — not a rear cone (that read as a second tip).
+ * Kept as fallback if {@link preloadProjectileBolt} fails.
  */
 function makeArrowGeometry(scale: number): BufferGeometry {
     const shaft = new CylinderGeometry(0.032 * scale, 0.038 * scale, 1.35 * scale, 6);
@@ -70,6 +92,206 @@ function makeArrowGeometry(scale: number): BufferGeometry {
     nock.translate(0, 0, -0.92 * scale);
 
     return mergeGeometries([shaft, tip, nock, ...vanes])!;
+}
+
+const _dq = new Vector3();
+
+function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
+    const geo = source.clone();
+    for (const name of Object.keys(geo.attributes)) {
+        const attr = geo.getAttribute(name);
+        if (!attr) continue;
+        if (attr.array instanceof Float32Array && !attr.normalized) continue;
+        const itemSize = attr.itemSize;
+        const count = attr.count;
+        const out = new Float32Array(count * itemSize);
+        for (let i = 0; i < count; i++) {
+            if (itemSize === 3) {
+                _dq.fromBufferAttribute(attr, i);
+                out[i * 3] = _dq.x;
+                out[i * 3 + 1] = _dq.y;
+                out[i * 3 + 2] = _dq.z;
+            } else if (itemSize === 2) {
+                out[i * 2] = attr.getX(i);
+                out[i * 2 + 1] = attr.getY(i);
+            } else {
+                for (let k = 0; k < itemSize; k++) out[i * itemSize + k] = attr.getComponent(i, k);
+            }
+        }
+        geo.setAttribute(name, new BufferAttribute(out, itemSize));
+    }
+    return geo;
+}
+
+/**
+ * Align shaft so the tip points along +Z (ProjectileRenderer flight axis).
+ * Tripo bolts are often diagonal in XY with sparse mid-shaft verts — PCA finds
+ * the real long axis; the narrower end is treated as the tip.
+ */
+function alignShaftToPlusZ(geo: BufferGeometry): void {
+    const pos = geo.getAttribute('position');
+    if (!pos || pos.count < 3) return;
+
+    const c = new Vector3();
+    for (let i = 0; i < pos.count; i++) c.add(_dq.fromBufferAttribute(pos, i));
+    c.multiplyScalar(1 / pos.count);
+
+    let cxx = 0;
+    let cxy = 0;
+    let cxz = 0;
+    let cyy = 0;
+    let cyz = 0;
+    let czz = 0;
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i) - c.x;
+        const y = pos.getY(i) - c.y;
+        const z = pos.getZ(i) - c.z;
+        cxx += x * x;
+        cxy += x * y;
+        cxz += x * z;
+        cyy += y * y;
+        cyz += y * z;
+        czz += z * z;
+    }
+
+    // Power iteration → principal axis
+    let ax = 1;
+    let ay = 0;
+    let az = 0;
+    for (let it = 0; it < 32; it++) {
+        const nx = cxx * ax + cxy * ay + cxz * az;
+        const ny = cxy * ax + cyy * ay + cyz * az;
+        const nz = cxz * ax + cyz * ay + czz * az;
+        const len = Math.hypot(nx, ny, nz) || 1;
+        ax = nx / len;
+        ay = ny / len;
+        az = nz / len;
+    }
+
+    let tMin = Infinity;
+    let tMax = -Infinity;
+    let rLo = 0;
+    let rHi = 0;
+    const ts: { t: number; r: number }[] = [];
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i) - c.x;
+        const y = pos.getY(i) - c.y;
+        const z = pos.getZ(i) - c.z;
+        const t = x * ax + y * ay + z * az;
+        const r = Math.hypot(x - t * ax, y - t * ay, z - t * az);
+        tMin = Math.min(tMin, t);
+        tMax = Math.max(tMax, t);
+        ts.push({ t, r });
+    }
+    const span = Math.max(tMax - tMin, 1e-6);
+    for (const s of ts) {
+        const u = (s.t - tMin) / span;
+        if (u < 0.28) rLo = Math.max(rLo, s.r);
+        else if (u > 0.72) rHi = Math.max(rHi, s.r);
+    }
+    // Tip = narrower end; tipDir points from center toward the tip.
+    const tipDir = new Vector3(ax, ay, az);
+    if (rLo <= rHi) tipDir.negate();
+
+    const rot = new Matrix4().makeRotationFromQuaternion(
+        new Quaternion().setFromUnitVectors(tipDir.normalize(), new Vector3(0, 0, 1)),
+    );
+    geo.applyMatrix4(new Matrix4().makeTranslation(-c.x, -c.y, -c.z));
+    geo.applyMatrix4(rot);
+}
+
+/**
+ * Bake bolt.glb into unit-length +Z-forward geometry (matches projectile flight
+ * orientation). Shaft axis is detected via PCA — Tripo often exports it askew.
+ */
+function prepareBoltFromScene(scene: Group): BoltAsset | null {
+    const budget = modelTextureBudget();
+    if (budget) applyTextureBudget(scene, budget);
+
+    scene.updateMatrixWorld(true);
+    const geos: BufferGeometry[] = [];
+    let material: MeshStandardMaterial | null = null;
+    const scratch = new Matrix4();
+
+    scene.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as Material;
+        if (mat instanceof MeshStandardMaterial && !material) {
+            material = mat.clone();
+            if (typeof material.metalness === 'number') material.metalness = Math.min(material.metalness, 0.55);
+            material.envMapIntensity = 1.05;
+            material.flatShading = false;
+        }
+        const geo = dequantizeGeometry(mesh.geometry);
+        scratch.copy(mesh.matrixWorld);
+        geo.applyMatrix4(scratch);
+        geos.push(geo);
+    });
+
+    if (geos.length === 0) return null;
+    const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos)!;
+    for (let i = 1; i < geos.length; i++) geos[i]!.dispose();
+
+    alignShaftToPlusZ(merged);
+
+    merged.computeBoundingBox();
+    const box = merged.boundingBox!;
+    const size = new Vector3();
+    box.getSize(size);
+    const center = new Vector3();
+    box.getCenter(center);
+    merged.translate(-center.x, -center.y, -center.z);
+    // Prefer Z length after alignment; fall back to longest axis.
+    const longest = Math.max(size.z, size.x, size.y, 1e-3);
+    merged.scale(1 / longest, 1 / longest, 1 / longest);
+    // Re-center after scale (floating error) and ensure tip stays on +Z.
+    merged.computeBoundingBox();
+    const box2 = merged.boundingBox!;
+    merged.translate(
+        -(box2.min.x + box2.max.x) * 0.5,
+        -(box2.min.y + box2.max.y) * 0.5,
+        -(box2.min.z + box2.max.z) * 0.5,
+    );
+    merged.computeBoundingBox();
+    merged.computeVertexNormals();
+
+    if (!material) {
+        material = new MeshStandardMaterial({
+            color: 0x8a6a3c,
+            roughness: 0.75,
+            metalness: 0.15,
+        });
+    }
+
+    return { geometry: merged, material };
+}
+
+/** Load shared bolt mesh for archer / ballista InstancedMesh pools. Safe to call repeatedly. */
+export async function preloadProjectileBolt(): Promise<void> {
+    if (boltAsset) return;
+    if (!boltLoad) {
+        boltLoad = (async () => {
+            try {
+                const gltf = await getGltfLoader().loadAsync(BOLT_URL);
+                const prepared = prepareBoltFromScene(gltf.scene);
+                if (!prepared) throw new Error('no meshes in bolt.glb');
+                boltAsset = prepared;
+                console.info(
+                    `[effects] bolt.glb ready (${prepared.geometry.getAttribute('position')?.count ?? 0} verts)`,
+                );
+                return prepared;
+            } catch (e) {
+                console.error('[effects] bolt.glb failed — procedural arrows', e);
+                return null;
+            }
+        })();
+    }
+    await boltLoad;
+}
+
+export function getProjectileBoltAsset(): BoltAsset | null {
+    return boltAsset;
 }
 
 /** pulsing additive magic orb — hot core + cyan rim (visual only) */
@@ -192,14 +414,36 @@ export class Particles {
                     const dir = e.dx !== undefined ? { x: e.dx, y: e.dy ?? 0, z: e.dz ?? 0 } : undefined;
                     if (!e.flesh) {
                         // towers / ground / shields: gray stone-and-metal debris, not blood
+                        const sod = !!e.sod;
                         this.burst(e.x, e.y, e.z, {
-                            count: 9,
-                            color: 0x9a938a,
-                            speed: 11,
-                            life: 0.35,
-                            up: 2,
+                            count: sod ? 16 : 9,
+                            color: sod ? 0x8a6a42 : 0x9a938a,
+                            speed: sod ? 14 : 11,
+                            life: sod ? 0.45 : 0.35,
+                            up: sod ? 3.5 : 2,
                             dir,
                         });
+                        if (sod) {
+                            // pale grit + a few heavier clods kicked along the shot
+                            this.burst(e.x, e.y + 0.05, e.z, {
+                                count: 10,
+                                color: 0xc4b89a,
+                                speed: 8,
+                                life: 0.55,
+                                up: 4,
+                                dir,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y, e.z, {
+                                count: 5,
+                                color: 0x5c4a30,
+                                speed: 6,
+                                life: 0.7,
+                                up: 2.5,
+                                dir,
+                                blood: true,
+                            });
+                        }
                         break;
                     }
                     this.burst(e.x, e.y, e.z, {
@@ -576,31 +820,48 @@ export class ProjectileRenderer {
     private readonly fwd = new Vector3(0, 0, 1);
     private readonly one = new Vector3(1, 1, 1);
     private readonly orbScale = new Vector3(ORB_SCALE, ORB_SCALE, ORB_SCALE);
+    private readonly arrowScale = new Vector3(ARROW_SCALE, ARROW_SCALE, ARROW_SCALE);
+    private readonly largeArrowScale = new Vector3(LARGE_ARROW_SCALE, LARGE_ARROW_SCALE, LARGE_ARROW_SCALE);
     private readonly t0 = performance.now();
+    /** Shared bolt.glb geo — dispose once even if used by two pools. */
+    private readonly sharedBoltGeo: BufferGeometry | null;
+    private readonly sharedBoltMat: MeshStandardMaterial | null;
 
     constructor(scene: Scene) {
         const wood = new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
         const rock = new MeshLambertMaterial({ color: THEME.scenery.rock, flatShading: true });
         this.orbMaterial = makeOrbMaterial();
+
+        const bolt = boltAsset;
+        this.sharedBoltGeo = bolt?.geometry ?? null;
+        this.sharedBoltMat = bolt?.material ?? null;
+        const arrowGeo = bolt?.geometry ?? makeArrowGeometry(2);
+        const largeGeo = bolt?.geometry ?? makeArrowGeometry(5.5);
+        const arrowMat = bolt?.material ?? wood;
+        const largeMat = bolt?.material ?? wood;
+
         this.pools = {
             bolt: new InstancedMesh(
                 new SphereGeometry(0.28, 6, 5),
                 new MeshBasicMaterial({ color: THEME.projectile }),
                 MAX_PROJECTILES,
             ),
-            arrow: new InstancedMesh(makeArrowGeometry(2), wood, MAX_PROJECTILES),
-            // still clearly bigger than the archer's arrow
-            largeArrow: new InstancedMesh(makeArrowGeometry(5.5), wood, MAX_PROJECTILES),
-            // reserved for catapult
+            arrow: new InstancedMesh(arrowGeo, arrowMat, MAX_PROJECTILES),
+            largeArrow: new InstancedMesh(largeGeo, largeMat, MAX_PROJECTILES),
             stone: new InstancedMesh(new IcosahedronGeometry(0.84, 0), rock, MAX_PROJECTILES),
-            // wizard magic orb — large additive shader sphere
             orb: new InstancedMesh(new IcosahedronGeometry(0.85, 2), this.orbMaterial, MAX_PROJECTILES),
         };
         for (const mesh of Object.values(this.pools)) {
             mesh.instanceMatrix.setUsage(DynamicDrawUsage);
             mesh.frustumCulled = false;
+            mesh.castShadow = true;
             mesh.count = 0;
             scene.add(mesh);
+        }
+        if (bolt) {
+            console.info(
+                `[effects] projectile pools using bolt.glb (arrow×${ARROW_SCALE}, ballista×${LARGE_ARROW_SCALE}, cap ${MAX_PROJECTILES})`,
+            );
         }
     }
 
@@ -626,7 +887,14 @@ export class ProjectileRenderer {
             if (this.dir.lengthSq() < 1e-8) this.dir.set(0, 0, -1);
             else this.dir.normalize();
             this.quat.setFromUnitVectors(this.fwd, this.dir);
-            const scale = p.style === 'orb' ? this.orbScale : this.one;
+            const scale =
+                p.style === 'orb'
+                    ? this.orbScale
+                    : p.style === 'arrow'
+                      ? this.arrowScale
+                      : p.style === 'largeArrow'
+                        ? this.largeArrowScale
+                        : this.one;
             this.matrix.compose(this.pos, this.quat, scale);
             const style = p.style;
             this.pools[style].setMatrixAt(counts[style]++, this.matrix);
@@ -653,12 +921,17 @@ export class ProjectileRenderer {
     }
 
     dispose(): void {
+        const sharedGeo = this.sharedBoltGeo;
+        const sharedMat = this.sharedBoltMat;
         for (const mesh of Object.values(this.pools)) {
             mesh.removeFromParent();
-            mesh.geometry.dispose();
+            // Shared bolt geo/mat live in the module cache — don't dispose those.
+            if (mesh.geometry !== sharedGeo) mesh.geometry.dispose();
             const mat = mesh.material;
-            if (Array.isArray(mat)) for (const m of mat) m.dispose();
-            else mat.dispose();
+            if (mat !== sharedMat) {
+                if (Array.isArray(mat)) for (const m of mat) m.dispose();
+                else mat.dispose();
+            }
         }
     }
 }

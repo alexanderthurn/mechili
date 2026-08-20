@@ -7,6 +7,7 @@ export type DeathFallState = {
     /** Render clock at fall start; negative until first tick. */
     startAt: number;
     dur: number;
+    tipX: number;
     tipZ: number;
     startRotX: number;
     startRotZ: number;
@@ -27,7 +28,9 @@ export type DeathTipState = {
     /** Render clock at tip start; negative until first tick. */
     startAt: number;
     dur: number;
+    tipX: number;
     tipZ: number;
+    startRotX: number;
     startRotZ: number;
     groundY: number;
 };
@@ -53,6 +56,38 @@ export function crashKnockPower(dealt: number, maxHp: number): number {
     return Math.min(1, Math.max(0.08, (r - 0.9) / 4));
 }
 
+/** Tip-over magnitude (radians) — ballista overkill lays them flatter. */
+export function deathTipAmount(dealt: number, maxHp: number): number {
+    return 1.1 + crashKnockPower(dealt, maxHp) * 0.55;
+}
+
+/**
+ * Map world knock xz into local tip rotations so the corpse falls along the blow.
+ * Rest forward is −Z; `facingYaw` is mesh.rotation.y.
+ */
+export function deathTipFromKnock(
+    facingYaw: number,
+    knockX: number,
+    knockZ: number,
+    amount: number,
+): { tipX: number; tipZ: number } {
+    const len = Math.hypot(knockX, knockZ);
+    if (len < 1e-6) {
+        return { tipX: amount * 0.25, tipZ: amount };
+    }
+    const nx = knockX / len;
+    const nz = knockZ / len;
+    const c = Math.cos(facingYaw);
+    const s = Math.sin(facingYaw);
+    // world → local (inverse of rest-forward −Z bake used by AttackNode)
+    const lx = nx * c - nz * s;
+    const lz = nx * s + nz * c;
+    return {
+        tipX: amount * -lz,
+        tipZ: amount * lx,
+    };
+}
+
 export function beginDeathFall(
     mesh: Group,
     groundY: number,
@@ -63,6 +98,7 @@ export function beginDeathFall(
     driftX = 0,
     driftZ = 0,
     startY = mesh.position.y,
+    tipX = 0.55,
 ): DeathFallState {
     const driftLen = Math.hypot(driftX, driftZ);
     const state: DeathFallState = {
@@ -72,6 +108,7 @@ export function beginDeathFall(
         // long flings need a beat longer in the air so the throw reads
         dur: deathFallDuration(startY - groundY) + Math.min(0.55, driftLen * 0.012),
         tipZ,
+        tipX,
         startRotX: mesh.rotation.x,
         startRotZ: mesh.rotation.z,
         startMeshX: mesh.position.x,
@@ -105,11 +142,11 @@ export function tickDeathFall(
     state.groundY = groundY;
     mesh.position.y = state.startY + (groundY - state.startY) * e;
     mesh.rotation.z = state.startRotZ + (state.tipZ - state.startRotZ) * u;
-    mesh.rotation.x = state.startRotX + 0.55 * u;
+    mesh.rotation.x = state.startRotX + (state.tipX - state.startRotX) * u;
     if (u < 1) return true;
     mesh.position.y = groundY;
     mesh.rotation.z = state.tipZ;
-    mesh.rotation.x = state.startRotX + 0.55;
+    mesh.rotation.x = state.tipX;
     return false;
 }
 
@@ -133,11 +170,14 @@ export function beginDeathTip(
     tipZ: number,
     groundY: number,
     startAt: number,
+    tipX = 0.35,
 ): DeathTipState {
     const state: DeathTipState = {
         startAt,
         dur: DEATH_TIP_DUR,
+        tipX,
         tipZ,
+        startRotX: mesh.rotation.x,
         startRotZ: mesh.rotation.z,
         groundY,
     };
@@ -151,9 +191,11 @@ export function tickDeathTip(mesh: Group, state: DeathTipState, renderTime: numb
     const u = Math.min(1, Math.max(0, (renderTime - state.startAt) / state.dur));
     const e = u * u * (3 - 2 * u);
     mesh.rotation.z = state.startRotZ + (state.tipZ - state.startRotZ) * e;
+    mesh.rotation.x = state.startRotX + (state.tipX - state.startRotX) * e;
     mesh.position.y = state.groundY;
     if (u >= 1) {
         mesh.rotation.z = state.tipZ;
+        mesh.rotation.x = state.tipX;
         return false;
     }
     return true;

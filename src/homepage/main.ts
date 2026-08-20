@@ -17,6 +17,7 @@ import {
     type UnitType,
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
+import { type SpellAssetId } from '../game/spellAssets';
 import { hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
@@ -90,6 +91,40 @@ const BUILDINGS = SHOWCASE_UNITS.filter((t) => t.structure);
 const UNITS = SHOWCASE_UNITS.filter((t) => !t.structure && isPlayerBuyable(t));
 const HORDE_UNITS = SHOWCASE_UNITS.filter((t) => isHordeShowcaseUnit(t));
 
+/** Spell GLBs for the 3D showcase (not army units — preview-only). */
+const SHOWCASE_SPELLS: { id: SpellAssetId; name: string; blurb: string }[] = [
+    {
+        id: 'dragon',
+        name: 'Dragon Attack',
+        blurb: 'Strafing fire breath. Wing flap uses the same shader path as Crow Rider (mesh mode).',
+    },
+    {
+        id: 'hammer',
+        name: 'Hammer of the Gods',
+        blurb: 'Divine hammer that drops onto a placed zone.',
+    },
+    {
+        id: 'meteor-great',
+        name: 'Meteor',
+        blurb: 'Single heavy meteor strike.',
+    },
+    {
+        id: 'meteor-shard',
+        name: 'Meteor Shower shard',
+        blurb: 'Smaller meteor used by the shower barrage.',
+    },
+    {
+        id: 'storm',
+        name: 'Storm Call',
+        blurb: 'Storm cloud that hurls lightning.',
+    },
+    {
+        id: 'poison',
+        name: 'Poison Cloud',
+        blurb: 'Toxic cloud over a marked area.',
+    },
+];
+
 function pickButtons(list: UnitType[], activeId: string): string {
     return list
         .map(
@@ -97,6 +132,13 @@ function pickButtons(list: UnitType[], activeId: string): string {
                 `<button type="button" class="mh-pick${t.id === activeId ? ' active' : ''}" role="option" aria-selected="${t.id === activeId}" data-unit-id="${esc(t.id)}" data-mesh-scale="${t.meshScale}">${esc(t.name)}</button>`,
         )
         .join('');
+}
+
+function spellPickButtons(activeSpellId: string | null): string {
+    return SHOWCASE_SPELLS.map(
+        (s) =>
+            `<button type="button" class="mh-pick${s.id === activeSpellId ? ' active' : ''}" role="option" aria-selected="${s.id === activeSpellId}" data-spell-id="${esc(s.id)}">${esc(s.name)}</button>`,
+    ).join('');
 }
 
 const DISCORD_ICON_SVG =
@@ -193,6 +235,13 @@ function statsHtml(t: UnitType): string {
     ${flags ? `<div class="mh-flags">${flags}</div>` : ''}
     ${techs}
     ${abilityBlock}`;
+}
+
+function spellStatsHtml(spell: (typeof SHOWCASE_SPELLS)[number]): string {
+    return `
+    <h3>${esc(spell.name)}</h3>
+    <p class="mh-sub" style="margin:0.4rem 0 0">${esc(spell.blurb)}</p>
+    <div class="mh-flags"><span class="mh-flag">Spell model</span></div>`;
 }
 
 function shotCard(shot: { src: string; label: string; index: number }): string {
@@ -311,8 +360,8 @@ app.innerHTML = `
   </section>
 
   <section class="mh-section" id="units">
-    <h2>Units &amp; buildings</h2>
-    <p class="mh-sub">Your army, buildings, and ${esc(DISPLAY.horde)} packs from the forest ring. Pick one to inspect.</p>
+    <h2>Units, buildings &amp; spells</h2>
+    <p class="mh-sub">Your army, buildings, ${esc(DISPLAY.horde)} packs, and battle-spell models. Pick one to inspect — Crow Rider and Dragon flap in this preview.</p>
     <div class="mh-showcase">
       <div class="mh-showcase-view">
         <canvas id="mh-unit-canvas" aria-label="Unit 3D preview"></canvas>
@@ -323,7 +372,7 @@ app.innerHTML = `
         <div class="mh-showcase-hint" id="mh-showcase-hint">Drag to rotate · Scroll to zoom</div>
       </div>
       <div class="mh-showcase-side">
-        <select class="mh-card-select" id="mh-unit-select" aria-label="Choose a unit or building">
+        <select class="mh-card-select" id="mh-unit-select" aria-label="Choose a unit, building, or spell">
           <optgroup label="Buildings">
             ${BUILDINGS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
           </optgroup>
@@ -333,8 +382,11 @@ app.innerHTML = `
           <optgroup label="${esc(DISPLAY.horde)}">
             ${HORDE_UNITS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
           </optgroup>
+          <optgroup label="Spells">
+            ${SHOWCASE_SPELLS.map((s) => `<option value="spell:${esc(s.id)}">${esc(s.name)}</option>`).join('')}
+          </optgroup>
         </select>
-        <div class="mh-unit-picks" role="listbox" aria-label="Units and buildings">
+        <div class="mh-unit-picks" role="listbox" aria-label="Units, buildings, and spells">
           <div class="mh-pick-group">
             <div class="mh-pick-label">Buildings</div>
             <div class="mh-pick-row">${pickButtons(BUILDINGS, first.id)}</div>
@@ -346,6 +398,10 @@ app.innerHTML = `
           <div class="mh-pick-group">
             <div class="mh-pick-label">${esc(DISPLAY.horde)}</div>
             <div class="mh-pick-row">${pickButtons(HORDE_UNITS, first.id)}</div>
+          </div>
+          <div class="mh-pick-group">
+            <div class="mh-pick-label">Spells</div>
+            <div class="mh-pick-row">${spellPickButtons(null)}</div>
           </div>
         </div>
         <div class="mh-unit-stats" id="mh-unit-stats">${statsHtml(first)}</div>
@@ -845,25 +901,53 @@ void preloadUnitVisuals().then(() => {
 
     const unitSelect = app.querySelector<HTMLSelectElement>('#mh-unit-select');
 
+    function setActivePick(opts: { unitId?: string; spellId?: string }): void {
+        for (const p of picks) {
+            const isUnit = opts.unitId != null && p.dataset.unitId === opts.unitId;
+            const isSpell = opts.spellId != null && p.dataset.spellId === opts.spellId;
+            const on = isUnit || isSpell;
+            p.classList.toggle('active', on);
+            p.setAttribute('aria-selected', on ? 'true' : 'false');
+        }
+    }
+
     function selectUnit(id: string): void {
         const type = SHOWCASE_UNITS.find((t) => t.id === id);
         if (!type) return;
-        for (const p of picks) {
-            p.classList.toggle('active', p.dataset.unitId === id);
-            p.setAttribute('aria-selected', p.dataset.unitId === id ? 'true' : 'false');
-        }
+        setActivePick({ unitId: id });
         if (unitSelect) unitSelect.value = id;
         viewer.show(showcaseModelKey(type), type.meshScale);
         statsEl.innerHTML = statsHtml(type);
     }
 
+    function selectSpell(id: SpellAssetId): void {
+        const spell = SHOWCASE_SPELLS.find((s) => s.id === id);
+        if (!spell) return;
+        setActivePick({ spellId: id });
+        if (unitSelect) unitSelect.value = `spell:${id}`;
+        statsEl.innerHTML = spellStatsHtml(spell);
+        void viewer.showSpell(id);
+    }
+
     for (const btn of picks) {
         btn.addEventListener('click', () => {
+            const spellId = btn.dataset.spellId as SpellAssetId | undefined;
+            if (spellId) {
+                selectSpell(spellId);
+                return;
+            }
             const id = btn.dataset.unitId;
             if (id) selectUnit(id);
         });
     }
-    unitSelect?.addEventListener('change', () => selectUnit(unitSelect.value));
+    unitSelect?.addEventListener('change', () => {
+        const v = unitSelect.value;
+        if (v.startsWith('spell:')) {
+            selectSpell(v.slice('spell:'.length) as SpellAssetId);
+            return;
+        }
+        selectUnit(v);
+    });
 });
 
 /** Mobile-only: a <select> drives which single card/tactic stays visible (see .mh-card-select CSS). */

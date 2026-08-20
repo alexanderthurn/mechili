@@ -9061,7 +9061,7 @@ export class Game {
             }
         }
         this.map.setSnowCover(this.scenery.groundSnowCover);
-        updateAnimatedUnits(dtSeconds); // advance rigged unit walk/idle mixers
+        updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
         // Hide “you can move me” hints + disable visual repositioning once
         // End Deployment has locked this seat in.
         this.placement.repositioningEnabled = this.playerCanAct;

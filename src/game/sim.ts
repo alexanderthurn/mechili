@@ -46,7 +46,8 @@ import {
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 import { computeCrowWingRate, CROW_RIDER_MODEL_ID, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
-import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
+import { playUnitFireAnim } from './unitAnimated';
+import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHeight } from './unitModels';
 import {
     beginDeathFall,
     beginDeathTip,
@@ -54,6 +55,8 @@ import {
     clearDeathTip,
     crashDriftFromKnock,
     crashLandFromFall,
+    deathTipAmount,
+    deathTipFromKnock,
     snapFlyerForDeathFall,
     tickDeathFall,
     tickDeathTip,
@@ -210,6 +213,43 @@ function flyerStomp(age: number): { drop: number; squash: number } {
     return { drop: 1 - t * t, squash: Math.max(0, 1 - t * 3) };
 }
 
+const TAU = Math.PI * 2;
+/** Within this of the seek yaw, `pivot` units may start walking. */
+const TURN_ALIGN_RAD = 0.4;
+/** Fallback when a mobile type forgot {@link UnitType.turnRate}. */
+const DEFAULT_TURN_RATE = 8;
+
+/** Shortest signed delta from `from` → `to` in (−π, π]. */
+function deltaAngle(from: number, to: number): number {
+    let d = ((to - from) % TAU + TAU) % TAU;
+    if (d > Math.PI) d -= TAU;
+    return d;
+}
+
+/** Ease `a.facing` toward `desiredYaw` by this type's turn rate (mesh synced in syncMeshes). */
+function faceToward(a: Actor, desiredYaw: number, dt: number): void {
+    if (a.unit.type.structure) return;
+    const rate = a.unit.type.turnRate ?? DEFAULT_TURN_RATE;
+    const d = deltaAngle(a.facing, desiredYaw);
+    const maxStep = rate * dt;
+    if (Math.abs(d) <= maxStep) a.facing = desiredYaw;
+    else a.facing += Math.sign(d) * maxStep;
+    // Keep facing in (−π, π] so long battles don't drift the euler.
+    if (a.facing > Math.PI || a.facing <= -Math.PI) {
+        a.facing = ((a.facing + Math.PI) % TAU + TAU) % TAU - Math.PI;
+    }
+    // Sim-step consumers (muzzle, convert ray) read mesh yaw before syncMeshes lerps.
+    a.mesh.rotation.y = a.facing;
+}
+
+function facingAligned(a: Actor, desiredYaw: number, tol = TURN_ALIGN_RAD): boolean {
+    return Math.abs(deltaAngle(a.facing, desiredYaw)) <= tol;
+}
+
+function lerpAngle(from: number, to: number, t: number): number {
+    return from + deltaAngle(from, to) * t;
+}
+
 export interface Actor {
     unit: Unit;
     mesh: Group;
@@ -270,6 +310,13 @@ export interface Actor {
     /** last sim-step displacement — used to lead ballistic shots */
     mvX: number;
     mvZ: number;
+    /**
+     * Sim-owned yaw (rest forward −Z). Eased toward the seek/aim direction at
+     * {@link UnitType.turnRate}; mesh.rotation.y mirrors this each step.
+     */
+    facing: number;
+    /** Facing one sim step ago — render-lerped with {@link facing} like xz. */
+    prevFacing: number;
     /** sticky attack target — held while in range; closest search when not */
     cachedEnemy: Actor | null;
     /** approach lane: world offset from {@link cachedEnemy} center after a same-target crowd push */
@@ -394,8 +441,9 @@ export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     /** `blood` = victim gore tint when hitting flesh (omit = default red).
      *  `flesh` = the hit target bleeds (else gray debris — towers, ground, shields).
-     *  `dx/dy/dz` = normalized hit direction (bullet/strike travel) so blood
-     *  sprays out the far side; omit for undirected (ground / shield) impacts. */
+     *  `dx/dy/dz` = normalized hit direction (bullet/strike travel) so spray
+     *  exits the far side; omit for undirected (shield / dome) impacts.
+     *  `sod` = denser dirt kick for ground-stuck bolts / stones. */
     | {
           kind: 'impact';
           x: number;
@@ -406,6 +454,8 @@ export type SimEvent =
           dx?: number;
           dy?: number;
           dz?: number;
+          /** Ground bolt / heavy debris — denser dirt spray (arrow, ballista, stones). */
+          sod?: boolean;
       }
     | {
           kind: 'explosion';
@@ -747,6 +797,8 @@ export class BattleSim {
                     pathBestDist: Infinity,
                     mvX: 0,
                     mvZ: 0,
+                    facing: m.mesh.rotation.y,
+                    prevFacing: m.mesh.rotation.y,
                     cachedEnemy: null,
                     approachOx: 0,
                     approachOz: 0,
@@ -1459,6 +1511,8 @@ export class BattleSim {
                 pathBestDist: Infinity,
                 mvX: 0,
                 mvZ: 0,
+                facing: m.mesh.rotation.y,
+                prevFacing: m.mesh.rotation.y,
                 cachedEnemy: null,
                 approachOx: 0,
                 approachOz: 0,
@@ -2210,7 +2264,10 @@ export class BattleSim {
         // fire detection: the sim bumps cooldown UP by attackInterval on a shot,
         // otherwise it counts down — so an increase means "just fired".
         const prevCd = a.prevCooldown ?? a.cooldown;
-        if (a.cooldown > prevCd + 1e-4) a.recoil = 1;
+        if (a.cooldown > prevCd + 1e-4) {
+            a.recoil = 1;
+            if (a.mesh.userData.animated) playUnitFireAnim(a.mesh);
+        }
         a.prevCooldown = a.cooldown;
         const recoil = a.recoil ?? 0;
 
@@ -2440,9 +2497,15 @@ export class BattleSim {
                 });
             }
         } else {
-            // tip over and stay as a battlefield wreck until the round resets
-            // ~1.2 rad ≈ flatter on the lawn (old ~0.75 looked half-standing / floaty)
-            const tipZ = (target.index % 2 ? 1 : -1) * (1.2 + (target.index % 4) * 0.06);
+            // tip over along the killing blow (fallback: slight random lean)
+            const amount = dealt > 0 ? deathTipAmount(dealt, target.maxHp) : 1.2;
+            const tips =
+                knockDir && hypot(knockDir.x, knockDir.z) > 1e-6
+                    ? deathTipFromKnock(target.facing, knockDir.x, knockDir.z, amount)
+                    : {
+                          tipX: amount * 0.28,
+                          tipZ: (target.index % 2 ? 1 : -1) * (amount + (target.index % 4) * 0.05),
+                      };
             const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
             const dropHeight = target.mesh.position.y - groundY;
             const isAirFlyer = !!t.flying && target.altitude > 0;
@@ -2469,16 +2532,17 @@ export class BattleSim {
                 beginDeathFall(
                     target.mesh,
                     groundY,
-                    tipZ,
+                    tips.tipZ,
                     -1,
                     target.unit.world.x,
                     target.unit.world.z,
                     driftX,
                     driftZ,
                     fallStartY,
+                    tips.tipX,
                 );
             } else {
-                beginDeathTip(target.mesh, tipZ, groundY, -1);
+                beginDeathTip(target.mesh, tips.tipZ, groundY, -1, tips.tipX);
             }
             target.mesh.userData.dead = true;
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
@@ -2504,6 +2568,7 @@ export class BattleSim {
             a.mvZ = a.z - a.prevZ;
             a.prevX = a.x;
             a.prevZ = a.z;
+            a.prevFacing = a.facing;
         }
         for (const p of this.projectiles) {
             p.px = p.x;
@@ -2589,7 +2654,7 @@ export class BattleSim {
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                                 this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                             }
-                            a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
+                            faceToward(a, Math.atan2(-tdx, -tdz), dt);
                             continue;
                         }
                         // ranged / convert-ray on a rally route: fire while marching
@@ -2626,8 +2691,20 @@ export class BattleSim {
             // left (closestEnemy only returns a too-close foe as a last resort) —
             // back straight away until it clears the min range and a shot opens
             if (minReach > 0 && tDist < minReach) {
-                this.steerToward(a, -tdx / tDist, -tdz / tDist, minReach - tDist + a.radius, dt, stats, d, target, bigs);
-                a.mesh.rotation.y = Math.atan2(tdx, tdz); // keep facing the enemy while retreating
+                // Back away while still aiming at the foe (don't bank into the retreat vector).
+                this.steerToward(
+                    a,
+                    -tdx / tDist,
+                    -tdz / tDist,
+                    minReach - tDist + a.radius,
+                    dt,
+                    stats,
+                    d,
+                    target,
+                    bigs,
+                    0,
+                    { aimYaw: Math.atan2(tdx, tdz), locomotion: 'track' },
+                );
                 continue;
             }
 
@@ -2651,7 +2728,7 @@ export class BattleSim {
                         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                     }
                 }
-                a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
+                faceToward(a, Math.atan2(-tdx, -tdz), dt);
                 continue;
             }
 
@@ -2713,6 +2790,7 @@ export class BattleSim {
         avoid: Actor | null,
         bigs: Actor[],
         stopMargin = 0,
+        opts?: { aimYaw?: number; locomotion?: 'track' | 'pivot' | 'cruise' },
     ): void {
         let steerX = seekX;
         let steerZ = seekZ;
@@ -2760,14 +2838,25 @@ export class BattleSim {
         if (steerLen > 1e-4) {
             steerX /= steerLen;
             steerZ /= steerLen;
+            const desiredYaw = opts?.aimYaw ?? Math.atan2(-steerX, -steerZ);
+            const mode = opts?.locomotion ?? a.unit.type.turnMove ?? 'track';
+            faceToward(a, desiredYaw, dt);
+            if (mode === 'pivot' && !facingAligned(a, desiredYaw)) return;
+
+            let moveX = steerX;
+            let moveZ = steerZ;
+            if (mode === 'cruise') {
+                moveX = -Math.sin(a.facing);
+                moveZ = -Math.cos(a.facing);
+            }
+
             const speed =
                 stats.speed *
                 this.debuff(a, d.speedMult) *
                 (a.altitude === 0 && this.hazards.hasOilAt(a.x, a.z) ? OIL_SPEED_MULT : 1);
             const move = Math.min(speed * dt, Math.max(0, goalDist - stopMargin));
-            a.x += steerX * move;
-            a.z += steerZ * move;
-            a.mesh.rotation.y = Math.atan2(-steerX, -steerZ);
+            a.x += moveX * move;
+            a.z += moveZ * move;
         }
     }
 
@@ -2793,7 +2882,7 @@ export class BattleSim {
         const move = speed * dt;
         a.x += (-a.x / dist) * move;
         a.z += (-a.z / dist) * move;
-        a.mesh.rotation.y = Math.atan2(a.x / dist, a.z / dist);
+        faceToward(a, Math.atan2(a.x / dist, a.z / dist), dt);
     }
 
     /**
@@ -2941,12 +3030,37 @@ export class BattleSim {
         // arrows spawn from the unit center so they don't pop out ahead of the mesh
         const fromCenter = at.projectileStyle === 'arrow' || at.projectileStyle === 'largeArrow';
         const shooterFeet = this.feetY(a);
-        const muzzleY =
-            at.projectileLaunchHeight !== undefined
-                ? shooterFeet + at.projectileLaunchHeight
-                : shooterFeet + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
-        const mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
-        const mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
+        const modelKey = at.modelId ?? at.id;
+        const attackLocal = getUnitAttackNodeLocal(modelKey);
+        let mx: number;
+        let mz: number;
+        let muzzleY: number;
+        if (attackLocal) {
+            const muzz = attackNodeWorld(
+                attackLocal,
+                a.x,
+                shooterFeet,
+                a.z,
+                a.facing,
+                a.unit.visualMeshScale(),
+            );
+            mx = muzz.x;
+            mz = muzz.z;
+            muzzleY = muzz.y;
+        } else {
+            mx = fromCenter ? a.x : a.x + (dirX / flat) * (a.radius + 0.5);
+            mz = fromCenter ? a.z : a.z + (dirZ / flat) * (a.radius + 0.5);
+            if (at.projectileLaunchHeight !== undefined) {
+                muzzleY = shooterFeet + at.projectileLaunchHeight;
+            } else if (at.projectileLaunchHeightFrac != null) {
+                muzzleY =
+                    shooterFeet +
+                    getUnitVisualHeight(modelKey) * a.unit.visualMeshScale() * at.projectileLaunchHeightFrac;
+            } else {
+                muzzleY =
+                    shooterFeet + (at.colliders[0]?.y ?? 0.5) * at.meshScale + (fromCenter ? 0 : 0.4);
+            }
+        }
         const aimLocalY = projectileAimY(tt);
         let aimX = target.x;
         let aimZ = target.z;
@@ -3126,7 +3240,19 @@ export class BattleSim {
                     this.explode(p, nx, nz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
                 } else {
-                    this.events.push({ kind: 'impact', x: nx, y: groundY + 0.15, z: nz });
+                    const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+                    const bolt =
+                        p.style === 'arrow' || p.style === 'largeArrow' || p.style === 'stone';
+                    this.events.push({
+                        kind: 'impact',
+                        x: nx,
+                        y: groundY + 0.15,
+                        z: nz,
+                        dx: sx / slen,
+                        dy: sy / slen,
+                        dz: sz / slen,
+                        sod: bolt,
+                    });
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));
                 }
                 continue;
@@ -3296,6 +3422,9 @@ export class BattleSim {
             a.rz = a.prevZ + (a.z - a.prevZ) * alpha;
             a.mesh.position.x = a.rx - a.unit.world.x;
             a.mesh.position.z = a.rz - a.unit.world.z;
+            if (!a.unit.type.rocket) {
+                a.mesh.rotation.y = lerpAngle(a.prevFacing, a.facing, alpha);
+            }
         }
     }
 

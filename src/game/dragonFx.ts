@@ -20,6 +20,9 @@ import {
     disposeObject,
     setSpellOpacity,
 } from './spellMeshes';
+import {
+    attachDragonWingFlap,
+} from './crowWingFlap';
 import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC } from './tactics';
 
 /** authored empty in dragon.glb — fire tube origin in the mouth */
@@ -209,7 +212,8 @@ export class DragonFx {
             a.root.visible = true;
             a.root.position.set(dx, skyY, dz);
             a.root.rotation.order = 'YZX';
-            a.root.rotation.y = Math.atan2(-a.uz, a.ux);
+            // Template is baked −Z forward (crow space); align −Z with flight direction.
+            a.root.rotation.y = Math.atan2(-a.ux, -a.uz);
             a.root.rotation.x = 0;
             const low = MathUtils.clamp(
                 1 - (height - HEIGHT_BREATH) / Math.max(HEIGHT_FAR - HEIGHT_BREATH, 1),
@@ -269,6 +273,7 @@ export class DragonFx {
             const inst = cloneSpellInstance(this.template);
             root = inst.root;
             materials = inst.materials;
+            attachDragonWingFlap(root);
         } else {
             root = new Group();
             materials = [];
@@ -287,13 +292,14 @@ export class DragonFx {
     }
 
     private async load(): Promise<void> {
-        // asset is authored with +X forward — no bake flip
+        // Dragon template is baked to −Z forward / ±X wings (see spellAssets).
         this.template = await ensureSpellTemplate('dragon');
         if (!this.template) return;
         console.info('[dragonFx] template ready');
         for (const a of this.active) {
             if (a.materials.length > 0) continue;
             const { root, materials } = cloneSpellInstance(this.template);
+            attachDragonWingFlap(root);
             root.visible = false;
             this.group.remove(a.root);
             this.group.add(root);

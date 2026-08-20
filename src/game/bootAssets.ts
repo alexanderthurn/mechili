@@ -1,6 +1,7 @@
 import { preloadSpellAssets } from './spellAssets';
 import { preloadUnitVisuals } from './units';
 import { preloadWorldTextures } from './worldTextures';
+import { preloadProjectileBolt } from './effects';
 import {
     loadSceneryBillboards,
     loadSceneryVegetation,
@@ -55,6 +56,7 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
             report(`Textures ${done}/${total}`);
         }),
         preloadIconAtlas(),
+        preloadProjectileBolt(),
     ];
 
     const sceneryQ = prefs().scenery;

@@ -73,6 +73,10 @@ async function loadOne(id: SpellAssetId): Promise<Group> {
         tpl = await loadSpellTemplate(URLS['meteor-great'], { bakeEuler: { x: 0.3 } });
     } else if (id === 'meteor-shard') {
         tpl = await loadSpellTemplate(URLS['meteor-shard'], { bakeEuler: { x: 0.35 } });
+    } else if (id === 'dragon') {
+        // Tripo dragon is +X forward / wings ±Z. Bake +90° yaw so it matches
+        // crow-rider space (−Z forward, wings ±X) and the shared Z-flap shader.
+        tpl = await loadSpellTemplate(URLS.dragon, { bakeEuler: { y: Math.PI / 2 } });
     } else {
         tpl = await loadSpellTemplate(URLS[id]);
     }
