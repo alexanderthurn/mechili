@@ -1,4 +1,5 @@
 import type { Group } from 'three';
+import { worldHeightAt } from './map';
 
 /** Render-only air-unit crash — sim death stays instant. */
 export type DeathFallState = {
@@ -37,9 +38,11 @@ export type DeathTipState = {
 
 const MIN_DUR = 0.45;
 const MAX_DUR = 0.9;
-const DEATH_TIP_DUR = 0.38;
+const DEATH_TIP_DUR = 0.48;
 /** Full-power (heavy overkill) horizontal fling in world units. */
 const MAX_CRASH_DRIFT = 36;
+/** Radians — tip all the way onto their side (flat on the lawn). */
+const LAY_FLAT = Math.PI * 0.5;
 
 /** Fall duration from drop height (crow ~short, high flyers longer). */
 export function deathFallDuration(drop: number): number {
@@ -57,9 +60,9 @@ export function crashKnockPower(dealt: number, maxHp: number): number {
     return Math.min(1, Math.max(0.18, (r - 0.9) / 4));
 }
 
-/** Tip-over magnitude (radians) — ballista overkill lays them flatter. */
+/** Tip-over magnitude (radians) — always near-flat; overkill adds a little extra flop. */
 export function deathTipAmount(dealt: number, maxHp: number): number {
-    return 0.7 + crashKnockPower(dealt, maxHp) * 0.95;
+    return LAY_FLAT + crashKnockPower(dealt, maxHp) * 0.18;
 }
 
 /**
@@ -204,6 +207,39 @@ export function tickDeathTip(mesh: Group, state: DeathTipState, renderTime: numb
 
 export function clearDeathTip(mesh: Group): void {
     delete mesh.userData.deathTip;
+}
+
+/** Bake the finished tip pose so later frames can add terrain slope. */
+export function settleCorpsePose(mesh: Group): void {
+    mesh.userData.corpseSettled = true;
+    mesh.userData.corpseTipX = mesh.rotation.x;
+    mesh.userData.corpseTipZ = mesh.rotation.z;
+}
+
+/**
+ * Keep a settled wreck flat on the lawn and tilted with the local slope
+ * (same central-difference normal idea as blob shadows).
+ */
+export function alignSettledCorpse(
+    mesh: Group,
+    worldX: number,
+    worldZ: number,
+    groundY: number,
+): void {
+    if (!mesh.userData.corpseSettled) {
+        settleCorpsePose(mesh);
+    }
+    const tipX = mesh.userData.corpseTipX as number;
+    const tipZ = mesh.userData.corpseTipZ as number;
+    const h = 0.85;
+    const dyx = worldHeightAt(worldX + h, worldZ) - worldHeightAt(worldX - h, worldZ);
+    const dyz = worldHeightAt(worldX, worldZ + h) - worldHeightAt(worldX, worldZ - h);
+    const slopePitch = Math.atan2(dyz, 2 * h);
+    const slopeRoll = Math.atan2(-dyx, 2 * h);
+    mesh.rotation.x = tipX + slopePitch;
+    mesh.rotation.z = tipZ + slopeRoll;
+    // Slight sink so the silhouette kisses the grass instead of hovering
+    mesh.position.y = groundY - 0.06;
 }
 
 export function crashLandFromFall(state: DeathFallState): CrashLand {

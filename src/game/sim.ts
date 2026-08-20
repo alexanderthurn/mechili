@@ -57,6 +57,8 @@ import {
     crashLandFromFall,
     deathTipAmount,
     deathTipFromKnock,
+    settleCorpsePose,
+    alignSettledCorpse,
     snapFlyerForDeathFall,
     tickDeathFall,
     tickDeathTip,
@@ -2402,15 +2404,19 @@ export class BattleSim {
             if (fall) {
                 if (!tickDeathFall(a.mesh, fall, timeSeconds, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
                     crashLands.push(crashLandFromFall(fall));
+                    settleCorpsePose(a.mesh);
                     clearDeathFall(a.mesh);
                 }
             } else if (tip) {
-                if (!tickDeathTip(a.mesh, tip, timeSeconds)) clearDeathTip(a.mesh);
+                if (!tickDeathTip(a.mesh, tip, timeSeconds)) {
+                    settleCorpsePose(a.mesh);
+                    clearDeathTip(a.mesh);
+                }
             } else {
-                // One height sample per wreck — skips mid-fall so flyer crashes stay intact
+                // Settled wreck: hug terrain height + slope
                 const wx = a.unit.world.x + a.mesh.position.x;
                 const wz = a.unit.world.z + a.mesh.position.z;
-                a.mesh.position.y = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
+                alignSettledCorpse(a.mesh, wx, wz, worldHeightAt(wx, wz) + GROUND_UNIT_Y);
             }
             // Settled / tipping wrecks still slide from later blasts
             if (!fall) {
@@ -2693,7 +2699,7 @@ export class BattleSim {
             }
         } else {
             // tip over along the killing blow (fallback: slight random lean)
-            const amount = dealt > 0 ? deathTipAmount(dealt, target.maxHp) : 1.2;
+            const amount = dealt > 0 ? deathTipAmount(dealt, target.maxHp) : Math.PI * 0.5;
             const tips =
                 knockDir && hypot(knockDir.x, knockDir.z) > 1e-6
                     ? deathTipFromKnock(target.facing, knockDir.x, knockDir.z, amount)
