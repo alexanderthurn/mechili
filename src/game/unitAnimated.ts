@@ -54,7 +54,7 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {
         url: new URL('../../assets/models/archera.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         walk: 'longest',
-        walkSpeed: 1.5assa,
+        walkSpeed: 1.5,
         fire: 'shortest',
     },
 };

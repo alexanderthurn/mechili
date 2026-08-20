@@ -211,6 +211,43 @@ function flyerStomp(age: number): { drop: number; squash: number } {
     return { drop: 1 - t * t, squash: Math.max(0, 1 - t * 3) };
 }
 
+const TAU = Math.PI * 2;
+/** Within this of the seek yaw, `pivot` units may start walking. */
+const TURN_ALIGN_RAD = 0.4;
+/** Fallback when a mobile type forgot {@link UnitType.turnRate}. */
+const DEFAULT_TURN_RATE = 8;
+
+/** Shortest signed delta from `from` → `to` in (−π, π]. */
+function deltaAngle(from: number, to: number): number {
+    let d = ((to - from) % TAU + TAU) % TAU;
+    if (d > Math.PI) d -= TAU;
+    return d;
+}
+
+/** Ease `a.facing` toward `desiredYaw` by this type's turn rate (mesh synced in syncMeshes). */
+function faceToward(a: Actor, desiredYaw: number, dt: number): void {
+    if (a.unit.type.structure) return;
+    const rate = a.unit.type.turnRate ?? DEFAULT_TURN_RATE;
+    const d = deltaAngle(a.facing, desiredYaw);
+    const maxStep = rate * dt;
+    if (Math.abs(d) <= maxStep) a.facing = desiredYaw;
+    else a.facing += Math.sign(d) * maxStep;
+    // Keep facing in (−π, π] so long battles don't drift the euler.
+    if (a.facing > Math.PI || a.facing <= -Math.PI) {
+        a.facing = ((a.facing + Math.PI) % TAU + TAU) % TAU - Math.PI;
+    }
+    // Sim-step consumers (muzzle, convert ray) read mesh yaw before syncMeshes lerps.
+    a.mesh.rotation.y = a.facing;
+}
+
+function facingAligned(a: Actor, desiredYaw: number, tol = TURN_ALIGN_RAD): boolean {
+    return Math.abs(deltaAngle(a.facing, desiredYaw)) <= tol;
+}
+
+function lerpAngle(from: number, to: number, t: number): number {
+    return from + deltaAngle(from, to) * t;
+}
+
 export interface Actor {
     unit: Unit;
     mesh: Group;
@@ -271,6 +308,13 @@ export interface Actor {
     /** last sim-step displacement — used to lead ballistic shots */
     mvX: number;
     mvZ: number;
+    /**
+     * Sim-owned yaw (rest forward −Z). Eased toward the seek/aim direction at
+     * {@link UnitType.turnRate}; mesh.rotation.y mirrors this each step.
+     */
+    facing: number;
+    /** Facing one sim step ago — render-lerped with {@link facing} like xz. */
+    prevFacing: number;
     /** sticky attack target — held while in range; closest search when not */
     cachedEnemy: Actor | null;
     /** approach lane: world offset from {@link cachedEnemy} center after a same-target crowd push */
@@ -741,6 +785,8 @@ export class BattleSim {
                     pathBestDist: Infinity,
                     mvX: 0,
                     mvZ: 0,
+                    facing: m.mesh.rotation.y,
+                    prevFacing: m.mesh.rotation.y,
                     cachedEnemy: null,
                     approachOx: 0,
                     approachOz: 0,
@@ -1453,6 +1499,8 @@ export class BattleSim {
                 pathBestDist: Infinity,
                 mvX: 0,
                 mvZ: 0,
+                facing: m.mesh.rotation.y,
+                prevFacing: m.mesh.rotation.y,
                 cachedEnemy: null,
                 approachOx: 0,
                 approachOz: 0,
@@ -2501,6 +2549,7 @@ export class BattleSim {
             a.mvZ = a.z - a.prevZ;
             a.prevX = a.x;
             a.prevZ = a.z;
+            a.prevFacing = a.facing;
         }
         for (const p of this.projectiles) {
             p.px = p.x;
@@ -2586,7 +2635,7 @@ export class BattleSim {
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                                 this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                             }
-                            a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
+                            faceToward(a, Math.atan2(-tdx, -tdz), dt);
                             continue;
                         }
                         // ranged / convert-ray on a rally route: fire while marching
@@ -2623,8 +2672,20 @@ export class BattleSim {
             // left (closestEnemy only returns a too-close foe as a last resort) —
             // back straight away until it clears the min range and a shot opens
             if (minReach > 0 && tDist < minReach) {
-                this.steerToward(a, -tdx / tDist, -tdz / tDist, minReach - tDist + a.radius, dt, stats, d, target, bigs);
-                a.mesh.rotation.y = Math.atan2(tdx, tdz); // keep facing the enemy while retreating
+                // Back away while still aiming at the foe (don't bank into the retreat vector).
+                this.steerToward(
+                    a,
+                    -tdx / tDist,
+                    -tdz / tDist,
+                    minReach - tDist + a.radius,
+                    dt,
+                    stats,
+                    d,
+                    target,
+                    bigs,
+                    0,
+                    { aimYaw: Math.atan2(tdx, tdz), locomotion: 'track' },
+                );
                 continue;
             }
 
@@ -2648,7 +2709,7 @@ export class BattleSim {
                         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                     }
                 }
-                a.mesh.rotation.y = Math.atan2(-tdx, -tdz);
+                faceToward(a, Math.atan2(-tdx, -tdz), dt);
                 continue;
             }
 
@@ -2705,6 +2766,7 @@ export class BattleSim {
         avoid: Actor | null,
         bigs: Actor[],
         stopMargin = 0,
+        opts?: { aimYaw?: number; locomotion?: 'track' | 'pivot' | 'cruise' },
     ): void {
         let steerX = seekX;
         let steerZ = seekZ;
@@ -2752,14 +2814,25 @@ export class BattleSim {
         if (steerLen > 1e-4) {
             steerX /= steerLen;
             steerZ /= steerLen;
+            const desiredYaw = opts?.aimYaw ?? Math.atan2(-steerX, -steerZ);
+            const mode = opts?.locomotion ?? a.unit.type.turnMove ?? 'track';
+            faceToward(a, desiredYaw, dt);
+            if (mode === 'pivot' && !facingAligned(a, desiredYaw)) return;
+
+            let moveX = steerX;
+            let moveZ = steerZ;
+            if (mode === 'cruise') {
+                moveX = -Math.sin(a.facing);
+                moveZ = -Math.cos(a.facing);
+            }
+
             const speed =
                 stats.speed *
                 this.debuff(a, d.speedMult) *
                 (a.altitude === 0 && this.hazards.hasOilAt(a.x, a.z) ? OIL_SPEED_MULT : 1);
             const move = Math.min(speed * dt, Math.max(0, goalDist - stopMargin));
-            a.x += steerX * move;
-            a.z += steerZ * move;
-            a.mesh.rotation.y = Math.atan2(-steerX, -steerZ);
+            a.x += moveX * move;
+            a.z += moveZ * move;
         }
     }
 
@@ -2785,7 +2858,7 @@ export class BattleSim {
         const move = speed * dt;
         a.x += (-a.x / dist) * move;
         a.z += (-a.z / dist) * move;
-        a.mesh.rotation.y = Math.atan2(a.x / dist, a.z / dist);
+        faceToward(a, Math.atan2(a.x / dist, a.z / dist), dt);
     }
 
     /**
@@ -3288,6 +3361,9 @@ export class BattleSim {
             a.rz = a.prevZ + (a.z - a.prevZ) * alpha;
             a.mesh.position.x = a.rx - a.unit.world.x;
             a.mesh.position.z = a.rz - a.unit.world.z;
+            if (!a.unit.type.rocket) {
+                a.mesh.rotation.y = lerpAngle(a.prevFacing, a.facing, alpha);
+            }
         }
     }
 

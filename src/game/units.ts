@@ -401,6 +401,18 @@ export interface UnitType {
     /** seconds between shots */
     attackInterval: number;
     speed: number;
+    /**
+     * Max yaw change while turning (rad/s). Every mobile type sets its own —
+     * small infantry high, siege / bosses low. Structures omit (never turn).
+     */
+    turnRate?: number;
+    /**
+     * How locomotion couples to facing while {@link turnRate} applies:
+     * - `track` (default) — move along the seek direction; facing eases toward it
+     * - `pivot` — stand until roughly aligned, then walk (big spiders, ballista)
+     * - `cruise` — keep moving along current facing while yaw eases (flyers)
+     */
+    turnMove?: 'track' | 'pivot' | 'cruise';
     /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
     build: (parts: PartFactory) => void;
     /**
@@ -700,6 +712,7 @@ export const HORDE_BRUT: UnitType = {
     range: 2,
     attackInterval: 0.65,
     speed: 12,
+    turnRate: 10,
     build: buildDwarf,
 };
 
@@ -736,6 +749,7 @@ export const HORDE_WEBWEAVER: UnitType = {
     range: 16,
     attackInterval: 0.9,
     speed: 12,
+    turnRate: 5,
     build: buildDwarf,
 };
 
@@ -766,6 +780,7 @@ export const HORDE_BRUT_SPAWN: UnitType = {
     range: 2,
     attackInterval: 0.65,
     speed: 12,
+    turnRate: 10,
     build: buildDwarf,
 };
 
@@ -801,6 +816,8 @@ export const HORDE_SPINNE: UnitType = {
     range: 44,
     attackInterval: 0.4,
     speed: 12,
+    turnRate: 1.0,
+    turnMove: 'pivot',
     build: buildDwarf,
 };
 
@@ -830,6 +847,7 @@ export const HORDE_FARMER: UnitType = {
     range: 2,
     attackInterval: 0.7,
     speed: 12,
+    turnRate: 4,
     build: buildDwarf,
 };
 
@@ -859,6 +877,7 @@ export const HORDE_FARMER_SPAWN: UnitType = {
     range: 2,
     attackInterval: 0.7,
     speed: 12,
+    turnRate: 5,
     build: buildDwarf,
 };
 
@@ -894,6 +913,8 @@ export const HORDE_KOMTUR: UnitType = {
     range: 8,
     attackInterval: 0.85,
     speed: 12,
+    turnRate: 2.2,
+    turnMove: 'cruise',
     build: buildDwarf,
 };
 
@@ -915,6 +936,7 @@ export const UNIT_TYPES: UnitType[] = [
         range: 2,
         attackInterval: 0.7,
         speed: 9,
+        turnRate: 12,
         build: buildDwarf,
     },
     {
@@ -937,6 +959,7 @@ export const UNIT_TYPES: UnitType[] = [
         range: 45,
         attackInterval: 1.4,
         speed: 3.5,
+        turnRate: 6,
         build: buildArcher,
     },
     {
@@ -960,6 +983,7 @@ export const UNIT_TYPES: UnitType[] = [
         range: 80,
         attackInterval: 1.6,
         speed: 3.2,
+        turnRate: 5,
         build: buildWizard,
     },
     {
@@ -984,6 +1008,8 @@ export const UNIT_TYPES: UnitType[] = [
         range: 12,
         attackInterval: 1.1,
         speed: 8,
+        turnRate: 0.25,
+        turnMove: 'cruise',
         build: buildCrowRider,
     },
     {
@@ -1014,6 +1040,8 @@ export const UNIT_TYPES: UnitType[] = [
         minRange: 30, // siege dead zone — can't hit foes that close in
         attackInterval: 3.8,
         speed: 2.2,
+        turnRate: 1.2,
+        turnMove: 'pivot',
         build: buildBallista,
     },
     {
