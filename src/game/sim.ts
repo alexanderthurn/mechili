@@ -66,6 +66,11 @@ import {
     type DeathFallState,
     type DeathTipState,
 } from './deathFall';
+import {
+    clearBuildingCollapse,
+    tickBuildingCollapse,
+    type BuildingCollapseState,
+} from './buildingCollapse';
 import type { CpuTimings } from '../ui/debug';
 
 /** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
@@ -446,6 +451,7 @@ export type SimEvent =
     | { kind: 'muzzle'; x: number; y: number; z: number }
     /** `blood` = victim gore tint when hitting flesh (omit = default red).
      *  `flesh` = the hit target bleeds (else gray debris — towers, ground, shields).
+     *  `masonry` = structure facade hit — denser stone/dust than ground/shield chips.
      *  `dx/dy/dz` = normalized hit direction (bullet/strike travel) so spray
      *  exits the far side; omit for undirected (shield / dome) impacts.
      *  `sod` = denser dirt kick for ground-stuck bolts / stones. */
@@ -456,6 +462,10 @@ export type SimEvent =
           z: number;
           blood?: number;
           flesh?: boolean;
+          masonry?: boolean;
+          /** Structure center xz — chips eject from the hit along (hit − center). */
+          cx?: number;
+          cz?: number;
           dx?: number;
           dy?: number;
           dz?: number;
@@ -495,6 +505,11 @@ export type SimEvent =
           big: boolean;
           wear: DeathWear;
           blood?: number;
+          /** structure ruin — masonry shower + collapse shake (vs unit ash/blood) */
+          structure?: boolean;
+          /** visual height / footprint for collapse stone shower */
+          structureHeight?: number;
+          structureRadius?: number;
           /** normalized killing-blow direction (from knockback), so gore jets along it */
           dx?: number;
           dz?: number;
@@ -1199,13 +1214,29 @@ export class BattleSim {
         this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
         const nx = dx / dist;
         const nz = dz / dist;
+        const hitX = target.x - nx * target.radius;
+        const hitZ = target.z - nz * target.radius;
+        // Structures: contact at the attacker's height on the near face so chips
+        // read as coming from the fight, not mid-tower. Units keep torso aim.
+        let hitY = target.footY + target.unit.type.meshScale * 1.1;
+        if (target.unit.type.structure) {
+            const roof =
+                target.footY +
+                Math.max(2, getUnitVisualHeight(target.unit.type.modelId ?? target.unit.type.id) *
+                    target.unit.visualMeshScale());
+            const attackY = a.footY + a.unit.type.meshScale * 0.75;
+            hitY = Math.min(roof - 0.35, Math.max(target.footY + 0.45, attackY));
+        }
         this.events.push({
             kind: 'impact',
-            x: target.x - nx * target.radius,
-            y: target.footY + target.unit.type.meshScale * 1.1,
-            z: target.z - nz * target.radius,
+            x: hitX,
+            y: hitY,
+            z: hitZ,
             blood: bloodColorOf(target.unit.type),
             flesh: resolveDeathWear(target.unit.type) === 'blood',
+            masonry: !!target.unit.type.structure,
+            cx: target.unit.type.structure ? target.x : undefined,
+            cz: target.unit.type.structure ? target.z : undefined,
             dx: nx,
             dy: 0,
             dz: nz,
@@ -1251,6 +1282,7 @@ export class BattleSim {
                 z: air.z,
                 blood: bloodColorOf(air.unit.type),
                 flesh: resolveDeathWear(air.unit.type) === 'blood',
+                masonry: !!air.unit.type.structure,
                 dx: adx / ad,
                 dy: 0,
                 dz: adz / ad,
@@ -2460,6 +2492,14 @@ export class BattleSim {
             }
             if (fall || tip) continue;
         }
+        // Destroyed structures settle into rubble (render-only; sim death is instant)
+        for (const a of this.actors) {
+            if (a.alive || !a.unit.type.structure) continue;
+            const collapse = a.mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
+            if (collapse && !tickBuildingCollapse(a.mesh, collapse, timeSeconds)) {
+                clearBuildingCollapse(a.mesh);
+            }
+        }
         return crashLands;
     }
 
@@ -2688,6 +2728,10 @@ export class BattleSim {
         const wear = resolveDeathWear(t);
         // normalize the killing-blow direction so death gore jets along it
         const klen = knockDir ? hypot(knockDir.x, knockDir.z) : 0;
+        const modelKey = t.modelId ?? t.id;
+        const structureHeight = t.structure
+            ? Math.max(2.5, getUnitVisualHeight(modelKey) * target.unit.visualMeshScale())
+            : undefined;
         this.events.push({
             kind: 'death',
             x: target.x,
@@ -2696,12 +2740,15 @@ export class BattleSim {
             z: target.z,
             big: target.radius >= 2 || !!t.structure,
             wear,
+            structure: !!t.structure,
+            structureHeight,
+            structureRadius: t.structure ? target.radius : undefined,
             blood: wear === 'blood' ? bloodColorOf(t) : undefined,
             dx: klen > 1e-6 ? knockDir!.x / klen : undefined,
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
         });
         if (t.structure) {
-            target.unit.markDestroyed();
+            target.unit.markDestroyed(knockDir ?? undefined);
             if (this.isDebuffBuilding(target.unit)) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
                 // half tower height — tallest collider × meshScale / 2
@@ -3242,7 +3289,15 @@ export class BattleSim {
         s.alive = false;
         s.mesh.visible = false;
         s.unit.consumed = true; // broken — gone for good at the round reset
-        this.events.push({ kind: 'death', x: s.x, y: 2, z: s.z, big: true, wear: resolveDeathWear(s.unit.type) });
+        this.events.push({
+            kind: 'death',
+            x: s.x,
+            y: 2,
+            z: s.z,
+            big: true,
+            wear: resolveDeathWear(s.unit.type),
+            structure: !!s.unit.type.structure,
+        });
     }
 
     /** spawns a bullet from the shooter's muzzle toward the target's primary hit volume */
@@ -3498,6 +3553,24 @@ export class BattleSim {
                 if (splash > 0) {
                     this.explode(p, ix, iz, splash, { x: sx, z: sz });
                     this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
+                    // splash path skips the normal impact event — still emit masonry
+                    // chips/dust when the blast lands on a structure facade
+                    if (hit.unit.type.structure) {
+                        const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+                        this.events.push({
+                            kind: 'impact',
+                            x: ix,
+                            y: iy,
+                            z: iz,
+                            flesh: false,
+                            masonry: true,
+                            cx: hit.x,
+                            cz: hit.z,
+                            dx: sx / slen,
+                            dy: sy / slen,
+                            dz: sz / slen,
+                        });
+                    }
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
@@ -3516,6 +3589,9 @@ export class BattleSim {
                         z: iz,
                         blood: bloodColorOf(hit.unit.type),
                         flesh: resolveDeathWear(hit.unit.type) === 'blood',
+                        masonry: !!hit.unit.type.structure,
+                        cx: hit.unit.type.structure ? hit.x : undefined,
+                        cz: hit.unit.type.structure ? hit.z : undefined,
                         dx: sx / slen,
                         dy: sy / slen,
                         dz: sz / slen,

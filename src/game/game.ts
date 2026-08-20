@@ -139,7 +139,7 @@ import {
     type SceneryQuality,
     type ShadowQuality,
 } from './prefs';
-import { Particles, ProjectileRenderer, StuckBoltRenderer } from './effects';
+import { Particles, ProjectileRenderer, StuckBoltRenderer, StoneChipRenderer } from './effects';
 import {
     buildHpDrawSources,
     hpDrawShakeIntensity,
@@ -155,6 +155,11 @@ import {
     type DeathFallState,
     type DeathTipState,
 } from './deathFall';
+import {
+    clearBuildingCollapse,
+    tickBuildingCollapse,
+    type BuildingCollapseState,
+} from './buildingCollapse';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, CROW_RIDER_MODEL_ID } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { modelGeometryFingerprint } from './unitModels';
@@ -337,6 +342,7 @@ export class Game {
     private readonly hpDrawFx: HpDrawFx;
     private readonly projectileRenderer: ProjectileRenderer;
     private readonly stuckBolts: StuckBoltRenderer;
+    private readonly stoneChips: StoneChipRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
     private readonly forgeFx = new ForgeFx();
@@ -1264,6 +1270,7 @@ export class Game {
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
         this.stuckBolts = new StuckBoltRenderer(this.scene);
+        this.stoneChips = new StoneChipRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
         this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
@@ -2459,6 +2466,7 @@ export class Game {
         this.hordeMarkers.dispose();
         this.strongholdFlags.dispose();
         this.towerDebuffFx.dispose();
+        this.stoneChips.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
         this.hud.destroy();
@@ -8311,6 +8319,7 @@ export class Game {
         this.selectedActor = null;
         this.projectileRenderer.clear();
         this.stuckBolts.clear();
+        this.stoneChips.clear();
         this.fireFx.clear(); // instanced flame tongues are battle-only
         this.towerDebuffFx.clear();
         this.hammerFx.clear();
@@ -8384,13 +8393,14 @@ export class Game {
         this.proceedAfterHpDraw();
     }
 
-    /** Keep render-only death falls / ground tips moving after the sim is torn down. */
+    /** Keep render-only death falls / ground tips / building rubble moving after the sim is torn down. */
     private tickPlacementDeathVisuals(): void {
         for (const unit of this.placement.allUnits()) {
             for (const m of unit.members) {
                 const mesh = m.mesh;
                 const fall = mesh.userData.deathFall as DeathFallState | undefined;
                 const tip = mesh.userData.deathTip as DeathTipState | undefined;
+                const collapse = mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
                 if (fall) {
                     if (
                         !tickDeathFall(mesh, fall, this.time, (wx, wz) =>
@@ -8401,6 +8411,8 @@ export class Game {
                     }
                 } else if (tip && !tickDeathTip(mesh, tip, this.time)) {
                     clearDeathTip(mesh);
+                } else if (collapse && !tickBuildingCollapse(mesh, collapse, this.time)) {
+                    clearBuildingCollapse(mesh);
                 }
                 if ((unit.type.modelId ?? unit.type.id) === CROW_RIDER_MODEL_ID && mesh.userData.instanced) {
                     setCrowWingDeathSplay(mesh, crowWingDeathSplay(this.time, fall, tip));
@@ -8412,7 +8424,13 @@ export class Game {
     private hasPendingDeathVisuals(): boolean {
         for (const unit of this.placement.allUnits()) {
             for (const m of unit.members) {
-                if (m.mesh.userData.deathFall || m.mesh.userData.deathTip) return true;
+                if (
+                    m.mesh.userData.deathFall ||
+                    m.mesh.userData.deathTip ||
+                    m.mesh.userData.buildingCollapse
+                ) {
+                    return true;
+                }
             }
         }
         return false;
@@ -8983,6 +9001,7 @@ export class Game {
                         modelId: a.unit.type.modelId ?? a.unit.type.id,
                     };
                 });
+                this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
@@ -9062,6 +9081,7 @@ export class Game {
         }
         if (profile) cpu.begin();
         this.particles.update(gameDt);
+        this.stoneChips.update(gameDt);
         this.updateForgeFx(gameDt);
         this.updateStrongholdFlags();
         this.updateHordeMarkers();
@@ -9279,10 +9299,20 @@ export class Game {
         if (prefs().groundEffects === 'off') return;
         for (const e of events) {
             if (e.kind === 'impact' && e.y > 0.25) {
-                this.map.stampBlood(e.x, e.z, 1.1, 0.55, e.blood);
+                if (e.flesh) {
+                    this.map.stampBlood(e.x, e.z, 1.1, 0.55, e.blood);
+                } else {
+                    // grit / soot under masonry and other non-flesh hits
+                    this.map.stampScorch(e.x, e.z, e.masonry ? 1.6 : 1.1, e.masonry ? 0.28 : 0.14);
+                }
             } else if (e.kind === 'death') {
                 if (e.wear === 'ash') {
-                    this.map.stampScorch(e.x, e.z, e.big ? 10 : 7, e.big ? 0.85 : 0.7);
+                    this.map.stampScorch(
+                        e.x,
+                        e.z,
+                        e.structure ? 12 : e.big ? 10 : 7,
+                        e.structure ? 0.9 : e.big ? 0.85 : 0.7,
+                    );
                 } else if (e.wear === 'blood') {
                     this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
                 }

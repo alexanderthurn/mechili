@@ -11,6 +11,7 @@ import {
     CylinderGeometry,
     DoubleSide,
     DynamicDrawUsage,
+    Euler,
     Group,
     IcosahedronGeometry,
     InstancedMesh,
@@ -423,6 +424,34 @@ export class Particles {
                     // spray exits the far side, along the bullet/strike direction
                     const dir = e.dx !== undefined ? { x: e.dx, y: e.dy ?? 0, z: e.dz ?? 0 } : undefined;
                     if (!e.flesh) {
+                        if (e.masonry) {
+                            // dark dust at the contact — outward from facade, then down
+                            let ox = e.cx !== undefined ? e.x - e.cx : -(e.dx ?? 0);
+                            let oz = e.cz !== undefined ? e.z - (e.cz ?? 0) : -(e.dz ?? 0);
+                            const olen = Math.hypot(ox, oz) || 1;
+                            ox /= olen;
+                            oz /= olen;
+                            const out = { x: ox, y: -0.5, z: oz };
+                            this.burst(e.x + ox * 0.2, e.y, e.z + oz * 0.2, {
+                                count: 10,
+                                color: 0x2a2620,
+                                speed: 5,
+                                life: 0.55,
+                                up: 0.8,
+                                dir: out,
+                                blood: true,
+                            });
+                            this.burst(e.x + ox * 0.2, e.y, e.z + oz * 0.2, {
+                                count: 7,
+                                color: 0x141210,
+                                speed: 3,
+                                life: 0.7,
+                                up: 0.3,
+                                dir: out,
+                                blood: true,
+                            });
+                            break;
+                        }
                         // towers / ground / shields: gray stone-and-metal debris, not blood
                         const sod = !!e.sod;
                         this.burst(e.x, e.y, e.z, {
@@ -562,23 +591,48 @@ export class Particles {
                     break;
                 case 'death':
                     if (e.wear === 'ash') {
-                        // dark ash / debris — not blood
-                        this.burst(e.x, e.y, e.z, {
-                            count: e.big ? 36 : 18,
-                            color: 0x1a1814,
-                            speed: e.big ? 14 : 10,
-                            life: 0.8,
-                            up: 5,
-                            blood: true,
-                        });
-                        this.burst(e.x, e.y + 0.8, e.z, {
-                            count: e.big ? 16 : 8,
-                            color: 0x2e2a24,
-                            speed: 7,
-                            life: 0.55,
-                            up: 6,
-                            blood: true,
-                        });
+                        if (e.structure) {
+                            // dark dust only — solid masonry rain is StoneChipRenderer
+                            this.burst(e.x, e.y, e.z, {
+                                count: 40,
+                                color: 0x1a1814,
+                                speed: 12,
+                                life: 1.1,
+                                up: 6,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y + 1.0, e.z, {
+                                count: 28,
+                                color: 0x2a2620,
+                                speed: 7,
+                                life: 1.3,
+                                up: 8,
+                                blood: true,
+                            });
+                            screenShake({
+                                intensity: 0.85,
+                                duration: 0.55,
+                                frequency: 36,
+                            });
+                        } else {
+                            // dark ash / debris — not blood
+                            this.burst(e.x, e.y, e.z, {
+                                count: e.big ? 36 : 18,
+                                color: 0x1a1814,
+                                speed: e.big ? 14 : 10,
+                                life: 0.8,
+                                up: 5,
+                                blood: true,
+                            });
+                            this.burst(e.x, e.y + 0.8, e.z, {
+                                count: e.big ? 16 : 8,
+                                color: 0x2e2a24,
+                                speed: 7,
+                                life: 0.55,
+                                up: 6,
+                                blood: true,
+                            });
+                        }
                     } else if (e.wear === 'none') {
                         break;
                     } else {
@@ -933,6 +987,254 @@ function seatStuckBoltCenter(
     }
     // No visual hit (grazing sphere): keep hitbox point so we still plant something
     _seatOrigin.set(hitX, hitY, hitZ).addScaledVector(_seatDir, dig);
+}
+
+/**
+ * Tiny crow-rider-style rock chips kicked off masonry hits.
+ * Same icosahedron + rock material language as thrown stones, just smaller.
+ */
+const MAX_STONE_CHIPS = 192;
+const CHIP_GRAVITY = 38;
+/** How long hit chips sit after landing (~5× prior brief rest). */
+const HIT_GROUND_LINGER = 1.35 * 5;
+/** How long collapse masonry sits after landing. */
+const COLLAPSE_GROUND_LINGER = 2.1 * 5;
+
+type StoneChip = {
+    x: number;
+    y: number;
+    z: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    /** Counts down only after landing. */
+    life: number;
+    landed: boolean;
+    scale: number;
+    rx: number;
+    ry: number;
+    rz: number;
+    spinX: number;
+    spinY: number;
+    spinZ: number;
+    groundY: number;
+    groundLinger: number;
+};
+
+export class StoneChipRenderer {
+    private readonly mesh: InstancedMesh;
+    private readonly matrix = new Matrix4();
+    private readonly pos = new Vector3();
+    private readonly quat = new Quaternion();
+    private readonly scale = new Vector3();
+    private readonly euler = new Euler();
+    private readonly chips: StoneChip[] = [];
+    private readonly tmpColor = new Color();
+
+    constructor(scene: Scene) {
+        // crow rider stones use Icosahedron 0.84 — chips are a fraction of that
+        const rock = new MeshLambertMaterial({ color: THEME.scenery.rock, flatShading: true });
+        this.mesh = new InstancedMesh(new IcosahedronGeometry(0.42, 0), rock, MAX_STONE_CHIPS);
+        this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+        this.mesh.frustumCulled = false;
+        this.mesh.castShadow = false;
+        this.mesh.count = 0;
+        scene.add(this.mesh);
+    }
+
+    spawnFromEvents(
+        events: readonly SimEvent[],
+        groundHeightAt: (x: number, z: number) => number,
+    ): void {
+        for (const e of events) {
+            if (e.kind === 'impact' && e.masonry) {
+                this.spawnHitChips(e, groundHeightAt);
+            } else if (e.kind === 'death' && e.structure) {
+                this.spawnCollapseChips(e, groundHeightAt);
+            }
+        }
+    }
+
+    /** Facade chips kicked off a single hit. */
+    private spawnHitChips(
+        e: Extract<SimEvent, { kind: 'impact' }>,
+        groundHeightAt: (x: number, z: number) => number,
+    ): void {
+        // Prefer outward from building center through the hit (stable for lobbed
+        // air stones). Fall back to opposite horizontal shot dir.
+        let ox = e.cx !== undefined ? e.x - e.cx : -(e.dx ?? 0);
+        let oz = e.cz !== undefined ? e.z - (e.cz ?? 0) : -(e.dz ?? 0);
+        const olen = Math.hypot(ox, oz);
+        if (olen < 1e-4) {
+            const hx = -(e.dx ?? 0);
+            const hz = -(e.dz ?? 0);
+            const hlen = Math.hypot(hx, hz);
+            if (hlen > 1e-4) {
+                ox = hx / hlen;
+                oz = hz / hlen;
+            } else {
+                ox = 1;
+                oz = 0;
+            }
+        } else {
+            ox /= olen;
+            oz /= olen;
+        }
+        // Sit just outside the facade at the real contact point
+        const sx0 = e.x + ox * 0.35;
+        const sy0 = e.y;
+        const sz0 = e.z + oz * 0.35;
+        const n = 3 + ((Math.abs(Math.sin(e.x * 12.9898 + e.z * 78.233)) * 2) | 0);
+        for (let i = 0; i < n; i++) {
+            const side = (Math.random() * 2 - 1) * 0.55;
+            const tx = -oz * side + ox * (0.4 + Math.random() * 0.7);
+            const tz = ox * side + oz * (0.4 + Math.random() * 0.7);
+            const outSpeed = 2.2 + Math.random() * 3.5;
+            const px = sx0 + (Math.random() * 2 - 1) * 0.2;
+            const pz = sz0 + (Math.random() * 2 - 1) * 0.2;
+            this.pushChip({
+                x: px,
+                y: sy0 + (Math.random() * 2 - 1) * 0.15,
+                z: pz,
+                vx: tx * outSpeed,
+                vy: 0.2 + Math.random() * 1.4,
+                vz: tz * outSpeed,
+                scale: 0.35 + Math.random() * 0.55,
+                groundY: groundHeightAt(px, pz) + 0.12,
+                groundLinger: HIT_GROUND_LINGER * (0.85 + Math.random() * 0.3),
+            });
+        }
+    }
+
+    /**
+     * Big masonry rain through the whole building volume on destroy —
+     * sells the collapse more than the mesh squash alone.
+     */
+    private spawnCollapseChips(
+        e: Extract<SimEvent, { kind: 'death' }>,
+        groundHeightAt: (x: number, z: number) => number,
+    ): void {
+        const groundY = groundHeightAt(e.x, e.z) + 0.12;
+        const height = Math.max(3, e.structureHeight ?? e.y - groundY + 1.5);
+        const radius = Math.max(1.4, e.structureRadius ?? 2.2);
+        const n = 52 + Math.min(28, Math.round(height * 2.5));
+        for (let i = 0; i < n; i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * radius * 0.95;
+            const px = e.x + Math.cos(ang) * r;
+            const pz = e.z + Math.sin(ang) * r;
+            // bias toward upper floors so stones cascade down the silhouette
+            const py = groundY + height * (0.2 + Math.random() * 0.85);
+            const out = 1.5 + Math.random() * 5.5;
+            this.pushChip({
+                x: px,
+                y: py,
+                z: pz,
+                vx: Math.cos(ang) * out * (0.35 + Math.random()),
+                vy: -1 + Math.random() * 3.5,
+                vz: Math.sin(ang) * out * (0.35 + Math.random()),
+                scale: 1.1 + Math.random() * 1.7,
+                groundY: groundHeightAt(px, pz) + 0.12,
+                groundLinger: COLLAPSE_GROUND_LINGER * (0.85 + Math.random() * 0.3),
+            });
+        }
+    }
+
+    private pushChip(partial: {
+        x: number;
+        y: number;
+        z: number;
+        vx: number;
+        vy: number;
+        vz: number;
+        scale: number;
+        groundY: number;
+        groundLinger: number;
+    }): void {
+        if (this.chips.length >= MAX_STONE_CHIPS) this.chips.shift();
+        this.chips.push({
+            ...partial,
+            life: partial.groundLinger,
+            landed: false,
+            rx: Math.random() * Math.PI,
+            ry: Math.random() * Math.PI,
+            rz: Math.random() * Math.PI,
+            spinX: (Math.random() * 2 - 1) * 10,
+            spinY: (Math.random() * 2 - 1) * 7,
+            spinZ: (Math.random() * 2 - 1) * 10,
+        });
+    }
+
+    update(dt: number): void {
+        for (let i = this.chips.length - 1; i >= 0; i--) {
+            const c = this.chips[i]!;
+            if (c.landed) {
+                c.life -= dt;
+                if (c.life <= 0) {
+                    this.chips.splice(i, 1);
+                    continue;
+                }
+            }
+            if (!c.landed) {
+                c.vy -= CHIP_GRAVITY * dt;
+                c.x += c.vx * dt;
+                c.y += c.vy * dt;
+                c.z += c.vz * dt;
+                c.rx += c.spinX * dt;
+                c.ry += c.spinY * dt;
+                c.rz += c.spinZ * dt;
+                if (c.y < c.groundY) {
+                    c.y = c.groundY;
+                    c.landed = true;
+                    c.life = c.groundLinger;
+                    c.vy = 0;
+                    c.vx *= 0.35;
+                    c.vz *= 0.35;
+                    c.spinX *= 0.25;
+                    c.spinY *= 0.25;
+                    c.spinZ *= 0.25;
+                }
+            } else {
+                // slight slide then rest
+                c.x += c.vx * dt;
+                c.z += c.vz * dt;
+                c.vx *= 0.9;
+                c.vz *= 0.9;
+                c.rx += c.spinX * dt;
+                c.rz += c.spinZ * dt;
+                c.spinX *= 0.92;
+                c.spinZ *= 0.92;
+            }
+        }
+        const n = this.chips.length;
+        for (let i = 0; i < n; i++) {
+            const c = this.chips[i]!;
+            this.pos.set(c.x, c.y, c.z);
+            this.euler.set(c.rx, c.ry, c.rz);
+            this.quat.setFromEuler(this.euler);
+            const fade = c.landed ? Math.min(1, c.life / 0.45) : 1;
+            this.scale.setScalar(c.scale * (0.85 + 0.15 * fade));
+            this.matrix.compose(this.pos, this.quat, this.scale);
+            this.mesh.setMatrixAt(i, this.matrix);
+            const shade = 0.45 + (i % 5) * 0.08;
+            this.tmpColor.setHex(THEME.scenery.rock).multiplyScalar(shade);
+            this.mesh.setColorAt(i, this.tmpColor);
+        }
+        this.mesh.count = n;
+        this.mesh.instanceMatrix.needsUpdate = true;
+        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    }
+
+    clear(): void {
+        this.chips.length = 0;
+        this.mesh.count = 0;
+    }
+
+    dispose(): void {
+        this.mesh.removeFromParent();
+        this.mesh.geometry.dispose();
+        (this.mesh.material as MeshLambertMaterial).dispose();
+    }
 }
 
 /**

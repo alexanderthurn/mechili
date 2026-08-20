@@ -75,6 +75,7 @@ import {
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
+import { beginBuildingCollapse, clearBuildingCollapse } from './buildingCollapse';
 import { clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
@@ -1383,16 +1384,21 @@ export class Unit {
         this.seatMembers();
     }
 
-    /** Collapses the meshes into rubble until the next round reset. */
-    markDestroyed(): void {
+    /**
+     * Collapses the meshes into rubble until the next round reset.
+     * `knock` leans the settle along the killing blow (render-only).
+     */
+    markDestroyed(knock?: { x: number; z: number }): void {
         this.destroyed = true;
         const instances = getUnitInstanceRenderer();
+        const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
+        const tipZ = klen > 1e-6 ? Math.sign(knock!.z || 1) * 0.24 : 0.22;
+        const tipX = klen > 1e-6 ? Math.sign(knock!.x || 1) * 0.1 : 0.08;
         for (const m of this.members) {
-            m.mesh.scale.y *= 0.3;
-            m.mesh.rotation.z = 0.12;
             m.mesh.userData.dead = true;
             setCrowWingRateOnProxy(m.mesh, 0);
             instances?.setDead(m.mesh);
+            beginBuildingCollapse(m.mesh, { tipX, tipZ });
         }
     }
 
@@ -1451,6 +1457,7 @@ export class Unit {
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
+            clearBuildingCollapse(m.mesh);
             if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);
