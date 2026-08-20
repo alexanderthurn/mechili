@@ -9079,13 +9079,14 @@ export class Game {
                 if (profile) cpu.end('battleVisuals');
                 this.stuckBolts.sync();
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+                this.dragonFx.update(this.sim.renderElapsed);
+                this.fireFx.setBreathTongues(this.dragonFx.getBreathTongueSamples());
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
                 const battleShields = livingShieldDisks(this.placement.allUnits());
                 this.hammerFx.update(this.sim.renderElapsed, battleShields);
                 this.meteorFx.update(this.sim.renderElapsed, battleShields);
                 this.cloudFx.update(this.sim.renderElapsed);
-                this.dragonFx.update(this.sim.renderElapsed);
                 this.conversionFx.update(this.sim.actors, this.sim.renderElapsed);
                 this.oilDripFx.update(this.sim.renderElapsed);
                 // acid/poison/storm/meteor-shower zones + hammer charge rings

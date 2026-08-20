@@ -4,8 +4,10 @@ import type { HazardField } from './fire';
 import { FIRE_TINT_DRAGON } from './fire';
 import { prefs, type FireVfxQuality } from './prefs';
 import type { Particles } from './effects';
-import { FlameRenderer } from './flameRenderer';
+import { FlameRenderer, type BreathTongueSample } from './flameRenderer';
 import type { Actor, SimEvent } from './sim';
+
+export type { BreathTongueSample };
 
 function usesTongues(q: FireVfxQuality): boolean {
     return q === 'medium' || q === 'high';
@@ -65,6 +67,11 @@ export class FireFx {
         this.emitAcc = 0;
         this.smokeAcc = 0;
         this.fireLight.intensity = 0;
+    }
+
+    /** Dragon breath column samples for this frame (scenery high/ultra). */
+    setBreathTongues(samples: readonly BreathTongueSample[]): void {
+        this.flames.setBreathTongues(samples);
     }
 
     /** Force flame tongues + lit point light into the compile set (boot / match start). */

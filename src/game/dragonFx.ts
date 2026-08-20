@@ -25,6 +25,8 @@ import {
 import {
     attachDragonWingFlap,
 } from './crowWingFlap';
+import { prefs, type SceneryQuality } from './prefs';
+import type { BreathTongueSample } from './flameRenderer';
 import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC, DRAGON_ID, TACTICS } from './tactics';
 
 /** authored empty in dragon.glb — fire tube origin in the mouth */
@@ -66,7 +68,14 @@ const TUBE_RADIUS_SKY = Math.max(0.22, TUBE_RADIUS_GROUND * 0.045);
 /** Push tube origin along mouth→hit so it reads ahead of the mouth empty. */
 const TUBE_MOUTH_BIAS = 5.4;
 /** Stretch past the ground hit so the beam sinks into the terrain. */
-const TUBE_LENGTH_SCALE = 1.2;
+const TUBE_LENGTH_SCALE = 1.35;
+/** Spacing along the beam for flame-tongue anchors (scenery high/ultra). */
+const BREATH_TONGUE_STEP = 0.55;
+const BREATH_TONGUE_MAX = 280;
+
+function breathTonguesEnabled(quality: SceneryQuality = prefs().scenery): boolean {
+    return quality === 'high' || quality === 'ultra';
+}
 
 export type DragonCue = {
     x: number;
@@ -100,6 +109,7 @@ const _hit = new Vector3();
 const _dir = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _fallbackMouth = new Vector3();
+const _side = new Vector3();
 
 /**
  * Constant-speed flight along the capsule axis. Fire tube aims from
@@ -113,10 +123,17 @@ export class DragonFx {
     private readonly tubeMat = makeBreathMaterial(this.flameTex, 0.95);
     private readonly active: Active[] = [];
     private readonly loadPromise: Promise<void>;
+    /** Flame-tongue anchors for FireFx / FlameRenderer this frame. */
+    private readonly breathSamples: BreathTongueSample[] = [];
 
     constructor(scene: Scene) {
         scene.add(this.group);
         this.loadPromise = this.load();
+    }
+
+    /** World samples along active breath tubes (empty when none / not HQ). */
+    getBreathTongueSamples(): readonly BreathTongueSample[] {
+        return this.breathSamples;
     }
 
     schedule(cues: readonly DragonCue[]): void {
@@ -132,11 +149,14 @@ export class DragonFx {
             disposeObject(a.root);
         }
         this.active.length = 0;
+        this.breathSamples.length = 0;
     }
 
     update(simElapsed: number): void {
         const t = performance.now() * 0.001;
         this.flameTex.offset.y = (t * 2.6) % 1;
+        this.breathSamples.length = 0;
+        const tonguesOn = breathTonguesEnabled();
 
         for (let i = this.active.length - 1; i >= 0; i--) {
             const a = this.active[i]!;
@@ -237,10 +257,15 @@ export class DragonFx {
                 fade = 1 - exitU * exitU;
             }
             setSpellOpacity(a.materials, fade);
-            (a.tube.material as MeshBasicMaterial).opacity = 0.95 * fade;
             if (fade <= 0.02) {
                 a.root.visible = false;
                 a.tube.visible = false;
+            } else if (tonguesOn) {
+                // High/ultra: flame tongues only — keep tube geom for sampling, hide the sheet.
+                a.tube.visible = false;
+                if (mode !== 'hidden') appendBreathTongueSamples(this.breathSamples, a.tube);
+            } else {
+                (a.tube.material as MeshBasicMaterial).opacity = 0.95 * fade;
             }
         }
     }
@@ -366,6 +391,51 @@ function placeBreathTube(
     tube.position.copy(hit).addScaledVector(_dir, -len);
     tube.scale.set(width, len, width);
     tube.quaternion.setFromUnitVectors(_up, _dir);
+}
+
+/** Plant flame-tongue anchors along the beam; random left↔right wash near the ground. */
+function appendBreathTongueSamples(out: BreathTongueSample[], tube: Mesh): void {
+    if (out.length >= BREATH_TONGUE_MAX) return;
+    const len = tube.scale.y;
+    if (len < 0.2) return;
+
+    _dir.set(0, 1, 0).applyQuaternion(tube.quaternion).normalize();
+    // Horizontal left/right across the flight path (XZ only).
+    _side.set(-_dir.z, 0, _dir.x);
+    if (_side.lengthSq() < 1e-8) _side.set(1, 0, 0);
+    _side.normalize();
+
+    const steps = Math.max(2, Math.ceil(len / BREATH_TONGUE_STEP));
+    const maxSpread = OUTER_RADIUS_GROUND * 1.75;
+    for (let s = 0; s <= steps && out.length < BREATH_TONGUE_MAX; s++) {
+        const u = s / steps;
+        const along = len * u;
+        const cx = tube.position.x + _dir.x * along;
+        const cy = tube.position.y + _dir.y * along;
+        const cz = tube.position.z + _dir.z * along;
+        const spread = Math.pow(u, 1.55) * maxSpread;
+        // Density grows with width, but never so fast that we run out of slots mid-beam.
+        const remainingSteps = steps - s + 1;
+        const remainingBudget = BREATH_TONGUE_MAX - out.length;
+        const want = spread < 0.4 ? 1 : Math.min(5, 2 + Math.floor(spread * 0.22));
+        const count = Math.min(want, Math.max(1, Math.floor(remainingBudget / remainingSteps)));
+        for (let k = 0; k < count && out.length < BREATH_TONGUE_MAX; k++) {
+            const h1 =
+                Math.abs(Math.sin(cx * 12.9898 + cz * 78.233 + along * 5.1 + k * 19.19) * 43758.5453) %
+                1;
+            const h2 =
+                Math.abs(Math.sin(cx * 39.346 + cz * 11.135 + along * 9.7 + k * 47.3) * 24634.6345) %
+                1;
+            const lateral = spread < 0.4 ? 0 : (h1 * 2 - 1) * spread;
+            // Small along-beam jitter breaks the “ladder rung” banding.
+            const alongJit = (h2 - 0.5) * BREATH_TONGUE_STEP * 0.85;
+            out.push({
+                x: cx + _side.x * lateral + _dir.x * alongJit,
+                y: cy + _dir.y * alongJit,
+                z: cz + _side.z * lateral + _dir.z * alongJit,
+            });
+        }
+    }
 }
 
 function heightForDist(dist: number, pathLen: number, speed: number, tPath0: number): number {
