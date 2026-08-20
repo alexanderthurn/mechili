@@ -1139,11 +1139,24 @@ const _seatInv = new Matrix4();
 const _seatBox = new Box3();
 const _seatBoxHit = new Vector3();
 const _seatRayLocal = new Ray();
+const _seatCenter = new Vector3();
+const _seatPull = new Vector3();
+
+/** Torso-ish radius in world units — ignores wingspan so crow bolts don't sit on wing AABB. */
+function stuckBodyRadius(modelId: string, attach: Object3D): number {
+    const h = getUnitVisualHeight(modelId);
+    const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
+    // Local visual extents × mesh scale (proxy scale is usually uniform meshScale)
+    const sx = Math.abs(attach.scale.x) || 1;
+    const worldH = h * sx;
+    const worldHw = hw * sx;
+    // Prefer height-based torso; cap so wide flyers don't use full wingspan
+    return Math.max(0.45, Math.min(worldH * 0.38, worldHw * 0.38, worldH * 0.55));
+}
 
 /**
- * First visual surface along the shot past an oversized hitbox contact.
- * Prefers real triangles (instance bake or GLB children); falls back to the
- * measured visual AABB so empty proxies still seat into the model volume.
+ * First useful visual surface along the shot. Prefers hits near the torso
+ * center so oversized hitboxes / wing tips don't win over the body.
  */
 function visualSeatDistance(
     attach: Object3D,
@@ -1151,12 +1164,27 @@ function visualSeatDistance(
     origin: Vector3,
     dir: Vector3,
     far: number,
+    bodyR: number,
+    center: Vector3,
 ): number | null {
     _seatRay.ray.origin.copy(origin);
     _seatRay.ray.direction.copy(dir);
     _seatRay.near = 0;
     _seatRay.far = far;
-    let best = Infinity;
+
+    let bestDist = Infinity;
+    let bestScore = Infinity;
+
+    const consider = (distance: number, point: Vector3) => {
+        if (distance <= 1e-4 || distance > far) return;
+        const dCenter = point.distanceTo(center);
+        // In-body hits ranked by ray distance; outside body heavily penalized
+        const score = dCenter <= bodyR * 1.05 ? distance : distance + (dCenter - bodyR) * 8;
+        if (score < bestScore) {
+            bestScore = score;
+            bestDist = distance;
+        }
+    };
 
     const asset = getUnitInstanceAsset(modelId);
     if (asset) {
@@ -1167,21 +1195,24 @@ function visualSeatDistance(
             _seatProbe.matrixWorld.copy(attach.matrixWorld);
             _seatProbe.raycast(_seatRay, _seatHits);
             for (const h of _seatHits) {
-                if (h.distance > 1e-4 && h.distance < best) best = h.distance;
+                if (h.point) consider(h.distance, h.point);
             }
         }
-        if (best < Infinity) return best;
+        if (bestDist < Infinity) return bestDist;
     } else if (attach.children.length > 0) {
         const hits = _seatRay.intersectObject(attach, true);
-        if (hits.length > 0 && hits[0]!.distance > 1e-4) return hits[0]!.distance;
+        for (const h of hits) {
+            if (h.point) consider(h.distance, h.point);
+        }
+        if (bestDist < Infinity) return bestDist;
     }
 
-    // AABB fallback (local visual extents × proxy matrixWorld)
+    // Tight torso AABB (not full wingspan) so the fallback can't plant meters out
     const h = getUnitVisualHeight(modelId);
-    const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
     if (h <= 0.05) return null;
-    _seatBox.min.set(-hw, 0, -hw);
-    _seatBox.max.set(hw, h, hw);
+    const bodyHw = Math.min(h * 0.4, (getUnitVisualHalfWidth(modelId) || h * 0.35) * 0.4);
+    _seatBox.min.set(-bodyHw, h * 0.12, -bodyHw);
+    _seatBox.max.set(bodyHw, h * 0.88, bodyHw);
     _seatInv.copy(attach.matrixWorld).invert();
     _seatLocalO.copy(origin).applyMatrix4(_seatInv);
     _seatLocalD.copy(dir).transformDirection(_seatInv).normalize();
@@ -1195,9 +1226,9 @@ function visualSeatDistance(
 
 /**
  * World point for the bolt *center*: follow the shot from before the hitbox
- * contact until the first visual intersection (then a tiny dig-in).
- * If the shot only clips an oversized hitbox (no mesh/AABB along the ray),
- * plant in the visual middle of the mesh and keep the shot orientation.
+ * contact until a torso-near visual intersection (then a tiny dig-in).
+ * Grazing / wingtip seats are pulled onto the body so crow riders don't
+ * carry shafts floating a meter off the mesh.
  */
 function seatStuckBoltCenter(
     hitX: number,
@@ -1214,16 +1245,28 @@ function seatStuckBoltCenter(
         return;
     }
     attach.updateMatrixWorld(true);
+    const h = getUnitVisualHeight(modelId);
+    _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);
+    const bodyR = stuckBodyRadius(modelId, attach);
+
     _seatDir.copy(dir);
     _seatOrigin.set(hitX, hitY, hitZ).addScaledVector(_seatDir, -STUCK_SEAT_BACK);
-    const t = visualSeatDistance(attach, modelId, _seatOrigin, _seatDir, STUCK_SEAT_FAR);
+    const t = visualSeatDistance(attach, modelId, _seatOrigin, _seatDir, STUCK_SEAT_FAR, bodyR, _seatCenter);
     if (t != null) {
         _seatOrigin.addScaledVector(_seatDir, t + dig);
-        return;
+    } else {
+        // No surface along the shot — plant on the near side of the torso
+        _seatOrigin.copy(_seatCenter).addScaledVector(_seatDir, -(bodyR * 0.72));
     }
-    // Grazing sphere: no surface along the shot — stick in the mesh middle
-    const h = getUnitVisualHeight(modelId);
-    _seatOrigin.set(0, Math.max(0.2, h * 0.5), 0).applyMatrix4(attach.matrixWorld);
+
+    // Pull wingtip / oversized-hitbox seats onto the torso shell
+    _seatPull.copy(_seatOrigin).sub(_seatCenter);
+    const dist = _seatPull.length();
+    if (dist > bodyR * 1.05) {
+        if (dist < 1e-6) _seatPull.copy(_seatDir).multiplyScalar(-1);
+        else _seatPull.multiplyScalar(1 / dist);
+        _seatOrigin.copy(_seatCenter).addScaledVector(_seatPull, bodyR * 0.78);
+    }
 }
 
 /**
