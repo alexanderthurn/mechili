@@ -612,17 +612,24 @@ const APPROACH_OFFSET_MAX = 4.0;
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
 /** expanding-ring cap for closest-enemy search (map diagonal ≪ this × cell) */
 const TARGET_MAX_RING = 48;
+
+/** Fixed battle sim tick rate (StarCraft II uses 16; was 30). */
+export const SIM_HZ = 16;
+
+/** cadences below are counted in STEPS but tuned in SECONDS — derive them
+ *  from {@link SIM_HZ} so the tick rate stays a performance knob instead of
+ *  silently retuning the AI (dropping 30 → 16 Hz with the raw step counts
+ *  stretched retargeting from 1.0s to 1.875s) */
+const perSeconds = (seconds: number) => Math.max(1, Math.round(seconds * SIM_HZ));
+
 /** above this many living mobile mechs, throttle crowd checks to {@link CROWD_OVERLOAD_EVERY_STEPS} */
 export const SOFT_CROWD_LIMIT = 2000;
 /** soft crowd runs every N steps per mech (staggered by index), like retargeting */
 const CROWD_EVERY_STEPS = 1;
-/** throttled cadence once {@link SOFT_CROWD_LIMIT} is exceeded */
-const CROWD_OVERLOAD_EVERY_STEPS = 6;
-/** re-run closestEnemy only every N steps (staggered by actor index) */
-const TARGET_REFRESH_STEPS = 30;
-
-/** Fixed battle sim tick rate (StarCraft II uses 16; was 30). */
-export const SIM_HZ = 16;
+/** throttled cadence once {@link SOFT_CROWD_LIMIT} is exceeded — 0.2s of sim time */
+const CROWD_OVERLOAD_EVERY_STEPS = perSeconds(0.2);
+/** re-run closestEnemy only every 1s of sim time (staggered by actor index) */
+const TARGET_REFRESH_STEPS = perSeconds(1);
 
 /**
  * The real-time battle: every mech acts individually — it walks toward the
@@ -2933,11 +2940,16 @@ export class BattleSim {
                 continue;
             }
 
+            // the lane offset steers, but the stop margin is measured against
+            // the TARGET, not the lane point — feeding the lane distance here
+            // let a mech halt up to APPROACH_OFFSET_MAX short of its own
+            // firing range (2.2× the whole engagement range for a dwarf) and
+            // stand there dealing no damage
             const goal = this.approachGoal(a, target);
             const dx = goal.x - a.x;
             const dz = goal.z - a.z;
             const dist = hypot(dx, dz) || 1e-6;
-            this.steerToward(a, dx / dist, dz / dist, dist, dt, stats, d, target, bigs, reach * 0.95);
+            this.steerToward(a, dx / dist, dz / dist, tDist, dt, stats, d, target, bigs, reach * 0.95);
         }
         add('ai');
 

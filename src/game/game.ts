@@ -157,6 +157,7 @@ import {
 } from './deathFall';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, CROW_RIDER_MODEL_ID } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
+import { modelGeometryFingerprint } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
@@ -5409,6 +5410,11 @@ export class Game {
             h = Math.imul(h ^ buffer.getUint32(4), 0x9e3779b1);
         };
         mix(this.round);
+        // model-derived geometry the sim reads (muzzle / aim heights): a peer
+        // whose GLB failed to load flies projectiles differently from the same
+        // log, so catch it here instead of a round later — see
+        // modelGeometryFingerprint
+        mix(modelGeometryFingerprint());
         // `hp`/`side` are canonical now (0 = 'a'/host, on every client) — no
         // per-client reordering needed (that's what the old hostFirst/
         // teamOrder tricks existed for), and this iterates however many
@@ -5426,6 +5432,10 @@ export class Game {
             mix(counter * 2 + (this.seatRank(a.unit.seat) < 1000 ? 0 : 1));
             mix(a.x);
             mix(a.z);
+            // facing drives movement now (cruise flies along it, pivot gates on
+            // it) and sets the muzzle — freshly seeded at battle start, so a bad
+            // seed shows up here rather than as drifted positions next round
+            mix(a.facing);
             mix(a.hp);
             // catches a peer disagreeing about who owns the Aegis tech / Bulwark rune
             mix(a.shieldHp);
