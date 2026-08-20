@@ -1399,8 +1399,6 @@ export class BattleSim {
         attach?: Actor,
     ): void {
         if (style !== 'arrow' && style !== 'largeArrow') return;
-        // Ballista stakes the earth only — never rides a unit mesh
-        if (style === 'largeArrow') attach = undefined;
         const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
         this.events.push({
             kind: 'stuckBolt',
@@ -1457,7 +1455,11 @@ export class BattleSim {
         return { x: px, y: g + 0.08, z: pz, sx: dx, sy: dy, sz: dz };
     }
 
-    /** Stuck bolt for an impact — ballista always stakes ground along the shot. */
+    /**
+     * Stuck bolt for an impact.
+     * Ballista: stakes masonry (structures, like ground) or the lawn — never rides a mobile unit.
+     * Archer: sticks to whatever was hit.
+     */
     private emitStuckAtImpact(
         style: Projectile['style'],
         x: number,
@@ -1469,6 +1471,10 @@ export class BattleSim {
         hit?: Actor,
     ): void {
         if (style === 'largeArrow') {
+            if (hit?.unit.type.structure) {
+                this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit);
+                return;
+            }
             const plant = this.groundPlantAlongRay(x, y, z, sx, sy, sz);
             this.emitStuckBolt(style, plant.x, plant.y, plant.z, plant.sx, plant.sy, plant.sz);
             return;
