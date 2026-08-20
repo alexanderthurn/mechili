@@ -106,6 +106,8 @@ export const THEME = {
         leaf: 0x4c9a3e,
         leafLight: 0x74bc52,
         rock: 0x8a8d82,
+        /** Tower / masonry dust + ash ground tint (#989f85) */
+        masonry: 0x989f85,
         snow: 0xeef3f0,
         cloudOpacity: 0.85,
     },

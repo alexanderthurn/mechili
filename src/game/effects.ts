@@ -542,7 +542,7 @@ export class Particles {
                     const dir = e.dx !== undefined ? { x: e.dx, y: e.dy ?? 0, z: e.dz ?? 0 } : undefined;
                     if (!e.flesh) {
                         if (e.masonry) {
-                            // dark dust at the contact — outward from facade, then down
+                            // tower-stone dust at the contact — outward from facade, then down
                             let ox = e.cx !== undefined ? e.x - e.cx : -(e.dx ?? 0);
                             let oz = e.cz !== undefined ? e.z - (e.cz ?? 0) : -(e.dz ?? 0);
                             const olen = Math.hypot(ox, oz) || 1;
@@ -551,7 +551,7 @@ export class Particles {
                             const out = { x: ox, y: -0.5, z: oz };
                             this.burst(e.x + ox * 0.2, e.y, e.z + oz * 0.2, {
                                 count: 10,
-                                color: 0x2a2620,
+                                color: THEME.scenery.masonry,
                                 speed: 5,
                                 life: 0.55,
                                 up: 0.8,
@@ -560,7 +560,7 @@ export class Particles {
                             });
                             this.burst(e.x + ox * 0.2, e.y, e.z + oz * 0.2, {
                                 count: 7,
-                                color: 0x141210,
+                                color: 0x6a705c,
                                 speed: 3,
                                 life: 0.7,
                                 up: 0.3,
@@ -709,10 +709,10 @@ export class Particles {
                 case 'death':
                     if (e.wear === 'ash') {
                         if (e.structure) {
-                            // dark dust only — solid masonry rain is StoneChipRenderer
+                            // tower-stone dust — solid masonry rain is StoneChipRenderer
                             this.burst(e.x, e.y, e.z, {
                                 count: 40,
-                                color: 0x1a1814,
+                                color: THEME.scenery.masonry,
                                 speed: 12,
                                 life: 1.1,
                                 up: 6,
@@ -720,7 +720,7 @@ export class Particles {
                             });
                             this.burst(e.x, e.y + 1.0, e.z, {
                                 count: 28,
-                                color: 0x2a2620,
+                                color: 0x6a705c,
                                 speed: 7,
                                 life: 1.3,
                                 up: 8,
@@ -735,7 +735,7 @@ export class Particles {
                             // dark ash / debris — not blood
                             this.burst(e.x, e.y, e.z, {
                                 count: e.big ? 36 : 18,
-                                color: 0x1a1814,
+                                color: THEME.scenery.masonry,
                                 speed: e.big ? 14 : 10,
                                 life: 0.8,
                                 up: 5,
@@ -743,7 +743,7 @@ export class Particles {
                             });
                             this.burst(e.x, e.y + 0.8, e.z, {
                                 count: e.big ? 16 : 8,
-                                color: 0x2e2a24,
+                                color: 0x6a705c,
                                 speed: 7,
                                 life: 0.55,
                                 up: 6,
