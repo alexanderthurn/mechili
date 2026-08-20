@@ -6,6 +6,8 @@
  * it survives across the Game reconstructions a round-jump causes (main.ts's
  * rebuildReplayAt), so it can't be owned by the Game instance itself.
  */
+import { speedKeyFor, speedKeyHint } from './speedKeys';
+
 export interface ReplayControlsCallbacks {
     onJump(round: number): void;
     onSkipToEnd(): void;
@@ -42,13 +44,13 @@ export class ReplayControls {
             `<label>Speed <select class="rc-speed">` +
             speedSteps
                 .map((s, i) => {
-                    const key = i === 9 ? '0' : String(i + 1);
+                    const key = speedKeyFor(i, speedSteps.length);
                     const label = s === 0 ? 'Pause' : `${s}×`;
-                    return `<option value="${i}">${key} · ${label}</option>`;
+                    return `<option value="${i}">${key ? `${key} · ` : ''}${label}</option>`;
                 })
                 .join('') +
             `</select></label>` +
-            `<span class="rc-speed-hint">Keys 1–9, 0 = 32×</span>` +
+            `<span class="rc-speed-hint">${speedKeyHint(speedSteps)}</span>` +
             `</div>`;
 
         this.roundSelect = this.root.querySelector<HTMLSelectElement>('.rc-round')!;

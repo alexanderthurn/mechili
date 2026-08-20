@@ -19,6 +19,7 @@ import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
+import { speedKeyHint } from './speedKeys';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
@@ -1001,8 +1002,8 @@ export class Hud {
         this.speedEl = document.createElement('button');
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
-        this.speedEl.title =
-            'Battle speed — click: faster, right click: slower; keys 1–7 (1 = Pause)';
+        // filled in by setSpeedSteps once Game hands over its step list
+        this.speedEl.title = 'Battle speed — click: faster, right click: slower';
         this.speedEl.addEventListener('click', () => this.onSpeedUp?.());
         this.speedEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -2853,6 +2854,14 @@ export class Hud {
         if ((phase === 'battle' || phase === 'hpDraw') && (this.phoneTab === 'shop' || this.phoneTab === 'chat')) {
             this.setPhoneTab(null);
         }
+    }
+
+    /** Game's live speed steps — drives the button tooltip's key hint. */
+    setSpeedSteps(steps: readonly number[]): void {
+        const pause = steps[0] === 0 ? ' (1 = Pause)' : '';
+        this.speedEl.title =
+            `Battle speed — click: faster, right click: slower; ` +
+            `${speedKeyHint(steps).toLowerCase()}${pause}`;
     }
 
     setSpeed(multiplier: number): void {
