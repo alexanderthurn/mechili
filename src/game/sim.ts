@@ -3500,7 +3500,7 @@ export class BattleSim {
         }
         const blastStrength =
             p.source.type.projectileStyle === 'stone'
-                ? 1.45
+                ? 0.55
                 : p.source.type.projectileStyle === 'largeArrow'
                   ? 1.85
                   : 1.1;
