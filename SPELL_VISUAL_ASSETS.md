@@ -3,7 +3,7 @@
 Source of truth for the tactics visual pass. Mechanics are done in
 `src/game/tactics.ts`; this list is what still needs art (Tripo GLBs vs
 engine/procedural VFX). Style: Melodan fantasy, readable silhouette,
-**smart low-poly** GLB, same family as `*-fantasy.glb` / `crow-rider-fantasy-low.glb`.
+**smart low-poly** GLB, same family as `crow-rider.glb`.
 
 Target dir: `assets/models/spells/`. Thumbs later if we want strip icons
 beyond emoji.

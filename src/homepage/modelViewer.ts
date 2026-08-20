@@ -12,10 +12,22 @@ import {
     WebGLRenderer,
 } from 'three';
 import { cloneUnitModel, getUnitVisualHeight, hasUnitModel } from '../game/unitModels';
+import {
+    attachCrowShowcaseWingFlap,
+    attachDragonWingFlap,
+    CROW_RIDER_MODEL_ID,
+    updateCrowWingFlap,
+} from '../game/crowWingFlap';
+import {
+    ensureSpellTemplate,
+    type SpellAssetId,
+} from '../game/spellAssets';
+import { cloneSpellInstance } from '../game/spellMeshes';
 import { THEME } from '../theme';
 
 export interface ShowcaseViewer {
     show(unitId: string, meshScale?: number): void;
+    showSpell(spellId: SpellAssetId): Promise<void>;
     dispose(): void;
 }
 
@@ -30,6 +42,8 @@ const MIN_ZOOM = 0.55; // closer
 const MAX_ZOOM = 2.5; // further
 const ZOOM_SPEED = 0.0015;
 const FIT_PADDING = 1.2; // headroom so the model doesn't touch the canvas edge
+/** Spell previews sit this much closer than units → read ~2× larger. */
+const SPELL_SHOWCASE_SIZE_MULT = 2;
 /**
  * Shared showcase "stage" — frame as if looking at a mid-army unit (Archer).
  * Smaller meshScales (Black Brood vs Webweaver vs Black Spider) read smaller
@@ -38,8 +52,16 @@ const FIT_PADDING = 1.2; // headroom so the model doesn't touch the canvas edge
 const STAGE_REF_MODEL = 'archer';
 const STAGE_REF_MESH_SCALE = 2.2;
 
+/** Spell GLBs use different rest forwards than army units (−Z). */
+function spellShowcaseYaw(id: SpellAssetId): number {
+    // Dragon / most Tripo spells: +X forward → turn so forward faces the camera (+Z).
+    if (id === 'dragon') return -Math.PI / 2;
+    if (id === 'hammer') return 0;
+    return -Math.PI / 2;
+}
+
 /**
- * One persistent WebGL canvas — swap models with show().
+ * One persistent WebGL canvas — swap models with show() / showSpell().
  * Uses cloneUnitModel + theme lights (same look as in-game).
  * The camera orbits a static model (drag to rotate, wheel to zoom); distance
  * is derived from the model's real bounding sphere so oversized meshes still
@@ -73,6 +95,11 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     let lastX = 0;
     let lastY = 0;
     let resumeTimer = 0;
+    let wingFlapActive = false;
+    let lastTickMs = performance.now();
+    /** Ignores stale spell loads if the user clicked another pick mid-fetch. */
+    let spellLoadGen = 0;
+    let framingIsSpell = false;
 
     /** Frame against a fixed mid-army stage so meshScale differences stay visible. */
     function fitToModel(): void {
@@ -91,7 +118,9 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         const vFov = MathUtils.degToRad(camera.fov * 0.5);
         const hFov = Math.atan(Math.tan(vFov) * Math.max(camera.aspect, 0.0001));
         const limitingHalfFov = Math.min(vFov, hFov);
-        baseDistance = (framingRadius / Math.sin(limitingHalfFov)) * FIT_PADDING;
+        const sizeMult = framingIsSpell ? SPELL_SHOWCASE_SIZE_MULT : 1;
+        baseDistance =
+            ((framingRadius / Math.sin(limitingHalfFov)) * FIT_PADDING) / sizeMult;
         target.y += boxSize.y * 0.08;
     }
 
@@ -113,8 +142,36 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         updateCamera();
     }
 
+    function clearCurrent(): void {
+        if (!current) return;
+        scene.remove(current);
+        current = null;
+    }
+
+    function present(
+        next: Group,
+        opts: { yaw: number; wingFlap: boolean; meshScale?: number; spell?: boolean },
+    ): void {
+        clearCurrent();
+        next.scale.setScalar(opts.meshScale ?? 1);
+        next.rotation.y = opts.yaw;
+        spherical.theta = 0;
+        spherical.phi = DEFAULT_POLAR;
+        zoom = 1;
+        autoRotate = true;
+        wingFlapActive = opts.wingFlap;
+        framingIsSpell = !!opts.spell;
+        current = next;
+        scene.add(current);
+        layout();
+    }
+
     function tick(): void {
         if (disposed) return;
+        const now = performance.now();
+        const dt = Math.min(0.05, Math.max(0, (now - lastTickMs) * 0.001));
+        lastTickMs = now;
+        if (wingFlapActive) updateCrowWingFlap(dt);
         if (current && autoRotate) {
             spherical.theta += AUTO_ROTATE_SPEED;
             updateCamera();
@@ -186,26 +243,28 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     return {
         show(unitId: string, meshScale = 1) {
             if (disposed || !hasUnitModel(unitId)) return;
+            spellLoadGen++;
             const next = cloneUnitModel(unitId, 'player');
             if (!next) return;
-            if (current) {
-                scene.remove(current);
-                current = null;
-            }
-            next.scale.setScalar(meshScale);
             // Game models face −Z; default camera is on +Z — flip so the face shows first.
-            next.rotation.y = Math.PI;
-            spherical.theta = 0;
-            spherical.phi = DEFAULT_POLAR;
-            zoom = 1;
-            autoRotate = true;
-            current = next;
-            scene.add(current);
-            layout();
+            const flap = unitId === CROW_RIDER_MODEL_ID;
+            if (flap) attachCrowShowcaseWingFlap(next);
+            present(next, { yaw: Math.PI, wingFlap: flap, meshScale });
+        },
+        async showSpell(spellId: SpellAssetId) {
+            if (disposed) return;
+            const gen = ++spellLoadGen;
+            const tpl = await ensureSpellTemplate(spellId);
+            if (disposed || gen !== spellLoadGen || !tpl) return;
+            const { root } = cloneSpellInstance(tpl);
+            const flap = spellId === 'dragon';
+            if (flap) attachDragonWingFlap(root);
+            present(root, { yaw: spellShowcaseYaw(spellId), wingFlap: flap, spell: true });
         },
         dispose() {
             if (disposed) return;
             disposed = true;
+            spellLoadGen++;
             cancelAnimationFrame(raf);
             window.clearTimeout(resumeTimer);
             window.removeEventListener('resize', onResize);
@@ -214,8 +273,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
             canvas.removeEventListener('pointerup', endDrag);
             canvas.removeEventListener('pointercancel', endDrag);
             canvas.removeEventListener('wheel', onWheel);
-            if (current) scene.remove(current);
-            current = null;
+            clearCurrent();
             renderer.dispose();
             scene.clear();
         },
