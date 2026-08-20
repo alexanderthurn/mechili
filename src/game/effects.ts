@@ -44,7 +44,7 @@ const GRAVITY = -14;
 const ORB_SCALE = 2.4;
 /** Unit-length bolt.glb → world length for archer / ballista. */
 const ARROW_SCALE = 3.2;
-const LARGE_ARROW_SCALE = 9.5dw; // between prior 8.5 and the too-small 5.95
+const LARGE_ARROW_SCALE = 9.5; // between prior 8.5 and the too-small 5.95
 
 const BOLT_URL = new URL('../../assets/models/bolt.glb', import.meta.url).href;
 
