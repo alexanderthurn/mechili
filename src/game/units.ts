@@ -411,6 +411,17 @@ export interface UnitType {
     attackInterval: number;
     speed: number;
     /**
+     * Procedural walk lean *height* for non-skinned ground units (omit = 1).
+     * Scales bob / roll / forward lean. Speed (stun, oil, debuffs) still
+     * multiplies via displacement. Pair with {@link walkCadence} for step rate.
+     */
+    walkLean?: number;
+    /**
+     * Procedural walk *step rate* for non-skinned ground units (omit = 1).
+     * Scales gait frequency only — not lean amplitude. See {@link walkLean}.
+     */
+    walkCadence?: number;
+    /**
      * Max yaw change while turning (rad/s). Every mobile type sets its own —
      * small infantry high, siege / bosses low. Structures omit (never turn).
      */
@@ -828,6 +839,8 @@ export const HORDE_SPINNE: UnitType = {
     turnRate: 1.0,
     turnMove: 'pivot',
     build: buildDwarf,
+    walkCadence: 1.5,
+    walkLean: 1.5,
 };
 
 /**
@@ -944,7 +957,10 @@ export const UNIT_TYPES: UnitType[] = [
         damage: 8,
         range: 2,
         attackInterval: 0.7,
-        speed: 9,
+        speed: 6,
+        // short legs — taller lean + quicker steps than other walkers
+        walkLean: 1,
+        walkCadence: 1.5,
         turnRate: 12,
         build: buildDwarf,
     },

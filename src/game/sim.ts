@@ -373,6 +373,13 @@ export interface Actor {
     /** render-only: blast shove xz (stones / meteor / hammer), decays each frame */
     impulseX?: number;
     impulseZ?: number;
+    /**
+     * Render-only: accumulated procedural gait phase (rad). Advanced every
+     * render frame from wall time × speed ratio × walkCadence (smooth at display Hz).
+     */
+    gaitPhase?: number;
+    /** render-only: last animateActor timeSeconds used to integrate gaitPhase */
+    gaitTime?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
     prevCooldown?: number;
     /** render-only: sim elapsed when a flying cleave slam started */
@@ -2527,8 +2534,12 @@ export class BattleSim {
         a.prevCooldown = a.cooldown;
         const recoil = a.recoil ?? 0;
 
-        // walk factor from per-step displacement (0 standing, ~1 at full speed)
-        const moving = Math.min(1, Math.hypot(a.x - a.prevX, a.z - a.prevZ) / 0.12);
+        // Fraction of UnitType.speed actually traveled this step (0 idle, ~1
+        // full, ~0.1 when stunned). Same idea as skinned walk timeScale.
+        const stepDist = Math.hypot(a.x - a.prevX, a.z - a.prevZ);
+        const stepDt = this.prevStepDt || BattleSim.STEP;
+        const nominal = a.unit.type.speed * stepDt;
+        const moving = nominal > 1e-6 ? Math.min(1, stepDist / nominal) : 0;
         const yaw = a.mesh.rotation.y;
 
         // ground units stride, roll, and lean forward as they walk; flyers keep
@@ -2546,10 +2557,20 @@ export class BattleSim {
             // plane (see feetY), so this can't affect determinism.
             const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
             if (!a.mesh.userData.animated) {
-                const gait = Math.sin(timeSeconds * 9 + a.index);
-                a.mesh.position.y = groundY + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
-                a.mesh.rotation.z = gait * 0.06 * moving; // side-to-side roll
-                a.mesh.rotation.x = -0.06 * moving; // slight lean — kept small so noses don't dig in
+                const lean = a.unit.type.walkLean ?? 1;
+                const cadence = a.unit.type.walkCadence ?? 1;
+                // Integrate on render frames (not SIM_HZ) — stepping phase only
+                // on sim ticks made lean hold then jump (~4 frames at 60fps).
+                const last = a.gaitTime ?? timeSeconds;
+                const dt = Math.max(0, Math.min(0.1, timeSeconds - last));
+                a.gaitTime = timeSeconds;
+                a.gaitPhase = (a.gaitPhase ?? 0) + dt * 9 * cadence * moving;
+                const gait = Math.sin((a.gaitPhase ?? 0) + a.index);
+                a.mesh.position.y =
+                    groundY + Math.abs(gait) * 0.16 * lean * moving + recoil * 0.06;
+                a.mesh.rotation.z = gait * 0.06 * lean * moving; // side-to-side roll
+                // slight lean — walkLean can push dwarves harder; base stays small
+                a.mesh.rotation.x = -0.06 * lean * moving;
             } else {
                 a.mesh.position.y = groundY;
             }
