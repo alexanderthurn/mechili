@@ -9082,6 +9082,7 @@ export class Game {
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.dragonFx.update(this.sim.renderElapsed);
                 this.fireFx.setBreathTongues(this.dragonFx.getBreathTongueSamples());
+                this.fireFx.syncProjectileTips(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
                 const battleShields = livingShieldDisks(this.placement.allUnits());

@@ -19,13 +19,17 @@ const BREATH_ANCHOR_MAX = 360;
 /** billboards per breath anchor */
 const BREATH_TONGUES_PER = 3;
 const BREATH_POOL = BREATH_ANCHOR_MAX * BREATH_TONGUES_PER;
+/** Fire-arrow / lit-ballista tip flames (one tongue each). */
+const TIP_MAX = 96;
 /** Breath tongue billboard size vs ground tongues */
 const BREATH_SIZE_MUL = 2.1;
+/** Tip flame size vs ground tongues */
+const TIP_SIZE_MUL = 0.55;
 /** Breath flicker / noise clock vs ground (1 = same) */
 const BREATH_ANIM_SPEED = 0.025;
 
-/** World-space flame anchors along the dragon breath tube (scenery high/ultra). */
-export type BreathTongueSample = { x: number; y: number; z: number };
+/** World-space flame anchors (dragon breath / projectile tips). */
+export type BreathTongueSample = { x: number; y: number; z: number; /** tip size vs base (ballista = 5) */ scale?: number };
 
 type FlameTier = {
     /** hard cap on active tongue instances this frame */
@@ -141,6 +145,11 @@ export class FlameRenderer {
     private readonly breathX = new Float32Array(BREATH_ANCHOR_MAX);
     private readonly breathY = new Float32Array(BREATH_ANCHOR_MAX);
     private readonly breathZ = new Float32Array(BREATH_ANCHOR_MAX);
+    private tipCount = 0;
+    private readonly tipX = new Float32Array(TIP_MAX);
+    private readonly tipY = new Float32Array(TIP_MAX);
+    private readonly tipZ = new Float32Array(TIP_MAX);
+    private readonly tipScale = new Float32Array(TIP_MAX);
 
     constructor(scene: Scene) {
         // slightly larger base quad → softer silhouette when scaled up
@@ -222,6 +231,23 @@ export class FlameRenderer {
         this.breathCount = 0;
     }
 
+    /** One flame tip per lit arrow / ballista bolt this frame. */
+    setProjectileTips(samples: readonly BreathTongueSample[]): void {
+        const n = Math.min(samples.length, TIP_MAX);
+        this.tipCount = n;
+        for (let i = 0; i < n; i++) {
+            const s = samples[i]!;
+            this.tipX[i] = s.x;
+            this.tipY[i] = s.y;
+            this.tipZ[i] = s.z;
+            this.tipScale[i] = s.scale ?? 1;
+        }
+    }
+
+    clearProjectileTips(): void {
+        this.tipCount = 0;
+    }
+
     update(dt: number, field: HazardField | null, now: number): void {
         this.time += dt;
         this.material.uniforms.uTime!.value = this.time;
@@ -233,28 +259,30 @@ export class FlameRenderer {
         }
 
         const { maxTongues, lushCellCap, lushTongues, denseTongues, sizeScale } = this.tier;
+        const tipSlots = Math.min(this.tipCount, TIP_MAX);
+        const groundCap = Math.max(0, maxTongues - tipSlots);
         let n = 0;
 
-        if (field) {
+        if (field && groundCap > 0) {
             let total = 0;
             field.forEachFireCell(now, () => total++);
             if (total > 0) {
                 const wantPerCell = total <= lushCellCap ? lushTongues : denseTongues;
                 let tonguesPerCell = 1;
                 let stride = 1;
-                if (total <= maxTongues) {
-                    tonguesPerCell = Math.min(wantPerCell, Math.max(1, Math.floor(maxTongues / total)));
+                if (total <= groundCap) {
+                    tonguesPerCell = Math.min(wantPerCell, Math.max(1, Math.floor(groundCap / total)));
                 } else {
-                    stride = Math.ceil(total / maxTongues);
+                    stride = Math.ceil(total / groundCap);
                 }
                 const fillBoost = stride > 1 ? stride * 1.15 : 1;
                 let i = 0;
                 field.forEachFireCell(now, (x, z, dps, until, tint) => {
-                    if (n >= maxTongues) return;
+                    if (n >= groundCap) return;
                     if (i++ % stride !== 0) return;
                     const dying = Math.min(1, (until - now) / 1.2);
                     const tintF = tint === FIRE_TINT_DRAGON ? 1 : 0;
-                    for (let t = 0; t < tonguesPerCell && n < maxTongues; t++) {
+                    for (let t = 0; t < tonguesPerCell && n < groundCap; t++) {
                         const h =
                             Math.abs(Math.sin(x * 12.9898 + z * 78.233 + t * 19.19) * 43758.5453) %
                             1;
@@ -282,6 +310,7 @@ export class FlameRenderer {
             }
         }
 
+        n = this.appendProjectileTips(n, maxTongues, sizeScale);
         this.mesh.count = n;
         this.mesh.instanceMatrix.needsUpdate = true;
         this.phases.needsUpdate = true;
@@ -289,6 +318,28 @@ export class FlameRenderer {
         this.speeds.needsUpdate = true;
 
         this.updateBreathTongues(sizeScale);
+    }
+
+    private appendProjectileTips(start: number, maxTongues: number, sizeScale: number): number {
+        let n = start;
+        for (let i = 0; i < this.tipCount && n < maxTongues; i++) {
+            const x = this.tipX[i]!;
+            const y = this.tipY[i]!;
+            const z = this.tipZ[i]!;
+            const tipMul = this.tipScale[i] ?? 1;
+            const h =
+                Math.abs(Math.sin(x * 12.9898 + z * 78.233 + y * 3.1) * 43758.5453) % 1;
+            const size = (1.15 + h * 0.55) * sizeScale * TIP_SIZE_MUL * tipMul;
+            this.dummy.position.set(x, y, z);
+            this.dummy.scale.set(size * 0.7, size * 0.42, 1);
+            this.dummy.updateMatrix();
+            this.mesh.setMatrixAt(n, this.dummy.matrix);
+            this.phases.setX(n, h * 10 + 2);
+            this.tints.setX(n, 0);
+            this.speeds.setX(n, 1.15);
+            n++;
+        }
+        return n;
     }
 
     private updateBreathTongues(sizeScale: number): void {
@@ -330,6 +381,7 @@ export class FlameRenderer {
         this.mesh.count = 0;
         this.breathMesh.count = 0;
         this.breathCount = 0;
+        this.tipCount = 0;
     }
 
     /**

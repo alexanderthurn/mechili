@@ -1,11 +1,12 @@
 import { Color, PointLight, type Scene } from 'three';
 import { groundSupportAt } from './map';
-import type { HazardField } from './fire';
 import { FIRE_TINT_DRAGON } from './fire';
+import type { HazardField } from './fire';
 import { prefs, type FireVfxQuality } from './prefs';
 import type { Particles } from './effects';
+import { boltTipWorldOffset } from './effects';
 import { FlameRenderer, type BreathTongueSample } from './flameRenderer';
-import type { Actor, SimEvent } from './sim';
+import type { Actor, Projectile, SimEvent } from './sim';
 
 export type { BreathTongueSample };
 
@@ -38,6 +39,7 @@ export class FireFx {
     /** ONE shared flickering light on the biggest blaze (medium/high tiers) */
     private readonly fireLight: PointLight;
     private lightTime = 0;
+    private readonly tipScratch: BreathTongueSample[] = [];
 
     constructor(
         private readonly particles: Particles,
@@ -72,6 +74,46 @@ export class FireFx {
     /** Dragon breath column samples for this frame (scenery high/ultra). */
     setBreathTongues(samples: readonly BreathTongueSample[]): void {
         this.flames.setBreathTongues(samples);
+    }
+
+    /** Tip flames on lit arrows / ballista bolts this frame. */
+    setProjectileTips(samples: readonly BreathTongueSample[]): void {
+        this.flames.setProjectileTips(samples);
+    }
+
+    /**
+     * One tip flame per fire arrow / lit ballista bolt. Cleared when the
+     * projectile hits or expires (TTL ≈ 3s).
+     */
+    syncProjectileTips(projectiles: readonly Projectile[], alpha: number): void {
+        this.tipScratch.length = 0;
+        if (!usesTongues(this.quality)) {
+            this.flames.setProjectileTips(this.tipScratch);
+            return;
+        }
+        for (const p of projectiles) {
+            if (!p.lit) continue;
+            if (p.style !== 'arrow' && p.style !== 'largeArrow') continue;
+            const x = p.px + (p.x - p.px) * alpha;
+            const y = p.py + (p.y - p.py) * alpha;
+            const z = p.pz + (p.z - p.pz) * alpha;
+            let vx = p.vx;
+            let vy = p.vy;
+            let vz = p.vz;
+            const speed = Math.hypot(vx, vy, vz) || 1;
+            vx /= speed;
+            vy /= speed;
+            vz /= speed;
+            // Exact tip of the scaled bolt.glb (+Z local × instance scale).
+            const tip = boltTipWorldOffset(p.style);
+            this.tipScratch.push({
+                x: x + vx * tip,
+                y: y + vy * tip,
+                z: z + vz * tip,
+                scale: p.style === 'largeArrow' ? 2 : 1,
+            });
+        }
+        this.flames.setProjectileTips(this.tipScratch);
     }
 
     /** Force flame tongues + lit point light into the compile set (boot / match start). */

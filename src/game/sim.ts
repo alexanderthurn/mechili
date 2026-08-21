@@ -441,6 +441,8 @@ export interface Projectile {
     source: Unit;
     /** render style copied from the shooter — visual only */
     style: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
+    /** tip flame while flying (fire arrows / lit ballista); clears on hit or TTL */
+    lit?: boolean;
     /** gravity (world units/s²) for lobbed shots — absent = straight flight */
     gravity?: number;
     /** homing shots chase this actor and hit nothing else */
@@ -3424,6 +3426,12 @@ export class BattleSim {
             team: actorTeam(a),
             source: a.unit,
             style: at.projectileStyle ?? 'bolt',
+            lit: (() => {
+                const style = at.projectileStyle ?? 'bolt';
+                if (style !== 'arrow' && style !== 'largeArrow') return false;
+                const fire = this.fireProfileOf(a.unit);
+                return !!(fire?.burn || fire?.ground);
+            })(),
             gravity,
             target: at.homing ? target : undefined,
             ttl: PROJECTILE_TTL,

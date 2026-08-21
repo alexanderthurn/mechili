@@ -71,6 +71,8 @@ const BOLT_URL = new URL('../../assets/models/bolt.glb', import.meta.url).href;
 interface BoltAsset {
     geometry: BufferGeometry;
     material: MeshStandardMaterial;
+    /** Local +Z of the tip after unit-length bake (center at 0). */
+    tipZ: number;
 }
 
 let boltAsset: BoltAsset | null = null;
@@ -275,6 +277,7 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
     );
     merged.computeBoundingBox();
     merged.computeVertexNormals();
+    const tipZ = Math.max(merged.boundingBox!.max.z, 0.35);
 
     if (!material) {
         material = new MeshStandardMaterial({
@@ -284,7 +287,7 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
         });
     }
 
-    return { geometry: merged, material };
+    return { geometry: merged, material, tipZ };
 }
 
 /** Load shared bolt mesh for archer / ballista InstancedMesh pools. Safe to call repeatedly. */
@@ -312,6 +315,13 @@ export async function preloadProjectileBolt(): Promise<void> {
 
 export function getProjectileBoltAsset(): BoltAsset | null {
     return boltAsset;
+}
+
+/** World-space tip offset along flight dir for a bolt instance (matches 3D mesh tip). */
+export function boltTipWorldOffset(style: 'arrow' | 'largeArrow'): number {
+    const tipZ = boltAsset?.tipZ ?? 0.5;
+    const scale = style === 'largeArrow' ? LARGE_ARROW_SCALE : ARROW_SCALE;
+    return tipZ * scale;
 }
 
 const BRICK_URL = new URL('../../assets/models/brick.glb', import.meta.url).href;
