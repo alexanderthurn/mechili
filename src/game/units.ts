@@ -1238,7 +1238,9 @@ export class Unit {
                 // possible), else procedural primitives. Models are
                 // pre-normalized to the procedural LOCAL size, so meshScale
                 // below (and wreck/reset scaling) is uniform.
-                const animated = hasAnimatedModel(modelKey) ? cloneAnimatedModel(modelKey, team) : null;
+                const animated = hasAnimatedModel(modelKey)
+                    ? cloneAnimatedModel(modelKey, team, type.speed)
+                    : null;
                 if (animated) {
                     mesh.userData.animated = true;
                     mesh.add(animated);

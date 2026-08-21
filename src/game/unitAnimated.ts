@@ -79,6 +79,14 @@ interface Instance {
     fire: AnimationAction | null;
     /** Animated root (child of the unit proxy Group). */
     root: Object3D;
+    /** Authored walk clip rate at full unit speed. */
+    baseWalkSpeed: number;
+    /** UnitType.speed — walk timeScale scales with groundSpeed / this. */
+    nominalSpeed: number;
+    /** Smoothed groundSpeed / nominalSpeed. */
+    speedRatio: number;
+    /** False until we have a valid last xz (avoids a spawn-frame speed spike). */
+    hasLastPos: boolean;
     lastX: number;
     lastZ: number;
     firing: boolean;
@@ -231,8 +239,13 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
 /**
  * Fresh skinned clone with its own mixer. Walk loops; fire is one-shot on demand.
  * Returns null if no template loaded.
+ * @param nominalSpeed UnitType.speed — walk playback scales with ground speed / this.
  */
-export function cloneAnimatedModel(id: string, _team?: BattleTeam): Group | null {
+export function cloneAnimatedModel(
+    id: string,
+    _team?: BattleTeam,
+    nominalSpeed = 0,
+): Group | null {
     const t = templates.get(id);
     if (!t) return null;
     const root = skeletonClone(t.root) as Group;
@@ -265,6 +278,10 @@ export function cloneAnimatedModel(id: string, _team?: BattleTeam): Group | null
         walk,
         fire,
         root,
+        baseWalkSpeed: t.walkSpeed,
+        nominalSpeed: Math.max(0, nominalSpeed),
+        speedRatio: 1,
+        hasLastPos: false,
         lastX: 0,
         lastZ: 0,
         firing: false,
@@ -323,10 +340,18 @@ export function updateAnimatedUnits(dt: number): void {
 
         if (!inst.firing) {
             if (inst.walkLock != null) {
+                inst.walk.timeScale = inst.baseWalkSpeed;
                 inst.walk.setEffectiveWeight(inst.walkLock);
             } else {
                 // Pack view + formation offset — world xz so swagger tracks real motion.
                 inst.root.parent!.getWorldPosition(_worldPos);
+                if (!inst.hasLastPos) {
+                    inst.lastX = _worldPos.x;
+                    inst.lastZ = _worldPos.z;
+                    inst.hasLastPos = true;
+                    inst.mixer.update(dt);
+                    continue;
+                }
                 const moved = Math.hypot(_worldPos.x - inst.lastX, _worldPos.z - inst.lastZ);
                 inst.lastX = _worldPos.x;
                 inst.lastZ = _worldPos.z;
@@ -335,6 +360,15 @@ export function updateAnimatedUnits(dt: number): void {
                 const w = inst.walk.getEffectiveWeight();
                 const next = w + (target - w) * Math.min(1, 8 * dt);
                 inst.walk.setEffectiveWeight(next);
+
+                // Match foot cadence to actual ground speed (debuff / oil / etc.).
+                if (inst.nominalSpeed > 1e-6 && dt > 1e-8) {
+                    const groundSpeed = moved / dt;
+                    const ratio = MathUtils.clamp(groundSpeed / inst.nominalSpeed, 0, 2);
+                    inst.speedRatio += (ratio - inst.speedRatio) * Math.min(1, 12 * dt);
+                    inst.walk.timeScale =
+                        inst.baseWalkSpeed * (wantWalk ? Math.max(inst.speedRatio, 0.04) : 0);
+                }
             }
         }
 
