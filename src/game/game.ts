@@ -420,11 +420,11 @@ export class Game {
     private hoveredTech: string | null = null;
 
     /** ascending — click: faster, right click: slower; clamps at each end */
-    private static readonly SPEED_STEPS = [0, 0.25, 0.5, 1, 2, 8];
+    private static readonly SPEED_STEPS = [0, 0.25, 1, 2, 8];
     /** replay-only — much wider range since nothing live needs to stay near
      *  real-time; a separate array so the live-match button/range is
      *  untouched */
-    static readonly REPLAY_SPEED_STEPS = [0, 0.125, 0.25, 0.5, 1, 2, 8, 16, 32];
+    static readonly REPLAY_SPEED_STEPS = [0, 0.125, 0.25, 1, 2, 8, 32];
 
     private phase: Phase = 'build';
     private round = 0;
