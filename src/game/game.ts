@@ -9020,6 +9020,7 @@ export class Game {
                     return {
                         mesh: a.mesh,
                         modelId: a.unit.type.modelId ?? a.unit.type.id,
+                        structure: !!a.unit.type.structure,
                     };
                 });
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));

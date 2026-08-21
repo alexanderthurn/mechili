@@ -1123,6 +1123,8 @@ export type StuckAttachRef = {
     mesh: Object3D;
     /** model id for shared instance geo / visual bbox */
     modelId: string;
+    /** Buildings: seat on facade (no torso pull). Units: prefer body over wings. */
+    structure?: boolean;
 };
 
 const _seatRay = new Raycaster();
@@ -1155,8 +1157,9 @@ function stuckBodyRadius(modelId: string, attach: Object3D): number {
 }
 
 /**
- * First useful visual surface along the shot. Prefers hits near the torso
- * center so oversized hitboxes / wing tips don't win over the body.
+ * First useful visual surface along the shot.
+ * - Units (`torso`): prefer hits near body center so wing tips lose.
+ * - Structures (`facade`): first surface wins — walls/towers need full footprint.
  */
 function visualSeatDistance(
     attach: Object3D,
@@ -1166,6 +1169,7 @@ function visualSeatDistance(
     far: number,
     bodyR: number,
     center: Vector3,
+    mode: 'torso' | 'facade',
 ): number | null {
     _seatRay.ray.origin.copy(origin);
     _seatRay.ray.direction.copy(dir);
@@ -1177,6 +1181,10 @@ function visualSeatDistance(
 
     const consider = (distance: number, point: Vector3) => {
         if (distance <= 1e-4 || distance > far) return;
+        if (mode === 'facade') {
+            if (distance < bestDist) bestDist = distance;
+            return;
+        }
         const dCenter = point.distanceTo(center);
         // In-body hits ranked by ray distance; outside body heavily penalized
         const score = dCenter <= bodyR * 1.05 ? distance : distance + (dCenter - bodyR) * 8;
@@ -1207,12 +1215,18 @@ function visualSeatDistance(
         if (bestDist < Infinity) return bestDist;
     }
 
-    // Tight torso AABB (not full wingspan) so the fallback can't plant meters out
+    // AABB fallback — full visual box for buildings; tight torso for units
     const h = getUnitVisualHeight(modelId);
     if (h <= 0.05) return null;
-    const bodyHw = Math.min(h * 0.4, (getUnitVisualHalfWidth(modelId) || h * 0.35) * 0.4);
-    _seatBox.min.set(-bodyHw, h * 0.12, -bodyHw);
-    _seatBox.max.set(bodyHw, h * 0.88, bodyHw);
+    const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
+    if (mode === 'facade') {
+        _seatBox.min.set(-hw, 0, -hw);
+        _seatBox.max.set(hw, h, hw);
+    } else {
+        const bodyHw = Math.min(h * 0.4, hw * 0.4);
+        _seatBox.min.set(-bodyHw, h * 0.12, -bodyHw);
+        _seatBox.max.set(bodyHw, h * 0.88, bodyHw);
+    }
     _seatInv.copy(attach.matrixWorld).invert();
     _seatLocalO.copy(origin).applyMatrix4(_seatInv);
     _seatLocalD.copy(dir).transformDirection(_seatInv).normalize();
@@ -1226,9 +1240,8 @@ function visualSeatDistance(
 
 /**
  * World point for the bolt *center*: follow the shot from before the hitbox
- * contact until a torso-near visual intersection (then a tiny dig-in).
- * Grazing / wingtip seats are pulled onto the body so crow riders don't
- * carry shafts floating a meter off the mesh.
+ * contact until a visual intersection (then a tiny dig-in).
+ * Units pull wingtip seats onto the torso; structures keep facade hits as-is.
  */
 function seatStuckBoltCenter(
     hitX: number,
@@ -1238,6 +1251,7 @@ function seatStuckBoltCenter(
     attach: Object3D | null,
     modelId: string | undefined,
     dig: number,
+    structure = false,
 ): void {
     // Result written to `_seatOrigin` for the caller to copy.
     if (!attach || !modelId) {
@@ -1246,12 +1260,41 @@ function seatStuckBoltCenter(
     }
     attach.updateMatrixWorld(true);
     const h = getUnitVisualHeight(modelId);
-    _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);
-    const bodyR = stuckBodyRadius(modelId, attach);
-
     _seatDir.copy(dir);
     _seatOrigin.set(hitX, hitY, hitZ).addScaledVector(_seatDir, -STUCK_SEAT_BACK);
-    const t = visualSeatDistance(attach, modelId, _seatOrigin, _seatDir, STUCK_SEAT_FAR, bodyR, _seatCenter);
+
+    if (structure) {
+        // Buildings: first facade / full AABB along the shot (pre-crow torso logic).
+        const t = visualSeatDistance(
+            attach,
+            modelId,
+            _seatOrigin,
+            _seatDir,
+            STUCK_SEAT_FAR,
+            0,
+            _seatCenter,
+            'facade',
+        );
+        if (t != null) {
+            _seatOrigin.addScaledVector(_seatDir, t + dig);
+        } else {
+            _seatOrigin.set(0, Math.max(0.2, h * 0.5), 0).applyMatrix4(attach.matrixWorld);
+        }
+        return;
+    }
+
+    _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);
+    const bodyR = stuckBodyRadius(modelId, attach);
+    const t = visualSeatDistance(
+        attach,
+        modelId,
+        _seatOrigin,
+        _seatDir,
+        STUCK_SEAT_FAR,
+        bodyR,
+        _seatCenter,
+        'torso',
+    );
     if (t != null) {
         _seatOrigin.addScaledVector(_seatDir, t + dig);
     } else {
@@ -1744,7 +1787,16 @@ export class StuckBoltRenderer {
             const ref =
                 e.attachIndex !== undefined ? (resolveAttach?.(e.attachIndex) ?? null) : null;
             const dig = e.style === 'largeArrow' ? 0.22 : 0.1;
-            seatStuckBoltCenter(e.x, e.y, e.z, this.dir, ref?.mesh ?? null, ref?.modelId, dig);
+            seatStuckBoltCenter(
+                e.x,
+                e.y,
+                e.z,
+                this.dir,
+                ref?.mesh ?? null,
+                ref?.modelId,
+                dig,
+                !!ref?.structure,
+            );
             this.pos.copy(_seatOrigin);
 
             this.quat.setFromUnitVectors(this.fwd, this.dir);
