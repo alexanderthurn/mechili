@@ -72,10 +72,11 @@ import {
 } from './sceneryVegetation';
 import {
     buildFloorPieceMeshes,
+    floorPieceGroundSink,
     floorPieceScale,
     floorPiecesEnabled,
+    listFloorPieces,
     loadFloorPieces,
-    pickFloorPiece,
     type FloorPiecePlacement,
 } from './sceneryFloorPieces';
 import { updateBuildingSnowCover, snapBuildingSnowCover } from './buildingSnow';
@@ -1584,10 +1585,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const billboardMix = this.quality === 'high' || this.quality === 'medium';
         const PINES = hq ? 0 : scaleCount(200, dens.outer);
         const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
-        const FIELD_PINES = hq ? 0 : scaleCount(5, dens.field);
-        const FIELD_LEAFY = hq ? 0 : scaleCount(6, dens.field);
+        const FIELD_PINES = hq ? 0 : scaleCount(3, dens.field);
+        const FIELD_LEAFY = hq ? 0 : scaleCount(3, dens.field);
         const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
-        const FIELD_BUSHES = hq ? 0 : scaleCount(45, dens.field);
+        const FIELD_BUSHES = hq ? 0 : scaleCount(22, dens.field);
         // horde mode widens the neutral strip into a real belt — grow a
         // forest in it so the horde has somewhere to live (pure scenery, no
         // collision; packs standing between trunks is the point). Treated
@@ -1772,7 +1773,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         }
 
         // wildflowers: 3/4 outer meadow, 1/4 playable board
-        const FLOWERS_TOTAL = scaleCount(560, dens.outer); // was 2×280 when even-split
+        const FLOWERS_TOTAL = scaleCount(280, dens.outer); // half of former 560
         const MEADOW_FLOWERS = Math.round(FLOWERS_TOTAL * 0.75);
         const FIELD_FLOWERS = FLOWERS_TOTAL - MEADOW_FLOWERS;
         const FLOWERS = MEADOW_FLOWERS + FIELD_FLOWERS;
@@ -1899,42 +1900,111 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         }
 
         if (floorPiecesEnabled(this.quality)) {
-            void this.placeFloorPieces(rng, { fieldSpot, groundY });
+            void this.placeFloorPieces(map, rng, { fieldSpot, forestSpot, groundY });
         }
     }
 
-    /** Ground clutter from floorpieces.glb — playable board only. */
+    /** Ground clutter from floorpieces.glb — board props + a few special placements. */
     private async placeFloorPieces(
+        map: BattleMap,
         rng: () => number,
         helpers: {
             fieldSpot: (clearance: number) => { x: number; z: number };
+            forestSpot: (maxHeight: number) => { x: number; z: number };
             groundY: (x: number, z: number) => number;
         },
     ): Promise<void> {
         await loadFloorPieces();
-        const { fieldSpot, groundY } = helpers;
-        const FIELD = scaleCount(this.quality === 'ultra' ? 300 : 95, this.density.field);
+        const { fieldSpot, forestSpot, groundY } = helpers;
+
+        // One of each authored piece — shuffle so positions aren't fixed by load order.
+        const ids = listFloorPieces();
+        for (let i = ids.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            const tmp = ids[i]!;
+            ids[i] = ids[j]!;
+            ids[j] = tmp;
+        }
 
         const placements: FloorPiecePlacement[] = [];
-        for (let i = 0; i < FIELD; i++) {
-            const id = pickFloorPiece(rng);
-            if (!id) continue;
+        for (const id of ids) {
             const { x, z } = fieldSpot(3);
+            const scale = floorPieceScale(id, rng);
             placements.push({
                 id,
                 x,
-                y: groundY(x, z),
+                y: groundY(x, z) - floorPieceGroundSink(scale),
                 z,
-                scale: floorPieceScale(id, rng),
+                scale,
                 yaw: rng() * Math.PI * 2,
                 tiltX: (rng() - 0.5) * 0.22,
                 tiltZ: (rng() - 0.5) * 0.22,
             });
         }
 
+        // `stone` ×4, evenly along the mid line between the two sides (z ≈ 0).
+        const STONE_COUNT = 4;
+        const margin = 10;
+        const span = map.halfW * 2 - margin * 2;
+        for (let i = 0; i < STONE_COUNT; i++) {
+            const x = -map.halfW + margin + ((i + 0.5) / STONE_COUNT) * span;
+            const z = 0;
+            const scale = floorPieceScale('stone', rng);
+            placements.push({
+                id: 'stone',
+                x,
+                y: groundY(x, z) - floorPieceGroundSink(scale),
+                z,
+                scale,
+                yaw: rng() * Math.PI * 2,
+                tiltX: (rng() - 0.5) * 0.12,
+                tiltZ: (rng() - 0.5) * 0.12,
+            });
+        }
+
+        // Easter-egg coin — once, in the outer woods, well clear of the board.
+        {
+            const rimW = map.size.rimCells * CELL;
+            const forestHalfW = map.halfW - rimW;
+            const forestHalfH = map.halfH - rimW;
+            const distOut = (x: number, z: number) =>
+                Math.max(Math.abs(x) - forestHalfW, Math.abs(z) - forestHalfH, 0);
+            const COIN_MIN_DIST = 120;
+            let x = 0;
+            let z = 0;
+            let found = false;
+            for (let attempt = 0; attempt < 80; attempt++) {
+                const spot = forestSpot(56);
+                if (distOut(spot.x, spot.z) < COIN_MIN_DIST) continue;
+                x = spot.x;
+                z = spot.z;
+                found = true;
+                break;
+            }
+            if (!found) {
+                // Fallback: push a forest sample outward along its ray from the board.
+                const spot = forestSpot(56);
+                const d = Math.max(distOut(spot.x, spot.z), 1);
+                const scaleOut = COIN_MIN_DIST / d;
+                x = spot.x * scaleOut;
+                z = spot.z * scaleOut;
+            }
+            const scale = floorPieceScale('coin', rng);
+            placements.push({
+                id: 'coin',
+                x,
+                y: groundY(x, z) - floorPieceGroundSink(scale),
+                z,
+                scale,
+                yaw: rng() * Math.PI * 2,
+                tiltX: (rng() - 0.5) * 0.18,
+                tiltZ: (rng() - 0.5) * 0.18,
+            });
+        }
+
         const meshes = buildFloorPieceMeshes(placements);
         for (const mesh of meshes) this.group.add(mesh);
-        console.info(`[scenery] floor pieces: ${placements.length} (board)`);
+        console.info(`[scenery] floor pieces: ${placements.length} (board + woods)`);
     }
 
     /** Far belt as crossed billboard cards; optional sun-aligned blob shadows. */
@@ -2040,9 +2110,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const PINE = scaleCount(200, dens.outer);
         const BUSH_R = scaleCount(50, dens.outer);
         const BUSH_T = scaleCount(40, dens.outer);
-        const FIELD_OAK = scaleCount(6, dens.field);
-        const FIELD_PINE = scaleCount(5, dens.field);
-        const FIELD_BUSH = scaleCount(45, dens.field);
+        const FIELD_OAK = scaleCount(3, dens.field);
+        const FIELD_PINE = scaleCount(3, dens.field);
+        const FIELD_BUSH = scaleCount(22, dens.field);
 
         type Plant = { kind: VegetationKind; x: number; z: number; sc: number; near: boolean };
         const plants: Plant[] = [];

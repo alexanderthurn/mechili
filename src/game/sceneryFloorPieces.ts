@@ -22,8 +22,19 @@ import { prefs } from './prefs';
 
 const FLOOR_PIECES_URL = new URL('../../assets/models/floorpieces.glb', import.meta.url).href;
 
-/** Authored palette pieces that read as props, not Easter eggs. */
-const EXCLUDED = new Set(['coin', 'nail', 'rank1']);
+/** Exact names always skipped. */
+const EXCLUDED = new Set(['nail', 'rank1', 'mushroom3', 'mushroom6', 'wood3']);
+
+/** How many times each allowed mushroom is placed (others appear once). */
+const MUSHROOM_COPIES = 4;
+
+function isExcluded(id: FloorPieceId): boolean {
+    if (EXCLUDED.has(id)) return true;
+    if (id.startsWith('leaf')) return true;
+    if (id.startsWith('beetle')) return true;
+    if (id.startsWith('nut')) return true;
+    return false;
+}
 
 export type FloorPieceId = string;
 
@@ -83,25 +94,33 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
 }
 
 function pieceWeight(id: FloorPieceId): number {
-    if (EXCLUDED.has(id)) return 0;
-    if (id.startsWith('leaf')) return 4;
+    if (isExcluded(id)) return 0;
+    if (id === 'stone') return 0; // placed on the mid line only (see placeFloorPieces)
+    if (id === 'coin') return 0; // placed in the woods only (see placeFloorPieces)
+    if (id.startsWith('mushroom')) return 5;
     if (id.startsWith('stone')) return 2.6;
-    if (id.startsWith('mushroom')) return 2.2;
     if (id.startsWith('stick') || id.startsWith('wood')) return 1.6;
-    if (id.startsWith('nut') || id.startsWith('berry')) return 2;
-    if (id.startsWith('beetle')) return 0.35;
+    if (id.startsWith('berry')) return 2;
     return 1;
 }
 
 /** Target max dimension in world units before per-instance scale jitter. */
+const SCALE_MULT = 5;
+
 function pieceBaseScale(id: FloorPieceId): number {
-    if (id.startsWith('leaf')) return 0.38;
-    if (id.startsWith('stone')) return 0.52;
-    if (id.startsWith('mushroom')) return 0.48;
-    if (id.startsWith('stick') || id.startsWith('wood')) return 0.58;
-    if (id.startsWith('nut') || id.startsWith('berry')) return 0.3;
-    if (id.startsWith('beetle')) return 0.26;
-    return 0.42;
+    let base = 0.42;
+    if (id.startsWith('stone')) base = 0.52;
+    else if (id.startsWith('mushroom')) base = 0.48;
+    else if (id.startsWith('stick')) base = 0.58;
+    else if (id.startsWith('wood')) base = 0.58;
+    else if (id.startsWith('berry')) base = 0.3;
+    else if (id === 'coin') base = 0.42;
+
+    let mult = SCALE_MULT;
+    // wood stays at default (was 2×; halved)
+    if (id.startsWith('mushroom')) mult *= 0.5;
+    else if (id.startsWith('stone')) mult *= 0.25; // quarter of default (half of previous)
+    return base * mult;
 }
 
 function rebuildPickTable(): void {
@@ -176,7 +195,7 @@ export async function loadFloorPieces(): Promise<void> {
             gltf.scene.traverse((o) => {
                 const mesh = o as Mesh;
                 if (!mesh.isMesh || !mesh.geometry || !o.name || o.name === 'ParentNode') return;
-                if (EXCLUDED.has(o.name) || assets.has(o.name)) return;
+                if (isExcluded(o.name) || assets.has(o.name)) return;
                 const asset = bakePiece(mesh, paletteInv);
                 if (!asset) return;
                 assets.set(o.name, asset);
@@ -201,6 +220,16 @@ export async function loadFloorPieces(): Promise<void> {
     return loadPromise;
 }
 
+export function listFloorPieces(): FloorPieceId[] {
+    const out: FloorPieceId[] = [];
+    for (const id of pickIds) {
+        if (isExcluded(id) || id === 'stone') continue;
+        const copies = id.startsWith('mushroom') ? MUSHROOM_COPIES : 1;
+        for (let i = 0; i < copies; i++) out.push(id);
+    }
+    return out;
+}
+
 export function pickFloorPiece(rng: () => number): FloorPieceId | null {
     if (pickTotal <= 0 || pickIds.length === 0) return null;
     let roll = rng() * pickTotal;
@@ -213,6 +242,11 @@ export function pickFloorPiece(rng: () => number): FloorPieceId | null {
 
 export function floorPieceScale(id: FloorPieceId, rng: () => number): number {
     return pieceBaseScale(id) * (0.72 + rng() * 0.56);
+}
+
+/** How far below ground to plant a piece (fraction of instance scale). */
+export function floorPieceGroundSink(scale: number): number {
+    return scale * 0.18;
 }
 
 export function createFloorPieceInstances(id: FloorPieceId, capacity: number): InstancedMesh | null {
