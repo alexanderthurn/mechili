@@ -308,7 +308,7 @@ const CHEAT_TACTIC_GRANTS = [
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
 /** Shift+U: max free base runes of each id in the left bag strip */
-const CHEAT_BASE_RUNE_COPIES = 2;
+const CHEAT_BASE_RUNE_COPIES = 1;
 /** Shift+U: max free advanced (and other) runes of each id in the left bag strip */
 const CHEAT_ADVANCED_RUNE_COPIES = 1;
 
