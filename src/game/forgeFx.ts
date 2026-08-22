@@ -33,25 +33,22 @@ type ChimneyPreset = {
     up: number;
     heatCount: number;
     emberCount: number;
-    smokeBursts: number;
     waitMin: number;
     waitMax: number;
 };
 
 const COOKING: ChimneyPreset = {
-    up: 1.9,
+    up: 2.1,
     heatCount: 2,
     emberCount: 2,
-    smokeBursts: 2,
     waitMin: 0.48,
     waitMax: 0.72,
 };
 
 const READY: ChimneyPreset = {
-    up: 2.3,
+    up: 2.5,
     heatCount: 3,
     emberCount: 4,
-    smokeBursts: 3,
     waitMin: 0.28,
     waitMax: 0.48,
 };
@@ -91,15 +88,19 @@ class ForgeChimney {
         });
         this.smoke = new SoftParticlePool(scene, {
             blending: NormalBlending,
-            size: 3.6,
+            size: 2.4,
             depthWrite: false,
             renderOrder: 1,
-            opacity: 0.52,
+            opacity: 0.48,
             maxParticles: 128,
             gravity: 0,
-            drag: 0.6,
-            fadeStart: 0.16,
-            sizeGrowth: 0.5,
+            drag: 0.28,
+            lateralDrag: 4.5,
+            maxLateralSpeed: 0.22,
+            fadeStart: 0.07,
+            sizeBirthScale: 0.12,
+            sizeBirthPhase: 0.1,
+            sizeGrowth: 2.2,
         });
     }
 
@@ -145,26 +146,27 @@ class ForgeChimney {
             });
         }
 
-        // charcoal smoke — layered dark → mid gray wisps
-        const smokeSpread = 0.62;
-        for (let i = 0; i < p.smokeBursts; i++) {
+        // smoke — pinhole at mouth → full column → wide gray billow → dissolve aloft
+        this.smoke.burst(x, y, z, {
+            count: ready ? 5 : 3,
+            color: 0x080604,
+            colorEnd: 0xd4d0c8,
+            speed: 0.14,
+            life: 8.5,
+            up,
+            spread: 0.04,
+        });
+        if (ready) {
             this.smoke.burst(x, y, z, {
                 count: 2,
-                color: i === 0 ? 0x0c0a08 : 0x1a1614,
-                speed: 0.2,
-                life: 5.2,
-                up,
-                spread: smokeSpread,
+                color: 0x141210,
+                colorEnd: 0xe8e4dc,
+                speed: 0.1,
+                life: 7.0,
+                up: up * 0.92,
+                spread: 0.03,
             });
         }
-        this.smoke.burst(x, y, z, {
-            count: ready ? 2 : 1,
-            color: 0x3d3834,
-            speed: 0.16,
-            life: 3.8,
-            up: up * 0.88,
-            spread: smokeSpread * 0.85,
-        });
     }
 
     update(dt: number): void {
