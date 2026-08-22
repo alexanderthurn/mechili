@@ -841,80 +841,82 @@ export class Scenery {
         }
         tufts.count = tuftI;
 
-        // --- small stones
-        const STONES = scaleCount(240, this.density.meadow);
-        const stones = new InstancedMesh(
-            new IcosahedronGeometry(0.3, 0),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
-            STONES,
-        );
-        attachVegetationSnow(stones.material as MeshStandardMaterial, { strength: 0.45 });
-        let stoneI = 0;
-        for (let i = 0; i < STONES; i++) {
-            const spot = meadowSpot(40);
-            if (!spot) break;
-            const sc = 0.5 + rng() * 1.1;
-            dummy.position.set(spot.x, spot.h + 0.12 * sc, spot.z);
-            dummy.scale.set(sc, sc * 0.6, sc);
-            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-            dummy.updateMatrix();
-            stones.setMatrixAt(stoneI, dummy.matrix);
-            color.set(THEME.scenery.rock).lerp(new Color(0x6a6d64), rng() * 0.6);
-            stones.setColorAt(stoneI++, color);
-        }
-        stones.count = stoneI;
-
-        // --- fallen logs
-        const LOGS = scaleCount(26, this.density.meadow);
-        const logs = new InstancedMesh(
-            new CylinderGeometry(0.28, 0.36, 3.2, 6),
-            new MeshStandardMaterial({ color: THEME.scenery.trunk, roughness: 0.9 }),
-            LOGS,
-        );
-        attachVegetationSnow(logs.material as MeshStandardMaterial, { strength: 0.4 });
-        let logI = 0;
-        for (let i = 0; i < LOGS; i++) {
-            const spot = meadowSpot(24);
-            if (!spot) break;
-            const sc = 0.7 + rng() * 0.8;
-            dummy.position.set(spot.x, spot.h + 0.3 * sc, spot.z);
-            dummy.scale.setScalar(sc);
-            dummy.rotation.set((rng() - 0.5) * 0.15, rng() * Math.PI * 2, Math.PI / 2);
-            dummy.updateMatrix();
-            logs.setMatrixAt(logI++, dummy.matrix);
-        }
-        logs.count = logI;
-        logs.castShadow = true;
-
-        // --- mushrooms (stem + cap merged), often in small groups
-        const MUSHROOMS = scaleCount(90, this.density.meadow);
-        const stem = new CylinderGeometry(0.09, 0.13, 0.5, 5).translate(0, 0.25, 0);
-        const cap = new ConeGeometry(0.32, 0.34, 6).translate(0, 0.62, 0);
-        const mushrooms = new InstancedMesh(
-            mergeGeometries([stem, cap])!,
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
-            MUSHROOMS,
-        );
-        attachVegetationSnow(mushrooms.material as MeshStandardMaterial, { strength: 0.82 });
-        let mushI = 0;
-        while (mushI < MUSHROOMS) {
-            const spot = meadowSpot(36);
-            if (!spot) break;
-            const group = 1 + Math.floor(rng() * 3);
-            for (let g = 0; g < group && mushI < MUSHROOMS; g++) {
-                const x = spot.x + (rng() - 0.5) * 2.5;
-                const z = spot.z + (rng() - 0.5) * 2.5;
-                const sc = 0.6 + rng() * 0.9;
-                dummy.position.set(x, this.terrainHeight(x, z), z);
-                dummy.scale.setScalar(sc);
-                dummy.rotation.set(0, rng() * Math.PI * 2, (rng() - 0.5) * 0.15);
+        // --- small stones / logs / mushrooms: GLB floor pieces own these on high/ultra
+        if (!floorPiecesEnabled(this.quality)) {
+            const STONES = scaleCount(240, this.density.meadow);
+            const stones = new InstancedMesh(
+                new IcosahedronGeometry(0.3, 0),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
+                STONES,
+            );
+            attachVegetationSnow(stones.material as MeshStandardMaterial, { strength: 0.45 });
+            let stoneI = 0;
+            for (let i = 0; i < STONES; i++) {
+                const spot = meadowSpot(40);
+                if (!spot) break;
+                const sc = 0.5 + rng() * 1.1;
+                dummy.position.set(spot.x, spot.h + 0.12 * sc, spot.z);
+                dummy.scale.set(sc, sc * 0.6, sc);
+                dummy.rotation.set(0, rng() * Math.PI * 2, 0);
                 dummy.updateMatrix();
-                mushrooms.setMatrixAt(mushI, dummy.matrix);
-                color.set(rng() < 0.4 ? 0xb84a34 : 0xc8a878).lerp(new Color(0xffffff), rng() * 0.25);
-                mushrooms.setColorAt(mushI++, color);
+                stones.setMatrixAt(stoneI, dummy.matrix);
+                color.set(THEME.scenery.rock).lerp(new Color(0x6a6d64), rng() * 0.6);
+                stones.setColorAt(stoneI++, color);
             }
+            stones.count = stoneI;
+
+            const LOGS = scaleCount(26, this.density.meadow);
+            const logs = new InstancedMesh(
+                new CylinderGeometry(0.28, 0.36, 3.2, 6),
+                new MeshStandardMaterial({ color: THEME.scenery.trunk, roughness: 0.9 }),
+                LOGS,
+            );
+            attachVegetationSnow(logs.material as MeshStandardMaterial, { strength: 0.4 });
+            let logI = 0;
+            for (let i = 0; i < LOGS; i++) {
+                const spot = meadowSpot(24);
+                if (!spot) break;
+                const sc = 0.7 + rng() * 0.8;
+                dummy.position.set(spot.x, spot.h + 0.3 * sc, spot.z);
+                dummy.scale.setScalar(sc);
+                dummy.rotation.set((rng() - 0.5) * 0.15, rng() * Math.PI * 2, Math.PI / 2);
+                dummy.updateMatrix();
+                logs.setMatrixAt(logI++, dummy.matrix);
+            }
+            logs.count = logI;
+            logs.castShadow = true;
+
+            const MUSHROOMS = scaleCount(90, this.density.meadow);
+            const stem = new CylinderGeometry(0.09, 0.13, 0.5, 5).translate(0, 0.25, 0);
+            const cap = new ConeGeometry(0.32, 0.34, 6).translate(0, 0.62, 0);
+            const mushrooms = new InstancedMesh(
+                mergeGeometries([stem, cap])!,
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
+                MUSHROOMS,
+            );
+            attachVegetationSnow(mushrooms.material as MeshStandardMaterial, { strength: 0.82 });
+            let mushI = 0;
+            while (mushI < MUSHROOMS) {
+                const spot = meadowSpot(36);
+                if (!spot) break;
+                const group = 1 + Math.floor(rng() * 3);
+                for (let g = 0; g < group && mushI < MUSHROOMS; g++) {
+                    const x = spot.x + (rng() - 0.5) * 2.5;
+                    const z = spot.z + (rng() - 0.5) * 2.5;
+                    const sc = 0.6 + rng() * 0.9;
+                    dummy.position.set(x, this.terrainHeight(x, z), z);
+                    dummy.scale.setScalar(sc);
+                    dummy.rotation.set(0, rng() * Math.PI * 2, (rng() - 0.5) * 0.15);
+                    dummy.updateMatrix();
+                    mushrooms.setMatrixAt(mushI, dummy.matrix);
+                    color.set(rng() < 0.4 ? 0xb84a34 : 0xc8a878).lerp(new Color(0xffffff), rng() * 0.25);
+                    mushrooms.setColorAt(mushI++, color);
+                }
+            }
+            mushrooms.count = mushI;
+
+            this.group.add(stones, logs, mushrooms);
         }
-        mushrooms.count = mushI;
 
         // --- fallen leaf litter: built now, opacity eased in for autumn (see setSeason)
         const LITTER = scaleCount(1200, this.density.meadow);
@@ -946,7 +948,7 @@ export class Scenery {
         litter.count = litterI;
         this.leafLitter = litter;
 
-        this.group.add(tufts, stones, logs, mushrooms, litter);
+        this.group.add(tufts, litter);
     }
 
     /**
@@ -1927,8 +1929,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         }
 
         const placements: FloorPiecePlacement[] = [];
-        for (const id of ids) {
-            const { x, z } = fieldSpot(3);
+        const pushPiece = (id: string, x: number, z: number, tilt = 0.22) => {
             const scale = floorPieceScale(id, rng);
             placements.push({
                 id,
@@ -1937,9 +1938,23 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 z,
                 scale,
                 yaw: rng() * Math.PI * 2,
-                tiltX: (rng() - 0.5) * 0.22,
-                tiltZ: (rng() - 0.5) * 0.22,
+                tiltX: (rng() - 0.5) * tilt,
+                tiltZ: (rng() - 0.5) * tilt,
             });
+        };
+
+        for (const id of ids) {
+            const { x, z } = fieldSpot(3);
+            pushPiece(id, x, z);
+        }
+
+        // Same GLB set in the outer forest/meadow (replaces procedural stones/logs/mushrooms).
+        const forestPool = listFloorPieces();
+        const FOREST = scaleCount(this.quality === 'ultra' ? 160 : 90, this.density.meadow);
+        for (let i = 0; i < FOREST && forestPool.length > 0; i++) {
+            const id = forestPool[Math.floor(rng() * forestPool.length)]!;
+            const { x, z } = forestSpot(40);
+            pushPiece(id, x, z);
         }
 
         // `stone` ×4, evenly along the mid line between the two sides (z ≈ 0).
@@ -1948,18 +1963,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const span = map.halfW * 2 - margin * 2;
         for (let i = 0; i < STONE_COUNT; i++) {
             const x = -map.halfW + margin + ((i + 0.5) / STONE_COUNT) * span;
-            const z = 0;
-            const scale = floorPieceScale('stone', rng);
-            placements.push({
-                id: 'stone',
-                x,
-                y: groundY(x, z) - floorPieceGroundSink(scale),
-                z,
-                scale,
-                yaw: rng() * Math.PI * 2,
-                tiltX: (rng() - 0.5) * 0.12,
-                tiltZ: (rng() - 0.5) * 0.12,
-            });
+            pushPiece('stone', x, 0, 0.12);
         }
 
         // Easter-egg coin — once, in the outer woods, well clear of the board.
@@ -1989,22 +1993,14 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 x = spot.x * scaleOut;
                 z = spot.z * scaleOut;
             }
-            const scale = floorPieceScale('coin', rng);
-            placements.push({
-                id: 'coin',
-                x,
-                y: groundY(x, z) - floorPieceGroundSink(scale),
-                z,
-                scale,
-                yaw: rng() * Math.PI * 2,
-                tiltX: (rng() - 0.5) * 0.18,
-                tiltZ: (rng() - 0.5) * 0.18,
-            });
+            pushPiece('coin', x, z, 0.18);
         }
 
         const meshes = buildFloorPieceMeshes(placements);
         for (const mesh of meshes) this.group.add(mesh);
-        console.info(`[scenery] floor pieces: ${placements.length} (board + woods)`);
+        console.info(
+            `[scenery] floor pieces: ${placements.length} (board + ${FOREST} forest + specials)`,
+        );
     }
 
     /** Far belt as crossed billboard cards; optional sun-aligned blob shadows. */
