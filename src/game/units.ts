@@ -1034,7 +1034,7 @@ export const UNIT_TYPES: UnitType[] = [
         range: 12,
         attackInterval: 1.1,
         speed: 8,
-        turnRate: 0.25,
+        turnRate: 0.5,
         turnMove: 'cruise',
         build: buildCrowRider,
     },
