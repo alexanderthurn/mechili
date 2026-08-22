@@ -441,6 +441,51 @@ export class Scenery {
         return this.rockFactorAt(x, z) < 0.32;
     }
 
+    /**
+     * 0..1 scree pockets on mountains — concave gullies/corners and talus
+     * piled at cliff bases (stones fall and stock up), not open slopes.
+     */
+    private screeAccumAt(x: number, z: number, h: number): number {
+        if (h < 14) return 0;
+        const hAt = (dx: number, dz: number) => this.terrainHeight(x + dx, z + dz);
+        // sample at mountain scale — gullies/corners are tens of wu wide, not mesh-sized
+        const near = 18;
+        const far = 48;
+        const ring8 =
+            (hAt(-near, 0) +
+                hAt(near, 0) +
+                hAt(0, -near) +
+                hAt(0, near) +
+                hAt(-near, -near) +
+                hAt(near, -near) +
+                hAt(-near, near) +
+                hAt(near, near)) /
+            8;
+        const pocket = smooth01((ring8 - h) / 5.5);
+        const lapFar =
+            (hAt(-far, 0) + hAt(far, 0) + hAt(0, -far) + hAt(0, far) - 4 * h) / far;
+        const concave = smooth01(Math.max(0, lapFar) * 0.45);
+        const cliffR = 24;
+        const cliffSlopes = [
+            Math.abs(hAt(cliffR, 0) - h) / cliffR,
+            Math.abs(hAt(-cliffR, 0) - h) / cliffR,
+            Math.abs(hAt(0, cliffR) - h) / cliffR,
+            Math.abs(hAt(0, -cliffR) - h) / cliffR,
+            Math.abs(hAt(cliffR, cliffR) - h) / (cliffR * 1.414),
+            Math.abs(hAt(-cliffR, cliffR) - h) / (cliffR * 1.414),
+        ];
+        const cliffNearby = smooth01((Math.max(...cliffSlopes) - 0.22) / 0.32);
+        const fine = 5;
+        const dhdx = (hAt(fine, 0) - hAt(-fine, 0)) / (2 * fine);
+        const dhdz = (hAt(0, fine) - hAt(0, -fine)) / (2 * fine);
+        const localSlope = Math.hypot(dhdx, dhdz);
+        const talusBed = (1 - smooth01((localSlope - 0.28) / 0.42)) * cliffNearby;
+        let scree = Math.max(pocket, concave * 0.88, talusBed * 0.72);
+        scree *= smooth01((h - 14) / 22) * (1 - smooth01((h - 200) / 85));
+        scree *= 0.78 + 0.22 * this.noise(x / 23 + 61.3, z / 23 + 14.8);
+        return Math.min(1, scree);
+    }
+
     /** builds the scenario system driving sky, fog, lights, clouds, rain/snow, stars */
     createWeather(
         scene: Scene,
@@ -1037,6 +1082,8 @@ export class Scenery {
         const colors = new Float32Array(pos.count * 3);
         /** 0..1 per vertex: how sandy/gravelly this spot is (lake shores + rare patches) */
         const beach = new Float32Array(pos.count);
+        /** 0..1 scree pockets on mountains (concave corners + talus at cliff bases) */
+        const scree = new Float32Array(pos.count);
         const meadow = new Color(0xffffff); // grass texture shows as-is
         // near-white: the tiled rock texture carries the stone color, the
         // vertex tint only adds large-scale light/dark variation
@@ -1059,6 +1106,7 @@ export class Scenery {
             // never right next to the board — it would break the transition
             const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
             beach[i] = Math.min(1, Math.max(shore, patch)) * smooth01((dOut - 15) / 25);
+            scree[i] = this.screeAccumAt(x, z, h);
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
             if (h > 35) rockVar.multiplyScalar(0.68 + 0.32 * (1 - smooth01((h - 35) / 130)));
@@ -1071,6 +1119,7 @@ export class Scenery {
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
+        geometry.setAttribute('aScree', new BufferAttribute(scree, 1));
         geometry.computeVertexNormals();
 
         const material = new MeshStandardMaterial({
@@ -1149,6 +1198,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const tileSize = profile.detailTile;
         // Gravel shore tile — smaller than lawn so pebbles stay pebble-sized
         const shoreTile = 11;
+        /** Coarser shore sampling on mountains — same texture, less busy at distance */
+        const shoreMountainTile = 38;
         const rockTile = 34; // legacy rock tile scale
         const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
         const [grass, rockPack, shore] = await Promise.all([
@@ -1250,10 +1301,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
             shader.vertexShader =
-                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'attribute float aBeach;\nattribute float aScree;\nvarying float vBeach;\nvarying float vScree;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
@@ -1315,8 +1366,19 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     float rpLum = max( dot( rockPhoto, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
     rockCol = mix( rockCol, rockCol * ( rockPhoto / rpLum ), rockSoft * ${rk.strength.toFixed(2)} );`;
                 }
+                if (shore) {
+                    inject += `
+    vec3 gravelCol = texture2D( uShore, vWorldXZ / ${shoreMountainTile.toFixed(1)} ).rgb;`;
+                }
                 inject += `
-    diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);`;
+                if (shore) {
+                    inject += `
+    // scree overlay: small stones in concave pockets (baked in aScree)
+    float screeShow = clamp( vScree * mountainZone * ( 1.0 - snowF ), 0.0, 1.0 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, gravelCol, screeShow * max( rockF, 0.3 ) );`;
+                }
+                inject += `
     // same snow tint as the board (see map.ts) so the field edge matches
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
@@ -1327,7 +1389,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
-                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'varying float vBeach;\nvarying float vScree;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
@@ -1357,7 +1419,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v27${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v34${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-pocket' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
