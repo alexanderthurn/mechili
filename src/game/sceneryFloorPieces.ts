@@ -22,17 +22,20 @@ import { prefs } from './prefs';
 
 const FLOOR_PIECES_URL = new URL('../../assets/models/floorpieces.glb', import.meta.url).href;
 
-/** Exact names always skipped. */
+/** Exact names always skipped (legacy names kept for safety). */
 const EXCLUDED = new Set(['nail', 'rank1', 'mushroom3', 'mushroom6', 'wood3']);
 
-/** How many times each allowed mushroom is placed (others appear once). */
+/** How many times each allowed mushroom / wood is placed (others appear once). */
 const MUSHROOM_COPIES = 4;
+const WOOD_COPIES = 3;
 
 function isExcluded(id: FloorPieceId): boolean {
     if (EXCLUDED.has(id)) return true;
     if (id.startsWith('leaf')) return true;
     if (id.startsWith('beetle')) return true;
     if (id.startsWith('nut')) return true;
+    if (id.startsWith('berry')) return true;
+    if (id.startsWith('stick')) return true;
     return false;
 }
 
@@ -98,9 +101,8 @@ function pieceWeight(id: FloorPieceId): number {
     if (id === 'stone') return 0; // placed on the mid line only (see placeFloorPieces)
     if (id === 'coin') return 0; // placed in the woods only (see placeFloorPieces)
     if (id.startsWith('mushroom')) return 5;
+    if (id.startsWith('wood')) return 3;
     if (id.startsWith('stone')) return 2.6;
-    if (id.startsWith('stick') || id.startsWith('wood')) return 1.6;
-    if (id.startsWith('berry')) return 2;
     return 1;
 }
 
@@ -111,13 +113,10 @@ function pieceBaseScale(id: FloorPieceId): number {
     let base = 0.42;
     if (id.startsWith('stone')) base = 0.52;
     else if (id.startsWith('mushroom')) base = 0.48;
-    else if (id.startsWith('stick')) base = 0.58;
     else if (id.startsWith('wood')) base = 0.58;
-    else if (id.startsWith('berry')) base = 0.3;
     else if (id === 'coin') base = 0.42;
 
     let mult = SCALE_MULT;
-    // wood stays at default (was 2×; halved)
     if (id.startsWith('mushroom')) mult *= 0.5;
     else if (id.startsWith('stone')) mult *= 0.25; // quarter of default (half of previous)
     return base * mult;
@@ -224,7 +223,9 @@ export function listFloorPieces(): FloorPieceId[] {
     const out: FloorPieceId[] = [];
     for (const id of pickIds) {
         if (isExcluded(id) || id === 'stone') continue;
-        const copies = id.startsWith('mushroom') ? MUSHROOM_COPIES : 1;
+        let copies = 1;
+        if (id.startsWith('mushroom')) copies = MUSHROOM_COPIES;
+        else if (id.startsWith('wood')) copies = WOOD_COPIES;
         for (let i = 0; i < copies; i++) out.push(id);
     }
     return out;

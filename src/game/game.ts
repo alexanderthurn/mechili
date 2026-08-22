@@ -161,7 +161,7 @@ import {
     type BuildingCollapseState,
 } from './buildingCollapse';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, CROW_RIDER_MODEL_ID } from './crowWingFlap';
-import { GROUND_UNIT_Y } from './groundQuality';
+import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
 import { modelGeometryFingerprint } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
@@ -2154,6 +2154,7 @@ export class Game {
         // snap weather back to the real atmosphere (prime left rain/stars visible)
         if (this.weather) {
             this.scenery.update(0, this.rig.camera.position);
+            setCloseCameraY(this.rig.camera.position.y);
         }
         this.updateBlobShadows();
         // replace the primed frame so the player never sees a flash of rain/flames
@@ -9146,6 +9147,7 @@ export class Game {
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
+        setCloseCameraY(this.rig.camera.position.y);
         // Flash the cinema scene label whenever the season turns over (manual N/X
         // keys or the automatic per-round scene) — only while cinema mode is on.
         if (this.weather) {

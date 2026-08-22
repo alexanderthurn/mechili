@@ -41,7 +41,7 @@ import {
     summerDryUniform,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -1344,6 +1344,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
             }
+            bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
                 '\tvec2 cell = floor( uv * cellScale );\n' +
@@ -1374,6 +1375,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 );
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
+            if (profile.closeRepeat > 1.01) {
+                inject += closeTileInjectGlsl(profile);
+            } else {
+                inject += closeTileWeightFallbackGlsl(profile);
+            }
             if (bomb) {
                 inject += `
     vec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );
@@ -1382,14 +1388,32 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
     diffuseColor.rgb = mix( diffuseColor.rgb, texture2D( map, bombUv ).rgb, bombW * 0.55 );`;
             }
             if (useDetail) {
-                inject += `
+                if (profile.closeRepeat > 1.01) {
+                    inject += `
+    vec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
+                } else {
+                    inject += `
     vec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
+                }
             }
             if (photoGrass) {
-                const g = PHOTO_BLEND.grass;
-                inject += `
-    // Mild photo-0/1 accents only — dark board midfield mix stays off the outer world
+                const pgClose =
+                    profile.closeRepeat > 1.01
+                        ? `
+    float pgSoft = softBlobMask( vMapUv, 1.15, 0.28, 0.12 );
+    vec2 pgUv = vMapUv * 3.4;
+    float pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+    vec3 pgTex = mix(
+        texture2D( uPhotoGrass1, pgUv ).rgb,
+        texture2D( uPhotoGrass2, pgUv.yx * 1.07 + 0.21 ).rgb,
+        step( 0.5, pgWhich ) );
+    float pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    vec3 pgDetail = pgTex / pgLum;
+    float pgAmt = pgSoft * 0.55 * mix( 1.0, 0.08, closeW );
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgAmt );`
+                        : `
     float pgSoft = softBlobMask( vMapUv, 1.15, 0.28, 0.12 );
     vec2 pgUv = vMapUv * 3.4;
     float pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
@@ -1400,6 +1424,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
     float pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
     vec3 pgDetail = pgTex / pgLum;
     diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * 0.55 );`;
+                inject += `
+    // Photo accents fade when zoomed in — keep close lawn uniform
+${pgClose}`;
             }
             if (shore) {
                 inject += `
@@ -1463,6 +1490,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
+                closeTileUniformDecls(profile) +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
@@ -1473,13 +1501,16 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 );
             }
             if (useDetail && normal) {
-                frag = frag.replace(
-                    '#include <normal_fragment_maps>',
-                    `#include <normal_fragment_maps>
+                let normalInject = `#include <normal_fragment_maps>
 \tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
 \tdetailN.xy *= uDetailStrength;
-\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
-                );
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`;
+                if (profile.closeRepeat > 1.01) {
+                    normalInject += `
+\tvec3 closeN = texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0;
+\tnormal = normalize( mix( normal, closeN, closeW ) );`;
+                }
+                frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
             if (profile.roughnessFromAlbedo) {
                 frag = frag.replace(
@@ -1492,7 +1523,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v45${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v50${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
