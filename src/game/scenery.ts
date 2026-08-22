@@ -486,6 +486,47 @@ export class Scenery {
         return Math.min(1, scree);
     }
 
+    /** 0..1 — moss only on mid-elevation mountains (not foothills or high peaks). */
+    private mediumAltBand(h: number): number {
+        return smooth01((h - 40) / 22) * (1 - smooth01((h - 100) / 24));
+    }
+
+    /**
+     * 0..1 moss/lichen on cliff walls — shaded vertical faces and crevices,
+     * not scree beds (those stay gravel).
+     */
+    private mossAccumAt(
+        x: number,
+        z: number,
+        h: number,
+        nx: number,
+        ny: number,
+        nz: number,
+        screeLocal: number,
+    ): number {
+        const midAlt = this.mediumAltBand(h);
+        if (midAlt <= 0) return 0;
+        const hAt = (dx: number, dz: number) => this.terrainHeight(x + dx, z + dz);
+        const sunLen = Math.hypot(0.4, 0.82, 0.25);
+        const facing = (nx * 0.4 + ny * 0.82 + nz * 0.25) / sunLen;
+        const shadeBoost = 0.72 + 0.28 * smooth01((0.25 - facing) / 0.55);
+        const wall = 1 - smooth01((ny - 0.58) / 0.34);
+        const near = 16;
+        const ring = (hAt(-near, 0) + hAt(near, 0) + hAt(0, -near) + hAt(0, near)) * 0.25;
+        const crevice = smooth01((ring - h) / 4.8) * (0.35 + 0.65 * wall);
+        const fine = 5;
+        const localSlope = Math.hypot(
+            (hAt(fine, 0) - hAt(-fine, 0)) / (2 * fine),
+            (hAt(0, fine) - hAt(0, -fine)) / (2 * fine),
+        );
+        const cliffFace = smooth01((localSlope - 0.24) / 0.48) * (0.45 + 0.55 * wall);
+        let moss = Math.max(crevice, cliffFace, wall * 0.58);
+        moss *= shadeBoost * midAlt;
+        moss *= 1 - screeLocal * 0.7;
+        moss *= 0.68 + 0.32 * this.noise(x / 13 + 22.7, z / 13 + 8.4);
+        return Math.min(1, moss);
+    }
+
     /** builds the scenario system driving sky, fog, lights, clouds, rain/snow, stars */
     createWeather(
         scene: Scene,
@@ -1121,6 +1162,20 @@ export class Scenery {
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
         geometry.setAttribute('aScree', new BufferAttribute(scree, 1));
         geometry.computeVertexNormals();
+        const normalAttr = geometry.attributes.normal!;
+        const mossArr = new Float32Array(pos.count);
+        for (let i = 0; i < pos.count; i++) {
+            mossArr[i] = this.mossAccumAt(
+                pos.getX(i),
+                pos.getZ(i),
+                pos.getY(i),
+                normalAttr.getX(i),
+                normalAttr.getY(i),
+                normalAttr.getZ(i),
+                scree[i]!,
+            );
+        }
+        geometry.setAttribute('aMoss', new BufferAttribute(mossArr, 1));
 
         const material = new MeshStandardMaterial({
             color: s.outerGround,
@@ -1198,7 +1253,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const tileSize = profile.detailTile;
         // Gravel shore tile — smaller than lawn so pebbles stay pebble-sized
         const shoreTile = 11;
-        /** Coarser shore sampling on mountains — same texture, less busy at distance */
+        /** Coarser shore on mountain scree pockets (same texture as lake gravel) */
         const shoreMountainTile = 38;
         const rockTile = 34; // legacy rock tile scale
         const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
@@ -1301,10 +1356,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
             shader.vertexShader =
-                'attribute float aBeach;\nattribute float aScree;\nvarying float vBeach;\nvarying float vScree;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'attribute float aBeach;\nattribute float aScree;\nattribute float aMoss;\nvarying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvMoss = aMoss;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
@@ -1366,21 +1421,22 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     float rpLum = max( dot( rockPhoto, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
     rockCol = mix( rockCol, rockCol * ( rockPhoto / rpLum ), rockSoft * ${rk.strength.toFixed(2)} );`;
                 }
-                if (shore) {
-                    inject += `
-    vec3 gravelCol = texture2D( uShore, vWorldXZ / ${shoreMountainTile.toFixed(1)} ).rgb;`;
-                }
                 inject += `
     diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);`;
                 if (shore) {
                     inject += `
-    // scree overlay: small stones in concave pockets (baked in aScree)
+    // scree pockets: shore gravel (small stones piled in concave gullies)
     float screeShow = clamp( vScree * mountainZone * ( 1.0 - snowF ), 0.0, 1.0 );
+    vec3 gravelCol = texture2D( uShore, vWorldXZ / ${shoreMountainTile.toFixed(1)} ).rgb;
     diffuseColor.rgb = mix( diffuseColor.rgb, gravelCol, screeShow * max( rockF, 0.3 ) );`;
                 }
                 inject += `
+    // moss: mid-elevation cliffs/crevices only (~40–100 wu), baked in aMoss
+    float midAlt = smoothstep( 40.0, 62.0, vTerrainH ) * ( 1.0 - smoothstep( 100.0, 124.0, vTerrainH ) );
+    float mossShow = clamp( vMoss * ( 0.62 + 0.38 * breakup ) * midAlt, 0.0, 1.0 );
     // same snow tint as the board (see map.ts) so the field edge matches
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
+    diffuseColor.rgb = mix( diffuseColor.rgb, mossDetail( vMapUv * vec2( 1.18, 0.92 ) ), mossShow * ( 1.0 - snowF ) * 0.52 );
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             } else {
                 inject += `
@@ -1389,7 +1445,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
-                'varying float vBeach;\nvarying float vScree;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'varying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
@@ -1399,6 +1455,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
+            if (rock) {
+                frag = frag.replace(
+                    '#include <map_pars_fragment>',
+                    `#include <map_pars_fragment>\n${MOSS_DETAIL_FN_GLSL}`,
+                );
+            }
             if (useDetail && normal) {
                 frag = frag.replace(
                     '#include <normal_fragment_maps>',
@@ -1419,7 +1481,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v34${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-pocket' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v44${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -2104,6 +2166,21 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         }
     }
 }
+
+/**
+ * Moss/lichen on rock — re-tints the meadow grass map yellow/brown (no extra texture).
+ * Kept darker/subtle so it reads as damp growth on stone, not bright straw.
+ */
+const MOSS_DETAIL_FN_GLSL = `
+vec3 mossDetail( vec2 uv ) {
+    vec3 g = texture2D( map, uv ).rgb;
+    float lum = max( dot( g, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    vec3 straw = ( g / lum ) * vec3( 0.78, 0.48, 0.06 );
+    vec3 darkOrange = vec3( 0.48, 0.28, 0.04 );
+    vec3 moss = mix( g * vec3( 0.72, 0.42, 0.05 ), mix( straw, darkOrange, 0.78 ), 0.92 );
+    return moss * 0.66;
+}
+`;
 
 /**
  * Shared outer snow. Meadow (low) matches the board (`map.ts`: snowMask * 0.82
