@@ -86,6 +86,26 @@ npm run build:mac    # depot-ready build (mac | win | linux)
 Dev URL params: `?hp=100&build=20` overrides starting HP / build timer.  
 Localhost matchmaking defaults to [play.melodan.com](https://play.melodan.com); use `?branch=<name>` for a branch preview backend.
 
+### Branches & deployment
+
+Every branch mirrors to feuerware under `/<branch>/`. Steam ships on a `v*` tag,
+and the branch the tagged commit sits on decides which app it lands in — the map
+lives in `package.json` under `steamElectronBuild.steamBranchApps`:
+
+| Tagged on | Steam app | Depots |
+|---|---|---|
+| `main` | Melodan (4987230) | 4987231-3 |
+| `playtest` | Melodan Playtest (5115110) | 5115111-3 |
+
+A branch only claims a tag once it has a commit `main` does not — a `playtest`
+sitting exactly on `main` *is* main, so merge into it before tagging. Builds land
+on Steam's `develop` branch; `public` is set live by hand in App Admin, since
+steamcmd may not set a default branch live.
+
+The playtest is a separate appID with its own depots — it cannot borrow the
+game's, because a shared depot is only licensed to owners of the base app and
+Steamworks does not support sharing from an unreleased one.
+
 ### Further graphics / mesh ideas
 
 Notes for later — not wired into the game yet:

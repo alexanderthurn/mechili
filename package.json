@@ -8,6 +8,10 @@
     "productName": "Melodan",
     "appId": "com.feuerware.melodan",
     "steamAppId": 4987230,
+    "steamBranchApps": {
+      "main": 4987230,
+      "playtest": 5115110
+    },
     "executableName": "Melodan",
     "lan": true
   },
