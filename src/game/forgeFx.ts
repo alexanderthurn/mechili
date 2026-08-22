@@ -1,34 +1,17 @@
 /**
- * Visual-only forge feedback on the Stronghold: soft chimney sparks while the
- * oven holds runes (denser when a recipe will bake).
- *
- * Uses a dedicated Points pool (not the shared battle Particles) so embers can
- * depth-write like status badges — otherwise transparent tree billboards that
- * are farther away still paint over sparks when transparent sort order loses.
+ * Visual-only Stronghold forge chimney — layered white heat, yellow embers,
+ * and charcoal smoke from the GLB `Flag` socket ({@link strongholdFlagAnchorWorld}).
  */
-import {
-    AdditiveBlending,
-    BufferAttribute,
-    BufferGeometry,
-    Color,
-    DynamicDrawUsage,
-    Points,
-    PointsMaterial,
-    Sphere,
-    Vector3,
-    type Scene,
-} from 'three';
+import { AdditiveBlending, NormalBlending, type Scene } from 'three';
+import { SoftParticlePool } from './effects';
 import { resolveForge, type ForgeSlot, type ForgeSpellPool } from './forgeRecipes';
-import { worldHeightAt } from './map';
-import { getUnitVisualHeight } from './unitModels';
+import { strongholdFlagAnchorWorld } from './strongholdFlags';
 import { STRONGHOLD, type Unit } from './units';
 
 export type ForgeGlowMode = 'off' | 'cooking' | 'ready';
 
-const COOK_COLOR = 0xff8a30;
-const READY_COLOR = 0xffd060;
-const MAX_EMBERS = 128;
-const GRAVITY = -14;
+const CHIMNEY_LIFT = 0.5;
+const SPAWN_JITTER = 0.28;
 
 /** Derive spark intensity from oven contents + unlocked spell pool. */
 export function forgeGlowMode(
@@ -46,111 +29,157 @@ export function forgeGlowMode(
     return resolveForge(oven, pool).product ? 'ready' : 'cooking';
 }
 
-/** Small depth-writing ember pool — same transparency trap as the old rune sprites. */
-class ForgeEmbers {
-    private readonly positions = new Float32Array(MAX_EMBERS * 3);
-    private readonly colors = new Float32Array(MAX_EMBERS * 3);
-    private readonly velocities = new Float32Array(MAX_EMBERS * 3);
-    private readonly baseColors = new Float32Array(MAX_EMBERS * 3);
-    private readonly life = new Float32Array(MAX_EMBERS);
-    private readonly maxLife = new Float32Array(MAX_EMBERS);
-    private readonly geometry = new BufferGeometry();
-    private readonly tmpColor = new Color();
-    private cursor = 0;
+type ChimneyPreset = {
+    up: number;
+    heatCount: number;
+    emberCount: number;
+    smokeBursts: number;
+    waitMin: number;
+    waitMax: number;
+};
+
+const COOKING: ChimneyPreset = {
+    up: 1.9,
+    heatCount: 2,
+    emberCount: 2,
+    smokeBursts: 2,
+    waitMin: 0.48,
+    waitMax: 0.72,
+};
+
+const READY: ChimneyPreset = {
+    up: 2.3,
+    heatCount: 3,
+    emberCount: 4,
+    smokeBursts: 3,
+    waitMin: 0.28,
+    waitMax: 0.48,
+};
+
+/** Three-layer chimney plume — no gravity, soft sprites only. */
+class ForgeChimney {
+    /** pale hot air at the mouth */
+    private readonly heat: SoftParticlePool;
+    /** gold ember flecks */
+    private readonly embers: SoftParticlePool;
+    /** charcoal + gray smoke billows */
+    private readonly smoke: SoftParticlePool;
 
     constructor(scene: Scene) {
-        this.positions.fill(0);
-        for (let i = 0; i < MAX_EMBERS; i++) this.positions[i * 3 + 1] = -9999;
-        this.geometry.setAttribute(
-            'position',
-            new BufferAttribute(this.positions, 3).setUsage(DynamicDrawUsage),
-        );
-        this.geometry.setAttribute(
-            'color',
-            new BufferAttribute(this.colors, 3).setUsage(DynamicDrawUsage),
-        );
-        // stable bounds so transparent sort isn't yanked by parked (-9999) points
-        this.geometry.boundingSphere = new Sphere(new Vector3(0, 8, 0), 400);
-        this.geometry.boundingBox = null;
-
-        const points = new Points(
-            this.geometry,
-            new PointsMaterial({
-                size: 1.6,
-                vertexColors: true,
-                transparent: true,
-                // write depth so farther tree billboards can't overpaint us
-                depthWrite: true,
-                depthTest: true,
-                blending: AdditiveBlending,
-                sizeAttenuation: true,
-            }),
-        );
-        points.frustumCulled = false;
-        points.renderOrder = 1;
-        scene.add(points);
+        this.heat = new SoftParticlePool(scene, {
+            blending: AdditiveBlending,
+            size: 2.6,
+            depthWrite: false,
+            renderOrder: 2,
+            opacity: 0.72,
+            maxParticles: 64,
+            gravity: 0,
+            drag: 0.75,
+            fadeStart: 0.22,
+            sizeGrowth: 0.12,
+        });
+        this.embers = new SoftParticlePool(scene, {
+            blending: AdditiveBlending,
+            size: 1.5,
+            depthWrite: false,
+            renderOrder: 3,
+            maxParticles: 96,
+            gravity: 0,
+            drag: 0.9,
+            fadeStart: 0.18,
+            sizeGrowth: 0.06,
+        });
+        this.smoke = new SoftParticlePool(scene, {
+            blending: NormalBlending,
+            size: 3.6,
+            depthWrite: false,
+            renderOrder: 1,
+            opacity: 0.52,
+            maxParticles: 128,
+            gravity: 0,
+            drag: 0.6,
+            fadeStart: 0.16,
+            sizeGrowth: 0.5,
+        });
     }
 
-    burst(
-        x: number,
-        y: number,
-        z: number,
-        opts: { count: number; color: number; speed: number; life: number; up: number },
-    ): void {
-        this.tmpColor.setHex(opts.color);
-        for (let n = 0; n < opts.count; n++) {
-            const i = this.cursor;
-            this.cursor = (this.cursor + 1) % MAX_EMBERS;
-            const angle = Math.random() * Math.PI * 2;
-            const pitch = Math.random() * Math.PI - Math.PI / 2;
-            const speed = opts.speed * (0.4 + Math.random() * 0.6);
-            this.positions[i * 3] = x;
-            this.positions[i * 3 + 1] = y;
-            this.positions[i * 3 + 2] = z;
-            this.velocities[i * 3] = Math.cos(angle) * Math.cos(pitch) * speed;
-            this.velocities[i * 3 + 1] = Math.abs(Math.sin(pitch)) * speed + opts.up;
-            this.velocities[i * 3 + 2] = Math.sin(angle) * Math.cos(pitch) * speed;
-            this.baseColors[i * 3] = this.tmpColor.r;
-            this.baseColors[i * 3 + 1] = this.tmpColor.g;
-            this.baseColors[i * 3 + 2] = this.tmpColor.b;
-            this.life[i] = opts.life * (0.6 + Math.random() * 0.4);
-            this.maxLife[i] = this.life[i]!;
+    puff(x: number, y: number, z: number, ready: boolean): void {
+        const p = ready ? READY : COOKING;
+        const up = p.up;
+
+        // white / cream heat column — tight, short-lived
+        this.heat.burst(x, y, z, {
+            count: p.heatCount,
+            color: 0xfff6ea,
+            speed: 0.28,
+            life: 1.6,
+            up: up * 1.05,
+            spread: 0.2,
+        });
+        this.heat.burst(x, y, z, {
+            count: 1,
+            color: 0xffffff,
+            speed: 0.18,
+            life: 1.1,
+            up: up * 0.95,
+            spread: 0.12,
+        });
+
+        // yellow-orange embers — a little faster & brighter when recipe is ready
+        this.embers.burst(x, y, z, {
+            count: p.emberCount,
+            color: ready ? 0xffd040 : 0xffb020,
+            speed: ready ? 0.55 : 0.42,
+            life: ready ? 2.4 : 2.8,
+            up: up * 1.15,
+            spread: 0.38,
+        });
+        if (ready) {
+            this.embers.burst(x, y, z, {
+                count: 2,
+                color: 0xffee88,
+                speed: 0.35,
+                life: 1.8,
+                up: up * 1.25,
+                spread: 0.28,
+            });
         }
+
+        // charcoal smoke — layered dark → mid gray wisps
+        const smokeSpread = 0.62;
+        for (let i = 0; i < p.smokeBursts; i++) {
+            this.smoke.burst(x, y, z, {
+                count: 2,
+                color: i === 0 ? 0x0c0a08 : 0x1a1614,
+                speed: 0.2,
+                life: 5.2,
+                up,
+                spread: smokeSpread,
+            });
+        }
+        this.smoke.burst(x, y, z, {
+            count: ready ? 2 : 1,
+            color: 0x3d3834,
+            speed: 0.16,
+            life: 3.8,
+            up: up * 0.88,
+            spread: smokeSpread * 0.85,
+        });
     }
 
     update(dt: number): void {
-        for (let i = 0; i < MAX_EMBERS; i++) {
-            if (this.life[i]! <= 0) continue;
-            this.life[i]! -= dt;
-            if (this.life[i]! <= 0) {
-                this.positions[i * 3 + 1] = -9999;
-                this.colors[i * 3] = 0;
-                this.colors[i * 3 + 1] = 0;
-                this.colors[i * 3 + 2] = 0;
-                continue;
-            }
-            this.velocities[i * 3 + 1]! += GRAVITY * dt;
-            this.positions[i * 3]! += this.velocities[i * 3]! * dt;
-            this.positions[i * 3 + 1]! += this.velocities[i * 3 + 1]! * dt;
-            this.positions[i * 3 + 2]! += this.velocities[i * 3 + 2]! * dt;
-            if (this.positions[i * 3 + 1]! < -50) this.positions[i * 3 + 1] = -50;
-            const fade = this.life[i]! / this.maxLife[i]!;
-            this.colors[i * 3] = this.baseColors[i * 3]! * fade;
-            this.colors[i * 3 + 1] = this.baseColors[i * 3 + 1]! * fade;
-            this.colors[i * 3 + 2] = this.baseColors[i * 3 + 2]! * fade;
-        }
-        this.geometry.attributes.position!.needsUpdate = true;
-        this.geometry.attributes.color!.needsUpdate = true;
+        this.smoke.update(dt);
+        this.heat.update(dt);
+        this.embers.update(dt);
     }
 }
 
 export class ForgeFx {
-    private readonly sparkWait = new Map<number, number>();
-    private embers: ForgeEmbers | null = null;
+    private readonly puffWait = new Map<number, number>();
+    private chimney: ForgeChimney | null = null;
 
-    /** Lazy-bind to the scene on first update (Game constructs ForgeFx before scene FX). */
     ensure(scene: Scene): void {
-        if (!this.embers) this.embers = new ForgeEmbers(scene);
+        if (!this.chimney) this.chimney = new ForgeChimney(scene);
     }
 
     update(
@@ -160,7 +189,7 @@ export class ForgeFx {
         scene: Scene,
     ): void {
         this.ensure(scene);
-        const embers = this.embers!;
+        const chimney = this.chimney!;
 
         const seen = new Set<number>();
         for (const { unit, mode } of targets) {
@@ -168,40 +197,30 @@ export class ForgeFx {
             seen.add(unit.id);
 
             if (mode === 'off') {
-                this.sparkWait.delete(unit.id);
+                this.puffWait.delete(unit.id);
                 continue;
             }
 
-            let wait = this.sparkWait.get(unit.id) ?? 0;
+            const preset = mode === 'ready' ? READY : COOKING;
+            let wait = this.puffWait.get(unit.id) ?? 0;
             wait -= dt;
             if (wait <= 0) {
-                const ready = mode === 'ready';
-                const x = unit.world.x;
-                const z = unit.world.z;
-                const meshTop = getUnitVisualHeight(STRONGHOLD.id) * unit.visualMeshScale();
-                const y = worldHeightAt(x, z) + unit.memberBaseY() + meshTop + 0.6;
-                const jitter = 0.5;
-                embers.burst(
-                    x + (Math.random() - 0.5) * jitter,
-                    y,
-                    z + (Math.random() - 0.5) * jitter,
-                    {
-                        count: ready ? 8 : 4,
-                        color: ready ? READY_COLOR : COOK_COLOR,
-                        speed: ready ? 1.8 : 1.2,
-                        life: ready ? 0.9 : 1.1,
-                        up: ready ? 9 : 7,
-                    },
+                const anchor = strongholdFlagAnchorWorld(unit);
+                chimney.puff(
+                    anchor.x + (Math.random() - 0.5) * SPAWN_JITTER,
+                    anchor.y + CHIMNEY_LIFT,
+                    anchor.z + (Math.random() - 0.5) * SPAWN_JITTER,
+                    mode === 'ready',
                 );
-                wait = ready ? 0.32 + Math.random() * 0.2 : 0.55 + Math.random() * 0.35;
+                wait = preset.waitMin + Math.random() * (preset.waitMax - preset.waitMin);
             }
-            this.sparkWait.set(unit.id, wait);
+            this.puffWait.set(unit.id, wait);
         }
 
-        for (const id of [...this.sparkWait.keys()]) {
-            if (!seen.has(id)) this.sparkWait.delete(id);
+        for (const id of [...this.puffWait.keys()]) {
+            if (!seen.has(id)) this.puffWait.delete(id);
         }
 
-        embers.update(dt);
+        chimney.update(dt);
     }
 }
