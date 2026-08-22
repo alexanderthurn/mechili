@@ -2991,9 +2991,9 @@ export class BattleSim {
             const reach = stats.range + a.radius + target.radius;
             const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
 
-            // dead zone: the closest enemy is too near and nothing shootable is
-            // left (closestEnemy only returns a too-close foe as a last resort) —
-            // back straight away until it clears the min range and a shot opens
+            // dead zone: no foe outside min range to shoot or walk toward
+            // (closestEnemy only hands back a too-close target as last resort) —
+            // back away until the ring clears or a better target appears
             if (minReach > 0 && tDist < minReach) {
                 // Back away while still aiming at the foe (don't bank into the retreat vector).
                 this.steerToward(
@@ -4191,6 +4191,10 @@ export class BattleSim {
      * With `anyLayer` the matrix is ignored — used to pick something to walk
      * to and wait at when no attackable enemy is left.
      *
+     * Min-range (dead zone): prefer any foe outside the ring (shoot or walk
+     * toward). Only return a too-close foe when nothing else is left — the
+     * caller then flees. Sticky chase never locks onto a dead-zone target.
+     *
      * Uses an expanding-ring spatial search over {@link targetHash} (rebuilt
      * at step start) so cost stays near O(k) instead of O(n) per mech.
      */
@@ -4208,17 +4212,20 @@ export class BattleSim {
 
         const stats = this.resolved.get(from.unit)!;
         const minRange = stats.minRange;
+        const inDeadZone = (cached: Actor): boolean => {
+            if (minRange <= 0) return false;
+            const minReach = minRange + from.radius + cached.radius;
+            const dx = cached.x - from.x;
+            const dz = cached.z - from.z;
+            return dx * dx + dz * dz < minReach * minReach;
+        };
         const inWeaponRange = (cached: Actor): boolean => {
             const reach = stats.range + from.radius + cached.radius;
             const dx = cached.x - from.x;
             const dz = cached.z - from.z;
             const d2 = dx * dx + dz * dz;
             if (d2 > reach * reach) return false;
-            if (minRange > 0) {
-                // inside the dead zone: not a live engagement — force re-evaluation
-                const minReach = minRange + from.radius + cached.radius;
-                if (d2 < minReach * minReach) return false;
-            }
+            if (inDeadZone(cached)) return false;
             return true;
         };
 
@@ -4229,16 +4236,17 @@ export class BattleSim {
                 return cached;
             }
             const refresh = ((this.stepIndex + from.index) % TARGET_REFRESH_STEPS) === 0;
-            // out of range (or no cache): keep chasing the same foe between refreshes
-            if (!refresh && cached && cacheOk(cached)) {
+            // Chase sticky between refreshes — but never lock onto a dead-zone
+            // foe (that would kite instead of walking to a shootable target).
+            if (!refresh && cached && cacheOk(cached) && !inDeadZone(cached)) {
                 return cached;
             }
         }
 
         const team = actorTeam(from);
-        // `best` = closest enemy this unit can actually shoot (outside its dead
-        // zone). `bestAny` = closest enemy regardless — the kite fallback when
-        // everything left is too close. For minRange 0 they're always identical.
+        // `best` = closest foe outside the dead zone (fire at / walk toward).
+        // `bestAny` = closest foe including inside min range — flee fallback
+        // only when `best` is empty. For minRange 0 they're always identical.
         let best: Actor | null = null;
         let bestD = Infinity;
         let bestAny: Actor | null = null;
@@ -4258,7 +4266,7 @@ export class BattleSim {
             }
             if (minRange > 0) {
                 const minReach = minRange + from.radius + a.radius;
-                if (d < minReach * minReach) return; // dead zone — can't shoot it
+                if (d < minReach * minReach) return; // dead zone — not a walk/shoot pick
             }
             if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
                 bestD = d;
@@ -4291,8 +4299,8 @@ export class BattleSim {
                 scanCell(cx + ring, cz + dz);
             }
         }
-        // prefer a shootable target; fall back to the closest (too-close) one so
-        // the caller can kite away from it
+        // Prefer outside-dead-zone (shoot or approach); only then kite the
+        // closest too-close foe.
         const result = best ?? bestAny;
         if (!anyLayer) {
             if (from.cachedEnemy !== result) {
