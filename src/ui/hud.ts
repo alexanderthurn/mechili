@@ -12,6 +12,7 @@ import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emote
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
+import { TACTICS } from '../game/tactics';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
 import { ChatBar } from './chatBar';
@@ -1663,11 +1664,22 @@ export class Hud {
                           (t.armed ? ' armed' : '') +
                           (cancel ? ' cancelable' : '') +
                           (waitRounds !== null ? ' cooling' : '');
-                      const baseHint =
-                          t.hint ??
-                          (t.placed
-                              ? `${t.name}\nClick or right-click to clear and place again.`
-                              : `${t.name}\nClick to place on the map. Right-click to cancel.`);
+                      const def = TACTICS[t.id];
+                      const usage =
+                          t.placed || cancel
+                              ? 'Click or right-click to clear and place again.'
+                              : 'Click to place on the map. Right-click to cancel.';
+                      const tip =
+                          def
+                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(def.name)}" ` +
+                                `data-tdesc="${escapeAttr(t.hint ?? `${def.description}\n${usage}`)}" ` +
+                                `data-ticon="${escapeAttr(t.icon)}"`
+                              : ` title="${escapeAttr(
+                                    t.hint ??
+                                        (t.placed
+                                            ? `${t.name}\nClick or right-click to clear and place again.`
+                                            : `${t.name}\nClick to place on the map. Right-click to cancel.`),
+                                )}"`;
                       const badge =
                           cancel
                               ? `<span class="inv-cd cancel" title="Click to cancel">cancel</span>`
@@ -1675,7 +1687,7 @@ export class Hud {
                                 ? `<span class="inv-cd wait" title="Ready again in ${waitRounds} round${waitRounds === 1 ? '' : 's'}">${waitRounds}</span>`
                                 : '';
                       return (
-                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr} title="${escapeAttr(baseHint)}">` +
+                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr}${tip}>` +
                           `${iconHtml(t.icon)}${badge}</button>`
                       );
                   })

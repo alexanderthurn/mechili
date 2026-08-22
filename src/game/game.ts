@@ -6574,7 +6574,7 @@ export class Game {
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
                         tactic.kind === 'oneShot'
-                            ? `${tactic.name}\n${tactic.description}\nRight-click to cancel.`
+                            ? `${tactic.description}\nRight-click to cancel.`
                             : undefined,
                 });
                 slot++;
