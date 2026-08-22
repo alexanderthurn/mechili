@@ -86,9 +86,10 @@ export function deathTipFromKnock(
     // world → local (inverse of rest-forward −Z bake used by AttackNode)
     const lx = nx * c - nz * s;
     const lz = nx * s + nz * c;
+    // Tip so the crown moves with the blow (Rx/Rz right-hand → negate local axes).
     return {
-        tipX: amount * -lz,
-        tipZ: amount * lx,
+        tipX: amount * lz,
+        tipZ: amount * -lx,
     };
 }
 

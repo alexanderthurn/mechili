@@ -202,7 +202,7 @@ function makeFlagTexture(borderHex: number, avatarUrl: string | null): CanvasTex
 }
 
 /** Prefer the live GLB `Flag` empty; fall back to baked local + roof top. */
-function flagAnchorWorld(unit: Unit): { x: number; y: number; z: number } {
+export function strongholdFlagAnchorWorld(unit: Unit): { x: number; y: number; z: number } {
     const member = unit.members[0];
     if (member && !member.mesh.userData.dead) {
         member.mesh.updateWorldMatrix(true, false);
@@ -384,7 +384,7 @@ export class StrongholdFlags {
     }
 
     private placeStand(stand: Stand, unit: Unit, windYaw: number): void {
-        const anchor = flagAnchorWorld(unit);
+        const anchor = strongholdFlagAnchorWorld(unit);
         stand.root.position.set(anchor.x, anchor.y, anchor.z);
         // every flag on the board shares the same wind yaw
         stand.root.rotation.y = windYaw;

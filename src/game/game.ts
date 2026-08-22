@@ -161,7 +161,7 @@ import {
     type BuildingCollapseState,
 } from './buildingCollapse';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, CROW_RIDER_MODEL_ID } from './crowWingFlap';
-import { GROUND_UNIT_Y } from './groundQuality';
+import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
 import { modelGeometryFingerprint } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
@@ -308,7 +308,7 @@ const CHEAT_TACTIC_GRANTS = [
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
 /** Shift+U: max free base runes of each id in the left bag strip */
-const CHEAT_BASE_RUNE_COPIES = 2;
+const CHEAT_BASE_RUNE_COPIES = 1;
 /** Shift+U: max free advanced (and other) runes of each id in the left bag strip */
 const CHEAT_ADVANCED_RUNE_COPIES = 1;
 
@@ -1582,6 +1582,7 @@ export class Game {
         };
         this.placement.itemDropValid = (unit) =>
             this.canDropArmedItemOn(unit) || this.canDropForgeOn(unit);
+        this.placement.itemDropStripIcons = (unit) => this.armedItemWorldStrip(unit);
         this.placement.tacticTargetValid = (unit) => {
             const armed = this.armedTactic;
             if (!armed || TACTICS[armed]?.targeting !== 'own-unit') return false;
@@ -2153,6 +2154,7 @@ export class Game {
         // snap weather back to the real atmosphere (prime left rain/stars visible)
         if (this.weather) {
             this.scenery.update(0, this.rig.camera.position);
+            setCloseCameraY(this.rig.camera.position.y);
         }
         this.updateBlobShadows();
         // replace the primed frame so the player never sees a flash of rain/flames
@@ -6574,7 +6576,7 @@ export class Game {
                     // one-shots aren't "placed on the map" — override the default hint
                     hint:
                         tactic.kind === 'oneShot'
-                            ? `${tactic.name}\n${tactic.description}\nRight-click to cancel.`
+                            ? `${tactic.description}\nRight-click to cancel.`
                             : undefined,
                 });
                 slot++;
@@ -7163,6 +7165,29 @@ export class Game {
         if (unit.seat !== this.humanSeat || unit.type.structure) return false;
         if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
         return !!ITEMS[this.armedItem];
+    }
+
+    /**
+     * Armed rune: full item/forge slot strip (filled icons + empty drop rings)
+     * over every valid 3D target — mirrors the details-pane slot row.
+     */
+    private armedItemWorldStrip(unit: Unit): readonly (string | null)[] | null {
+        if (!this.armedItem || !this.playerCanAct || this.phase !== 'build') return null;
+        if (this.canDropArmedItemOn(unit)) {
+            const limit = itemSlotLimit(unit.type.id);
+            const out: (string | null)[] = [];
+            for (let i = 0; i < limit; i++) {
+                const id = unit.items[i];
+                out.push(id ? (ITEMS[id]?.icon ?? null) : null);
+            }
+            return out;
+        }
+        if (this.canDropForgeOn(unit)) {
+            return this.forgeSlots.player!.map((s) =>
+                s ? (ITEMS[s.itemId]?.icon ?? null) : null,
+            );
+        }
+        return null;
     }
 
     /** armed rune → shared Stronghold forge (any seat on this side) */
@@ -9082,6 +9107,7 @@ export class Game {
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.dragonFx.update(this.sim.renderElapsed);
                 this.fireFx.setBreathTongues(this.dragonFx.getBreathTongueSamples());
+                this.fireFx.syncProjectileTips(this.sim.projectiles, this.sim.alpha);
                 this.fireFx.update(gameDt, this.sim.hazards, this.sim.elapsed);
                 this.fireFx.updateBurningActors(gameDt, this.sim.actors, this.sim.elapsed);
                 const battleShields = livingShieldDisks(this.placement.allUnits());
@@ -9121,6 +9147,7 @@ export class Game {
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
+        setCloseCameraY(this.rig.camera.position.y);
         // Flash the cinema scene label whenever the season turns over (manual N/X
         // keys or the automatic per-round scene) — only while cinema mode is on.
         if (this.weather) {

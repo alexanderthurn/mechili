@@ -88,6 +88,16 @@ export interface GroundMaterialProfile {
     macroStrength: number;
     /** world-UV texture bombing to break wallpaper tiling (high/ultra) */
     textureBomb: boolean;
+    /**
+     * When the camera is low (zoomed in), blend in a tighter UV repeat so grass
+     * blades don't look human-sized. Driven by camera world-Y (whole lawn),
+     * not per-fragment distance. 1 = off.
+     */
+    closeRepeat: number;
+    /** camera Y at/below which close tiling is fully on */
+    closeNear: number;
+    /** camera Y at/above which far tiling takes over */
+    closeFar: number;
 }
 
 const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
@@ -102,6 +112,9 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 20,
         macroStrength: 1,
         textureBomb: false,
+        closeRepeat: 1,
+        closeNear: 26,
+        closeFar: 64,
     },
     medium: {
         tier: 'medium',
@@ -114,6 +127,10 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 18,
         macroStrength: 0.82,
         textureBomb: false,
+        // Mild close refine — enough to shrink blades, not wallpaper density.
+        closeRepeat: 1.85,
+        closeNear: 28,
+        closeFar: 62,
     },
     high: {
         tier: 'high',
@@ -127,6 +144,9 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 18,
         macroStrength: 0.48,
         textureBomb: true,
+        closeRepeat: 3.8,
+        closeNear: 26,
+        closeFar: 64,
     },
     ultra: {
         tier: 'ultra',
@@ -139,6 +159,9 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 16,
         macroStrength: 0.35,
         textureBomb: true,
+        closeRepeat: 4.8,
+        closeNear: 26,
+        closeFar: 68,
     },
 };
 
@@ -178,8 +201,55 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
     return `d${profile.detailScale.toFixed(1)}s${profile.detailStrength.toFixed(2)}r${
         profile.roughnessFromAlbedo ? 1 : 0
     }m${profile.macroStrength.toFixed(2)}b${profile.textureBomb ? 1 : 0}` +
+        `c${profile.closeRepeat.toFixed(1)}-${profile.closeNear}-${profile.closeFar}` +
         `pg${g.density}-${g.strength}-${g.uvScale}` +
         `rk${r.density}-${r.strength}-${r.worldScale}`;
+}
+
+/** GLSL: finer grass UVs when the camera is low (zoomed in) — whole lawn. */
+export function closeTileInjectGlsl(profile: GroundMaterialProfile): string {
+    if (profile.closeRepeat <= 1.01) return '';
+    return `
+\t// Camera world-Y: low orbit → fine tile on the whole lawn.
+\tfloat closeW = 1.0 - smoothstep( uCloseNear, uCloseFar, uCameraWorldY );
+\tcloseW = closeW * closeW;
+\tvec2 closeUv = vMapUv * uCloseRepeat;
+\tvec3 closeAlb = texture2D( map, closeUv ).rgb;
+\tdiffuseColor.rgb = mix( diffuseColor.rgb, closeAlb, closeW );
+`;
+}
+
+/** Declare closeW=0 when close-tile is off so later GLSL can always reference it. */
+export function closeTileWeightFallbackGlsl(profile: GroundMaterialProfile): string {
+    if (profile.closeRepeat > 1.01) return '';
+    return '\tfloat closeW = 0.0;\n';
+}
+
+export function closeTileUniformDecls(profile: GroundMaterialProfile): string {
+    if (profile.closeRepeat <= 1.01) return '';
+    return (
+        'uniform float uCloseRepeat;\nuniform float uCloseNear;\nuniform float uCloseFar;\n' +
+        'uniform float uCameraWorldY;\n'
+    );
+}
+
+/** Shared live camera-Y for board + meadow close-tile (updated each frame). */
+export const closeCameraYUniform = { value: 80 };
+
+export function bindCloseTileUniforms(
+    uniforms: Record<string, { value: unknown }>,
+    profile: GroundMaterialProfile,
+): void {
+    if (profile.closeRepeat <= 1.01) return;
+    uniforms.uCloseRepeat = { value: profile.closeRepeat };
+    uniforms.uCloseNear = { value: profile.closeNear };
+    uniforms.uCloseFar = { value: profile.closeFar };
+    // Same object everywhere — one write updates all grass shaders.
+    uniforms.uCameraWorldY = closeCameraYUniform;
+}
+
+export function setCloseCameraY(y: number): void {
+    closeCameraYUniform.value = y;
 }
 
 export function graphicsPresetOrFallback(): GraphicsPreset {

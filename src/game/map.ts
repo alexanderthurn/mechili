@@ -11,7 +11,7 @@ import {
     Vector3,
 } from 'three';
 
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -859,6 +859,7 @@ export class BattleMap {
         const profile = groundMaterialProfile();
         const useDetail = detail && profile.detailStrength > 0;
         const bomb = useDetail && profile.textureBomb;
+        const useCloseTile = detail && profile.closeRepeat > 1.01;
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uMacro = { value: macro };
             shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
@@ -874,6 +875,7 @@ export class BattleMap {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
             }
+            bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
             shader.vertexShader =
                 'varying vec2 vMacroUv;\nvarying vec2 vBoardXZ;\n' +
                 shader.vertexShader.replace(
@@ -882,7 +884,8 @@ export class BattleMap {
                 );
             let inject = '';
             let extraUniforms =
-                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n';
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
+                closeTileUniformDecls(profile);
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
@@ -906,10 +909,16 @@ export class BattleMap {
                 '\t}\n' +
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
+            // Closer camera → finer grass tile (blades stop looking human-sized).
+            if (useCloseTile) {
+                inject += closeTileInjectGlsl(profile);
+            } else {
+                inject += closeTileWeightFallbackGlsl(profile);
+            }
             if (useDetail) {
                 extraUniforms += 'uniform float uDetailScale;\nuniform float uDetailStrength;\n';
                 if (bomb) {
-                    // Stochastic blend of rotated UV samples kills wallpaper tiling.
+                    // Keep bomb on the base lawn UV — uniform close tile, no extra breakup.
                     inject +=
                         '\tvec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );\n' +
                         '\tfloat bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
@@ -917,19 +926,25 @@ export class BattleMap {
                         '\tvec3 bombAlb = texture2D( map, bombUv ).rgb;\n' +
                         '\tdiffuseColor.rgb = mix( diffuseColor.rgb, bombAlb, bombW * 0.55 );\n';
                 }
-                // Micro albedo: multiply-blend a finer UV sample so the lawn
-                // doesn't read as a single wallpaper tile at desktop distance.
-                inject +=
-                    '\tvec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+                if (useCloseTile) {
+                    inject +=
+                        '\tvec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;\n' +
+                        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+                } else {
+                    inject +=
+                        '\tvec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;\n' +
+                        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+                }
             }
-            // Field photos: multiply dark seamless (photo-2) with photo-0 detail,
-            // UV-bomb photo-2 so tile seams don't read as cutoffs.
+            // Field photos at far/mid; fade out when close so the lawn stays uniform.
             if (photoGrass) {
                 const g = PHOTO_BLEND.grass;
                 shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
                 shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
                 extraUniforms += 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n';
+                const pgCloseFade = useCloseTile
+                    ? `\tpgVeil *= mix( 1.0, 0.08, closeW );\n`
+                    : '';
                 inject +=
                     `\tfloat pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );\n` +
                     `\tvec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};\n` +
@@ -941,19 +956,17 @@ export class BattleMap {
                     '\t\ttexture2D( uPhotoGrass2, pgUv * 0.72 ).rgb,\n' +
                     '\t\ttexture2D( uPhotoGrass2, pgUvB * 0.64 ).rgb,\n' +
                     '\t\tpgBomb );\n' +
-                    // Multiply the two photos, keep some absolute dark from photo-2
                     '\tfloat pgDarkLum = max( dot( pgDark, vec3( 0.299, 0.587, 0.114 ) ), 0.06 );\n' +
                     '\tvec3 pgCombo = pgA * ( pgDark / pgDarkLum );\n' +
                     '\tpgCombo = mix( pgCombo, pgA * pgDark * 2.2, 0.35 );\n' +
                     '\tfloat pgComboLum = max( dot( pgCombo, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );\n' +
                     '\tvec3 pgDetail = pgCombo / pgComboLum;\n' +
-                    // Soft veil + midfield band in world XZ (between players, inset from rim)
                     `\tfloat pgVeil = 0.45 + 0.55 * pgSoft;\n` +
                     '\tvec2 pgN = abs( vBoardXZ ) / max( uBoardHalf, vec2( 1.0 ) );\n' +
-                    // Soft fill over inner ~80% of the board (fade in the outer 10% rim)
                     '\tfloat pgInner = 1.0 - smoothstep( 0.80, 0.92, max( pgN.x, pgN.y ) );\n' +
                     '\tfloat pgPatch = softBlobMask( vMapUv, 0.55, 0.45, 0.7 );\n' +
                     '\tpgVeil *= pgInner * mix( 0.25, 0.55, pgPatch ) * 0.45;\n' +
+                    pgCloseFade +
                     `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgVeil * ${g.strength.toFixed(2)} );\n` +
                     `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * mix( vec3( 1.0 ), pgDark * 1.8, 0.6 ), pgVeil * ${(g.strength * 0.65).toFixed(2)} );\n`;
             }
@@ -1044,13 +1057,16 @@ export class BattleMap {
             if (useDetail && material.normalMap) {
                 // Micro normals in the same space as the already-perturbed map
                 // (cheap UDN-style). Avoids perturbNormalArb — removed/changed in r185.
-                frag = frag.replace(
-                    '#include <normal_fragment_maps>',
-                    `#include <normal_fragment_maps>
+                let normalInject = `#include <normal_fragment_maps>
 \tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
 \tdetailN.xy *= uDetailStrength;
-\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
-                );
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`;
+                if (useCloseTile) {
+                    normalInject += `
+\tvec3 closeN = texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0;
+\tnormal = normalize( mix( normal, closeN, closeW ) );`;
+                }
+                frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
             if (profile.roughnessFromAlbedo && detail) {
                 frag = frag.replace(
@@ -1064,7 +1080,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v33${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-gs${
+            `ground-hazard-v39${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}`;
     }
