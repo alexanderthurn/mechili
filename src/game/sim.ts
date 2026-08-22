@@ -36,6 +36,7 @@ import {
     bloodColorOf,
     resolveDeathWear,
     projectileAimY,
+    clearBattleTint,
     syncBattleTint,
     type BattleTeam,
     type DeathWear,
@@ -2846,6 +2847,7 @@ export class BattleSim {
                 beginDeathTip(target.mesh, tips.tipZ, groundY, -1, tips.tipX);
             }
             target.mesh.userData.dead = true;
+            clearBattleTint(target.mesh);
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
