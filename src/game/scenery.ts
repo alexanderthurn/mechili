@@ -1598,8 +1598,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const playHalfH = forestHalfH;
         const fieldSpot = (clearance: number): { x: number; z: number } => {
             for (;;) {
-                const x = (rng() * 2 - 1) * (playHalfW - 10);
-                const z = (rng() * 2 - 1) * (playHalfH - 10);
+                const x = (rng() * 2 - 1) * playHalfW;
+                const z = (rng() * 2 - 1) * playHalfH;
                 if (anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + clearance)) {
                     return { x, z };
                 }

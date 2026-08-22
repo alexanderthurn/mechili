@@ -14,6 +14,11 @@ function usesTongues(q: FireVfxQuality): boolean {
     return q === 'medium' || q === 'high';
 }
 
+/** True when flame tongues are drawn (medium/high fire VFX). */
+export function fireUsesTongues(q: FireVfxQuality = prefs().fireVfx): boolean {
+    return usesTongues(q);
+}
+
 const ORANGE_EMBER = 0xff6a18;
 const ORANGE_CORE = 0xffd040;
 const ORANGE_HOT = 0xff2200;
