@@ -985,6 +985,8 @@ export type SoftParticlePoolOptions = {
     lateralDrag?: number;
     /** clamp horizontal speed — prevents runaway sideways drift (default: no cap) */
     maxLateralSpeed?: number;
+    /** gentle left/right push while fading out (default 0) */
+    dissolveSpread?: number;
 };
 
 /** Soft-sprite point pool — shared by battle particles and forge chimney FX. */
@@ -1018,6 +1020,9 @@ export class SoftParticlePool {
     private readonly billow: number;
     private readonly lateralDrag: number;
     private readonly maxLateralSpeed: number;
+    private readonly dissolveSpread: number;
+    private readonly spreadDirX: Float32Array | null;
+    private readonly spreadDirZ: Float32Array | null;
 
     constructor(scene: Scene, opts: SoftParticlePoolOptions) {
         this.maxParticles = opts.maxParticles ?? MAX_PARTICLES;
@@ -1031,6 +1036,14 @@ export class SoftParticlePool {
         this.billow = opts.billow ?? 0;
         this.lateralDrag = opts.lateralDrag ?? 0;
         this.maxLateralSpeed = opts.maxLateralSpeed ?? 0;
+        this.dissolveSpread = opts.dissolveSpread ?? 0;
+        if (this.dissolveSpread > 0) {
+            this.spreadDirX = new Float32Array(this.maxParticles);
+            this.spreadDirZ = new Float32Array(this.maxParticles);
+        } else {
+            this.spreadDirX = null;
+            this.spreadDirZ = null;
+        }
         this.positions = new Float32Array(this.maxParticles * 3);
         this.aColor = new Float32Array(this.maxParticles * 3);
         this.startColors = new Float32Array(this.maxParticles * 3);
@@ -1164,6 +1177,11 @@ export class SoftParticlePool {
             this.aOpacity[i] = 1;
             this.life[i] = opts.life * (0.6 + Math.random() * 0.4);
             this.maxLife[i] = this.life[i]!;
+            if (this.spreadDirX && this.spreadDirZ) {
+                const a = Math.random() * Math.PI * 2;
+                this.spreadDirX[i] = Math.cos(a);
+                this.spreadDirZ[i] = Math.sin(a);
+            }
         }
     }
 
@@ -1190,28 +1208,38 @@ export class SoftParticlePool {
                 this.velocities[i * 3]! *= expand;
                 this.velocities[i * 3 + 2]! *= expand;
             }
-            if (this.maxLateralSpeed > 0) {
-                const vx = this.velocities[i * 3]!;
-                const vz = this.velocities[i * 3 + 2]!;
-                const hSpeed = Math.hypot(vx, vz);
-                if (hSpeed > this.maxLateralSpeed) {
-                    const s = this.maxLateralSpeed / hSpeed;
-                    this.velocities[i * 3] = vx * s;
-                    this.velocities[i * 3 + 2] = vz * s;
-                }
-            }
             this.velocities[i * 3 + 1]! += this.gravity * dt;
             if (this.gravity >= 0 && this.velocities[i * 3 + 1]! < 0) {
                 this.velocities[i * 3 + 1] = 0;
             }
-            this.positions[i * 3]! += this.velocities[i * 3]! * dt;
-            this.positions[i * 3 + 1]! += this.velocities[i * 3 + 1]! * dt;
-            this.positions[i * 3 + 2]! += this.velocities[i * 3 + 2]! * dt;
-            if (fade < this.fadeStart) {
+            const dissolving = fade < this.fadeStart;
+            if (dissolving && this.dissolveSpread > 0 && this.spreadDirX && this.spreadDirZ) {
+                const t = 1 - fade / this.fadeStart;
+                const push = dt * this.dissolveSpread * t;
+                this.velocities[i * 3]! += this.spreadDirX[i]! * push;
+                this.velocities[i * 3 + 2]! += this.spreadDirZ[i]! * push;
+            } else if (dissolving) {
                 const settle = Math.max(0, 1 - dt * 6);
                 this.velocities[i * 3]! *= settle;
                 this.velocities[i * 3 + 2]! *= settle;
             }
+            if (this.maxLateralSpeed > 0) {
+                const vx = this.velocities[i * 3]!;
+                const vz = this.velocities[i * 3 + 2]!;
+                const hSpeed = Math.hypot(vx, vz);
+                const cap =
+                    dissolving && this.dissolveSpread > 0
+                        ? this.maxLateralSpeed * 1.75
+                        : this.maxLateralSpeed;
+                if (hSpeed > cap) {
+                    const s = cap / hSpeed;
+                    this.velocities[i * 3] = vx * s;
+                    this.velocities[i * 3 + 2] = vz * s;
+                }
+            }
+            this.positions[i * 3]! += this.velocities[i * 3]! * dt;
+            this.positions[i * 3 + 1]! += this.velocities[i * 3 + 1]! * dt;
+            this.positions[i * 3 + 2]! += this.velocities[i * 3 + 2]! * dt;
             // soft floor only for near-zero spawns — don't yank hill-anchored flames to y≈0
             if (this.positions[i * 3 + 1]! < -50) this.positions[i * 3 + 1] = -50;
             // stay fully opaque through most of life, fade out only near the end

@@ -74,6 +74,7 @@ class ForgeChimney {
             drag: 0.75,
             fadeStart: 0.22,
             sizeGrowth: 0.12,
+            dissolveSpread: 0.35,
         });
         this.embers = new SoftParticlePool(scene, {
             blending: AdditiveBlending,
@@ -85,6 +86,7 @@ class ForgeChimney {
             drag: 0.9,
             fadeStart: 0.18,
             sizeGrowth: 0.06,
+            dissolveSpread: 0.55,
         });
         this.smoke = new SoftParticlePool(scene, {
             blending: NormalBlending,
@@ -101,6 +103,7 @@ class ForgeChimney {
             sizeBirthScale: 0.12,
             sizeBirthPhase: 0.1,
             sizeGrowth: 2.2,
+            dissolveSpread: 0.75,
         });
     }
 

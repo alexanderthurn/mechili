@@ -70,6 +70,14 @@ import {
     updateVegetationSeason,
     type VegetationKind,
 } from './sceneryVegetation';
+import {
+    buildFloorPieceMeshes,
+    floorPieceScale,
+    floorPiecesEnabled,
+    loadFloorPieces,
+    pickFloorPiece,
+    type FloorPiecePlacement,
+} from './sceneryFloorPieces';
 import { updateBuildingSnowCover, snapBuildingSnowCover } from './buildingSnow';
 import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
@@ -1763,9 +1771,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             void this.placeTripoVegetation(fieldHqPlants, groundY, rng);
         }
 
-        // wildflowers on the outer meadow band — matches the field's painted
-        // flowers so the grass doesn't read as an empty green carpet
-        const FLOWERS = scaleCount(280, dens.outer);
+        // wildflowers: 3/4 outer meadow, 1/4 playable board
+        const FLOWERS_TOTAL = scaleCount(560, dens.outer); // was 2×280 when even-split
+        const MEADOW_FLOWERS = Math.round(FLOWERS_TOTAL * 0.75);
+        const FIELD_FLOWERS = FLOWERS_TOTAL - MEADOW_FLOWERS;
+        const FLOWERS = MEADOW_FLOWERS + FIELD_FLOWERS;
         const flowerGeo = new PlaneGeometry(1.1, 1.1);
         flowerGeo.rotateX(-Math.PI / 2);
         const flowers = new InstancedMesh(
@@ -1781,25 +1791,63 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         );
         this.flowerMaterials.push(flowers.material as MeshStandardMaterial);
         const flowerTones = THEME.terrain.flowers;
+        const clearOfBases = (x: number, z: number) =>
+            anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + 3);
+        // Board flowers: 1/3 edge strip, 1/3 midfield (between players), 1/3 anywhere.
+        const EDGE_BAND = 30;
+        const midHalf = Math.max((map.size.neutralRows * CELL) / 2, map.halfH * 0.22, 18);
+        const boardEdgeSpot = (): { x: number; z: number } => {
+            for (;;) {
+                const side = Math.floor(rng() * 4);
+                let x: number;
+                let z: number;
+                if (side === 0) {
+                    x = (rng() * 2 - 1) * (map.halfW - 2);
+                    z = map.halfH - 2 - rng() * EDGE_BAND;
+                } else if (side === 1) {
+                    x = (rng() * 2 - 1) * (map.halfW - 2);
+                    z = -map.halfH + 2 + rng() * EDGE_BAND;
+                } else if (side === 2) {
+                    x = map.halfW - 2 - rng() * EDGE_BAND;
+                    z = (rng() * 2 - 1) * (map.halfH - 2);
+                } else {
+                    x = -map.halfW + 2 + rng() * EDGE_BAND;
+                    z = (rng() * 2 - 1) * (map.halfH - 2);
+                }
+                if (clearOfBases(x, z)) return { x, z };
+            }
+        };
+        const boardMidSpot = (): { x: number; z: number } => {
+            for (;;) {
+                const x = (rng() * 2 - 1) * (map.halfW - 2);
+                const z = (rng() * 2 - 1) * Math.min(midHalf, map.halfH - EDGE_BAND - 2);
+                if (clearOfBases(x, z)) return { x, z };
+            }
+        };
+        const boardRandomSpot = (): { x: number; z: number } => {
+            for (;;) {
+                const x = (rng() * 2 - 1) * (map.halfW - 2);
+                const z = (rng() * 2 - 1) * (map.halfH - 2);
+                if (clearOfBases(x, z)) return { x, z };
+            }
+        };
         const meadowSpot = (): { x: number; z: number } => {
             for (;;) {
                 const x = (rng() * 2 - 1) * (forestHalfW + 260);
                 const z = (rng() * 2 - 1) * (forestHalfH + 260);
-                if (distOut(x, z) < keepOut) continue;
+                if (distOut(x, z) < 1) continue; // just outside the forest edge
                 const h = this.terrainHeight(x, z);
                 if (h > -0.4 && h < 5) return { x, z }; // meadow only, not in lakes
             }
         };
-        // flowers grow in clumps (a cluster center + a handful around it),
-        // and each clump leans toward one color — like real wildflowers
+        // Small color-matched clumps — not large patches
         let flowerI = 0;
-        while (flowerI < FLOWERS) {
-            const center = meadowSpot();
+        const plantFlowerClump = (cx: number, cz: number, spread: number) => {
             const clumpTone = flowerTones[Math.floor(rng() * flowerTones.length)]!;
-            const clump = 4 + Math.floor(rng() * 6);
+            const clump = 3 + Math.floor(rng() * 5);
             for (let f = 0; f < clump && flowerI < FLOWERS; f++) {
-                const x = center.x + (rng() - 0.5) * 9;
-                const z = center.z + (rng() - 0.5) * 9;
+                const x = cx + (rng() - 0.5) * spread;
+                const z = cz + (rng() - 0.5) * spread;
                 const sc = 0.7 + rng() * 0.9;
                 dummy.position.set(x, groundY(x, z) + 0.08, z);
                 dummy.scale.setScalar(sc);
@@ -1809,7 +1857,28 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 color.set(rng() < 0.75 ? clumpTone : flowerTones[Math.floor(rng() * flowerTones.length)]!);
                 flowers.setColorAt(flowerI++, color);
             }
+        };
+        while (flowerI < MEADOW_FLOWERS) {
+            const center = meadowSpot();
+            plantFlowerClump(center.x, center.z, 9);
         }
+        const fieldEdgeEnd = MEADOW_FLOWERS + Math.round(FIELD_FLOWERS / 3);
+        const fieldMidEnd = MEADOW_FLOWERS + Math.round((FIELD_FLOWERS * 2) / 3);
+        while (flowerI < fieldEdgeEnd) {
+            const center = boardEdgeSpot();
+            plantFlowerClump(center.x, center.z, 5);
+        }
+        while (flowerI < fieldMidEnd) {
+            const center = boardMidSpot();
+            plantFlowerClump(center.x, center.z, 5);
+        }
+        while (flowerI < FLOWERS) {
+            const center = boardRandomSpot();
+            plantFlowerClump(center.x, center.z, 5);
+        }
+        flowers.count = flowerI;
+        flowers.instanceMatrix.needsUpdate = true;
+        if (flowers.instanceColor) flowers.instanceColor.needsUpdate = true;
         this.group.add(flowers);
 
         if (trunks && cones && blobs && bushes) {
@@ -1828,6 +1897,44 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 distOut,
             });
         }
+
+        if (floorPiecesEnabled(this.quality)) {
+            void this.placeFloorPieces(rng, { fieldSpot, groundY });
+        }
+    }
+
+    /** Ground clutter from floorpieces.glb — playable board only. */
+    private async placeFloorPieces(
+        rng: () => number,
+        helpers: {
+            fieldSpot: (clearance: number) => { x: number; z: number };
+            groundY: (x: number, z: number) => number;
+        },
+    ): Promise<void> {
+        await loadFloorPieces();
+        const { fieldSpot, groundY } = helpers;
+        const FIELD = scaleCount(this.quality === 'ultra' ? 300 : 95, this.density.field);
+
+        const placements: FloorPiecePlacement[] = [];
+        for (let i = 0; i < FIELD; i++) {
+            const id = pickFloorPiece(rng);
+            if (!id) continue;
+            const { x, z } = fieldSpot(3);
+            placements.push({
+                id,
+                x,
+                y: groundY(x, z),
+                z,
+                scale: floorPieceScale(id, rng),
+                yaw: rng() * Math.PI * 2,
+                tiltX: (rng() - 0.5) * 0.22,
+                tiltZ: (rng() - 0.5) * 0.22,
+            });
+        }
+
+        const meshes = buildFloorPieceMeshes(placements);
+        for (const mesh of meshes) this.group.add(mesh);
+        console.info(`[scenery] floor pieces: ${placements.length} (board)`);
     }
 
     /** Far belt as crossed billboard cards; optional sun-aligned blob shadows. */

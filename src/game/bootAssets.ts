@@ -7,6 +7,7 @@ import {
     loadSceneryVegetation,
     sceneryHqVegetation,
 } from './sceneryVegetation';
+import { loadFloorPieces } from './sceneryFloorPieces';
 import { prefs } from './prefs';
 import { preloadIconAtlas } from '../ui/iconAtlas';
 
@@ -64,7 +65,11 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
     const sceneryQ = prefs().scenery;
     if (sceneryHqVegetation(sceneryQ) || sceneryQ === 'high') {
         jobs.push(
-            Promise.all([loadSceneryBillboards(), loadSceneryVegetation()]).then(() => {
+            Promise.all([
+                loadSceneryBillboards(),
+                loadSceneryVegetation(),
+                loadFloorPieces(),
+            ]).then(() => {
                 sceneryFrac = 1;
                 report('Scenery');
             }),
