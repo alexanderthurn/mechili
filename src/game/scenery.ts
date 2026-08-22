@@ -1793,7 +1793,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const flowerTones = THEME.terrain.flowers;
         const clearOfBases = (x: number, z: number) =>
             anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + 3);
-        // Board flowers: 1/3 edge strip, 1/3 midfield (between players), 1/3 anywhere.
+        // Board flowers: 1/6 edge strip, 1/3 midfield, 1/2 anywhere.
         const EDGE_BAND = 30;
         const midHalf = Math.max((map.size.neutralRows * CELL) / 2, map.halfH * 0.22, 18);
         const boardEdgeSpot = (): { x: number; z: number } => {
@@ -1862,8 +1862,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             const center = meadowSpot();
             plantFlowerClump(center.x, center.z, 9);
         }
-        const fieldEdgeEnd = MEADOW_FLOWERS + Math.round(FIELD_FLOWERS / 3);
-        const fieldMidEnd = MEADOW_FLOWERS + Math.round((FIELD_FLOWERS * 2) / 3);
+        const fieldEdgeEnd = MEADOW_FLOWERS + Math.round(FIELD_FLOWERS / 6);
+        const fieldMidEnd = MEADOW_FLOWERS + Math.round(FIELD_FLOWERS / 2); // edge 1/6 + mid 1/3
         while (flowerI < fieldEdgeEnd) {
             const center = boardEdgeSpot();
             plantFlowerClump(center.x, center.z, 5);
