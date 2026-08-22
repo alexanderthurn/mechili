@@ -105,7 +105,7 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
-import { FireFx } from './fireFx';
+import { FireFx, fireUsesTongues } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { StrongholdFlags } from './strongholdFlags';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
@@ -1273,6 +1273,7 @@ export class Game {
         this.stoneChips = new StoneChipRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
+        this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
         this.hammerFx = new HammerFx(this.scene);
         this.meteorFx = new MeteorFx(this.scene);
@@ -2145,6 +2146,7 @@ export class Game {
         // restore live combat VFX — clear would blank an in-progress battle frame
         this.fireFx.clear();
         this.fireFx.setQuality(prefs().fireVfx);
+        this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         if (this.sim && this.phase === 'battle') {
             this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
             this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
@@ -2198,6 +2200,7 @@ export class Game {
         if (fireVfx !== this.appliedFireVfx) {
             this.appliedFireVfx = fireVfx;
             this.fireFx.setQuality(fireVfx);
+            this.map.setFireCharcoalGround(fireUsesTongues(fireVfx));
         }
     }
 
@@ -9381,13 +9384,15 @@ export class Game {
                 const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);
                 this.map.stampScorch(e.x, e.z, scorchR, e.heavy ? 0.55 : 0.16);
                 if (e.heavy) {
-                    // second wider bloom so the divine stamp scars the board
                     this.map.stampScorch(e.x, e.z, scorchR * 1.35, 0.28);
                 }
             } else if (e.kind === 'groundFire') {
-                this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.85, 2), e.oilCells > 0 ? 0.35 : 0.22);
+                // Orange-tier only: permanent scar seed. Tongues tier uses live charcoal
+                // from the hazard mask (clears when the blaze dies).
+                if (prefs().fireVfx === 'low') {
+                    this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.55, 1.4), 0.22);
+                }
             } else if (e.kind === 'towerDebuff') {
-                // dark burn under the lost tower — team-tint flash is visual-only in TowerDebuffFx
                 this.map.stampScorch(e.x, e.z, 14, 0.8);
                 this.map.stampScorch(e.x, e.z, 22, 0.35);
             }
