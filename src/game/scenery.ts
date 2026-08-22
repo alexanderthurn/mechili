@@ -1435,7 +1435,7 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     float midAlt = smoothstep( 40.0, 62.0, vTerrainH ) * ( 1.0 - smoothstep( 100.0, 124.0, vTerrainH ) );
     float mossShow = clamp( vMoss * ( 0.38 + 0.22 * breakup ) * midAlt, 0.0, 1.0 );
     // same snow tint as the board (see map.ts) so the field edge matches
-    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);as
+    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
     diffuseColor.rgb = mix( diffuseColor.rgb, mossDetail( vMapUv * vec2( 1.18, 0.92 ) ), mossShow * ( 1.0 - snowF ) * 0.82 );
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             } else {
