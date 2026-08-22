@@ -219,6 +219,11 @@ export class PlacementController {
      */
     itemDropValid: ((unit: Unit) => boolean) | null = null;
     /**
+     * Armed rune: icon strip over valid targets — filled atlas ids, `null` =
+     * empty slot (green drop ring). Overrides the normal status strip.
+     */
+    itemDropStripIcons: ((unit: Unit) => readonly (string | null)[] | null) | null = null;
+    /**
      * An armed own-unit tactic (Field Lesson / Move Pack / Buyback) asking
      * "would this pack be a legal target?". Drives the same green hover plate
      * as a rune drop, but is NOT an item drop — it must not set
@@ -291,6 +296,7 @@ export class PlacementController {
     /** floating item symbols over equipped packs (build phase only) */
     private readonly itemBadges: Sprite[] = [];
     private readonly itemBadgeMaterials = new Map<string, SpriteMaterial>();
+    private readonly emptySlotBadgeMaterials = new Map<boolean, SpriteMaterial>();
     /** tiny borderless tech icons in a row over packs (build phase only) */
     private readonly techBadges: Sprite[] = [];
     private readonly techBadgeMaterials = new Map<string, SpriteMaterial>();
@@ -1184,6 +1190,38 @@ export class PlacementController {
         const right = this.statusBadgeRight;
         const spacing = 2.3;
 
+        const placeItemSlotStrip = (
+            unit: Unit,
+            world: Vector3,
+            icons: readonly (string | null)[],
+        ) => {
+            const n = icons.length;
+            if (n === 0) return;
+            const y = this.statusStripY(unit, world);
+            const mid = (n - 1) / 2;
+            icons.forEach((iconId, slot) => {
+                let sprite = this.itemBadges[itemUsed];
+                if (!sprite) {
+                    sprite = new Sprite();
+                    this.scene.add(sprite);
+                    this.itemBadges.push(sprite);
+                }
+                sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
+                sprite.material = iconId
+                    ? this.itemBadgeMaterial(iconId)
+                    : this.emptySlotBadgeMaterial(true);
+                sprite.renderOrder = 0;
+                const t = slot - mid;
+                sprite.position.set(
+                    world.x + right.x * t * spacing,
+                    y,
+                    world.z + right.z * t * spacing,
+                );
+                sprite.visible = true;
+                itemUsed++;
+            });
+        };
+
         const placeStrip = (
             unit: Unit,
             world: Vector3,
@@ -1244,6 +1282,11 @@ export class PlacementController {
             // need to follow the live pose, so use `view.position` when the
             // unit is not fogged.
             const world = this.isFogged(unit) ? this.intelWorldOf(unit) : unit.view.position;
+            const dropStrip = this.itemDropStripIcons?.(unit);
+            if (dropStrip && dropStrip.length > 0) {
+                placeItemSlotStrip(unit, world, dropStrip);
+                continue;
+            }
             // forge spell badge is deploy-only (battle shows chimney sparks instead)
             const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
             if (forge) {
@@ -1310,6 +1353,8 @@ export class PlacementController {
 
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
     private statusStripCount(unit: Unit): number {
+        const dropStrip = this.itemDropStripIcons?.(unit);
+        if (dropStrip) return dropStrip.length;
         const forge = this.forgeStatusIcons?.(unit);
         if (forge) return forge.spellIcon ? 1 : 0;
         const items = this.intelItemIcons(unit).length;
@@ -1354,6 +1399,23 @@ export class PlacementController {
         return material;
     }
 
+    /** hollow slot disc — green ring when armed rune can land here */
+    private emptySlotBadgeMaterial(dropReady: boolean): SpriteMaterial {
+        let material = this.emptySlotBadgeMaterials.get(dropReady);
+        if (!material) {
+            const texture = this.paintEmptySlotBadgeTexture(dropReady);
+            material = new SpriteMaterial({
+                map: texture,
+                transparent: false,
+                alphaTest: 0.5,
+                depthTest: true,
+                depthWrite: true,
+            });
+            this.emptySlotBadgeMaterials.set(dropReady, material);
+        }
+        return material;
+    }
+
     /** opaque circular plate + atlas icon; corners stay transparent for alphaTest */
     private paintItemBadgeTexture(iconId: string): CanvasTexture {
         const canvas = document.createElement('canvas');
@@ -1370,6 +1432,34 @@ export class PlacementController {
         ctx.clip();
         drawIcon(ctx, iconId, 0, 0, 64);
         ctx.restore();
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        return texture;
+    }
+
+    /** empty pack / forge slot — matches HUD `.item-sq.empty.drop-target` */
+    private paintEmptySlotBadgeTexture(dropReady: boolean): CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        ctx.beginPath();
+        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.fillStyle = THEME.ui.techBuyBg;
+        ctx.fill();
+        ctx.lineWidth = dropReady ? 4 : 3;
+        ctx.strokeStyle = dropReady ? '#00ff66' : THEME.ui.border;
+        ctx.stroke();
+        if (dropReady) {
+            ctx.shadowColor = 'rgba(0, 255, 102, 0.55)';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(32, 32, 30, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(0, 255, 102, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         return texture;

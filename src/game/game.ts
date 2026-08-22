@@ -1582,6 +1582,7 @@ export class Game {
         };
         this.placement.itemDropValid = (unit) =>
             this.canDropArmedItemOn(unit) || this.canDropForgeOn(unit);
+        this.placement.itemDropStripIcons = (unit) => this.armedItemWorldStrip(unit);
         this.placement.tacticTargetValid = (unit) => {
             const armed = this.armedTactic;
             if (!armed || TACTICS[armed]?.targeting !== 'own-unit') return false;
@@ -7163,6 +7164,29 @@ export class Game {
         if (unit.seat !== this.humanSeat || unit.type.structure) return false;
         if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
         return !!ITEMS[this.armedItem];
+    }
+
+    /**
+     * Armed rune: full item/forge slot strip (filled icons + empty drop rings)
+     * over every valid 3D target — mirrors the details-pane slot row.
+     */
+    private armedItemWorldStrip(unit: Unit): readonly (string | null)[] | null {
+        if (!this.armedItem || !this.playerCanAct || this.phase !== 'build') return null;
+        if (this.canDropArmedItemOn(unit)) {
+            const limit = itemSlotLimit(unit.type.id);
+            const out: (string | null)[] = [];
+            for (let i = 0; i < limit; i++) {
+                const id = unit.items[i];
+                out.push(id ? (ITEMS[id]?.icon ?? null) : null);
+            }
+            return out;
+        }
+        if (this.canDropForgeOn(unit)) {
+            return this.forgeSlots.player!.map((s) =>
+                s ? (ITEMS[s.itemId]?.icon ?? null) : null,
+            );
+        }
+        return null;
     }
 
     /** armed rune → shared Stronghold forge (any seat on this side) */
