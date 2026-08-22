@@ -1433,10 +1433,10 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
                 inject += `
     // moss: mid-elevation cliffs/crevices only (~40–100 wu), baked in aMoss
     float midAlt = smoothstep( 40.0, 62.0, vTerrainH ) * ( 1.0 - smoothstep( 100.0, 124.0, vTerrainH ) );
-    float mossShow = clamp( vMoss * ( 0.62 + 0.38 * breakup ) * midAlt, 0.0, 1.0 );
+    float mossShow = clamp( vMoss * ( 0.38 + 0.22 * breakup ) * midAlt, 0.0, 1.0 );
     // same snow tint as the board (see map.ts) so the field edge matches
-    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
-    diffuseColor.rgb = mix( diffuseColor.rgb, mossDetail( vMapUv * vec2( 1.18, 0.92 ) ), mossShow * ( 1.0 - snowF ) * 0.52 );
+    diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);as
+    diffuseColor.rgb = mix( diffuseColor.rgb, mossDetail( vMapUv * vec2( 1.18, 0.92 ) ), mossShow * ( 1.0 - snowF ) * 0.82 );
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             } else {
                 inject += `
@@ -1481,7 +1481,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v44${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v45${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -2177,8 +2177,8 @@ vec3 mossDetail( vec2 uv ) {
     float lum = max( dot( g, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
     vec3 straw = ( g / lum ) * vec3( 0.78, 0.48, 0.06 );
     vec3 darkOrange = vec3( 0.48, 0.28, 0.04 );
-    vec3 moss = mix( g * vec3( 0.72, 0.42, 0.05 ), mix( straw, darkOrange, 0.78 ), 0.92 );
-    return moss * 0.66;
+    vec3 moss = mix( g * vec3( 0.82, 0.5, 0.06 ), mix( straw, darkOrange, 0.72 ), 0.94 );
+    return moss * 0.78;
 }
 `;
 
