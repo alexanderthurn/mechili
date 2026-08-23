@@ -361,6 +361,8 @@ export interface UnitType {
      * Ground stain / death particles. Omit = ash if structure, else blood.
      */
     deathWear?: DeathWear;
+    /** Ash-death scorch on the wear mask. Omit = global big/small defaults. */
+    deathAshScorch?: { radius: number; strength: number };
     /**
      * Hit/death gore tint (hex). Omit = default red. Ignored when wear is
      * ash/none (structures, siege, etc.).
@@ -376,6 +378,8 @@ export interface UnitType {
      * Combined with {@link range} as the engagement distance.
      */
     cleave?: { radius: number };
+    /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
+    cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
     burn?: import('./fire').BurnAffinity;
     /**
@@ -927,6 +931,7 @@ export const HORDE_KOMTUR: UnitType = {
         { y: 2.4, r: 1.5 },
     ],
     cleave: { radius: 8 },
+    cleaveShake: 1,
     fire: {
         ground: { radius: 8, duration: 8, intensity: 21 },
     },
@@ -1059,6 +1064,7 @@ export const UNIT_TYPES: UnitType[] = [
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
+        deathAshScorch: { radius: 5, strength: 0.35 }, // half the default big-unit ash scar
         burn: { takenMult: 4.0 }, // timber siege — burns hard once lit
         hp: 500,
         damage: 500,

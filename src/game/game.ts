@@ -9371,12 +9371,9 @@ export class Game {
                 if (e.wear === 'ash') {
                     // Structures: brick debris only — no ground ash scar
                     if (e.structure) continue;
-                    this.map.stampScorch(
-                        e.x,
-                        e.z,
-                        e.big ? 10 : 7,
-                        e.big ? 0.7 : 0.55,
-                    );
+                    const r = e.ashScorch?.radius ?? (e.big ? 10 : 7);
+                    const s = e.ashScorch?.strength ?? (e.big ? 0.7 : 0.55);
+                    this.map.stampScorch(e.x, e.z, r, s);
                 } else if (e.wear === 'blood') {
                     this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
                 }
@@ -9393,8 +9390,9 @@ export class Game {
                     this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.55, 1.4), 0.22);
                 }
             } else if (e.kind === 'towerDebuff') {
-                this.map.stampScorch(e.x, e.z, 14, 0.8);
-                this.map.stampScorch(e.x, e.z, 22, 0.35);
+                const seed = Math.imul(Math.floor(e.x * 1000) ^ Math.floor(e.z * 1000), 0x9e3779b1);
+                this.map.stampScorchIrregular(e.x, e.z, 7, 0.6, seed);
+                this.map.stampScorchIrregular(e.x, e.z, 11, 0.25, seed + 1);
             }
         }
     }

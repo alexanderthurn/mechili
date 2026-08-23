@@ -600,23 +600,15 @@ export function clampTacticPoint(
     };
 }
 
-/** Short glyphs for canvas / ground markers (atlas sprites are HUD-only). */
+/** Short glyphs for emoji ground markers (see spellMarkerIcons ATLAS_MARKER_TACTICS). */
 const TACTIC_WORLD_GLYPH: Record<string, string> = {
     [RALLY_ROUTE_ID]: '⚑',
-    [OIL_SPILL_ID]: '🛢',
     [SELL_UNIT_ID]: '💰',
     [MOVE_UNIT_ID]: '🏃',
     [TUTOR_ID]: '📖',
-    [SPAWN_DWARVES_ID]: '⚒',
-    [BIG_METEOR_ID]: '☄',
-    [SPAWN_CROWS_ID]: '🐦',
     [HAMMER_ID]: '🔨',
     [STORM_ID]: '🌩',
-    [METEOR_SHOWER_ID]: '🌠',
-    [ACID_ID]: '🧪',
-    [FIRE_SPILL_ID]: '🔥',
     [DRAGON_ID]: '🐉',
-    [POISON_CLOUD_ID]: '☠',
 };
 
 export function tacticWorldGlyph(tacticId: string): string {
