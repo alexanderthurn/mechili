@@ -533,6 +533,8 @@ export type SimEvent =
           /** normalized killing-blow direction (from knockback), so gore jets along it */
           dx?: number;
           dz?: number;
+          /** Ash death scorch override (from UnitType.deathAshScorch). */
+          ashScorch?: { radius: number; strength: number };
       }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
@@ -2804,6 +2806,7 @@ export class BattleSim {
             structureHeight,
             structureRadius: t.structure ? target.radius : undefined,
             blood: wear === 'blood' ? bloodColorOf(t) : undefined,
+            ashScorch: wear === 'ash' ? t.deathAshScorch : undefined,
             dx: klen > 1e-6 ? knockDir!.x / klen : undefined,
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
         });

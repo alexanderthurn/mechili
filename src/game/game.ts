@@ -9371,12 +9371,9 @@ export class Game {
                 if (e.wear === 'ash') {
                     // Structures: brick debris only — no ground ash scar
                     if (e.structure) continue;
-                    this.map.stampScorch(
-                        e.x,
-                        e.z,
-                        e.big ? 10 : 7,
-                        e.big ? 0.7 : 0.55,
-                    );
+                    const r = e.ashScorch?.radius ?? (e.big ? 10 : 7);
+                    const s = e.ashScorch?.strength ?? (e.big ? 0.7 : 0.55);
+                    this.map.stampScorch(e.x, e.z, r, s);
                 } else if (e.wear === 'blood') {
                     this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
                 }

@@ -361,6 +361,8 @@ export interface UnitType {
      * Ground stain / death particles. Omit = ash if structure, else blood.
      */
     deathWear?: DeathWear;
+    /** Ash-death scorch on the wear mask. Omit = global big/small defaults. */
+    deathAshScorch?: { radius: number; strength: number };
     /**
      * Hit/death gore tint (hex). Omit = default red. Ignored when wear is
      * ash/none (structures, siege, etc.).
@@ -1059,6 +1061,7 @@ export const UNIT_TYPES: UnitType[] = [
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
+        deathAshScorch: { radius: 5, strength: 0.35 }, // half the default big-unit ash scar
         burn: { takenMult: 4.0 }, // timber siege — burns hard once lit
         hp: 500,
         damage: 500,
