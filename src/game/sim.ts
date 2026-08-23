@@ -1171,7 +1171,7 @@ export class BattleSim {
             const shields = livingShieldDisks(this.actors.map((a) => a.unit));
             const expires = this.config.oilExpiresRound ?? 9999;
             const dir = opts?.shotDir;
-            if (dir && Math.hypot(dir.x, dir.z) > 1e-6) {
+            if (dir && hypot(dir.x, dir.z) > 1e-6) {
                 this.hazards.stampOilDirected(
                     x,
                     z,
@@ -1219,7 +1219,7 @@ export class BattleSim {
         }
         if (!profile.burn) return;
         const oilReach = profile.oil
-            ? opts?.shotDir && Math.hypot(opts.shotDir.x, opts.shotDir.z) > 1e-6
+            ? opts?.shotDir && hypot(opts.shotDir.x, opts.shotDir.z) > 1e-6
                 ? profile.oil.radius *
                   OIL_DIRECTED_LENGTH_MUL *
                   (OIL_DIRECTED_FWD +
@@ -3755,7 +3755,7 @@ export class BattleSim {
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.damageTakenMult(a);
             const knock =
-                shotDir && Math.hypot(shotDir.x, shotDir.z) > 1e-6
+                shotDir && hypot(shotDir.x, shotDir.z) > 1e-6
                     ? shotDir
                     : { x: a.x - x, z: a.z - z };
             this.applyDamage(

@@ -18,6 +18,16 @@ import { techsForUnit } from './techCatalog';
 /** world units per hazard cell — finer than board tiles for splat connectivity */
 export const HAZARD_CELL = 2;
 
+/**
+ * Deterministic replacement for Math.hypot, matching sim.ts: sqrt is correctly
+ * rounded per IEEE-754 in every engine, Math.hypot is not. It normalizes the
+ * splash direction below, so a last-ulp difference would move the wedge edge
+ * and hand two peers different oil cells.
+ */
+function hypot(x: number, z: number): number {
+    return Math.sqrt(x * x + z * z);
+}
+
 /** default Oil Spill tactic stamp */
 export const OIL_SPILL_RADIUS = 4 * CELL;
 export const OIL_SPILL_DURATION_ROUNDS = 1;
@@ -465,7 +475,7 @@ export class HazardField {
         if (totalLength <= 0) return;
         const maxQuarter = Math.max(startQuarterW, peakQuarterW, tailTipQuarterW);
         if (maxQuarter <= 0) return;
-        const len = Math.hypot(dirX, dirZ);
+        const len = hypot(dirX, dirZ);
         if (len < 1e-9) {
             this.forEachDiscCells(backX, backZ, maxQuarter, fn);
             return;
@@ -539,7 +549,7 @@ export class HazardField {
         now?: number,
     ): void {
         if (expiresRound <= 0 || length <= 0) return;
-        const slen = Math.hypot(dirX, dirZ);
+        const slen = hypot(dirX, dirZ);
         if (slen < 1e-6) {
             this.stampOil(impactX, impactZ, length * 0.5, expiresRound, blockedBy, now);
             return;
