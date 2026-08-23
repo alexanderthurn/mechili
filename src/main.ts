@@ -64,6 +64,8 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
+import { activeLoadout, normalizeLoadout, randomLoadout } from './game/loadouts';
+import { createLoadoutPanel } from './ui/loadoutPanel';
 import {
     SETTINGS_SAV_EXCLUDE,
     USER_AVATAR_STEAM_KEY,
@@ -1125,6 +1127,13 @@ const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-se
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
+// Loadout screen: a full-screen 3D stage with floating UI, so it is its own
+// overlay on the wrapper rather than a view inside the menu frame. Hidden
+// until opened from the profile dialog.
+const loadoutPanel = createLoadoutPanel(() => {
+    menu.style.display = '';
+});
+wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
@@ -1558,6 +1567,7 @@ function showNameEditor(): void {
         `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" ${steamLocked ? 'readonly' : ''} />` +
         `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
+        `<button type="button" class="profile-loadout" data-act="loadout">Edit Loadout</button>` +
         `<div class="actions">` +
         `<button type="button" data-act="cancel">Cancel</button>` +
         `<button type="button" class="primary" data-act="save">Save</button>` +
@@ -1571,7 +1581,6 @@ function showNameEditor(): void {
         previewEl.hidden = false;
     }
     const errorEl = overlay.querySelector<HTMLDivElement>('.error')!;
-    const actions = overlay.querySelector<HTMLDivElement>('.actions')!;
     if (!steamLocked) nameInput.select();
 
     let pendingAvatar: string | null | undefined = undefined; // undefined = unchanged
@@ -1599,7 +1608,10 @@ function showNameEditor(): void {
     };
 
     const setBusy = (busy: boolean) => {
-        actions.querySelectorAll('button').forEach((b) => {
+        // every button in the dialog, not just the .actions pair — the Edit
+        // Loadout button lives outside that row and saves on its way out, so
+        // it must not stay clickable while a save is already in flight
+        overlay.querySelectorAll('button').forEach((b) => {
             b.disabled = busy;
         });
         if (!steamLocked) nameInput.disabled = busy;
@@ -1622,12 +1634,13 @@ function showNameEditor(): void {
         })();
     });
 
-    const save = async () => {
+    /** @returns true once the edit was accepted and the dialog closed. */
+    const save = async (): Promise<boolean> => {
         const next = steamLocked ? getPlayerName() : validatePlayerName(nameInput.value);
         if (!next) {
             nameInput.style.borderColor = '#e83828';
             setError('Name must be 2–16 letters, numbers, _ or -.');
-            return;
+            return false;
         }
         nameInput.style.borderColor = '';
         setError('');
@@ -1646,6 +1659,7 @@ function showNameEditor(): void {
         }
         setBusy(false);
         close();
+        return true;
     };
 
     overlay.addEventListener('click', (e) => {
@@ -1657,6 +1671,20 @@ function showNameEditor(): void {
         if (act === 'clear-avatar') {
             pendingAvatar = null;
             showPreview(null);
+            return;
+        }
+        if (act === 'loadout') {
+            // save first, then navigate — leaving through this button must not
+            // silently discard a name/avatar edit the player already made
+            void save().then((saved) => {
+                // a rejected name leaves the dialog open — navigating anyway
+                // would strand the overlay on top of the loadout screen
+                if (!saved) return;
+                // the loadout screen takes over the whole viewport, so the
+                // menu steps aside until it closes
+                menu.style.display = 'none';
+                loadoutPanel.open();
+            });
             return;
         }
         if (act === 'save') void save();
@@ -3057,7 +3085,7 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
 function initialStarRoster(hostName: string): CanonicalSeatDef[] {
     const avatar = getAvatarDataUrl() || undefined;
     return [
-        { side: 'a', controller: 'human', name: hostName, avatar },
+        { side: 'a', controller: 'human', name: hostName, avatar, loadout: activeLoadout() },
         { side: 'a', controller: 'human', name: 'Waiting…' },
         { side: 'b', controller: 'human', name: 'Waiting…' },
         { side: 'b', controller: 'human', name: 'Waiting…' },
@@ -3068,7 +3096,7 @@ function initialStarRoster(hostName: string): CanonicalSeatDef[] {
 function initial1v1Roster(hostName: string): CanonicalSeatDef[] {
     const avatar = getAvatarDataUrl() || undefined;
     return [
-        { side: 'a', controller: 'human', name: hostName, avatar },
+        { side: 'a', controller: 'human', name: hostName, avatar, loadout: activeLoadout() },
         { side: 'b', controller: 'human', name: 'Waiting…' },
     ];
 }
@@ -3362,7 +3390,7 @@ function wireHostedHub(
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
         refresh();
     };
-    hub.listen((name, version, avatar) => {
+    hub.listen((name, version, avatar, loadout) => {
         if (version !== GAME_VERSION) {
             return {
                 reject: `Version mismatch — this room runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
@@ -3375,6 +3403,9 @@ function wireHostedHub(
             controller: 'human',
             name,
             avatar: wireAvatar(avatar) || undefined,
+            // normalize HERE — this is the boundary where a peer's picks
+            // stop being untrusted input and start feeding combat math
+            loadout: normalizeLoadout(loadout),
         });
         return seat;
     });
@@ -3486,7 +3517,16 @@ function startHostedMatch(): void {
     const currentRoster = hub.currentRoster();
     const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai' as const, name: starAiName(i, currentRoster) };
+            // AI seats get a real loadout here, rolled once and carried on
+            // the roster exactly like a human's — starSetup below sends this
+            // same array, so every client receives the bot's talents rather
+            // than computing its own copy.
+            return {
+                side: s.side,
+                controller: 'ai' as const,
+                name: starAiName(i, currentRoster),
+                loadout: randomLoadout(),
+            };
         }
         return s;
     });

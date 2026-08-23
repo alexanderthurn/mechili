@@ -218,7 +218,8 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
-import { ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById } from './techCatalog';
+import { activeLoadout, randomLoadout } from './loadouts';
+import { ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
@@ -1173,9 +1174,32 @@ export class Game {
             );
         // Local custom face: fill in if the wire/roster didn't already carry one.
         const localAvatar = getAvatarDataUrl();
-        this.seats = baseSeats.map((s, i) =>
-            i === humanSeat && !s.avatar && localAvatar ? { ...s, avatar: localAvatar } : s,
-        );
+        // Same treatment for this player's talent picks (PROGRESSION_PLAN.md
+        // §1d): a NETWORKED roster always carries every seat's loadout (the
+        // host normalizes one onto each entry at join), so this fill-in only
+        // ever fires for local play — where there is no wire to disagree
+        // with. Never overwrite a loadout the roster already carried, or a
+        // guest would silently play a different build than its peers think.
+        const localLoadout = activeLoadout();
+        this.seats = baseSeats.map((s, i) => {
+            if (i === humanSeat) {
+                let out = s;
+                if (!out.avatar && localAvatar) out = { ...out, avatar: localAvatar };
+                if (!out.loadout) out = { ...out, loadout: localLoadout };
+                return out;
+            }
+            // Every OTHER seat must already carry a loadout by now — a
+            // networked roster always does (the host puts one on each entry,
+            // AI seats included, before starSetup goes out). Only a purely
+            // local roster can reach here without one: solo 1v1's opponent,
+            // whose seat `canonicalClassicSeats` marks 'human' even though
+            // AiOpponent drives it, and any local duo AI ally. Rolling it
+            // here is safe precisely because there is no peer to disagree
+            // with — and it lands in `this.seats`, so exportReplay captures
+            // the actual values rather than leaving a replay to re-roll.
+            if (!s.loadout) return { ...s, loadout: randomLoadout() };
+            return s;
+        });
         this.humanSeat = humanSeat;
         this.economy = new Economy(settings.economy, this.seats.length);
         this.recruitLevel = this.seats.map(() => 1);
@@ -1555,7 +1579,7 @@ export class Game {
         // world tech icons — phase-start intel while fogged, live after reveal
         this.placement.ownedTechIcons = (unit) => {
             if (unit.type.structure) return [];
-            const selected = techsForUnit(unit.type.id);
+            const selected = techsForUnit(unit.type.id, this.loadoutOf(unit.seat));
             if (selected.length === 0) return [];
             const owned = this.intelTechOwned(unit);
             return selected.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
@@ -2941,7 +2965,7 @@ export class Game {
         let granted = 0;
         for (const type of UNIT_TYPES) {
             if (type.structure || type.extra) continue;
-            for (const tech of techsForUnit(type.id)) {
+            for (const tech of techsForUnit(type.id, this.loadoutOf(seat))) {
                 if (granted >= maxPerPress) return;
                 if (this.techTree.has(seat, type.id, tech.id)) continue;
                 this.techTree.add(seat, type.id, tech.id);
@@ -3118,6 +3142,15 @@ export class Game {
         return seat >= 0 && this.techTree.has(seat, typeId, techId);
     }
 
+    /**
+     * This seat's talent picks (PROGRESSION_PLAN.md §1). Undefined for AI
+     * seats and horde packs (`seat < 0`), which resolve the catalog default
+     * — the behavior every seat had before loadouts existed.
+     */
+    loadoutOf(seat: SeatId): Loadout | undefined {
+        return seat >= 0 ? this.seats[seat]?.loadout : undefined;
+    }
+
     /** Apply Sky Lift / Earthbound to pack hover altitude during deployment. */
     private refreshFlightAlts(): void {
         const has = (seat: SeatId, typeId: string, techId: string) =>
@@ -3247,6 +3280,7 @@ export class Game {
         items: string[][];
         tactics: string[][];
         rng: () => number;
+        loadoutOf: (seat: SeatId) => Loadout | undefined;
     } {
         return {
             dispatch: (action: Action) => {
@@ -3275,6 +3309,7 @@ export class Game {
             items: this.itemInventory,
             tactics: this.tacticInventory,
             rng,
+            loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
         };
     }
 
@@ -4495,6 +4530,15 @@ export class Game {
                 side: this.star.hub.sideOf(seat),
                 controller: 'ai',
                 name: def.name,
+                // The bot keeps playing the DEPARTED player's talents (see
+                // `this.seats` above — the army on the board was built for
+                // them). Carried here too so the hub roster never disagrees
+                // with Game.seats: nothing rebuilds sim state from it today
+                // (starRoster only feeds renderRosterTable), but a seat that
+                // arrived anywhere with no loadout would be re-derived as a
+                // random AI one by the constructor, silently replacing this
+                // player's build mid-match.
+                loadout: def.loadout,
             });
             // lets the ORIGINAL player find their way back later via the
             // room list's existing Resume UI + a name-matched rejoin — see
@@ -5013,6 +5057,9 @@ export class Game {
             // updates playerNames.local but nothing resyncs `this.seats`)
             name: seat === this.humanSeat ? this.playerNames.local : s.name,
             avatar: s.avatar,
+            // combat-affecting, so it has to reach a reconnecting seat and a
+            // spectator too — both catch up through this same snapshot
+            loadout: s.loadout,
         }));
     }
 
@@ -7704,7 +7751,14 @@ export class Game {
         return {
             version: 1,
             seed: this.seed,
-            settings: this.settings,
+            // The LIVE roster, not `this.settings.seats` — solo play leaves
+            // that unset (the roster is derived in the constructor), so a
+            // replay would otherwise resolve default talents and diverge
+            // from the match it recorded. Loadouts are match INPUT, like the
+            // seed (PROGRESSION_PLAN.md §1e). Avatars are dropped: they are
+            // ~120KB data URLs, pure decoration, and this payload also goes
+            // out as telemetry.
+            settings: { ...this.settings, seats: this.seats.map(({ avatar: _a, ...s }) => s) },
             actions: this.dispatcher.serializable(),
         };
     }
@@ -8003,6 +8057,7 @@ export class Game {
             spawnOnKill: (parent, typeId, x, z) => this.spawnOnKillChild(parent, typeId, x, z),
             boardHalfW: this.map.halfW,
             boardHalfZ: this.map.halfH,
+            loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
         });
         this.debugLog.log('sim.battleStart', {
             watching: this.watching,
@@ -9798,7 +9853,7 @@ export class Game {
             return slots.length ? slots : undefined;
         }
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const selected = techsForUnit(u.type.id);
+        const selected = techsForUnit(u.type.id, this.loadoutOf(u.seat));
         const slotsN = techSlotLimit(u.type.id);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;

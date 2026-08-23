@@ -151,9 +151,14 @@ export class CardSpellTips {
                 top = Math.max(pad, window.innerHeight - h - pad);
             }
         } else {
-            left = rect.right + 14;
+            // Elements can opt into a wider gap with data-tip-wide. Needed for
+            // anything in a panel pinned to a screen edge: the tip flips to
+            // the element's other side, which is exactly where the cursor
+            // already is, so the default 14px leaves it under the pointer.
+            const gap = el.dataset.tipWide ? 40 : 14;
+            left = rect.right + gap;
             if (left + tipW > window.innerWidth - pad) {
-                left = Math.max(pad, rect.left - tipW - 14);
+                left = Math.max(pad, rect.left - tipW - gap);
             }
             top = Math.max(pad, Math.min(rect.top, window.innerHeight - h - pad));
         }

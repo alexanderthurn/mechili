@@ -86,9 +86,26 @@ Call sites to convert (all of them):
 ### 1c. Data model
 
 ```ts
-/** selected talent ids per unit type id */
-type Loadout = Record<string, string[]>;
+interface Loadout {
+    /** talent picks, keyed by unit type id */
+    techs: Record<string, string[]>;
+}
 ```
+
+**A container, not the bare map** — deliberately, so later pregame choices
+are additive rather than a migration of every value already saved in
+`user.sav` and already crossing the wire. See §1h.
+
+**Only this shape is accepted.** `normalizeLoadout` reads `techs` and
+nothing else; anything in another shape degrades to defaults rather than
+being migrated. Nothing has shipped, so there is no old format worth
+carrying — clear storage if a stale value shows up in development.
+
+`normalizeLoadout` itself stays, and is not about formats: it is the wire
+trust boundary, capping a peer's picks to the slot limit and dropping ids
+off a unit's allowlist at the host's `onJoin` and again in
+`localizeRoster`. Without it a modified client's over-limit loadout would
+be honoured by every other client's sim.
 
 Always **normalized** before use and before it crosses the wire:
 drop unknown talent ids, drop ids not in that type's allowlist,
@@ -147,20 +164,136 @@ That keeps them clear of the Cloud conflict problem described in §2c.
 
 ### 1g. UI
 
-A pregame/profile screen: per unit type, show the allowlist, let the
-player pick up to `techSlotLimit(typeId)`. Named presets, so a player can
-keep an anti-air build and a rush build side by side.
+Reached from the username/avatar dialog (not the main menu — it is
+profile config, not a way to start a match). **Master–detail**: a rail of
+unit types on the left, one unit's full detail on the right.
+
+**The 3D stage IS the screen**, modelled on Mechabellum's tech screen: a
+full-viewport rotating model of the unit, with every panel floating over
+it. Left: a `◀ name ▶` unit switcher and a linear stat list (label left,
+value right). Right: a linear talent list (icon, name, supply cost) and
+the chosen-slot boxes under it. Corner buttons bottom-right.
+
+It is therefore its OWN overlay on the wrapper, not a `.m-view` inside the
+menu — the menu frame's width would otherwise constrain it, and the menu
+hides itself while the screen is open.
+
+The model reuses `createShowcaseViewer` (moved from `homepage/` to `ui/`,
+since it was never homepage-specific): drag to orbit, wheel to zoom,
+auto-rotate resuming shortly after release. It owns a second WebGL
+context, so it is created when the screen opens and disposed on Back, and
+its canvas survives re-renders rather than being rebuilt per click.
+
+Slot boxes carry the limit visually (one box per slot, filled ones clear
+on click), so no "N of M filled" label is needed. Talent descriptions live
+in a hover tip — at full-screen scale the list reads better as one line
+per talent, matching the reference.
+
+The tip is the game's existing `CardSpellTips` (the in-match rune/spell
+hover), driven by `data-spell-tip` + `data-ttitle`/`tdesc`/`ticon`. Bound
+on open and destroyed on close, because each instance registers its own
+document-level listeners and two live at once would show two tips. Both
+the talent rows and the slot boxes carry it — the slots especially, since
+they show neither a name nor a cost of their own.
+
+**Mobile** keeps the same overlay model as desktop rather than stacking in
+flow. Stacking was tried and was worse: the talent list got pushed down by
+whatever sat above it and could start near the bottom of the screen. Under
+860px the panels flow from the TOP — switcher and collapsed stats, then
+talents and slots — while the stage stays absolutely positioned behind
+them, so it never pushes anything down. Whatever height the panels leave
+is at the BOTTOM, which is where the model shows through, rendered at
+`NARROW_MODEL_SCALE` so it reads as a backdrop instead of fighting the
+overlays for the same pixels. Corner buttons stay pinned top-right (at the
+bottom they sat on the talent panel). Coarse pointers get 44px tap
+targets.
+
+**Short viewports hide nothing.** An earlier version dropped the model and
+stats below ~700px tall; once the panels became an overlay rather than
+sharing height with the stage, a short window costs the model no space, so
+the rule only keeps the panels inside the screen (`max-height` + scroll).
+The panel still disposes its renderer whenever the stage measures zero — a
+display:none canvas would otherwise leave a WebGL context and a rAF loop
+running for nothing — which is now a safety net rather than a live path.
+
+**"Reset all", not "Reset"** — it rebuilds every unit's picks, while
+everything else on the screen is scoped to the selected unit, so the
+unqualified label read as "reset this unit".
+
+**One stored loadout, not presets.** Named presets were built first and
+then cut: with no UI to create, name or switch between them, the whole
+preset array, its active-id key and the write-juggling existed to hold a
+single value. Presets are worth adding when §2b actually sells extra
+preset slots — as a real feature with a real UI, not as machinery waiting
+for one.
 
 **Settled:** the ballista was `12` slots against a 12-long allowlist —
 no choice at all, it simply took everything. Now **4 of 12**: the widest
 allowlist in the game and the most real decision, so a ballista commits
 to a siege, anti-air or fire build. The allowlist itself is unchanged.
 
-Knock-on worth knowing: the DEFAULT loadout is the first N allowed ids,
-so AI seats and fresh profiles now research only the first four ballista
-entries (`skyBind`, `armor`, `autoloader`, `golden`). Allowlist ORDER is
-therefore a balance lever, not just presentation — reorder it to change
-what an AI ballista builds.
+Knock-on: the DEFAULT loadout is the first N allowed ids, so a fresh
+profile starts on the first four ballista entries (`skyBind`, `armor`,
+`autoloader`, `golden`) — allowlist ORDER is therefore a balance lever
+for the human default, not just presentation.
+
+**Bots do NOT use that default.** Every AI seat gets a randomized loadout
+(`randomLoadout`), so opponents vary between matches instead of every bot
+playing array order.
+
+**It is always TRANSFERRED, never derived.** The roll happens once, where
+the seat is created — the host's AI-fill for networked matches (before
+`starSetup` goes out, so the same array reaches every client), and the
+`Game` constructor for purely local rosters. Every seat on a roster
+therefore carries a real loadout, AI and human alike, and no client ever
+recomputes one.
+
+An earlier draft derived AI loadouts per-client from the match seed. It
+worked, but it made correctness depend on two invariants that are easy to
+break later — every client agreeing on the seed, and seat INDEX being
+stable across clients — for the sake of saving a few hundred bytes.
+Transferring the value has one path, one source of truth, and fails
+loudly rather than silently desyncing.
+
+Two consequences of doing it at seat-creation time:
+
+- **Solo 1v1's opponent is covered.** `canonicalClassicSeats` marks that
+  seat `'human'` even though `AiOpponent` drives it, so a
+  `controller === 'ai'` test would have missed it. The fill keys off "has
+  no loadout" instead.
+- **A bot taking over a dropped human seat inherits THAT player's
+  loadout** rather than rolling a new one — the army already on the board
+  was built for those talents. Preserved through takeover and reclaim
+  (`{ ...def, controller }`), and mirrored into StarHub's own roster so
+  the two copies cannot disagree.
+
+### 1h. Later pregame choices (NOT built)
+
+Two further choices are anticipated. Neither is implemented; the data
+structure is shaped to accept them, and that is all.
+
+**Spell loadout per commander.** Each `StartCard` fixes three
+`forgeSpells` — a 1-, 2- and 3-rune spell. Letting a player choose them
+would add `spells?: Record<commanderId, tacticId[]>`. Cheap: `forgeSpells`
+is read in exactly ONE place (Game's forge-spell lookup, via
+`starterCardOfSeat(seat)?.forgeSpells`), so a player override is a single
+fallback there, same "absent → card default" rule techs already use.
+Constraint to encode: **one spell per rune tier**, not a flat count — the
+forge recipes are built on the 1/2/3 structure, and three 3-rune picks
+would break the rune economy.
+
+**Commander pool.** The starter offer is `draw(START_CARDS, 4, rng)` — 4
+of 20, per-seat seeded. Restricting it means passing a filtered array to
+that same call, plus a minimum pool size (the draw wants 4).
+
+**If this is built, build it as a BAN list, not a pick list.** "4 random
+of 20" is a variety mechanic — you adapt to what you are dealt. A pick
+list collapses it: everyone curates down to the strongest few and
+match-to-match variety goes with it. It is also *chosen* power in a way
+talents are not, since a talent costs supply to research while a
+commander pick is free. A ban list answers "I never want to play this
+one" without answering "I always want to play this one", which is the
+half worth granting.
 
 ## 2. Rewards and progression
 

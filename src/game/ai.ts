@@ -14,7 +14,7 @@ import {
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
-import { techsForUnit } from './techCatalog';
+import { techsForUnit, type Loadout } from './techCatalog';
 import { UNIT_TYPES, isPlayerBuyable, unitTypeById, unitUnlockCost, type Team } from './units';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
@@ -61,6 +61,9 @@ export class AiOpponent implements Opponent {
             speciality: (SpecialityId | null)[];
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
+            /** per-SEAT talent picks; AI seats normally have none and get
+             *  the catalog default (PROGRESSION_PLAN.md §1c) */
+            loadoutOf: (seat: SeatId) => Loadout | undefined;
         },
     ) {}
 
@@ -308,7 +311,7 @@ export class AiOpponent implements Opponent {
             bought = false;
             for (const typeId of ownedTypeIds) {
                 const type = unitTypeById(typeId);
-                const techs = type ? techsForUnit(type.id) : [];
+                const techs = type ? techsForUnit(type.id, this.ctx.loadoutOf(this.seat)) : [];
                 if (!type || techs.length === 0) continue;
                 const owned = techTree.ownedFor(this.seat, type.id);
                 for (const tech of techs) {

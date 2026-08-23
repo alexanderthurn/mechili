@@ -648,6 +648,69 @@ button, input, select, textarea { font-family: inherit; }
  *  themselves, but anything relying on the bare class (chat emotes) rendered
  *  as nothing in the menu until a match injected hudStyles() — after which it
  *  stayed, so icons "started working" once you had played a round. */
+/** The floating hover tip (CardSpellTips). Shared because BOTH sheets need
+ *  it: the same component is used by the match HUD and by the menu's loadout
+ *  screen, and the menu only injects menuStyles() — left in hudStyles() alone
+ *  the tip mounted as an unstyled, unpositioned div at the end of <body>,
+ *  i.e. invisible, until a match had injected hudStyles() once. Same trap
+ *  iconBaseStyles() below documents. */
+function cardSpellTipStyles(): string {
+    const u = THEME.ui;
+    return `
+.mechili-card-spell-tip {
+    position: fixed;
+    z-index: 10050;
+    width: 280px;
+    padding: 12px 14px;
+    border-radius: 4px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    color: ${u.text};
+}
+.mechili-card-spell-tip .ai-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.mechili-card-spell-tip .ai-icon {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+}
+.mechili-card-spell-tip .ai-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: ${u.brassLight};
+}
+.mechili-card-spell-tip .ai-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: ${u.text};
+    margin-top: 8px;
+}
+.mechili-card-spell-tip .ai-forge-ings {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 3px;
+    margin: 0 0 0 auto;
+    align-items: center;
+    flex-shrink: 0;
+}
+.mechili-card-spell-tip .ai-forge-ing {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+`;
+}
+
 function iconBaseStyles(): string {
     return `
 .m-icon {
@@ -807,6 +870,7 @@ export function menuStyles(bars?: BarAssets): string {
 ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
+${cardSpellTipStyles()}
 ${chatBarStyles(u)}
 ${chatFloatStyles(u, pc, ec)}
 .mechili-menu {
@@ -1212,6 +1276,354 @@ ${chatFloatStyles(u, pc, ec)}
     cursor: pointer;
 }
 .mechili-menu .m-spmode-horde { justify-content: center; font-size: 14px; color: ${u.text}; }
+/* Loadout screen (PROGRESSION_PLAN.md §1g) — the 3D stage IS the screen;
+   every panel floats over it. Its own overlay, not a menu view, so the menu
+   frame's width never constrains it. */
+.mechili-loadout {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 46%, #2a2119 0%, #14100c 62%, #0a0806 100%);
+    color: ${u.text};
+    user-select: none;
+}
+.mechili-loadout .lo-stage {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+}
+.mechili-loadout .lo-stage.mh-draggable { cursor: grab; }
+.mechili-loadout .lo-stage.dragging { cursor: grabbing; }
+
+/* ---- floating panels ---- */
+.mechili-loadout .lo-left,
+.mechili-loadout .lo-right,
+.mechili-loadout .lo-corner {
+    position: absolute;
+    z-index: 1;
+}
+.mechili-loadout .lo-left {
+    top: calc(24px + env(safe-area-inset-top));
+    left: calc(24px + env(safe-area-inset-left));
+    /* bounded to the viewport so the stats can never run off the bottom of
+       a short window — they shrink and scroll instead */
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: clamp(210px, 22vw, 280px);
+}
+.mechili-loadout .lo-right {
+    top: calc(24px + env(safe-area-inset-top));
+    right: calc(24px + env(safe-area-inset-right));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: clamp(250px, 26vw, 340px);
+    max-height: calc(100% - 120px);
+}
+.mechili-loadout .lo-corner {
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    right: calc(24px + env(safe-area-inset-right));
+    display: flex;
+    gap: 8px;
+}
+
+/* ---- unit switcher ---- */
+.mechili-loadout .lo-switcher {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* The name is a headline and should not be boxed in by the STATS column
+       width — "Crow Rider" at 34px needs more than the ~280px that panel
+       wants. Overflowing to the right is free: this floats over the stage,
+       and nothing sits beside it. */
+    width: max-content;
+    min-width: 100%;
+    max-width: min(48vw, 520px);
+}
+.mechili-loadout .lo-unitname {
+    flex: 1;
+    font-size: clamp(22px, 2.6vw, 34px);
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: ${u.brassLight};
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mechili-loadout .lo-arrow {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    background: none;
+    border: none;
+    color: ${u.brass};
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+    transition: color 0.14s ease, transform 0.14s ease;
+}
+.mechili-loadout .lo-arrow:hover { color: ${u.hover}; transform: scale(1.2); }
+
+/* ---- stat list: label left, value right, one row each ---- */
+.mechili-loadout .lo-stats {
+    display: flex;
+    flex-direction: column;
+    /* take what is left under the switcher, but never more: past that the
+       list scrolls rather than overflowing the window */
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(16, 13, 10, 0.72);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    border: 1.5px solid ${u.frameLo};
+    border-radius: 4px;
+}
+.mechili-loadout .lo-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 11px;
+    border-bottom: 1px solid rgba(92, 70, 52, 0.35);
+    font-size: 12px;
+}
+.mechili-loadout .lo-stat:last-child { border-bottom: none; }
+.mechili-loadout .lo-stat .k {
+    color: ${u.textMuted};
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 10px;
+}
+.mechili-loadout .lo-stat .v {
+    color: ${u.cream};
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Stats collapse toggle — mobile only; desktop has room to show stats
+   outright, so it never appears there. */
+.mechili-loadout .lo-statstoggle { display: none; }
+
+/* ---- talents ---- */
+.mechili-loadout .lo-paneltitle {
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+.mechili-loadout .lo-techlist {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-height: 0;
+    overflow-y: auto;
+}
+.mechili-loadout .lo-tech {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 11px 8px 9px;
+    background: rgba(16, 13, 10, 0.72);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    border: 1.5px solid ${u.frameLo};
+    border-radius: 3px;
+    color: ${u.textMuted};
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+.mechili-loadout .lo-tech:hover { border-color: ${u.hover}; color: ${u.cream}; }
+.mechili-loadout .lo-tech.is-on {
+    background: linear-gradient(180deg, rgba(58, 48, 40, 0.9) 0%, rgba(34, 28, 23, 0.9) 100%);
+    border-color: ${u.brass};
+    color: ${u.cream};
+}
+.mechili-loadout .lo-tico {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    font-size: 0;
+}
+.mechili-loadout .lo-tech:not(.is-on) .lo-tico { opacity: 0.55; }
+.mechili-loadout .lo-tname {
+    flex: 1;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    min-width: 0;
+}
+.mechili-loadout .lo-tcost {
+    flex: 0 0 auto;
+    color: ${u.brassLight};
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+}
+
+/* ---- chosen slots ---- */
+.mechili-loadout .lo-slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+}
+.mechili-loadout .lo-slot {
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: linear-gradient(180deg, rgba(58, 48, 40, 0.9) 0%, rgba(34, 28, 23, 0.9) 100%);
+    border: 1.5px solid ${u.brass};
+    border-radius: 3px;
+    /* REQUIRED, not cosmetic: mask icons tint with background-color:
+       currentColor, and a button does not inherit color — the UA stylesheet
+       sets it to black, so the icon renders black without this. */
+    color: ${u.cream};
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease;
+}
+.mechili-loadout .lo-slot:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+/* an unfilled slot is a placeholder, not a control */
+.mechili-loadout .lo-slot.is-empty {
+    background: rgba(10, 8, 6, 0.6);
+    border: 1.5px dashed ${u.slotBorder};
+    cursor: default;
+}
+.mechili-loadout .lo-sico { width: 26px; height: 26px; font-size: 0; }
+
+/* ---- corner buttons ---- */
+.mechili-loadout .lo-cornerbtn {
+    padding: 9px 18px;
+    background: rgba(16, 13, 10, 0.8);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+    color: ${u.text};
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease, transform 0.14s ease;
+}
+.mechili-loadout .lo-cornerbtn:hover {
+    border-color: ${u.hover};
+    color: ${u.brassLight};
+    transform: translateY(-1px);
+}
+
+/* ---- mobile / narrow ----
+   Panels flow from the TOP — switcher, then talents and slots — while the
+   stage stays absolutely positioned behind everything, so it never pushes
+   anything down (that was the bug when the stage was a flow item: the
+   talent list could start near the bottom of the screen). Whatever height
+   the panels do not use is left at the BOTTOM, which is where the model
+   shows through. */
+@media (max-width: 860px) {
+    .mechili-loadout {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: calc(10px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right))
+            calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+        box-sizing: border-box;
+    }
+    .mechili-loadout .lo-left,
+    .mechili-loadout .lo-right {
+        position: static;
+        inset: auto;
+        width: auto;
+    }
+    .mechili-loadout .lo-left {
+        order: 1;
+        flex: 0 0 auto;
+        gap: 6px;
+        /* keep clear of the corner buttons, which stay pinned top-right */
+        padding-right: 104px;
+    }
+    .mechili-loadout .lo-corner {
+        top: calc(10px + env(safe-area-inset-top));
+        right: calc(10px + env(safe-area-inset-right));
+        bottom: auto;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .mechili-loadout .lo-switcher { width: auto; max-width: none; }
+    .mechili-loadout .lo-unitname { font-size: 20px; text-align: left; }
+    .mechili-loadout .lo-statstoggle {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        background: rgba(16, 13, 10, 0.72);
+        -webkit-backdrop-filter: blur(3px);
+        backdrop-filter: blur(3px);
+        border: 1.5px solid ${u.frameLo};
+        border-radius: 3px;
+        color: ${u.textMuted};
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        cursor: pointer;
+    }
+    /* collapsed by default — only the toggle expands it */
+    .mechili-loadout .lo-stats {
+        display: none;
+        grid-template-columns: 1fr 1fr;
+    }
+    .mechili-loadout.is-statsopen .lo-stats { display: grid; }
+    /* the 2-column grid makes the per-row bottom border look like a ladder;
+       dropping it on the last pair reads cleanly in both columns */
+    .mechili-loadout .lo-stats .lo-stat:nth-last-child(-n + 2) { border-bottom: none; }
+    /* talents sit directly under the switcher; the cap is what reserves the
+       bottom of the screen for the model */
+    .mechili-loadout .lo-right {
+        order: 2;
+        flex: 0 1 auto;
+        min-height: 0;
+        max-height: 56vh;
+    }
+    .mechili-loadout .lo-slots { justify-content: center; }
+}
+/* Short viewports (laptop windows, phones in landscape). Nothing is hidden
+   any more — the panels OVERLAY the stage rather than sharing height with
+   it, so a short window costs the model no space. The panels just have to
+   stay inside the screen. */
+@media (max-height: 700px) {
+    .mechili-loadout .lo-right { max-height: calc(100% - 64px); }
+}
+/* touch: the switcher arrows and corner buttons need real tap targets */
+@media (pointer: coarse) {
+    .mechili-loadout .lo-arrow {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 20px;
+    }
+    .mechili-loadout .lo-cornerbtn { min-height: 44px; }
+    .mechili-loadout .lo-statstoggle { min-height: 40px; }
+    .mechili-loadout .lo-tech { padding-top: 11px; padding-bottom: 11px; }
+    .mechili-loadout .lo-slot { width: 48px; height: 48px; }
+}
 /* card-style team-size / Horde toggles (Single Player) — same visual
    language as .m-btn, built on real radio/checkbox inputs (hidden, not
    removed) so the existing :checked-based JS needs no changes at all */
@@ -2025,6 +2437,13 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 }
 .mechili-name-edit .avatar-pick:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-name-edit .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+/* leaves the dialog rather than committing it — full width, above the
+   Cancel/Save pair, so it never reads as a third commit action */
+.mechili-name-edit .profile-loadout {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+}
 .mechili-name-edit button {
     padding: 8px 14px;
     background: ${u.panelBgDark};
@@ -2562,6 +2981,7 @@ export function hudStyles(bars?: BarAssets): string {
 ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
+${cardSpellTipStyles()}
 ${chatBarStyles(u)}
 ${chatFloatStyles(u, pc, ec)}
 .mechili-cinema-hide {
@@ -4127,57 +4547,6 @@ ${chatFloatStyles(u, pc, ec)}
     border-radius: 50%;
     overflow: hidden;
     box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35);
-}
-.mechili-card-spell-tip {
-    position: fixed;
-    z-index: 10050;
-    width: 280px;
-    padding: 12px 14px;
-    border-radius: 4px;
-    border: 1.5px solid ${u.border};
-    background: ${u.panelBgDark};
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-    pointer-events: none;
-    color: ${u.text};
-}
-.mechili-card-spell-tip .ai-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.mechili-card-spell-tip .ai-icon {
-    width: 28px;
-    height: 28px;
-    flex: 0 0 auto;
-}
-.mechili-card-spell-tip .ai-title {
-    flex: 1;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: bold;
-    color: ${u.brassLight};
-}
-.mechili-card-spell-tip .ai-desc {
-    font-size: 12px;
-    line-height: 1.5;
-    color: ${u.text};
-    margin-top: 8px;
-}
-.mechili-card-spell-tip .ai-forge-ings {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 3px;
-    margin: 0 0 0 auto;
-    align-items: center;
-    flex-shrink: 0;
-}
-.mechili-card-spell-tip .ai-forge-ing {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 @keyframes forge-pulse-partial {
     0%, 100% { transform: translateY(0); box-shadow: 0 0 0 1px rgba(255, 208, 64, 0.25), 0 0 10px rgba(255, 208, 64, 0.22); }
