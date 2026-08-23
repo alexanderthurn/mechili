@@ -77,7 +77,7 @@ export class OilVisuals {
         this.lastNow = now;
         // committed puddles only — no draft soft-stamp (outlines carry intent)
         this.map.syncHazardFromField(field, now, null);
-        // charcoal under flame (once per cell) — remains after fire burns out
+        // ember tint under flame (once per cell) — remains after fire burns out on low VFX only
         this.map.stampScorchUnderFire(field, now);
         this.clearOutlines();
         if (!showOutlines) return;

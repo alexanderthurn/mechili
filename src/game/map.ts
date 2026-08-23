@@ -776,7 +776,7 @@ export class BattleMap {
         },
         now: number,
     ): void {
-        // Tongues tier: live charcoal comes from the hazard mask and clears with
+        // Tongues tier: live ember tint comes from the hazard mask and clears with
         // the fire — don't also bake permanent wear scars under it.
         if (this.fireCharcoalGround) return;
         if (!this.wearEnabled()) return;
@@ -914,7 +914,7 @@ export class BattleMap {
         // Soft discs larger than a cell so puddles melt together (blood-style),
         // instead of a visible square lattice of tiny stamps.
         const puddleR = field.cellSize * 1.55;
-        // Orange (low VFX): tight under sparks. Charcoal (tongues): a bit fuller.
+        // Orange (low VFX): tight under sparks. Tongues: slightly fuller ember pool.
         const fireR = field.cellSize * (this.fireCharcoalGround ? 1.05 : 0.72);
         const stampPuddle = (
             x: number,
@@ -1217,17 +1217,18 @@ export class BattleMap {
                 // Pitch-black slick — must not read as charcoal scorch.
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.004, 0.003, 0.002), oilM * 0.99);\n' +
                 '\tfloat flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
-                // Low fire VFX: orange puddle. Tongues tier: charcoal that clears with the blaze.
+                // Low fire VFX: orange puddle. Tongues tier: ember body from flame billboards.
                 '\tvec3 orangeCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.32, 0.04), flicker);\n' +
-                '\tfloat ashN = fract( sin( dot( vMapUv * 13.0, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
-                '\tvec3 charLive = mix( vec3( 0.02, 0.015, 0.01 ), vec3( 0.055, 0.03, 0.015 ), ashN * 0.55 + flicker * 0.2 );\n' +
-                '\tvec3 liveFireCol = mix( orangeCol, charLive, uFireCharcoalGround );\n' +
+                // Same orange as FLAME_FRAG_ADDITIVE tongue body.
+                '\tvec3 tongueGround = mix(vec3(0.75, 0.12, 0.02), vec3(1.0, 0.5, 0.07), flicker);\n' +
+                '\tvec3 liveFireCol = mix( orangeCol, tongueGround, uFireCharcoalGround );\n' +
                 '\tfloat liveFireAmt = orangeM * mix( 0.72, 0.94, uFireCharcoalGround );\n' +
                 '\tliveFireAmt *= mix( orangeM, 1.0, uFireCharcoalGround );\n' +
                 '\tdiffuseColor.rgb = mix( diffuseColor.rgb, liveFireCol, liveFireAmt );\n' +
                 '\tvec3 azureCol = mix(vec3(0.12, 0.02, 0.02), vec3(1.0, 0.32, 0.05), flicker);\n' +
                 '\tazureCol = mix(azureCol, vec3(0.12, 0.14, 0.55), 0.22);\n' +
-                '\tazureCol = mix( azureCol, charLive, uFireCharcoalGround * 0.85 );\n' +
+                '\tvec3 azureTongue = mix(vec3(0.12, 0.1, 0.45), vec3(1.0, 0.48, 0.1), flicker);\n' +
+                '\tazureCol = mix( azureCol, azureTongue, uFireCharcoalGround * 0.85 );\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ));\n' +
                 '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
                 '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
