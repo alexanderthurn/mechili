@@ -165,7 +165,13 @@ That keeps them clear of the Cloud conflict problem described in §2c.
 ### 1g. UI
 
 Reached from the username/avatar dialog (not the main menu — it is
-profile config, not a way to start a match). **Master–detail**: a rail of
+profile config, not a way to start a match). **Above 720px** a "Loadout"
+chip also appears in the main menu, stacked above the username chip and
+wearing the same `.mechili-username` styling. Under the breakpoint it is
+dropped — that corner is already crowded on a phone — and the profile
+dialog's own button is the route. It is CSS-gated, so
+`setMenuChromeVisible` clears the inline display rather than setting one,
+leaving the breakpoint in charge. **Master–detail**: a rail of
 unit types on the left, one unit's full detail on the right.
 
 **The 3D stage IS the screen**, modelled on Mechabellum's tech screen: a
@@ -305,6 +311,48 @@ talents are not, since a talent costs supply to research while a
 commander pick is free. A ban list answers "I never want to play this
 one" without answering "I always want to play this one", which is the
 half worth granting.
+
+### 1i. In-match: the shop hover window
+
+A unit's shop tile used to carry a native `title` with a stat blurb, which
+could not show the player's chosen talents. It now uses the same framed
+window the shop RUNES use (`CardSpellTips`), showing **only the unit name
+and its chosen talents, listed vertically with their research cost** —
+same shape as the loadout screen's list. The tile already shows the unit's
+cost, and stats belong in the unit details panel rather than on every
+hover.
+
+Anchored off the whole **shop column**, not the tile: a tile-relative
+offset still landed inside the shop (the column is wide) and therefore
+right next to the cursor. Left of the column and near the top clears both.
+
+The **unlock picker** shows the same window — you want to see what talents
+a unit would bring before paying to unlock it. Its tiles are `.shop-tile`
+too but live in a centred modal rather than the shop column, so they fall
+through to the default placement, which flips sides as needed. They are
+built as an HTML string long after `setUnitTalents` runs, so the encoded
+rows are kept on the HUD (`unitTalentRows`) rather than only on the shop
+tiles' datasets. Its grid also overrides the shared `direction: rtl` —
+that exists to fill the screen-edge shop from the right, and reads wrong
+in a centred dialog.
+
+Each row shows the talent's icon, name, research cost and **what it
+does** — the same `techDescription()` text the loadout screen shows.
+
+`spellInfoFrameHtml` gained an optional `rows` list (icon, label, cost,
+desc), serialized onto the tile as `data-trows` via `encodeTipRows`
+(`icon|cost|label|desc`, one row per line, description LAST so it may
+contain pipes — icon ids, costs and talent names cannot). The HUD receives the picks
+once at match setup (`setUnitTalents`) since a loadout cannot change
+mid-match. Long-press shows the same window on touch, replacing the
+plain-text stand-in.
+
+**Unaffordable tiles stay hoverable.** `.shop-tile.unaffordable` used to
+carry `pointer-events: none`, which took the info frame away along with the
+click — but reading a unit's talents is most useful exactly when you cannot
+afford it yet. The tiles are now dimmed with `cursor: default` and the click
+is refused in JS, matching the treatment the panel's locked/owned tiles
+already had.
 
 ## 2. Rewards and progression
 

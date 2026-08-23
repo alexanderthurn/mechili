@@ -25,6 +25,8 @@ export function spellInfoFrameHtml(opts: {
     icon?: string;
     ingredientIcons?: readonly string[];
     levelIcon?: boolean;
+    /** vertical icon+label(+cost, +desc) list — a unit's talent loadout */
+    rows?: readonly { icon: string; label: string; cost?: number; desc?: string }[];
 }): string {
     const ings =
         opts.ingredientIcons && opts.ingredientIcons.length > 0
@@ -33,14 +35,71 @@ export function spellInfoFrameHtml(opts: {
                   .join('')}</div>`
             : '';
     const descHtml = escapeHtml(opts.desc ?? '').replace(/\n/g, '<br>');
+    const rowsHtml =
+        opts.rows && opts.rows.length > 0
+            ? `<div class="ai-rows">${opts.rows
+                  .map(
+                      (r) =>
+                          `<div class="ai-row">${iconHtml(r.icon, 'ai-row-ico mask-ico')}` +
+                          `<span class="ai-row-body">` +
+                          `<span class="ai-row-label">${escapeHtml(r.label)}</span>` +
+                          (r.desc ? `<span class="ai-row-desc">${escapeHtml(r.desc)}</span>` : '') +
+                          `</span>` +
+                          (r.cost === undefined ? '' : `<span class="ai-row-cost">${r.cost}</span>`) +
+                          `</div>`,
+                  )
+                  .join('')}</div>`
+            : '';
     return (
         `<div class="ai-head"${opts.levelIcon ? ` style="color:${THEME.ui.brassLight}"` : ''}>` +
         `${opts.icon ? iconHtml(opts.icon, opts.levelIcon ? 'ai-icon mask-ico' : 'ai-icon') : ''}` +
         `<span class="ai-title">${escapeHtml(opts.title)}</span>` +
         ings +
         `</div>` +
-        (descHtml ? `<div class="ai-desc">${descHtml}</div>` : '')
+        (descHtml ? `<div class="ai-desc">${descHtml}</div>` : '') +
+        rowsHtml
     );
+}
+
+interface TipRow {
+    icon: string;
+    label: string;
+    cost?: number;
+    desc?: string;
+}
+
+/**
+ * Serialize talent rows for a `data-trows` attribute (see CardSpellTips).
+ * `icon|cost|label|desc`, one row per line. The description goes LAST so it
+ * may contain pipes; icon ids, costs and talent names cannot.
+ */
+export function encodeTipRows(rows: readonly TipRow[]): string {
+    return rows
+        .map((r) => `${r.icon}|${r.cost ?? ''}|${r.label}|${r.desc ?? ''}`)
+        .join('\n');
+}
+
+function decodeTipRows(raw: string): TipRow[] {
+    if (!raw) return [];
+    const out: TipRow[] = [];
+    for (const line of raw.split('\n')) {
+        const a = line.indexOf('|');
+        if (a < 0) continue;
+        const b = line.indexOf('|', a + 1);
+        if (b < 0) continue;
+        const c = line.indexOf('|', b + 1);
+        if (c < 0) continue;
+        const rawCost = line.slice(a + 1, b);
+        const cost = Number(rawCost);
+        const desc = line.slice(c + 1);
+        out.push({
+            icon: line.slice(0, a),
+            label: line.slice(b + 1, c),
+            cost: rawCost !== '' && Number.isFinite(cost) ? cost : undefined,
+            desc: desc || undefined,
+        });
+    }
+    return out;
 }
 
 /** Forge-spell icon row for a commander card face (with tip data attrs). */
@@ -118,7 +177,7 @@ export class CardSpellTips {
         const title = el.dataset.ttitle ?? '';
         const desc = el.dataset.tdesc ?? '';
         const icon = el.dataset.ticon ?? '';
-        if (!title && !desc) return;
+        if (!title && !desc && !el.dataset.trows) return;
         this.hoverEl = el;
         if (!this.tip) {
             this.tip = document.createElement('div');
@@ -131,6 +190,7 @@ export class CardSpellTips {
             desc,
             icon,
             ingredientIcons: (el.dataset.forgeIngs ?? '').split(',').filter(Boolean),
+            rows: decodeTipRows(el.dataset.trows ?? ''),
         });
         const rect = el.getBoundingClientRect();
         const pad = 8;
@@ -140,7 +200,23 @@ export class CardSpellTips {
         const h = this.tip.offsetHeight;
         let left: number;
         let top: number;
-        if (el.classList.contains('shop-rune')) {
+        const shopCol = el.classList.contains('shop-tile')
+            ? el.closest<HTMLElement>('.mechili-shop-col')
+            : null;
+        if (shopCol) {
+            // Anchor off the whole shop COLUMN, not the tile: a tile-relative
+            // offset still lands inside the shop (the column is wide) and so
+            // right next to the cursor. Left of the column and near the top
+            // puts it clear of both. Shop tiles OUTSIDE that column — the
+            // unlock picker's, in a centred modal — fall through to the
+            // default placement, which flips sides as needed.
+            const a = shopCol.getBoundingClientRect();
+            left = Math.max(pad, a.left - tipW - 28);
+            top = Math.max(pad, a.top - 40);
+            if (top + h > window.innerHeight - pad) {
+                top = Math.max(pad, window.innerHeight - h - pad);
+            }
+        } else if (el.classList.contains('shop-rune')) {
             // Shop runes sit under the cursor at the top of the HUD — park the
             // window up-left with a wider gap so it does not sit on the mouse.
             left = rect.left - tipW - 18;

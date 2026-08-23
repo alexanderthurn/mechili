@@ -1016,6 +1016,23 @@ usernameTextEl.className = 'u-name';
 usernameEl.append(usernameAvatarEl, usernameTextEl);
 wrapper.appendChild(usernameEl);
 
+// Wide screens only (CSS decides — see .mechili-loadout-btn): a direct route
+// to the loadout screen, sitting above the username chip and wearing the
+// same chip styling. Under the breakpoint the corner is already crowded, so
+// the profile dialog's "Edit Loadout" button remains the route there.
+const loadoutCornerEl = document.createElement('button');
+loadoutCornerEl.className = 'mechili-username mechili-loadout-btn';
+loadoutCornerEl.type = 'button';
+loadoutCornerEl.style.zIndex = '30';
+loadoutCornerEl.style.display = 'none';
+loadoutCornerEl.innerHTML = `<span class="u-name">Unit loadout</span>`;
+loadoutCornerEl.addEventListener('click', () => {
+    if (started || pending) return;
+    menu.style.display = 'none';
+    loadoutPanel.open();
+});
+wrapper.appendChild(loadoutCornerEl);
+
 // Top-right menu chrome: door (Electron quit) + settings gear.
 const cornerActionsEl = document.createElement('div');
 cornerActionsEl.className = 'mechili-corner-actions';
@@ -1059,6 +1076,8 @@ function setMenuChromeVisible(visible: boolean): void {
     const display = visible ? '' : 'none';
     menu.style.display = display;
     usernameEl.style.display = display;
+    // '' (not 'flex') so the breakpoint media query stays in charge
+    loadoutCornerEl.style.display = display;
     versionEl.style.display = display;
     playtestEl.style.display = visible && isPlaytest ? '' : 'none';
     suggestCornerEl.style.display = display;
@@ -2420,6 +2439,7 @@ function finishReturnToMenu(): void {
     cancelHost();
     wrapper.appendChild(menu);
     wrapper.appendChild(usernameEl);
+    wrapper.appendChild(loadoutCornerEl);
     wrapper.appendChild(versionEl);
     wrapper.appendChild(playtestEl);
     wrapper.appendChild(cornerActionsEl);
@@ -2579,6 +2599,7 @@ function startGame(
     // on the last menu frame and the cinematic never covers the hitch.
     menu.remove();
     usernameEl.remove();
+    loadoutCornerEl.remove();
     versionEl.remove();
     playtestEl.remove();
     cornerActionsEl.remove();

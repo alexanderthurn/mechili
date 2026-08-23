@@ -692,6 +692,52 @@ function cardSpellTipStyles(): string {
     color: ${u.text};
     margin-top: 8px;
 }
+/* vertical icon+label list (a unit's chosen talent loadout) */
+.mechili-card-spell-tip .ai-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 8px;
+}
+/* only a rule when something sits above it */
+.mechili-card-spell-tip .ai-desc + .ai-rows {
+    padding-top: 8px;
+    border-top: 1px solid ${u.divider};
+}
+.mechili-card-spell-tip .ai-row {
+    display: flex;
+    /* top, not centre: rows are two lines tall once a description is there,
+       and the icon and cost should line up with the NAME */
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 12px;
+    color: ${u.techOwned};
+}
+.mechili-card-spell-tip .ai-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+}
+.mechili-card-spell-tip .ai-row-label { font-weight: bold; }
+.mechili-card-spell-tip .ai-row-desc {
+    font-size: 11px;
+    line-height: 1.35;
+    color: ${u.textMuted};
+}
+.mechili-card-spell-tip .ai-row-cost {
+    flex: 0 0 auto;
+    color: ${u.brassLight};
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+.mechili-card-spell-tip .ai-row-ico {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    font-size: 0;
+}
 .mechili-card-spell-tip .ai-forge-ings {
     display: flex;
     flex-direction: row;
@@ -2079,6 +2125,19 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     height: 36px;
 }
 .mechili-username .u-avatar[hidden] { display: none; }
+/* Wide screens only: a Loadout chip stacked above the username one, wearing
+   the same .mechili-username styling. Dropped under the breakpoint, where
+   the corner is already crowded and the profile dialog's own "Edit Loadout"
+   button is the route. The 60px offset clears the username chip (6px
+   padding + 36px avatar + borders, plus a gap); it is deliberately
+   generous, so a chip without an avatar just sits a little higher. */
+.mechili-loadout-btn {
+    display: flex;
+    bottom: calc(14px + 60px + env(safe-area-inset-bottom));
+}
+@media (max-width: 720px) {
+    .mechili-loadout-btn { display: none; }
+}
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 
@@ -3473,8 +3532,17 @@ ${chatFloatStyles(u, pc, ec)}
     box-sizing: border-box;
     gap: 6px;
 }
+/* The shared grid above fills from the RIGHT (direction: rtl) because the
+   shop is pinned to the right edge of the screen. The unlock dialog is a
+   centred modal, so it reads wrong there — fill from the left instead. The
+   tiles reset direction themselves so their own content is unaffected. */
+.mechili-cards .unlock-picker .shop-grid {
+    direction: ltr;
+    justify-content: start;
+}
 .mechili-shop-col .shop-tile,
 .mechili-cards .unlock-picker .shop-tile {
+    direction: ltr;
     position: relative;
     overflow: hidden;
     appearance: none;
@@ -3545,8 +3613,15 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-cards .unlock-picker .shop-tile:active { transform: scale(0.94); }
 .mechili-shop-col .shop-tile:focus-visible,
 .mechili-cards .unlock-picker .shop-tile:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); z-index: 3; }
+/* Dimmed but still HOVERABLE: you often want to read a unit's talents
+   precisely when you cannot afford it yet. pointer-events:none would take
+   the info frame away with the click, so the click is refused in JS instead
+   — same treatment the panel's locked/owned tiles already get. */
 .mechili-shop-col .shop-tile.unaffordable,
-.mechili-cards .unlock-picker .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-cards .unlock-picker .shop-tile.unaffordable {
+    opacity: 0.35;
+    cursor: default;
+}
 .mechili-extras .shop-tile {
     width: 54px;
     height: 54px;

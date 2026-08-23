@@ -1633,6 +1633,21 @@ export class Game {
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
         );
+        // Shop hover windows list this player's own talent picks. Fixed for
+        // the whole match, so once here is enough.
+        this.hud.setUnitTalents(
+            new Map(
+                UNIT_TYPES.filter((t) => !t.extra && isPlayerBuyable(t)).map((t) => [
+                    t.id,
+                    techsForUnit(t.id, this.loadoutOf(this.humanSeat)).map((tech) => ({
+                        icon: techIcon(tech),
+                        label: tech.name,
+                        cost: tech.cost,
+                        desc: techDescription(tech),
+                    })),
+                ]),
+            ),
+        );
         if (matchIntro) {
             this.hud.setMatchChromeVisible(false);
             this.hpBars.view.visible = false;

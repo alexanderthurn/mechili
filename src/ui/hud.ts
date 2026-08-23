@@ -18,7 +18,7 @@ import { closeSettings, openSettings } from './settings';
 import { ChatBar } from './chatBar';
 import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
-import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
 import { THEME, hudStyles } from '../theme';
@@ -339,6 +339,9 @@ export class Hud {
     private shopUnlockAvailable = false;
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
+    /** talent rows per unit type, pre-encoded for `data-trows` — kept because
+     *  the unlock picker builds its tiles as HTML long after setUnitTalents */
+    private readonly unitTalentRows = new Map<string, string>();
     private lastShopKey = '';
     private lastShopOrderKey = '';
     private lastLevelAllKey = '';
@@ -644,20 +647,21 @@ export class Hud {
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
             button.className = 'shop-tile';
-            const mechs = type.formation.cols * type.formation.rows;
             button.innerHTML =
                 `<span class="title">${type.name}</span>` +
                 `<span class="art"></span>` +
                 `<span class="cost">${costOf(type)}</span>`;
-            const hits = [type.targets.ground && 'ground', type.targets.air && 'air']
-                .filter(Boolean)
-                .join(' + ');
-            button.title =
-                `${type.name} — ${costOf(type)} supply${type.flying ? ' · FLYING' : ''}\n` +
-                `${mechs > 1 ? `${mechs} units, ` : ''}${type.hp} HP each · hits ${hits}\n` +
-                `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
-                ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
+            // Framed hover window, same one the shop runes use — the native
+            // title could not show the player's chosen talents. Deliberately
+            // just the unit name plus that talent list (rows arrive via
+            // setUnitTalents); the tile itself already shows the cost, and
+            // stats belong in the unit details panel, not on every hover.
+            button.dataset.spellTip = '1';
+            button.dataset.ttitle = type.name;
             button.addEventListener('click', () => {
+                // hoverable while unaffordable (see the .unaffordable CSS), so
+                // the refusal has to happen here rather than via pointer-events
+                if (button.classList.contains('unaffordable')) return;
                 const bought = UNIT_TYPES[index]!;
                 // extras need the field for the place-ghost; regular packs only
                 // dismiss the sheet when this buy fills the last deploy slot
@@ -950,7 +954,9 @@ export class Hud {
         // tactic/item for its hint — and a PLACED tactic long-press resets it
         // (the touch version of the contextmenu handler above)
         this.attachLongPress(this.shopColumn, '.shop-tile', (tile) =>
-            this.showTouchTooltip((tile as HTMLButtonElement).title),
+            tile.dataset.spellTip
+                ? this.showRuneHoverTip(tile)
+                : this.showTouchTooltip((tile as HTMLButtonElement).title),
         );
         this.attachLongPress(this.shopColumn, '.shop-rune', (btn) =>
             this.showRuneHoverTip(btn),
@@ -2114,6 +2120,28 @@ export class Hud {
     }
 
     /** supply price of each always-available base rune in the shop header */
+    /**
+     * The talents this player picked for each unit type (PROGRESSION_PLAN.md
+     * §1), listed vertically in the shop tile's hover window. Fixed for the
+     * whole match, so one call at setup is enough.
+     */
+    setUnitTalents(
+        byType: ReadonlyMap<
+            string,
+            readonly { icon: string; label: string; cost?: number; desc?: string }[]
+        >,
+    ): void {
+        this.unitTalentRows.clear();
+        for (const [typeId, rows] of byType) {
+            if (rows.length > 0) this.unitTalentRows.set(typeId, encodeTipRows(rows));
+        }
+        for (const [typeId, tile] of this.shopUnitTiles) {
+            const enc = this.unitTalentRows.get(typeId);
+            if (enc) tile.dataset.trows = enc;
+            else delete tile.dataset.trows;
+        }
+    }
+
     setShopRuneCost(cost: number, balance: number): void {
         this.shopRuneCost = cost;
         this.shopRuneBalance = balance;
@@ -2258,8 +2286,14 @@ export class Hud {
     ): string {
         const art = this.unitIcons.get(o.id);
         const artStyle = art ? ` style="background-image:${cssUrl(art)}"` : '';
+        // same hover window as the shop tiles — the player wants to see which
+        // talents a unit would bring before paying to unlock it
+        const rows = this.unitTalentRows.get(o.id);
+        const tipAttrs =
+            ` data-spell-tip="1" data-ttitle="${escapeAttr(o.name)}"` +
+            (rows ? ` data-trows="${escapeAttr(rows)}"` : '');
         return (
-            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}">` +
+            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}"${tipAttrs}>` +
             `<span class="title">${escapeAttr(o.name)}</span>` +
             `<span class="art"${artStyle}></span>` +
             `<span class="cost">${o.deployCost}</span>` +
