@@ -696,6 +696,37 @@ export class BattleMap {
     }
 
     /**
+     * Irregular tower-ruin scorch — blotchy organic shape (not a clean disc).
+     * `seed` keeps the silhouette stable for a given world position.
+     */
+    stampScorchIrregular(
+        x: number,
+        z: number,
+        radius: number,
+        strength = 0.16,
+        seed = Math.imul(Math.floor(x * 1000) ^ Math.floor(z * 1000), 0x9e3779b1),
+    ): void {
+        if (!this.wearEnabled()) return;
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const s =
+            (this.groundEffects === 'medium' ? strength * 0.65 : strength) * WEAR_BLEND.stampStrength;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const halfU = Math.max(1, radius * WEAR_BLEND.stampRadius * (this.sandW / this.width));
+        let h = (Math.imul(seed, 0x9e3779b1) >>> 0) || 1;
+        const rnd = () => {
+            h ^= h << 13;
+            h ^= h >>> 17;
+            h ^= h << 5;
+            return (h >>> 0) / 4294967296;
+        };
+        const stretch = 0.82 + rnd() * 0.36;
+        this.drawWearRect(ctx, cx, cy, halfU, halfU * stretch, s, 'b', seed);
+        this.sandDirty = true;
+    }
+
+    /**
      * Irregular burn blotches — core + satellites, with gaps (not oil-solid).
      */
     private stampScorchPatchy(x: number, z: number, radius: number, strength: number, seed: number): void {
