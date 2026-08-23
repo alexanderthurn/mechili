@@ -378,6 +378,8 @@ export interface UnitType {
      * Combined with {@link range} as the engagement distance.
      */
     cleave?: { radius: number };
+    /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
+    cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
     burn?: import('./fire').BurnAffinity;
     /**
@@ -929,6 +931,7 @@ export const HORDE_KOMTUR: UnitType = {
         { y: 2.4, r: 1.5 },
     ],
     cleave: { radius: 8 },
+    cleaveShake: 1,
     fire: {
         ground: { radius: 8, duration: 8, intensity: 21 },
     },

@@ -1343,6 +1343,7 @@ export class BattleSim {
             z: a.z,
             radius,
             heavy: true,
+            shake: a.altitude > 0 ? (a.unit.type.cleaveShake ?? 0) : 0,
         });
         if (a.altitude > 0) {
             a.stompAt = this.elapsed;
