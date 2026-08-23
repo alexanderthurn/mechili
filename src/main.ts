@@ -4,6 +4,11 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './g
 import { ChatBar } from './ui/chatBar';
 import { ChatFloat } from './ui/chatFloat';
 import { FriendsPanel } from './ui/friendsPanel';
+import {
+    introRosterEntries,
+    mountIntroRoster,
+    prefetchIntroRosterMmrs,
+} from './ui/introRoster';
 import { Game } from './game/game';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -707,6 +712,14 @@ function setGameLayerVisible(visible: boolean): void {
 /** menu→match cover — CSS animation on the compositor (survives sync Game boot) */
 let introCoverEl: HTMLDivElement | null = null;
 let introGen = 0;
+/** MMR map prefetched on the intro cover — consumed once by the next Game. */
+let pendingIntroRosterMmr: Map<string, number> | null = null;
+/** Pause on the filled roster before the menu dive / 3D handoff. */
+const INTRO_ROSTER_HOLD_MS = 2000;
+
+function introRosterHold(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, INTRO_ROSTER_HOLD_MS));
+}
 
 function clearIntroCover(): void {
     introGen++;
@@ -731,7 +744,8 @@ function applyRandomMenuZoomOrigin(bg: HTMLElement): void {
     bg.style.setProperty('--zoom-oy', `${(originY * 100).toFixed(1)}%`);
 }
 
-function showIntroCover(): void {
+/** menu→match cover — CSS animation on the compositor (survives sync Game boot) */
+function showIntroCover(deferDive = false): void {
     introCoverEl?.remove();
     const cover = document.createElement('div');
     cover.className = 'mechili-intro-cover';
@@ -751,6 +765,11 @@ function showIntroCover(): void {
     introCoverEl = cover;
     void bg.offsetWidth;
     cover.classList.add('active');
+    if (!deferDive) startIntroCoverDive();
+}
+
+function startIntroCoverDive(): void {
+    introCoverEl?.classList.add('dive');
 }
 
 /** menu-zoom cover for reload resume / reconnect — keeps animating through async work */
@@ -2499,6 +2518,8 @@ function constructGame(
     } | null,
     useIntro: boolean,
 ): Game {
+    const preloadedRosterMmr = pendingIntroRosterMmr;
+    pendingIntroRosterMmr = null;
     const game = new Game(
         app,
         threeCanvas,
@@ -2512,6 +2533,7 @@ function constructGame(
         replay,
         spectate,
         useIntro,
+        preloadedRosterMmr ?? undefined,
     );
     activeGame = game;
     // a conversation that started while waiting continues into the match
@@ -2675,8 +2697,12 @@ function startGame(
     title.visible = false;
     logo.alpha = 0;
     app.renderer.off('resize', layoutTitle);
+    // Fresh matches: roster rides the CSS cover and dissolves with it into 3D.
+    // Resume/reconnect skips the roster (cover may already be animating).
+    const showCoverRoster = !resume;
+
     if (!coverActive) {
-        showIntroCover();
+        showIntroCover(showCoverRoster);
         app.render();
     }
 
@@ -2703,12 +2729,32 @@ function startGame(
         beginHandoff(game);
     };
 
-    if (coverActive) {
-        bootWithHandoff();
-    } else {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => bootWithHandoff());
+    const runBootHandoff = (): void => {
+        if (coverActive) {
+            bootWithHandoff();
+        } else {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => bootWithHandoff());
+            });
+        }
+    };
+
+    if (showCoverRoster && introCoverEl) {
+        const entries = introRosterEntries(settings, side, names, star);
+        mountIntroRoster(introCoverEl, entries);
+        void prefetchIntroRosterMmrs(introCoverEl, entries).then(async (mmrMap) => {
+            if (gen !== introGen || !started) return;
+            pendingIntroRosterMmr = mmrMap;
+            await introRosterHold();
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
         });
+    } else {
+        if (coverActive && introCoverEl && !introCoverEl.classList.contains('dive')) {
+            startIntroCoverDive();
+        }
+        runBootHandoff();
     }
 }
 

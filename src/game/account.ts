@@ -265,6 +265,15 @@ export function reportMatchResult(input: {
     void submitMatchResult(input).catch(() => undefined);
 }
 
+/** Public profile lookup — best-effort; null when offline or unknown name. */
+export async function fetchPlayerPublic(name: string): Promise<PlayerProfile | null> {
+    if (!isOpenBuild()) return null;
+    const data = (await fetchJson(
+        `${playerUrl()}?action=get&name=${encodeURIComponent(name)}`,
+    )) as { player?: PlayerProfile } | null;
+    return data?.player ?? null;
+}
+
 export async function fetchLadder(limit = 50): Promise<PlayerProfile[]> {
     if (!isOpenBuild()) return [];
     const data = (await fetchJson(

@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
 import { SHOP_UNIT_IDS, type RoundCard, type StartCard } from '../game/cards';
+import { formatMmrDelta } from '../game/mmr';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
@@ -24,6 +25,26 @@ import { speedKeyHint } from './speedKeys';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
+
+export type GameOverMember = {
+    name: string;
+    avatar?: string | null;
+    controller: 'human' | 'ai';
+    specialist?: string | null;
+    mmrBefore: number;
+    mmrAfter: number;
+    mmrRated: boolean;
+};
+
+export type GameOverDetails = {
+    reason: 'hp' | 'forfeit' | 'disconnect' | 'draw';
+    subtitle: string;
+    rounds: number;
+    finalHp: { player: number; enemy: number };
+    playerTeam: GameOverMember[];
+    enemyTeam: GameOverMember[];
+    ratedNote?: string;
+};
 
 type CommanderChip = {
     seat: number;
@@ -3760,15 +3781,40 @@ export class Hud {
         this.reconnectWait = null;
     }
 
+    private gameOverTeamHtml(team: 'player' | 'enemy', members: GameOverMember[]): string {
+        const label = team === 'player' ? 'Your side' : 'Enemy';
+        const rows = members
+            .map((m) => {
+                const portrait = m.avatar
+                    ? `<img class="go-portrait-img" src="${escapeAttr(m.avatar)}" alt="" draggable="false" />`
+                    : `<span class="go-portrait-ph" aria-hidden="true"></span>`;
+                const spec = m.specialist
+                    ? `<div class="go-spec">${escapeHtml(m.specialist)}</div>`
+                    : '';
+                const delta = m.mmrAfter - m.mmrBefore;
+                const deltaClass =
+                    delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+                const ratedTag = m.mmrRated ? '' : `<span class="go-unrated">practice</span>`;
+                return (
+                    `<div class="go-player">` +
+                    `<div class="go-portrait ${team}">${portrait}</div>` +
+                    `<div class="go-player-info">` +
+                    `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? '<span class="go-ai">AI</span>' : ''}</div>` +
+                    spec +
+                    `<div class="go-mmr ${deltaClass}">${m.mmrBefore} → ${m.mmrAfter} (${formatMmrDelta(delta)})${ratedTag}</div>` +
+                    `</div></div>`
+                );
+            })
+            .join('');
+        return `<div class="go-team go-team-${team}"><div class="go-team-label">${label}</div>${rows}</div>`;
+    }
+
     /** the grace window elapsed with no reconnect — we win by forfeit */
-    showForfeitWin(): void {
+    showForfeitWin(details?: GameOverDetails): void {
         this.hideReconnectWait();
         const el = document.createElement('div');
         el.className = 'mechili-gameover victory';
-        el.innerHTML =
-            `<div class="go-title">VICTORY</div>` +
-            `<div class="go-sub">Opponent disconnected</div>` +
-            `<button class="go-restart">Back to main menu</button>`;
+        el.innerHTML = this.gameOverInnerHtml('VICTORY', details);
         el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
     }
@@ -3784,22 +3830,48 @@ export class Hud {
 
     showGameOver(
         result: 'victory' | 'defeat' | 'draw',
-        options?: { note?: string; backLabel?: string; title?: string },
+        options?: {
+            note?: string;
+            backLabel?: string;
+            title?: string;
+            details?: GameOverDetails;
+        },
     ): void {
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;
-        // `options.title` overrides the perspective-relative default — a
-        // spectator has no side of their own, so "VICTORY"/"DEFEAT" (which
-        // side THEY happen to be arbitrarily anchored to) is meaningless;
-        // see finishMatch's watching branch for the neutral "X wins" label.
         const title = options?.title ?? (result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW');
-        const note = options?.note ? `<div class="go-note">${escapeHtml(options.note)}</div>` : '';
+        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note);
         const backLabel = options?.backLabel ?? 'Back to main menu';
-        el.innerHTML =
-            `<div class="go-title">${title}</div>${note}` +
-            `<button class="go-restart">${escapeHtml(backLabel)}</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+        const btn = el.querySelector('.go-restart')!;
+        btn.textContent = backLabel;
+        btn.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
+    }
+
+    private gameOverInnerHtml(
+        title: string,
+        details?: GameOverDetails,
+        note?: string,
+    ): string {
+        const sub = details?.subtitle ? `<div class="go-sub">${escapeHtml(details.subtitle)}</div>` : '';
+        const stats = details
+            ? `<div class="go-stats">${details.rounds} rounds · ${details.finalHp.player}–${details.finalHp.enemy} HP</div>`
+            : '';
+        const teams = details
+            ? `<div class="go-teams">` +
+              this.gameOverTeamHtml('player', details.playerTeam) +
+              `<div class="go-vs">VS</div>` +
+              this.gameOverTeamHtml('enemy', details.enemyTeam) +
+              `</div>`
+            : '';
+        const ratedNote = details?.ratedNote
+            ? `<div class="go-rated-note">${escapeHtml(details.ratedNote)}</div>`
+            : '';
+        const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
+        return (
+            `<div class="go-title">${escapeHtml(title)}</div>${sub}${stats}${teams}${ratedNote}${noteEl}` +
+            `<button class="go-restart">Back to main menu</button>`
+        );
     }
 
     setSupply(amount: number): void {
