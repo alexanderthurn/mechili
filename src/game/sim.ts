@@ -5,6 +5,12 @@ import {
     FIRE_TINT_NORMAL,
     HAZARD_DRIP_FALL_SEC,
     HazardField,
+    OIL_DIRECTED_BACK,
+    OIL_DIRECTED_CROSS,
+    OIL_DIRECTED_FWD,
+    OIL_DIRECTED_LENGTH_MUL,
+    OIL_DIRECTED_TAIL_FRAC,
+    OIL_DIRECTED_TIP,
     OIL_SPEED_MULT,
     insideAnyShield,
     livingShieldDisks,
@@ -1156,19 +1162,34 @@ export class BattleSim {
         z: number,
         radius: number,
         profile: FireProfile | undefined,
+        opts?: { shotDir?: { x: number; z: number } },
     ): void {
         if (!profile) return;
         if (profile.oil) {
             const shields = livingShieldDisks(this.actors.map((a) => a.unit));
             const expires = this.config.oilExpiresRound ?? 9999;
-            this.hazards.stampOil(
-                x,
-                z,
-                profile.oil.radius,
-                expires,
-                shields,
-                this.elapsed,
-            );
+            const dir = opts?.shotDir;
+            if (dir && Math.hypot(dir.x, dir.z) > 1e-6) {
+                this.hazards.stampOilDirected(
+                    x,
+                    z,
+                    profile.oil.radius,
+                    dir.x,
+                    dir.z,
+                    expires,
+                    shields,
+                    this.elapsed,
+                );
+            } else {
+                this.hazards.stampOil(
+                    x,
+                    z,
+                    profile.oil.radius,
+                    expires,
+                    shields,
+                    this.elapsed,
+                );
+            }
         }
         if (profile.ground) {
             const g = profile.ground;
@@ -1195,7 +1216,16 @@ export class BattleSim {
             this.hazards.igniteOilTouchingFire(this.elapsed);
         }
         if (!profile.burn) return;
-        const r = Math.max(radius, profile.ground?.radius ?? profile.oil?.radius ?? 0);
+        const oilReach = profile.oil
+            ? opts?.shotDir && Math.hypot(opts.shotDir.x, opts.shotDir.z) > 1e-6
+                ? profile.oil.radius *
+                  OIL_DIRECTED_LENGTH_MUL *
+                  (OIL_DIRECTED_FWD +
+                      (OIL_DIRECTED_BACK + OIL_DIRECTED_FWD) * OIL_DIRECTED_TAIL_FRAC +
+                      OIL_DIRECTED_CROSS)
+                : profile.oil.radius
+            : 0;
+        const r = Math.max(radius, profile.ground?.radius ?? oilReach);
         for (const a of this.actors) {
             if (!a.alive) continue;
             if (hypot(a.x - x, a.z - z) > r + a.radius) continue;
@@ -3635,7 +3665,9 @@ export class BattleSim {
                         dropStone: p.style === 'stone',
                     });
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
-                    this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
+                    this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source), {
+                        shotDir: { x: sx, z: sz },
+                    });
                     this.applyCorrodeOnHit(p.source, hit);
                 }
                 continue; // bullet consumed
@@ -3678,7 +3710,9 @@ export class BattleSim {
                         dropStone: p.style === 'stone',
                     });
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
-                    this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));
+                    this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source), {
+                        shotDir: { x: sx, z: sz },
+                    });
                 }
                 continue;
             }
@@ -3737,7 +3771,7 @@ export class BattleSim {
                   : 1.1;
         this.applyBlastImpulse(x, z, radius, blastStrength, shotDir);
         // burn + ground fire (friendly fire) — after kinetic hits
-        this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source));
+        this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source), { shotDir });
     }
 
     /** mass-based push-out: heavy units shove light ones aside, structures never move */
