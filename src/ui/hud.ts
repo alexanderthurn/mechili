@@ -30,20 +30,14 @@ export type GameOverMember = {
     name: string;
     avatar?: string | null;
     controller: 'human' | 'ai';
-    specialist?: string | null;
     mmrBefore: number;
     mmrAfter: number;
     mmrRated: boolean;
 };
 
 export type GameOverDetails = {
-    reason: 'hp' | 'forfeit' | 'disconnect' | 'draw';
-    subtitle: string;
-    rounds: number;
-    finalHp: { player: number; enemy: number };
     playerTeam: GameOverMember[];
     enemyTeam: GameOverMember[];
-    ratedNote?: string;
 };
 
 type CommanderChip = {
@@ -3782,15 +3776,11 @@ export class Hud {
     }
 
     private gameOverTeamHtml(team: 'player' | 'enemy', members: GameOverMember[]): string {
-        const label = team === 'player' ? 'Your side' : 'Enemy';
         const rows = members
             .map((m) => {
                 const portrait = m.avatar
                     ? `<img class="go-portrait-img" src="${escapeAttr(m.avatar)}" alt="" draggable="false" />`
                     : `<span class="go-portrait-ph" aria-hidden="true"></span>`;
-                const spec = m.specialist
-                    ? `<div class="go-spec">${escapeHtml(m.specialist)}</div>`
-                    : '';
                 const delta = m.mmrAfter - m.mmrBefore;
                 const deltaClass =
                     delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
@@ -3800,13 +3790,12 @@ export class Hud {
                     `<div class="go-portrait ${team}">${portrait}</div>` +
                     `<div class="go-player-info">` +
                     `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? '<span class="go-ai">AI</span>' : ''}</div>` +
-                    spec +
                     `<div class="go-mmr ${deltaClass}">${m.mmrBefore} → ${m.mmrAfter} (${formatMmrDelta(delta)})${ratedTag}</div>` +
                     `</div></div>`
                 );
             })
             .join('');
-        return `<div class="go-team go-team-${team}"><div class="go-team-label">${label}</div>${rows}</div>`;
+        return `<div class="go-team go-team-${team}">${rows}</div>`;
     }
 
     /** the grace window elapsed with no reconnect — we win by forfeit */
@@ -3853,10 +3842,6 @@ export class Hud {
         details?: GameOverDetails,
         note?: string,
     ): string {
-        const sub = details?.subtitle ? `<div class="go-sub">${escapeHtml(details.subtitle)}</div>` : '';
-        const stats = details
-            ? `<div class="go-stats">${details.rounds} rounds · ${details.finalHp.player}–${details.finalHp.enemy} HP</div>`
-            : '';
         const teams = details
             ? `<div class="go-teams">` +
               this.gameOverTeamHtml('player', details.playerTeam) +
@@ -3864,12 +3849,9 @@ export class Hud {
               this.gameOverTeamHtml('enemy', details.enemyTeam) +
               `</div>`
             : '';
-        const ratedNote = details?.ratedNote
-            ? `<div class="go-rated-note">${escapeHtml(details.ratedNote)}</div>`
-            : '';
         const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
         return (
-            `<div class="go-title">${escapeHtml(title)}</div>${sub}${stats}${teams}${ratedNote}${noteEl}` +
+            `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
             `<button class="go-restart">Back to main menu</button>`
         );
     }
