@@ -8656,50 +8656,11 @@ export class Game {
         );
     }
 
-    /** Build the rich game-over summary shown on the result screen. */
-    private buildGameOverDetails(
-        result: 'victory' | 'defeat' | 'draw',
-        reason: GameOverDetails['reason'],
-    ): GameOverDetails {
+    /** Build the game-over roster shown on the result screen. */
+    private buildGameOverDetails(result: 'victory' | 'defeat' | 'draw'): GameOverDetails {
         const playerTeam = seatIdsOf(this.seats, 'player');
         const enemyTeam = seatIdsOf(this.seats, 'enemy');
-        const winnerTeam = result === 'victory' ? 'player' : result === 'defeat' ? 'enemy' : null;
-        const loserTeam = result === 'victory' ? 'enemy' : result === 'defeat' ? 'player' : null;
-
-        let subtitle: string;
-        if (reason === 'forfeit') {
-            subtitle =
-                result === 'victory'
-                    ? `${this.playerNames.opponent} disconnected — victory by forfeit`
-                    : 'Connection lost';
-        } else if (result === 'draw') {
-            subtitle =
-                this.playerHp <= 0 && this.enemyHp <= 0
-                    ? 'Both strongholds fell — mutual destruction'
-                    : 'Neither side could claim victory';
-        } else if (winnerTeam && loserTeam) {
-            const winnerSeats = seatIdsOf(this.seats, winnerTeam);
-            const loserSeats = seatIdsOf(this.seats, loserTeam);
-            const winnerNames = winnerSeats.map((s) => this.seats[s]!.name).join(' & ');
-            const loserNames = loserSeats.map((s) => this.seats[s]!.name).join(' & ');
-            if (reason === 'hp') {
-                subtitle =
-                    result === 'victory'
-                        ? `${winnerNames} destroyed ${loserNames}'s stronghold`
-                        : `${loserNames}'s stronghold fell to ${winnerNames}`;
-            } else {
-                subtitle = `${winnerNames} wins`;
-            }
-        } else {
-            subtitle = result === 'victory' ? 'Victory' : result === 'defeat' ? 'Defeat' : 'Draw';
-        }
-
         const ratedMp = this.seats.length <= 2 && !!(this.star || this.net);
-        const ratedNote = ratedMp
-            ? undefined
-            : this.seats.length > 2
-              ? 'Team modes are unranked — MMR shown for reference only'
-              : 'Practice match — stats only, no ranked MMR change';
 
         const buildMember = (seat: number, team: 'player' | 'enemy'): GameOverDetails['playerTeam'][0] => {
             const def = this.seats[seat]!;
@@ -8711,12 +8672,10 @@ export class Game {
             const oppSeat = primarySeatOf(this.seats, team === 'player' ? 'enemy' : 'player');
             const oppBefore = this.rosterMmr.get(this.seats[oppSeat]!.name) ?? DEFAULT_MMR;
             const after = mmrDelta(before, oppBefore, seatResult).after;
-            const card = this.starterCardOfSeat(seat);
             return {
                 name: def.name,
                 avatar: def.avatar,
                 controller: def.controller,
-                specialist: card?.title ?? null,
                 mmrBefore: before,
                 mmrAfter: after,
                 mmrRated: ratedMp && def.controller === 'human',
@@ -8724,13 +8683,8 @@ export class Game {
         };
 
         return {
-            reason,
-            subtitle,
-            rounds: this.round,
-            finalHp: { player: this.playerHp, enemy: this.enemyHp },
             playerTeam: playerTeam.map((s) => buildMember(s, 'player')),
             enemyTeam: enemyTeam.map((s) => buildMember(s, 'enemy')),
-            ratedNote,
         };
     }
 
@@ -8789,7 +8743,7 @@ export class Game {
         // "DEFEAT" is whatever this.humanSeat arbitrarily anchors to, not a
         // real result for them. Show who actually won instead.
         const title = this.watching ? this.winningSideTitle(result) : undefined;
-        const details = this.watching ? undefined : this.buildGameOverDetails(result, 'hp');
+        const details = this.watching ? undefined : this.buildGameOverDetails(result);
         if (this.replayVerify && this.replayExpected) {
             const exp = this.replayExpected;
             const matches =
@@ -8842,7 +8796,7 @@ export class Game {
         this.placement.deselect();
         this.gridOverlay.visible = false;
         this.hpBars.clear();
-        this.hud.showForfeitWin(this.buildGameOverDetails('victory', 'forfeit'));
+        this.hud.showForfeitWin(this.buildGameOverDetails('victory'));
     }
 
     /**
