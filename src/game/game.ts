@@ -77,7 +77,8 @@ import {
     type MatchMode,
     type MatchResult,
 } from './telemetry';
-import { matchResultId, reportMatchResult } from './account';
+import { matchResultId, reportMatchResult, fetchPlayerPublic, getCachedProfile } from './account';
+import { DEFAULT_MMR, mmrDelta } from './mmr';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -218,7 +219,8 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
-import { ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById } from './techCatalog';
+import { activeLoadout, randomLoadout } from './loadouts';
+import { ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
@@ -251,7 +253,7 @@ import {
 } from './seats';
 import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
-import { Hud, isCompactChrome, type Phase, type SelectionInfo } from '../ui/hud';
+import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -791,6 +793,9 @@ export class Game {
     /** round-card offer held until the intro finishes (resume before pick) */
     private deferredRoundOffer = false;
     private introCardsRevealed = false;
+    /** MMR at match start — prefetched on intro cover or loaded async. */
+    private readonly rosterMmr = new Map<string, number>();
+    private rosterProfilesLoaded = false;
     private persistTimer = 0;
     /** last stamped battle positions for wear trails (visual only) */
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
@@ -1100,6 +1105,8 @@ export class Game {
         /** fresh match only: hold specialist cards + HUD while the camera
          *  flies in from a wide overlook (menu logo covers the ctor hitch). */
         matchIntro = false,
+        /** MMR prefetched on the menu-zoom cover — skips a second lookup. */
+        preloadedRosterMmr?: ReadonlyMap<string, number>,
     ) {
         this.watching = replay !== null || spectate !== null;
         this.watcherName = spectate?.watcherName ?? null;
@@ -1173,9 +1180,36 @@ export class Game {
             );
         // Local custom face: fill in if the wire/roster didn't already carry one.
         const localAvatar = getAvatarDataUrl();
-        this.seats = baseSeats.map((s, i) =>
-            i === humanSeat && !s.avatar && localAvatar ? { ...s, avatar: localAvatar } : s,
-        );
+        // Same treatment for this player's talent picks (PROGRESSION_PLAN.md
+        // §1d): a NETWORKED roster always carries every seat's loadout (the
+        // host normalizes one onto each entry at join), so this fill-in only
+        // ever fires for local play — where there is no wire to disagree
+        // with. Never overwrite a loadout the roster already carried, or a
+        // guest would silently play a different build than its peers think.
+        const localLoadout = activeLoadout();
+        this.seats = baseSeats.map((s, i) => {
+            if (i === humanSeat) {
+                let out = s;
+                if (!out.avatar && localAvatar) out = { ...out, avatar: localAvatar };
+                if (!out.loadout) out = { ...out, loadout: localLoadout };
+                return out;
+            }
+            // Every OTHER seat must already carry a loadout by now — a
+            // networked roster always does (the host puts one on each entry,
+            // AI seats included, before starSetup goes out). Only a purely
+            // local roster can reach here without one: solo 1v1's opponent,
+            // whose seat `canonicalClassicSeats` marks 'human' even though
+            // AiOpponent drives it, and any local duo AI ally. Rolling it
+            // here is safe precisely because there is no peer to disagree
+            // with — and it lands in `this.seats`, so exportReplay captures
+            // the actual values rather than leaving a replay to re-roll.
+            if (!s.loadout) return { ...s, loadout: randomLoadout() };
+            return s;
+        });
+        if (preloadedRosterMmr) {
+            for (const [name, mmr] of preloadedRosterMmr) this.rosterMmr.set(name, mmr);
+            this.rosterProfilesLoaded = true;
+        }
         this.humanSeat = humanSeat;
         this.economy = new Economy(settings.economy, this.seats.length);
         this.recruitLevel = this.seats.map(() => 1);
@@ -1555,7 +1589,7 @@ export class Game {
         // world tech icons — phase-start intel while fogged, live after reveal
         this.placement.ownedTechIcons = (unit) => {
             if (unit.type.structure) return [];
-            const selected = techsForUnit(unit.type.id);
+            const selected = techsForUnit(unit.type.id, this.loadoutOf(unit.seat));
             if (selected.length === 0) return [];
             const owned = this.intelTechOwned(unit);
             return selected.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
@@ -1608,6 +1642,21 @@ export class Game {
             wrapper,
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
+        );
+        // Shop hover windows list this player's own talent picks. Fixed for
+        // the whole match, so once here is enough.
+        this.hud.setUnitTalents(
+            new Map(
+                UNIT_TYPES.filter((t) => !t.extra && isPlayerBuyable(t)).map((t) => [
+                    t.id,
+                    techsForUnit(t.id, this.loadoutOf(this.humanSeat)).map((tech) => ({
+                        icon: techIcon(tech),
+                        label: tech.name,
+                        cost: tech.cost,
+                        desc: techDescription(tech),
+                    })),
+                ]),
+            ),
         );
         if (matchIntro) {
             this.hud.setMatchChromeVisible(false);
@@ -1896,12 +1945,12 @@ export class Game {
         if (resume) {
             this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
             // replay always resets the round's clock to a fresh full timer
-            // (it isn't logged as an action) — restore the true remaining
             // time from whoever exported, so a rebuild can't hand either
             // side extra deployment time
             if (resume.phaseRemaining !== undefined && this.phase === 'build') {
                 this.phaseRemaining = resume.phaseRemaining;
             }
+            if (!this.watching) void this.ensureRosterMmrs();
         } else if (replay) {
             this.replayLog = replay.actions;
             // round 0 (starter pick) dispatches immediately, same as
@@ -1930,8 +1979,10 @@ export class Game {
         } else if (matchIntro) {
             // hold the specialist overlay until the camera fly-in finishes
             this.deferredStarterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
         // only now may peer messages flow — everything they touch exists
         if (this.net) this.wireSession(this.net);
@@ -1979,6 +2030,32 @@ export class Game {
         // rather than mid-battle. Boot already warmed the shared context when possible.
         this.warmGpuPrograms();
         pixiApp.ticker.add(this.boundTick);
+    }
+
+    /** Load MMR for every seat — game-over summary; skipped when intro cover prefetched. */
+    private async ensureRosterMmrs(): Promise<void> {
+        if (this.rosterProfilesLoaded) return;
+        for (const seat of this.seats) {
+            if (seat.controller === 'ai') this.rosterMmr.set(seat.name, DEFAULT_MMR);
+        }
+        const humanNames = [...new Set(this.seats.filter((s) => s.controller === 'human').map((s) => s.name))];
+        const results = await Promise.all(humanNames.map((name) => fetchPlayerPublic(name)));
+        for (let i = 0; i < humanNames.length; i++) {
+            const name = humanNames[i]!;
+            const fetched = results[i];
+            const cached = getCachedProfile();
+            this.rosterMmr.set(
+                name,
+                fetched?.mmr ?? (cached?.name === name ? cached.mmr : DEFAULT_MMR),
+            );
+        }
+        this.rosterProfilesLoaded = true;
+    }
+
+    /** Intro-cover prefetch finished after Game construction — reuse that map. */
+    applyIntroRosterMmrs(mmrs: ReadonlyMap<string, number>): void {
+        for (const [name, mmr] of mmrs) this.rosterMmr.set(name, mmr);
+        this.rosterProfilesLoaded = true;
     }
 
     /**
@@ -2941,7 +3018,7 @@ export class Game {
         let granted = 0;
         for (const type of UNIT_TYPES) {
             if (type.structure || type.extra) continue;
-            for (const tech of techsForUnit(type.id)) {
+            for (const tech of techsForUnit(type.id, this.loadoutOf(seat))) {
                 if (granted >= maxPerPress) return;
                 if (this.techTree.has(seat, type.id, tech.id)) continue;
                 this.techTree.add(seat, type.id, tech.id);
@@ -3118,6 +3195,15 @@ export class Game {
         return seat >= 0 && this.techTree.has(seat, typeId, techId);
     }
 
+    /**
+     * This seat's talent picks (PROGRESSION_PLAN.md §1). Undefined for AI
+     * seats and horde packs (`seat < 0`), which resolve the catalog default
+     * — the behavior every seat had before loadouts existed.
+     */
+    loadoutOf(seat: SeatId): Loadout | undefined {
+        return seat >= 0 ? this.seats[seat]?.loadout : undefined;
+    }
+
     /** Apply Sky Lift / Earthbound to pack hover altitude during deployment. */
     private refreshFlightAlts(): void {
         const has = (seat: SeatId, typeId: string, techId: string) =>
@@ -3247,6 +3333,7 @@ export class Game {
         items: string[][];
         tactics: string[][];
         rng: () => number;
+        loadoutOf: (seat: SeatId) => Loadout | undefined;
     } {
         return {
             dispatch: (action: Action) => {
@@ -3275,6 +3362,7 @@ export class Game {
             items: this.itemInventory,
             tactics: this.tacticInventory,
             rng,
+            loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
         };
     }
 
@@ -4495,6 +4583,15 @@ export class Game {
                 side: this.star.hub.sideOf(seat),
                 controller: 'ai',
                 name: def.name,
+                // The bot keeps playing the DEPARTED player's talents (see
+                // `this.seats` above — the army on the board was built for
+                // them). Carried here too so the hub roster never disagrees
+                // with Game.seats: nothing rebuilds sim state from it today
+                // (starRoster only feeds renderRosterTable), but a seat that
+                // arrived anywhere with no loadout would be re-derived as a
+                // random AI one by the constructor, silently replacing this
+                // player's build mid-match.
+                loadout: def.loadout,
             });
             // lets the ORIGINAL player find their way back later via the
             // room list's existing Resume UI + a name-matched rejoin — see
@@ -5013,6 +5110,9 @@ export class Game {
             // updates playerNames.local but nothing resyncs `this.seats`)
             name: seat === this.humanSeat ? this.playerNames.local : s.name,
             avatar: s.avatar,
+            // combat-affecting, so it has to reach a reconnecting seat and a
+            // spectator too — both catch up through this same snapshot
+            loadout: s.loadout,
         }));
     }
 
@@ -7704,7 +7804,14 @@ export class Game {
         return {
             version: 1,
             seed: this.seed,
-            settings: this.settings,
+            // The LIVE roster, not `this.settings.seats` — solo play leaves
+            // that unset (the roster is derived in the constructor), so a
+            // replay would otherwise resolve default talents and diverge
+            // from the match it recorded. Loadouts are match INPUT, like the
+            // seed (PROGRESSION_PLAN.md §1e). Avatars are dropped: they are
+            // ~120KB data URLs, pure decoration, and this payload also goes
+            // out as telemetry.
+            settings: { ...this.settings, seats: this.seats.map(({ avatar: _a, ...s }) => s) },
             actions: this.dispatcher.serializable(),
         };
     }
@@ -8003,6 +8110,7 @@ export class Game {
             spawnOnKill: (parent, typeId, x, z) => this.spawnOnKillChild(parent, typeId, x, z),
             boardHalfW: this.map.halfW,
             boardHalfZ: this.map.halfH,
+            loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
         });
         this.debugLog.log('sim.battleStart', {
             watching: this.watching,
@@ -8618,6 +8726,38 @@ export class Game {
         );
     }
 
+    /** Build the game-over roster shown on the result screen. */
+    private buildGameOverDetails(result: 'victory' | 'defeat' | 'draw'): GameOverDetails {
+        const playerTeam = seatIdsOf(this.seats, 'player');
+        const enemyTeam = seatIdsOf(this.seats, 'enemy');
+        const ratedMp = this.seats.length <= 2 && !!(this.star || this.net);
+
+        const buildMember = (seat: number, team: 'player' | 'enemy'): GameOverDetails['playerTeam'][0] => {
+            const def = this.seats[seat]!;
+            const before = this.rosterMmr.get(def.name) ?? DEFAULT_MMR;
+            let seatResult: 'victory' | 'defeat' | 'draw' = result;
+            if (team === 'enemy') {
+                seatResult = result === 'victory' ? 'defeat' : result === 'defeat' ? 'victory' : 'draw';
+            }
+            const oppSeat = primarySeatOf(this.seats, team === 'player' ? 'enemy' : 'player');
+            const oppBefore = this.rosterMmr.get(this.seats[oppSeat]!.name) ?? DEFAULT_MMR;
+            const after = mmrDelta(before, oppBefore, seatResult).after;
+            return {
+                name: def.name,
+                avatar: def.avatar,
+                controller: def.controller,
+                mmrBefore: before,
+                mmrAfter: after,
+                mmrRated: ratedMp && def.controller === 'human',
+            };
+        };
+
+        return {
+            playerTeam: playerTeam.map((s) => buildMember(s, 'player')),
+            enemyTeam: enemyTeam.map((s) => buildMember(s, 'enemy')),
+        };
+    }
+
     /** someone hit 0 HP — freeze the game and show the result */
     private finishMatch(): void {
         this.matchOver = true;
@@ -8673,6 +8813,7 @@ export class Game {
         // "DEFEAT" is whatever this.humanSeat arbitrarily anchors to, not a
         // real result for them. Show who actually won instead.
         const title = this.watching ? this.winningSideTitle(result) : undefined;
+        const details = this.watching ? undefined : this.buildGameOverDetails(result);
         if (this.replayVerify && this.replayExpected) {
             const exp = this.replayExpected;
             const matches =
@@ -8681,9 +8822,9 @@ export class Game {
             const note = matches
                 ? `✓ Matches recorded result (${exp.result}, ${exp.rounds} rounds, ${exp.playerHp}-${exp.enemyHp})`
                 : `⚠ MISMATCH — recorded ${exp.result}/${exp.rounds} rounds/${exp.playerHp}-${exp.enemyHp}, this run: ${result}/${this.round} rounds/${this.playerHp}-${this.enemyHp}`;
-            this.hud.showGameOver(result, { note, backLabel: 'Back to replays', title });
+            this.hud.showGameOver(result, { note, backLabel: 'Back to replays', title, details });
         } else {
-            this.hud.showGameOver(result, { title });
+            this.hud.showGameOver(result, { title, details });
         }
     }
 
@@ -8725,7 +8866,7 @@ export class Game {
         this.placement.deselect();
         this.gridOverlay.visible = false;
         this.hpBars.clear();
-        this.hud.showForfeitWin();
+        this.hud.showForfeitWin(this.buildGameOverDetails('victory'));
     }
 
     /**
@@ -9798,7 +9939,7 @@ export class Game {
             return slots.length ? slots : undefined;
         }
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const selected = techsForUnit(u.type.id);
+        const selected = techsForUnit(u.type.id, this.loadoutOf(u.seat));
         const slotsN = techSlotLimit(u.type.id);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;

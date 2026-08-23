@@ -756,7 +756,10 @@ export class ActionDispatcher {
             }
             case 'buyTech': {
                 const type = unitTypeById(action.typeId);
-                const tech = type && isTechSelectedForUnit(type.id, action.techId)
+                // gate on THIS seat's own picks — a talent outside your
+                // loadout is unbuyable, which is also what keeps every
+                // downstream `hasTech` consumer implicitly loadout-correct
+                const tech = type && isTechSelectedForUnit(type.id, action.techId, this.ctx.seats[seat]?.loadout)
                     ? techById(action.techId)
                     : null;
                 if (!type || !tech) return false;

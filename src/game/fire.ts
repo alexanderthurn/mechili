@@ -13,7 +13,7 @@
 
 import { CELL, STANDARD_MAP, type MapSize } from './map';
 import type { SeatId } from './seats';
-import { techsForUnit } from './techCatalog';
+import { techsForUnit, type Loadout } from './techCatalog';
 
 /** world units per hazard cell — finer than board tiles for splat connectivity */
 export const HAZARD_CELL = 2;
@@ -193,6 +193,7 @@ export function resolveFireProfile(
     type: { id: string; fire?: FireProfile },
     seat: SeatId,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+    loadout?: Loadout,
 ): FireProfile | undefined {
     let profile: FireProfile | undefined = type.fire
         ? {
@@ -201,7 +202,7 @@ export function resolveFireProfile(
               oil: type.fire.oil ? { ...type.fire.oil } : undefined,
           }
         : undefined;
-    for (const tech of techsForUnit(type.id)) {
+    for (const tech of techsForUnit(type.id, loadout)) {
         if (!tech.fire || !hasTech(seat, type.id, tech.id)) continue;
         if (!profile) profile = {};
         if (tech.fire.burn) profile.burn = { ...tech.fire.burn };

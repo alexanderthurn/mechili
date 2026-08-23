@@ -1,3 +1,5 @@
+import { normalizeLoadout } from './loadouts';
+import type { Loadout } from './techCatalog';
 import type { Team } from './units';
 
 /**
@@ -32,6 +34,11 @@ export interface SeatDef {
     name: string;
     /** optional player face (data URL) — shown in the fight-bar portrait */
     avatar?: string | null;
+    /** this seat's pregame talent picks (PROGRESSION_PLAN.md §1). Unset =
+     *  the catalog default, which is what AI seats and pre-loadout replays
+     *  use. Combat-affecting, so it must be identical on every client —
+     *  it rides the canonical roster, never a local decision. */
+    loadout?: Loadout;
 }
 
 /** the implicit 1v1 roster — classic behavior, seat 0 = the local player */
@@ -124,6 +131,10 @@ export interface CanonicalSeatDef {
      *  the 'lobbyReady'/'lobbySettings' NetMessage doc comments). Never
      *  meaningful once the match has actually started. */
     ready?: boolean;
+    /** this seat's talent picks, carried to every client by starSetup /
+     *  starRoster / matchCatchUp exactly like `avatar`. ALWAYS normalized
+     *  before it lands here (see `normalizeLoadout`) — it feeds the sim. */
+    loadout?: Loadout;
 }
 
 /**
@@ -144,6 +155,13 @@ export function localizeRoster(canonical: readonly CanonicalSeatDef[], mySide: '
         controller: c.controller,
         name: c.name,
         avatar: c.avatar || undefined,
+        // Normalize HERE as well as at the host's onJoin: this is the single
+        // funnel every wire roster passes through on its way to becoming sim
+        // input, so it is the one place that also covers a roster arriving
+        // from the HOST (starSetup / starRoster / matchCatchUp). Without it a
+        // modified host could hand a guest a loadout the allowlist forbids
+        // and the guest's own buyTech gate would honour it.
+        loadout: c.loadout ? normalizeLoadout(c.loadout) : undefined,
     }));
 }
 

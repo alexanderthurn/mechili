@@ -6,6 +6,8 @@ import type { DebugEvent } from './debugLog';
 import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import { getAvatarDataUrl } from './avatar';
+import { activeLoadout } from './loadouts';
+import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings } from './settings';
 import type { Team } from './units';
@@ -393,7 +395,16 @@ export type NetMessage =
     // ---- star topology (2v2+, N seats): host-relayed, own message family so
     // the classic 2-seat path above stays completely untouched ------------
     /** guest's opening handshake on connecting to a star (2v2+) room */
-    | { type: 'starJoin'; name: string; version: number; avatar?: string | null }
+    /** `loadout` is the joiner's own talent picks — combat-affecting, so the
+     *  host normalizes it and puts it on the roster, which is what actually
+     *  distributes it to every client (see CanonicalSeatDef.loadout). */
+    | {
+          type: 'starJoin';
+          name: string;
+          version: number;
+          avatar?: string | null;
+          loadout?: Loadout;
+      }
     /** host's per-recipient match setup: canonical roster + which seat is theirs.
      *  `settings.seats` is unset here — the LOCAL roster is derived per client
      *  via `localizeRoster(roster, yourSide)`, never sent pre-relabeled. */
@@ -842,7 +853,12 @@ export interface HostHub {
     /** lobby roster changed (join, leave, kick, ready) — re-render */
     onRosterChange: (() => void) | null;
     /** accept joiners; see StarHub.listen for the onJoin contract */
-    listen(onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string }): void;
+    listen(onJoin: (
+            name: string,
+            version: number,
+            avatar?: string | null,
+            loadout?: Loadout,
+        ) => SeatId | { reject: string }): void;
     /** first seat still free for a human, or null when the room is full */
     nextOpenSeat(): SeatId | null;
     kickSeat(seat: SeatId): void;
@@ -967,7 +983,12 @@ export class StarHub implements HostHub {
      * signature transport-specific, and forced the menu to carry a second copy
      * of the whole lobby wiring for Steam.
      */
-    listen(onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string }): void {
+    listen(onJoin: (
+            name: string,
+            version: number,
+            avatar?: string | null,
+            loadout?: Loadout,
+        ) => SeatId | { reject: string }): void {
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
                 // A connection that opens but never sends its handshake
@@ -1088,7 +1109,7 @@ export class StarHub implements HostHub {
                         this.onRosterChange?.();
                         return;
                     }
-                    const decision = onJoin(msg.name, msg.version, msg.avatar);
+                    const decision = onJoin(msg.name, msg.version, msg.avatar, msg.loadout);
                     if (typeof decision !== 'number') {
                         conn.send({ type: 'starRejected', reason: decision.reject });
                         conn.close();
@@ -1811,7 +1832,13 @@ export function joinStarRoom(
                 reject(e);
             });
         });
-        conn.send({ type: 'starJoin', name: localName, version: GAME_VERSION, avatar: getAvatarDataUrl() });
+        conn.send({
+            type: 'starJoin',
+            name: localName,
+            version: GAME_VERSION,
+            avatar: getAvatarDataUrl(),
+            loadout: activeLoadout(),
+        });
         return new StarGuestSession(peer, conn);
     })();
     return { session, cancel: () => peer?.destroy() };

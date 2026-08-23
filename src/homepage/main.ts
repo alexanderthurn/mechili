@@ -23,7 +23,7 @@ import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
 import { cssUrl, iconHtml, moneyHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
-import { createShowcaseViewer } from './modelViewer';
+import { createShowcaseViewer } from '../ui/modelViewer';
 import { homepageStyles } from './styles';
 
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;

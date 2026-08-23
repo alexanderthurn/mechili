@@ -4,6 +4,11 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './g
 import { ChatBar } from './ui/chatBar';
 import { ChatFloat } from './ui/chatFloat';
 import { FriendsPanel } from './ui/friendsPanel';
+import {
+    introRosterEntries,
+    mountIntroRoster,
+    prefetchIntroRosterMmrs,
+} from './ui/introRoster';
 import { Game } from './game/game';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -64,6 +69,8 @@ import {
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
 import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
+import { activeLoadout, normalizeLoadout, randomLoadout } from './game/loadouts';
+import { createLoadoutPanel } from './ui/loadoutPanel';
 import {
     SETTINGS_SAV_EXCLUDE,
     USER_AVATAR_STEAM_KEY,
@@ -541,17 +548,37 @@ document.head.appendChild(style);
 applyUiFont(prefs().uiFont);
 onPrefsChange(() => applyUiFont(prefs().uiFont));
 
+/**
+ * Every piece of menu chrome lives in here — the menu panel, the corner
+ * chips, the lobby chat, the friends panel.
+ *
+ * It exists so there is ONE thing to show, hide, remove and re-append.
+ * These used to be nine siblings on `wrapper`, hand-listed in three
+ * different places (visibility, the strip on match start, the re-append on
+ * return); the lists had already drifted apart, and adding a tenth element
+ * meant remembering all three — which is exactly how the Unit loadout chip
+ * ended up hanging over a running match.
+ *
+ * Full-bleed but `pointer-events: none`, so it never eats clicks meant for
+ * the 3D scene behind it; children opt back in via CSS. It sets no
+ * z-index, so it creates no stacking context and its children keep
+ * competing globally exactly as they did as siblings.
+ */
+const menuChromeEl = document.createElement('div');
+menuChromeEl.className = 'mechili-menu-chrome';
+menuChromeEl.style.display = 'none';
+wrapper.appendChild(menuChromeEl);
+
 const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
 versionEl.className = 'mechili-version';
 versionEl.style.zIndex = '30';
-versionEl.style.display = 'none';
 versionEl.textContent = `v${__APP_VERSION__}`;
 if (versionEl instanceof HTMLAnchorElement) {
     versionEl.target = '_blank';
     versionEl.rel = 'noopener noreferrer';
     versionEl.classList.add('link');
 }
-wrapper.appendChild(versionEl);
+menuChromeEl.appendChild(versionEl);
 
 /** PLAYTEST wordmark under the logo. HTML rather than a Pixi Text so it can sit
  *  above the menu panel — the menu is an HTML overlay, so canvas always loses. */
@@ -559,7 +586,7 @@ const playtestEl = document.createElement('div');
 playtestEl.className = 'mechili-playtest';
 playtestEl.textContent = 'PLAYTEST';
 playtestEl.style.display = 'none';
-wrapper.appendChild(playtestEl);
+menuChromeEl.appendChild(playtestEl);
 
 /** True when Steam launched us as a child appID (playtest/demo) rather than the main game. */
 let isPlaytest = false;
@@ -685,6 +712,14 @@ function setGameLayerVisible(visible: boolean): void {
 /** menu→match cover — CSS animation on the compositor (survives sync Game boot) */
 let introCoverEl: HTMLDivElement | null = null;
 let introGen = 0;
+/** MMR map prefetched on the intro cover — consumed once by the next Game. */
+let pendingIntroRosterMmr: Map<string, number> | null = null;
+/** Pause on the filled roster before the menu dive / 3D handoff. */
+const INTRO_ROSTER_HOLD_MS = 2000;
+
+function introRosterHold(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, INTRO_ROSTER_HOLD_MS));
+}
 
 function clearIntroCover(): void {
     introGen++;
@@ -709,7 +744,8 @@ function applyRandomMenuZoomOrigin(bg: HTMLElement): void {
     bg.style.setProperty('--zoom-oy', `${(originY * 100).toFixed(1)}%`);
 }
 
-function showIntroCover(): void {
+/** menu→match cover — CSS animation on the compositor (survives sync Game boot) */
+function showIntroCover(deferDive = false): void {
     introCoverEl?.remove();
     const cover = document.createElement('div');
     cover.className = 'mechili-intro-cover';
@@ -729,6 +765,11 @@ function showIntroCover(): void {
     introCoverEl = cover;
     void bg.offsetWidth;
     cover.classList.add('active');
+    if (!deferDive) startIntroCoverDive();
+}
+
+function startIntroCoverDive(): void {
+    introCoverEl?.classList.add('dive');
 }
 
 /** menu-zoom cover for reload resume / reconnect — keeps animating through async work */
@@ -988,7 +1029,7 @@ menu.innerHTML = `
         </div>
     </div>
 `;
-wrapper.appendChild(menu);
+menuChromeEl.appendChild(menu);
 titleReady = true;
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
@@ -1004,7 +1045,6 @@ const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
 usernameEl.type = 'button';
 usernameEl.style.zIndex = '30';
-usernameEl.style.display = 'none';
 const usernameAvatarEl = document.createElement('img');
 usernameAvatarEl.className = 'u-avatar';
 usernameAvatarEl.alt = '';
@@ -1012,12 +1052,27 @@ usernameAvatarEl.hidden = true;
 const usernameTextEl = document.createElement('span');
 usernameTextEl.className = 'u-name';
 usernameEl.append(usernameAvatarEl, usernameTextEl);
-wrapper.appendChild(usernameEl);
+menuChromeEl.appendChild(usernameEl);
+
+// Wide screens only (CSS decides — see .mechili-loadout-btn): a direct route
+// to the loadout screen, sitting above the username chip and wearing the
+// same chip styling. Under the breakpoint the corner is already crowded, so
+// the profile dialog's "Unit loadout" button remains the route there.
+const loadoutCornerEl = document.createElement('button');
+loadoutCornerEl.className = 'mechili-username mechili-loadout-btn';
+loadoutCornerEl.type = 'button';
+loadoutCornerEl.style.zIndex = '30';
+loadoutCornerEl.innerHTML = `<span class="u-name">Unit loadout</span>`;
+loadoutCornerEl.addEventListener('click', () => {
+    if (started || pending) return;
+    menuChromeEl.style.display = 'none';
+    loadoutPanel.open();
+});
+menuChromeEl.appendChild(loadoutCornerEl);
 
 // Top-right menu chrome: door (Electron quit) + settings gear.
 const cornerActionsEl = document.createElement('div');
 cornerActionsEl.className = 'mechili-corner-actions';
-cornerActionsEl.style.display = 'none';
 
 const exitDesktopEl = document.createElement('button');
 exitDesktopEl.className = 'mechili-exit-btn';
@@ -1035,7 +1090,7 @@ settingsCornerEl.title = 'Settings';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 
 cornerActionsEl.append(settingsCornerEl, exitDesktopEl);
-wrapper.appendChild(cornerActionsEl);
+menuChromeEl.appendChild(cornerActionsEl);
 
 // suggest chip, top-left (same language as username button)
 const suggestCornerEl = document.createElement('button');
@@ -1043,11 +1098,10 @@ suggestCornerEl.className = 'mechili-suggest-btn';
 suggestCornerEl.type = 'button';
 suggestCornerEl.textContent = 'Report bug';
 suggestCornerEl.title = 'Report bug';
-suggestCornerEl.style.display = 'none';
 suggestCornerEl.addEventListener('click', () => {
     openSuggest({ parent: wrapper, source: 'game menu' });
 });
-wrapper.appendChild(suggestCornerEl);
+menuChromeEl.appendChild(suggestCornerEl);
 
 let menuGamepad: GamepadCursor | null = null;
 let menuGamepadRig: CameraRig | null = null;
@@ -1055,15 +1109,14 @@ let menuGamepadRig: CameraRig | null = null;
 function setMenuChromeVisible(visible: boolean): void {
     menuChromeVisible = visible;
     const display = visible ? '' : 'none';
+    // One toggle for the whole set — see menuChromeEl. Only elements that
+    // must stay hidden even while the chrome IS up keep their own rule.
+    menuChromeEl.style.display = display;
+    // still its own: layoutTitle measures the panel by toggling this
     menu.style.display = display;
-    usernameEl.style.display = display;
-    versionEl.style.display = display;
     playtestEl.style.display = visible && isPlaytest ? '' : 'none';
-    suggestCornerEl.style.display = display;
-    cornerActionsEl.style.display = display;
-    // Door only in Electron; settings always when chrome is up.
+    // Door only in Electron.
     exitDesktopEl.style.display = visible && isElectron() ? '' : 'none';
-    settingsCornerEl.style.display = display;
     if (visible) {
         ensureMenuGamepadCursor();
         scheduleLayoutTitle();
@@ -1125,6 +1178,13 @@ const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-se
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
+// Loadout screen: a full-screen 3D stage with floating UI, so it is its own
+// overlay on the wrapper rather than a view inside the menu frame. Hidden
+// until opened from the profile dialog.
+const loadoutPanel = createLoadoutPanel(() => {
+    menuChromeEl.style.display = '';
+});
+wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
@@ -1558,6 +1618,7 @@ function showNameEditor(): void {
         `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" ${steamLocked ? 'readonly' : ''} />` +
         `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
+        `<button type="button" class="profile-loadout" data-act="loadout">Unit loadout</button>` +
         `<div class="actions">` +
         `<button type="button" data-act="cancel">Cancel</button>` +
         `<button type="button" class="primary" data-act="save">Save</button>` +
@@ -1571,7 +1632,6 @@ function showNameEditor(): void {
         previewEl.hidden = false;
     }
     const errorEl = overlay.querySelector<HTMLDivElement>('.error')!;
-    const actions = overlay.querySelector<HTMLDivElement>('.actions')!;
     if (!steamLocked) nameInput.select();
 
     let pendingAvatar: string | null | undefined = undefined; // undefined = unchanged
@@ -1599,7 +1659,10 @@ function showNameEditor(): void {
     };
 
     const setBusy = (busy: boolean) => {
-        actions.querySelectorAll('button').forEach((b) => {
+        // every button in the dialog, not just the .actions pair — the Edit
+        // Loadout button lives outside that row and saves on its way out, so
+        // it must not stay clickable while a save is already in flight
+        overlay.querySelectorAll('button').forEach((b) => {
             b.disabled = busy;
         });
         if (!steamLocked) nameInput.disabled = busy;
@@ -1622,12 +1685,13 @@ function showNameEditor(): void {
         })();
     });
 
-    const save = async () => {
+    /** @returns true once the edit was accepted and the dialog closed. */
+    const save = async (): Promise<boolean> => {
         const next = steamLocked ? getPlayerName() : validatePlayerName(nameInput.value);
         if (!next) {
             nameInput.style.borderColor = '#e83828';
             setError('Name must be 2–16 letters, numbers, _ or -.');
-            return;
+            return false;
         }
         nameInput.style.borderColor = '';
         setError('');
@@ -1646,6 +1710,7 @@ function showNameEditor(): void {
         }
         setBusy(false);
         close();
+        return true;
     };
 
     overlay.addEventListener('click', (e) => {
@@ -1657,6 +1722,20 @@ function showNameEditor(): void {
         if (act === 'clear-avatar') {
             pendingAvatar = null;
             showPreview(null);
+            return;
+        }
+        if (act === 'loadout') {
+            // save first, then navigate — leaving through this button must not
+            // silently discard a name/avatar edit the player already made
+            void save().then((saved) => {
+                // a rejected name leaves the dialog open — navigating anyway
+                // would strand the overlay on top of the loadout screen
+                if (!saved) return;
+                // the loadout screen takes over the whole viewport, so the
+                // whole menu chrome steps aside until it closes
+                menuChromeEl.style.display = 'none';
+                loadoutPanel.open();
+            });
             return;
         }
         if (act === 'save') void save();
@@ -1767,12 +1846,12 @@ function setStatus(text: string, autoDismissMs?: number): void {
  */
 /** Steam friends + direct invites, opened from an empty seat (see inviteToHostedRoom) */
 const friendsPanel = new FriendsPanel();
-wrapper.appendChild(friendsPanel.el);
+menuChromeEl.appendChild(friendsPanel.el);
 
 const lobbyChatEl = document.createElement('div');
 lobbyChatEl.className = 'mechili-lobby-chat';
 lobbyChatEl.style.display = 'none';
-wrapper.appendChild(lobbyChatEl);
+menuChromeEl.appendChild(lobbyChatEl);
 // The match's own two pieces, unchanged: lines pop above the bar and fade,
 // and the bar itself collapses to a "Chat" strip. Same components, so a
 // message looks the same whether it arrives while waiting or mid-battle.
@@ -2390,14 +2469,8 @@ function finishReturnToMenu(): void {
     pending?.cancel();
     pending = null;
     cancelHost();
-    wrapper.appendChild(menu);
-    wrapper.appendChild(usernameEl);
-    wrapper.appendChild(versionEl);
-    wrapper.appendChild(playtestEl);
-    wrapper.appendChild(cornerActionsEl);
-    wrapper.appendChild(suggestCornerEl);
-    wrapper.appendChild(lobbyChatEl);
-    wrapper.appendChild(friendsPanel.el);
+    // one container, so nothing can be forgotten here (see menuChromeEl)
+    wrapper.appendChild(menuChromeEl);
     refreshUsernameLabel();
     void refreshOpenProfile();
     setMenuBusy(false);
@@ -2445,6 +2518,8 @@ function constructGame(
     } | null,
     useIntro: boolean,
 ): Game {
+    const preloadedRosterMmr = pendingIntroRosterMmr;
+    pendingIntroRosterMmr = null;
     const game = new Game(
         app,
         threeCanvas,
@@ -2458,6 +2533,7 @@ function constructGame(
         replay,
         spectate,
         useIntro,
+        preloadedRosterMmr ?? undefined,
     );
     activeGame = game;
     // a conversation that started while waiting continues into the match
@@ -2535,8 +2611,9 @@ function startGame(
     if (started) return;
     started = true;
     destroyMenuGamepadCursor();
-    // setMenuChromeVisible(false) is never called anywhere (menu.remove()
-    // below tears the chrome down permanently instead) — without this, the
+    // setMenuChromeVisible(false) is never called anywhere
+    // (menuChromeEl.remove() below tears the chrome down permanently
+    // instead) — without this, the
     // room-list poll it would otherwise stop just keeps firing every few
     // seconds in the background for the rest of the session, including
     // during an active match where the room list is entirely irrelevant.
@@ -2549,14 +2626,7 @@ function startGame(
     // Strip menu chrome immediately. For the intro path we MUST yield a paint
     // with logo-only before `new Game()` — otherwise the main thread freezes
     // on the last menu frame and the cinematic never covers the hitch.
-    menu.remove();
-    usernameEl.remove();
-    versionEl.remove();
-    playtestEl.remove();
-    cornerActionsEl.remove();
-    suggestCornerEl.remove();
-    lobbyChatEl.remove();
-    friendsPanel.el.remove();
+    menuChromeEl.remove();
 
     if (net) {
         // Steam is the only live user of `net` now (classic PeerJS 1v1 runs
@@ -2627,8 +2697,12 @@ function startGame(
     title.visible = false;
     logo.alpha = 0;
     app.renderer.off('resize', layoutTitle);
+    // Fresh matches: roster rides the CSS cover and dissolves with it into 3D.
+    // Resume/reconnect skips the roster (cover may already be animating).
+    const showCoverRoster = !resume;
+
     if (!coverActive) {
-        showIntroCover();
+        showIntroCover(showCoverRoster);
         app.render();
     }
 
@@ -2655,12 +2729,32 @@ function startGame(
         beginHandoff(game);
     };
 
-    if (coverActive) {
-        bootWithHandoff();
-    } else {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => bootWithHandoff());
+    const runBootHandoff = (): void => {
+        if (coverActive) {
+            bootWithHandoff();
+        } else {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => bootWithHandoff());
+            });
+        }
+    };
+
+    if (showCoverRoster && introCoverEl) {
+        const entries = introRosterEntries(settings, side, names, star);
+        mountIntroRoster(introCoverEl, entries);
+        void prefetchIntroRosterMmrs(introCoverEl, entries).then(async (mmrMap) => {
+            if (gen !== introGen || !started) return;
+            pendingIntroRosterMmr = mmrMap;
+            await introRosterHold();
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
         });
+    } else {
+        if (coverActive && introCoverEl && !introCoverEl.classList.contains('dive')) {
+            startIntroCoverDive();
+        }
+        runBootHandoff();
     }
 }
 
@@ -3057,7 +3151,7 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
 function initialStarRoster(hostName: string): CanonicalSeatDef[] {
     const avatar = getAvatarDataUrl() || undefined;
     return [
-        { side: 'a', controller: 'human', name: hostName, avatar },
+        { side: 'a', controller: 'human', name: hostName, avatar, loadout: activeLoadout() },
         { side: 'a', controller: 'human', name: 'Waiting…' },
         { side: 'b', controller: 'human', name: 'Waiting…' },
         { side: 'b', controller: 'human', name: 'Waiting…' },
@@ -3068,7 +3162,7 @@ function initialStarRoster(hostName: string): CanonicalSeatDef[] {
 function initial1v1Roster(hostName: string): CanonicalSeatDef[] {
     const avatar = getAvatarDataUrl() || undefined;
     return [
-        { side: 'a', controller: 'human', name: hostName, avatar },
+        { side: 'a', controller: 'human', name: hostName, avatar, loadout: activeLoadout() },
         { side: 'b', controller: 'human', name: 'Waiting…' },
     ];
 }
@@ -3362,7 +3456,7 @@ function wireHostedHub(
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
         refresh();
     };
-    hub.listen((name, version, avatar) => {
+    hub.listen((name, version, avatar, loadout) => {
         if (version !== GAME_VERSION) {
             return {
                 reject: `Version mismatch — this room runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
@@ -3375,6 +3469,9 @@ function wireHostedHub(
             controller: 'human',
             name,
             avatar: wireAvatar(avatar) || undefined,
+            // normalize HERE — this is the boundary where a peer's picks
+            // stop being untrusted input and start feeding combat math
+            loadout: normalizeLoadout(loadout),
         });
         return seat;
     });
@@ -3486,7 +3583,16 @@ function startHostedMatch(): void {
     const currentRoster = hub.currentRoster();
     const finalRoster: CanonicalSeatDef[] = currentRoster.map((s, i) => {
         if (i > 0 && s.controller === 'human' && !connected.has(i)) {
-            return { side: s.side, controller: 'ai' as const, name: starAiName(i, currentRoster) };
+            // AI seats get a real loadout here, rolled once and carried on
+            // the roster exactly like a human's — starSetup below sends this
+            // same array, so every client receives the bot's talents rather
+            // than computing its own copy.
+            return {
+                side: s.side,
+                controller: 'ai' as const,
+                name: starAiName(i, currentRoster),
+                loadout: randomLoadout(),
+            };
         }
         return s;
     });
@@ -4320,6 +4426,7 @@ function isMenuBlockingOverlayOpen(): boolean {
     // let that overlay own Escape instead of closing underneath it.
     return (
         !!wrapper.querySelector('.mechili-settings, .mechili-name-edit, .mechili-resume, .mechili-fatal') ||
+        loadoutPanel.isOpen() ||
         resumeOverlay !== null
     );
 }

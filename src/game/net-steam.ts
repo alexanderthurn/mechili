@@ -1,5 +1,6 @@
 import { lobby, net, steam, type SteamLobbyInfo } from 'steam-electron-build/native';
 import { getAvatarDataUrl } from './avatar';
+import { activeLoadout } from './loadouts';
 import { getPlayerName } from './player';
 import {
     CONNECT_TIMEOUT_MS,
@@ -19,6 +20,7 @@ import {
     type SpectatorViewerLink,
 } from './net';
 import type { CanonicalSeatDef, SeatId } from './seats';
+import type { Loadout } from './techCatalog';
 
 /**
  * Steam-backed transport, parallel to `net.ts`'s PeerJS+PHP one — chosen at
@@ -455,7 +457,12 @@ export class SteamStarHub implements HostHub {
      * (acceptable for this trust model: friends playing together).
      */
     listen(
-        onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string },
+        onJoin: (
+            name: string,
+            version: number,
+            avatar?: string | null,
+            loadout?: Loadout,
+        ) => SeatId | { reject: string },
     ): void {
         if (this.accepting) return;
         this.accepting = true;
@@ -501,7 +508,12 @@ export class SteamStarHub implements HostHub {
 
     private async handleNewMember(
         steamId64: string,
-        onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string },
+        onJoin: (
+            name: string,
+            version: number,
+            avatar?: string | null,
+            loadout?: Loadout,
+        ) => SeatId | { reject: string },
     ): Promise<void> {
         const channel = new SteamChannel(steamId64);
         // wired before the handshake resolves — without this, a peer that
@@ -576,7 +588,7 @@ export class SteamStarHub implements HostHub {
             }
         }
 
-        const result = onJoin(msg.name, msg.version, msg.avatar);
+        const result = onJoin(msg.name, msg.version, msg.avatar, msg.loadout);
         if (typeof result !== 'number') {
             channel.send({ type: 'starRejected', reason: result.reject });
             channel.dispose();
@@ -992,7 +1004,13 @@ export async function joinSteamStarRoom(lobbyId: string): Promise<SteamGuestSess
     const room = await lobby.join(lobbyId);
     if (!room) throw new Error('Could not join the Steam lobby.');
     const session = new SteamGuestSession(room.owner, lobbyId);
-    session.send({ type: 'starJoin', name: getPlayerName(), version: GAME_VERSION, avatar: getAvatarDataUrl() });
+    session.send({
+        type: 'starJoin',
+        name: getPlayerName(),
+        version: GAME_VERSION,
+        avatar: getAvatarDataUrl(),
+        loadout: activeLoadout(),
+    });
     return session;
 }
 
@@ -1014,7 +1032,13 @@ export async function joinSteamLobby(lobbySteamId: string): Promise<{
     const room = await lobby.join(lobbySteamId);
     if (!room) throw new Error('Could not join the Steam lobby.');
     const session = new SteamGuestSession(room.owner, room.id);
-    session.send({ type: 'starJoin', name: getPlayerName(), version: GAME_VERSION, avatar: getAvatarDataUrl() });
+    session.send({
+        type: 'starJoin',
+        name: getPlayerName(),
+        version: GAME_VERSION,
+        avatar: getAvatarDataUrl(),
+        loadout: activeLoadout(),
+    });
     return {
         mode: room.data.mode === '1v1' ? '1v1' : '2v2',
         session,

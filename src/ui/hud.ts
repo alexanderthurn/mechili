@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
 import { SHOP_UNIT_IDS, type RoundCard, type StartCard } from '../game/cards';
+import { formatMmrDelta } from '../game/mmr';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
@@ -18,12 +19,26 @@ import { closeSettings, openSettings } from './settings';
 import { ChatBar } from './chatBar';
 import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
-import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
 import { THEME, hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
+
+export type GameOverMember = {
+    name: string;
+    avatar?: string | null;
+    controller: 'human' | 'ai';
+    mmrBefore: number;
+    mmrAfter: number;
+    mmrRated: boolean;
+};
+
+export type GameOverDetails = {
+    playerTeam: GameOverMember[];
+    enemyTeam: GameOverMember[];
+};
 
 type CommanderChip = {
     seat: number;
@@ -339,6 +354,9 @@ export class Hud {
     private shopUnlockAvailable = false;
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
+    /** talent rows per unit type, pre-encoded for `data-trows` — kept because
+     *  the unlock picker builds its tiles as HTML long after setUnitTalents */
+    private readonly unitTalentRows = new Map<string, string>();
     private lastShopKey = '';
     private lastShopOrderKey = '';
     private lastLevelAllKey = '';
@@ -644,20 +662,21 @@ export class Hud {
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
             button.className = 'shop-tile';
-            const mechs = type.formation.cols * type.formation.rows;
             button.innerHTML =
                 `<span class="title">${type.name}</span>` +
                 `<span class="art"></span>` +
                 `<span class="cost">${costOf(type)}</span>`;
-            const hits = [type.targets.ground && 'ground', type.targets.air && 'air']
-                .filter(Boolean)
-                .join(' + ');
-            button.title =
-                `${type.name} — ${costOf(type)} supply${type.flying ? ' · FLYING' : ''}\n` +
-                `${mechs > 1 ? `${mechs} units, ` : ''}${type.hp} HP each · hits ${hits}\n` +
-                `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
-                ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
+            // Framed hover window, same one the shop runes use — the native
+            // title could not show the player's chosen talents. Deliberately
+            // just the unit name plus that talent list (rows arrive via
+            // setUnitTalents); the tile itself already shows the cost, and
+            // stats belong in the unit details panel, not on every hover.
+            button.dataset.spellTip = '1';
+            button.dataset.ttitle = type.name;
             button.addEventListener('click', () => {
+                // hoverable while unaffordable (see the .unaffordable CSS), so
+                // the refusal has to happen here rather than via pointer-events
+                if (button.classList.contains('unaffordable')) return;
                 const bought = UNIT_TYPES[index]!;
                 // extras need the field for the place-ghost; regular packs only
                 // dismiss the sheet when this buy fills the last deploy slot
@@ -950,7 +969,9 @@ export class Hud {
         // tactic/item for its hint — and a PLACED tactic long-press resets it
         // (the touch version of the contextmenu handler above)
         this.attachLongPress(this.shopColumn, '.shop-tile', (tile) =>
-            this.showTouchTooltip((tile as HTMLButtonElement).title),
+            tile.dataset.spellTip
+                ? this.showRuneHoverTip(tile)
+                : this.showTouchTooltip((tile as HTMLButtonElement).title),
         );
         this.attachLongPress(this.shopColumn, '.shop-rune', (btn) =>
             this.showRuneHoverTip(btn),
@@ -2114,6 +2135,28 @@ export class Hud {
     }
 
     /** supply price of each always-available base rune in the shop header */
+    /**
+     * The talents this player picked for each unit type (PROGRESSION_PLAN.md
+     * §1), listed vertically in the shop tile's hover window. Fixed for the
+     * whole match, so one call at setup is enough.
+     */
+    setUnitTalents(
+        byType: ReadonlyMap<
+            string,
+            readonly { icon: string; label: string; cost?: number; desc?: string }[]
+        >,
+    ): void {
+        this.unitTalentRows.clear();
+        for (const [typeId, rows] of byType) {
+            if (rows.length > 0) this.unitTalentRows.set(typeId, encodeTipRows(rows));
+        }
+        for (const [typeId, tile] of this.shopUnitTiles) {
+            const enc = this.unitTalentRows.get(typeId);
+            if (enc) tile.dataset.trows = enc;
+            else delete tile.dataset.trows;
+        }
+    }
+
     setShopRuneCost(cost: number, balance: number): void {
         this.shopRuneCost = cost;
         this.shopRuneBalance = balance;
@@ -2258,8 +2301,14 @@ export class Hud {
     ): string {
         const art = this.unitIcons.get(o.id);
         const artStyle = art ? ` style="background-image:${cssUrl(art)}"` : '';
+        // same hover window as the shop tiles — the player wants to see which
+        // talents a unit would bring before paying to unlock it
+        const rows = this.unitTalentRows.get(o.id);
+        const tipAttrs =
+            ` data-spell-tip="1" data-ttitle="${escapeAttr(o.name)}"` +
+            (rows ? ` data-trows="${escapeAttr(rows)}"` : '');
         return (
-            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}">` +
+            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}"${tipAttrs}>` +
             `<span class="title">${escapeAttr(o.name)}</span>` +
             `<span class="art"${artStyle}></span>` +
             `<span class="cost">${o.deployCost}</span>` +
@@ -3726,15 +3775,35 @@ export class Hud {
         this.reconnectWait = null;
     }
 
+    private gameOverTeamHtml(team: 'player' | 'enemy', members: GameOverMember[]): string {
+        const rows = members
+            .map((m) => {
+                const portrait = m.avatar
+                    ? `<img class="go-portrait-img" src="${escapeAttr(m.avatar)}" alt="" draggable="false" />`
+                    : `<span class="go-portrait-ph" aria-hidden="true"></span>`;
+                const delta = m.mmrAfter - m.mmrBefore;
+                const deltaClass =
+                    delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+                const ratedTag = m.mmrRated ? '' : `<span class="go-unrated">practice</span>`;
+                return (
+                    `<div class="go-player">` +
+                    `<div class="go-portrait ${team}">${portrait}</div>` +
+                    `<div class="go-player-info">` +
+                    `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? '<span class="go-ai">AI</span>' : ''}</div>` +
+                    `<div class="go-mmr ${deltaClass}">${m.mmrBefore} → ${m.mmrAfter} (${formatMmrDelta(delta)})${ratedTag}</div>` +
+                    `</div></div>`
+                );
+            })
+            .join('');
+        return `<div class="go-team go-team-${team}">${rows}</div>`;
+    }
+
     /** the grace window elapsed with no reconnect — we win by forfeit */
-    showForfeitWin(): void {
+    showForfeitWin(details?: GameOverDetails): void {
         this.hideReconnectWait();
         const el = document.createElement('div');
         el.className = 'mechili-gameover victory';
-        el.innerHTML =
-            `<div class="go-title">VICTORY</div>` +
-            `<div class="go-sub">Opponent disconnected</div>` +
-            `<button class="go-restart">Back to main menu</button>`;
+        el.innerHTML = this.gameOverInnerHtml('VICTORY', details);
         el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
     }
@@ -3750,22 +3819,41 @@ export class Hud {
 
     showGameOver(
         result: 'victory' | 'defeat' | 'draw',
-        options?: { note?: string; backLabel?: string; title?: string },
+        options?: {
+            note?: string;
+            backLabel?: string;
+            title?: string;
+            details?: GameOverDetails;
+        },
     ): void {
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;
-        // `options.title` overrides the perspective-relative default — a
-        // spectator has no side of their own, so "VICTORY"/"DEFEAT" (which
-        // side THEY happen to be arbitrarily anchored to) is meaningless;
-        // see finishMatch's watching branch for the neutral "X wins" label.
         const title = options?.title ?? (result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW');
-        const note = options?.note ? `<div class="go-note">${escapeHtml(options.note)}</div>` : '';
+        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note);
         const backLabel = options?.backLabel ?? 'Back to main menu';
-        el.innerHTML =
-            `<div class="go-title">${title}</div>${note}` +
-            `<button class="go-restart">${escapeHtml(backLabel)}</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+        const btn = el.querySelector('.go-restart')!;
+        btn.textContent = backLabel;
+        btn.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
+    }
+
+    private gameOverInnerHtml(
+        title: string,
+        details?: GameOverDetails,
+        note?: string,
+    ): string {
+        const teams = details
+            ? `<div class="go-teams">` +
+              this.gameOverTeamHtml('player', details.playerTeam) +
+              `<div class="go-vs">VS</div>` +
+              this.gameOverTeamHtml('enemy', details.enemyTeam) +
+              `</div>`
+            : '';
+        const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
+        return (
+            `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
+            `<button class="go-restart">Back to main menu</button>`
+        );
     }
 
     setSupply(amount: number): void {
