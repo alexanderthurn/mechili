@@ -2141,6 +2141,19 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 
+/* Single container for every piece of menu chrome (see menuChromeEl in
+   main.ts). Full-bleed so its absolutely-positioned children keep the exact
+   containing block they had as siblings of the wrapper, but transparent to
+   the pointer so it cannot swallow clicks meant for the 3D scene behind it;
+   the children opt back in. No z-index on purpose: that would create a
+   stacking context and trap children that currently compete globally. */
+.mechili-menu-chrome {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.mechili-menu-chrome > * { pointer-events: auto; }
+
 /* Top-right menu chrome: door (Electron quit) + settings gear */
 .mechili-corner-actions {
     position: absolute;

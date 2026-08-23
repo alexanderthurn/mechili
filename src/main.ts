@@ -543,17 +543,37 @@ document.head.appendChild(style);
 applyUiFont(prefs().uiFont);
 onPrefsChange(() => applyUiFont(prefs().uiFont));
 
+/**
+ * Every piece of menu chrome lives in here — the menu panel, the corner
+ * chips, the lobby chat, the friends panel.
+ *
+ * It exists so there is ONE thing to show, hide, remove and re-append.
+ * These used to be nine siblings on `wrapper`, hand-listed in three
+ * different places (visibility, the strip on match start, the re-append on
+ * return); the lists had already drifted apart, and adding a tenth element
+ * meant remembering all three — which is exactly how the Unit loadout chip
+ * ended up hanging over a running match.
+ *
+ * Full-bleed but `pointer-events: none`, so it never eats clicks meant for
+ * the 3D scene behind it; children opt back in via CSS. It sets no
+ * z-index, so it creates no stacking context and its children keep
+ * competing globally exactly as they did as siblings.
+ */
+const menuChromeEl = document.createElement('div');
+menuChromeEl.className = 'mechili-menu-chrome';
+menuChromeEl.style.display = 'none';
+wrapper.appendChild(menuChromeEl);
+
 const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
 versionEl.className = 'mechili-version';
 versionEl.style.zIndex = '30';
-versionEl.style.display = 'none';
 versionEl.textContent = `v${__APP_VERSION__}`;
 if (versionEl instanceof HTMLAnchorElement) {
     versionEl.target = '_blank';
     versionEl.rel = 'noopener noreferrer';
     versionEl.classList.add('link');
 }
-wrapper.appendChild(versionEl);
+menuChromeEl.appendChild(versionEl);
 
 /** PLAYTEST wordmark under the logo. HTML rather than a Pixi Text so it can sit
  *  above the menu panel — the menu is an HTML overlay, so canvas always loses. */
@@ -561,7 +581,7 @@ const playtestEl = document.createElement('div');
 playtestEl.className = 'mechili-playtest';
 playtestEl.textContent = 'PLAYTEST';
 playtestEl.style.display = 'none';
-wrapper.appendChild(playtestEl);
+menuChromeEl.appendChild(playtestEl);
 
 /** True when Steam launched us as a child appID (playtest/demo) rather than the main game. */
 let isPlaytest = false;
@@ -990,7 +1010,7 @@ menu.innerHTML = `
         </div>
     </div>
 `;
-wrapper.appendChild(menu);
+menuChromeEl.appendChild(menu);
 titleReady = true;
 layoutTitle();
 app.renderer.on('resize', layoutTitle);
@@ -1006,7 +1026,6 @@ const usernameEl = document.createElement('button');
 usernameEl.className = 'mechili-username';
 usernameEl.type = 'button';
 usernameEl.style.zIndex = '30';
-usernameEl.style.display = 'none';
 const usernameAvatarEl = document.createElement('img');
 usernameAvatarEl.className = 'u-avatar';
 usernameAvatarEl.alt = '';
@@ -1014,7 +1033,7 @@ usernameAvatarEl.hidden = true;
 const usernameTextEl = document.createElement('span');
 usernameTextEl.className = 'u-name';
 usernameEl.append(usernameAvatarEl, usernameTextEl);
-wrapper.appendChild(usernameEl);
+menuChromeEl.appendChild(usernameEl);
 
 // Wide screens only (CSS decides — see .mechili-loadout-btn): a direct route
 // to the loadout screen, sitting above the username chip and wearing the
@@ -1024,19 +1043,17 @@ const loadoutCornerEl = document.createElement('button');
 loadoutCornerEl.className = 'mechili-username mechili-loadout-btn';
 loadoutCornerEl.type = 'button';
 loadoutCornerEl.style.zIndex = '30';
-loadoutCornerEl.style.display = 'none';
 loadoutCornerEl.innerHTML = `<span class="u-name">Unit loadout</span>`;
 loadoutCornerEl.addEventListener('click', () => {
     if (started || pending) return;
-    menu.style.display = 'none';
+    menuChromeEl.style.display = 'none';
     loadoutPanel.open();
 });
-wrapper.appendChild(loadoutCornerEl);
+menuChromeEl.appendChild(loadoutCornerEl);
 
 // Top-right menu chrome: door (Electron quit) + settings gear.
 const cornerActionsEl = document.createElement('div');
 cornerActionsEl.className = 'mechili-corner-actions';
-cornerActionsEl.style.display = 'none';
 
 const exitDesktopEl = document.createElement('button');
 exitDesktopEl.className = 'mechili-exit-btn';
@@ -1054,7 +1071,7 @@ settingsCornerEl.title = 'Settings';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 
 cornerActionsEl.append(settingsCornerEl, exitDesktopEl);
-wrapper.appendChild(cornerActionsEl);
+menuChromeEl.appendChild(cornerActionsEl);
 
 // suggest chip, top-left (same language as username button)
 const suggestCornerEl = document.createElement('button');
@@ -1062,11 +1079,10 @@ suggestCornerEl.className = 'mechili-suggest-btn';
 suggestCornerEl.type = 'button';
 suggestCornerEl.textContent = 'Report bug';
 suggestCornerEl.title = 'Report bug';
-suggestCornerEl.style.display = 'none';
 suggestCornerEl.addEventListener('click', () => {
     openSuggest({ parent: wrapper, source: 'game menu' });
 });
-wrapper.appendChild(suggestCornerEl);
+menuChromeEl.appendChild(suggestCornerEl);
 
 let menuGamepad: GamepadCursor | null = null;
 let menuGamepadRig: CameraRig | null = null;
@@ -1074,17 +1090,14 @@ let menuGamepadRig: CameraRig | null = null;
 function setMenuChromeVisible(visible: boolean): void {
     menuChromeVisible = visible;
     const display = visible ? '' : 'none';
+    // One toggle for the whole set — see menuChromeEl. Only elements that
+    // must stay hidden even while the chrome IS up keep their own rule.
+    menuChromeEl.style.display = display;
+    // still its own: layoutTitle measures the panel by toggling this
     menu.style.display = display;
-    usernameEl.style.display = display;
-    // '' (not 'flex') so the breakpoint media query stays in charge
-    loadoutCornerEl.style.display = display;
-    versionEl.style.display = display;
     playtestEl.style.display = visible && isPlaytest ? '' : 'none';
-    suggestCornerEl.style.display = display;
-    cornerActionsEl.style.display = display;
-    // Door only in Electron; settings always when chrome is up.
+    // Door only in Electron.
     exitDesktopEl.style.display = visible && isElectron() ? '' : 'none';
-    settingsCornerEl.style.display = display;
     if (visible) {
         ensureMenuGamepadCursor();
         scheduleLayoutTitle();
@@ -1150,7 +1163,7 @@ const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startsta
 // overlay on the wrapper rather than a view inside the menu frame. Hidden
 // until opened from the profile dialog.
 const loadoutPanel = createLoadoutPanel(() => {
-    menu.style.display = '';
+    menuChromeEl.style.display = '';
 });
 wrapper.appendChild(loadoutPanel.el);
 
@@ -1700,8 +1713,8 @@ function showNameEditor(): void {
                 // would strand the overlay on top of the loadout screen
                 if (!saved) return;
                 // the loadout screen takes over the whole viewport, so the
-                // menu steps aside until it closes
-                menu.style.display = 'none';
+                // whole menu chrome steps aside until it closes
+                menuChromeEl.style.display = 'none';
                 loadoutPanel.open();
             });
             return;
@@ -1814,12 +1827,12 @@ function setStatus(text: string, autoDismissMs?: number): void {
  */
 /** Steam friends + direct invites, opened from an empty seat (see inviteToHostedRoom) */
 const friendsPanel = new FriendsPanel();
-wrapper.appendChild(friendsPanel.el);
+menuChromeEl.appendChild(friendsPanel.el);
 
 const lobbyChatEl = document.createElement('div');
 lobbyChatEl.className = 'mechili-lobby-chat';
 lobbyChatEl.style.display = 'none';
-wrapper.appendChild(lobbyChatEl);
+menuChromeEl.appendChild(lobbyChatEl);
 // The match's own two pieces, unchanged: lines pop above the bar and fade,
 // and the bar itself collapses to a "Chat" strip. Same components, so a
 // message looks the same whether it arrives while waiting or mid-battle.
@@ -2437,15 +2450,8 @@ function finishReturnToMenu(): void {
     pending?.cancel();
     pending = null;
     cancelHost();
-    wrapper.appendChild(menu);
-    wrapper.appendChild(usernameEl);
-    wrapper.appendChild(loadoutCornerEl);
-    wrapper.appendChild(versionEl);
-    wrapper.appendChild(playtestEl);
-    wrapper.appendChild(cornerActionsEl);
-    wrapper.appendChild(suggestCornerEl);
-    wrapper.appendChild(lobbyChatEl);
-    wrapper.appendChild(friendsPanel.el);
+    // one container, so nothing can be forgotten here (see menuChromeEl)
+    wrapper.appendChild(menuChromeEl);
     refreshUsernameLabel();
     void refreshOpenProfile();
     setMenuBusy(false);
@@ -2583,8 +2589,9 @@ function startGame(
     if (started) return;
     started = true;
     destroyMenuGamepadCursor();
-    // setMenuChromeVisible(false) is never called anywhere (menu.remove()
-    // below tears the chrome down permanently instead) — without this, the
+    // setMenuChromeVisible(false) is never called anywhere
+    // (menuChromeEl.remove() below tears the chrome down permanently
+    // instead) — without this, the
     // room-list poll it would otherwise stop just keeps firing every few
     // seconds in the background for the rest of the session, including
     // during an active match where the room list is entirely irrelevant.
@@ -2597,15 +2604,7 @@ function startGame(
     // Strip menu chrome immediately. For the intro path we MUST yield a paint
     // with logo-only before `new Game()` — otherwise the main thread freezes
     // on the last menu frame and the cinematic never covers the hitch.
-    menu.remove();
-    usernameEl.remove();
-    loadoutCornerEl.remove();
-    versionEl.remove();
-    playtestEl.remove();
-    cornerActionsEl.remove();
-    suggestCornerEl.remove();
-    lobbyChatEl.remove();
-    friendsPanel.el.remove();
+    menuChromeEl.remove();
 
     if (net) {
         // Steam is the only live user of `net` now (classic PeerJS 1v1 runs
