@@ -77,7 +77,8 @@ import {
     type MatchMode,
     type MatchResult,
 } from './telemetry';
-import { matchResultId, reportMatchResult } from './account';
+import { matchResultId, reportMatchResult, fetchPlayerPublic, getCachedProfile } from './account';
+import { DEFAULT_MMR, mmrDelta } from './mmr';
 import {
     AIR_BONUS,
     COST_CONTROL_INCOME,
@@ -251,7 +252,7 @@ import {
 } from './seats';
 import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
-import { Hud, isCompactChrome, type Phase, type SelectionInfo } from '../ui/hud';
+import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -791,6 +792,9 @@ export class Game {
     /** round-card offer held until the intro finishes (resume before pick) */
     private deferredRoundOffer = false;
     private introCardsRevealed = false;
+    /** MMR at match start — prefetched on intro cover or loaded async. */
+    private readonly rosterMmr = new Map<string, number>();
+    private rosterProfilesLoaded = false;
     private persistTimer = 0;
     /** last stamped battle positions for wear trails (visual only) */
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
@@ -1100,6 +1104,8 @@ export class Game {
         /** fresh match only: hold specialist cards + HUD while the camera
          *  flies in from a wide overlook (menu logo covers the ctor hitch). */
         matchIntro = false,
+        /** MMR prefetched on the menu-zoom cover — skips a second lookup. */
+        preloadedRosterMmr?: ReadonlyMap<string, number>,
     ) {
         this.watching = replay !== null || spectate !== null;
         this.watcherName = spectate?.watcherName ?? null;
@@ -1176,6 +1182,10 @@ export class Game {
         this.seats = baseSeats.map((s, i) =>
             i === humanSeat && !s.avatar && localAvatar ? { ...s, avatar: localAvatar } : s,
         );
+        if (preloadedRosterMmr) {
+            for (const [name, mmr] of preloadedRosterMmr) this.rosterMmr.set(name, mmr);
+            this.rosterProfilesLoaded = true;
+        }
         this.humanSeat = humanSeat;
         this.economy = new Economy(settings.economy, this.seats.length);
         this.recruitLevel = this.seats.map(() => 1);
@@ -1896,12 +1906,12 @@ export class Game {
         if (resume) {
             this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
             // replay always resets the round's clock to a fresh full timer
-            // (it isn't logged as an action) — restore the true remaining
             // time from whoever exported, so a rebuild can't hand either
             // side extra deployment time
             if (resume.phaseRemaining !== undefined && this.phase === 'build') {
                 this.phaseRemaining = resume.phaseRemaining;
             }
+            if (!this.watching) void this.ensureRosterMmrs();
         } else if (replay) {
             this.replayLog = replay.actions;
             // round 0 (starter pick) dispatches immediately, same as
@@ -1930,8 +1940,10 @@ export class Game {
         } else if (matchIntro) {
             // hold the specialist overlay until the camera fly-in finishes
             this.deferredStarterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         } else {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
         // only now may peer messages flow — everything they touch exists
         if (this.net) this.wireSession(this.net);
@@ -1979,6 +1991,32 @@ export class Game {
         // rather than mid-battle. Boot already warmed the shared context when possible.
         this.warmGpuPrograms();
         pixiApp.ticker.add(this.boundTick);
+    }
+
+    /** Load MMR for every seat — game-over summary; skipped when intro cover prefetched. */
+    private async ensureRosterMmrs(): Promise<void> {
+        if (this.rosterProfilesLoaded) return;
+        for (const seat of this.seats) {
+            if (seat.controller === 'ai') this.rosterMmr.set(seat.name, DEFAULT_MMR);
+        }
+        const humanNames = [...new Set(this.seats.filter((s) => s.controller === 'human').map((s) => s.name))];
+        const results = await Promise.all(humanNames.map((name) => fetchPlayerPublic(name)));
+        for (let i = 0; i < humanNames.length; i++) {
+            const name = humanNames[i]!;
+            const fetched = results[i];
+            const cached = getCachedProfile();
+            this.rosterMmr.set(
+                name,
+                fetched?.mmr ?? (cached?.name === name ? cached.mmr : DEFAULT_MMR),
+            );
+        }
+        this.rosterProfilesLoaded = true;
+    }
+
+    /** Intro-cover prefetch finished after Game construction — reuse that map. */
+    applyIntroRosterMmrs(mmrs: ReadonlyMap<string, number>): void {
+        for (const [name, mmr] of mmrs) this.rosterMmr.set(name, mmr);
+        this.rosterProfilesLoaded = true;
     }
 
     /**
@@ -8618,6 +8656,84 @@ export class Game {
         );
     }
 
+    /** Build the rich game-over summary shown on the result screen. */
+    private buildGameOverDetails(
+        result: 'victory' | 'defeat' | 'draw',
+        reason: GameOverDetails['reason'],
+    ): GameOverDetails {
+        const playerTeam = seatIdsOf(this.seats, 'player');
+        const enemyTeam = seatIdsOf(this.seats, 'enemy');
+        const winnerTeam = result === 'victory' ? 'player' : result === 'defeat' ? 'enemy' : null;
+        const loserTeam = result === 'victory' ? 'enemy' : result === 'defeat' ? 'player' : null;
+
+        let subtitle: string;
+        if (reason === 'forfeit') {
+            subtitle =
+                result === 'victory'
+                    ? `${this.playerNames.opponent} disconnected — victory by forfeit`
+                    : 'Connection lost';
+        } else if (result === 'draw') {
+            subtitle =
+                this.playerHp <= 0 && this.enemyHp <= 0
+                    ? 'Both strongholds fell — mutual destruction'
+                    : 'Neither side could claim victory';
+        } else if (winnerTeam && loserTeam) {
+            const winnerSeats = seatIdsOf(this.seats, winnerTeam);
+            const loserSeats = seatIdsOf(this.seats, loserTeam);
+            const winnerNames = winnerSeats.map((s) => this.seats[s]!.name).join(' & ');
+            const loserNames = loserSeats.map((s) => this.seats[s]!.name).join(' & ');
+            if (reason === 'hp') {
+                subtitle =
+                    result === 'victory'
+                        ? `${winnerNames} destroyed ${loserNames}'s stronghold`
+                        : `${loserNames}'s stronghold fell to ${winnerNames}`;
+            } else {
+                subtitle = `${winnerNames} wins`;
+            }
+        } else {
+            subtitle = result === 'victory' ? 'Victory' : result === 'defeat' ? 'Defeat' : 'Draw';
+        }
+
+        const ratedMp = this.seats.length <= 2 && !!(this.star || this.net);
+        const ratedNote = ratedMp
+            ? undefined
+            : this.seats.length > 2
+              ? 'Team modes are unranked — MMR shown for reference only'
+              : 'Practice match — stats only, no ranked MMR change';
+
+        const buildMember = (seat: number, team: 'player' | 'enemy'): GameOverDetails['playerTeam'][0] => {
+            const def = this.seats[seat]!;
+            const before = this.rosterMmr.get(def.name) ?? DEFAULT_MMR;
+            let seatResult: 'victory' | 'defeat' | 'draw' = result;
+            if (team === 'enemy') {
+                seatResult = result === 'victory' ? 'defeat' : result === 'defeat' ? 'victory' : 'draw';
+            }
+            const oppSeat = primarySeatOf(this.seats, team === 'player' ? 'enemy' : 'player');
+            const oppBefore = this.rosterMmr.get(this.seats[oppSeat]!.name) ?? DEFAULT_MMR;
+            const after = mmrDelta(before, oppBefore, seatResult).after;
+            const card = this.starterCardOfSeat(seat);
+            return {
+                name: def.name,
+                avatar: def.avatar,
+                controller: def.controller,
+                specialist: card?.title ?? null,
+                mmrBefore: before,
+                mmrAfter: after,
+                mmrRated: ratedMp && def.controller === 'human',
+            };
+        };
+
+        return {
+            reason,
+            subtitle,
+            rounds: this.round,
+            finalHp: { player: this.playerHp, enemy: this.enemyHp },
+            playerTeam: playerTeam.map((s) => buildMember(s, 'player')),
+            enemyTeam: enemyTeam.map((s) => buildMember(s, 'enemy')),
+            ratedNote,
+        };
+    }
+
     /** someone hit 0 HP — freeze the game and show the result */
     private finishMatch(): void {
         this.matchOver = true;
@@ -8673,6 +8789,7 @@ export class Game {
         // "DEFEAT" is whatever this.humanSeat arbitrarily anchors to, not a
         // real result for them. Show who actually won instead.
         const title = this.watching ? this.winningSideTitle(result) : undefined;
+        const details = this.watching ? undefined : this.buildGameOverDetails(result, 'hp');
         if (this.replayVerify && this.replayExpected) {
             const exp = this.replayExpected;
             const matches =
@@ -8681,9 +8798,9 @@ export class Game {
             const note = matches
                 ? `✓ Matches recorded result (${exp.result}, ${exp.rounds} rounds, ${exp.playerHp}-${exp.enemyHp})`
                 : `⚠ MISMATCH — recorded ${exp.result}/${exp.rounds} rounds/${exp.playerHp}-${exp.enemyHp}, this run: ${result}/${this.round} rounds/${this.playerHp}-${this.enemyHp}`;
-            this.hud.showGameOver(result, { note, backLabel: 'Back to replays', title });
+            this.hud.showGameOver(result, { note, backLabel: 'Back to replays', title, details });
         } else {
-            this.hud.showGameOver(result, { title });
+            this.hud.showGameOver(result, { title, details });
         }
     }
 
@@ -8725,7 +8842,7 @@ export class Game {
         this.placement.deselect();
         this.gridOverlay.visible = false;
         this.hpBars.clear();
-        this.hud.showForfeitWin();
+        this.hud.showForfeitWin(this.buildGameOverDetails('victory', 'forfeit'));
     }
 
     /**
