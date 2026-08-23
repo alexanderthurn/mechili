@@ -170,6 +170,16 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     /** bound only while this screen is open — each instance adds its own
      *  document-level listeners, so two live at once would show two tips */
     const tips = new CardSpellTips();
+    /** touch has no hover, so a tap does the hovering: the FIRST tap on a
+     *  talent or slot opens its tip, the second performs the click. Holds
+     *  whichever element is currently showing its tip. */
+    let tipArmed: HTMLElement | null = null;
+    let lastPointerTouch = false;
+
+    function disarmTip(): void {
+        tipArmed = null;
+        tips.hide();
+    }
 
     function selected(): UnitType | undefined {
         return types[index];
@@ -186,9 +196,47 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
 
     function step(delta: number): void {
         if (types.length === 0) return;
+        disarmTip();
         index = (index + delta + types.length) % types.length;
         render();
     }
+
+    // Capture phase on the root, so this runs BEFORE the button's own click
+    // handler and can swallow the first tap. Delegated, so it keeps working
+    // across the re-renders that rebuild both lists.
+    el.addEventListener(
+        'pointerdown',
+        (e) => {
+            lastPointerTouch = e.pointerType === 'touch';
+        },
+        true,
+    );
+    el.addEventListener(
+        'click',
+        (e) => {
+            // mouse and pen keep hover + immediate click; only touch pays the
+            // extra tap, and only for things that actually have a tip
+            if (!lastPointerTouch) return;
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            const hit = target.closest<HTMLElement>('[data-spell-tip]');
+            if (!hit) {
+                // tapped anything else (arrows, Back, the stage) — just clear
+                disarmTip();
+                return;
+            }
+            if (tipArmed === hit) {
+                // second tap on the same one: let it through as a real click
+                disarmTip();
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            tips.show(hit);
+            tipArmed = hit;
+        },
+        true,
+    );
 
     function renderStats(type: UnitType): void {
         stats.innerHTML = statRows(type)
@@ -312,6 +360,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
 
     function open(): void {
         isOpen = true;
+        tipArmed = null;
         tips.bind();
         window.addEventListener('resize', onViewportResize);
         syncStatsToggle();
@@ -323,6 +372,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
 
     function close(): void {
         isOpen = false;
+        tipArmed = null;
         tips.destroy();
         window.removeEventListener('resize', onViewportResize);
         el.style.display = 'none';

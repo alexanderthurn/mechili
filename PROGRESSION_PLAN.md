@@ -196,6 +196,17 @@ document-level listeners and two live at once would show two tips. Both
 the talent rows and the slot boxes carry it — the slots especially, since
 they show neither a name nor a cost of their own.
 
+**Touch has no hover, so a tap does the hovering**: the first tap on a
+talent or slot opens its tip, the second performs the click. One delegated
+capture-phase listener on the overlay root handles it — capture so it can
+swallow the first tap before the button's own handler, delegated so it
+survives the re-renders that rebuild both lists. Mouse and pen are
+untouched (hover plus an immediate click); only touch pays the extra tap,
+and only on elements that actually have a tip, so the arrows and corner
+buttons stay single-tap. The alternative considered was the HUD's existing
+450ms `attachLongPress`, which is the established in-game gesture but is
+invisible to a player who opens this screen before ever playing a match.
+
 **Mobile** keeps the same overlay model as desktop rather than stacking in
 flow. Stacking was tried and was worse: the talent list got pushed down by
 whatever sat above it and could start near the bottom of the screen. Under
