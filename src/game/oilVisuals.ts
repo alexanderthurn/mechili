@@ -1,11 +1,16 @@
 import {
     Group,
     Mesh,
+    MeshBasicMaterial,
     type Scene,
 } from 'three';
 import type { HazardField } from './fire';
-import { addDrapedCapsule } from './groundMarkers';
+import { addDrapedCapsule, addDrapedIconDecal, drapeYawToward } from './groundMarkers';
 import type { BattleMap } from './map';
+import {
+    getOilBarrelMarkerTexture,
+    ownsOilBarrelMarkerTexture,
+} from './spellMarkerIcons';
 import type { OilStamp } from './tactics';
 
 /** dark oil fill / rim during deployment (intent, not yet on the hazard field) */
@@ -108,7 +113,13 @@ export class OilVisuals {
                 const mesh = o as Mesh;
                 mesh.geometry?.dispose();
                 const mat = mesh.material;
-                if (mat && !Array.isArray(mat)) mat.dispose();
+                if (mat && !Array.isArray(mat)) {
+                    const map = (mat as MeshBasicMaterial).map;
+                    if (ownsOilBarrelMarkerTexture(map)) {
+                        (mat as MeshBasicMaterial).map = null;
+                    }
+                    mat.dispose();
+                }
             });
             this.outline.remove(child);
         }
@@ -123,6 +134,28 @@ export class OilVisuals {
         draft: boolean,
     ): void {
         addCapsuleOutline(this.outline, startX, startZ, endX, endZ, radius, draft, OIL_FILL, OIL_LINE);
+        this.addCapsuleBarrel(startX, startZ, endX, endZ, radius);
+    }
+
+    /** Same barrel decal as battle charge markers — centered on the pour path. */
+    private addCapsuleBarrel(
+        startX: number,
+        startZ: number,
+        endX: number,
+        endZ: number,
+        radius: number,
+    ): void {
+        const tex = getOilBarrelMarkerTexture();
+        const dx = endX - startX;
+        const dz = endZ - startZ;
+        if (dx * dx + dz * dz < 0.25) {
+            addDrapedIconDecal(this.outline, tex, startX, startZ, radius * 0.72);
+            return;
+        }
+        const mx = (startX + endX) * 0.5;
+        const mz = (startZ + endZ) * 0.5;
+        const yaw = drapeYawToward(startX, startZ, endX, endZ);
+        addDrapedIconDecal(this.outline, tex, mx, mz, radius * 0.85, yaw);
     }
 }
 
