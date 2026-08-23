@@ -62,6 +62,9 @@ export interface LoadoutPanel {
     readonly el: HTMLElement;
     open(): void;
     close(): void;
+    /** true while the screen is showing — the menu's Escape handler asks, so
+     *  that it yields to this overlay instead of acting underneath it */
+    isOpen(): boolean;
 }
 
 /**
@@ -349,6 +352,18 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
      *  breakpoint, so re-check whenever the viewport changes */
     const onViewportResize = () => syncModel();
 
+    /** Escape closes the screen. Bound only while open, and deliberately on
+     *  the BUBBLE phase: the menu's own Escape handler runs first, sees this
+     *  overlay is open (isMenuBlockingOverlayOpen) and bows out, leaving this
+     *  to act. Without that yield it would fall through to "root menu" and
+     *  quit the app on Electron. */
+    const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return;
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+    };
+
     function render(): void {
         const type = selected();
         if (!type) return;
@@ -363,6 +378,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
         tipArmed = null;
         tips.bind();
         window.addEventListener('resize', onViewportResize);
+        window.addEventListener('keydown', onKeyDown);
         syncStatsToggle();
         el.style.display = '';
         current = activeLoadout();
@@ -375,6 +391,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
         tipArmed = null;
         tips.destroy();
         window.removeEventListener('resize', onViewportResize);
+        window.removeEventListener('keydown', onKeyDown);
         el.style.display = 'none';
         // don't leave a second WebGL context alive behind the menu
         viewer?.dispose();
@@ -391,5 +408,5 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     });
     backBtn.addEventListener('click', () => close());
 
-    return { el, open, close };
+    return { el, open, close, isOpen: () => isOpen };
 }

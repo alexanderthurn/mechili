@@ -1038,7 +1038,7 @@ menuChromeEl.appendChild(usernameEl);
 // Wide screens only (CSS decides — see .mechili-loadout-btn): a direct route
 // to the loadout screen, sitting above the username chip and wearing the
 // same chip styling. Under the breakpoint the corner is already crowded, so
-// the profile dialog's "Edit Loadout" button remains the route there.
+// the profile dialog's "Unit loadout" button remains the route there.
 const loadoutCornerEl = document.createElement('button');
 loadoutCornerEl.className = 'mechili-username mechili-loadout-btn';
 loadoutCornerEl.type = 'button';
@@ -1599,7 +1599,7 @@ function showNameEditor(): void {
         `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" ${steamLocked ? 'readonly' : ''} />` +
         `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
-        `<button type="button" class="profile-loadout" data-act="loadout">Edit Loadout</button>` +
+        `<button type="button" class="profile-loadout" data-act="loadout">Unit loadout</button>` +
         `<div class="actions">` +
         `<button type="button" data-act="cancel">Cancel</button>` +
         `<button type="button" class="primary" data-act="save">Save</button>` +
@@ -4380,6 +4380,7 @@ function isMenuBlockingOverlayOpen(): boolean {
     // let that overlay own Escape instead of closing underneath it.
     return (
         !!wrapper.querySelector('.mechili-settings, .mechili-name-edit, .mechili-resume, .mechili-fatal') ||
+        loadoutPanel.isOpen() ||
         resumeOverlay !== null
     );
 }

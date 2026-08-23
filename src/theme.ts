@@ -2127,7 +2127,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-username .u-avatar[hidden] { display: none; }
 /* Wide screens only: a Loadout chip stacked above the username one, wearing
    the same .mechili-username styling. Dropped under the breakpoint, where
-   the corner is already crowded and the profile dialog's own "Edit Loadout"
+   the corner is already crowded and the profile dialog's own "Unit loadout"
    button is the route. The 60px offset clears the username chip (6px
    padding + 36px avatar + borders, plus a gap); it is deliberately
    generous, so a chip without an avatar just sits a little higher. */
