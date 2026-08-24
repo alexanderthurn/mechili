@@ -3784,13 +3784,15 @@ export class Hud {
                 const delta = m.mmrAfter - m.mmrBefore;
                 const deltaClass =
                     delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
-                const ratedTag = m.mmrRated ? '' : `<span class="go-unrated">practice</span>`;
                 return (
                     `<div class="go-player">` +
                     `<div class="go-portrait ${team}">${portrait}</div>` +
                     `<div class="go-player-info">` +
                     `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? '<span class="go-ai">AI</span>' : ''}</div>` +
-                    `<div class="go-mmr ${deltaClass}">${m.mmrBefore} → ${m.mmrAfter} (${formatMmrDelta(delta)})${ratedTag}</div>` +
+                    `<div class="go-mmr ${deltaClass}">` +
+                    `<span class="go-mmr-final">${m.mmrAfter}</span>` +
+                    `<span class="go-mmr-delta">${formatMmrDelta(delta)}</span>` +
+                    `</div>` +
                     `</div></div>`
                 );
             })

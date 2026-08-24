@@ -3244,6 +3244,14 @@ export class Game {
     }
 
     /**
+     * Host broadcasts `Team` from its own local labels (`player` = side a).
+     * Guests on side b have those labels flipped — remap before applying HP.
+     */
+    private hostTeamAsLocal(hostTeam: Team): Team {
+        return this.side === 'a' ? hostTeam : hostTeam === 'player' ? 'enemy' : 'player';
+    }
+
+    /**
      * 2-bucket VIEW over the real per-side `hp` array: "mine" vs "everyone
      * else, combined". Exact for today's only shipped case (exactly 2
      * sides — "everyone else" is exactly one side, so summing changes
@@ -4022,10 +4030,7 @@ export class Game {
         session.onClose = () => {
             if (this.matchOver) return;
             if (this.onConnectionLost) this.onConnectionLost();
-            else {
-                this.matchOver = true;
-                this.hud.showDisconnect();
-            }
+            else this.presentMatchEnd('defeat');
         };
     }
 
@@ -4094,9 +4099,9 @@ export class Game {
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
-        this.hud.showNotice('Lost connection to the host — reconnecting…', 'Give up', () =>
-            this.quitToMenu(),
-        );
+                this.hud.showNotice('Lost connection to the host — reconnecting…', 'Give up', () =>
+                    this.voluntaryQuit(),
+                );
         const controller = new AbortController();
         this.starRedialAbort = controller;
         const timeout = setTimeout(() => controller.abort(), STAR_RECONNECT_GRACE_MS);
@@ -4319,7 +4324,7 @@ export class Game {
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
-        this.hud.showNotice('Waiting…', 'Give up', () => this.quitToMenu());
+        this.hud.showNotice('Waiting…', 'Give up', () => this.voluntaryQuit());
         this.star.session.send({ type: 'starResyncRequest' });
     }
 
@@ -4355,7 +4360,7 @@ export class Game {
      *  should change (see the per-frame check in tick()) or the underlying
      *  pending-seat set changes. */
     private showSuspendNotice(): void {
-        this.hud.showNotice(this.suspendNoticeText(), 'Give up', () => this.quitToMenu());
+        this.hud.showNotice(this.suspendNoticeText(), 'Give up', () => this.voluntaryQuit());
     }
 
     private suspendNoticeText(): string {
@@ -4827,18 +4832,12 @@ export class Game {
                     ? new Set(msg.vision.seats.flatMap((s) => sideIdsOf(this.seats, s === 'a' ? 0 : 1)))
                     : new Set();
         } else if (msg.type === 'quit') {
-            // classic 1v1 forfeit-quit, mirrored (see onNetMessage's own
-            // 'quit' case) — or a star host's own quit, ending everything
-            // (no host migration). Same "match over, nothing left to
-            // watch" outcome as a genuine disconnect.
+            // host quit without a side-forfeit (legacy): still show a result
             if (this.matchOver) return;
-            this.matchOver = true;
-            this.hud.showDisconnect();
+            this.presentMatchEnd('draw');
         } else if (msg.type === 'starForfeit') {
-            // same hp-zeroing + match-over check the forfeiting host and
-            // every guest already ran locally — see starForfeit's doc
-            // comment for why this is a direct broadcast, not a relayed
-            // action
+            // Host-local team labels ('player' = side a). Spectators join as
+            // side 'a', so this matches the host's perspective.
             if (msg.team === 'player') this.playerHp = 0;
             else this.enemyHp = 0;
             if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
@@ -4856,7 +4855,7 @@ export class Game {
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
-        this.hud.showNotice(message, 'Give up — back to menu', () => this.quitToMenu());
+        this.hud.showNotice(message, 'Give up — back to menu', () => this.voluntaryQuit());
     }
 
     /**
@@ -4897,28 +4896,28 @@ export class Game {
             this.star.session.close();
             return;
         }
-        this.voluntaryQuit();
+        if (this.star?.role === 'host') {
+            this.starForfeit(this.seats[this.humanSeat]!.team);
+            return;
+        }
+        if (this.net) this.net.send({ type: 'quit' });
     }
 
     voluntaryQuit(): void {
         if (!this.matchOver && !this.disposed) {
+            if (this.star?.role === 'host') {
+                this.starForfeit(this.seats[this.humanSeat]!.team);
+                if (!this.matchOver) this.presentMatchEnd('defeat');
+                return;
+            }
             if (this.net) {
                 this.net.send({ type: 'quit' });
             } else if (this.star?.role === 'guest') {
                 this.star.session.send({ type: 'quit' });
-            } else if (this.star?.role === 'host') {
-                this.star.hub.broadcast({ type: 'quit' });
-                this.spectatorHub?.broadcast({ type: 'quit' });
             }
+            this.presentMatchEnd('defeat');
+            return;
         }
-        // tell the backend this room is gone right now, explicitly — don't
-        // rely solely on destroy() eventually reaching the same call later
-        // (it does, but only after a long chain of three.js/HUD disposal
-        // that has nothing to do with the network; any exception in there
-        // would silently skip this and leave the room listed until its
-        // heartbeat's 15s TTL lapses, or indefinitely if the interval
-        // itself never gets cleared). Safe to call twice — its own
-        // internal guard makes destroy()'s later call a no-op.
         this.spectateRegistration?.stop();
         this.quitToMenu();
     }
@@ -4961,7 +4960,7 @@ export class Game {
         this.placement.deselect();
         this.armedItem = null;
         this.reconnectGraceRemaining = seconds;
-        this.hud.showReconnectWait(() => this.quitToMenu());
+        this.hud.showReconnectWait(() => this.voluntaryQuit());
         this.hud.updateReconnectWait(seconds);
     }
 
@@ -4994,7 +4993,7 @@ export class Game {
         this.hud.showNotice(
             'Reconnected — waiting for the opponent to finish loading…',
             'Give up',
-            () => this.quitToMenu(),
+            () => this.voluntaryQuit(),
         );
         this.net?.send({ type: 'ready' });
         if (this.peerReady) this.confirmBothReady();
@@ -6115,25 +6114,11 @@ export class Game {
             if (isHost && fromSeat !== undefined) {
                 this.handleSeatQuit(fromSeat);
             } else if (!isHost) {
-                this.matchOver = true;
-                // see finishMatch's own doc comment — a still-live
-                // suspend countdown must not survive past match-end, or
-                // the very next tick's re-render stomps the notice we're
-                // about to show below right back to the stale countdown
-                this.suspended = false;
-                this.suspendDeadline = null;
-                // the host unilaterally ending the match skips finishMatch()
-                // entirely (nobody hit 0 HP) — without this, a host that
-                // quits right as it's about to lose leaves ZERO independent
-                // telemetry/replay record anywhere, from anyone. Best-effort
-                // result from current HP (the match was cut short, not
-                // concluded, so this is a snapshot for verification purposes,
-                // not a sporting/rating claim — 2v2 telemetry doesn't feed
-                // rating anyway, see reportOpenRating's star early-return).
-                this.reportMatchTelemetry(
+                // Legacy host-quit broadcast (current hosts forfeit their
+                // own side via starForfeit instead). Still show a result.
+                this.presentMatchEnd(
                     this.playerHp <= 0 ? 'defeat' : this.enemyHp <= 0 ? 'victory' : 'draw',
                 );
-                this.hud.showNotice('The host ended the match.', 'Back to menu', () => this.quitToMenu());
             }
         } else if (msg.type === 'starForfeit' && !isHost) {
             // host-only signal (see starForfeit's doc comment) — only ever
@@ -6142,7 +6127,8 @@ export class Game {
             // connection is a forged message, not a real forfeit; guests
             // apply the same hp-zeroing + match-over check the forfeiting
             // host already ran locally
-            if (msg.team === 'player') this.playerHp = 0;
+            const team = this.hostTeamAsLocal(msg.team);
+            if (team === 'player') this.playerHp = 0;
             else this.enemyHp = 0;
             if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
         }
@@ -8741,14 +8727,15 @@ export class Game {
             }
             const oppSeat = primarySeatOf(this.seats, team === 'player' ? 'enemy' : 'player');
             const oppBefore = this.rosterMmr.get(this.seats[oppSeat]!.name) ?? DEFAULT_MMR;
-            const after = mmrDelta(before, oppBefore, seatResult).after;
+            const rated = ratedMp && def.controller === 'human';
+            const after = rated ? mmrDelta(before, oppBefore, seatResult).after : before;
             return {
                 name: def.name,
                 avatar: def.avatar,
                 controller: def.controller,
                 mmrBefore: before,
                 mmrAfter: after,
-                mmrRated: ratedMp && def.controller === 'human',
+                mmrRated: rated,
             };
         };
 
@@ -8760,6 +8747,25 @@ export class Game {
 
     /** someone hit 0 HP — freeze the game and show the result */
     private finishMatch(): void {
+        const result =
+            this.playerHp <= 0 && this.enemyHp <= 0
+                ? 'draw'
+                : this.enemyHp <= 0
+                  ? 'victory'
+                  : 'defeat';
+        this.presentMatchEnd(result);
+    }
+
+    /**
+     * Shared end-of-match UI + reporting. Every sporting conclusion (HP,
+     * side forfeit, voluntary quit, connection loss) goes through here so
+     * players always see the two-side roster — even when MMR is unchanged.
+     */
+    private presentMatchEnd(
+        result: 'victory' | 'defeat' | 'draw',
+        opts?: { forceReport?: boolean },
+    ): void {
+        if (this.matchOver) return;
         this.matchOver = true;
         // whatever ended the match, a "Waiting…"/reconnect notice must
         // never survive it — otherwise it can be left mounted (and, on
@@ -8768,7 +8774,10 @@ export class Game {
         // the specific sequencing bug this was found from.
         this.suspended = false;
         this.suspendDeadline = null;
+        this.reconnectGraceRemaining = null;
+        this.onReconnectTimeout = null;
         this.hud.hideNotice();
+        this.hud.hideReconnectWait();
         // watching mode never touches these in the first place (see
         // constructor/main.ts) — clearing them here would wipe out the
         // player's real, unrelated saved game/resume marker
@@ -8781,12 +8790,6 @@ export class Game {
         this.placement.deselect();
         this.gridOverlay.visible = false;
         this.hpBars.clear();
-        const result =
-            this.playerHp <= 0 && this.enemyHp <= 0
-                ? 'draw'
-                : this.enemyHp <= 0
-                  ? 'victory'
-                  : 'defeat';
         // resuming a finished save replays to defeat/victory — go to menu, not game over
         if (this.hydrating) {
             queueMicrotask(() => this.quitToMenu());
@@ -8802,7 +8805,7 @@ export class Game {
         // Rating never applies here either way — it's not a new result.
         if (!this.watching) {
             this.reportMatchTelemetry(result);
-            this.reportOpenRating(result);
+            this.reportOpenRating(result, opts?.forceReport === true);
         } else if (this.replayVerify) {
             this.reportMatchTelemetry(result);
         }
@@ -8813,7 +8816,7 @@ export class Game {
         // "DEFEAT" is whatever this.humanSeat arbitrarily anchors to, not a
         // real result for them. Show who actually won instead.
         const title = this.watching ? this.winningSideTitle(result) : undefined;
-        const details = this.watching ? undefined : this.buildGameOverDetails(result);
+        const details = this.buildGameOverDetails(result);
         if (this.replayVerify && this.replayExpected) {
             const exp = this.replayExpected;
             const matches =
@@ -8846,56 +8849,31 @@ export class Game {
 
     /** the opponent never reconnected within the grace window — win by forfeit */
     private forfeitWin(): void {
-        if (this.matchOver) return;
-        this.matchOver = true;
-        this.suspended = false;
-        clearStarResumeMarker();
-        clearSinglePlayer();
         // report before tearing down net — mode/side derive from it still being set.
-        // reportMatchTelemetry (not just the rating) matters here specifically: a
-        // forfeit-won 1v1 match previously uploaded NOTHING but the bare rating
-        // call, so there was no independent replay/action-log record anywhere to
-        // cross-check against for exactly the matches most likely to involve a
-        // quitting/timed-out opponent trying to dodge a loss.
-        this.reportMatchTelemetry('victory');
-        this.reportOpenRating('victory', true);
+        this.presentMatchEnd('victory', { forceReport: true });
         this.net?.close();
         this.net = null;
-        this.hud.hidePauseMenu();
-        this.placement.enabled = false;
-        this.placement.deselect();
-        this.gridOverlay.visible = false;
-        this.hpBars.clear();
-        this.hud.showForfeitWin(this.buildGameOverDetails('victory'));
     }
 
     /**
-     * Soft open-ladder Elo (honor system). Host-only in MP; AI games count
-     * W/L but do not change MMR. `forceReport` bypasses the host-only gate for
-     * a forfeit win, since the reporting side may be either host or guest —
-     * whichever one is still connected. Failures are ignored.
+     * Soft open-ladder Elo (honor system). Host-only in rated 1v1; AI and
+     * 2v2 count games without changing MMR. `forceReport` bypasses the
+     * host-only gate for a classic-net forfeit win.
      */
     private reportOpenRating(result: 'victory' | 'defeat' | 'draw', forceReport = false): void {
-        // 2v2 is unranked v1 (no Elo concept for >2 seats yet, per plan) —
-        // skip rather than mislabel; proper mode-tagged telemetry is a
-        // separate, later piece of work. Seat COUNT, not `this.star`
-        // truthiness — classic 1v1 now runs over the star transport too
-        // (Phase 1), so `this.star` alone can no longer tell a real 1v1
-        // apart from an actual 2v2+ (this used to unconditionally skip
-        // ranked reporting for every 1v1-over-star match — the exact same
-        // this.star/this.net-no-longer-distinguishes-1v1 shape already
-        // fixed once for startSpectatorHub's room-list "1v1"/"2v2" label).
-        if (this.seats.length > 2) return;
-        // only ONE side may report a given match, to avoid double-
-        // submitting the same result: the star host (mirroring net's own
-        // side==='a' check below — this.net is null for a star-based 1v1,
-        // so without this a guest would ALSO report, double-counting it).
-        if (this.star && this.star.role !== 'host' && !forceReport) return;
-        if (this.net && this.side !== 'a' && !forceReport) return;
+        const networked = !!(this.star || this.net);
+        const mode: 'ai' | 'mp' | '2v2' = !networked
+            ? 'ai'
+            : this.seats.length > 2
+              ? '2v2'
+              : 'mp';
+        // Rated 1v1: only ONE side reports (host / side a) so Elo isn't
+        // double-applied. 2v2 and AI bump each client's own counters.
+        if (mode === 'mp') {
+            if (this.star && this.star.role !== 'host' && !forceReport) return;
+            if (this.net && this.side !== 'a' && !forceReport) return;
+        }
         try {
-            // 'mp' for ANY real network connection — this.net alone used to
-            // be sufficient, but is null for a star-based 1v1.
-            const mode = this.star || this.net ? 'mp' : 'ai';
             reportMatchResult({
                 matchId: matchResultId(
                     this.seed,

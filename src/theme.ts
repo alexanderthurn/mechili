@@ -2544,6 +2544,47 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     0%, 100% { opacity: 0.35; }
     50% { opacity: 0.75; }
 }
+
+/* Small screens: compress intro roster so names + MMR fit. */
+@media (max-width: 599px), (max-height: 540px) {
+    .mechili-match-roster {
+        padding: 16px 12px;
+    }
+    .mechili-match-roster .mr-frame {
+        width: min(92vw, 560px);
+        padding: 10px 12px;
+    }
+    .mechili-match-roster .mr-cols {
+        gap: 12px;
+    }
+    .mechili-match-roster .mr-vs {
+        font-size: 18px;
+        letter-spacing: 3px;
+    }
+    .mechili-match-roster .mr-team {
+        gap: 8px;
+    }
+    .mechili-match-roster .mr-player {
+        gap: 10px;
+        padding: 8px 10px;
+    }
+    .mechili-match-roster .mr-portrait {
+        width: 0px;
+        height: 0px;
+    }
+    .mechili-match-roster .mr-name {
+        font-size: 13px;
+    }
+    .mechili-match-roster .mr-ai {
+        font-size: 9px;
+        margin-left: 5px;
+    }
+    .mechili-match-roster .mr-mmr {
+        font-size: 14px;
+        margin-top: 1px;
+        letter-spacing: 0.35px;
+    }
+}
 .mechili-loading .load-bar {
     width: 100%;
 }
@@ -5547,6 +5588,35 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-mmr.up { color: #7fd88a; }
 .mechili-gameover .go-mmr.down { color: #ff8a7a; }
 .mechili-gameover .go-mmr.flat { color: ${u.textMuted}; }
+
+.mechili-gameover .go-mmr-delta {
+    display: block;
+    margin-top: 1px;
+    opacity: 0.95;
+}
+
+/* Mobile: portraits are too wide for small roster rows — hide them and
+ * tighten spacing so name + MMR always fit. */
+@media (max-width: 599px), (max-height: 540px) {
+    .mechili-gameover {
+        padding: 22px 18px;
+        gap: 14px;
+    }
+    .mechili-gameover .go-player {
+        gap: 8px;
+        padding: 7px 8px;
+    }
+    .mechili-gameover .go-portrait {
+        display: none;
+    }
+    .mechili-gameover .go-player-name {
+        font-size: 13px;
+    }
+    .mechili-gameover .go-mmr {
+        font-size: 12px;
+        margin-top: 1px;
+    }
+}
 .mechili-gameover .go-rated-note {
     font-size: 11px;
     color: ${u.textMuted};
