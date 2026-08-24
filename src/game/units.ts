@@ -14,6 +14,7 @@ import {
     Vector3,
 } from 'three';
 import { THEME } from '../theme';
+import { detAtan2 } from './detMath';
 
 /**
  * The ward dome's skin: a faint violet film with a band of golden runes
@@ -1527,13 +1528,13 @@ export class Unit {
                     best = t;
                 }
             }
-            m.mesh.rotation.y = Math.atan2(-(best.x - mx), -(best.z - mz));
+            m.mesh.rotation.y = detAtan2(-(best.x - mx), -(best.z - mz));
             if (bestD < squadBestD) {
                 squadBestD = bestD;
                 squadBest = best;
             }
         }
-        this.facing = Math.atan2(-(squadBest.x - this.world.x), -(squadBest.z - this.world.z));
+        this.facing = detAtan2(-(squadBest.x - this.world.x), -(squadBest.z - this.world.z));
     }
 
     update(timeSeconds: number): void {

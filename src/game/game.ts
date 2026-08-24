@@ -183,6 +183,7 @@ import {
     shouldOfferRoundCards,
     type GameSettings,
 } from './settings';
+import { detCos, detSin } from './detMath';
 import { hordeWavePlan } from './hordeRoster';
 import {
     BattleSim,
@@ -190,8 +191,6 @@ import {
     GOLDEN_AURA_RADIUS,
     actorSeat,
     actorTeam,
-    detCos,
-    detSin,
     type Actor,
     type SimEvent,
     SOFT_CROWD_LIMIT,
@@ -5573,6 +5572,30 @@ export class Game {
             // catches a peer disagreeing about who owns the Aegis tech / Bulwark rune
             mix(a.shieldHp);
             mix(a.unit.level);
+        }
+        // Tech / boost / speciality / item divergence: without this the hash
+        // passes at battle start (same units, same positions, same hp) and the
+        // mismatch only surfaces a round later, through hp, once the two sides
+        // have fought the battle with different numbers. These are exactly the
+        // stats the sim is about to be handed (`statsOf`), one row per pack —
+        // per pack rather than per (type, seat) so differing items on two packs
+        // of the same type are covered too. Canonical actor order, deduped, so
+        // both peers walk the same sequence.
+        const statsSeen = new Set<Unit>();
+        for (const a of this.sim?.actors ?? []) {
+            if (statsSeen.has(a.unit)) continue;
+            statsSeen.add(a.unit);
+            const st = this.resolvedStats(a.unit);
+            mix(Math.floor(a.unit.id / this.seats.length) * 2 + (this.seatRank(a.unit.seat) < 1000 ? 0 : 1));
+            // named explicitly: an object-key walk would tie the hash to
+            // property order in resolvedStats' several return paths
+            mix(st.hp);
+            mix(st.damage);
+            mix(st.range);
+            mix(st.minRange);
+            mix(st.speed);
+            mix(st.attackInterval);
+            mix(st.splashRadius);
         }
         // Shared hazard layers — must match on both peers before battle. Acid
         // is oil's twin in fire.ts (same expiry model, same carry-over through

@@ -20,6 +20,7 @@ import {
 } from './fire';
 import { ITEMS } from './items';
 import type { SeatId } from './seats';
+import { detAtan2, detCos, detSin, hypot } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
@@ -575,50 +576,6 @@ const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
-
-/**
- * Deterministic replacement for Math.hypot: sqrt IS correctly rounded per
- * IEEE-754 in every engine, Math.hypot is NOT — a lockstep-multiplayer
- * hazard across browsers.
- */
-function hypot(x: number, y: number, z = 0): number {
-    return Math.sqrt(x * x + y * y + z * z);
-}
-
-/**
- * Deterministic replacements for Math.sin/cos — same hazard as Math.hypot
- * above (implementation-approximated per spec, not guaranteed bit-identical
- * across engines) but strikeHits' Hammer rectangle test below feeds a real
- * hit/miss decision, not just a visual offset. Range-reduced Taylor series
- * to x^11, built from only +, -, *, / (exactly specified by IEEE-754), so
- * every peer computes identical bits regardless of engine.
- */
-function wrapPi(a: number): number {
-    const twoPi = Math.PI * 2;
-    return a - twoPi * Math.floor((a + Math.PI) / twoPi);
-}
-
-/** exported for reuse anywhere else a deterministic angle→offset conversion
- *  feeds a value that must agree across peers (see game.ts's production-
- *  reserve parking and horde camp-scatter spawn points) */
-export function detSin(a: number): number {
-    let x = wrapPi(a);
-    // fold into [-π/2, π/2], where the series below converges tightly
-    if (x > Math.PI / 2) x = Math.PI - x;
-    else if (x < -Math.PI / 2) x = -Math.PI - x;
-    const x2 = x * x;
-    return (
-        x *
-        (1 +
-            x2 *
-                (-1 / 6 +
-                    x2 * (1 / 120 + x2 * (-1 / 5040 + x2 * (1 / 362880 - x2 / 39916800)))))
-    );
-}
-
-export function detCos(a: number): number {
-    return detSin(a + Math.PI / 2);
-}
 
 /** Deterministic 0..1 from an integer seed (lockstep-safe; no Math.sin). */
 function detHash01(n: number): number {
@@ -2995,7 +2952,7 @@ export class BattleSim {
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                                 this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                             }
-                            faceToward(a, Math.atan2(-tdx, -tdz), dt);
+                            faceToward(a, detAtan2(-tdx, -tdz), dt);
                             continue;
                         }
                         // ranged / convert-ray on a rally route: fire while marching
@@ -3044,7 +3001,7 @@ export class BattleSim {
                     target,
                     bigs,
                     0,
-                    { aimYaw: Math.atan2(tdx, tdz), locomotion: 'track' },
+                    { aimYaw: detAtan2(tdx, tdz), locomotion: 'track' },
                 );
                 continue;
             }
@@ -3069,7 +3026,7 @@ export class BattleSim {
                         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                     }
                 }
-                faceToward(a, Math.atan2(-tdx, -tdz), dt);
+                faceToward(a, detAtan2(-tdx, -tdz), dt);
                 continue;
             }
 
@@ -3179,7 +3136,7 @@ export class BattleSim {
         if (steerLen > 1e-4) {
             steerX /= steerLen;
             steerZ /= steerLen;
-            const desiredYaw = opts?.aimYaw ?? Math.atan2(-steerX, -steerZ);
+            const desiredYaw = opts?.aimYaw ?? detAtan2(-steerX, -steerZ);
             const mode = opts?.locomotion ?? a.unit.type.turnMove ?? 'track';
             faceToward(a, desiredYaw, dt);
             if (mode === 'pivot' && !facingAligned(a, desiredYaw)) return;
@@ -3225,7 +3182,7 @@ export class BattleSim {
         const move = speed * dt;
         a.x += (-a.x / dist) * move;
         a.z += (-a.z / dist) * move;
-        faceToward(a, Math.atan2(a.x / dist, a.z / dist), dt);
+        faceToward(a, detAtan2(a.x / dist, a.z / dist), dt);
     }
 
     /**
