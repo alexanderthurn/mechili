@@ -3187,8 +3187,10 @@ export class BattleSim {
             let moveX = steerX;
             let moveZ = steerZ;
             if (mode === 'cruise') {
-                moveX = -Math.sin(a.facing);
-                moveZ = -Math.cos(a.facing);
+                // detSin/detCos, not Math.*: this is the movement vector, not a
+                // visual offset — it lands in a.x/a.z, which the state hash mixes
+                moveX = -detSin(a.facing);
+                moveZ = -detCos(a.facing);
             }
 
             const speed =

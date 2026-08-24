@@ -78,6 +78,17 @@ export const STANDARD_MAP: MapSize = {
     rimCells: 4,
 };
 
+/**
+ * Deterministic replacement for Math.hypot, matching sim.ts and fire.ts: sqrt is
+ * correctly rounded per IEEE-754 in every engine, Math.hypot is not. {@link
+ * BattleMap.heightAt} is settings-independent by design but feeds the sim
+ * through simGroundHeightAt -> feetY -> projectile hit volumes, so it has to be
+ * engine-independent too.
+ */
+function hypot(x: number, z: number): number {
+    return Math.sqrt(x * x + z * z);
+}
+
 export function mulberry32(seed: number): () => number {
     let a = seed >>> 0;
     return () => {
@@ -381,7 +392,7 @@ export class BattleMap {
         const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
         let fade = smooth01((edge - rimW) / 14);
         for (const a of this.baseAnchors()) {
-            const d = Math.hypot(x - a.x, z - a.z);
+            const d = hypot(x - a.x, z - a.z);
             fade = Math.min(fade, smooth01((d - a.r) / 10));
         }
         return THEME.terrain.reliefDepth * hill * fade;

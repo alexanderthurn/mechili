@@ -5574,13 +5574,25 @@ export class Game {
             mix(a.shieldHp);
             mix(a.unit.level);
         }
-        // shared oil layer — must match on both peers before battle
-        const oil = this.oilField.oilExpires;
-        for (let i = 0; i < oil.length; i++) {
-            const v = oil[i]!;
-            if (v !== 0) {
-                mix(i);
-                mix(v);
+        // Shared hazard layers — must match on both peers before battle. Acid
+        // is oil's twin in fire.ts (same expiry model, same carry-over through
+        // cloneForBattle/adoptOilFrom) and it deals percent-max-HP damage plus
+        // the corroded multiplier, so leaving it out let a divergence in acid
+        // coverage cross round boundaries unseen and surface later as an
+        // unexplained hp difference. The layer tag is what keeps them apart:
+        // without it an oil cell and an acid cell with the same index and
+        // expiry mix identically, and swapping the layers would pass.
+        for (const [layer, cells] of [
+            [1, this.oilField.oilExpires],
+            [2, this.oilField.acidExpires],
+        ] as const) {
+            mix(layer);
+            for (let i = 0; i < cells.length; i++) {
+                const v = cells[i]!;
+                if (v !== 0) {
+                    mix(i);
+                    mix(v);
+                }
             }
         }
         return h >>> 0;
