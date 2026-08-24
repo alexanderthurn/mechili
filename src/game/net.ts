@@ -319,23 +319,6 @@ export type NetMessage =
      *  the same spectator-only wire tag as on `action` above. `seq` is the
      *  same per-seat monotonic counter `action` uses (see its doc comment). */
     | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq: number }
-    /** state checksum at every battle start — mismatch = desync, triggers a resync */
-    | { type: 'check'; round: number; hash: number }
-    /** a reloaded/rejoining peer asks for the full match state */
-    | { type: 'resume' }
-    /** the survivor's answer: seed + full action log (in the SENDER's perspective);
-     *  battleElapsed = how far its currently RUNNING battle has played (null in build);
-     *  phaseRemaining = the sender's live build-phase clock (replay can't
-     *  reconstruct it — it isn't a logged action) */
-    | {
-          type: 'state';
-          version: number;
-          seed: number;
-          settings: GameSettings;
-          actions: LoggedAction[];
-          battleElapsed: number | null;
-          phaseRemaining: number;
-      }
     /** battle playback speed — kept in sync so both players finish together */
     | { type: 'speed'; multiplier: number }
     /** chat: emote or short text — never part of game state. `from` is
@@ -755,43 +738,6 @@ export class NetworkOpponent implements Opponent {
     chooseStarter(): void {}
     onBuildPhase(): void {}
     onRoundCards(): void {}
-}
-
-/**
- * What `Game`/`main.ts` need from a 1v1 connection during actual play and
- * its own recovery — the FULL shared surface, so `main.ts`'s reconnect
- * wiring (`wireReconnect`) never has to know or care which transport this
- * is (`NetSession`/PeerJS, `SteamGuestSession`/Steam, or a future one) — it only
- * ever calls methods declared here. Naming/handshake setup still stays each
- * transport's own concern (`resumeSession`/`hostSteamStarRoom` etc. construct a
- * fresh `Session` however they need to).
- */
-export interface Session {
-    onClose: (() => void) | null;
-    attach(handler: (msg: NetMessage) => void): void;
-    /** waits for the next single message (used for the post-recovery handshake) */
-    once(): Promise<NetMessage>;
-    send(msg: NetMessage): void;
-    close(): void;
-    /**
-     * Called once `onClose` has fired: attempt to recover this SAME
-     * logical connection, resolving with a replacement `Session` if/when
-     * it succeeds (bounded by `signal` — the caller owns the timeout).
-     * Omit entirely (leave undefined) if this transport has nothing left
-     * to try once `onClose` fires — the caller then treats the grace
-     * window as already elapsed, uniformly, with no transport check of
-     * its own. PeerJS's DataConnection can genuinely die and needs an
-     * explicit redial (see `NetSession.attemptRecovery`); Steam's own P2P
-     * layer self-heals a brief drop transparently BEFORE its watchdog-
-     * driven `onClose` ever fires (see net-steam.ts's own doc comment), so
-     * by the time `onClose` fires there, there's nothing left worth
-     * retrying — the Steam sessions simply don't implement this method.
-     */
-    attemptRecovery?(signal: AbortSignal): Promise<Session>;
-    /** identity fields behind the (PeerJS-only) cold-reload resume marker —
-     *  undefined for transports (Steam) with no such feature. */
-    ownId?: string;
-    remoteId?: string;
 }
 
 /**

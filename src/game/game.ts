@@ -57,7 +57,6 @@ import {
     type NetMessage,
     type RoomRosterEntry,
     type RosterEntry,
-    type Session,
     type SpectateRegistration,
     type SpectatorLink,
     type SpectatorTransport,
@@ -479,10 +478,9 @@ export class Game {
     private readonly extraAis: { ai: AiOpponent; rng: () => number; team: Team; seat: SeatId }[] = [];
     /** which sides finished watching this round's battle — the next build
      *  phase starts once both have (fast-forward speed is per-client) */
-    private readonly battleReady: Record<Team, boolean> = { player: false, enemy: false };
-    /** streamed peer events, applied in order once our game reaches their round */
-    private readonly remoteQueue: { round: number; action?: Action; undo?: boolean; seat?: SeatId }[] = [];
-    /** star mode's own incoming queue — parallel to remoteQueue */
+    /** this side has finished watching the battle and moved on */
+    private battleAnnounced = false;
+    /** incoming build actions from other seats, held until our round catches up */
     private readonly starRemoteQueue: {
         round: number;
         seat: SeatId;
@@ -499,6 +497,21 @@ export class Game {
     /** star host only: which (human) seats have finished watching this round's battle */
     private readonly starBattleReadySeats = new Set<SeatId>();
     /** star host only: this round's battle-start hash per seat (sync-barrier check) */
+    /**
+     * A star guest's post-rebuild readiness signal, deferred until the fly-in
+     * cinematic actually finishes rather than fired synchronously during
+     * construction. Sending it immediately tells the host "go ahead, resume"
+     * the moment hydrate() finishes, but this side still has a real,
+     * multi-second matchIntro left to play through (gated by
+     * `introActive`/`simTimingActive`, so it can't tick yet) — the rest of
+     * the match, having no intro to wait through, would race ahead for
+     * exactly that duration. At normal speed a second or two goes unnoticed;
+     * at battle fast-forward (8x) it becomes a very real, reproducible gap
+     * (confirmed live: reconnecting during an 8x battle left the two sides'
+     * clocks about 20 in-game seconds apart).
+     */
+    private pendingReadyOnIntroFinish: (() => void) | null = null;
+
     private readonly starChecks = new Map<SeatId, number>();
     /** star host only: this round's battle-END hash per seat — a SEPARATE
      *  tally from `starChecks` (which is battle-start only), for the
@@ -722,16 +735,10 @@ export class Game {
     private reconnectGraceRemaining: number | null = null;
     /** set by main: fired the instant the grace window elapses, to cancel the in-flight redial */
     onReconnectTimeout: (() => void) | null = null;
-    /** post-reconnect readiness handshake — see awaitPeerReady() */
-    private localReady = false;
-    private peerReady = false;
     /** the round-card offer drawn during hydration, shown once it finishes */
     private pendingOffer: RoundCard[] | null = null;
     /** the four specialist cards currently offered to the player (for auto-pick) */
     private playerStarterOffer: StartCard[] | null = null;
-    /** state checksums per round (battle start), ours and the peer's */
-    private readonly sentChecks = new Map<number, number>();
-    private readonly peerChecks = new Map<number, number>();
     /** chat rate limiting, both directions */
     private lastChatSent = -Infinity;
     private lastChatReceived = -Infinity;
@@ -763,22 +770,6 @@ export class Game {
     /** 0..1 while the match→menu fly-out runs (main fades the menu cover in) */
     onMatchOutroProgress: ((t: number) => void) | null = null;
     private introActive = false;
-    /**
-     * A reconnecting peer's fairness handshake ('ready'/awaitPeerReady) —
-     * deferred until the fly-in cinematic actually finishes, not fired
-     * synchronously during construction. Sending it immediately (as this
-     * game.ts once did) tells the SURVIVING side "go ahead, resume" the
-     * moment hydrate() finishes, but this reconnecting side still has a
-     * real, multi-second matchIntro fly-in left to play through (gated by
-     * `introActive`/`simTimingActive`, so it can't tick yet) — the
-     * survivor, having no intro of its own to wait through, would resume
-     * ticking immediately, racing ahead for exactly that fly-in's
-     * duration. At normal speed a second or two goes unnoticed; at battle
-     * fast-forward (8x) it becomes a very real, reproducible gap between
-     * what the two sides show (confirmed live: reconnecting during an 8x
-     * battle left the two sides' clocks about 20 in-game seconds apart).
-     */
-    private pendingReadyOnIntroFinish: (() => void) | null = null;
     private introElapsed = 0;
     private introFrom: ReturnType<CameraRig['getPose']> | null = null;
     private introTo: ReturnType<CameraRig['getPose']> | null = null;
@@ -840,12 +831,12 @@ export class Game {
             this.weather?.nextTime();
             return;
         }
-        if (e.code === 'KeyU' && e.shiftKey && !this.net && !this.star) {
+        if (e.code === 'KeyU' && e.shiftKey && !this.star) {
             // Shift+U = SP deploy cheat (shop units only); Ctrl+Shift+U adds horde + level scramble
             this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey, includeHorde: e.ctrlKey });
             return;
         }
-        if (e.code === 'KeyH' && e.shiftKey && !this.net && !this.star) {
+        if (e.code === 'KeyH' && e.shiftKey && !this.star) {
             // single-player: extra horde packs right now — stress-test
             // marchIn perf and eyeball the ring spawn/lake-avoidance logic
             // independent of the round's normal budget. Press repeatedly to
@@ -853,7 +844,7 @@ export class Game {
             this.cheatSpawnHordePacks();
             return;
         }
-        if (e.code === 'KeyI' && e.shiftKey && !this.net && !this.star) {
+        if (e.code === 'KeyI' && e.shiftKey && !this.star) {
             // Shift+I = SP skip to next round (lock deploy → resolve battle)
             this.cheatSkipRound();
             return;
@@ -1038,8 +1029,6 @@ export class Game {
         threeCanvas: HTMLCanvasElement,
         wrapper: HTMLElement, // #match-ui-root — HUD mount + resize size source
         settingsInput: GameSettings = DEFAULT_SETTINGS,
-        /** the peer connection in multiplayer, null against the AI (swappable on reconnect) */
-        private net: Session | null = null,
         /** canonical side: the host is 'a', the guest 'b' — keys card streams & sim ordering */
         private readonly side: 'a' | 'b' = 'a',
         private readonly playerNames: { local: string; opponent: string } = {
@@ -1553,14 +1542,11 @@ export class Game {
                 }
             }
         } else {
-            this.opponent = this.net
-                ? new NetworkOpponent()
-                : new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), this.aiCtxFor(this.rngAi));
+            this.opponent = new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), this.aiCtxFor(this.rngAi));
             // local duo modes: every further AI seat gets its own brain and rng stream
             for (let seat = 0; seat < this.seats.length; seat++) {
                 const def = this.seats[seat]!;
                 if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
-                if (this.net) continue; // networked matches drive remote seats over the wire
                 const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
                 this.extraAis.push({ ai: new AiOpponent(def.team, seat, this.aiCtxFor(rng)), rng, team: def.team, seat });
             }
@@ -1983,19 +1969,7 @@ export class Game {
             this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
-        // only now may peer messages flow — everything they touch exists
-        if (this.net) this.wireSession(this.net);
-        if (resume && this.net && !resume.local) {
-            // rebuilt from a peer reconnect (not a solo save) — hold ticking
-            // until the peer confirms it's ready too; see awaitPeerReady().
-            // Deferred to finishMatchIntro() when there's a fly-in to play
-            // through first (see pendingReadyOnIntroFinish's doc comment) —
-            // sending it now would tell the peer to resume before this side
-            // can actually tick again itself.
-            if (matchIntro) this.pendingReadyOnIntroFinish = () => this.awaitPeerReady();
-            else this.awaitPeerReady();
-        }
-        if ((this.net && this.side === 'a') || this.star?.role === 'host') this.startSpectatorHub();
+        if (this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
         if (resume && this.star?.role === 'guest' && !resume.local) {
             // fires for BOTH a cold reconnect via the main menu (see the
@@ -2106,9 +2080,8 @@ export class Game {
     private finishMatchIntro(): void {
         if (!this.introActive) return;
         this.introActive = false;
-        // see pendingReadyOnIntroFinish's doc comment — a reconnecting
-        // peer's fairness handshake was deferred until the fly-in this
-        // just finished, not fired back at construction time
+        // see pendingReadyOnIntroFinish's doc comment — a rebuilt star guest's
+        // readiness signal was deferred until the fly-in this just finished
         const sendReady = this.pendingReadyOnIntroFinish;
         this.pendingReadyOnIntroFinish = null;
         sendReady?.();
@@ -2524,12 +2497,8 @@ export class Game {
         // heartbeat interval itself never gets cleared) — it goes first so
         // it always runs regardless of what happens to the rest of this
         // function.
-        this.net?.close();
-        this.net = null;
-        // star (2v2+) connections were never closed here — a real,
-        // separate leak from classic 1v1's this.net above, easy to miss
-        // since star is its own optional field. keepStarSession skips this
-        // whole branch (see its own doc comment on the destroy() signature).
+        // keepStarSession skips this whole branch (see its own doc comment
+        // on the destroy() signature).
         if (!opts?.keepStarSession) {
             if (this.star?.role === 'host') this.star.hub.close();
             else if (this.star?.role === 'guest') this.star.session.close();
@@ -2821,8 +2790,7 @@ export class Game {
         this.deployReady.enemy = false;
         this.seatReady.length = 0;
         for (const _ of this.seats) this.seatReady.push(false);
-        this.battleReady.player = false;
-        this.battleReady.enemy = false;
+        this.battleAnnounced = false;
         this.starBattleReadySeats.clear();
         // reset here, not inside endBattlePhase's own host branch: a fast
         // guest can report its battleEnd (and hash) before the HOST's own
@@ -3086,7 +3054,7 @@ export class Game {
      * bar. Solo only (no net / star / watch).
      */
     private cheatSkipRound(): void {
-        if (this.net || this.star || this.watching || this.matchOver || this.hydrating) return;
+        if (this.star || this.watching || this.matchOver || this.hydrating) return;
         if (this.introActive || this.outroActive) return;
         const fromRound = this.round;
         const fromPhase = this.phase;
@@ -3226,7 +3194,7 @@ export class Game {
     }
 
     /**
-     * The trusted canonical seat of whoever is on the other end of `this.net`
+     * The trusted canonical seat of whoever is on the other end of the star link
      * — classic 1v1 has exactly one peer, so this is a fixed function of our
      * own side, not something to trust from message *content*. Mirrors why
      * `onStarMessage`'s host path uses the connection-derived `fromSeat`
@@ -3311,7 +3279,6 @@ export class Game {
             this.sendStarBuildMessage(msg);
             return;
         }
-        this.net?.send(msg);
         this.mirrorBuildToSpectators(msg, this.localSeat());
     }
 
@@ -3760,7 +3727,6 @@ export class Game {
 
     /** sends to the opponent AND mirrors to any connected spectators */
     private broadcast(msg: NetMessage): void {
-        this.net?.send(msg);
         if (this.star) {
             if (this.star.role === 'guest') this.star.session.send(msg);
             else this.star.hub.broadcast(msg);
@@ -3781,7 +3747,7 @@ export class Game {
     }
 
     /** relays something we already handled (sent OR just received from the
-     *  opponent) out to spectators — never echoed back onto `this.net`,
+     *  opponent) out to spectators — never echoed back to the sender,
      *  that's the peer who either sent it to us or already has it */
     private mirrorToSpectators(msg: NetMessage): void {
         if (msg.type === 'action' || msg.type === 'undo') {
@@ -3812,7 +3778,7 @@ export class Game {
         // resolves it correctly with no translation. `action.team` is
         // whatever the sender's own local roster calls its side (still
         // "player" for a guest's own actions), but nothing downstream
-        // trusts it — every consumer (drainRemoteQueue, drainStarRemoteQueue,
+        // trusts it — every consumer (drainStarRemoteQueue,
         // drainSpectateQueue) re-derives team fresh from its OWN local
         // `seats[seat].team` before dispatching, keyed by the canonical
         // seat, so a stale sender-perspective team string here is harmless.
@@ -3825,7 +3791,7 @@ export class Game {
      * a star host, since `SpectatorHub`/`SpectatorVision` are already
      * side-based, not seat-count-based. Best-effort — if it fails to open
      * (e.g. offline), spectating just isn't available this match; it never
-     * blocks or disrupts play, which only ever depends on `this.net`/`this.star`.
+     * blocks or disrupts play, which only ever depends on `this.star`.
      */
     /**
      * Republish "this match is live, watch it here" with the CURRENT round
@@ -3909,7 +3875,6 @@ export class Game {
             hub.onRosterChange = () => this.broadcastRoster();
             hub.onSpectatorChat = (name, item) => {
                 const relayed: NetMessage = { type: 'chat', item, from: { name, role: 'spectator' } };
-                this.net?.send(relayed);
                 if (this.star?.role === 'host') this.star.hub.broadcast(relayed);
                 hub.broadcast(relayed);
             };
@@ -4006,27 +3971,11 @@ export class Game {
             this.spectatorHub.setSeatLive(spectatorName, seat, grant);
             return;
         }
-        // guest asks the host to update vision — a star guest's connection
-        // to the host is `this.star.session`, never `this.net` (that field
-        // is classic 1v1's own peer-to-peer link, unused in star mode)
+        // guest asks the host to update vision, over its own star session
         const msg: NetMessage = { type: 'spectateGrant', spectatorName, seat, grant };
         if (this.star?.role === 'guest') this.star.session.send(msg);
-        else this.net?.send(msg);
     }
 
-    /** connects (or re-connects) a peer session to this game */
-    private wireSession(session: Session): void {
-        this.net = session;
-        session.attach((msg) => this.onNetMessage(msg));
-        session.onClose = () => {
-            if (this.matchOver) return;
-            if (this.onConnectionLost) this.onConnectionLost();
-            else {
-                this.matchOver = true;
-                this.hud.showDisconnect();
-            }
-        };
-    }
 
     /**
      * Wires the star (2v2+) transport, for either role and every network.
@@ -4370,7 +4319,7 @@ export class Game {
      *  'ready' (see onStarMessage's 'ready' case / starSeatReady) so a big
      *  catch-up has time to finish applying on their end before the match
      *  ticks again for everyone, same reasoning as classic 1v1's
-     *  awaitPeerReady. */
+     *  the star guest's own post-rebuild 'ready'. */
     private starSeatReconnected(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host') return;
         const hub = this.star.hub;
@@ -4694,7 +4643,7 @@ export class Game {
      *  `drainSpectateQueue`) — shaped just like `drainStarRemoteQueue` but
      *  kept as a separate copy for its own debug logging. Round-advance
      *  (battle→build) falls out for free from the same organic
-     *  `maybeStartNextRound` cascade already used by classic replay-watch —
+     *  `announceBattleEnd` cascade already used by replay-watch —
      *  no need to relay/handle `starBattleStart`/`starNextRound`.
      *  Build→battle just needs both `endDeployment` actions to have
      *  arrived (`maybeStartBattleAfterDeploy`) — every build action, real
@@ -4739,9 +4688,9 @@ export class Game {
             // round 0 specialist pick: the two real players never need a
             // side tag (each just dispatches its OWN pick locally, then
             // hardcodes 'enemy' for whatever it receives — see
-            // onNetMessage's 'starter' handling below) — a spectator
+            // the star handler's 'starter' handling below) — a spectator
             // watching both sides needs msg.side to know which one this is.
-            // Explicit canonical `seat` (matching onNetMessage's own fix):
+            // Explicit canonical `seat`:
             // actorSeat's team-based fallback resolves the same seat for an
             // immediate dispatch, but that fallback is never persisted onto
             // the logged action — a future re-export of this spectator's
@@ -4826,7 +4775,7 @@ export class Game {
                     ? new Set(msg.vision.seats.flatMap((s) => sideIdsOf(this.seats, s === 'a' ? 0 : 1)))
                     : new Set();
         } else if (msg.type === 'quit') {
-            // classic 1v1 forfeit-quit, mirrored (see onNetMessage's own
+            // host quit, mirrored to spectators (see voluntaryQuit's own
             // 'quit' case) — or a star host's own quit, ending everything
             // (no host migration). Same "match over, nothing left to
             // watch" outcome as a genuine disconnect.
@@ -4842,8 +4791,6 @@ export class Game {
             else this.enemyHp = 0;
             if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
         }
-        // 'check': nothing for a spectator to act on — hash verification is
-        // a player-to-player concern only.
     }
 
     // --- reconnect / resync ------------------------------------------------
@@ -4901,9 +4848,7 @@ export class Game {
 
     voluntaryQuit(): void {
         if (!this.matchOver && !this.disposed) {
-            if (this.net) {
-                this.net.send({ type: 'quit' });
-            } else if (this.star?.role === 'guest') {
+            if (this.star?.role === 'guest') {
                 this.star.session.send({ type: 'quit' });
             } else if (this.star?.role === 'host') {
                 this.star.hub.broadcast({ type: 'quit' });
@@ -4936,8 +4881,6 @@ export class Game {
         this.suspendDeadline = null;
         this.hud.hideNotice();
         this.hud.hideReconnectWait();
-        this.net?.close();
-        this.net = null;
         if (!this.disposed && !this.outroActive) {
             this.playMenuOutro(() => this.onReturnToMenu?.());
             return;
@@ -4954,8 +4897,6 @@ export class Game {
         // an already-running countdown
         if (this.reconnectGraceRemaining !== null) return;
         this.suspended = true;
-        this.localReady = false;
-        this.peerReady = false;
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
@@ -4964,90 +4905,9 @@ export class Game {
         this.hud.updateReconnectWait(seconds);
     }
 
-    /** the connection is back on a fresh session — but stay paused until the
-     *  peer confirms it's actually ready too (see awaitPeerReady) */
-    resumeWith(session: Session): void {
-        if (this.disposed || this.matchOver) {
-            session.close();
-            return;
-        }
-        this.reconnectGraceRemaining = null;
-        this.onReconnectTimeout = null;
-        this.wireSession(session);
-        this.awaitPeerReady();
-    }
 
-    /**
-     * Reconnect handshake, phase 2: the transport is back, but a peer that
-     * had to reload pays several real seconds loading 3D assets before its
-     * own clock can start. If a survivor (never reloaded) resumed ticking
-     * immediately, that entire load gap would drain out of ONLY its own
-     * deployment timer. Both sides hold suspended here until each has told
-     * the other "ready" — a survivor sends it right away (nothing to load);
-     * a rebuilt peer sends it once construction/hydrate is fully done.
-     */
-    private awaitPeerReady(): void {
-        this.localReady = true;
-        this.suspended = true;
-        this.hud.hideReconnectWait();
-        this.hud.showNotice(
-            'Reconnected — waiting for the opponent to finish loading…',
-            'Give up',
-            () => this.quitToMenu(),
-        );
-        this.net?.send({ type: 'ready' });
-        if (this.peerReady) this.confirmBothReady();
-    }
 
-    /** both sides confirmed — resume together, then resend anything the peer
-     *  might have missed at disconnect time */
-    private confirmBothReady(): void {
-        this.suspended = false;
-        this.hud.hideNotice();
-        this.resendGateSignals();
-    }
 
-    /**
-     * After ANY reconnect (not just a page reload): resend whichever "gate"
-     * signal we've already locally committed to but the peer may be missing
-     * — a message dropped exactly at the moment the connection died is
-     * otherwise gone for good, and if it's one of these, the peer can get
-     * stuck waiting forever (deployReady/battleReady never flips, and it
-     * never reaches the point where the existing battle-start desync check
-     * would even run). Resending is safe: dispatch() rejects an
-     * already-applied gate action as a harmless no-op.
-     *
-     * A blind state-hash comparison here (instead of a targeted resend) was
-     * tried and reverted — during round 0 (before both sides have picked) or
-     * mid-deployment (before both lock in), the two sides' state is
-     * legitimately, momentarily asymmetric while ordinary in-flight messages
-     * are still catching up, which isn't a desync. Hashing at that point
-     * produces false mismatches; the original check only ever ran at battle
-     * start, a point structurally guaranteed to be fully converged (reliable
-     * ordered delivery + the deployReady gate), which is why it never had
-     * this problem.
-     */
-    private resendGateSignals(): void {
-        if (!this.net) return;
-        if (this.round === 0) {
-            const own = this.starterCardOf('player');
-            if (own) this.net.send({ type: 'starter', cardId: own.id });
-            return;
-        }
-        if (this.phase === 'build' && this.deployReady.player) {
-            this.net.send({
-                type: 'action',
-                round: this.round,
-                action: { kind: 'endDeployment', team: 'player' },
-                // classic 1v1's own path never seq-checks (see NetMessage's
-                // 'action' doc comment) — placeholder only
-                seq: 0,
-            });
-        }
-        if (this.battleReady.player) {
-            this.net.send({ type: 'battleEnd', round: this.round });
-        }
-    }
 
     /** everything a rejoining peer needs to rebuild the match (our perspective) */
     exportResume(): {
@@ -5308,7 +5168,7 @@ export class Game {
                 // log entries this way, running round 2's battle without
                 // the enemy's 2 late-bought units and never advancing past
                 // it. apply() itself doesn't gate on phase (only dispatchPlayer/
-                // drainRemoteQueue's live SEND-time decisions do), so
+                // the live SEND-time decisions do), so
                 // dispatching these now, with phase already 'battle', is
                 // exactly as safe as the live host dispatching them earlier
                 // while still gated at 'build'.
@@ -5340,7 +5200,7 @@ export class Game {
         // every client), but `team` is a LOCAL label ("player" always means
         // "the exporting peer's own side"). Re-derive team fresh from MY OWN
         // roster, keyed by that canonical seat — the same pattern every
-        // other remote-action consumer uses (drainRemoteQueue,
+        // other remote-action consumer uses (
         // drainStarRemoteQueue, drainSpectateQueue). Our own single-player
         // save never needs this: its actions are already in our own local
         // convention.
@@ -5621,26 +5481,6 @@ export class Game {
         return h >>> 0;
     }
 
-    private verifyCheck(round: number): void {
-        const mine = this.sentChecks.get(round);
-        const theirs = this.peerChecks.get(round);
-        if (mine === undefined || theirs === undefined || mine === theirs) return;
-        // desync: the guest rebuilds from the host's log (reload + resume);
-        // the host just waits — the guest's reload drops the connection,
-        // which flows into the normal reconnect path
-        if (this.side === 'b') {
-            // guard against a reload loop if the divergence is persistent
-            const guard = sessionStorage.getItem('mechili-desync-guard');
-            if (guard === String(round)) {
-                this.suspend('Persistent desync — this match cannot continue.');
-                return;
-            }
-            sessionStorage.setItem('mechili-desync-guard', String(round));
-            location.reload();
-        } else {
-            this.suspend('Desync detected — the opponent is resyncing…');
-        }
-    }
 
     /**
      * The player may act: build phase, not locked in, match running.
@@ -5789,126 +5629,9 @@ export class Game {
         this.startBuildPhase();
     }
 
-    private onNetMessage(msg: NetMessage): void {
-        if (this.disposed || this.matchOver) return;
-        if (msg.type === 'starter') {
-            this.mirrorToSpectators(msg);
-            // Stamp the trusted, canonical seat explicitly — actorSeat's own
-            // team-based fallback (primarySeatOf) resolves it correctly for
-            // an immediate dispatch, but that fallback is never persisted
-            // onto the logged action (serializable() returns it verbatim).
-            // A reconnecting peer's hydrate() later needs a real `seat` here
-            // to remap this entry's team into ITS OWN perspective — without
-            // it, the remap silently no-ops and the entry keeps OUR
-            // perspective's label, crediting the wrong seat's starterPicked
-            // flag on their end (repro: reconnect as the side that picked
-            // first — you get asked to pick again).
-            this.dispatcher.dispatch({ kind: 'chooseCard', team: 'enemy', cardId: msg.cardId, seat: this.peerSeat() });
-            this.refreshShopHud();
-            this.syncSpecialities();
-            this.maybeStartMatch();
-        } else if (msg.type === 'action') {
-            const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            // trust the CONNECTION's identity for who this is, never the
-            // message's own claimed seat — same reasoning as onStarMessage's
-            // host path using `fromSeat` instead of `msg.action.seat`
-            this.remoteQueue.push({ round: msg.round, action: msg.action, seat: this.peerSeat() });
-            this.drainRemoteQueue();
-            // AFTER drain, not before: mirrorBuildToSpectators reads
-            // this.deployReady to decide fog (bothLocked) — reading it
-            // before the peer's own action is actually dispatched (which
-            // is what sets deployReady in the first place) means an
-            // action that itself completes "both locked" gets mirrored as
-            // still-fogged, one call too early. Relies on
-            // maybeStartBattleAfterDeploy's flushBuildBuffers() to eventually
-            // correct this either way, but there's no reason to invite that
-            // when reordering costs nothing (drainRemoteQueue doesn't mutate
-            // `msg`, and `side` is independent of dispatch).
-            this.mirrorBuildToSpectators(msg, side);
-        } else if (msg.type === 'undo') {
-            const side: 'a' | 'b' = this.side === 'a' ? 'b' : 'a';
-            this.remoteQueue.push({ round: msg.round, undo: true, seat: this.peerSeat() });
-            this.drainRemoteQueue();
-            this.mirrorBuildToSpectators(msg, side);
-        } else if (msg.type === 'check') {
-            this.peerChecks.set(msg.round, msg.hash);
-            this.verifyCheck(msg.round);
-        } else if (msg.type === 'debugLog') {
-            // only the guest ever populates/sends this over `this.net` (the
-            // host ingests its own events directly, never over the wire —
-            // see DebugLog.log's isHost branch)
-            this.debugLog.ingest(msg.events);
-        } else if (msg.type === 'chat') {
-            // clamp the peer's rate too (P2P — never trust the sender) and
-            // re-truncate text before it reaches the DOM
-            const now = performance.now();
-            if (now - this.lastChatReceived < CHAT_COOLDOWN_MS * 0.5) return;
-            this.lastChatReceived = now;
-            const item: ChatItem =
-                msg.item.kind === 'text'
-                    ? { kind: 'text', text: String(msg.item.text).slice(0, CHAT_TEXT_LIMIT) }
-                    : msg.item;
-            if (msg.from.role === 'player') {
-                // this.net's only possible player-role sender is the opponent —
-                // use our own trusted record rather than their (unverified) claim
-                this.hud.addChat(this.playerNames.opponent, item, 'remote');
-                this.mirrorToSpectators({
-                    type: 'chat',
-                    item,
-                    from: { name: this.playerNames.opponent, role: 'player' },
-                });
-            } else if (msg.from.role === 'system') {
-                if (item.kind === 'text') this.hud.addSystemMessage(item.text);
-                this.mirrorToSpectators({ type: 'chat', item, from: msg.from });
-            } else {
-                // a spectator's chat, relayed to us by the host — no UI surface
-                // for this yet (spectator chat renders separately from player
-                // chat, per design; that view doesn't exist yet). Never
-                // attribute it to the opponent.
-            }
-        } else if (msg.type === 'speed') {
-            this.mirrorToSpectators(msg);
-            const index = Game.SPEED_STEPS.indexOf(msg.multiplier);
-            if (index >= 0) {
-                this.speedIndex = index;
-                this.hud.setSpeed(msg.multiplier);
-            }
-        } else if (msg.type === 'resume') {
-            // the peer reloaded and rebuilt mid-session (rare direct path)
-            this.net?.send({ type: 'state', version: GAME_VERSION, ...this.exportResume() });
-        } else if (msg.type === 'battleEnd') {
-            this.mirrorToSpectators(msg);
-            if (msg.round === this.round) {
-                this.battleReady.enemy = true;
-                this.maybeStartNextRound();
-            }
-        } else if (msg.type === 'ready') {
-            this.peerReady = true;
-            if (this.localReady && this.suspended) this.confirmBothReady();
-        } else if (msg.type === 'roster') {
-            // only the host actually tracks spectators (see buildRoster());
-            // the guest just holds onto whatever it's told for display
-            this.receivedRoster = msg.entries;
-            this.pushSpectatorBadge();
-        } else if (msg.type === 'spectateGrant') {
-            // host only: guest may grant/revoke live vision for seat 'b'
-            if (this.side !== 'a' || !this.spectatorHub) return;
-            if (msg.seat !== 'b') return;
-            this.spectatorHub.setSeatLive(msg.spectatorName, msg.seat, msg.grant);
-        } else if (msg.type === 'quit') {
-            // the peer explicitly quit (see voluntaryQuit) — not a dropped
-            // connection, so there's no reconnect grace window to run: they
-            // are not coming back, resolve the forfeit immediately. Mirror
-            // it so any spectator (a separate connection via spectatorHub,
-            // unaffected by the peer's own net closing) finds out too,
-            // instead of being left watching a match that's already over.
-            this.mirrorToSpectators({ type: 'quit' });
-            this.forfeitWin();
-        }
-    }
 
     /**
-     * Star mode's own message handler, parallel to `onNetMessage` above
+     * The star transport's message handler
      * (which stays exactly as it was for classic 1v1). `fromSeat` is the
      * TRUSTED seat of the connection a message arrived on — only ever
      * present when we're the host (a guest has one pipe to the host and
@@ -6095,7 +5818,7 @@ export class Game {
             }
         } else if (msg.type === 'roster' && !isHost) {
             // guest-side only: the host is the only one that ever sends this
-            // for a star match — mirrors classic 1v1's onNetMessage roster
+            // for a star match — the roster
             // case. Without the !isHost guard, a guest could send a forged
             // 'roster' here and have the HOST overwrite its own
             // this.seats[].controller bookkeeping from it, corrupting
@@ -6183,63 +5906,11 @@ export class Game {
         }
     }
 
-    /**
-     * Applies streamed peer events strictly in order, holding at the head
-     * until our game reaches the event's round (our battle may lag theirs).
-     * NOT gated on our own `awaitingCards`: that's purely "is my own round-
-     * card overlay still open" — it has no bearing on whether the peer's
-     * independent, already-completed actions are safe to log. Gating on it
-     * used to leave the peer's actions stuck in the queue (never reaching
-     * `dispatcher`'s log, so never part of `exportResume()`) for as long as
-     * our own overlay stayed open — if the peer reloaded during that window,
-     * their own already-submitted pick/buys would silently vanish from the
-     * rebuild.
-     */
-    private drainRemoteQueue(): void {
-        while (this.remoteQueue.length > 0) {
-            const head = this.remoteQueue[0]!;
-            if (head.round !== this.round || this.phase !== 'build') return;
-            this.remoteQueue.shift();
-            // authority check, matching drainStarRemoteQueue's equivalent
-            // guard: a seat that already locked in has nothing legitimate
-            // left to send. Classic 1v1 used to buffer a seat's own build
-            // actions locally and release them only once the RECIPIENT
-            // locked in — that could reorder a peer's own earlier action
-            // behind their bypass-the-buffer endDeployment, which this
-            // guard would have wrongly rejected. Now that every action
-            // sends immediately (see sendPlayerBuildMessage), send order
-            // always matches dispatch order, so that reordering can't
-            // happen and this guard is safe.
-            // `head.seat` is the CONNECTION-trusted seat (see peerSeat's doc
-            // comment), never the message's own claimed seat — classic 1v1
-            // has exactly one peer, so it's a fixed identity, not something
-            // to trust from content.
-            if (this.seatReady[head.seat!]) continue;
-            if (head.undo) {
-                this.dispatcher.undoLast(head.round, head.seat!);
-            } else if (head.action) {
-                // seat ids are canonical on every client now (host=0,
-                // guest=1 — see the canonicalClassicSeats/localizeRoster
-                // construction in the constructor), so no id/team flip is
-                // needed, same as drainStarRemoteQueue. `team` is still
-                // whatever the SENDER's own local roster calls its side —
-                // re-derive it fresh from OUR OWN roster, keyed by the
-                // trusted seat.
-                const seat = head.seat!;
-                const team = this.seats[seat]?.team;
-                if (team) this.dispatcher.dispatch({ ...head.action, team, seat });
-            }
-            this.syncRallyVisuals();
-        }
-    }
 
     /**
-     * Star mode's own queue+drain, parallel to `drainRemoteQueue` — kept
-     * separate for now so each mode's own quirks (see the reordering note
-     * on `drainRemoteQueue`) stay easy to reason about independently. The
-     * seat already tells us exactly which physical commander this is, so we
-     * just look up OUR OWN local team for it and dispatch — same pattern as
-     * `drainRemoteQueue` now uses too.
+     * Drains build actions from other seats. The seat already tells us exactly
+     * which physical commander this is, so we just look up OUR OWN local team
+     * for it and dispatch.
      *
      * Relay (host only — `relayStarBuildMessage` no-ops for a guest) always
      * happens AFTER the local dispatch, never before: relaying first would
@@ -8205,13 +7876,6 @@ export class Game {
             });
         }
         this.debugLog.log('sim.battleStartStats', { round: this.round, rows: statsRows });
-        // the sync point: both peers hash the identical battle-start state
-        if (this.net && !this.hydrating) {
-            const hash = this.stateHash();
-            this.sentChecks.set(this.round, hash);
-            this.net.send({ type: 'check', round: this.round, hash });
-            this.verifyCheck(this.round);
-        }
         // star mode: the deploy-end/battle-start sync-barrier checkpoint.
         // Every client just built this.sim from the identical replicated
         // deployment log, so this hash IS the pre-simulation state — the
@@ -8537,7 +8201,7 @@ export class Game {
             // participant reaches this exact point on its own initiative
             // (its own battle just finished) and self-suspends the same
             // way — see startBattlePhase's matching checkpoint.
-            this.battleReady.player = true; // drives "waiting for opponent" HUD text for this whole gap — same flag announceBattleEnd already set here
+            this.battleAnnounced = true; // drives "waiting for opponent" HUD text for this whole gap — same flag announceBattleEnd already set here
             this.suspended = true;
             this.afterSyncResolved = () => this.finishOrContinueAfterBattle();
             if (this.star.role === 'guest') {
@@ -8715,26 +8379,12 @@ export class Game {
     /** local battle sim finished — tell the peer, then wait for theirs too
      *  before starting the next build phase (fast-forward speed is per-client,
      *  so the two sides don't necessarily finish watching at the same time).
-     *  Classic 1v1 / single-player / hydrating fallthrough only — star mode's
-     *  own ready+hash reporting happens earlier, in endBattlePhase, since the
+     *  Single-player / hydrating fallthrough only — star mode's own
+     *  ready+hash reporting happens earlier, in endBattlePhase, since the
      *  sync-barrier check needs the hash before the sim is torn down. */
     private announceBattleEnd(): void {
-        this.battleReady.player = true;
-        if (this.net && !this.hydrating) {
-            this.broadcast({ type: 'battleEnd', round: this.round });
-        }
-        this.maybeStartNextRound();
-    }
-
-    /** starts the next build phase once both sides are ready — no peer (AI
-     *  match) or a replay rebuild (hydrate already knows the true history)
-     *  skip the wait entirely */
-    private maybeStartNextRound(): void {
-        if (!this.net || this.hydrating) {
-            this.startBuildPhase();
-            return;
-        }
-        if (this.battleReady.player && this.battleReady.enemy) this.startBuildPhase();
+        this.battleAnnounced = true;
+        this.startBuildPhase();
     }
 
     /**
@@ -8765,7 +8415,7 @@ export class Game {
     private buildGameOverDetails(result: 'victory' | 'defeat' | 'draw'): GameOverDetails {
         const playerTeam = seatIdsOf(this.seats, 'player');
         const enemyTeam = seatIdsOf(this.seats, 'enemy');
-        const ratedMp = this.seats.length <= 2 && !!(this.star || this.net);
+        const ratedMp = this.seats.length <= 2 && !!this.star;
 
         const buildMember = (seat: number, team: 'player' | 'enemy'): GameOverDetails['playerTeam'][0] => {
             const def = this.seats[seat]!;
@@ -8894,8 +8544,6 @@ export class Game {
         // quitting/timed-out opponent trying to dodge a loss.
         this.reportMatchTelemetry('victory');
         this.reportOpenRating('victory', true);
-        this.net?.close();
-        this.net = null;
         this.hud.hidePauseMenu();
         this.placement.enabled = false;
         this.placement.deselect();
@@ -8918,19 +8566,13 @@ export class Game {
         // (Phase 1), so `this.star` alone can no longer tell a real 1v1
         // apart from an actual 2v2+ (this used to unconditionally skip
         // ranked reporting for every 1v1-over-star match — the exact same
-        // this.star/this.net-no-longer-distinguishes-1v1 shape already
-        // fixed once for startSpectatorHub's room-list "1v1"/"2v2" label).
+        // startSpectatorHub's room-list "1v1"/"2v2" label uses the same rule).
         if (this.seats.length > 2) return;
-        // only ONE side may report a given match, to avoid double-
-        // submitting the same result: the star host (mirroring net's own
-        // side==='a' check below — this.net is null for a star-based 1v1,
-        // so without this a guest would ALSO report, double-counting it).
+        // only ONE side may report a given match, to avoid double-submitting
+        // the same result — the star host does it for everyone
         if (this.star && this.star.role !== 'host' && !forceReport) return;
-        if (this.net && this.side !== 'a' && !forceReport) return;
         try {
-            // 'mp' for ANY real network connection — this.net alone used to
-            // be sufficient, but is null for a star-based 1v1.
-            const mode = this.star || this.net ? 'mp' : 'ai';
+            const mode = this.star ? 'mp' : 'ai';
             reportMatchResult({
                 matchId: matchResultId(
                     this.seed,
@@ -8979,7 +8621,7 @@ export class Game {
                 // seat COUNT decides '2v2' vs 'mp' now, not `this.star`
                 // truthiness — 1v1 is a 2-seat star match too, and should
                 // still report as ordinary 'mp', same as it always has.
-                mode: this.replayOriginalMode ?? (this.seats.length > 2 ? '2v2' : this.star || this.net ? 'mp' : 'ai'),
+                mode: this.replayOriginalMode ?? (this.seats.length > 2 ? '2v2' : this.star ? 'mp' : 'ai'),
                 side: this.side,
                 source: this.replayVerify ? 'verify' : 'player',
                 result,
@@ -9091,8 +8733,6 @@ export class Game {
             this.spectateSession.send({ type: 'debugLog', events });
         } else if (this.star && this.star.role === 'guest') {
             this.star.session.send({ type: 'debugLog', events });
-        } else if (this.net) {
-            this.net.send({ type: 'debugLog', events });
         }
     }
 
@@ -9352,15 +8992,14 @@ export class Game {
         this.tickShadowMapUpdate();
         this.updateSandWear();
         this.updateSelectionUi();
-        this.drainRemoteQueue();
         this.drainStarRemoteQueue();
         this.drainSpectateQueue();
         const waitingForPeer =
-            ((this.net !== null || this.star !== null) &&
+            (this.star !== null &&
                 !this.matchOver &&
                 ((this.phase === 'build' && this.deployReady.player && !this.deployReady.enemy) ||
                     (this.awaitingCards && this.round === 0 && this.starterPicked[this.humanSeat]) ||
-                    (this.battleReady.player && !this.battleReady.enemy))) ||
+                    this.battleAnnounced)) ||
             // locked in (solo vs AI too): hide shop / End Deployment — without
             // this, solo showed a clickable End Deployment that no-op'd while
             // waiting on the bot (or after a resume that never re-ran the AI)
@@ -9479,7 +9118,7 @@ export class Game {
             effectLines: this.effectToggles.debugLines(),
         }, dtSeconds);
 
-        if (this.onStateCheckpoint && !this.net && !this.star && !this.matchOver && !this.hydrating) {
+        if (this.onStateCheckpoint && !this.star && !this.matchOver && !this.hydrating) {
             this.persistTimer += dtSeconds;
             const interval = this.phase === 'battle' ? 0.25 : 1;
             if (this.persistTimer >= interval) {
