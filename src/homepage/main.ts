@@ -291,25 +291,7 @@ function runeRecipeIcons(runeId: string): string[] {
         .filter((ico): ico is string => !!ico);
 }
 
-/** Human-readable stat lines from a rune's multipliers and flags. */
-function runeStats(item: ItemDef): string[] {
-    const out: string[] = [];
-    const pct = (v: number) => `${v >= 1 ? '+' : ''}${Math.round((v - 1) * 100)}%`;
-    if (item.mods.damage != null) out.push(`${pct(item.mods.damage)} attack`);
-    if (item.mods.hp != null) out.push(`${pct(item.mods.hp)} HP`);
-    if (item.mods.range != null) out.push(`${pct(item.mods.range)} range`);
-    if (item.mods.speed != null) out.push(`${pct(item.mods.speed)} speed`);
-    if (item.mods.attackInterval != null) out.push(`${pct(item.mods.attackInterval)} attack interval`);
-    if (item.debuffImmune) out.push('Debuff immune');
-    if (item.grantsShieldHp) out.push('Second health pool');
-    return out;
-}
-
 function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
-    const stats = runeStats(item);
-    const statsHtml = stats.length
-        ? `<ul class="mh-tactic-stats">${stats.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
-        : '';
     const recipe = isBase ? [] : runeRecipeIcons(item.id);
     // The recipe IS the price for an advanced rune — it is never sold, only forged.
     const recipeHtml = recipe.length
@@ -330,7 +312,6 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
     <p class="mh-tactic-meta">${isBase ? 'Base rune' : 'Advanced rune'}</p>
     <p class="mh-tactic-desc">${esc(item.description)}</p>
     ${recipeHtml}
-    ${statsHtml}
     ${costHtml}
   </div>
 </article>`;
