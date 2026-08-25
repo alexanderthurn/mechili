@@ -187,6 +187,8 @@ export interface SelectionInfo {
         spellPool?: string[];
         /** the oven has been paid for — it bakes at the next deployment */
         lit?: boolean;
+        /** this seat paid for the burn, so it may also take it back */
+        canUnlight?: boolean;
         /** affordable only matters while unlit; the tile is the buy button */
         bakeAffordable?: boolean;
         /** parallel to slotCount; null = empty */
@@ -293,6 +295,7 @@ export class Hud {
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyForgeSpell: ((tacticId: string) => void) | null = null;
     onForgeLight: (() => void) | null = null;
+    onForgeUnlight: (() => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
     /**
      * Shop unlock fee as THIS seat pays it (Countess Chonk discounts giants).
@@ -869,6 +872,11 @@ export class Hud {
                     '.item-sq.empty.drop-target',
                 );
                 if (emptySlot) this.onApplyArmedItem?.();
+                const cancel = (e.target as HTMLElement).closest<HTMLElement>('[data-forge-unlight]');
+                if (cancel) {
+                    this.onForgeUnlight?.();
+                    return;
+                }
                 const fill = (e.target as HTMLElement).closest<HTMLElement>('.forge-suggest');
                 if (fill?.dataset.forgeFill) {
                     const itemIds = fill.dataset.forgeFill.split(',').filter(Boolean);
@@ -2734,13 +2742,22 @@ export class Hud {
               (forge.bake
                   ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
                     (forge.lit
-                        ? // paid for: this is what comes out next deployment
-                          `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
+                        ? // paid for: this is what comes out next deployment.
+                          // Whoever paid can click it again to take it back.
+                          `<${forge.canUnlight ? 'button type="button"' : 'span'} ` +
+                          `class="item-sq m-icon forge-bake${forge.canUnlight ? ' cancelable' : ''}" ` +
+                          `style="${iconCss(forge.bake.icon)}" ` +
+                          (forge.canUnlight ? `data-forge-unlight="1" ` : '') +
                           `data-spell-tip="1" ` +
                           `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
-                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\nFiring — ready next deployment.`)}" ` +
+                          `data-tdesc="${escapeAttr(
+                              `${forge.bake.desc}\nFiring — ready next deployment.${
+                                  forge.canUnlight ? '\nClick to cancel and get the supply back.' : ''
+                              }`,
+                          )}" ` +
                           `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
-                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
+                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
+                          `</${forge.canUnlight ? 'button' : 'span'}>`
                         : // not paid for yet: the same square becomes the buy button
                           `<button type="button" class="action-tile forge-buy ${
                               forge.bakeAffordable ? 'buy' : 'locked'

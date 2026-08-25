@@ -607,6 +607,22 @@ export class PlacementController {
         return { level: snap.level, xp: snap.xp, items: snap.items };
     }
 
+    /**
+     * Re-open a unit's panel without a click — used after an undo, which has to
+     * deselect first (it may be removing the very unit that was selected) but
+     * should not close a panel the undo left standing.
+     */
+    selectUnit(unit: Unit): void {
+        if (this.selectedUnit === unit) return;
+        const previous = this.selectedUnit;
+        this.restoreSelectedView();
+        this.selectedUnit = unit;
+        this.selectedGroup = [];
+        this.rectFormation = false;
+        this.carryingSelected = false;
+        this.onSelect?.(unit, previous);
+    }
+
     deselect(): void {
         this.cancelPlacing();
         this.restoreSelectedView();

@@ -4669,6 +4669,14 @@ ${chatFloatStyles(u, pc, ec)}
     box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 12px rgba(0, 255, 102, 0.45);
     animation: forge-bake-pulse 1.25s ease-in-out infinite;
 }
+.mechili-panel .item-sq.forge-bake.cancelable {
+    cursor: pointer;
+    padding: 0;
+}
+.mechili-panel .item-sq.forge-bake.cancelable:hover {
+    box-shadow: 0 0 0 2px rgba(220, 70, 55, 0.95), 0 0 12px rgba(220, 70, 55, 0.5);
+    animation: none;
+}
 /* the unpaid oven's buy button: an action tile sized to sit in the rune row,
    with the product on it and the price in the red band the shop tiles use */
 .mechili-panel .forge-row .action-tile.forge-buy {

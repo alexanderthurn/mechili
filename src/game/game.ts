@@ -668,8 +668,8 @@ export class Game {
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
     private readonly tacticInventory: string[][];
     /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
-    /** paid-for ovens — set by `forgeLight`, cleared when the oven resolves */
-    private readonly forgeLit: Record<Team, boolean> = { player: false, enemy: false };
+    /** who paid to fire each oven — null = unlit, cleared when it resolves */
+    private readonly forgeLitBy: Record<Team, SeatId | null> = { player: null, enemy: null };
     private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
         player: emptyForgeSlots(),
         enemy: emptyForgeSlots(),
@@ -1448,7 +1448,7 @@ export class Game {
             items: this.itemInventory,
             tactics: this.tacticInventory,
             forgeSlots: this.forgeSlots,
-            forgeLit: this.forgeLit,
+            forgeLitBy: this.forgeLitBy,
             forgePoolOf: (team: Team) => this.teamForgePool(team),
             rallyRoutes: this.rallyRoutes,
             rallyRouteIds: this.rallyRouteIds,
@@ -1877,6 +1877,12 @@ export class Game {
             if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'forgeLight', team: 'player' });
+        };
+        this.hud.onForgeUnlight = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (!this.playerCanAct) return;
+            this.dispatchPlayer({ kind: 'forgeUnlight', team: 'player' });
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
@@ -7106,7 +7112,7 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             const oven = this.forgeSlots[team]!;
             const pool = this.teamForgePool(team);
-            if (!this.forgeLit[team]) {
+            if (this.forgeLitBy[team] === null) {
                 // Nobody paid to fire it, so nothing was forged — every rune
                 // goes back to whoever put it in, matched recipe or not.
                 for (const slot of oven) {
@@ -7128,7 +7134,7 @@ export class Game {
                     this.itemInventory[seat]!.push(itemId);
                 }
             }
-            this.forgeLit[team] = false;
+            this.forgeLitBy[team] = null;
             this.forgeSlots[team] = emptyForgeSlots(
                 forgeTeamCapacity(seatIdsOf(this.seats, team).length),
             );
@@ -7200,7 +7206,7 @@ export class Game {
                 : this.forgeSlots[team]!;
             targets.push({
                 unit,
-                mode: forgeGlowMode(oven, this.teamForgePool(team), this.forgeLit[team] ?? false),
+                mode: forgeGlowMode(oven, this.teamForgePool(team), this.forgeLitBy[team] !== null),
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
@@ -7468,6 +7474,12 @@ export class Game {
      */
     private undoLast(): void {
         if (!this.canUndo()) return;
+        // Deselect FIRST: the undo may be removing the very unit that is open,
+        // and a stale selection would keep a panel pointed at a dead pack. But
+        // most undos leave it standing (a forge burn, a tech, a boost), and
+        // closing the Stronghold every time you take one step back is its own
+        // small hostility — so remember it and put it back if it survived.
+        const reopen = this.placement.selectedUnit;
         this.placement.deselect();
         if (this.dispatcher.undoLast(this.round, this.humanSeat)) {
             this.sendPlayerBuildMessage({
@@ -7476,6 +7488,9 @@ export class Game {
                 seat: this.humanSeat,
                 seq: this.nextSeatSeq(this.humanSeat),
             });
+        }
+        if (reopen && !reopen.destroyed && this.placement.allUnits().includes(reopen)) {
+            this.placement.selectUnit(reopen);
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
@@ -9909,11 +9924,12 @@ export class Game {
         const bakeInfo = bakeResult.product
             ? forgeProductInfo(bakeResult.product)
             : null;
-        const lit = this.forgeLit[team] ?? false;
+        const lit = this.forgeLitBy[team] !== null;
         const bakeCost = bakeResult.product ? forgeProductCost(bakeResult.product) : 0;
         out.forge = {
             slotCount,
             lit,
+            canUnlight: canBuy && this.forgeLitBy[team] === this.humanSeat,
             bakeAffordable: canBuy && !lit && this.economy.balance(this.humanSeat) >= bakeCost,
             dropReady: !fogged && !lit && this.canDropForgeOn(u),
             hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),

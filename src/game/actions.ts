@@ -149,6 +149,11 @@ export interface ForgeLightAction {
     kind: 'forgeLight';
     team: Team;
 }
+/** takes the burn back off the fire and refunds whoever paid for it */
+export interface ForgeUnlightAction {
+    kind: 'forgeUnlight';
+    team: Team;
+}
 /** buys one charge of a spell your own commander knows (Stronghold, once each) */
 export interface BuyForgeSpellAction {
     kind: 'buyForgeSpell';
@@ -357,6 +362,7 @@ type ActionVariant =
     | BuyMovePackAbilityAction
     | BuyForgeSpellAction
     | ForgeLightAction
+    | ForgeUnlightAction
     | SellUnitAction
     | MobilizeUnitAction
     | TutorUnitAction
@@ -499,8 +505,8 @@ export interface ActionContext {
      * are logged; burn+grant happens in Game.startBuildPhase (not an action).
      */
     forgeSlots: Record<Team, (ForgeSlot | null)[]>;
-    /** paid-for ovens: set by `forgeLight`, cleared when the oven resolves */
-    forgeLit: Record<Team, boolean>;
+    /** who paid to fire each oven — null = unlit. Cleared when it resolves. */
+    forgeLitBy: Record<Team, SeatId | null>;
     /** which spells this side's commanders unlock — gates the recipe match */
     forgePoolOf: (team: Team) => ForgeSpellPool;
     /** rally routes placed this deployment round (cleared each round) */
@@ -1119,21 +1125,35 @@ export class ActionDispatcher {
                 return true;
             }
             case 'forgeLight': {
-                if (this.ctx.forgeLit[action.team]) return false; // already paid
+                if (this.ctx.forgeLitBy[action.team] !== null) return false; // already paid
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
                 if (!product) return false; // nothing complete to pay for
                 const cost = forgeProductCost(product);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
-                this.ctx.forgeLit[action.team] = true;
+                this.ctx.forgeLitBy[action.team] = seat;
+                return true;
+            }
+            case 'forgeUnlight': {
+                // Only the seat that paid may take it back, which also keeps the
+                // refund honest on a shared oven: an ally cannot cancel your
+                // burn and pocket the supply.
+                if (this.ctx.forgeLitBy[action.team] !== seat) return false;
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                // the oven was sealed while lit, so this is what was paid for
+                const cost = product ? forgeProductCost(product) : 0;
+                economy.credit(seat, cost);
+                entry.paid = cost;
+                this.ctx.forgeLitBy[action.team] = null;
                 return true;
             }
             case 'forgeInsert': {
                 if (!ITEMS[action.itemId]) return false;
                 // a lit oven is paid for: changing its runes would change what
                 // was bought, so it is sealed until it resolves
-                if (this.ctx.forgeLit[action.team]) return false;
+                if (this.ctx.forgeLitBy[action.team] !== null) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
                 if (!forgeSeatCanInsert(oven, seat)) return false;
                 let slot = action.slot;
@@ -1150,7 +1170,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'forgeFill': {
-                if (this.ctx.forgeLit[action.team]) return false; // sealed, see forgeInsert
+                if (this.ctx.forgeLitBy[action.team] !== null) return false; // sealed, see forgeInsert
                 const ids = action.itemIds;
                 if (ids.length === 0 || ids.length > FORGE_SLOTS_PER_PLAYER) return false;
                 for (const id of ids) {
@@ -1184,7 +1204,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'forgeRemove': {
-                if (this.ctx.forgeLit[action.team]) return false; // sealed, see forgeInsert
+                if (this.ctx.forgeLitBy[action.team] !== null) return false; // sealed, see forgeInsert
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const { slot, itemId } = action;
                 if (slot < 0 || slot >= oven.length) return false;
@@ -1631,8 +1651,13 @@ export class ActionDispatcher {
                 break;
             }
             case 'forgeLight':
-                this.ctx.forgeLit[action.team] = false;
+                this.ctx.forgeLitBy[action.team] = null;
                 economy.credit(seat, e.paid!);
+                break;
+            case 'forgeUnlight':
+                // put it back on the fire and take the refund away again
+                economy.spend(seat, e.paid!);
+                this.ctx.forgeLitBy[action.team] = seat;
                 break;
             case 'forgeInsert': {
                 const oven = this.ctx.forgeSlots[action.team]!;
