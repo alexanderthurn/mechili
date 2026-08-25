@@ -1061,6 +1061,13 @@ html, body {
     line-height: 1.5;
     color: ${u.phase};
 }
+/* Rune cards run centred; the tactic cards they share their markup with stay
+   left-aligned, where the longer stat lists read better. */
+.mh-rune .mh-tactic-body {
+    text-align: center;
+    align-items: center;
+}
+
 /* forge ingredients for an advanced rune — its recipe stands in for a price,
    since a forged rune is never sold */
 .mh-rune-recipe {
@@ -1069,6 +1076,7 @@ html, body {
     gap: 6px;
     margin-top: 10px;
     align-items: center;
+    justify-content: center;
 }
 .mh-rune-ingredient {
     width: 28px;

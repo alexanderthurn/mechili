@@ -303,7 +303,7 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
         ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${moneyHtml(DEFAULT_SETTINGS.deploy.baseRuneCost)}</div>`
         : '';
     return `
-<article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
+<article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
   <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(item.icon, 'mh-tactic-tile')}</div>
   <div class="mh-tactic-body">
     <div class="mh-tactic-head">
