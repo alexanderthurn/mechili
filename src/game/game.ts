@@ -272,6 +272,12 @@ const PLAY_START_ZOOM = 110;
 const HP_DRAW_MAX_SECONDS = 8;
 /** Let the last death tip / air crash finish before souls launch. */
 const HP_DRAW_BATTLE_SETTLE = 0.52;
+/**
+ * Longer beat when a Stronghold's lifeline collapse ended the round. The normal
+ * settle is shorter than the collapse ring itself, so the moment that decided
+ * the round would be half-drawn when the HP draw took the screen.
+ */
+const HP_DRAW_COLLAPSE_SETTLE = 2.1;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the
@@ -669,6 +675,8 @@ export class Game {
     private readonly tacticInventory: string[][];
     /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
     /** who paid to fire each oven — null = unlit, cleared when it resolves */
+    /** a lifeline collapse played this battle — hold the round-end beat for it */
+    private collapseEndedRound = false;
     private readonly forgeLitBy: Record<Team, SeatId | null> = { player: null, enemy: null };
     private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
         player: emptyForgeSlots(),
@@ -7565,6 +7573,10 @@ export class Game {
 
     /** Everything is revealed and the sim takes over; the player can only watch. */
     private startBattlePhase(): void {
+        // last round's collapse rings are done being watched; a stale wave would
+        // also gate this battle's debuff tint (see waveRevealsDebuffTint)
+        this.towerDebuffFx.clear();
+        this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
         this.phaseRemaining = this.battleSeconds();
@@ -8219,7 +8231,10 @@ export class Game {
         // high collapse rubble persists into build; timed chips do not
         this.stoneChips.clearTimed();
         this.fireFx.clear(); // instanced flame tongues are battle-only
-        this.towerDebuffFx.clear();
+        // NOT cleared here: a Stronghold's lifeline collapse ends the round in
+        // the same frame it spawns, so tearing its rings down with the sim meant
+        // the round-deciding moment never drew. They finish on their own and are
+        // cleared at the next battle start instead.
         this.hammerFx.clear();
         this.meteorFx.clear();
         this.cloudFx.clear();
@@ -8279,7 +8294,9 @@ export class Game {
         }
         this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
         if (this.pendingHpDrawPlan && this.pendingHpDrawPlan.sources.length > 0) {
-            this.hpDrawSettleRemaining = HP_DRAW_BATTLE_SETTLE;
+            this.hpDrawSettleRemaining = this.collapseEndedRound
+                ? HP_DRAW_COLLAPSE_SETTLE
+                : HP_DRAW_BATTLE_SETTLE;
             // Show the pre-battle HP during the settle beat so the bar doesn't
             // flash down-then-up when beginHpDrawPhase sets its display values.
             const pre = this.pendingHpDrawPreHp!;
@@ -8916,6 +8933,9 @@ export class Game {
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
+                if (battleEvents.some((e) => e.kind === 'towerDebuff' && (e.power ?? 1) > 1)) {
+                    this.collapseEndedRound = true;
+                }
                 this.stampWearFromEvents(battleEvents);
                 for (const ev of battleEvents) {
                     if (ev.kind === 'spellMeteor') {
@@ -8999,6 +9019,9 @@ export class Game {
             }
         }
         if (profile) cpu.begin();
+        // in battle this already ran before the tint gate; out of battle nothing
+        // else advances it, and a collapse outlives the round that caused it
+        if (!this.sim) this.towerDebuffFx.update(gameDt);
         this.particles.update(gameDt);
         this.stoneChips.update(gameDt);
         this.updateForgeFx(gameDt);
