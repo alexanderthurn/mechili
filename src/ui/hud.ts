@@ -269,6 +269,8 @@ export interface SelectionInfo {
         owned: boolean;
         affordable: boolean;
     }[];
+    /** Stronghold: archers on the battlements — one at a time, price climbs */
+    garrison?: { cost: number; owned: number; max: number; affordable: boolean };
     movePackAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
@@ -297,6 +299,7 @@ export class Hud {
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyForgeSpell: ((tacticId: string) => void) | null = null;
+    onBuyGarrisonArcher: (() => void) | null = null;
     onForgeLight: (() => void) | null = null;
     onForgeUnlight: (() => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
@@ -909,6 +912,7 @@ export class Hud {
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
             else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
+            else if (button.dataset.garrison) this.onBuyGarrisonArcher?.();
             else if (button.dataset.forgeLight) this.onForgeLight?.();
             else if (button.dataset.movepack) this.onBuyMovePackAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
@@ -2659,6 +2663,20 @@ export class Hud {
                     : info.movePackAbility.affordable
                       ? 'buy'
                       : 'locked',
+            });
+        }
+        if (info.garrison) {
+            const g = info.garrison;
+            const full = g.owned >= g.max;
+            tiles.push({
+                data: 'data-garrison="1"',
+                icon: 'spec-archer',
+                title: `Garrison ${g.owned}/${g.max}`,
+                desc: full
+                    ? 'Every battlement is manned.'
+                    : 'Post an archer on the battlements. He shoots like any other archer and never leaves his spot — nothing can shoot back at him, but he falls with the keep. Each one costs more than the last.',
+                cost: full ? 0 : g.cost,
+                state: full ? 'owned' : g.affordable ? 'buy' : 'locked',
             });
         }
         for (const spell of info.forgeSpells ?? []) {

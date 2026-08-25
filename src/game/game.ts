@@ -110,6 +110,7 @@ import { AcidFx } from './acidFx';
 import { FireFx, fireUsesTongues } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { StrongholdFlags } from './strongholdFlags';
+import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { CloudFx, type CloudCue } from './cloudFx';
@@ -170,7 +171,14 @@ import { modelGeometryFingerprint } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
-import { createRangeRing, placeRangeRing, pulseAuraRing, PlacementController } from './placement';
+import {
+    createFovWedge,
+    createRangeRing,
+    placeFovWedge,
+    placeRangeRing,
+    pulseAuraRing,
+    PlacementController,
+} from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
 import {
@@ -227,6 +235,10 @@ import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
+    GARRISON_ARCHER,
+    GARRISON_FOV_HALF,
+    GARRISON_SLOTS,
+    GARRISON_STEP_COST,
     STRONGHOLD,
     UNIT_TYPES,
     isPlayerBuyable,
@@ -358,6 +370,7 @@ export class Game {
     private readonly acidFx: AcidFx;
     private readonly forgeFx = new ForgeFx();
     private readonly strongholdFlags = new StrongholdFlags();
+    private readonly strongholdCommanders: StrongholdCommanders;
     private readonly hordeMarkers: HordeMarkers;
     private readonly towerDebuffFx: TowerDebuffFx;
     private readonly collapseFx: StrongholdCollapseFx;
@@ -424,6 +437,7 @@ export class Game {
     private postBattleDeathTimeBase = 0;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
+    private readonly battleFovMesh;
     /** inner dead-zone (min-range) ring under the selected battle mech */
     private readonly battleMinRangeMesh;
     /** gold aura-range ring under a selected battle mech with a special skill */
@@ -1331,11 +1345,13 @@ export class Game {
         this.conversionFx = new ConversionFx(this.scene);
         this.oilDripFx = new OilDripFx(this.scene);
         this.hordeMarkers = new HordeMarkers(this.scene);
+        this.strongholdCommanders = new StrongholdCommanders(this.scene);
         this.oilVisuals = new OilVisuals(this.scene, this.map);
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
         this.applyShadowQuality();
         this.battleRangeMesh = createRangeRing(this.scene);
+        this.battleFovMesh = createFovWedge(this.scene);
         this.battleMinRangeMesh = createRangeRing(this.scene);
         (this.battleMinRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(0xff6a44);
         this.battleAuraMesh = createRangeRing(this.scene);
@@ -1904,6 +1920,12 @@ export class Game {
             if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'forgeUnlight', team: 'player' });
+        };
+        this.hud.onBuyGarrisonArcher = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (!this.playerCanAct) return;
+            this.dispatchPlayer({ kind: 'buyGarrisonArcher', team: 'player' });
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
@@ -2591,6 +2613,7 @@ export class Game {
         this.acidFx.dispose();
         this.hordeMarkers.dispose();
         this.strongholdFlags.dispose();
+        this.strongholdCommanders.dispose();
         this.towerDebuffFx.dispose();
         this.collapseFx.dispose();
         this.stoneChips.dispose();
@@ -7305,6 +7328,17 @@ export class Game {
                 if (unit.type === STRONGHOLD && !unit.destroyed) keeps.push(unit);
             }
         }
+        // The commander is world, not chrome: he stays for cinema shots, so
+        // he gets his own walk rather than riding the UI-hidden list above.
+        const livingKeeps: Unit[] = [];
+        for (const unit of this.placement.allUnits()) {
+            if (unit.type === STRONGHOLD && !unit.destroyed) livingKeeps.push(unit);
+        }
+        this.strongholdCommanders.sync(
+            livingKeeps,
+            (seat) => this.speciality[seat] ?? null,
+            this.settings.strongholdMode === 'lifeline',
+        );
         this.strongholdFlags.update(
             this.time,
             keeps,
@@ -9484,7 +9518,11 @@ export class Game {
     /** the range ring follows the selected battle mech, tinted by its team */
     private updateBattleRangeRing(): void {
         const a = this.phase === 'battle' ? this.selectedActor : null;
-        this.battleRangeMesh.visible = a !== null;
+        // a pack with a field of fire shows the arc it actually covers instead
+        // of a ring that would promise the whole circle
+        const fov = a?.unit.fovYaw ?? null;
+        this.battleRangeMesh.visible = a !== null && fov === null;
+        this.battleFovMesh.visible = a !== null && fov !== null;
         // gold aura ring for a selected mech with a special-ability radius
         const auraRadius = a ? this.auraRadiusOf(a.unit) : null;
         this.battleAuraMesh.visible = a !== null && auraRadius !== null;
@@ -9493,9 +9531,14 @@ export class Game {
         if (!a) return;
         const radius =
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
-        placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
-        const material = this.battleRangeMesh.material as import('three').MeshBasicMaterial;
-        material.color.setHex(colorForBattleTeam(actorTeam(a)).hex);
+        const tint = colorForBattleTeam(actorTeam(a)).hex;
+        if (fov !== null) {
+            placeFovWedge(this.battleFovMesh, a.rx, a.rz, radius, fov, GARRISON_FOV_HALF);
+            (this.battleFovMesh.material as import('three').MeshBasicMaterial).color.setHex(tint);
+        } else {
+            placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
+            (this.battleRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(tint);
+        }
         if (minRange > 0) {
             placeRangeRing(this.battleMinRangeMesh, a.rx, a.rz, minRange + a.unit.type.collisionRadius);
         }
@@ -10044,11 +10087,20 @@ export class Game {
      * battle, own or enemy). Buyable only for your side while you can act.
      * Duo-only actions omit themselves in 1v1; add future abilities here.
      */
+    /** archers this side has posted on its keep — the wall is shared per side */
+    private garrisonCount(team: Team): number {
+        let n = 0;
+        for (const u of this.placement.allUnits()) {
+            if (u.type === GARRISON_ARCHER && u.team === team && !u.consumed) n++;
+        }
+        return n;
+    }
+
     private strongholdSelection(
         u: Unit,
-    ): Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells'> {
+    ): Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'garrison'> {
         if (u.type !== STRONGHOLD) return {};
-        const out: Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells'> = {};
+        const out: Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'garrison'> = {};
         const team: Team = u.team === 'horde' ? 'player' : u.team;
         const teamSeats = seatIdsOf(this.seats, team);
         const canBuy = u.team === 'player' && this.playerCanAct;
@@ -10061,6 +10113,21 @@ export class Game {
                 affordable: canBuy && this.economy.balance(this.humanSeat) >= amount,
             };
         }
+
+        // Battlement archers. Shown on either keep — how many a side has posted
+        // is plain to see on the walls anyway — but priced and buyable for
+        // your own only.
+        const manned = this.garrisonCount(u.team === 'horde' ? 'player' : u.team);
+        const nextCost = GARRISON_STEP_COST * (manned + 1);
+        out.garrison = {
+            cost: nextCost,
+            owned: manned,
+            max: GARRISON_SLOTS.length,
+            affordable:
+                canBuy &&
+                manned < GARRISON_SLOTS.length &&
+                this.economy.balance(this.humanSeat) >= nextCost,
+        };
 
         // Your commander's own three spells, buyable once each. Own side only:
         // these are YOUR picks, and an enemy Stronghold has no business

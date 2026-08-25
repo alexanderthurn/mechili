@@ -51,7 +51,21 @@ import type {
 } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
-import { levelBasisOf, unitTypeById, unitUnlockCost, isPlayerBuyable, type Team, type Unit, type UnitType } from './units';
+import { detAtan2 } from './detMath';
+import {
+    GARRISON_ARCHER,
+    GARRISON_SLOTS,
+    GARRISON_STEP_COST,
+    STRONGHOLD,
+    garrisonSlotWorld,
+    levelBasisOf,
+    unitTypeById,
+    unitUnlockCost,
+    isPlayerBuyable,
+    type Team,
+    type Unit,
+    type UnitType,
+} from './units';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -108,6 +122,11 @@ export interface BuyLevelAction {
     kind: 'buyLevel';
     team: Team;
     unitId: number;
+}
+/** buys one more archer onto this seat's Stronghold battlements */
+export interface BuyGarrisonArcherAction {
+    kind: 'buyGarrisonArcher';
+    team: Team;
 }
 /** raise several packs one level each — one undo peels the whole batch */
 export interface BuyLevelBatchAction {
@@ -355,6 +374,7 @@ type ActionVariant =
     | BuyTechAction
     | BuyLevelAction
     | BuyLevelBatchAction
+    | BuyGarrisonArcherAction
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuySellAbilityAction
@@ -438,6 +458,8 @@ interface LogEntry extends LoggedAction {
     oilStamp?: OilStamp;
     /** placeSpell / removeSpell */
     spellStamp?: SpellStamp;
+    /** buyGarrisonArcher: the archer that was raised (for undo) */
+    garrisonUnit?: Unit;
 }
 
 export interface ActionContext {
@@ -828,6 +850,8 @@ export class ActionDispatcher {
                     balance: economy.balance(seat),
                 });
                 if (!unit || unit.team !== action.team || unit.type.structure) return false;
+                // the wall never levels: the price ladder is its only scaling
+                if (unit.type === GARRISON_ARCHER) return false;
                 if (unit.level >= leveling.maxLevel) return false;
                 if (unit.xp < threshold) return false;
                 if (!economy.spend(seat, cost)) return false;
@@ -838,11 +862,44 @@ export class ActionDispatcher {
                 unit.refreshLevelBadge();
                 return true;
             }
+            case 'buyGarrisonArcher': {
+                // The side shares its keep, so the wall is filled and priced
+                // per SIDE, not per seat — an ally buying the third archer
+                // pays for the third, not for their own first.
+                const keep = placement
+                    .allUnits()
+                    .find((u) => u.type === STRONGHOLD && u.team === action.team && !u.destroyed);
+                if (!keep) return false;
+                const taken = placement
+                    .allUnits()
+                    .filter((u) => u.type === GARRISON_ARCHER && u.team === action.team).length;
+                if (taken >= GARRISON_SLOTS.length) return false;
+                const spot = garrisonSlotWorld(keep, GARRISON_SLOTS[taken]!);
+                if (!spot) return false; // keep model has no authored slots
+                const cost = GARRISON_STEP_COST * (taken + 1);
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                const archer = placement.spawnAtWorld(
+                    GARRISON_ARCHER,
+                    spot.x,
+                    spot.z,
+                    action.team,
+                    seat,
+                );
+                archer.pinnedY = spot.y;
+                // outward from the keep's middle — the wedge behind him is the
+                // keep itself, and he does not shoot through his own walls
+                archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+                archer.seatMembers();
+                entry.garrisonUnit = archer;
+                return true;
+            }
             case 'buyLevelBatch': {
                 const batch: { unitId: number; paid: number; xpBefore: number }[] = [];
                 for (const unitId of action.unitIds) {
                     const unit = placement.unitById(unitId);
                     if (!unit || unit.team !== action.team || unit.type.structure) break;
+                    if (unit.type === GARRISON_ARCHER) break;
                     if (unit.level >= leveling.maxLevel) break;
                     const threshold = xpForNextLevel(unit, economy, leveling);
                     if (unit.xp < threshold) break;
@@ -935,6 +992,8 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
+                // a battlement archer is part of the keep, not a pack you trade
+                if (unit.type === GARRISON_ARCHER) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1514,6 +1573,11 @@ export class ActionDispatcher {
                 unit.level--;
                 unit.xp = e.xpBefore!;
                 unit.refreshLevelBadge();
+                economy.credit(seat, e.paid!);
+                break;
+            }
+            case 'buyGarrisonArcher': {
+                if (e.garrisonUnit) placement.removeUnit(e.garrisonUnit);
                 economy.credit(seat, e.paid!);
                 break;
             }

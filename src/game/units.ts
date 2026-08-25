@@ -67,7 +67,15 @@ function makeWardRuneTexture(): CanvasTexture {
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { cloneUnitModel, getUnitVisualHeight, hasUnitModel, loadUnitModels, seedUnitVisualHeight } from './unitModels';
+import {
+    attackNodeWorld,
+    cloneUnitModel,
+    getUnitSlotLocal,
+    getUnitVisualHeight,
+    hasUnitModel,
+    loadUnitModels,
+    seedUnitVisualHeight,
+} from './unitModels';
 import {
     computeCrowWingRate,
     CROW_RIDER_MODEL_ID,
@@ -705,6 +713,80 @@ export const RESEARCH_CENTER = makeTower('research-center', 'Garrison');
 /** each side's main castle at the back of its territory — bigger and sturdier */
 export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 3000);
 
+/**
+ * An archer bought onto the keep's battlements. Shoots exactly like the pack
+ * archer — same bow, same numbers — and differs in three ways only: he cannot
+ * move (`speed: 0`), nothing can shoot him (`colliders: []`, the Ward Stone's
+ * trick), and he stands on an authored `UnitN` slot rather than the grid, via
+ * {@link Unit.pinnedY}. He is deliberately not in UNIT_TYPES: the shop must
+ * never offer him, he is bought from the Stronghold panel one at a time.
+ */
+export const GARRISON_ARCHER: UnitType = {
+    id: 'garrison-archer',
+    name: 'Garrison Archer',
+    // reuses the archer GLB — no second model, and no new fingerprint entry
+    modelId: 'archer',
+    cost: 100,
+    footprint: { cols: 1, rows: 1 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 2.2,
+    burn: { takenMult: 1.1 },
+    targets: { ground: true, air: true },
+    collisionRadius: 1.0,
+    /**
+     * `extra` is what makes him unshootable — the sim's own "not a target"
+     * flag, the same one the Ward Stone uses, honoured by every targeting,
+     * splash, blast and burn path. His colliders stay REAL: the mouse picker
+     * builds its pick spheres from this list too, and an empty one made him
+     * impossible to click as well as impossible to shoot.
+     */
+    extra: true,
+    colliders: [{ y: 1.1, r: 0.75 }],
+    projectileSpeed: 100,
+    projectileStyle: 'arrow',
+    projectileBallistic: true,
+    projectileLaunchHeightFrac: 0.75,
+    hp: 130,
+    damage: 65,
+    range: 45,
+    attackInterval: 1.4,
+    speed: 0,
+    turnRate: 6,
+    build: buildArcher,
+};
+
+/**
+ * World position of one of a keep's authored standing spots.
+ *
+ * Deliberately the BAKED path only — never the live `getObjectByName` lookup
+ * the commander's decoration uses. This feeds where a garrison archer stands
+ * and therefore what he can shoot, so it has to come out identical on every
+ * peer from the action log alone, with no reference to view state.
+ */
+export function garrisonSlotWorld(keep: Unit, slot: number): { x: number; y: number; z: number } | null {
+    const local = getUnitSlotLocal(keep.type.id, slot);
+    if (!local) return null;
+    const footY = worldHeightAt(keep.world.x, keep.world.z) + GROUND_UNIT_Y;
+    return attackNodeWorld(
+        local,
+        keep.world.x,
+        footY,
+        keep.world.z,
+        keep.facing,
+        keep.visualMeshScale(),
+    );
+}
+
+/** How many archers a keep's battlements hold — `Unit5` is the commander's. */
+export const GARRISON_SLOTS = [1, 2, 3, 4] as const;
+/**
+ * Half of a garrison archer's field of fire: 135° each side of outward, so he
+ * covers 270° and the 90° wedge pointing back into the keep is dead.
+ */
+export const GARRISON_FOV_HALF = (Math.PI * 3) / 4;
+/** first archer 1, second 2, third 3, fourth 4 — TEST PRICING, raise to 100 */
+export const GARRISON_STEP_COST = 1;
+
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
 export const SHIELD_HEIGHT = 17;
@@ -1176,6 +1258,25 @@ export class Unit {
      * unit yet, and it is ignored when other units pick a facing target.
      */
     revealed = true;
+    /**
+     * Absolute world Y this pack is pinned to, instead of standing on the
+     * terrain under it — a garrison archer up on his keep's battlement. Set
+     * once when the pack is created and never animated: he does not bob, climb
+     * or walk, so every consumer can treat it as a constant.
+     */
+    /**
+     * Spawned straight into the world with no grid cell — {@link Unit.cell} is
+     * a {0,0} placeholder and must never be used to position anything.
+     */
+    gridless = false;
+    pinnedY: number | null = null;
+    /**
+     * Outward direction this pack may shoot along, as `detAtan2(dx, dz)` of the
+     * vector from the building's middle to its slot. A garrison archer covers
+     * {@link GARRISON_FOV_HALF} to either side of it; the wedge behind him is
+     * his own keep, and he does not fire arrows through it.
+     */
+    fovYaw: number | null = null;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
     /**
@@ -1356,6 +1457,12 @@ export class Unit {
         const rocketAlt = this.type.rocket ? this.flightCeiling() : undefined;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
+            if (this.pinnedY != null) {
+                // absolute, like the rocket below — the battlement he stands on
+                // is not the ground beneath him
+                m.mesh.position.y = this.pinnedY;
+                continue;
+            }
             if (rocketAlt != null) {
                 m.mesh.position.y = rocketAlt;
                 continue;
@@ -1560,6 +1667,9 @@ export class Unit {
         // battle owns per-mech Y via BattleSim — don't overwrite walkers with
         // the pack's home-slot height or they sink into (or float over) hills
         if (this.type.structure || !this.inDeployment) return;
+        // pinned packs never bob or re-seat — seatMembers already put them on
+        // their spot, and the idle sway would float them off it
+        if (this.pinnedY != null) return;
         const base = this.memberBaseY();
         const amplitude = 0.04;
         const ox = this.view.position.x;
@@ -1823,6 +1933,7 @@ export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'
 
 /** type lookup by id — actions and replays store unit types as strings */
 export function unitTypeById(id: string): UnitType | null {
+    if (id === GARRISON_ARCHER.id) return GARRISON_ARCHER;
     if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;

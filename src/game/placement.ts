@@ -1,5 +1,7 @@
 import {
     BoxGeometry,
+    BufferAttribute,
+    BufferGeometry,
     CanvasTexture,
     Color,
     ConeGeometry,
@@ -26,7 +28,7 @@ import {
     TargetPreviewVisuals,
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
-import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { GARRISON_ARCHER, GARRISON_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -97,6 +99,77 @@ export function createRangeRing(scene: Scene): Mesh {
     mesh.visible = false;
     scene.add(mesh);
     return mesh;
+}
+
+/** arc resolution of the field-of-fire band */
+const FOV_SEGMENTS = 64;
+/** matches RingGeometry(0.985, 1) — the same hairline the range ring uses */
+const FOV_INNER = 0.985;
+
+/**
+ * The covered sector for a pack that can only shoot through part of the circle
+ * — a garrison archer, whose own keep fills the rest. Deliberately the SAME
+ * hairline band the range ring is: it is the same piece of information, and it
+ * should not look like a different feature. The gap is where he cannot shoot.
+ */
+export function createFovWedge(scene: Scene): Mesh {
+    const geo = new BufferGeometry();
+    const rim = FOV_SEGMENTS + 1;
+    geo.setAttribute('position', new BufferAttribute(new Float32Array(rim * 2 * 3), 3));
+    const idx: number[] = [];
+    for (let i = 0; i < FOV_SEGMENTS; i++) {
+        const a = i * 2;
+        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    geo.setIndex(idx);
+    const mesh = new Mesh(
+        geo,
+        new MeshBasicMaterial({
+            color: VALID_COLOR,
+            transparent: true,
+            opacity: 0.4,
+            side: DoubleSide,
+            depthWrite: false,
+        }),
+    );
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    scene.add(mesh);
+    return mesh;
+}
+
+/**
+ * Rebuild the band over `yaw` ± `half`. Unit-radius vertices scaled like the
+ * ring, with Y draped in world units (scale.y stays 1), so it hugs the relief
+ * exactly the way {@link placeRangeRing} does.
+ */
+export function placeFovWedge(
+    mesh: Mesh,
+    x: number,
+    z: number,
+    radius: number,
+    yaw: number,
+    half: number,
+): void {
+    const anchorY = groundHeightAt(x, z);
+    const pos = mesh.geometry.attributes.position as BufferAttribute;
+    for (let i = 0; i <= FOV_SEGMENTS; i++) {
+        // matches fovYaw's own convention, detAtan2(dx, dz)
+        const a = yaw - half + (i / FOV_SEGMENTS) * half * 2;
+        const sx = Math.sin(a);
+        const sz = Math.cos(a);
+        for (let k = 0; k < 2; k++) {
+            const r = k === 0 ? FOV_INNER : 1;
+            const wx = x + sx * r * radius;
+            const wz = z + sz * r * radius;
+            pos.setXYZ(i * 2 + k, sx * r, groundHeightAt(wx, wz) - anchorY, sz * r);
+        }
+    }
+    pos.needsUpdate = true;
+    mesh.position.set(x, 0.12 + anchorY, z);
+    mesh.scale.set(radius, 1, radius);
+    mesh.renderOrder = 10;
+    mesh.visible = true;
 }
 
 /**
@@ -264,6 +337,7 @@ export class PlacementController {
     private readonly hoverMaterial: MeshBasicMaterial;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
+    private readonly fovMesh: Mesh;
     /** inner ring showing a ranged pack's min range (dead zone) */
     private readonly minRangeMesh: Mesh;
     /** gold ring showing a pack's special-ability aura radius (Golden Aura) */
@@ -343,6 +417,7 @@ export class PlacementController {
 
         // attack range ring for the selected own pack (unit radius, scaled per unit)
         this.rangeMesh = createRangeRing(scene);
+        this.fovMesh = createFovWedge(scene);
         // inner dead-zone ring (min range)
         this.minRangeMesh = createRangeRing(scene);
         (this.minRangeMesh.material as MeshBasicMaterial).color.setHex(MIN_RANGE_COLOR);
@@ -692,6 +767,9 @@ export class PlacementController {
 
     /** repositioning is allowed only in the round the pack was deployed (extras included) */
     canReposition(unit: Unit): boolean {
+        // a garrison archer is bolted to his battlement slot — he is not on the
+        // grid at all, so there is nowhere for a drag to put him down
+        if (unit.type === GARRISON_ARCHER) return false;
         return (
             (!unit.type.structure || !!unit.type.extra) &&
             unit.deployedRound === this.currentRound
@@ -981,6 +1059,9 @@ export class PlacementController {
         // is fine for a unit that never occupies a grid cell at all
         const actorSeat = team === 'horde' ? -1 : (seat ?? primarySeatOf(this.roster, team));
         const unit = new Unit(type, { col: 0, row: 0 }, team, new Vector3(x, 0, z), false);
+        // that {0,0} cell is a placeholder, not a position — anything drawing
+        // from a unit's cell has to know not to trust it
+        unit.gridless = true;
         unit.seat = actorSeat;
         if (team === 'horde') {
             unit.id = HORDE_ID_BASE + ++this.nextHordeId;
@@ -1134,7 +1215,10 @@ export class PlacementController {
     beginBattle(): void {
         for (const u of this.units) {
             u.setDeployment(false);
-            if (u.type.rocket) u.seatMembers();
+            // rockets are already at combat altitude, and a pinned pack owns an
+            // absolute Y of its own — both must be re-seated rather than left
+            // to the ground-hugging path
+            if (u.type.rocket || u.pinnedY != null) u.seatMembers();
         }
     }
 
@@ -2176,6 +2260,7 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+        this.fovMesh.visible = false;
         this.minRangeMesh.visible = false;
         this.auraMesh.visible = false;
         this.itemDropHovering = false;
@@ -2302,7 +2387,14 @@ export class PlacementController {
             if (snap) this.applySnapshotPose(sel, snap);
             else sel.view.position.copy(world);
             sel.seatMembers(world.x, world.z);
-            const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
+            // A pack spawned straight into the world (garrison archer, horde
+            // ring) has no grid cell — spawnAtWorld stores a {0,0} placeholder.
+            // Reading it here put the selection plate and the range marker in
+            // the corner of the board instead of under the unit, which is why
+            // clicking a garrison archer showed nothing at all.
+            const center = sel.gridless
+                ? new Vector3(world.x, world.y, world.z)
+                : this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
             this.placeFootprintPlate(
                 this.hoverMesh,
                 this.hoverMaterial,
@@ -2318,7 +2410,18 @@ export class PlacementController {
         // attack range ring for own packs (follows the carried position)
         if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
-            placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
+            if (sel.fovYaw != null) {
+                placeFovWedge(
+                    this.fovMesh,
+                    markerCenter.x,
+                    markerCenter.z,
+                    radius,
+                    sel.fovYaw,
+                    GARRISON_FOV_HALF,
+                );
+            } else {
+                placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
+            }
             // inner dead-zone ring for units with a min range
             const minRange = this.minRangeOf?.(sel) ?? 0;
             if (minRange > 0) {

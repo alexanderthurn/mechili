@@ -23,7 +23,7 @@ export function hypot(x: number, y: number, z = 0): number {
 }
 
 /** Wrap to (−π, π]. `Math.floor` is exact, so this is too. */
-function wrapPi(a: number): number {
+export function wrapPi(a: number): number {
     const twoPi = Math.PI * 2;
     return a - twoPi * Math.floor((a + Math.PI) / twoPi);
 }

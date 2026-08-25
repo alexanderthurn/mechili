@@ -20,7 +20,7 @@ import {
 } from './fire';
 import { ITEMS } from './items';
 import type { SeatId } from './seats';
-import { detAtan2, detCos, detSin, hypot } from './detMath';
+import { detAtan2, detCos, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
@@ -40,6 +40,8 @@ import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
     RESEARCH_CENTER,
+    GARRISON_ARCHER,
+    GARRISON_FOV_HALF,
     STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
@@ -877,9 +879,13 @@ export class BattleSim {
                     radius: unit.type.collisionRadius,
                     index: 0,
                     hurtTimer: 0,
-                    altitude: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
-                    prevAltitude: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
-                    footY: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    // a pinned pack (garrison archer on his battlement) owns
+                    // its own absolute Y — feetY already returns altitude
+                    // verbatim whenever it is above zero
+                    altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    prevAltitude:
+                        unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    footY: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
                     rocketTarget: null,
                     goldenUntil: 0,
                     stormDebuffUntil: 0,
@@ -1767,7 +1773,7 @@ export class BattleSim {
         const levelMult = this.levelMult(child);
         const maxHp = stats.hp * levelMult;
         const shieldMax = hasShieldHp(child, this.config.hasTech) ? maxHp : 0;
-        const alt = effectiveFlying(child.type, child.seat, this.config.hasTech);
+        const alt = child.pinnedY ?? effectiveFlying(child.type, child.seat, this.config.hasTech);
         let nth = 0;
         const firstActorIdx = this.actors.length;
         for (const m of child.members) {
@@ -2772,7 +2778,12 @@ export class BattleSim {
             // climb from deployment hover (ground + DEPLOY_AIR_Y) to the combat
             // air layer via unit.flightLift — battle used to snap to altitude
             // immediately, which read as a teleport especially on hills
-            const lift = a.unit.flightLift;
+            // A pinned pack is already exactly where it belongs — it never
+            // climbed out of a deployment hover, so it must not be lerped from
+            // one. Without this the garrison archer's lift stays 0 (tickFlight
+            // only ramps real flyers) and the climb resolves to ground level:
+            // he renders inside his own keep and shoots from in there.
+            const lift = a.unit.pinnedY != null ? 1 : a.unit.flightLift;
             const fromY = worldHeightAt(a.rx, a.rz) + DEPLOY_AIR_Y;
             const hoverY = fromY + (a.altitude - fromY) * lift;
             const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
@@ -2790,10 +2801,15 @@ export class BattleSim {
                 destZ = a.stompVictim.rz;
                 destY = a.stompVictim.footY + a.stompVictim.unit.type.meshScale * 0.55;
             }
-            a.mesh.position.y =
-                hoverY +
-                (destY - hoverY) * stomp.drop +
-                (stomp.drop < 0.02 ? Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift : 0);
+            // Idle hover sway — for things that actually hover. A pinned pack is
+            // standing on stone, and lift is 1 for it by construction, so
+            // without this exclusion it drifts a third of a unit up and down
+            // on its own battlement.
+            const hoverBob =
+                a.unit.pinnedY != null || stomp.drop >= 0.02
+                    ? 0
+                    : Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
+            a.mesh.position.y = hoverY + (destY - hoverY) * stomp.drop + hoverBob;
             if (a.stompAir && stomp.drop > 0.01) {
                 a.mesh.position.x += (destX - a.rx) * stomp.drop;
                 a.mesh.position.z += (destZ - a.rz) * stomp.drop;
@@ -2983,6 +2999,16 @@ export class BattleSim {
         if (t.structure) {
             if (razed) target.unit.razed = true;
             target.unit.markDestroyed(knockDir ?? undefined);
+            // The garrison cannot be shot at — the keep under it is the only
+            // way in, so when the keep goes the wall goes with it. Killed with
+            // no killer: the besieger earned the Stronghold, not four archers.
+            if (target.unit.type === STRONGHOLD) {
+                for (const a of this.actors) {
+                    if (!a.alive || a.unit.type !== GARRISON_ARCHER) continue;
+                    if (a.unit.seat !== target.unit.seat) continue;
+                    this.kill(a, null, a.maxHp, undefined, true);
+                }
+            }
             if (this.isDebuffBuilding(target.unit) && !razed) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
                 // half tower height — tallest collider × meshScale / 2
@@ -4435,6 +4461,17 @@ export class BattleSim {
      * Uses an expanding-ring spatial search over {@link targetHash} (rebuilt
      * at step start) so cost stays near O(k) instead of O(n) per mech.
      */
+    /**
+     * A pack with a field of fire only sees foes inside it. Everyone else has
+     * `fovYaw` null and sees the whole board, so this is free for them.
+     */
+    private inFieldOfFire(from: Actor, target: Actor): boolean {
+        const fov = from.unit.fovYaw;
+        if (fov == null) return true;
+        const ang = detAtan2(target.x - from.x, target.z - from.z);
+        return Math.abs(wrapPi(ang - fov)) <= GARRISON_FOV_HALF;
+    }
+
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
         const layer = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
         const wantAir = anyLayer || layer.air;
@@ -4445,6 +4482,7 @@ export class BattleSim {
             cached.alive &&
             actorTeam(cached) !== actorTeam(from) &&
             !cached.unit.type.extra &&
+            this.inFieldOfFire(from, cached) &&
             (cached.altitude > 0 ? wantAir : wantGround);
 
         const stats = this.resolved.get(from.unit)!;
@@ -4463,6 +4501,7 @@ export class BattleSim {
             const d2 = dx * dx + dz * dz;
             if (d2 > reach * reach) return false;
             if (inDeadZone(cached)) return false;
+            if (!this.inFieldOfFire(from, cached)) return false;
             return true;
         };
 
@@ -4494,6 +4533,7 @@ export class BattleSim {
         const consider = (a: Actor): void => {
             if (!a.alive || actorTeam(a) === team) return;
             if (a.altitude > 0 ? !wantAir : !wantGround) return;
+            if (!this.inFieldOfFire(from, a)) return;
             const ddx = a.x - from.x;
             const ddz = a.z - from.z;
             const d = ddx * ddx + ddz * ddz;
