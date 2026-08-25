@@ -849,8 +849,6 @@ export class ActionDispatcher {
                     balance: economy.balance(seat),
                 });
                 if (!unit || unit.team !== action.team || unit.type.structure) return false;
-                // the wall never levels: the price ladder is its only scaling
-                if (unit.type === GARRISON_ARCHER) return false;
                 if (unit.level >= leveling.maxLevel) return false;
                 if (unit.xp < threshold) return false;
                 if (!economy.spend(seat, cost)) return false;
@@ -899,7 +897,6 @@ export class ActionDispatcher {
                 for (const unitId of action.unitIds) {
                     const unit = placement.unitById(unitId);
                     if (!unit || unit.team !== action.team || unit.type.structure) break;
-                    if (unit.type === GARRISON_ARCHER) break;
                     if (unit.level >= leveling.maxLevel) break;
                     const threshold = xpForNextLevel(unit, economy, leveling);
                     if (unit.xp < threshold) break;
