@@ -277,7 +277,7 @@ const HP_DRAW_BATTLE_SETTLE = 0.52;
  * settle is shorter than the collapse ring itself, so the moment that decided
  * the round would be half-drawn when the HP draw took the screen.
  */
-const HP_DRAW_COLLAPSE_SETTLE = 2.1;
+const HP_DRAW_COLLAPSE_SETTLE = 2.6;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the

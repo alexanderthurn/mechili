@@ -586,7 +586,7 @@ export type SimEvent =
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
 /** how much louder a Stronghold's lifeline collapse is than a tower's fall */
-const STRONGHOLD_FALL_POWER = 2.6;
+const STRONGHOLD_FALL_POWER = 3.2;
 /** overkill fed to a lifeline death, as a multiple of the victim's own max hp —
  *  drives the tip-over flop and, for flyers, how far the wreck is thrown */
 const COLLAPSE_OVERKILL = 4;

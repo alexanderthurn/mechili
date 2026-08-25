@@ -30,7 +30,11 @@ const FLASH_CLEARANCE = 1.8;
 /** peak flash radius (matches update scale: 6 + 16) — used for height sampling */
 const FLASH_MAX_RADIUS = 22;
 const COLUMN_HEIGHT = 28;
-const MAX_ACTIVE = 6;
+const MAX_ACTIVE = 10;
+/** a Stronghold's collapse throws this many rings instead of one */
+const COLLAPSE_RINGS = 4;
+/** gap between them — each starts as the one before is well underway */
+const COLLAPSE_RING_GAP = 0.26;
 
 type Wave = {
     mesh: Mesh;
@@ -44,6 +48,8 @@ type Wave = {
     dirX: number;
     dirZ: number;
     stretch: number;
+    /** fired once when this ring starts rolling — the rumble that keeps coming */
+    shake?: { intensity: number; duration: number; frequency: number } | null;
 };
 
 type Column = {
@@ -185,7 +191,7 @@ export class TowerDebuffFx {
     }
 
     private spawn(e: Extract<SimEvent, { kind: 'towerDebuff' }>): void {
-        while (this.waves.length >= MAX_ACTIVE) {
+        while (this.waves.length + COLLAPSE_RINGS > MAX_ACTIVE) {
             this.retireWave(this.waves[0]!);
             if (this.columns[0]) this.retireColumn(this.columns[0]);
             if (this.flashes[0]) this.retireFlash(this.flashes[0]);
@@ -258,7 +264,10 @@ export class TowerDebuffFx {
         this.columns.push({ mesh: column, mat: colMat, age: 0, groundY: gy });
 
         // --- spreading wave (starts after WAVE_DELAY) ---
-        const waveMat = this.makeTeamMat(
+        // built per ring: a collapse throws several, and each needs its own
+        // material because they are at different points in their expansion
+        const makeWaveMat = () =>
+            this.makeTeamMat(
             teamColor,
             {
                 uProgress: { value: 0 },
@@ -295,27 +304,47 @@ export class TowerDebuffFx {
                 }
             `,
         );
-        const wave = new Mesh(this.waveGeo, waveMat);
-        wave.position.set(e.x, e.y, e.z);
-        wave.scale.set(0.01, 1, 0.01);
-        wave.visible = false;
-        wave.frustumCulled = false;
-        wave.renderOrder = 4;
-        this.scene.add(wave);
-        this.waves.push({
-            mesh: wave,
-            mat: waveMat,
-            age: 0,
-            // a bigger blast rolls out for longer rather than merely faster
-            duration: WAVE_DURATION * (1 + (power - 1) * 0.35),
-            maxRadius: this.boardCoverRadius(e.x, e.z),
-            seat: e.seat,
-            originX: e.x,
-            originZ: e.z,
-            dirX: dir.x,
-            dirZ: dir.y,
-            stretch: SIDEWAYS_STRETCH,
-        });
+        // One ring is a tower falling over. A keep coming down throws a stack of
+        // them, each starting as the one before is well underway, so the ground
+        // keeps breaking instead of pulsing once and stopping.
+        const rings = power > 1 ? COLLAPSE_RINGS : 1;
+        const cover = this.boardCoverRadius(e.x, e.z);
+        for (let r = 0; r < rings; r++) {
+            const waveMat = makeWaveMat();
+            const wave = new Mesh(this.waveGeo, waveMat);
+            wave.position.set(e.x, e.y, e.z);
+            wave.scale.set(0.01, 1, 0.01);
+            wave.visible = false;
+            wave.frustumCulled = false;
+            wave.renderOrder = 4;
+            this.scene.add(wave);
+            this.waves.push({
+                mesh: wave,
+                mat: waveMat,
+                // negative age holds the later rings back
+                age: -r * COLLAPSE_RING_GAP,
+                // a bigger blast rolls out for longer rather than merely faster,
+                // and each ring behind the first runs a little slower and wider
+                duration: WAVE_DURATION * (1 + (power - 1) * 0.35) * (1 + r * 0.18),
+                maxRadius: cover * (1 + r * 0.12),
+                seat: e.seat,
+                originX: e.x,
+                originZ: e.z,
+                dirX: dir.x,
+                dirZ: dir.y,
+                stretch: SIDEWAYS_STRETCH,
+                // the first ring's kick is the one fired below with the burst;
+                // the rest kick as they launch, which is the rolling rumble
+                shake:
+                    r === 0
+                        ? null
+                        : {
+                              intensity: (1.4 + e.level * 0.15) * power * (1 - r * 0.18),
+                              duration: 0.55,
+                              frequency: 26,
+                          },
+            });
+        }
 
         // particles: upward spike first, then outward skirt. Counts take the
         // full multiplier; speed and reach take its root, so a louder blast
@@ -393,6 +422,10 @@ export class TowerDebuffFx {
             if (local < 0) {
                 w.mesh.visible = false;
                 continue;
+            }
+            if (w.shake) {
+                screenShake(w.shake);
+                w.shake = null; // once, as it launches
             }
             w.mesh.visible = true;
             const t = Math.min(1, local / w.duration);
