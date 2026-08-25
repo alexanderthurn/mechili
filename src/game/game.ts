@@ -6369,8 +6369,16 @@ export class Game {
         // flat, and after the item loop on purpose — a speed rune multiplies
         // the unit's own speed, not the commander's gift (same rule as the
         // one-round Vanguard boost below)
-        if (spec === 'speed' && !type.structure) stats.speed += SPEED_COMMANDER_BONUS;
-        if (opts.speedBoost) stats.speed += rb.speedBoost;
+        // Flat speed only reaches things that already move. A type with
+        // speed 0 is immobile BY DESIGN — a garrison archer bolted to his
+        // battlement — and handing it +3 does not make it faster, it makes it
+        // leave: he walks off the wall toward the enemy, still pinned at
+        // battlement height, which is a man strolling through the air.
+        const mobile = type.speed > 0;
+        if (spec === 'speed' && !type.structure && mobile) {
+            stats.speed += SPEED_COMMANDER_BONUS;
+        }
+        if (opts.speedBoost && mobile) stats.speed += rb.speedBoost;
         if (opts.rangeBoost && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;
     }
